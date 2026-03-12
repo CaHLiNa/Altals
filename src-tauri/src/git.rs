@@ -73,7 +73,7 @@ pub async fn git_add_all(repo_path: String) -> Result<(), String> {
 pub async fn git_commit(repo_path: String, message: String) -> Result<String, String> {
     let repo = open_repo(&repo_path)?;
     let sig =
-        Signature::now("Shoulders", "shoulders@local").map_err(|e| e.message().to_string())?;
+        Signature::now("Altals", "altals@local").map_err(|e| e.message().to_string())?;
 
     let mut index = repo.index().map_err(|e| e.message().to_string())?;
     let tree_oid = index
@@ -827,7 +827,7 @@ pub async fn git_merge_remote(
     // Create merge commit
     let sig = repo
         .signature()
-        .unwrap_or_else(|_| Signature::now("Shoulders", "shoulders@local").unwrap());
+        .unwrap_or_else(|_| Signature::now("Altals", "altals@local").unwrap());
 
     let mut index = repo.index().map_err(|e| e.message().to_string())?;
     let tree_oid = index

@@ -2,8 +2,7 @@
 // GitHub redirects here after user authorizes the OAuth app
 // Exchanges the code for a GitHub access token, stores it for desktop polling
 
-import { hashToken } from '../../../../utils/auth.js'
-import { setGitHubToken, markCodeUsed, isCodeUsed, verifyOAuthNonce } from '../../../../utils/githubTokenStore.js'
+import { hashValue, setGitHubToken, markCodeUsed, isCodeUsed, verifyOAuthNonce } from '../../../../utils/githubTokenStore.js'
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html>
@@ -12,7 +11,7 @@ const SUCCESS_HTML = `<!DOCTYPE html>
   <div style="text-align: center;">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ece6a" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     <h2>GitHub Connected</h2>
-    <p>You can close this window and return to Shoulders.</p>
+    <p>You can close this window and return to the desktop app.</p>
   </div>
   <script>setTimeout(() => window.close(), 3000)</script>
 </body>
@@ -99,7 +98,7 @@ export default defineEventHandler(async (event) => {
 
   // Store in memory for desktop polling (2 min TTL, one-time read)
   // Use the original state (what the desktop client knows) for the hash
-  const stateHash = hashToken(originalState)
+  const stateHash = hashValue(originalState)
   setGitHubToken(stateHash, {
     token: ghToken,
     login: ghUser.login,
@@ -109,7 +108,6 @@ export default defineEventHandler(async (event) => {
     avatarUrl: ghUser.avatar_url,
   })
 
-  // Return a success page that auto-closes
   setHeader(event, 'Content-Type', 'text/html')
   return SUCCESS_HTML
 })

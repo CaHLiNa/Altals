@@ -1,23 +1,12 @@
 // POST /api/v1/auth/github/poll
-// Desktop polls for GitHub token by state (requires Shoulders auth)
+// Desktop polls for GitHub token by state
 
-import { hashToken, verifyToken } from '../../../../utils/auth.js'
-import { getGitHubToken } from '../../../../utils/githubTokenStore.js'
+import { getGitHubToken, hashValue } from '../../../../utils/githubTokenStore.js'
 
 export default defineEventHandler(async (event) => {
-  // Require Bearer token authentication
-  const authHeader = getHeader(event, 'authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    setResponseStatus(event, 401)
-    return { error: 'Authentication required' }
-  }
-
-  const token = authHeader.slice(7)
-  const payload = await verifyToken(token)
-  if (!payload) {
-    setResponseStatus(event, 401)
-    return { error: 'Invalid or expired token' }
-  }
+  setHeader(event, 'Access-Control-Allow-Origin', '*')
+  setHeader(event, 'Access-Control-Allow-Headers', 'Content-Type')
+  setHeader(event, 'Access-Control-Allow-Methods', 'POST, OPTIONS')
 
   const { state } = await readBody(event)
 
@@ -26,7 +15,7 @@ export default defineEventHandler(async (event) => {
     return { error: 'State is required' }
   }
 
-  const stateHash = hashToken(state)
+  const stateHash = hashValue(state)
   const data = getGitHubToken(stateHash)
 
   if (!data) {

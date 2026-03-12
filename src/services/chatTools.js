@@ -6,7 +6,6 @@ import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { nanoid } from '../stores/utils'
 import { extractDocumentText, extractBlockList } from './docxContext'
-import { SHOULDERS_SEARCH_URL } from './apiClient'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 
 // External tools that transmit data to third-party services
@@ -154,73 +153,30 @@ async function _resolveSearchAccess(workspace) {
   if (workspace?.apiKeys?.EXA_API_KEY) {
     return { route: 'direct', key: workspace.apiKeys.EXA_API_KEY }
   }
-  if (workspace?.shouldersAuth?.token) {
-    await workspace.ensureFreshToken()
-    if (workspace.shouldersAuth?.token) {
-      return { route: 'shoulders', token: workspace.shouldersAuth.token }
-    }
-  }
   return null
 }
 
-const EXA_NOT_CONFIGURED = 'This tool is not configured yet. To enable web search and URL fetching, the user can either add an Exa API key in Settings > Tools, or sign in to a Shoulders account in Settings > Account.'
+const EXA_NOT_CONFIGURED = 'This tool is not configured yet. To enable web search and URL fetching, add an Exa API key in Settings > Tools.'
 
 async function _callExa(action, body, workspace) {
   const access = await _resolveSearchAccess(workspace)
   if (!access) return null
 
-  let response
-  if (access.route === 'direct') {
-    response = await invoke('proxy_api_call', {
-      request: {
-        url: `https://api.exa.ai/${action}`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': access.key },
-        body: JSON.stringify(body),
-      },
-    })
-  } else {
-    response = await invoke('proxy_api_call', {
-      request: {
-        url: SHOULDERS_SEARCH_URL,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.token}` },
-        body: JSON.stringify({ action, ...body }),
-      },
-    })
-  }
+  const response = await invoke('proxy_api_call', {
+    request: {
+      url: `https://api.exa.ai/${action}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': access.key },
+      body: JSON.stringify(body),
+    },
+  })
 
-  const data = JSON.parse(response)
-
-  if (data._shoulders) {
-    if (workspace.shouldersAuth) {
-      workspace.shouldersAuth.credits = data._shoulders.credits
-    }
-    const costCents = data._shoulders.cost_cents || 0
-    if (costCents > 0) {
-      const { useUsageStore } = await import('../stores/usage')
-      useUsageStore().record({
-        usage: { total: 0, cost: costCents / 100, input_total: 0, output: 0 },
-        feature: 'search',
-        provider: 'shoulders',
-        modelId: action,
-      })
-    }
-    delete data._shoulders
-  }
-
-  return data
+  return JSON.parse(response)
 }
 
 async function _resolveOpenAlexAccess(workspace) {
   if (workspace?.apiKeys?.OPENALEX_API_KEY) {
     return { route: 'direct', key: workspace.apiKeys.OPENALEX_API_KEY }
-  }
-  if (workspace?.shouldersAuth?.token) {
-    await workspace.ensureFreshToken()
-    if (workspace.shouldersAuth?.token) {
-      return { route: 'shoulders', token: workspace.shouldersAuth.token }
-    }
   }
   return null
 }
@@ -229,41 +185,8 @@ async function _callOpenAlex(query, numResults, workspace) {
   const access = await _resolveOpenAlexAccess(workspace)
   if (!access) return null
 
-  const { searchWorks, slimResults } = await import('./openalex')
-
-  if (access.route === 'direct') {
-    return await searchWorks(query, { perPage: numResults, apiKey: access.key })
-  }
-
-  const response = await invoke('proxy_api_call', {
-    request: {
-      url: SHOULDERS_SEARCH_URL,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.token}` },
-      body: JSON.stringify({ action: 'openalex_search', query, per_page: numResults }),
-    },
-  })
-
-  const data = JSON.parse(response)
-
-  if (data._shoulders) {
-    if (workspace.shouldersAuth) {
-      workspace.shouldersAuth.credits = data._shoulders.credits
-    }
-    const costCents = data._shoulders.cost_cents || 0
-    if (costCents > 0) {
-      const { useUsageStore } = await import('../stores/usage')
-      useUsageStore().record({
-        usage: { total: 0, cost: costCents / 100, input_total: 0, output: 0 },
-        feature: 'search',
-        provider: 'shoulders',
-        modelId: 'openalex_search',
-      })
-    }
-    delete data._shoulders
-  }
-
-  return slimResults(data.results)
+  const { searchWorks } = await import('./openalex')
+  return await searchWorks(query, { perPage: numResults, apiKey: access.key })
 }
 
 
@@ -709,7 +632,7 @@ export function getAiTools(workspace) {
     // ── Web Research Tools ──────────────────────────────────────────
 
     web_search: tool({
-      description: 'Search the web for information. Returns titles, URLs, and AI-generated summaries for each result. Requires an Exa API key (Settings > Tools) or a Shoulders account.',
+      description: 'Search the web for information. Returns titles, URLs, and AI-generated summaries for each result. Requires an Exa API key in Settings > Tools.',
       inputSchema: z.object({
         query: z.string().describe('The search query'),
         num_results: z.number().optional().describe('Number of results to return (default 10, max 10)'),
@@ -831,7 +754,7 @@ export function getAiTools(workspace) {
     }),
 
     fetch_url: tool({
-      description: 'Fetch the text content of one or more web pages (max 10). Returns clean extracted text. Requires an Exa API key (Settings > Tools) or a Shoulders account.',
+      description: 'Fetch the text content of one or more web pages (max 10). Returns clean extracted text. Requires an Exa API key in Settings > Tools.',
       inputSchema: z.object({
         urls: z.union([
           z.string().describe('A single URL to fetch'),

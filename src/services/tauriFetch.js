@@ -90,8 +90,7 @@ export function createTauriFetch() {
       } catch { /* ignore */ }
     }
 
-    // Inject Anthropic prompt caching for direct API calls (desktop with own API key)
-    // Shoulders proxy users get this server-side; direct users need it here
+    // Inject Anthropic prompt caching for direct API calls from the desktop app.
     if (body && url.toString().includes('api.anthropic.com')) {
       try {
         const parsed = JSON.parse(body)
@@ -116,19 +115,6 @@ export function createTauriFetch() {
     const unChunk = await listen(`chat-chunk-${sessionId}`, (event) => {
       try {
         const data = event.payload.data
-        // Filter out Shoulders proxy custom events (e.g. shoulders_balance)
-        // that would crash the AI SDK's stream validator
-        if (data && data.includes('"type":"shoulders_balance"')) {
-          try {
-            // Extract balance from the SSE data line
-            const match = data.match(/data:\s*(\{[^}]+\})/)
-            if (match) {
-              const balance = JSON.parse(match[1])
-              window.dispatchEvent(new CustomEvent('shoulders-balance', { detail: balance }))
-            }
-          } catch {}
-          return // Don't forward to SDK
-        }
         streamController?.enqueue(encoder.encode(data))
       } catch {
         // Stream already closed

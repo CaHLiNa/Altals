@@ -7,22 +7,12 @@
           <!-- Brand header (centered) -->
           <div class="wizard-brand">
             <img src="/icon.png" alt="" class="wizard-icon" draggable="false" />
-            <div class="wizard-wordmark">Shoulders</div>
+            <div class="wizard-wordmark">Altals</div>
           </div>
 
           <h2 class="wizard-step-title">Connect a provider to use AI features</h2>
 
           <div class="wizard-options">
-            <button
-              class="wizard-option"
-              :class="{ selected: aiChoice === 'account', loading: authLoading }"
-              :disabled="authLoading"
-              @click="handleAccountAuth"
-            >
-              <div class="wizard-option-title">{{ authLoading ? 'Waiting for browser...' : 'Shoulders account' }}</div>
-              <div class="wizard-option-desc">{{ authLoading ? 'Sign in or create an account to continue' : 'Free sign-up includes $5.00 balance' }}</div>
-            </button>
-
             <button
               class="wizard-option"
               :class="{ selected: aiChoice === 'keys' }"
@@ -58,15 +48,12 @@
             </div>
           </div>
 
-          <div v-if="authError" class="wizard-error">{{ authError }}</div>
-          <div v-if="authSuccess" class="wizard-success">{{ authSuccess }}</div>
-
           <div class="wizard-nav">
             <div class="wizard-dots">
               <button class="wizard-dot active" disabled></button>
               <button class="wizard-dot" @click="continueFromAI"></button>
             </div>
-            <button class="wizard-btn primary" @click="continueFromAI" :disabled="authLoading">Continue</button>
+            <button class="wizard-btn primary" @click="continueFromAI">Continue</button>
           </div>
         </div>
 
@@ -121,8 +108,6 @@
             </button>
           </div>
 
-          <div v-if="authSuccess" class="wizard-success">{{ authSuccess }}</div>
-
           <div class="wizard-nav">
             <div class="wizard-dots">
               <button class="wizard-dot" @click="step = 1"></button>
@@ -155,11 +140,6 @@ const keyAnthropic = ref('')
 const keyOpenAI = ref('')
 const keyGoogle = ref('')
 
-// Account auth
-const authError = ref('')
-const authSuccess = ref('')
-const authLoading = ref(false)
-
 // Theme
 const selectedTheme = ref(workspace.theme || 'default')
 
@@ -179,27 +159,9 @@ const themes = [
 const lightThemes = computed(() => themes.filter(t => t.group === 'light'))
 const darkThemes = computed(() => themes.filter(t => t.group === 'dark'))
 
-async function handleAccountAuth() {
-  aiChoice.value = 'account'
-  authError.value = ''
-  authSuccess.value = ''
-  authLoading.value = true
-  try {
-    await workspace.shouldersLoginViaBrowser()
-    authLoading.value = false
-    authSuccess.value = 'Account connected'
-    step.value = 2
-    return
-  } catch (e) {
-    authError.value = e.message || 'Authentication failed'
-  }
-  authLoading.value = false
-}
-
 async function continueFromAI() {
   if (aiChoice.value === 'keys') {
     await saveKeys()
-    if (authError.value) return
   }
   step.value = 2
 }
@@ -217,7 +179,6 @@ async function saveKeys() {
     await workspace.loadSettings()
   } catch (e) {
     console.error('Failed to save keys:', e)
-    authError.value = 'Failed to save API keys. You can add them later in Settings.'
   }
 }
 

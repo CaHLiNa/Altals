@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for Shoulders",
+  "description": "Default capabilities for Altals",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -13,7 +13,6 @@
     "dialog:allow-confirm",
     "deep-link:default",
     "shell:allow-open",
-    "updater:default",
     "process:allow-restart"
   ]
 }

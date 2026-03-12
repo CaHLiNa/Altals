@@ -426,12 +426,12 @@ onMounted(async () => {
       try {
         const { AIActions } = await import('@superdoc-dev/ai')
         aiActions = new AIActions(superdoc, {
-          user: { displayName: 'Shoulders AI', userId: 'shoulders-ai', email: 'ai@shoulders.app' },
+          user: { displayName: 'Altals AI', userId: 'altals-ai', email: 'ai@altals.local' },
           provider: createDocxAIProvider(workspace.modelsConfig?.models?.find(m => m.default)?.id || 'sonnet'),
         })
         await aiActions.waitUntilReady()
         // Restore user identity — AIActions constructor overwrites editor.options.user
-        // which causes native comments to be attributed to "Shoulders AI"
+        // which causes native comments to be attributed to "Altals AI"
         const ed = superdoc.activeEditor
         if (ed) {
           ed.setOptions({ user: { name: 'User', email: 'user@local' } })

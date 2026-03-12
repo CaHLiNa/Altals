@@ -42,7 +42,7 @@
     <!-- Monthly Budget (conditional on having direct keys) -->
     <template v-if="hasDirectKeys && (usageStore.showCostEstimates || usageStore.monthlyLimit > 0)">
       <h3 class="settings-section-title" style="margin-top: 24px;">Monthly Budget</h3>
-      <p class="settings-hint">Soft limit on estimated API key spending. Does not affect your Shoulders balance.</p>
+      <p class="settings-hint">Soft limit on estimated API key spending for your locally configured provider keys.</p>
       <div class="usage-limit-row">
         <span class="usage-limit-dollar">$</span>
         <input

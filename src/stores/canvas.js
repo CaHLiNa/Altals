@@ -252,7 +252,6 @@ export const useCanvasStore = defineStore('canvas', {
                   provider: access.provider, modelId: access.model,
                 })
               }).catch(() => {})
-              if (access.provider === 'shoulders') workspace.refreshShouldersBalance()
             }
           },
         })
@@ -364,7 +363,6 @@ export const useCanvasStore = defineStore('canvas', {
                   provider: access.provider, modelId: access.model,
                 })
               }).catch(() => {})
-              if (access.provider === 'shoulders') workspace.refreshShouldersBalance()
             }
           },
         })

@@ -76,11 +76,11 @@
               :width="bar.width" :height="2"
               class="chart-today-marker"
             />
-            <!-- Shoulders segment (bottom) -->
+            <!-- Hosted segment (bottom) -->
             <rect
-              v-if="bar.shouldersH > 0"
-              :x="bar.x" :y="bar.shouldersY"
-              :width="bar.width" :height="bar.shouldersH"
+              v-if="bar.hostedH > 0"
+              :x="bar.x" :y="bar.hostedY"
+              :width="bar.width" :height="bar.hostedH"
               class="chart-bar-shoulders"
               rx="1.5"
             />
@@ -110,89 +110,20 @@
           :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
         >
           <div class="chart-tooltip-date">{{ tooltip.dateLabel }}</div>
-          <div v-if="tooltip.shoulders > 0" class="chart-tooltip-row">
-            <span class="chart-tooltip-swatch swatch-shoulders"></span>
-            Shoulders: {{ tooltip.shouldersLabel }}
-          </div>
           <div v-if="tooltip.direct > 0" class="chart-tooltip-row">
             <span class="chart-tooltip-swatch swatch-direct"></span>
             API keys: ~{{ tooltip.directLabel }}
           </div>
-          <div v-if="tooltip.shoulders > 0 && tooltip.direct > 0" class="chart-tooltip-total">
-            Total: {{ tooltip.totalLabel }}
+          <div v-if="tooltip.direct > 0" class="chart-tooltip-total">
+            Estimated cost: {{ tooltip.totalLabel }}
           </div>
           <div v-if="tooltip.calls > 0" class="chart-tooltip-calls">{{ tooltip.calls }} calls</div>
         </div>
         <!-- Legend -->
         <div class="chart-legend">
-          <span v-if="showShoulders" class="chart-legend-item">
-            <span class="chart-legend-swatch swatch-shoulders"></span> Shoulders
-          </span>
           <span v-if="showDirect" class="chart-legend-item">
             <span class="chart-legend-swatch swatch-direct"></span> API keys{{ usageStore.showCostEstimates ? ' (est.)' : '' }}
           </span>
-        </div>
-      </div>
-    </template>
-
-    <!-- Shoulders section -->
-    <template v-if="showShoulders">
-      <div class="usage-source-section">
-        <div class="usage-source-header">
-          <span class="usage-source-title">Shoulders</span>
-          <span v-if="shouldersBalance != null" class="usage-source-balance">
-            {{ formatBalance(shouldersBalance) }} balance
-          </span>
-        </div>
-
-        <!-- Summary line -->
-        <div v-if="usageStore.shouldersCost > 0 || usageStore.shouldersCalls > 0" class="usage-summary-line">
-          <span v-if="usageStore.shouldersCost > 0">{{ formatCost(usageStore.shouldersCost) }} spent</span>
-          <span v-if="usageStore.shouldersCost > 0 && usageStore.shouldersCalls > 0" class="usage-sep"> · </span>
-          <span v-if="usageStore.shouldersCalls > 0">{{ usageStore.shouldersCalls.toLocaleString() }} calls</span>
-          <span v-if="shouldersTotalTokens > 0" class="usage-sep"> · </span>
-          <span v-if="shouldersTotalTokens > 0">{{ formatTokens(shouldersTotalTokens) }} tokens</span>
-        </div>
-        <div v-else class="usage-empty-hint">No Shoulders usage this month.</div>
-
-        <!-- Breakdown table with toggle -->
-        <template v-if="shouldersRows.length > 0">
-          <div class="usage-breakdown-tabs">
-            <button
-              class="usage-breakdown-tab"
-              :class="{ active: shouldersView === 'feature' }"
-              @click="shouldersView = 'feature'"
-            >By feature</button>
-            <button
-              class="usage-breakdown-tab"
-              :class="{ active: shouldersView === 'model' }"
-              @click="shouldersView = 'model'"
-            >By model</button>
-          </div>
-          <div class="usage-table">
-            <div class="usage-table-header" style="grid-template-columns: 1fr 80px 70px 60px;">
-              <span class="usage-col-name">{{ shouldersView === 'feature' ? 'Feature' : 'Model' }}</span>
-              <span class="usage-col-num">Cost</span>
-              <span class="usage-col-num">Tokens</span>
-              <span class="usage-col-num">Calls</span>
-            </div>
-            <div
-              v-for="row in shouldersRows"
-              :key="row.name"
-              class="usage-table-row"
-              style="grid-template-columns: 1fr 80px 70px 60px;"
-            >
-              <span class="usage-col-name" :class="shouldersView === 'model' ? 'usage-model-name' : 'usage-feature-name'">{{ row.name }}</span>
-              <span class="usage-col-num">{{ row.shoulders_cost > 0 ? formatCost(row.shoulders_cost) : '—' }}</span>
-              <span class="usage-col-num">{{ formatTokens(row.input_tokens + row.output_tokens) }}</span>
-              <span class="usage-col-num">{{ row.calls }}</span>
-            </div>
-          </div>
-        </template>
-
-        <!-- All-time stat -->
-        <div v-if="usageStore.allTimeShouldersCost > 0" class="usage-alltime">
-          {{ formatCost(usageStore.allTimeShouldersCost) }} total via Shoulders
         </div>
       </div>
     </template>
@@ -255,8 +186,8 @@
     </template>
 
     <!-- Empty state -->
-    <div v-if="!showShoulders && !showDirect" class="usage-empty-state">
-      No usage data yet. Configure AI models in Settings > Models, or sign in with a Shoulders account.
+    <div v-if="!showDirect" class="usage-empty-state">
+      No usage data yet. Configure AI models in Settings > Models.
     </div>
 
     <!-- Display section -->
@@ -309,7 +240,6 @@ const usageStore = useUsageStore()
 const workspace = useWorkspaceStore()
 
 // View toggles (feature vs model) for each section
-const shouldersView = ref('feature')
 const directView = ref('feature')
 
 // Chart uses a fixed viewBox coordinate system; CSS width: 100% handles responsive sizing
@@ -338,8 +268,6 @@ function showTooltip(bar, event) {
     x: Math.max(0, Math.min(x, maxX)),
     y: Math.max(0, y),
     dateLabel: formatDateShort(bar.date),
-    shoulders: bar.shouldersCost,
-    shouldersLabel: formatCost(bar.shouldersCost),
     direct: bar.directCost,
     directLabel: formatCost(bar.directCost),
     totalLabel: formatCost(bar.totalCost),
@@ -365,59 +293,27 @@ function hideTooltip() {
 
 // ─── Section visibility ────────────────────────────────────────────
 
-const showShoulders = computed(() => {
-  return !!workspace.shouldersAuth?.token || usageStore.allTimeShouldersCost > 0
-})
-
 const showDirect = computed(() => {
   const keys = workspace.apiKeys || {}
   const hasKeys = !!(keys.ANTHROPIC_API_KEY || keys.OPENAI_API_KEY || keys.GOOGLE_API_KEY)
   return hasKeys || usageStore.directCost > 0 || usageStore.directCalls > 0
 })
 
-const shouldersBalance = computed(() => {
-  const credits = workspace.shouldersAuth?.credits
-  return typeof credits === 'number' ? credits : null
-})
-
-// ─── Filtered breakdown rows ───────────────────────────────────────
-
-const shouldersFeatures = computed(() =>
-  usageStore.byFeature.filter(r => r.shoulders_cost > 0 || (r.calls > 0 && r.direct_cost === 0))
-)
-
-const shouldersModels = computed(() =>
-  usageStore.byModel.filter(r => r.shoulders_cost > 0)
-)
-
 const directFeatures = computed(() =>
-  usageStore.byFeature.filter(r => r.direct_cost > 0 || (r.calls > 0 && r.shoulders_cost === 0))
+  usageStore.byFeature.filter(r => r.direct_cost > 0 || r.calls > 0)
 )
 
 const directModels = computed(() =>
   usageStore.byModel.filter(r => r.direct_cost > 0)
 )
 
-// Active rows based on view toggle
-const shouldersRows = computed(() =>
-  shouldersView.value === 'feature' ? shouldersFeatures.value : shouldersModels.value
-)
-
 const directRows = computed(() =>
   directView.value === 'feature' ? directFeatures.value : directModels.value
-)
-
-// ─── Token totals per section ──────────────────────────────────────
-
-const shouldersTotalTokens = computed(() =>
-  shouldersFeatures.value.reduce((sum, r) => sum + (r.input_tokens || 0) + (r.output_tokens || 0), 0)
 )
 
 const directTotalTokens = computed(() =>
   directFeatures.value.reduce((sum, r) => sum + (r.input_tokens || 0) + (r.output_tokens || 0), 0)
 )
-
-// ─── Dynamic grid columns ──────────────────────────────────────────
 
 const directGridCols = computed(() => {
   const cols = ['1fr']
@@ -469,11 +365,6 @@ const chart = computed(() => {
 })
 
 // ─── Helpers ───────────────────────────────────────────────────────
-
-function formatBalance(cents) {
-  if (cents == null) return '$0.00'
-  return '$' + (cents / 100).toFixed(2)
-}
 
 function formatDateShort(dateStr) {
   const [, m, d] = dateStr.split('-').map(Number)

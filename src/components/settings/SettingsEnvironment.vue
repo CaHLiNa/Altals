@@ -112,40 +112,16 @@
       </div>
     </div>
 
-    <!-- Telemetry -->
-    <h3 class="settings-section-title" style="margin-top: 24px;">Analytics</h3>
-    <p class="settings-hint">Help improve Shoulders by sharing anonymous usage data.</p>
-
-    <div class="env-lang-card">
-      <div class="env-lang-header">
-        <span class="env-lang-name">Share usage analytics</span>
-        <div style="flex: 1;"></div>
-        <button
-          class="tool-toggle-switch"
-          :class="{ on: telemetryOn }"
-          @click="toggleTelemetry"
-        >
-          <span class="tool-toggle-knob"></span>
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
-import { isTelemetryEnabled, setTelemetryEnabled } from '../../services/telemetry'
 
 const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
-const telemetryOn = ref(isTelemetryEnabled())
-
-function toggleTelemetry() {
-  telemetryOn.value = !telemetryOn.value
-  setTelemetryEnabled(telemetryOn.value)
-}
 
 const envLanguages = computed(() => [
   { key: 'python', label: 'Python', info: envStore.languages.python },

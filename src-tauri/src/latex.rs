@@ -48,7 +48,7 @@ fn tectonic_binary_name() -> &'static str {
 }
 
 fn find_tectonic(_app: &tauri::AppHandle) -> Option<String> {
-    // 1. Shoulders-managed install (~/.shoulders/bin/tectonic)
+    // 1. App-managed install (~/.shoulders/bin/tectonic)
     if let Some(bin_dir) = shoulders_bin_dir() {
         let path = bin_dir.join(tectonic_binary_name());
         if path.exists() {
@@ -341,7 +341,7 @@ pub async fn download_tectonic(
 
     let response = client
         .get(&url)
-        .header("User-Agent", "Shoulders/1.0")
+        .header("User-Agent", "Altals/1.0")
         .send()
         .await
         .map_err(|e| format!("Download failed: {}", e))?;

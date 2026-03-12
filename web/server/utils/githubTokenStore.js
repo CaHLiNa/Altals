@@ -1,11 +1,15 @@
 // In-memory store for GitHub OAuth tokens awaiting desktop polling
 // Tokens live for 2 minutes max — no DB needed
 
-import { randomBytes } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 
 const store = new Map()
 const processedCodes = new Set()
 const oauthNonces = new Map() // nonce → { originalState, expiresAt }
+
+export function hashValue(value) {
+  return createHash('sha256').update(value).digest('hex')
+}
 
 export function setGitHubToken(stateHash, data) {
   store.set(stateHash, { data, expiresAt: Date.now() + 120_000 })

@@ -1,7 +1,7 @@
 <template>
   <div class="root">
     <div class="block">
-      <div class="wordmark">Shoulders</div>
+      <div class="wordmark">Altals</div>
       <div class="shortcuts">
         <button class="row flex items-center gap-1" @click="openFile">
           <span class="key">{{ mod }} P</span>

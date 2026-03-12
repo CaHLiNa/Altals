@@ -35,9 +35,9 @@ export function parseApiError(rawError) {
   // Map by status code
   if (result.status === 401 || result.status === 403) {
     result.isAuthError = true
-    result.friendly = 'Invalid API key. Update it in **Settings \u203a Models** (Cmd+,), or sign in via **Settings \u203a Account**.'
+    result.friendly = 'Invalid API key. Update it in **Settings \u203a Models** (Cmd+,).'
   } else if (result.status === 402) {
-    result.friendly = bodyMessage || 'Insufficient balance. Add funds at [shoulde.rs/account](https://shoulde.rs/account).'
+    result.friendly = bodyMessage || 'Insufficient provider balance or credits.'
   } else if (result.status === 429) {
     result.isRateLimit = true
     result.friendly = 'Rate limit exceeded. Wait a moment and try again.'
@@ -64,7 +64,7 @@ export function parseApiError(rawError) {
  */
 export function noApiKeyMessage(modelId) {
   const label = modelId || 'this model'
-  return `No API key configured for **${label}**. Add one in **Settings \u203a Models** (Cmd+,), or sign in via **Settings \u203a Account**.`
+  return `No API key configured for **${label}**. Add one in **Settings \u203a Models** (Cmd+,).`
 }
 
 /**

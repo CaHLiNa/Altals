@@ -1,10 +1,10 @@
 [package]
-name = "shoulders"
+name = "altals"
 version = "0.2.6"
 edition = "2021"
 
 [lib]
-name = "shoulders_lib"
+name = "altals_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
@@ -16,7 +16,6 @@ tauri-plugin-dialog = "2"
 tauri-plugin-deep-link = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tauri-plugin-shell = "2"
-tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

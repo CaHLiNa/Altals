@@ -261,10 +261,6 @@ export const useChatStore = defineStore('chat', () => {
             sessionId: session.id,
           })
         })
-        // Refresh Shoulders balance
-        if (access.provider === 'shoulders') {
-          workspace.refreshShouldersBalance()
-        }
       },
     }
   }
@@ -774,5 +770,4 @@ export const useChatStore = defineStore('chat', () => {
     saveSession,
   }
 })
-
 

@@ -32,7 +32,6 @@
           <SettingsTools v-if="activeSection === 'tools'" />
           <SettingsGitHub v-if="activeSection === 'github'" />
           <SettingsEnvironment v-if="activeSection === 'system'" />
-          <SettingsAccount v-if="activeSection === 'account'" />
           <SettingsUsage v-if="activeSection === 'usage'" />
           <SettingsUpdates v-if="activeSection === 'updates'" />
         </div>
@@ -43,14 +42,13 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { IconPalette, IconEdit, IconKey, IconUser, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh } from '@tabler/icons-vue'
+import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh } from '@tabler/icons-vue'
 import SettingsTheme from './SettingsTheme.vue'
 import SettingsEditor from './SettingsEditor.vue'
 import SettingsModels from './SettingsModels.vue'
 import SettingsTools from './SettingsTools.vue'
 import SettingsEnvironment from './SettingsEnvironment.vue'
 import SettingsUsage from './SettingsUsage.vue'
-import SettingsAccount from './SettingsAccount.vue'
 import SettingsGitHub from './SettingsGitHub.vue'
 import SettingsUpdates from './SettingsUpdates.vue'
 
@@ -77,7 +75,6 @@ const sections = [
   { id: 'github', label: 'GitHub', icon: IconBrandGithub },
   { id: 'system', label: 'System', icon: IconCpu },
   { separator: true },
-  { id: 'account', label: 'Account', icon: IconUser },
   { id: 'usage', label: 'Usage', icon: IconChartBar },
   { id: 'updates', label: 'Updates', icon: IconRefresh },
 ]

@@ -13,7 +13,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     apiKey: '',
     apiKeys: {},
     modelsConfig: null,
-    shouldersAuth: null,
     gitAutoCommitInterval: 5 * 60 * 1000, // 5 minutes
     gitAutoCommitTimer: null,
     settingsOpen: false,
@@ -68,11 +67,8 @@ export const useWorkspaceStore = defineStore('workspace', {
       try { this.globalConfigDir = await invoke('get_global_config_dir') }
       catch { this.globalConfigDir = '' }
 
-      // Restore auth from localStorage
-      this.initAuth()
-
       // Initialize .shoulders directory (private AI state)
-      await this.initShouldersDir()
+      await this.initWorkspaceDataDir()
 
       // Initialize .project directory (public project data)
       await this.initProjectDir()
@@ -150,7 +146,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       localStorage.removeItem('lastWorkspace')
     },
 
-    async initShouldersDir() {
+    async initWorkspaceDataDir() {
       const shouldersDir = this.shouldersDir
       if (!shouldersDir) return
 
@@ -161,7 +157,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         // Create default system prompt
         await invoke('write_file', {
           path: `${shouldersDir}/system.md`,
-          content: `You are a writing assistant integrated into Shoulders, a markdown editor.
+          content: `You are a writing assistant integrated into Altals, a markdown editor.
 
 When suggesting completions:
 - Match the user's writing style and tone
@@ -300,19 +296,19 @@ When reviewing text:
       const skillsExists = await invoke('path_exists', { path: skillsDir })
       if (!skillsExists) {
         await invoke('create_dir', { path: skillsDir })
-        await invoke('create_dir', { path: `${skillsDir}/shoulders-meta` })
+        await invoke('create_dir', { path: `${skillsDir}/altals-meta` })
         await invoke('write_file', {
           path: `${skillsDir}/skills.json`,
           content: JSON.stringify({
             skills: [{
-              name: 'shoulders-meta',
-              description: 'Information about the Shoulders app. Trigger: user asks about app features, support, or has questions about how Shoulders works.',
-              path: '.project/skills/shoulders-meta/SKILL.md',
+              name: 'altals-meta',
+              description: 'Information about the Altals app. Trigger: user asks about app features, support, or how Altals works.',
+              path: '.project/skills/altals-meta/SKILL.md',
             }],
           }, null, 2),
         })
         await invoke('write_file', {
-          path: `${skillsDir}/shoulders-meta/SKILL.md`,
+          path: `${skillsDir}/altals-meta/SKILL.md`,
           content: DEFAULT_SKILL_CONTENT,
         })
       }
@@ -334,9 +330,9 @@ When reviewing text:
         return
       }
 
-      // Write hook script (always overwrite - managed by Shoulders)
+      // Write hook script (always overwrite - managed by Altals)
       const hookScript = `#!/bin/bash
-# Managed by Shoulders - edit interception hook
+# Managed by Altals - edit interception hook
 # Records Claude Code Edit/Write tool calls for review (non-blocking)
 
 INPUT=$(cat)
@@ -1049,102 +1045,9 @@ exit 0
       this.syncConflictBranch = null
     },
 
-    async initAuth() {
-      try {
-        const { loadStoredAuth, isAccessTokenExpired, refreshTokens, listenForAuthCallback } = await import('../services/shouldersAuth')
-
-        // Start listening for deep link auth callbacks
-        try { listenForAuthCallback() } catch {}
-
-        const auth = await loadStoredAuth()
-        if (!auth) return
-
-        // If access token expired but refresh token valid, refresh
-        if (isAccessTokenExpired(auth) && auth.refreshToken) {
-          try {
-            const refreshed = await refreshTokens(auth)
-            this.shouldersAuth = refreshed
-          } catch {
-            // Refresh failed — user must re-login
-            this.shouldersAuth = null
-          }
-        } else {
-          this.shouldersAuth = auth
-        }
-
-        // Start background balance refresh every 5 minutes
-        if (this.shouldersAuth?.token) {
-          if (this._balanceInterval) clearInterval(this._balanceInterval)
-          this._balanceInterval = setInterval(() => this.refreshShouldersBalance(), 5 * 60 * 1000)
-        }
-      } catch (e) {
-        console.warn('[auth] initAuth failed:', e)
-      }
-    },
-
-    async ensureFreshToken() {
-      if (!this.shouldersAuth?.token) return false
-      const { isAccessTokenExpired, refreshTokens } = await import('../services/shouldersAuth')
-      if (!isAccessTokenExpired(this.shouldersAuth)) return true
-      if (!this.shouldersAuth.refreshToken) {
-        this.shouldersAuth = null
-        return false
-      }
-      try {
-        const refreshed = await refreshTokens(this.shouldersAuth)
-        this.shouldersAuth = refreshed
-        return true
-      } catch (e) {
-        // Network error (offline) — keep auth intact so it works when back online
-        if (e?.message?.includes('fetch') || e?.message?.includes('network') || e?.name === 'TypeError') {
-          return 'network_error'
-        }
-        // Auth actually invalid — clear it
-        this.shouldersAuth = null
-        return false
-      }
-    },
-
-    async shouldersLoginViaBrowser(options) {
-      const { loginViaBrowser } = await import('../services/shouldersAuth')
-      const result = await loginViaBrowser(options)
-      this.shouldersAuth = result
-      return result
-    },
-
-    async refreshShouldersBalance() {
-      if (!this.shouldersAuth?.token) return
-      await this.ensureFreshToken()
-      if (!this.shouldersAuth?.token) return
-      const { getAccountStatus } = await import('../services/shouldersAuth')
-      try {
-        const status = await getAccountStatus(this.shouldersAuth.token)
-        if (status.credits !== undefined) {
-          this.shouldersAuth = { ...this.shouldersAuth, credits: status.credits, plan: status.plan || this.shouldersAuth.plan }
-        }
-      } catch (e) {
-        console.warn('[auth] refreshShouldersBalance failed:', e)
-      }
-    },
-
-    async shouldersLogout() {
-      const { logout } = await import('../services/shouldersAuth')
-      await logout(this.shouldersAuth)
-      this.shouldersAuth = null
-      // Stop background balance polling
-      if (this._balanceInterval) {
-        clearInterval(this._balanceInterval)
-        this._balanceInterval = null
-      }
-    },
-
     async cleanup() {
       this.stopAutoCommit()
       this.stopSyncTimer()
-      if (this._balanceInterval) {
-        clearInterval(this._balanceInterval)
-        this._balanceInterval = null
-      }
       if (this._instructionsUnlisten) {
         this._instructionsUnlisten()
         this._instructionsUnlisten = null

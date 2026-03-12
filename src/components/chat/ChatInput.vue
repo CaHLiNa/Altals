@@ -292,22 +292,13 @@ const currentModelName = computed(() => {
 const availableModels = computed(() => {
   const config = workspace.modelsConfig
   if (!config || !config.models) return []
-  // Determine if user has ANY direct API key (vs Shoulders-account-only)
-  const hasAnyDirectKey = config.models.some(m => {
-    const keyEnv = config.providers?.[m.provider]?.apiKeyEnv
-    const key = keyEnv ? workspace.apiKeys?.[keyEnv] : null
-    return key && !key.includes('your-')
-  })
-  const isShouldersOnly = !hasAnyDirectKey && !!workspace.shouldersAuth?.token
   return config.models.map(m => {
     const providerConfig = config.providers?.[m.provider]
     const keyEnv = providerConfig?.apiKeyEnv
     const key = keyEnv ? workspace.apiKeys?.[keyEnv] : null
     const hasDirectKey = key && !key.includes('your-')
-    const hasProxyAccess = !!workspace.shouldersAuth?.token
     const route = getBillingRoute(m.id, workspace)
-    const recommended = isShouldersOnly && m.id.toLowerCase().includes('sonnet')
-    return { ...m, hasKey: hasDirectKey || hasProxyAccess, route: route?.route || null, recommended }
+    return { ...m, hasKey: !!hasDirectKey, route: route?.route || null, recommended: false }
   }).filter(m => m.hasKey)
 })
 

@@ -94,7 +94,7 @@ function resolveModelPriceKey(modelId) {
  *
  * @param {object} usage - Normalized usage from convertSdkUsage()
  * @param {string} modelId - Model ID (e.g. 'claude-sonnet-4-6')
- * @param {string} [billingProvider] - Billing route: 'shoulders' applies 1.2x markup
+ * @param {string} [billingProvider] - Billing provider label for compatibility
  */
 export function calculateCost(usage, modelId, billingProvider) {
   const priceKey = resolveModelPriceKey(modelId)
@@ -122,11 +122,6 @@ export function calculateCost(usage, modelId, billingProvider) {
 
   cost = Math.round(cost * 1_000_000) / 1_000_000
   if (typeof cost !== 'number' || !isFinite(cost)) return 0
-
-  // Apply Shoulders proxy markup
-  if (billingProvider === 'shoulders') {
-    cost = Math.round(cost * 1.2 * 1_000_000) / 1_000_000
-  }
 
   return cost
 }

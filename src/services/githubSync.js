@@ -69,14 +69,14 @@ export async function clearGitHubToken() {
   try { localStorage.removeItem('githubToken') } catch {}
 }
 
-// ── GitHub API helpers (via Shoulders proxy to avoid CORS) ──
+// ── GitHub API helpers (via Tauri HTTP proxy) ──
 
 async function githubApi(endpoint, { method = 'GET', body = null, token } = {}) {
   const headers = {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${token}`,
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'Shoulders-Desktop',
+    'User-Agent': 'Altals-Desktop',
   }
   if (body) headers['Content-Type'] = 'application/json'
 
@@ -233,7 +233,7 @@ async function handleConflict(repoPath, branch, token) {
   // Push local state to a timestamped branch
   const now = new Date()
   const ts = now.toISOString().replace(/[:.]/g, '-').substring(0, 16)
-  const conflictBranch = `shoulders/sync-${ts}`
+  const conflictBranch = `altals/sync-${ts}`
 
   try {
     await gitPushBranch(repoPath, 'origin', branch, conflictBranch, token)

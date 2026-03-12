@@ -30,9 +30,9 @@ export const useUsageStore = defineStore('usage', {
     totalCalls: (state) => state.monthData?.calls || 0,
     sessionCost: (state) => (id) => state.sessionTotals[id] || 0,
 
-    shouldersCost: (state) => state.monthData?.shoulders_cost || 0,
+    hostedCost: (state) => state.monthData?.shoulders_cost || 0,
     directCost: (state) => state.monthData?.direct_cost || 0,
-    shouldersCalls: (state) => state.monthData?.shoulders_calls || 0,
+    hostedCalls: (state) => state.monthData?.shoulders_calls || 0,
     directCalls: (state) => state.monthData?.direct_calls || 0,
     totalInputTokens: (state) => state.monthData?.total_input_tokens || 0,
     totalOutputTokens: (state) => state.monthData?.total_output_tokens || 0,
@@ -40,7 +40,7 @@ export const useUsageStore = defineStore('usage', {
     isCurrentMonth() { return this.selectedMonth === getCurrentMonth() },
     allTimeCost: (state) => state.trendData.reduce((sum, e) => sum + e.cost, 0),
     allTimeCalls: (state) => state.trendData.reduce((sum, e) => sum + e.calls, 0),
-    allTimeShouldersCost: (state) => state.trendData.reduce((sum, e) => sum + (e.shoulders_cost || 0), 0),
+    allTimeHostedCost: (state) => state.trendData.reduce((sum, e) => sum + (e.shoulders_cost || 0), 0),
     monthCount: (state) => state.trendData.length,
 
     selectedMonthLabel() {

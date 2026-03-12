@@ -194,7 +194,7 @@ const availableGhostModels = computed(() => {
   return GHOST_MODELS.filter(m => {
     const keys = workspace.apiKeys || {}
     const hasKey = keys[m.keyEnv] && !keys[m.keyEnv].includes('your-')
-    return hasKey || !!workspace.shouldersAuth?.token
+    return !!hasKey
   }).map(m => ({
     ...m,
     label: GHOST_MODEL_LABELS[m.model] || m.model,

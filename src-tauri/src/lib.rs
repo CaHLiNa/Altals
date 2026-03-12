@@ -77,7 +77,7 @@ fn open_spelling_panel() -> Result<(), String> {
     Err("Spelling panel is only available on macOS".into())
 }
 
-const KEYRING_SERVICE: &str = "com.shoulders.editor";
+const KEYRING_SERVICE: &str = "com.altals.desktop";
 
 const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
     "anthropic-key",
@@ -156,13 +156,6 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
-        .setup(|app| {
-            #[cfg(desktop)]
-            app.handle().plugin(
-                tauri_plugin_updater::Builder::new().build()
-            )?;
-            Ok(())
-        })
         .manage(pty::PtyState::default())
         .manage(fs_commands::WatcherState::default())
         .manage(chat::ChatState::default())

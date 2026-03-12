@@ -70,7 +70,7 @@ export async function getGhostSuggestions(before, after, systemPrompt, workspace
 
 Predict text at <cursor/> by calling suggest_completions.`
 
-  const system = `You are an inline text completion engine for a research workspace called Shoulders. Your users are researchers. Predict 3 continuations at <cursor/>.
+  const system = `You are an inline text completion engine for a research workspace called Altals. Your users are researchers. Predict 3 continuations at <cursor/>.
 
 Rules:
 - Match the author's voice, style, and register exactly

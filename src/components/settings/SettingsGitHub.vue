@@ -101,7 +101,7 @@
 
     <!-- Disconnected state -->
     <template v-else>
-      <p class="settings-hint">Connect your GitHub account to sync your workspace to a repository.</p>
+      <p class="settings-hint">Connect your GitHub account to sync this workspace to a repository.</p>
 
       <div v-if="error" class="gh-error">{{ error }}</div>
 
@@ -111,7 +111,7 @@
           {{ loading ? 'Connecting...' : 'Connect GitHub Account' }}
         </button>
       </div>
-      <p v-if="loading" class="gh-hint">A browser window will open. Authorize Shoulders on GitHub, then you'll be redirected back.</p>
+      <p v-if="loading" class="gh-hint">A browser window will open. Authorize the app on GitHub, then return to Altals.</p>
 
       <!-- PAT fallback -->
       <div class="gh-pat-section">
@@ -143,6 +143,7 @@ import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 
 const workspace = useWorkspaceStore()
+const GITHUB_AUTH_ORIGIN = (import.meta.env.VITE_GITHUB_AUTH_ORIGIN || (import.meta.env.DEV ? 'http://localhost:3000' : '')).replace(/\/$/, '')
 
 const loading = ref(false)
 const error = ref('')
@@ -211,16 +212,21 @@ async function handleConnect() {
   error.value = ''
   loading.value = true
   try {
+    if (!GITHUB_AUTH_ORIGIN) {
+      error.value = 'GitHub OAuth bridge is not configured. Set VITE_GITHUB_AUTH_ORIGIN and try again.'
+      loading.value = false
+      return
+    }
+
     const { open } = await import('@tauri-apps/plugin-shell')
-    const BASE_ORIGIN = import.meta.env.DEV ? 'http://localhost:3000' : 'https://shoulde.rs'
 
     const arr = new Uint8Array(16)
     crypto.getRandomValues(arr)
     const state = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
 
-    await open(`${BASE_ORIGIN}/api/v1/auth/github/connect?state=${state}`)
+    await open(`${GITHUB_AUTH_ORIGIN}/api/v1/auth/github/connect?state=${state}`)
 
-    // Poll for the GitHub token (reuses Shoulders polling pattern)
+    // Poll for the GitHub token after the OAuth callback stores it.
     const tokenData = await pollForGitHubToken(state)
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
@@ -235,28 +241,20 @@ async function handleConnect() {
 }
 
 async function pollForGitHubToken(state) {
-  const { invoke } = await import('@tauri-apps/api/core')
-  const BASE_ORIGIN = import.meta.env.DEV ? 'http://localhost:3000' : 'https://shoulde.rs'
-  const url = `${BASE_ORIGIN}/api/v1/auth/github/poll`
+  if (!GITHUB_AUTH_ORIGIN) return null
+
+  const url = `${GITHUB_AUTH_ORIGIN}/api/v1/auth/github/poll`
 
   for (let i = 0; i < 150; i++) { // 5 min timeout (150 * 2s)
     await new Promise(r => setTimeout(r, 2000))
     try {
-      // Ensure fresh auth token for the poll request
-      await workspace.ensureFreshToken()
-      const authToken = workspace.shouldersAuth?.token
-      const headers = { 'Content-Type': 'application/json' }
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`
-
-      const result = await invoke('proxy_api_call', {
-        request: {
-          url,
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ state }),
-        },
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state }),
       })
-      const parsed = JSON.parse(result)
+      if (!response.ok) continue
+      const parsed = await response.json()
       if (parsed.pending) continue
       if (parsed.token) return parsed
     } catch {}

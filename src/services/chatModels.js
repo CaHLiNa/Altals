@@ -10,7 +10,7 @@ export function getThinkingConfig(apiModel, provider, thinkingLevel) {
   // Explicit opt-out: model entry has thinking: 'none'
   if (thinkingLevel === 'none') return null
 
-  if (provider === 'anthropic' || provider === 'shoulders') {
+  if (provider === 'anthropic') {
     if (/claude-(opus|sonnet)-4-6/.test(apiModel)) {
       return { mode: 'adaptive', effort: thinkingLevel || 'medium' }
     }
@@ -38,6 +38,5 @@ export function modelHasAccess(modelConfig, providerConfig, workspace) {
   const keyEnv = providerConfig?.apiKeyEnv
   const key = keyEnv ? workspace.apiKeys?.[keyEnv] : null
   const hasDirectKey = key && !key.includes('your-')
-  const hasProxyAccess = !!workspace.shouldersAuth?.token
-  return hasDirectKey || hasProxyAccess
+  return !!hasDirectKey
 }

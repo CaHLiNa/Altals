@@ -12,7 +12,6 @@ pub const ALLOWED_HOSTS: &[&str] = &[
     "api.anthropic.com",
     "api.openai.com",
     "generativelanguage.googleapis.com",
-    "shoulde.rs",
     "api.github.com",
     "api.crossref.org",
     "api.exa.ai",
@@ -411,7 +410,7 @@ pub async fn fetch_url_content(url: String) -> Result<String, String> {
 
     let response = client
         .get(&url)
-        .header("User-Agent", "Shoulders/1.0")
+        .header("User-Agent", "Altals/1.0")
         .send()
         .await
         .map_err(|e| e.to_string())?;

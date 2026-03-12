@@ -73,7 +73,7 @@ export async function searchWorks(query, { perPage = 5, apiKey = null } = {}) {
     request: {
       url,
       method: 'GET',
-      headers: { 'User-Agent': 'Shoulders/1.0 (mailto:contact@shoulde.rs)' },
+      headers: { 'User-Agent': 'Altals/1.0 (mailto:opensource@example.com)' },
       body: '',
     },
   })
@@ -83,8 +83,7 @@ export async function searchWorks(query, { perPage = 5, apiKey = null } = {}) {
 }
 
 /**
- * Slim results from raw OpenAlex JSON (used when results come via Shoulders proxy
- * which returns the raw API response).
+ * Slim results from raw OpenAlex JSON.
  */
 export function slimResults(rawResults) {
   return (rawResults || []).map(slimWork)

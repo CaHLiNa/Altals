@@ -15,85 +15,19 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
  *
  * @param {object} access - Result from resolveApiAccess()
  * @param {string} access.model - Model ID (e.g. 'claude-sonnet-4-6')
- * @param {string} access.provider - Provider ('anthropic'|'openai'|'google'|'shoulders')
+ * @param {string} access.provider - Provider ('anthropic'|'openai'|'google')
  * @param {string} access.apiKey - API key
  * @param {string} [access.url] - Custom base URL
- * @param {string} [access.providerHint] - Real provider for Shoulders proxy
  * @param {Function} [customFetch] - Custom fetch for CORS bypass (tauriFetch)
  * @returns {object} AI SDK LanguageModel instance
  */
 export function createModel(access, customFetch) {
-  const provider = access.providerHint || access.provider
+  const provider = access.provider
   const opts = {}
   if (customFetch) opts.fetch = customFetch
 
-  // Shoulders proxy: special handling for auth + URL + routing headers
-  if (access.provider === 'shoulders') {
-    const proxyUrl = access.url
-    const jwt = access.apiKey
-    opts.baseURL = proxyUrl
-
-    // Routing headers — server needs these to forward to the correct upstream
-    opts.headers = {
-      ...opts.headers,
-      'x-shoulders-provider': provider,
-      'x-shoulders-model': access.model,
-    }
-
-    // Auth per provider SDK expectations
-    switch (provider) {
-      case 'anthropic':
-        // authToken → SDK sends Authorization: Bearer (proxy reads this)
-        opts.authToken = jwt
-        break
-      case 'openai':
-        // apiKey → SDK sends Authorization: Bearer (proxy reads this)
-        opts.apiKey = jwt
-        break
-      case 'google':
-        // Google SDK requires apiKey (appends ?key= to URL) — use dummy value
-        // since the proxy uses its own server-side key. Auth via explicit header.
-        opts.apiKey = 'shoulders-proxy'
-        opts.headers['Authorization'] = `Bearer ${jwt}`
-        break
-    }
-
-    // Wrap fetch to:
-    // 1. Strip SDK-appended paths (the proxy expects requests at the proxy URL directly)
-    // 2. Detect streaming and add x-shoulders-stream header
-    if (opts.fetch) {
-      const originalFetch = opts.fetch
-      opts.fetch = async (url, fetchOpts) => {
-        let fixedUrl = url.toString()
-
-        // Detect streaming before stripping the URL
-        let isStreaming = false
-        if (provider === 'google') {
-          isStreaming = fixedUrl.includes('streamGenerateContent')
-        } else {
-          try {
-            const bodyObj = typeof fetchOpts?.body === 'string' ? JSON.parse(fetchOpts.body) : null
-            isStreaming = bodyObj?.stream === true
-          } catch { /* not JSON, assume non-streaming */ }
-        }
-
-        // Strip anything after the proxy base path
-        const proxyIdx = fixedUrl.indexOf(proxyUrl)
-        if (proxyIdx >= 0) {
-          fixedUrl = fixedUrl.slice(0, proxyIdx + proxyUrl.length)
-        }
-
-        // Add streaming header
-        const headers = new Headers(fetchOpts?.headers || {})
-        headers.set('x-shoulders-stream', isStreaming ? '1' : '0')
-        return originalFetch(fixedUrl, { ...fetchOpts, headers })
-      }
-    }
-  } else {
-    // Direct API keys
-    opts.apiKey = access.apiKey
-    if (access.url) opts.baseURL = _providerBaseUrl(provider, access.url)
-  }
+  opts.apiKey = access.apiKey
+  if (access.url) opts.baseURL = _providerBaseUrl(provider, access.url)
 
   switch (provider) {
     case 'anthropic':

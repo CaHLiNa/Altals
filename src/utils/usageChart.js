@@ -54,16 +54,16 @@ export function computeChartLayout(data, opts = {}) {
   const bars = data.map((d, i) => {
     const x = plotX + i * (barW + barGap)
     const total = d.cost || 0
-    const shoulders = d.shoulders_cost || 0
-    const direct = Math.max(0, total - shoulders)
+    const hosted = d.shoulders_cost || 0
+    const direct = Math.max(0, total - hosted)
 
     const totalH = niceMax > 0 ? (total / niceMax) * plotH : 0
-    const shouldersH = niceMax > 0 ? (shoulders / niceMax) * plotH : 0
+    const hostedH = niceMax > 0 ? (hosted / niceMax) * plotH : 0
     const directH = niceMax > 0 ? (direct / niceMax) * plotH : 0
 
     // Min visible height for non-zero values
     const minH = 2
-    const sH = shoulders > 0 ? Math.max(minH, shouldersH) : 0
+    const hH = hosted > 0 ? Math.max(minH, hostedH) : 0
     const dH = direct > 0 ? Math.max(minH, directH) : 0
 
     const baseY = plotY + plotH
@@ -72,14 +72,14 @@ export function computeChartLayout(data, opts = {}) {
       date: d.date,
       x,
       width: barW,
-      // Shoulders segment (bottom)
-      shouldersY: baseY - sH,
-      shouldersH: sH,
-      // Direct segment (stacked on top of shoulders)
-      directY: baseY - sH - dH,
+      // Hosted segment (bottom)
+      hostedY: baseY - hH,
+      hostedH: hH,
+      // Direct segment (stacked on top of hosted)
+      directY: baseY - hH - dH,
       directH: dH,
       // Data for tooltip
-      shouldersCost: shoulders,
+      hostedCost: hosted,
       directCost: direct,
       totalCost: total,
       calls: d.calls || 0,

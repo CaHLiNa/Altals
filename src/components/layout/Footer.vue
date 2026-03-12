@@ -153,21 +153,10 @@
       <!-- Separator -->
       <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
 
-      <!-- Billing context display (follows selected model's route) -->
+      <!-- Billing context display -->
       <template v-if="usageStore.showInFooter && footerBillingVisible">
-        <!-- Shoulders balance (when selected model routes through Shoulders) -->
         <span
-          v-if="billingRoute?.route === 'shoulders' && shouldersBalance !== null"
-          class="cursor-pointer hover:opacity-80"
-          :style="{ color: shouldersBalanceColor }"
-          title="Shoulders account balance"
-          @click="$emit('open-settings', 'account')">
-          <span class="font-mono font-bold tracking-tight pr-1">{{ formatCents(shouldersBalance) }}</span>
-          <span class="tracking-tight">Credits remaining</span>
-        </span>
-        <!-- Direct key estimate (when selected model routes through API key) -->
-        <span
-          v-else-if="billingRoute?.route === 'direct'"
+          v-if="billingRoute?.route === 'direct'"
           class="cursor-pointer hover:opacity-80"
           :style="{ color: usageStore.isOverBudget ? 'var(--error)' : usageStore.isNearBudget ? 'var(--warning)' : 'var(--fg-muted)' }"
           title="Estimated API cost this month — check provider dashboards for actual charges"
@@ -354,34 +343,13 @@ const billingRoute = computed(() => {
   return getBillingRoute(workspace.selectedModelId, workspace)
 })
 
-// Shoulders balance (for route=shoulders display)
-const shouldersBalance = computed(() => {
-  if (!workspace.shouldersAuth?.token) return null
-  const credits = workspace.shouldersAuth.credits
-  return typeof credits === 'number' ? credits : null
-})
-
 // Footer shows billing when the current model's route has something to show
 const footerBillingVisible = computed(() => {
   const route = billingRoute.value
   if (!route) return false
-  if (route.route === 'shoulders') return shouldersBalance.value !== null
   if (route.route === 'direct') return usageStore.showCostEstimates && usageStore.directCost > 0
   return false
 })
-
-// Color thresholds for Shoulders balance
-const shouldersBalanceColor = computed(() => {
-  const cents = shouldersBalance.value ?? 0
-  if (cents < 25) return 'var(--error)'
-  if (cents < 100) return 'var(--warning)'
-  return 'var(--fg-muted)'
-})
-
-function formatCents(cents) {
-  if (cents == null) return '$0.00'
-  return '$' + (cents / 100).toFixed(2)
-}
 
 function formatCost(val) {
   if (!val) return '$0.00'

@@ -1,5 +1,5 @@
 {
-  "name": "shoulders",
+  "name": "altals",
   "private": true,
   "version": "0.2.6",
   "type": "module",
@@ -31,7 +31,6 @@
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
-    "@tauri-apps/plugin-updater": "^2.0.0",
     "@tiptap/core": "^3.19.0",
     "@tiptap/pm": "^3.19.0",
     "@vue-flow/background": "^1.3.2",

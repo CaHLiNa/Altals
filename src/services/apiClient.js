@@ -1,16 +1,11 @@
 /**
  * Centralized AI API client.
  *
- * Owns: key resolution, Shoulders proxy URL.
+ * Owns: local key resolution and provider URL selection.
  *
  * Main export:
  *   resolveApiAccess(options, workspace) — "who do I call and with what key?"
  */
-
-// Single source of truth for Shoulders proxy URLs
-const SHOULDERS_BASE = import.meta.env.DEV ? 'http://localhost:3000' : 'https://shoulde.rs'
-export const SHOULDERS_PROXY_URL = `${SHOULDERS_BASE}/api/v1/proxy`
-export const SHOULDERS_SEARCH_URL = `${SHOULDERS_BASE}/api/v1/search`
 
 const PROVIDER_URLS = {
   anthropic: 'https://api.anthropic.com/v1/messages',
@@ -31,25 +26,20 @@ const CHEAP_MODELS = [
   { provider: 'openai', model: 'gpt-5-nano-2025-08-07', keyEnv: 'OPENAI_API_KEY' },
 ]
 
-// ─── Billing Route (synchronous) ─────────────────────────────────────
-
 /**
  * Synchronously determine the billing route for a given model.
- * Mirrors _resolveModelAccess priority (direct key > Shoulders) but
- * returns only the route type — no async token refresh.
  *
  * @param {string} modelId - Model ID from models.json
  * @param {object} workspace - Workspace store instance
- * @returns {{ route: 'direct', provider: string } | { route: 'shoulders' } | null}
+ * @returns {{ route: 'direct', provider: string } | null}
  */
 export function getBillingRoute(modelId, workspace) {
   const config = workspace.modelsConfig
   if (!config) {
-    // Legacy: single Anthropic key
     if (workspace.apiKey && workspace.apiKey !== 'your-api-key-here') {
       return { route: 'direct', provider: 'anthropic' }
     }
-    return workspace.shouldersAuth?.token ? { route: 'shoulders' } : null
+    return null
   }
 
   const model = config.models?.find(m => m.id === modelId) || config.models?.[0]
@@ -61,52 +51,38 @@ export function getBillingRoute(modelId, workspace) {
   const apiKey = workspace.apiKeys?.[providerConfig.apiKeyEnv]
   const hasDirectKey = apiKey && !apiKey.includes('your-')
 
-  if (hasDirectKey) return { route: 'direct', provider: model.provider }
-  if (workspace.shouldersAuth?.token) return { route: 'shoulders' }
-  return null
+  return hasDirectKey ? { route: 'direct', provider: model.provider } : null
 }
-
-// ─── Key Resolution ──────────────────────────────────────────────────
 
 /**
  * Resolve API access for an AI call.
- * Auto-refreshes Shoulders token if expired.
  *
  * @param {object} options
- * @param {string} [options.modelId]   - Named model from models.json (chat/tasks/docx)
+ * @param {string} [options.modelId] - Named model from models.json
  * @param {'ghost'|'cheapest'} [options.strategy] - Auto-select by strategy
  * @param {object} workspace - Workspace store instance
- * @returns {Promise<{ model, provider, apiKey, url, providerHint? } | null>}
+ * @returns {Promise<{ model: string, provider: string, apiKey: string, url: string } | null>}
  */
 export async function resolveApiAccess(options, workspace) {
   if (options.strategy === 'ghost') {
-    // If user has a preferred ghost model, try it first
     if (workspace.ghostModelId) {
       const preferred = GHOST_MODELS.find(m => m.model === workspace.ghostModelId)
       if (preferred) {
         const keys = workspace.apiKeys || {}
         const key = keys[preferred.keyEnv]
         if (key && !key.includes('your-')) {
-          return { model: preferred.model, provider: preferred.provider, apiKey: key, url: PROVIDER_URLS[preferred.provider] }
-        }
-        // Try via Shoulders
-        if (workspace.shouldersAuth?.token) {
-          const freshResult = await workspace.ensureFreshToken()
-          if (freshResult === 'network_error') return { _networkError: true }
-          if (workspace.shouldersAuth?.token) {
-            return {
-              model: preferred.model,
-              provider: 'shoulders',
-              providerHint: preferred.provider,
-              apiKey: workspace.shouldersAuth.token,
-              url: SHOULDERS_PROXY_URL,
-            }
+          return {
+            model: preferred.model,
+            provider: preferred.provider,
+            apiKey: key,
+            url: PROVIDER_URLS[preferred.provider],
           }
         }
       }
     }
     return _resolveFromList(GHOST_MODELS, workspace)
   }
+
   if (options.strategy === 'cheapest') return _resolveFromList(CHEAP_MODELS, workspace)
   if (options.modelId) return _resolveModelAccess(options.modelId, workspace)
   return null
@@ -120,27 +96,12 @@ async function _resolveFromList(modelList, workspace) {
       return { model, provider, apiKey: key, url: PROVIDER_URLS[provider] }
     }
   }
-  // Auto-refresh Shoulders token before using it
-  if (workspace.shouldersAuth?.token) {
-    const freshResult = await workspace.ensureFreshToken()
-    if (freshResult === 'network_error') return { _networkError: true }
-    if (!workspace.shouldersAuth?.token) return null
-    const fallback = modelList[0]
-    return {
-      model: fallback.model,
-      provider: 'shoulders',
-      providerHint: fallback.provider,
-      apiKey: workspace.shouldersAuth.token,
-      url: SHOULDERS_PROXY_URL,
-    }
-  }
   return null
 }
 
 async function _resolveModelAccess(modelId, workspace) {
   const config = workspace.modelsConfig
   if (!config) {
-    // Legacy fallback: single Anthropic key
     if (workspace.apiKey && workspace.apiKey !== 'your-api-key-here') {
       return {
         model: 'claude-sonnet-4-6',
@@ -160,39 +121,20 @@ async function _resolveModelAccess(modelId, workspace) {
 
   const apiKey = workspace.apiKeys?.[providerConfig.apiKeyEnv]
   const hasDirectKey = apiKey && !apiKey.includes('your-')
+  if (!hasDirectKey) return null
 
-  if (hasDirectKey) {
-    let url = providerConfig.url || PROVIDER_URLS[model.provider]
-    // Migrate stale OpenAI Chat Completions URL to Responses API
-    if (model.provider === 'openai' && url?.includes('/v1/chat/completions')) {
-      url = PROVIDER_URLS.openai
-    }
-    return {
-      model: model.model,
-      provider: model.provider,
-      apiKey,
-      url,
-    }
+  let url = providerConfig.url || PROVIDER_URLS[model.provider]
+  if (model.provider === 'openai' && url?.includes('/v1/chat/completions')) {
+    url = PROVIDER_URLS.openai
   }
 
-  // Auto-refresh Shoulders token before using it
-  if (workspace.shouldersAuth?.token) {
-    const freshResult = await workspace.ensureFreshToken()
-    if (freshResult === 'network_error') return { _networkError: true }
-    if (!workspace.shouldersAuth?.token) return null
-    return {
-      model: model.model,
-      provider: 'shoulders',
-      providerHint: model.provider,
-      apiKey: workspace.shouldersAuth.token,
-      url: SHOULDERS_PROXY_URL,
-    }
+  return {
+    model: model.model,
+    provider: model.provider,
+    apiKey,
+    url,
   }
-
-  return null
 }
-
-// ─── Convenience ─────────────────────────────────────────────────────
 
 export function hasAnyAccess(workspace) {
   const keys = workspace.apiKeys || {}
@@ -200,5 +142,5 @@ export function hasAnyAccess(workspace) {
     const key = keys[keyEnv]
     if (key && !key.includes('your-')) return true
   }
-  return !!workspace.shouldersAuth?.token
+  return false
 }

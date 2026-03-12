@@ -1,8 +1,5 @@
-import { check } from '@tauri-apps/plugin-updater'
-import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
-
-let _downloadedUpdate = null
+const RELEASES_URL = 'https://github.com/CaHLiNa/Altals/releases'
 
 export async function getAppVersion() {
   try {
@@ -12,69 +9,29 @@ export async function getAppVersion() {
   }
 }
 
-/**
- * Check for available updates. Returns the update object or null.
- * Never throws — errors are caught and logged.
- */
 export async function checkForUpdate() {
-  try {
-    const update = await check()
-    return update ?? null
-  } catch (e) {
-    console.warn('[updater] Check failed:', e)
-    return null
-  }
+  return null
 }
 
-/**
- * Download the update. Calls onProgress(percent) during download.
- * Returns true on success, false on failure.
- */
 export async function downloadUpdate(update, onProgress) {
-  if (!update) return false
-  try {
-    let contentLength = 0
-    let downloaded = 0
-
-    await update.downloadAndInstall((event) => {
-      switch (event.event) {
-        case 'Started':
-          contentLength = event.data.contentLength || 0
-          break
-        case 'Progress':
-          downloaded += event.data.chunkLength
-          if (contentLength > 0 && onProgress) {
-            onProgress(Math.round((downloaded / contentLength) * 100))
-          }
-          break
-        case 'Finished':
-          if (onProgress) onProgress(100)
-          break
-      }
-    })
-
-    _downloadedUpdate = update
-    return true
-  } catch (e) {
-    console.error('[updater] Download failed:', e)
-    return false
-  }
+  void update
+  if (onProgress) onProgress(0)
+  return false
 }
 
-/**
- * Relaunch the app to apply the downloaded update.
- */
 export async function installAndRestart() {
-  await relaunch()
+  return false
 }
 
-/**
- * Whether auto-check is enabled (default: true).
- */
 export function isAutoCheckEnabled() {
-  return localStorage.getItem('autoCheckUpdates') !== 'false'
+  return false
 }
 
 export function setAutoCheckEnabled(enabled) {
-  localStorage.setItem('autoCheckUpdates', enabled ? 'true' : 'false')
+  void enabled
+}
+
+export async function openReleasesPage() {
+  const { open } = await import('@tauri-apps/plugin-shell')
+  await open(RELEASES_URL)
 }

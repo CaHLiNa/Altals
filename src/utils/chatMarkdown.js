@@ -104,7 +104,7 @@ export function isSkillRead(name, input) {
 
 /**
  * Extract a human-readable skill name from a skill file path.
- * e.g. ".project/skills/shoulders-meta/SKILL.md" → "Shoulders Manual"
+ * e.g. ".project/skills/altals-meta/SKILL.md" → "Altals Meta"
  */
 export function getSkillDisplayName(input) {
   if (!input?.path) return 'Skill'

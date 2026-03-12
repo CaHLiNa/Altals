@@ -4,7 +4,7 @@
       <!-- Logo + Title -->
       <div class="launcher-hero">
         <div class="launcher-logo">S</div>
-        <div class="launcher-title">Shoulders</div>
+        <div class="launcher-title">Altals</div>
         <p class="launcher-tagline">Writing, references, and AI — designed as one system.</p>
       </div>
 

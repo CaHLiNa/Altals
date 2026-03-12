@@ -79,78 +79,69 @@
     <!-- Search API Keys -->
     <div class="tools-key-section">
       <h3 class="settings-section-title" style="margin-top: 20px;">Search API Keys</h3>
-      <template v-if="workspace.shouldersAuth?.token">
-        <div class="tool-status tool-status-active">
-          <span class="tool-status-dot active"></span>
-          Academic &amp; web search enabled via Shoulders account
-        </div>
-      </template>
-      <template v-else>
-        <div class="keys-list">
-          <div class="key-field">
-            <label class="key-label">
-              <span class="key-provider">OpenAlex API Key</span>
-              <span class="key-env">OPENALEX_API_KEY</span>
-            </label>
-            <div class="key-input-row">
-              <input
-                :type="openalexKeyVisible ? 'text' : 'password'"
-                :value="editOpenAlexKey"
-                @input="editOpenAlexKey = $event.target.value"
-                class="key-input"
-                placeholder="openalex-..."
-                spellcheck="false"
-                autocomplete="off"
-              />
-              <button class="key-toggle" @click="openalexKeyVisible = !openalexKeyVisible" :title="openalexKeyVisible ? 'Hide' : 'Show'">
-                <svg v-if="!openalexKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                </svg>
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div class="key-field" style="margin-top: 10px;">
-            <label class="key-label">
-              <span class="key-provider">Exa API Key</span>
-              <span class="key-env">EXA_API_KEY</span>
-            </label>
-            <div class="key-input-row">
-              <input
-                :type="exaKeyVisible ? 'text' : 'password'"
-                :value="editSearchKey"
-                @input="editSearchKey = $event.target.value"
-                class="key-input"
-                placeholder="exa-..."
-                spellcheck="false"
-                autocomplete="off"
-              />
-              <button class="key-toggle" @click="exaKeyVisible = !exaKeyVisible" :title="exaKeyVisible ? 'Hide' : 'Show'">
-                <svg v-if="!exaKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                </svg>
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
+      <div class="keys-list">
+        <div class="key-field">
+          <label class="key-label">
+            <span class="key-provider">OpenAlex API Key</span>
+            <span class="key-env">OPENALEX_API_KEY</span>
+          </label>
+          <div class="key-input-row">
+            <input
+              :type="openalexKeyVisible ? 'text' : 'password'"
+              :value="editOpenAlexKey"
+              @input="editOpenAlexKey = $event.target.value"
+              class="key-input"
+              placeholder="openalex-..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button class="key-toggle" @click="openalexKeyVisible = !openalexKeyVisible" :title="openalexKeyVisible ? 'Hide' : 'Show'">
+              <svg v-if="!openalexKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <p class="settings-hint" style="margin-top: 8px;">
-          Academic search uses <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')">OpenAlex</span> (free key: ~1000 searches/day).
-          Web search uses <span class="settings-link" @click="openExternal('https://dashboard.exa.ai')">Exa</span>.
-          Or sign in to your Shoulders account for included access to both.
-        </p>
-        <div class="keys-actions">
-          <button class="key-save-btn" :class="{ saved: toolKeySaved }" @click="saveToolKeys">
-            {{ toolKeySaved ? 'Saved' : 'Save Keys' }}
-          </button>
+        <div class="key-field" style="margin-top: 10px;">
+          <label class="key-label">
+            <span class="key-provider">Exa API Key</span>
+            <span class="key-env">EXA_API_KEY</span>
+          </label>
+          <div class="key-input-row">
+            <input
+              :type="exaKeyVisible ? 'text' : 'password'"
+              :value="editSearchKey"
+              @input="editSearchKey = $event.target.value"
+              class="key-input"
+              placeholder="exa-..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button class="key-toggle" @click="exaKeyVisible = !exaKeyVisible" :title="exaKeyVisible ? 'Hide' : 'Show'">
+              <svg v-if="!exaKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
         </div>
-      </template>
+      </div>
+      <p class="settings-hint" style="margin-top: 8px;">
+        Academic search uses <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')">OpenAlex</span> (free key: ~1000 searches/day).
+        Web search uses <span class="settings-link" @click="openExternal('https://dashboard.exa.ai')">Exa</span>.
+      </p>
+      <div class="keys-actions">
+        <button class="key-save-btn" :class="{ saved: toolKeySaved }" @click="saveToolKeys">
+          {{ toolKeySaved ? 'Saved' : 'Save Keys' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>

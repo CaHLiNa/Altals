@@ -1,33 +1,29 @@
 <template>
-  <div class="min-h-screen flex flex-col font-sans bg-white text-stone-900 antialiased">
-    <SiteHeader />
-
-    <main class="flex-1 flex items-center justify-center px-6">
-      <div class="max-w-md text-center py-24 md:py-32">
-        <p class="text-xs font-semibold text-cadet-500 uppercase tracking-[0.15em] mb-4">
+  <div class="min-h-screen bg-stone-950 text-stone-100 antialiased">
+    <main class="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6 py-16">
+      <div class="w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center shadow-2xl shadow-black/20 backdrop-blur">
+        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
           Error {{ error?.statusCode || 500 }}
         </p>
 
-        <h1 class="font-serif text-2xl md:text-3xl font-semibold leading-tight tracking-tight text-stone-900">
+        <h1 class="text-2xl font-semibold leading-tight tracking-tight text-white md:text-3xl">
           {{ title }}
         </h1>
 
-        <p class="mt-5 text-base text-stone-600 leading-relaxed">
+        <p class="mt-4 text-base leading-relaxed text-stone-300">
           {{ description }}
         </p>
 
-        <div class="mt-10">
+        <div class="mt-8">
           <button
             @click="handleError"
-            class="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-5 py-2 rounded tracking-wide transition-colors"
+            class="rounded-full bg-white px-5 py-2 text-sm font-medium tracking-wide text-stone-950 transition-colors hover:bg-stone-200"
           >
-            Back to home
+            Return to bridge
           </button>
         </div>
       </div>
     </main>
-
-    <SiteFooter />
   </div>
 </template>
 

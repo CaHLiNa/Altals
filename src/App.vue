@@ -117,7 +117,6 @@ import { useLatexStore } from './stores/latex'
 import { useKernelStore } from './stores/kernel'
 import { useToastStore } from './stores/toast'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
-import { checkForUpdate, downloadUpdate, installAndRestart, isAutoCheckEnabled } from './services/appUpdater'
 import { isMod } from './platform'
 import { isChatTab, isNewTab, getViewerType } from './utils/fileTypes'
 
@@ -169,11 +168,6 @@ onMounted(async () => {
   workspace.applyFontSizes()
   workspace.restoreProseFont()
 
-  // Silent update check (non-blocking, respects user preference)
-  if (isAutoCheckEnabled()) {
-    silentUpdateCheck()
-  }
-
   // Try to restore last workspace
   const lastWorkspace = localStorage.getItem('lastWorkspace')
   if (lastWorkspace) {
@@ -190,39 +184,6 @@ onMounted(async () => {
   }
   // No workspace to restore — launcher will show automatically (workspace.isOpen is false)
 })
-
-async function silentUpdateCheck() {
-  const update = await checkForUpdate()
-  if (!update?.available) return
-
-  const toastId = toastStore.show(`Shoulders ${update.version} available`, {
-    type: 'info',
-    duration: 0,
-    action: {
-      label: 'Download',
-      onClick: () => startUpdateDownload(update, toastId),
-    },
-  })
-}
-
-async function startUpdateDownload(update, toastId) {
-  toastStore.update(toastId, 'Downloading update...', { type: 'info', action: null })
-  const ok = await downloadUpdate(update, (pct) => {
-    // Progress updates handled in Settings if open; toast stays as "Downloading..."
-  })
-  if (ok) {
-    toastStore.update(toastId, 'Update ready. Restart to apply.', {
-      type: 'success',
-      action: {
-        label: 'Restart',
-        onClick: () => installAndRestart(),
-      },
-    })
-  } else {
-    toastStore.update(toastId, 'Download failed. Try again from Settings.', { type: 'error', duration: 5000 })
-  }
-}
-
 
 async function pickWorkspace() {
   const { homeDir } = await import('@tauri-apps/api/path')

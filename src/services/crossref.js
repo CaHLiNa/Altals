@@ -16,7 +16,7 @@ async function fetchJson(url, headers = {}) {
       request: {
         url,
         method: 'GET',
-        headers: { 'User-Agent': 'Shoulders/1.0 (mailto:user@example.com)', ...headers },
+        headers: { 'User-Agent': 'Altals/1.0 (mailto:opensource@example.com)', ...headers },
         body: '',
       },
     })
