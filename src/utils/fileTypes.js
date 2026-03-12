@@ -105,6 +105,7 @@ export function isBinaryFile(path) {
 
 const ICON_MAP = {
   '_instructions.md': 'IconSparkles',
+  'instructions.md': 'IconSparkles',
   md: 'IconFileText',
   txt: 'IconFileText',
   json: 'IconBraces',

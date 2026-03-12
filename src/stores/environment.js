@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { t } from '../i18n'
 
 export const useEnvironmentStore = defineStore('environment', {
   state: () => ({
@@ -172,7 +173,7 @@ export const useEnvironmentStore = defineStore('environment', {
 
       const cmd = commands[language]
       if (!cmd) {
-        this.installError = `Unknown language: ${language}`
+        this.installError = t('Unknown language: {language}', { language })
         this.installing = null
         return false
       }
@@ -186,7 +187,7 @@ export const useEnvironmentStore = defineStore('environment', {
 
         const success = this.languages[language]?.hasKernel === true
         if (!success) {
-          this.installError = 'Installation completed but kernel not detected. Try restarting the app.'
+          this.installError = t('Installation completed but kernel not detected. Try restarting the app.')
         }
         return success
       } catch (e) {
@@ -202,12 +203,12 @@ export const useEnvironmentStore = defineStore('environment', {
       const isMac = navigator.platform?.startsWith('Mac')
       const hints = {
         python: isMac
-          ? 'Install via Homebrew: brew install python3 && pip3 install ipykernel'
-          : 'Install from python.org, then: pip install ipykernel',
+          ? t('Install via Homebrew: brew install python3 && pip3 install ipykernel')
+          : t('Install from python.org, then: pip install ipykernel'),
         r: isMac
-          ? 'Install from r-project.org, then in R: install.packages("IRkernel"); IRkernel::installspec()'
-          : 'Install from r-project.org, then in R: install.packages("IRkernel"); IRkernel::installspec()',
-        julia: 'Install from julialang.org, then in Julia: using Pkg; Pkg.add("IJulia")',
+          ? t('Install from r-project.org, then in R: install.packages("IRkernel"); IRkernel::installspec()')
+          : t('Install from r-project.org, then in R: install.packages("IRkernel"); IRkernel::installspec()'),
+        julia: t('Install from julialang.org, then in Julia: using Pkg; Pkg.add("IJulia")'),
       }
       return hints[language] || ''
     },

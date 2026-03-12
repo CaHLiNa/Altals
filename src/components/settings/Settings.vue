@@ -5,7 +5,7 @@
         <!-- Left nav -->
         <div class="settings-nav">
           <div class="settings-nav-header">
-            Settings
+            {{ t('Settings') }}
             <button class="settings-close" @click="$emit('close')">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 1l8 8M9 1L1 9"/></svg>
             </button>
@@ -51,6 +51,7 @@ import SettingsEnvironment from './SettingsEnvironment.vue'
 import SettingsUsage from './SettingsUsage.vue'
 import SettingsGitHub from './SettingsGitHub.vue'
 import SettingsUpdates from './SettingsUpdates.vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -59,6 +60,7 @@ const props = defineProps({
 defineEmits(['close'])
 
 const activeSection = ref('theme')
+const { t } = useI18n()
 
 watch(() => props.visible, (v) => {
   if (v && props.initialSection) {
@@ -67,16 +69,16 @@ watch(() => props.visible, (v) => {
 })
 
 const sections = [
-  { id: 'theme', label: 'Theme', icon: IconPalette },
-  { id: 'editor', label: 'Editor', icon: IconEdit },
+  { id: 'theme', label: t('Theme'), icon: IconPalette },
+  { id: 'editor', label: t('Editor'), icon: IconEdit },
   { separator: true },
-  { id: 'models', label: 'Models', icon: IconKey },
-  { id: 'tools', label: 'Tools', icon: IconTool },
+  { id: 'models', label: t('Models'), icon: IconKey },
+  { id: 'tools', label: t('Tools'), icon: IconTool },
   { id: 'github', label: 'GitHub', icon: IconBrandGithub },
-  { id: 'system', label: 'System', icon: IconCpu },
+  { id: 'system', label: t('System'), icon: IconCpu },
   { separator: true },
-  { id: 'usage', label: 'Usage', icon: IconChartBar },
-  { id: 'updates', label: 'Updates', icon: IconRefresh },
+  { id: 'usage', label: t('Usage'), icon: IconChartBar },
+  { id: 'updates', label: t('Updates'), icon: IconRefresh },
 ]
 </script>
 

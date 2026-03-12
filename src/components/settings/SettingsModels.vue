@@ -1,7 +1,7 @@
 <template>
   <div>
-    <h3 class="settings-section-title">API Keys</h3>
-    <p class="settings-hint">You only need a key for the provider you want to use. Keys are shared across all workspaces.</p>
+    <h3 class="settings-section-title">{{ t('API Keys') }}</h3>
+    <p class="settings-hint">{{ t('You only need a key for the provider you want to use. Keys are shared across all workspaces.') }}</p>
 
     <div class="keys-list">
       <div v-for="k in keyFields" :key="k.env" class="key-field">
@@ -19,7 +19,7 @@
             spellcheck="false"
             autocomplete="off"
           />
-          <button class="key-toggle" @click="k.visible = !k.visible" :title="k.visible ? 'Hide' : 'Show'">
+          <button class="key-toggle" @click="k.visible = !k.visible" :title="k.visible ? t('Hide') : t('Show')">
             <svg v-if="!k.visible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
@@ -34,15 +34,15 @@
 
     <div class="keys-actions">
       <button class="key-save-btn" :class="{ saved: keySaved }" @click="saveKeys">
-        {{ keySaved ? 'Saved' : 'Save Keys' }}
+        {{ keySaved ? t('Saved') : t('Save Keys') }}
       </button>
-      <span v-if="keySaved" class="key-saved-hint">Restart chat to use new keys</span>
+      <span v-if="keySaved" class="key-saved-hint">{{ t('Restart chat to use new keys') }}</span>
     </div>
 
     <!-- Monthly Budget (conditional on having direct keys) -->
     <template v-if="hasDirectKeys && (usageStore.showCostEstimates || usageStore.monthlyLimit > 0)">
-      <h3 class="settings-section-title" style="margin-top: 24px;">Monthly Budget</h3>
-      <p class="settings-hint">Soft limit on estimated API key spending for your locally configured provider keys.</p>
+      <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('Monthly Budget') }}</h3>
+      <p class="settings-hint">{{ t('Soft limit on estimated API key spending for your locally configured provider keys.') }}</p>
       <div class="usage-limit-row">
         <span class="usage-limit-dollar">$</span>
         <input
@@ -51,11 +51,11 @@
           min="0"
           v-model="editMonthlyLimit"
           class="key-input usage-limit-input"
-          placeholder="0 (no limit)"
+          :placeholder="t('0 (no limit)')"
           @keydown.enter="saveMonthlyLimit"
         />
         <button class="key-save-btn" :class="{ saved: limitSaved }" @click="saveMonthlyLimit">
-          {{ limitSaved ? 'Saved' : 'Set Limit' }}
+          {{ limitSaved ? t('Saved') : t('Set Limit') }}
         </button>
       </div>
 
@@ -66,7 +66,7 @@
         </div>
         <div class="budget-progress-label">
           <span :style="{ color: budgetBarColor }">~{{ formatCost(usageStore.directCost) }} / ${{ usageStore.monthlyLimit.toFixed(0) }}</span>
-          <span v-if="usageStore.isOverBudget" style="color: var(--error);"> — budget reached</span>
+          <span v-if="usageStore.isOverBudget" style="color: var(--error);"> — {{ t('budget reached') }}</span>
         </div>
       </div>
     </template>
@@ -76,11 +76,11 @@
       <svg :class="{ rotated: showAdvanced }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
         <path d="M3 1l4 4-4 4z"/>
       </svg>
-      Advanced
+      {{ t('Advanced') }}
     </div>
 
     <div v-if="showAdvanced" class="advanced-section">
-      <p class="settings-hint">Custom API endpoints for enterprise/private deployments</p>
+      <p class="settings-hint">{{ t('Custom API endpoints for enterprise/private deployments') }}</p>
       <div class="keys-list">
         <div v-for="p in urlFields" :key="p.provider" class="key-field">
           <label class="key-label">
@@ -97,7 +97,7 @@
       </div>
       <div class="keys-actions">
         <button class="key-save-btn" :class="{ saved: urlSaved }" @click="saveUrls">
-          {{ urlSaved ? 'Saved' : 'Save URLs' }}
+          {{ urlSaved ? t('Saved') : t('Save URLs') }}
         </button>
       </div>
     </div>
@@ -110,9 +110,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUsageStore } from '../../stores/usage'
 import { formatCost } from '../../services/tokenUsage'
+import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
 const usageStore = useUsageStore()
+const { t } = useI18n()
 const keySaved = ref(false)
 const showAdvanced = ref(false)
 const urlSaved = ref(false)

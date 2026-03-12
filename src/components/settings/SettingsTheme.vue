@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3 class="settings-section-title">Theme</h3>
+    <h3 class="settings-section-title">{{ t('Theme') }}</h3>
     <div class="theme-grid">
       <button
         v-for="theme in themes"
@@ -23,7 +23,7 @@
           </div>
         </div>
         <!-- Label -->
-        <div class="theme-label">{{ theme.label }}</div>
+        <div class="theme-label">{{ t(theme.label) }}</div>
         <!-- Color dots -->
         <div class="theme-dots">
           <span class="theme-dot" :style="{ background: theme.colors.accent }"></span>
@@ -38,8 +38,10 @@
 
 <script setup>
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const themes = [
   // Light themes

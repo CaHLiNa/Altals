@@ -1,21 +1,21 @@
 <template>
   <div>
-    <h3 class="settings-section-title">Editor</h3>
-    <p class="settings-hint">Behavior and display preferences for the text editor.</p>
+    <h3 class="settings-section-title">{{ t('Editor') }}</h3>
+    <p class="settings-hint">{{ t('Behavior and display preferences for the text editor.') }}</p>
 
     <div class="editor-toggles">
       <!-- Writing Font -->
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">Writing font</span>
+          <span class="env-lang-name">{{ t('Writing font') }}</span>
           <span class="env-lang-version">{{ currentFontLabel }}</span>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          Font for Markdown files. Other files use monospace editor font.
+          {{ t('Font for Markdown files. Other files use monospace editor font.') }}
         </div>
         <div class="wrap-column-row" style="margin-top: 8px; padding-left: 16px;">
-          <label class="ghost-model-label">Prose font:</label>
+          <label class="ghost-model-label">{{ t('Prose font:') }}</label>
           <div class="wrap-preset-group">
             <button
               v-for="font in proseFonts"
@@ -24,7 +24,7 @@
               :class="{ active: workspace.proseFont === font.value }"
               :style="{ fontFamily: font.family, fontSize: font.fontSize }"
               @click="workspace.setProseFont(font.value)"
-            >{{ font.label }}</button>
+            >{{ t(font.labelKey) }}</button>
           </div>
         </div>
       </div>
@@ -33,9 +33,9 @@
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="workspace.softWrap ? 'good' : 'none'"></span>
-          <span class="env-lang-name">Soft Wrap</span>
-          <span v-if="workspace.softWrap" class="env-lang-version">Enabled</span>
-          <span v-else class="env-lang-missing">Disabled</span>
+          <span class="env-lang-name">{{ t('Soft Wrap') }}</span>
+          <span v-if="workspace.softWrap" class="env-lang-version">{{ t('Enabled') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -46,10 +46,10 @@
           </button>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          Wrap long lines to fit the editor width. Also available via the footer toggle.
+          {{ t('Wrap long lines to fit the editor width. Also available via the footer toggle.') }}
         </div>
         <div v-if="workspace.softWrap" class="wrap-column-row" style="margin-top: 8px; padding-left: 16px;">
-          <label class="ghost-model-label">Line width:</label>
+          <label class="ghost-model-label">{{ t('Line width:') }}</label>
           <div class="wrap-preset-group">
             <button
               v-for="p in WRAP_PRESETS"
@@ -57,7 +57,7 @@
               class="wrap-preset-btn"
               :class="{ active: workspace.wrapColumn === p.value }"
               @click="workspace.setWrapColumn(p.value)"
-            >{{ p.label }}</button>
+            >{{ t(p.labelKey) }}</button>
           </div>
         </div>
       </div>
@@ -66,9 +66,9 @@
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="workspace.spellcheck ? 'good' : 'none'"></span>
-          <span class="env-lang-name">Spell Check</span>
-          <span v-if="workspace.spellcheck" class="env-lang-version">Enabled</span>
-          <span v-else class="env-lang-missing">Disabled</span>
+          <span class="env-lang-name">{{ t('Spell Check') }}</span>
+          <span v-if="workspace.spellcheck" class="env-lang-version">{{ t('Enabled') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -79,7 +79,7 @@
           </button>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          Underlines misspelled words. Right-click and choose "Spelling..." for corrections. Markdown files only.
+          {{ t('Underlines misspelled words. Right-click and choose "Spelling..." for corrections. Markdown files only.') }}
         </div>
       </div>
 
@@ -87,9 +87,9 @@
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="workspace.livePreviewEnabled ? 'good' : 'none'"></span>
-          <span class="env-lang-name">Hide Markup</span>
-          <span v-if="workspace.livePreviewEnabled" class="env-lang-version">Enabled</span>
-          <span v-else class="env-lang-missing">Disabled</span>
+          <span class="env-lang-name">{{ t('Hide Markup') }}</span>
+          <span v-if="workspace.livePreviewEnabled" class="env-lang-version">{{ t('Enabled') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -100,7 +100,7 @@
           </button>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          Links show as underlined text, bold/italic render inline, heading marks dim. Markdown files only.
+          {{ t('Links show as underlined text, bold/italic render inline, heading marks dim. Markdown files only.') }}
         </div>
       </div>
 
@@ -108,9 +108,9 @@
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="workspace.ghostEnabled ? 'good' : 'none'"></span>
-          <span class="env-lang-name">Ghost Suggestions</span>
-          <span v-if="workspace.ghostEnabled" class="env-lang-version">Enabled</span>
-          <span v-else class="env-lang-missing">Disabled</span>
+          <span class="env-lang-name">{{ t('Ghost Suggestions') }}</span>
+          <span v-if="workspace.ghostEnabled" class="env-lang-version">{{ t('Enabled') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -121,11 +121,11 @@
           </button>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          Type <code>++</code> in any editor to get AI completions.
-          Uses {{ ghostModelLabel }}.
+          {{ t('Type') }} <code>++</code> {{ t('in any editor to get AI completions.') }}
+          {{ t('Uses {model}.', { model: ghostModelLabel }) }}
         </div>
         <div v-if="workspace.ghostEnabled && availableGhostModels.length > 1" class="ghost-model-picker" style="margin-top: 8px; padding-left: 16px;">
-          <label class="ghost-model-label">Ghost model:</label>
+          <label class="ghost-model-label">{{ t('Ghost model:') }}</label>
           <div class="ghost-dropdown-wrap">
             <button
               ref="ghostBtnRef"
@@ -160,27 +160,29 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { GHOST_MODELS, getBillingRoute } from '../../services/apiClient'
+import { GHOST_MODELS } from '../../services/apiClient'
+import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const proseFonts = [
-  { value: 'inter', label: 'Sans',  family: "'Inter', system-ui, sans-serif",     fontSize: '11px' },
-  { value: 'stix',  label: 'Serif', family: "'STIX Two Text', Georgia, serif",    fontSize: '13px' },
-  { value: 'mono',  label: 'Mono',  family: "'JetBrains Mono', monospace",        fontSize: '11px' },
+  { value: 'inter', labelKey: 'Sans',  family: "'Inter', system-ui, sans-serif",     fontSize: '11px' },
+  { value: 'stix',  labelKey: 'Serif', family: "'STIX Two Text', Georgia, serif",    fontSize: '13px' },
+  { value: 'mono',  labelKey: 'Mono',  family: "'JetBrains Mono', monospace",        fontSize: '11px' },
 ]
 
 const currentFontLabel = computed(() =>
-  proseFonts.find(f => f.value === workspace.proseFont)?.label ?? 'Sans'
+  t(proseFonts.find(f => f.value === workspace.proseFont)?.labelKey ?? 'Sans')
 )
 
 const WRAP_PRESETS = [
-  { label: 'Narrow', value: 60 },
-  { label: 'Medium', value: 80 },
-  { label: 'Wide', value: 100 },
-  { label: 'Full width', value: 0 },
+  { labelKey: 'Narrow', value: 60 },
+  { labelKey: 'Medium', value: 80 },
+  { labelKey: 'Wide', value: 100 },
+  { labelKey: 'Full width', value: 0 },
 ]
 
 const GHOST_MODEL_LABELS = {

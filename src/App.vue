@@ -132,6 +132,7 @@ import Settings from './components/settings/Settings.vue'
 import SetupWizard from './components/SetupWizard.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import BottomPanel from './components/layout/BottomPanel.vue'
+import { useI18n } from './i18n'
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -145,6 +146,7 @@ const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const kernelStore = useKernelStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
 
 const footerRef = ref(null)
 const headerRef = ref(null)
@@ -191,7 +193,7 @@ async function pickWorkspace() {
   const selected = await open({
     directory: true,
     multiple: false,
-    title: 'Open Workspace',
+    title: t('Open Workspace'),
     defaultPath: home,
   })
 
@@ -228,7 +230,7 @@ async function openWorkspace(path) {
   } catch (e) {
     console.error('Failed to open workspace:', e)
     await closeWorkspace()
-    toastStore.show(`Failed to open workspace: ${e.message || e}`, { type: 'error', duration: 8000 })
+    toastStore.show(t('Failed to open workspace: {error}', { error: e.message || e }), { type: 'error', duration: 8000 })
     return
   }
 

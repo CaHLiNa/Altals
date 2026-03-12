@@ -10,7 +10,7 @@
             <div class="wizard-wordmark">Altals</div>
           </div>
 
-          <h2 class="wizard-step-title">Connect a provider to use AI features</h2>
+          <h2 class="wizard-step-title">{{ t('Connect a provider to use AI features') }}</h2>
 
           <div class="wizard-options">
             <button
@@ -18,8 +18,8 @@
               :class="{ selected: aiChoice === 'keys' }"
               @click="aiChoice = 'keys'"
             >
-              <div class="wizard-option-title">I have API keys</div>
-              <div class="wizard-option-desc">Anthropic, OpenAI, or Google</div>
+              <div class="wizard-option-title">{{ t('I have API keys') }}</div>
+              <div class="wizard-option-desc">{{ t('Anthropic, OpenAI, or Google') }}</div>
             </button>
 
             <button
@@ -27,8 +27,8 @@
               :class="{ selected: aiChoice === 'skip' }"
               @click="aiChoice = 'skip'"
             >
-              <div class="wizard-option-title">Set up later</div>
-              <div class="wizard-option-desc">You can configure this any time in Settings</div>
+              <div class="wizard-option-title">{{ t('Set up later') }}</div>
+              <div class="wizard-option-desc">{{ t('You can configure this any time in Settings') }}</div>
             </button>
           </div>
 
@@ -53,17 +53,17 @@
               <button class="wizard-dot active" disabled></button>
               <button class="wizard-dot" @click="continueFromAI"></button>
             </div>
-            <button class="wizard-btn primary" @click="continueFromAI">Continue</button>
+            <button class="wizard-btn primary" @click="continueFromAI">{{ t('Continue') }}</button>
           </div>
         </div>
 
         <!-- Step 2: Theme -->
         <div v-if="step === 2" class="wizard-step">
-          <h2 class="wizard-step-title">Choose a theme</h2>
-          <p class="wizard-step-hint">You can change this any time in Settings</p>
+          <h2 class="wizard-step-title">{{ t('Choose a theme') }}</h2>
+          <p class="wizard-step-hint">{{ t('You can change this any time in Settings') }}</p>
 
           <!-- Light themes -->
-          <div class="wizard-theme-group-label">Light</div>
+          <div class="wizard-theme-group-label">{{ t('Light') }}</div>
           <div class="wizard-theme-grid">
             <button
               v-for="theme in lightThemes"
@@ -86,7 +86,7 @@
           </div>
 
           <!-- Dark themes -->
-          <div class="wizard-theme-group-label" style="margin-top: 12px;">Dark</div>
+          <div class="wizard-theme-group-label" style="margin-top: 12px;">{{ t('Dark') }}</div>
           <div class="wizard-theme-grid">
             <button
               v-for="theme in darkThemes"
@@ -113,7 +113,7 @@
               <button class="wizard-dot" @click="step = 1"></button>
               <button class="wizard-dot active" disabled></button>
             </div>
-            <button class="wizard-btn primary" @click="finish">Start Writing</button>
+            <button class="wizard-btn primary" @click="finish">{{ t('Start Writing') }}</button>
           </div>
         </div>
       </div>
@@ -124,6 +124,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
+import { useI18n } from '../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -131,6 +132,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const step = ref(1)
 const aiChoice = ref(null)

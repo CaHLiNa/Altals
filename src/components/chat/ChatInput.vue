@@ -31,7 +31,7 @@
         <button
           class="p-1 rounded bg-transparent border-none cursor-pointer flex items-center transition-colors"
           style="color: var(--fg-muted);"
-          title="Attach file (@)"
+          :title="t('Attach file (@)')"
           @mousedown.prevent
           @click="triggerAtMention">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -58,16 +58,16 @@
           :style="reviews.directMode
             ? { color: 'var(--warning)' }
             : { color: 'var(--fg-muted)', opacity: '0.6' }"
-          title="Controls how AI-suggested edits are applied — affects all AI features"
+          :title="t('Controls how AI-suggested edits are applied - affects all AI features')"
           @click="reviews.toggleDirectMode()">
-          {{ reviews.directMode ? 'Auto-apply' : 'Review changes' }}
+          {{ reviews.directMode ? t('Auto-apply') : t('Review changes') }}
         </button>
 
         <!-- Spacer -->
         <div class="flex-1"></div>
 
         <!-- Budget reached label -->
-        <span v-if="isOverBudget" class="ui-text-lg" style="color: var(--error); margin-right: 4px;">Budget reached</span>
+        <span v-if="isOverBudget" class="ui-text-lg" style="color: var(--error); margin-right: 4px;">{{ t('Budget reached') }}</span>
 
         <!-- Token donut -->
         <div v-if="props.estimatedTokens !== null"
@@ -128,12 +128,12 @@
               <span v-if="m.id === currentModelId" class="mr-1.5" style="color: var(--accent);">&#x2713;</span>
               <span v-else style="width: 16px; display: inline-block;"></span>
               {{ m.name }}
-              <span v-if="m.recommended" class="recommended-badge">default</span>
-              <span v-else-if="showRouteBadges && m.route === 'direct'" class="route-label">API Key</span>
+              <span v-if="m.recommended" class="recommended-badge">{{ t('default') }}</span>
+              <span v-else-if="showRouteBadges && m.route === 'direct'" class="route-label">{{ t('API Key') }}</span>
             </div>
           </template>
           <div v-else class="px-3 py-2 ui-text-sm" style="color: var(--fg-muted);">
-            No models available. Add API keys in Settings or sign in.
+            {{ t('No models available. Add API keys in Settings or sign in.') }}
           </div>
           <!-- Divider + Instructions -->
           <div class="my-1 border-t" style="border-color: var(--border);"></div>
@@ -142,7 +142,7 @@
             style="color: var(--fg-secondary);"
             @click="openInstructions(); showModelPicker = false">
             <IconNotes :size="14" :stroke-width="1.5" />
-            Instructions
+            {{ t('Instructions') }}
           </div>
         </div>
       </template>
@@ -159,6 +159,7 @@ import { useUsageStore } from '../../stores/usage'
 import { useChatStore } from '../../stores/chat'
 import { useReviewsStore } from '../../stores/reviews'
 import { getBillingRoute } from '../../services/apiClient'
+import { useI18n } from '../../i18n'
 import RichTextInput from '../shared/RichTextInput.vue'
 
 const props = defineProps({
@@ -176,6 +177,7 @@ const editorStore = useEditorStore()
 const usageStore  = useUsageStore()
 const chatStore   = useChatStore()
 const reviews     = useReviewsStore()
+const { t } = useI18n()
 
 const isOverBudget = computed(() => usageStore.isOverBudget)
 
@@ -277,7 +279,7 @@ const tokenTooltip = computed(() => {
 
 // ─── Placeholder ──────────────────────────────────────────────────────────────
 
-const placeholder = computed(() => 'Message... (@ to attach files)')
+const placeholder = computed(() => t('Message... (@ to attach files)'))
 
 // ─── Model picker ─────────────────────────────────────────────────────────────
 

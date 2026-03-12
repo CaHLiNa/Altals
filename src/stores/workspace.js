@@ -3,6 +3,24 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { gitInit, gitAdd, gitCommit, gitStatus, gitRemoteGetUrl } from '../services/git'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
+import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
+
+const DEFAULT_INSTRUCTIONS_TEMPLATE = DEFAULT_PROJECT_INSTRUCTIONS.replace(/\r\n/g, '\n').trim()
+
+function normalizeFileContent(value = '') {
+  return String(value).replace(/\r\n/g, '\n')
+}
+
+function stripInstructionComments(raw = '') {
+  return normalizeFileContent(raw).split('\n')
+    .filter(line => !(line.trim().startsWith('<!--') && line.trim().endsWith('-->')))
+    .join('\n')
+    .trim()
+}
+
+function isDefaultInstructionsTemplate(raw = '') {
+  return normalizeFileContent(raw).trim() === DEFAULT_INSTRUCTIONS_TEMPLATE
+}
 
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
@@ -57,6 +75,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     shouldersDir: (state) => state.path ? `${state.path}/.shoulders` : null,
     projectDir: (state) => state.path ? `${state.path}/.project` : null,
     claudeDir: (state) => state.path ? `${state.path}/.claude` : null,
+    instructionsFilePath: (state) => state.path ? `${state.path}/_instructions.md` : null,
+    internalInstructionsPath: (state) => state.path ? `${state.path}/.project/instructions.md` : null,
   },
 
   actions: {
@@ -85,8 +105,11 @@ export const useWorkspaceStore = defineStore('workspace', {
       // Hot-reload _instructions.md on change
       this._instructionsUnlisten = await listen('fs-change', (event) => {
         const paths = event.payload?.paths || []
-        const instructionsPath = `${this.path}/_instructions.md`
-        if (paths.some(p => p === instructionsPath)) {
+        const instructionsPaths = [
+          this.instructionsFilePath,
+          this.internalInstructionsPath,
+        ].filter(Boolean)
+        if (paths.some(path => instructionsPaths.includes(path))) {
           this.loadInstructions()
         }
       })
@@ -223,9 +246,6 @@ When reviewing text:
       if (!chatsExists) {
         await invoke('create_dir', { path: `${shouldersDir}/chats` })
       }
-
-      // Ensure _instructions.md exists at workspace root
-      await this._ensureInstructionsFile()
     },
 
     async initProjectDir() {
@@ -312,6 +332,8 @@ When reviewing text:
           content: DEFAULT_SKILL_CONTENT,
         })
       }
+
+      await this._migrateAutoInstructionsFile()
     },
 
     async installEditHooks() {
@@ -559,50 +581,93 @@ exit 0
       }
     },
 
-    async _ensureInstructionsFile() {
-      if (!this.path) return
-      const filePath = `${this.path}/_instructions.md`
+    async _ensureInternalInstructionsFile(seedContent = DEFAULT_PROJECT_INSTRUCTIONS) {
+      const filePath = this.internalInstructionsPath
+      if (!filePath) return
       const exists = await invoke('path_exists', { path: filePath })
       if (exists) return
 
       await invoke('write_file', {
         path: filePath,
-        content: `<!-- Project Instructions -->
-<!-- Everything here shapes how AI helps you in this project — -->
-<!-- in chat, inline suggestions, and tasks.                -->
-<!-- Edits take effect immediately. Delete these hints and     -->
-<!-- write your own.                                           -->
-
-<!-- Example: This is my PhD thesis on marine biodiversity.    -->
-
-<!-- Example: Use formal academic English. Prefer active voice. -->
-
-<!-- Example: "OTU" = Operational Taxonomic Unit               -->
-`,
+        content: seedContent,
       })
     },
 
-    async loadInstructions() {
-      if (!this.path) return
+    async _migrateAutoInstructionsFile() {
+      const rootPath = this.instructionsFilePath
+      const internalPath = this.internalInstructionsPath
+      if (!rootPath || !internalPath) return
+
+      const rootExists = await invoke('path_exists', { path: rootPath })
+      if (!rootExists) return
+
       try {
-        const raw = await invoke('read_file', { path: `${this.path}/_instructions.md` })
-        // Strip HTML comment lines — they're template hints, not AI instructions
-        this.instructions = raw.split('\n')
-          .filter(l => !(l.trim().startsWith('<!--') && l.trim().endsWith('-->')))
-          .join('\n').trim()
+        const raw = await invoke('read_file', { path: rootPath })
+        if (!isDefaultInstructionsTemplate(raw)) return
+
+        await this._ensureInternalInstructionsFile(raw)
+        await invoke('delete_path', { path: rootPath })
+      } catch (e) {
+        console.warn('Failed to migrate auto-generated instructions file:', e)
+      }
+    },
+
+    async loadInstructions() {
+      const rootPath = this.instructionsFilePath
+      const internalPath = this.internalInstructionsPath
+      if (!rootPath || !internalPath) return
+
+      try {
+        let rootRaw = null
+        let internalRaw = null
+
+        try {
+          rootRaw = await invoke('read_file', { path: rootPath })
+        } catch { /* no manual root instructions */ }
+
+        if (rootRaw !== null && !isDefaultInstructionsTemplate(rootRaw)) {
+          this.instructions = stripInstructionComments(rootRaw)
+          return
+        }
+
+        try {
+          internalRaw = await invoke('read_file', { path: internalPath })
+        } catch { /* no internal instructions yet */ }
+
+        if (internalRaw !== null) {
+          this.instructions = stripInstructionComments(internalRaw)
+          return
+        }
+
+        this.instructions = rootRaw !== null ? stripInstructionComments(rootRaw) : ''
       } catch (e) {
         this.instructions = ''
       }
     },
 
     async openInstructionsFile() {
-      if (!this.path) return
-      const filePath = `${this.path}/_instructions.md`
-      // Create if missing (user deleted it)
-      const exists = await invoke('path_exists', { path: filePath })
-      if (!exists) {
-        await this._ensureInstructionsFile()
+      const rootPath = this.instructionsFilePath
+      const internalPath = this.internalInstructionsPath
+      if (!rootPath || !internalPath) return
+
+      let filePath = internalPath
+      const rootExists = await invoke('path_exists', { path: rootPath })
+
+      if (rootExists) {
+        try {
+          const rootRaw = await invoke('read_file', { path: rootPath })
+          if (!isDefaultInstructionsTemplate(rootRaw)) {
+            filePath = rootPath
+          } else {
+            await this._migrateAutoInstructionsFile()
+          }
+        } catch { /* fall back to internal instructions */ }
       }
+
+      if (filePath === internalPath) {
+        await this._ensureInternalInstructionsFile()
+      }
+
       // Open in editor
       const { useEditorStore } = await import('./editor')
       const editorStore = useEditorStore()

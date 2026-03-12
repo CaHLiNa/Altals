@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3 class="settings-section-title">Updates</h3>
+    <h3 class="settings-section-title">{{ t('Updates') }}</h3>
 
     <div class="update-card">
       <div class="update-identity-row">
@@ -11,13 +11,12 @@
       </div>
 
       <p class="update-copy">
-        Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a
-        newer version.
+        {{ t('Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a newer version.') }}
       </p>
 
       <div class="update-actions">
         <button class="update-btn update-btn-primary" @click="openReleases">
-          Open Releases
+          {{ t('Open Releases') }}
         </button>
       </div>
     </div>
@@ -27,8 +26,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getAppVersion, openReleasesPage } from '../../services/appUpdater'
+import { useI18n } from '../../i18n'
 
 const appVersion = ref('...')
+const { t } = useI18n()
 
 async function openReleases() {
   await openReleasesPage()

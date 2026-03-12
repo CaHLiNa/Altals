@@ -9,21 +9,21 @@
       >
         <div class="snapshot-dialog" @keydown.esc="cancel">
           <div class="snapshot-header">
-            <span class="snapshot-title">Create Snapshot</span>
-            <button class="snapshot-close" @click="cancel" aria-label="Close">&times;</button>
+            <span class="snapshot-title">{{ t('Create Snapshot') }}</span>
+            <button class="snapshot-close" @click="cancel" :aria-label="t('Close')">&times;</button>
           </div>
           <input
             ref="inputEl"
             v-model="name"
             class="snapshot-input font-medium text-sm px-4 py-2"
-            placeholder="e.g., Submitted draft"
+            :placeholder="t('e.g., Submitted draft')"
             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
             @keydown.enter="submit"
           />
           <p class="snapshot-helper">
-            Your files auto-save. Use this dialog to create named checkpoints in Version History.<br />
+            {{ t('Your files auto-save. Use this dialog to create named checkpoints in Version History.') }}<br />
           </p>
-          <button class="snapshot-btn" @click="submit">Save</button>
+          <button class="snapshot-btn" @click="submit">{{ t('Save') }}</button>
         </div>
       </div>
     </Transition>
@@ -32,12 +32,14 @@
 
 <script setup>
 import { ref, watch, nextTick } from 'vue'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['resolve'])
+const { t } = useI18n()
 
 const inputEl = ref(null)
 const name = ref('')

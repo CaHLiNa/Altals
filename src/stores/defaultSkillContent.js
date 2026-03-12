@@ -22,7 +22,7 @@ Altals is a local-first desktop workspace for research writing, references, codi
 - PDF export via Typst with citations from the local reference library.
 
 ### DOCX
-- Native `.docx` editing with SuperDoc.
+- Native \`.docx\` editing with SuperDoc.
 - Comments, tracked change compatible workflows, AI-assisted editing, and inline suggestions.
 
 ### LaTeX
@@ -30,7 +30,7 @@ Altals is a local-first desktop workspace for research writing, references, codi
 - SyncTeX navigation and bibliography generation.
 
 ### Notebooks and code
-- Native `.ipynb` support.
+- Native \`.ipynb\` support.
 - Built-in terminal and kernel-backed execution for Python, R, and Julia when available.
 
 ---
@@ -98,7 +98,8 @@ Altals uses the user's own provider keys.
 | \`.project/references/\` | Reference library and PDF assets |
 | \`.project/skills/\` | Workspace skills |
 | \`.shoulders/\` | Current compatibility directory for private AI state |
-| \`_instructions.md\` | User-authored instructions injected into AI requests |
+| \`.project/instructions.md\` | Default project instructions injected into AI requests |
+| \`_instructions.md\` | Optional user-created override file, still recognized if you make it manually |
 
 ---
 

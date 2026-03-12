@@ -7,10 +7,10 @@
       <!-- Word count -->
       <template v-if="stats.words > 0">
         <span :style="{ color: stats.selWords > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
-          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selWords > 0 ? stats.selWords : stats.words).toLocaleString() }}</span> words
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selWords > 0 ? stats.selWords : stats.words).toLocaleString() }}</span> {{ t('words') }}
         </span>
         <span :style="{ color: stats.selChars > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
-          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selChars > 0 ? stats.selChars : stats.chars).toLocaleString() }}</span> chars
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selChars > 0 ? stats.selChars : stats.chars).toLocaleString() }}</span> {{ t('chars') }}
         </span>
       </template>
 
@@ -51,7 +51,7 @@
         class="flex items-center gap-1 cursor-pointer hover:opacity-80"
         style="color: var(--warning);"
         @click="togglePendingPopover">
-        {{ reviews.pendingCount }} change{{ reviews.pendingCount !== 1 ? 's' : '' }}
+        {{ reviews.pendingCount }} {{ t('Pending Changes') }}
       </span>
     </div>
 
@@ -63,7 +63,7 @@
           class="w-5 h-5 flex items-center justify-center rounded cursor-pointer transition-colors border-none bg-transparent"
           style="color: var(--fg-muted);"
           @click="workspace.zoomOut()"
-          :title="`Zoom out (${modKey}+-)`"
+          :title="t('Zoom out ({shortcut})', { shortcut: `${modKey}+-` })"
           @mouseover="$event.target.style.color='var(--fg-primary)'"
           @mouseout="$event.target.style.color='var(--fg-muted)'"
         >
@@ -75,7 +75,7 @@
           :style="{ color: zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)' }"
           style="font-family: inherit;"
           @click="toggleZoomPopover"
-          :title="`Zoom level (${modKey}+0 to reset)`"
+          :title="t('Zoom level ({shortcut})', { shortcut: `${modKey}+0` })"
           @mouseover="$event.target.style.color='var(--fg-primary)'"
           @mouseout="$event.target.style.color = zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)'"
         >
@@ -85,7 +85,7 @@
           class="w-5 h-5 flex items-center justify-center rounded cursor-pointer transition-colors border-none bg-transparent"
           style="color: var(--fg-muted);"
           @click="workspace.zoomIn()"
-          :title="`Zoom in (${modKey}+=)`"
+          :title="t('Zoom in ({shortcut})', { shortcut: `${modKey}+=` })"
           @mouseover="$event.target.style.color='var(--fg-primary)'"
           @mouseout="$event.target.style.color='var(--fg-muted)'"
         >
@@ -98,13 +98,13 @@
       
         <IconCheck width="12" height="12" style="color: var(--success);" />
         <div class="font-medium text-sm pe-2" style="color: var(--success);">
-          Saved
+          {{ t('Saved') }}
         </div>
         <div
           class="cursor-pointer underline hover:opacity-80 text-sm font-medium"
           style="color: var(--accent);"
           @click="openSnapshotDialog"
-        >Name this version?</div>
+        >{{ t('Name this version?') }}</div>
       </div>
 
       <!-- Transient center message (e.g. "All saved (no changes)") -->
@@ -129,7 +129,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
         style="color: var(--fg-muted);"
         @click="showShortcuts = !showShortcuts"
-        title="Keyboard shortcuts"
+        :title="t('Keyboard shortcuts')"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="4" width="14" height="9" rx="1.5"/>
@@ -140,7 +140,7 @@
         class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
         :style="{ color: workspace.softWrap ? 'var(--accent)' : 'var(--fg-muted)' }"
         @click="workspace.toggleSoftWrap()"
-        :title="workspace.softWrap ? 'Word wrap: on' : 'Word wrap: off'"
+        :title="workspace.softWrap ? t('Word wrap: on') : t('Word wrap: off')"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M2 3h12"/>
@@ -159,9 +159,9 @@
           v-if="billingRoute?.route === 'direct'"
           class="cursor-pointer hover:opacity-80"
           :style="{ color: usageStore.isOverBudget ? 'var(--error)' : usageStore.isNearBudget ? 'var(--warning)' : 'var(--fg-muted)' }"
-          title="Estimated API cost this month — check provider dashboards for actual charges"
+          :title="t('Estimated API cost this month - check provider dashboards for actual charges')"
           @click="$emit('open-settings', 'models')">
-          ~{{ formatCost(usageStore.directCost) }} this month
+          {{ t('{cost} this month', { cost: `~${formatCost(usageStore.directCost)}` }) }}
         </span>
         <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
       </template>
@@ -183,33 +183,33 @@
         @click.stop>
         <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
           style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
-          Keyboard Shortcuts
+          {{ t('Keyboard shortcuts') }}
         </div>
         <div class="px-3 py-2 space-y-1.5 text-xs" style="color: var(--fg-secondary);">
-          <div class="flex justify-between"><span>Toggle left sidebar</span><kbd>{{ modKey }}+B</kbd></div>
-          <div class="flex justify-between"><span>Toggle right sidebar</span><kbd>{{ modKey }}+J</kbd></div>
-          <div class="flex justify-between"><span>Quick open</span><kbd>{{ modKey }}+P</kbd></div>
-          <div class="flex justify-between"><span>Save &amp; commit</span><kbd>{{ modKey }}+S</kbd></div>
-          <div class="flex justify-between"><span>Close tab</span><kbd>{{ modKey }}+W</kbd></div>
-          <div class="flex justify-between"><span>Split vertical</span><kbd>{{ modKey }}+\</kbd></div>
-          <div class="flex justify-between"><span>Split horizontal</span><kbd>{{ modKey }}+Shift+\</kbd></div>
-          <div class="flex justify-between"><span>Add comment</span><kbd>{{ modKey }}+Shift+L</kbd></div>
-          <div class="flex justify-between"><span>Toggle terminal</span><kbd>{{ modKey }}+`</kbd></div>
-          <div class="flex justify-between"><span>Zoom in</span><kbd>{{ modKey }}+=</kbd></div>
-          <div class="flex justify-between"><span>Zoom out</span><kbd>{{ modKey }}+-</kbd></div>
-          <div class="flex justify-between"><span>Reset zoom</span><kbd>{{ modKey }}+0</kbd></div>
-          <div class="flex justify-between"><span>Toggle word wrap</span><kbd>{{ altKey }}+Z</kbd></div>
-          <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">File Explorer</div>
-          <div class="flex justify-between"><span>Navigate</span><kbd>↑ / ↓</kbd></div>
-          <div class="flex justify-between"><span>Expand folder</span><kbd>→</kbd></div>
-          <div class="flex justify-between"><span>Collapse / parent</span><kbd>←</kbd></div>
-          <div class="flex justify-between"><span>Open</span><kbd>Space</kbd></div>
-          <div class="flex justify-between"><span>Rename</span><kbd>Enter</kbd></div>
-          <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">Ghost Suggestions</div>
-          <div class="flex justify-between"><span>Trigger</span><kbd>++</kbd></div>
-          <div class="flex justify-between"><span>Accept</span><kbd>Tab / Enter / Right</kbd></div>
-          <div class="flex justify-between"><span>Cycle</span><kbd>Up / Down</kbd></div>
-          <div class="flex justify-between"><span>Cancel</span><kbd>Esc / Left / click</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Toggle left sidebar') }}</span><kbd>{{ modKey }}+B</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Toggle right sidebar') }}</span><kbd>{{ modKey }}+J</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Quick open') }}</span><kbd>{{ modKey }}+P</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Save & commit') }}</span><kbd>{{ modKey }}+S</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Close tab') }}</span><kbd>{{ modKey }}+W</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Split vertical') }}</span><kbd>{{ modKey }}+\</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Split horizontal') }}</span><kbd>{{ modKey }}+Shift+\</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Add comment') }}</span><kbd>{{ modKey }}+Shift+L</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Toggle terminal') }}</span><kbd>{{ modKey }}+`</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Zoom in') }}</span><kbd>{{ modKey }}+=</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Zoom out') }}</span><kbd>{{ modKey }}+-</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Reset zoom') }}</span><kbd>{{ modKey }}+0</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Toggle word wrap') }}</span><kbd>{{ altKey }}+Z</kbd></div>
+          <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">{{ t('File Explorer') }}</div>
+          <div class="flex justify-between"><span>{{ t('Navigate') }}</span><kbd>↑ / ↓</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Expand folder') }}</span><kbd>→</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Collapse / parent') }}</span><kbd>←</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Open') }}</span><kbd>Space</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Rename') }}</span><kbd>Enter</kbd></div>
+          <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">{{ t('Ghost Suggestions') }}</div>
+          <div class="flex justify-between"><span>{{ t('Trigger') }}</span><kbd>++</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Accept') }}</span><kbd>Tab / Enter / Right</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Cycle') }}</span><kbd>Up / Down</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Cancel') }}</span><kbd>Esc / Left / click</kbd></div>
         </div>
       </div>
     </div>
@@ -228,7 +228,7 @@
             :style="{ color: level === zoomPercent ? 'var(--accent)' : 'var(--fg-secondary)' }"
             @click="selectZoom(level)">
             <span>{{ level }}%</span>
-            <span v-if="level === 100" class="text-[10px]" style="color: var(--fg-muted);">default</span>
+            <span v-if="level === 100" class="text-[10px]" style="color: var(--fg-muted);">{{ t('default') }}</span>
           </div>
         </div>
       </div>
@@ -244,7 +244,7 @@
         @click.stop>
         <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
           style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
-          Pending Changes
+          {{ t('Pending Changes') }}
         </div>
         <div class="py-1 max-h-48 overflow-y-auto">
           <div v-for="file in reviews.filesWithEdits" :key="file"
@@ -295,6 +295,7 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { getBillingRoute } from '../../services/apiClient'
 import { modKey, altKey } from '../../platform'
+import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
 import SnapshotDialog from './SnapshotDialog.vue'
 import GitHubConflictDialog from '../GitHubConflictDialog.vue'
@@ -307,6 +308,7 @@ const reviews = useReviewsStore()
 const editorStore = useEditorStore()
 const usageStore = useUsageStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
 
 const stats = ref({ words: 0, chars: 0, selWords: 0, selChars: 0 })
 const cursorPos = ref({ line: 0, col: 0 })
@@ -368,21 +370,21 @@ const syncColor = computed(() => {
 
 const syncTooltip = computed(() => {
   switch (workspace.syncStatus) {
-    case 'synced': return 'Synced with GitHub'
-    case 'syncing': return 'Syncing with GitHub...'
-    case 'conflict': return 'Needs your input — click for details'
-    case 'error': return 'Needs attention — click for details'
-    case 'idle': return 'GitHub: connected'
-    default: return 'GitHub: not connected'
+    case 'synced': return t('Synced with GitHub')
+    case 'syncing': return t('Syncing with GitHub...')
+    case 'conflict': return t('Needs your input - click for details')
+    case 'error': return t('Needs attention - click for details')
+    case 'idle': return t('GitHub: connected')
+    default: return t('GitHub: not connected')
   }
 })
 
 const syncLabel = computed(() => {
   switch (workspace.syncStatus) {
-    case 'synced': return 'Backed up'
-    case 'syncing': return 'Saving...'
+    case 'synced': return t('Backed up')
+    case 'syncing': return t('Saving...')
     case 'error':
-    case 'conflict': return 'Sync issue'
+    case 'conflict': return t('Sync issue')
     default: return null
   }
 })
@@ -421,26 +423,26 @@ function handleOpenGitHubSettings() {
 watch(() => workspace.syncStatus, (status) => {
   if (status === 'conflict') {
     showConflictDialog.value = true
-    toastStore.showOnce('sync-conflict', 'Your changes conflict with updates on GitHub. Click to resolve.', {
+    toastStore.showOnce('sync-conflict', t('Your changes conflict with updates on GitHub. Click to resolve.'), {
       type: 'warning',
       duration: 8000,
-      action: { label: 'Resolve', onClick: () => { showConflictDialog.value = true } },
+      action: { label: t('Resolve'), onClick: () => { showConflictDialog.value = true } },
     })
   } else if (status === 'error') {
     const errorType = workspace.syncErrorType
     if (errorType === 'auth') {
-      toastStore.showOnce('sync-auth', 'GitHub connection expired. Reconnect in Settings.', {
+      toastStore.showOnce('sync-auth', t('GitHub connection expired. Reconnect in Settings.'), {
         type: 'error',
         duration: 8000,
-        action: { label: 'Settings', onClick: () => emit('open-settings', 'github') },
+        action: { label: t('Settings'), onClick: () => emit('open-settings', 'github') },
       })
     } else if (errorType === 'network') {
       // Network errors are quiet — no toast, just icon change
     } else {
-      toastStore.showOnce('sync-error', workspace.syncError || 'Sync failed. Click for details.', {
+      toastStore.showOnce('sync-error', workspace.syncError || t('Sync failed. Click for details.'), {
         type: 'error',
         duration: 6000,
-        action: { label: 'Details', onClick: () => { toggleSyncPopover() } },
+        action: { label: t('Details'), onClick: () => { toggleSyncPopover() } },
       })
     }
   }

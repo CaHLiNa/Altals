@@ -1,8 +1,8 @@
 <template>
   <div>
-    <h3 class="settings-section-title">AI Tools</h3>
+    <h3 class="settings-section-title">{{ t('AI Tools') }}</h3>
     <p class="settings-hint" style="margin-bottom: 12px;">
-      Control which tools the AI can use in chat. Disabled tools are hidden from the AI entirely.
+      {{ t('Control which tools the AI can use in chat. Disabled tools are hidden from the AI entirely.') }}
     </p>
 
     <!-- Disable all external button -->
@@ -14,7 +14,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
-      {{ allExternalDisabled ? 'All external tools disabled' : 'Disable all external tools' }}
+      {{ allExternalDisabled ? t('All external tools disabled') : t('Disable all external tools') }}
     </button>
 
     <!-- Tool categories -->
@@ -26,12 +26,12 @@
             <svg :class="{ rotated: expandedCategories[cat.id] }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
               <path d="M3 1l4 4-4 4z"/>
             </svg>
-            <span class="tool-category-name">{{ cat.label }}</span>
+            <span class="tool-category-name">{{ t(cat.label) }}</span>
             <span class="tool-category-count">{{ categoryEnabledCount(cat) }}/{{ categoryToolCount(cat) }}</span>
           </div>
           <div class="tool-category-right">
-            <span v-if="categoryAllLocal(cat)" class="tool-privacy-summary local">All local</span>
-            <span v-else-if="categoryHasExternal(cat)" class="tool-privacy-summary external">External</span>
+            <span v-if="categoryAllLocal(cat)" class="tool-privacy-summary local">{{ t('All local') }}</span>
+            <span v-else-if="categoryHasExternal(cat)" class="tool-privacy-summary external">{{ t('External') }}</span>
           </div>
         </div>
 
@@ -48,15 +48,15 @@
                 <span class="tool-toggle-knob"></span>
               </button>
               <span class="tool-name">{{ tool.name }}</span>
-              <span class="tool-desc">{{ tool.description }}</span>
-              <span v-if="tool.external" class="privacy-badge">{{ tool.external }}</span>
+              <span class="tool-desc">{{ t(tool.description) }}</span>
+              <span v-if="tool.external" class="privacy-badge">{{ t(tool.external) }}</span>
             </div>
           </template>
 
           <!-- Subgroups -->
           <template v-if="cat.subgroups">
             <div v-for="sg in cat.subgroups" :key="sg.label" class="tool-subgroup">
-              <div class="tool-subgroup-label">{{ sg.label }}</div>
+              <div class="tool-subgroup-label">{{ t(sg.label) }}</div>
               <div v-for="tool in sg.tools" :key="tool.name" class="tool-row">
                 <button
                   class="tool-toggle-switch"
@@ -66,9 +66,9 @@
                   <span class="tool-toggle-knob"></span>
                 </button>
                 <span class="tool-name">{{ tool.name }}</span>
-                <span class="tool-desc">{{ tool.description }}</span>
-                <span v-if="tool.external" class="privacy-badge">{{ tool.external }}</span>
-                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">unsandboxed</span>
+                <span class="tool-desc">{{ t(tool.description) }}</span>
+                <span v-if="tool.external" class="privacy-badge">{{ t(tool.external) }}</span>
+                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">{{ t('unsandboxed') }}</span>
               </div>
             </div>
           </template>
@@ -78,11 +78,11 @@
 
     <!-- Search API Keys -->
     <div class="tools-key-section">
-      <h3 class="settings-section-title" style="margin-top: 20px;">Search API Keys</h3>
+      <h3 class="settings-section-title" style="margin-top: 20px;">{{ t('Search API Keys') }}</h3>
       <div class="keys-list">
         <div class="key-field">
           <label class="key-label">
-            <span class="key-provider">OpenAlex API Key</span>
+            <span class="key-provider">{{ t('OpenAlex API Key') }}</span>
             <span class="key-env">OPENALEX_API_KEY</span>
           </label>
           <div class="key-input-row">
@@ -95,7 +95,7 @@
               spellcheck="false"
               autocomplete="off"
             />
-            <button class="key-toggle" @click="openalexKeyVisible = !openalexKeyVisible" :title="openalexKeyVisible ? 'Hide' : 'Show'">
+            <button class="key-toggle" @click="openalexKeyVisible = !openalexKeyVisible" :title="openalexKeyVisible ? t('Hide') : t('Show')">
               <svg v-if="!openalexKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
               </svg>
@@ -108,7 +108,7 @@
         </div>
         <div class="key-field" style="margin-top: 10px;">
           <label class="key-label">
-            <span class="key-provider">Exa API Key</span>
+            <span class="key-provider">{{ t('Exa API Key') }}</span>
             <span class="key-env">EXA_API_KEY</span>
           </label>
           <div class="key-input-row">
@@ -121,7 +121,7 @@
               spellcheck="false"
               autocomplete="off"
             />
-            <button class="key-toggle" @click="exaKeyVisible = !exaKeyVisible" :title="exaKeyVisible ? 'Hide' : 'Show'">
+            <button class="key-toggle" @click="exaKeyVisible = !exaKeyVisible" :title="exaKeyVisible ? t('Hide') : t('Show')">
               <svg v-if="!exaKeyVisible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
               </svg>
@@ -134,12 +134,12 @@
         </div>
       </div>
       <p class="settings-hint" style="margin-top: 8px;">
-        Academic search uses <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')">OpenAlex</span> (free key: ~1000 searches/day).
-        Web search uses <span class="settings-link" @click="openExternal('https://dashboard.exa.ai')">Exa</span>.
+        {{ t('Academic search uses') }} <span class="settings-link" @click="openExternal('https://openalex.org/settings/api')">OpenAlex</span> {{ t('(free key: ~1000 searches/day). Web search uses') }}
+        <span class="settings-link" @click="openExternal('https://dashboard.exa.ai')">Exa</span>.
       </p>
       <div class="keys-actions">
         <button class="key-save-btn" :class="{ saved: toolKeySaved }" @click="saveToolKeys">
-          {{ toolKeySaved ? 'Saved' : 'Save Keys' }}
+          {{ toolKeySaved ? t('Saved') : t('Save Keys') }}
         </button>
       </div>
     </div>
@@ -151,8 +151,10 @@ import { ref, reactive, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { TOOL_CATEGORIES, EXTERNAL_TOOLS } from '../../services/chatTools'
+import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const toolKeySaved = ref(false)
 const exaKeyVisible = ref(false)

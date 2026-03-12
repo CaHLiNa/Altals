@@ -11,7 +11,10 @@ import App from './App.vue'
 import './style.css'
 import 'katex/dist/katex.min.css'
 
+import { initLocale } from './i18n'
 import { initTelemetry, setAppVersion } from './services/telemetry'
+
+initLocale()
 
 const app = createApp(App)
 app.use(createPinia())

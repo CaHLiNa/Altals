@@ -1,6 +1,6 @@
 <template>
   <div class="sync-popover">
-    <div class="sync-header">GitHub Sync</div>
+    <div class="sync-header">{{ t('GitHub Sync') }}</div>
     <div class="sync-body">
       <!-- Status -->
       <div class="sync-row">
@@ -10,31 +10,31 @@
 
       <!-- Remote -->
       <div v-if="workspace.remoteUrl" class="sync-row">
-        <span class="sync-label">Repository</span>
+        <span class="sync-label">{{ t('Repository') }}</span>
         <a class="sync-link" :href="repoHtmlUrl" @click.prevent="openInBrowser(repoHtmlUrl)">{{ repoName }}</a>
       </div>
 
       <!-- Last sync time -->
       <div v-if="workspace.lastSyncTime" class="sync-row">
-        <span class="sync-label">Last sync</span>
-        <span class="sync-value">{{ formatRelative(workspace.lastSyncTime) }}</span>
+        <span class="sync-label">{{ t('Last sync') }}</span>
+        <span class="sync-value">{{ formatRelativeFromNow(workspace.lastSyncTime) }}</span>
       </div>
 
       <!-- Error guidance (contextual, not raw) -->
       <div v-if="workspace.syncStatus === 'error'" class="sync-guidance" :class="guidanceClass">
         <div class="sync-guidance-text">{{ guidanceText }}</div>
         <div v-if="workspace.syncErrorType === 'auth'" class="sync-guidance-actions">
-          <button class="sync-action-btn" @click="$emit('open-settings')">Reconnect</button>
+          <button class="sync-action-btn" @click="$emit('open-settings')">{{ t('Reconnect') }}</button>
         </div>
       </div>
 
       <!-- Conflict info -->
       <div v-if="workspace.syncConflictBranch" class="sync-conflict">
-        <span>Your local changes and GitHub are out of sync. We've saved your version to <strong>{{ workspace.syncConflictBranch }}</strong>.</span>
-        <div class="sync-conflict-hint">Resolve on GitHub, then click Refresh.</div>
+        <span>{{ t("Your local changes and GitHub are out of sync. We've saved your version to {branch}.", { branch: workspace.syncConflictBranch }) }}</span>
+        <div class="sync-conflict-hint">{{ t('Resolve on GitHub, then click Refresh.') }}</div>
         <div class="sync-conflict-actions">
-          <button class="sync-action-btn primary" @click="openInBrowser(repoHtmlUrl)">Open GitHub</button>
-          <button class="sync-action-btn" @click="$emit('refresh')">Refresh</button>
+          <button class="sync-action-btn primary" @click="openInBrowser(repoHtmlUrl)">{{ t('Open GitHub') }}</button>
+          <button class="sync-action-btn" @click="$emit('refresh')">{{ t('Refresh') }}</button>
         </div>
       </div>
 
@@ -45,21 +45,21 @@
           class="sync-action-btn primary"
           @click="$emit('sync-now')"
         >
-          Sync Now
+          {{ t('Sync Now') }}
         </button>
         <button
           v-if="!workspace.githubUser"
           class="sync-action-btn primary"
           @click="$emit('open-settings')"
         >
-          Connect GitHub
+          {{ t('Connect GitHub') }}
         </button>
         <button
           v-else-if="!workspace.remoteUrl"
           class="sync-action-btn primary"
           @click="$emit('open-settings')"
         >
-          Link Repository
+          {{ t('Link Repository') }}
         </button>
       </div>
     </div>
@@ -69,10 +69,12 @@
 <script setup>
 import { computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 defineEmits(['sync-now', 'refresh', 'open-settings'])
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 const dotClass = computed(() => {
   switch (workspace.syncStatus) {
@@ -87,25 +89,25 @@ const dotClass = computed(() => {
 
 const statusText = computed(() => {
   switch (workspace.syncStatus) {
-    case 'synced': return 'Up to date'
-    case 'syncing': return 'Syncing...'
-    case 'conflict': return 'Needs your input'
-    case 'error': return 'Needs attention'
-    case 'idle': return 'Connected'
-    case 'disconnected': return workspace.githubUser ? 'No repository linked' : 'Not connected'
-    default: return 'Not connected'
+    case 'synced': return t('Up to date')
+    case 'syncing': return t('Syncing...')
+    case 'conflict': return t('Needs your input')
+    case 'error': return t('Needs attention')
+    case 'idle': return t('Connected')
+    case 'disconnected': return workspace.githubUser ? t('No repository linked') : t('Not connected')
+    default: return t('Not connected')
   }
 })
 
 const guidanceText = computed(() => {
   switch (workspace.syncErrorType) {
-    case 'auth': return 'Your GitHub connection has expired.'
-    case 'network': return "Can't reach GitHub right now. Will retry automatically."
+    case 'auth': return t('Your GitHub connection has expired.')
+    case 'network': return t("Can't reach GitHub right now. Will retry automatically.")
     default: {
       const raw = workspace.syncError || ''
       // Strip "Push failed: " prefix for cleaner display
       const clean = raw.replace(/^(Push failed|Fetch failed): /i, '')
-      return clean || 'Something went wrong. Sync will retry automatically.'
+      return clean || t('Something went wrong. Sync will retry automatically.')
     }
   }
 })
@@ -124,16 +126,6 @@ const repoHtmlUrl = computed(() => {
   const name = repoName.value
   return name.startsWith('http') ? name : `https://github.com/${name}`
 })
-
-function formatRelative(date) {
-  if (!date) return ''
-  const d = date instanceof Date ? date : new Date(date)
-  const secs = Math.floor((Date.now() - d.getTime()) / 1000)
-  if (secs < 60) return 'just now'
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return d.toLocaleDateString()
-}
 
 async function openInBrowser(url) {
   try {

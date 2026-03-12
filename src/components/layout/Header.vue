@@ -16,7 +16,7 @@
         ref="menuBtnRef"
         class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
         style="color: var(--fg-muted);"
-        title="Menu"
+        :title="t('Menu')"
         @click="toggleMenu"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
         @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
@@ -29,12 +29,12 @@
     <Teleport to="body">
       <div v-if="menuOpen" ref="menuDropdownRef" class="context-menu" :style="menuStyle">
         <div class="context-menu-item" style="font-size: 12px;" @click="doOpenFolder">
-          Open Folder...
+          {{ t('Open Folder...') }}
           <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+O</span>
         </div>
         <template v-if="recents.length">
           <div class="context-menu-separator"></div>
-          <div class="context-menu-section">Recent</div>
+          <div class="context-menu-section">{{ t('Recent') }}</div>
           <div
             v-for="r in recents"
             :key="r.path"
@@ -48,12 +48,12 @@
         <template v-if="workspace.isOpen">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" style="font-size: 12px;" @click="doCloseFolder">
-            Close Folder
+            {{ t('Close Folder') }}
           </div>
         </template>
         <div class="context-menu-separator"></div>
         <div class="context-menu-item" style="font-size: 12px;" @click="doSettings">
-          Settings...
+          {{ t('Settings...') }}
           <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+,</span>
         </div>
       </div>
@@ -114,7 +114,7 @@
         class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.leftSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleLeftSidebar()"
-        :title="`Toggle sidebar (${modKey}+B)`"
+        :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
         @mouseout="$event.currentTarget.style.background='transparent'"
       >
@@ -127,7 +127,7 @@
         class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.rightSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleRightSidebar()"
-        :title="`Toggle right panel (${modKey}+J)`"
+        :title="t('Toggle right panel ({shortcut})', { shortcut: `${modKey}+J` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
         @mouseout="$event.currentTarget.style.background='transparent'"
       >
@@ -140,7 +140,7 @@
         class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.bottomPanelOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleBottomPanel()"
-        :title="`Toggle terminal (${modKey}+\`)`"
+        :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
         @mouseout="$event.currentTarget.style.background='transparent'"
       >
@@ -150,7 +150,7 @@
         class="w-7 h-7 flex items-center justify-center rounded-md border-none bg-transparent cursor-pointer transition-colors"
         style="color: var(--fg-muted);"
         @click="$emit('open-settings')"
-        :title="`Settings (${modKey}+,)`"
+        :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
         @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
       >
@@ -170,6 +170,7 @@ import {
   IconSettings, IconSearch, IconMenu2, IconTerminal2,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
+import { useI18n } from '../../i18n'
 
 import SearchResults from '../SearchResults.vue'
 
@@ -177,6 +178,7 @@ const emit = defineEmits(['open-settings', 'open-folder', 'open-workspace', 'clo
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
+const { t } = useI18n()
 
 // Hamburger menu
 const menuBtnRef = ref(null)
@@ -245,7 +247,7 @@ const searchFocused = ref(false)
 
 const showResults = computed(() => searchFocused.value || query.value.length > 0)
 
-const searchPlaceholder = computed(() => 'Go to file...')
+const searchPlaceholder = computed(() => t('Go to file...'))
 
 function onFocus() {
   searchFocused.value = true

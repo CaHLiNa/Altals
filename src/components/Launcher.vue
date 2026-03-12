@@ -3,25 +3,25 @@
     <div class="launcher-content">
       <!-- Logo + Title -->
       <div class="launcher-hero">
-        <div class="launcher-logo">S</div>
+        <div class="launcher-logo">A</div>
         <div class="launcher-title">Altals</div>
-        <p class="launcher-tagline">Writing, references, and AI — designed as one system.</p>
+        <p class="launcher-tagline">{{ t('Writing, references, and AI — designed as one system.') }}</p>
       </div>
 
       <!-- Action buttons -->
       <div class="launcher-actions">
         <button class="launcher-btn primary" @click="$emit('open-folder')">
-          Open Folder
+          {{ t('Open Folder') }}
           <kbd class="launcher-btn-hint">{{ modKey }}+O</kbd>
         </button>
         <button class="launcher-btn secondary" @click="showClone = true">
-          Clone Repository
+          {{ t('Clone Repository') }}
         </button>
       </div>
 
       <!-- No-recents hint -->
       <p v-if="!recents.length && !showClone" class="launcher-hint">
-        Open a folder to get started, or clone an existing project.
+        {{ t('Open a folder to get started, or clone an existing project.') }}
       </p>
 
       <!-- Clone inline form -->
@@ -41,16 +41,16 @@
             :disabled="!cloneUrl.trim() || cloning"
             @click="doClone"
           >
-            {{ cloning ? 'Cloning...' : 'Clone' }}
+            {{ cloning ? t('Cloning...') : t('Clone') }}
           </button>
-          <button class="launcher-btn-text" @click="cancelClone" :disabled="cloning">Cancel</button>
+          <button class="launcher-btn-text" @click="cancelClone" :disabled="cloning">{{ t('Cancel') }}</button>
         </div>
         <div v-if="cloneError" class="launcher-error">{{ cloneError }}</div>
       </div>
 
       <!-- Recent Workspaces -->
       <div v-if="recents.length" class="launcher-recents">
-        <div class="launcher-recents-heading">Recent</div>
+        <div class="launcher-recents-heading">{{ t('Recent') }}</div>
         <div
           v-for="r in recents"
           :key="r.path"
@@ -66,7 +66,7 @@
           </div>
           <button
             class="launcher-recent-remove"
-            title="Remove from recent"
+            :title="t('Remove from recent')"
             @click.stop="removeRecent(r.path)"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -85,10 +85,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../stores/workspace'
 import { modKey } from '../platform'
+import { useI18n } from '../i18n'
 
 const emit = defineEmits(['open-folder', 'open-workspace'])
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const recents = computed(() => workspace.getRecentWorkspaces())
 
 // Clone state
@@ -129,7 +131,7 @@ async function doClone() {
   const parentDir = await open({
     directory: true,
     multiple: false,
-    title: 'Clone into...',
+    title: t('Clone into...'),
     defaultPath: home,
   })
   if (!parentDir) return

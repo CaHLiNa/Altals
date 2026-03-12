@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { formatCost } from '../services/tokenUsage'
+import { formatMonthYear, t } from '../i18n'
 import { useToastStore } from './toast'
 
 function getCurrentMonth() {
@@ -45,8 +46,7 @@ export const useUsageStore = defineStore('usage', {
 
     selectedMonthLabel() {
       const [y, m] = this.selectedMonth.split('-').map(Number)
-      const d = new Date(y, m - 1, 1)
-      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      return formatMonthYear(y, m)
     },
   },
 
@@ -203,9 +203,9 @@ export const useUsageStore = defineStore('usage', {
       const spent = formatCost(this.directCost)
       const limit = '$' + this.monthlyLimit.toFixed(0)
       if (this.isOverBudget) {
-        toast.showOnce('budget-over', `Monthly budget of ${limit} reached (${spent} spent). Change your budget in Settings > Models to continue using AI features.`, { type: 'error', duration: 6000 }, Infinity)
+        toast.showOnce('budget-over', t('Monthly budget of {limit} reached ({spent} spent). Change your budget in Settings > Models to continue using AI features.', { limit, spent }), { type: 'error', duration: 6000 }, Infinity)
       } else if (this.isNearBudget) {
-        toast.showOnce('budget-near', `Approaching monthly budget — ${spent} of ${limit}`, { type: 'warning', duration: 4000 }, Infinity)
+        toast.showOnce('budget-near', t('Approaching monthly budget - {spent} of {limit}', { spent, limit }), { type: 'warning', duration: 4000 }, Infinity)
       }
     },
 

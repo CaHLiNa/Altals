@@ -5,19 +5,19 @@
       <div class="shortcuts">
         <button class="row flex items-center gap-1" @click="openFile">
           <span class="key">{{ mod }} P</span>
-          <span class="lbl">open file</span>
+          <span class="lbl">{{ t('open file') }}</span>
         </button>
         <button class="row" @click="newTab">
           <span class="key">{{ mod }} T</span>
-          <span class="lbl">new tab</span>
+          <span class="lbl">{{ t('new tab') }}</span>
         </button>
         <button class="row" @click="newFile">
           <span class="key">{{ mod }} N</span>
-          <span class="lbl">new file</span>
+          <span class="lbl">{{ t('new file') }}</span>
         </button>
         <button class="row" @click="splitPane">
           <span class="key">{{ mod }} J</span>
-          <span class="lbl">split pane</span>
+          <span class="lbl">{{ t('split pane') }}</span>
         </button>
       </div>
     </div>
@@ -27,6 +27,7 @@
 <script setup>
 import { useEditorStore } from '../../stores/editor'
 import { isMac } from '../../platform'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   paneId: { type: String, required: true },
@@ -34,6 +35,7 @@ const props = defineProps({
 
 const editorStore = useEditorStore()
 const mod = isMac ? '⌘' : 'Ctrl+'
+const { t } = useI18n()
 
 function openFile() { window.dispatchEvent(new CustomEvent('app:focus-search')) }
 function newTab()   { editorStore.openNewTab(props.paneId) }

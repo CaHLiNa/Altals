@@ -3,7 +3,7 @@
     <div class="search-results-list">
       <!-- Title matches -->
       <template v-if="titleMatches.length > 0">
-        <div class="quick-open-section" v-if="query && (contentMatches.length > 0 || chatMatches.length > 0)">Files</div>
+        <div class="quick-open-section" v-if="query && (contentMatches.length > 0 || chatMatches.length > 0)">{{ t('Files') }}</div>
         <div
           v-for="(file, idx) in titleMatches"
           :key="'t-' + file.path"
@@ -19,7 +19,7 @@
 
       <!-- Content matches -->
       <template v-if="contentMatches.length > 0">
-        <div class="quick-open-section">Content</div>
+        <div class="quick-open-section">{{ t('Content') }}</div>
         <div
           v-for="(match, idx) in contentMatches"
           :key="'c-' + match.path + ':' + match.line"
@@ -38,7 +38,7 @@
 
       <!-- Reference matches -->
       <template v-if="refMatches.length > 0">
-        <div class="quick-open-section">References</div>
+        <div class="quick-open-section">{{ t('References') }}</div>
         <div
           v-for="(ref, idx) in refMatches"
           :key="'r-' + ref._key"
@@ -55,7 +55,7 @@
 
       <!-- Chat matches -->
       <template v-if="chatMatches.length > 0">
-        <div class="quick-open-section">Chats</div>
+        <div class="quick-open-section">{{ t('Chats') }}</div>
         <div
           v-for="(chat, idx) in chatMatches"
           :key="'ch-' + chat.id"
@@ -77,7 +77,7 @@
 
       <div v-if="titleMatches.length === 0 && contentMatches.length === 0 && refMatches.length === 0 && chatMatches.length === 0 && query"
         class="quick-open-item" style="color: var(--fg-muted);">
-        {{ searching ? 'Searching...' : 'No results found' }}
+        {{ searching ? t('Searching...') : t('No results found') }}
       </div>
     </div>
   </div>
@@ -90,6 +90,7 @@ import { useFilesStore } from '../stores/files'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useReferencesStore } from '../stores/references'
 import { useChatStore } from '../stores/chat'
+import { formatRelativeFromNow, useI18n } from '../i18n'
 
 const props = defineProps({
   query: { type: String, default: '' },
@@ -101,6 +102,7 @@ const files = useFilesStore()
 const workspace = useWorkspaceStore()
 const referencesStore = useReferencesStore()
 const chatStore = useChatStore()
+const { t } = useI18n()
 
 const selectedIndex = ref(0)
 const contentMatches = ref([])
@@ -200,21 +202,7 @@ function relativePath(path) {
 }
 
 function relativeTime(dateStr) {
-  if (!dateStr) return ''
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = now - then
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (seconds < 60) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  return `${Math.floor(days / 30)}mo ago`
+  return formatRelativeFromNow(dateStr)
 }
 
 function moveSelection(delta) {

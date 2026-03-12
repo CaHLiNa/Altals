@@ -8,30 +8,27 @@
           </svg>
         </div>
 
-        <h3 class="conflict-title">Your changes conflict with updates on GitHub</h3>
+        <h3 class="conflict-title">{{ t('Your changes conflict with updates on GitHub') }}</h3>
 
         <p class="conflict-body">
-          Your version has been safely saved to
-          <strong v-if="workspace.syncConflictBranch">{{ workspace.syncConflictBranch }}</strong><span v-else>a separate branch</span> — nothing is lost.
-          Open GitHub to compare and merge, then click Refresh.
+          {{ t('Your version has been safely saved to') }}
+          <strong v-if="workspace.syncConflictBranch">{{ workspace.syncConflictBranch }}</strong><span v-else>{{ t('a separate branch') }}</span> {{ t('nothing is lost. Open GitHub to compare and merge, then click Refresh.') }}
         </p>
 
         <details class="conflict-details">
-          <summary>What happened?</summary>
-          <p>Someone else (or you, on another device) pushed changes while you were editing.
-          Git can't automatically combine both versions, so we pushed your work to a safe branch.
-          You can compare both versions on GitHub and choose what to keep.</p>
+          <summary>{{ t('What happened?') }}</summary>
+          <p>{{ t("Someone else (or you, on another device) pushed changes while you were editing. Git can't automatically combine both versions, so we pushed your work to a safe branch. You can compare both versions on GitHub and choose what to keep.") }}</p>
         </details>
 
         <div class="conflict-actions">
           <button class="conflict-btn primary-large" @click="openGitHub">
-            Open GitHub
+            {{ t('Open GitHub') }}
           </button>
           <button class="conflict-btn" @click="handleRefresh" :disabled="refreshing">
-            {{ refreshing ? 'Checking...' : 'Refresh' }}
+            {{ refreshing ? t('Checking...') : t('Refresh') }}
           </button>
           <button class="conflict-btn dismiss" @click="$emit('close')">
-            Dismiss
+            {{ t('Dismiss') }}
           </button>
         </div>
       </div>
@@ -42,6 +39,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
+import { useI18n } from '../i18n'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -50,6 +48,7 @@ const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
 const refreshing = ref(false)
+const { t } = useI18n()
 
 const repoHtmlUrl = computed(() => {
   const url = workspace.remoteUrl

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h3 class="settings-section-title">Usage</h3>
+    <h3 class="settings-section-title">{{ t('Usage') }}</h3>
 
     <!-- Month navigation -->
     <div class="month-nav">
@@ -20,7 +20,7 @@
         class="month-nav-current"
         @click="usageStore.goToCurrentMonth()"
       >
-        Current month
+        {{ t('Current month') }}
       </button>
     </div>
 
@@ -112,17 +112,17 @@
           <div class="chart-tooltip-date">{{ tooltip.dateLabel }}</div>
           <div v-if="tooltip.direct > 0" class="chart-tooltip-row">
             <span class="chart-tooltip-swatch swatch-direct"></span>
-            API keys: ~{{ tooltip.directLabel }}
+            {{ t('API keys') }}: ~{{ tooltip.directLabel }}
           </div>
           <div v-if="tooltip.direct > 0" class="chart-tooltip-total">
-            Estimated cost: {{ tooltip.totalLabel }}
+            {{ t('Estimated cost:') }} {{ tooltip.totalLabel }}
           </div>
-          <div v-if="tooltip.calls > 0" class="chart-tooltip-calls">{{ tooltip.calls }} calls</div>
+          <div v-if="tooltip.calls > 0" class="chart-tooltip-calls">{{ tooltip.calls }} {{ t('calls') }}</div>
         </div>
         <!-- Legend -->
         <div class="chart-legend">
           <span v-if="showDirect" class="chart-legend-item">
-            <span class="chart-legend-swatch swatch-direct"></span> API keys{{ usageStore.showCostEstimates ? ' (est.)' : '' }}
+            <span class="chart-legend-swatch swatch-direct"></span> {{ t('API keys') }}{{ usageStore.showCostEstimates ? ` (${t('est.')})` : '' }}
           </span>
         </div>
       </div>
@@ -132,21 +132,21 @@
     <template v-if="showDirect">
       <div class="usage-source-section">
         <div class="usage-source-header">
-          <span class="usage-source-title">Your API keys</span>
+          <span class="usage-source-title">{{ t('Your API keys') }}</span>
         </div>
-        <div class="usage-source-disclaimer">Estimated from published rates. Check provider dashboards for actual charges.</div>
+        <div class="usage-source-disclaimer">{{ t('Estimated from published rates. Check provider dashboards for actual charges.') }}</div>
 
         <!-- Summary line -->
         <div v-if="usageStore.directCalls > 0" class="usage-summary-line">
           <template v-if="usageStore.showCostEstimates && usageStore.directCost > 0">
-            <span>~{{ formatCost(usageStore.directCost) }} est.</span>
+            <span>~{{ formatCost(usageStore.directCost) }} {{ t('est.') }}</span>
             <span class="usage-sep"> · </span>
           </template>
-          <span>{{ usageStore.directCalls.toLocaleString() }} calls</span>
+          <span>{{ usageStore.directCalls.toLocaleString() }} {{ t('calls') }}</span>
           <span v-if="directTotalTokens > 0" class="usage-sep"> · </span>
-          <span v-if="directTotalTokens > 0">{{ formatTokens(directTotalTokens) }} tokens</span>
+          <span v-if="directTotalTokens > 0">{{ formatTokens(directTotalTokens) }} {{ t('Tokens') }}</span>
         </div>
-        <div v-else class="usage-empty-hint">No API key usage this month.</div>
+        <div v-else class="usage-empty-hint">{{ t('No API key usage this month.') }}</div>
 
         <!-- Breakdown table with toggle -->
         <template v-if="directRows.length > 0">
@@ -155,19 +155,19 @@
               class="usage-breakdown-tab"
               :class="{ active: directView === 'feature' }"
               @click="directView = 'feature'"
-            >By feature</button>
+            >{{ t('By feature') }}</button>
             <button
               class="usage-breakdown-tab"
               :class="{ active: directView === 'model' }"
               @click="directView = 'model'"
-            >By model</button>
+            >{{ t('By model') }}</button>
           </div>
           <div class="usage-table">
             <div class="usage-table-header" :style="{ gridTemplateColumns: directGridCols }">
-              <span class="usage-col-name">{{ directView === 'feature' ? 'Feature' : 'Model' }}</span>
-              <span v-if="usageStore.showCostEstimates" class="usage-col-num">~Cost</span>
-              <span class="usage-col-num">Tokens</span>
-              <span class="usage-col-num">Calls</span>
+              <span class="usage-col-name">{{ directView === 'feature' ? t('Feature') : t('Model') }}</span>
+              <span v-if="usageStore.showCostEstimates" class="usage-col-num">{{ t('~Cost') }}</span>
+              <span class="usage-col-num">{{ t('Tokens') }}</span>
+              <span class="usage-col-num">{{ t('calls') }}</span>
             </div>
             <div
               v-for="row in directRows"
@@ -187,18 +187,18 @@
 
     <!-- Empty state -->
     <div v-if="!showDirect" class="usage-empty-state">
-      No usage data yet. Configure AI models in Settings > Models.
+      {{ t('No usage data yet. Configure AI models in Settings > Models.') }}
     </div>
 
     <!-- Display section -->
-    <h3 class="settings-section-title" style="margin-top: 24px;">Display</h3>
+    <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('Display') }}</h3>
 
     <div class="display-toggles">
       <div class="env-lang-card">
         <div class="env-lang-header">
           <div>
-            <span class="env-lang-name">Show API key cost estimates</span>
-            <p class="settings-hint" style="margin: 2px 0 0;">Actual charges may differ significantly. Check provider dashboards.</p>
+            <span class="env-lang-name">{{ t('Show API key cost estimates') }}</span>
+            <p class="settings-hint" style="margin: 2px 0 0;">{{ t('Actual charges may differ significantly. Check provider dashboards.') }}</p>
           </div>
           <div style="flex: 1;"></div>
           <button
@@ -213,7 +213,7 @@
 
       <div class="env-lang-card" style="margin-top: 8px;">
         <div class="env-lang-header">
-          <span class="env-lang-name">Show billing in footer</span>
+          <span class="env-lang-name">{{ t('Show billing in footer') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -235,9 +235,11 @@ import { useUsageStore } from '../../stores/usage'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatCost } from '../../services/tokenUsage'
 import { computeChartLayout } from '../../utils/usageChart'
+import { formatDate, useI18n } from '../../i18n'
 
 const usageStore = useUsageStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 
 // View toggles (feature vs model) for each section
 const directView = ref('feature')
@@ -367,9 +369,8 @@ const chart = computed(() => {
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function formatDateShort(dateStr) {
-  const [, m, d] = dateStr.split('-').map(Number)
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${months[m - 1]} ${d}`
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return formatDate(new Date(year, month - 1, day), { month: 'short', day: 'numeric' })
 }
 
 function formatTokens(n) {

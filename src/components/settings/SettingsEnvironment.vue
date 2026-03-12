@@ -1,7 +1,7 @@
 <template>
   <div>
-    <h3 class="settings-section-title">System</h3>
-    <p class="settings-hint">System tools and compilers detected on your machine.</p>
+    <h3 class="settings-section-title">{{ t('System') }}</h3>
+    <p class="settings-hint">{{ t('System tools and compilers detected on your machine.') }}</p>
 
     <div class="env-languages">
       <div v-for="lang in envLanguages" :key="lang.key" class="env-lang-card">
@@ -9,22 +9,22 @@
           <span class="env-lang-dot" :class="envLangDotClass(lang)"></span>
           <span class="env-lang-name">{{ lang.label }}</span>
           <span v-if="lang.info.found" class="env-lang-version">{{ lang.info.version || '' }}</span>
-          <span v-else class="env-lang-missing">Not found</span>
+          <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
         </div>
 
         <div v-if="lang.info.found" class="env-lang-details">
           <div class="env-lang-path">{{ lang.info.path }}</div>
           <div class="env-lang-kernel-row">
-            <span>Jupyter kernel</span>
-            <span v-if="lang.info.hasKernel" class="env-kernel-badge env-kernel-yes">Installed</span>
+            <span>{{ t('Jupyter kernel') }}</span>
+            <span v-if="lang.info.hasKernel" class="env-kernel-badge env-kernel-yes">{{ t('Installed') }}</span>
             <template v-else>
-              <span class="env-kernel-badge env-kernel-no">Not installed</span>
+              <span class="env-kernel-badge env-kernel-no">{{ t('Not installed') }}</span>
               <button
                 class="env-install-btn"
                 :disabled="envStore.installing === lang.key"
                 @click="envStore.installKernel(lang.key)"
               >
-                {{ envStore.installing === lang.key ? 'Installing...' : 'Install' }}
+                {{ envStore.installing === lang.key ? t('Installing...') : t('Install') }}
               </button>
             </template>
           </div>
@@ -40,15 +40,15 @@
 
     <div class="env-actions">
       <button class="env-redetect-btn" :disabled="envStore.detecting" @click="envStore.detect()">
-        {{ envStore.detecting ? 'Detecting...' : 'Re-detect' }}
+        {{ envStore.detecting ? t('Detecting...') : t('Re-detect') }}
       </button>
-      <span v-if="!envStore.detected" class="env-hint-text">Not yet detected</span>
-      <span v-else class="env-hint-text">Last detected this session</span>
+      <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
+      <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
     </div>
 
     <!-- LaTeX Compiler -->
-    <h3 class="settings-section-title" style="margin-top: 24px;">LaTeX Compiler</h3>
-    <p class="settings-hint">Tectonic compiles .tex files to PDF. A one-time download is required.</p>
+    <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('LaTeX Compiler') }}</h3>
+    <p class="settings-hint">{{ t('Tectonic compiles .tex files to PDF. A one-time download is required.') }}</p>
 
     <div class="env-lang-card">
       <!-- Installed state -->
@@ -56,8 +56,8 @@
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="latexStore.tectonicEnabled ? 'good' : 'none'"></span>
           <span class="env-lang-name">Tectonic</span>
-          <span v-if="latexStore.tectonicEnabled" class="env-lang-version">Installed</span>
-          <span v-else class="env-lang-missing">Disabled</span>
+          <span v-if="latexStore.tectonicEnabled" class="env-lang-version">{{ t('Installed') }}</span>
+          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
           <div style="flex: 1;"></div>
           <button
             class="tool-toggle-switch"
@@ -77,7 +77,7 @@
         <div class="env-lang-header">
           <span class="env-lang-dot warn"></span>
           <span class="env-lang-name">Tectonic</span>
-          <span class="env-lang-version">Downloading... {{ latexStore.downloadProgress }}%</span>
+          <span class="env-lang-version">{{ t('Downloading... {progress}%', { progress: latexStore.downloadProgress }) }}</span>
         </div>
         <div class="tectonic-progress" style="margin: 8px 16px 4px;">
           <div class="tectonic-progress-bar">
@@ -91,14 +91,14 @@
         <div class="env-lang-header">
           <span class="env-lang-dot none"></span>
           <span class="env-lang-name">Tectonic</span>
-          <span class="env-lang-missing">Not installed</span>
+          <span class="env-lang-missing">{{ t('Not installed') }}</span>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          PDF compilation for LaTeX requires Tectonic, a modern TeX engine. One-time ~15MB download.
+          {{ t('PDF compilation for LaTeX requires Tectonic, a modern TeX engine. One-time ~15MB download.') }}
         </div>
         <div style="padding-left: 16px; margin-top: 8px;">
           <button class="env-install-btn" @click="latexStore.downloadTectonic()">
-            Download Tectonic
+            {{ t('Download Tectonic') }}
           </button>
         </div>
       </template>
@@ -107,7 +107,7 @@
       <div v-if="latexStore.downloadError" class="env-install-error" style="margin: 6px 16px;">
         {{ latexStore.downloadError }}
         <button class="env-install-btn" style="margin-left: 8px;" @click="latexStore.downloadTectonic()">
-          Retry
+          {{ t('Retry') }}
         </button>
       </div>
     </div>
@@ -119,9 +119,11 @@
 import { computed, onMounted } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
+import { useI18n } from '../../i18n'
 
 const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
+const { t } = useI18n()
 
 const envLanguages = computed(() => [
   { key: 'python', label: 'Python', info: envStore.languages.python },

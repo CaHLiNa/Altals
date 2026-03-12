@@ -11,14 +11,14 @@
           <span class="gh-login">@{{ workspace.githubUser.login }}</span>
         </div>
         <button class="gh-disconnect-btn" @click="handleDisconnect" :disabled="loading">
-          Disconnect
+          {{ t('Disconnect') }}
         </button>
       </div>
 
       <!-- Repo management -->
       <div v-if="error" class="gh-error">{{ error }}</div>
       <div class="gh-section">
-        <h4 class="gh-section-label">Repository</h4>
+        <h4 class="gh-section-label">{{ t('Repository') }}</h4>
 
         <!-- Currently linked -->
         <template v-if="workspace.remoteUrl">
@@ -30,7 +30,7 @@
               </a>
             </div>
             <button class="gh-unlink-btn" @click="handleUnlink" :disabled="loading">
-              Unlink
+              {{ t('Unlink') }}
             </button>
           </div>
 
@@ -39,7 +39,7 @@
             <span class="gh-sync-dot" :class="syncDotClass"></span>
             <span class="gh-sync-text">{{ syncStatusText }}</span>
             <button v-if="workspace.syncStatus !== 'syncing'" class="gh-sync-now-btn" @click="handleSyncNow" :disabled="loading">
-              Sync Now
+              {{ t('Sync Now') }}
             </button>
           </div>
         </template>
@@ -49,8 +49,8 @@
           <div class="gh-link-options">
             <!-- Create new repo -->
             <div class="gh-option-card" @click="showCreate = !showCreate; showLink = false">
-              <span class="gh-option-title">Create New Repository</span>
-              <span class="gh-option-desc">Create a new GitHub repo and link it to this workspace</span>
+              <span class="gh-option-title">{{ t('Create New Repository') }}</span>
+              <span class="gh-option-desc">{{ t('Create a new GitHub repo and link it to this workspace') }}</span>
             </div>
             <div v-if="showCreate" class="gh-create-form">
               <div class="key-input-row">
@@ -65,22 +65,22 @@
                 <button class="tool-toggle-switch" :class="{ on: newRepoPrivate }" @click="newRepoPrivate = !newRepoPrivate">
                   <span class="tool-toggle-knob"></span>
                 </button>
-                <span>Private repository</span>
+                <span>{{ t('Private repository') }}</span>
               </label>
               <div class="keys-actions">
                 <button class="key-save-btn" :disabled="loading || !newRepoName.trim()" @click="handleCreate">
-                  {{ loading ? 'Creating...' : 'Create & Link' }}
+                  {{ loading ? t('Creating...') : t('Create & Link') }}
                 </button>
               </div>
             </div>
 
             <!-- Link existing repo -->
             <div class="gh-option-card" @click="handleLoadRepos">
-              <span class="gh-option-title">Link Existing Repository</span>
-              <span class="gh-option-desc">Connect this workspace to one of your GitHub repos</span>
+              <span class="gh-option-title">{{ t('Link Existing Repository') }}</span>
+              <span class="gh-option-desc">{{ t('Connect this workspace to one of your GitHub repos') }}</span>
             </div>
             <div v-if="showLink" class="gh-link-form">
-              <div v-if="reposLoading" class="gh-loading">Loading repositories...</div>
+              <div v-if="reposLoading" class="gh-loading">{{ t('Loading repositories...') }}</div>
               <div v-else-if="repos.length > 0" class="gh-repo-list">
                 <div
                   v-for="repo in repos"
@@ -89,10 +89,10 @@
                   @click="handleLink(repo)"
                 >
                   <span class="gh-repo-item-name">{{ repo.fullName }}</span>
-                  <span v-if="repo.private" class="gh-repo-badge">private</span>
+                  <span v-if="repo.private" class="gh-repo-badge">{{ t('private') }}</span>
                 </div>
               </div>
-              <div v-else class="gh-loading">No repositories found.</div>
+              <div v-else class="gh-loading">{{ t('No repositories found.') }}</div>
             </div>
           </div>
         </template>
@@ -101,25 +101,25 @@
 
     <!-- Disconnected state -->
     <template v-else>
-      <p class="settings-hint">Connect your GitHub account to sync this workspace to a repository.</p>
+      <p class="settings-hint">{{ t('Connect your GitHub account to sync this workspace to a repository.') }}</p>
 
       <div v-if="error" class="gh-error">{{ error }}</div>
 
       <!-- OAuth connect -->
       <div class="keys-actions">
         <button class="key-save-btn" :disabled="loading" @click="handleConnect">
-          {{ loading ? 'Connecting...' : 'Connect GitHub Account' }}
+          {{ loading ? t('Connecting...') : t('Connect GitHub Account') }}
         </button>
       </div>
-      <p v-if="loading" class="gh-hint">A browser window will open. Authorize the app on GitHub, then return to Altals.</p>
+      <p v-if="loading" class="gh-hint">{{ t('A browser window will open. Authorize the app on GitHub, then return to Altals.') }}</p>
 
       <!-- PAT fallback -->
       <div class="gh-pat-section">
         <button class="gh-pat-toggle" @click="showPat = !showPat">
-          {{ showPat ? 'Hide' : 'Or use a Personal Access Token' }}
+          {{ showPat ? t('Hide') : t('Or use a Personal Access Token') }}
         </button>
         <div v-if="showPat" class="gh-pat-form">
-          <p class="gh-hint">Create a token at GitHub Settings &rarr; Developer Settings &rarr; Personal Access Tokens with <code>repo</code> scope.</p>
+          <p class="gh-hint">{{ t('Create a token at GitHub Settings → Developer Settings → Personal Access Tokens with') }} <code>repo</code> {{ t('scope.') }}</p>
           <div class="key-input-row">
             <input
               v-model="patValue"
@@ -129,7 +129,7 @@
               @keydown.enter="handlePatConnect"
             />
             <button class="key-save-btn" :disabled="!patValue.trim()" @click="handlePatConnect">
-              Connect
+              {{ t('Connect') }}
             </button>
           </div>
         </div>
@@ -141,8 +141,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const GITHUB_AUTH_ORIGIN = (import.meta.env.VITE_GITHUB_AUTH_ORIGIN || (import.meta.env.DEV ? 'http://localhost:3000' : '')).replace(/\/$/, '')
 
 const loading = ref(false)
@@ -180,26 +182,16 @@ const syncStatusText = computed(() => {
   switch (workspace.syncStatus) {
     case 'synced':
       if (workspace.lastSyncTime) {
-        return `Synced ${formatRelative(workspace.lastSyncTime)}`
+        return t('Synced {when}', { when: formatRelativeFromNow(workspace.lastSyncTime) })
       }
-      return 'Synced'
-    case 'syncing': return 'Syncing...'
-    case 'conflict': return `Conflict — saved to branch ${workspace.syncConflictBranch}`
-    case 'error': return workspace.syncError || 'Sync error'
-    case 'idle': return 'Ready'
-    default: return 'Not connected'
+      return t('Synced')
+    case 'syncing': return t('Syncing...')
+    case 'conflict': return t('Conflict - saved to branch {branch}', { branch: workspace.syncConflictBranch })
+    case 'error': return workspace.syncError || t('Sync error')
+    case 'idle': return t('Ready')
+    default: return t('Not connected')
   }
 })
-
-function formatRelative(date) {
-  if (!date) return ''
-  const d = date instanceof Date ? date : new Date(date)
-  const secs = Math.floor((Date.now() - d.getTime()) / 1000)
-  if (secs < 60) return 'just now'
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return d.toLocaleDateString()
-}
 
 async function openInBrowser(url) {
   try {
@@ -213,7 +205,7 @@ async function handleConnect() {
   loading.value = true
   try {
     if (!GITHUB_AUTH_ORIGIN) {
-      error.value = 'GitHub OAuth bridge is not configured. Set VITE_GITHUB_AUTH_ORIGIN and try again.'
+      error.value = t('GitHub OAuth bridge is not configured. Set VITE_GITHUB_AUTH_ORIGIN and try again.')
       loading.value = false
       return
     }
@@ -231,7 +223,7 @@ async function handleConnect() {
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
     } else {
-      error.value = 'Connection timed out. Please try again.'
+      error.value = t('Connection timed out. Please try again.')
     }
   } catch (e) {
     console.error('[github] Connect failed:', e)
@@ -270,7 +262,7 @@ async function handlePatConnect() {
     patValue.value = ''
     showPat.value = false
   } catch (e) {
-    error.value = e.message || 'Invalid token'
+    error.value = e.message || t('Invalid token')
   }
   loading.value = false
 }
@@ -291,7 +283,7 @@ async function handleLoadRepos() {
     const { listGitHubRepos } = await import('../../services/githubSync')
     repos.value = await listGitHubRepos(workspace.githubToken.token)
   } catch (e) {
-    error.value = e.message || 'Failed to load repos'
+    error.value = e.message || t('Failed to load repos')
   }
   reposLoading.value = false
 }
@@ -320,7 +312,7 @@ async function handleLink(repo) {
     await workspace.linkRepo(repo.cloneUrl)
     showLink.value = false
   } catch (e) {
-    error.value = e.message || 'Failed to link repository'
+    error.value = e.message || t('Failed to link repository')
   }
   loading.value = false
 }
