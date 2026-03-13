@@ -229,9 +229,9 @@ function finish() {
 }
 
 .wizard-icon {
-  width: 96px;
-  height: 96px;
-  border-radius: 22px;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
 }
 
 .wizard-wordmark {
