@@ -5,6 +5,8 @@ use std::sync::Mutex;
 use tauri::Emitter;
 use zeromq::Socket;
 
+use crate::process_utils::background_command;
+
 /// Cross-platform home directory.
 fn get_home_dir() -> String {
     std::env::var("HOME")
@@ -155,7 +157,7 @@ pub fn kernel_discover() -> Result<Vec<KernelSpec>, String> {
 
     // Primary: use `jupyter kernelspec list --json` — most reliable, uses Jupyter's
     // own discovery which handles all data paths including user-local Python installs
-    if let Ok(output) = std::process::Command::new("jupyter")
+    if let Ok(output) = background_command("jupyter")
         .args(["kernelspec", "list", "--json"])
         .output()
     {
@@ -257,7 +259,7 @@ fn read_kernelspec(dir: &Path) -> Option<KernelSpec> {
 }
 
 fn command_output(cmd: &str, args: &[&str]) -> Option<std::process::Output> {
-    std::process::Command::new(cmd).args(args).output().ok()
+    background_command(cmd).args(args).output().ok()
 }
 
 fn python_candidate_paths() -> Vec<String> {
@@ -348,7 +350,7 @@ fn python_candidate_paths() -> Vec<String> {
 }
 
 fn read_python_version(python: &str) -> Option<String> {
-    let output = std::process::Command::new(python)
+    let output = background_command(python)
         .arg("--version")
         .output()
         .ok()?;
@@ -366,7 +368,7 @@ fn read_python_version(python: &str) -> Option<String> {
 }
 
 fn read_python_resolved_path(python: &str) -> Option<String> {
-    let output = std::process::Command::new(python)
+    let output = background_command(python)
         .args([
             "-c",
             "import os, sys; print(os.path.realpath(sys.executable))",
@@ -475,7 +477,7 @@ pub fn discover_python_interpreters() -> Result<Vec<PythonInterpreter>, String> 
 
 /// Check if a Python binary has ipykernel installed.
 fn has_ipykernel(python: &str) -> bool {
-    std::process::Command::new(python)
+    background_command(python)
         .args(["-m", "ipykernel_launcher", "--version"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -650,7 +652,7 @@ pub async fn kernel_launch(
     // Spawn kernel process
     eprintln!("[kernel] Launching: {:?}", actual_argv);
     eprintln!("[kernel] Connection file: {}", conn_file_str);
-    let child = std::process::Command::new(&actual_argv[0])
+    let child = background_command(&actual_argv[0])
         .args(&actual_argv[1..])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -937,7 +939,7 @@ pub async fn kernel_interrupt(
         }
         #[cfg(windows)]
         {
-            let _ = std::process::Command::new("taskkill")
+            let _ = background_command("taskkill")
                 .args(["/PID", &pid.to_string()])
                 .output();
         }

@@ -1,8 +1,9 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
 use tauri::Manager;
+
+use crate::process_utils::background_command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportError {
@@ -89,7 +90,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
     // 5. Shell lookup fallback
     #[cfg(unix)]
     {
-        let output = Command::new("/bin/bash")
+        let output = background_command("/bin/bash")
             .args(&["-lc", "which typst"])
             .output()
             .ok()?;
@@ -102,7 +103,7 @@ fn find_typst(app: &tauri::AppHandle) -> Option<String> {
     }
     #[cfg(windows)]
     {
-        let output = Command::new("where").arg("typst").output().ok()?;
+        let output = background_command("where").arg("typst").output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -751,7 +752,7 @@ pub async fn export_md_to_pdf(
     // (Typst resolves bibliography paths relative to the .typ file)
 
     // Run typst compile
-    let mut cmd = Command::new(&typst_bin);
+    let mut cmd = background_command(&typst_bin);
     cmd.arg("compile");
     if let Some(font_dir) = find_font_dir(&app) {
         cmd.args(&["--font-path", &font_dir]);

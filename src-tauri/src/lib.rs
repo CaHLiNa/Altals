@@ -4,6 +4,7 @@ mod git;
 mod kernel;
 mod latex;
 mod pty;
+mod process_utils;
 mod typst_export;
 mod usage_db;
 

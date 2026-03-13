@@ -5,17 +5,16 @@
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
       :style="{ color: 'var(--fg-muted)', borderBottom: collapsed ? 'none' : '1px solid var(--border)' }"
     >
-      <div class="flex items-center gap-1 cursor-pointer" @click="$emit('toggle-collapse')">
+      <div class="flex items-center gap-1 cursor-pointer min-w-0 flex-1" @click="$emit('toggle-collapse')">
         <svg
           width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
           :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="text-[11px] font-medium uppercase tracking-wider">{{ workspaceName }}</span>
+        <span class="text-[11px] font-medium uppercase tracking-wider truncate min-w-0">{{ workspaceName }}</span>
       </div>
-      <div class="flex-1"></div>
-      <div v-if="!collapsed" class="flex items-center gap-1">
+      <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"

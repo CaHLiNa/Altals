@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
 use tauri::Emitter;
+
+use crate::process_utils::background_command;
 
 pub struct LatexState {
     pub enabled: Mutex<bool>,
@@ -104,7 +105,7 @@ fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<S
     // 3. Shell lookup fallback
     #[cfg(unix)]
     {
-        let output = Command::new("/bin/bash")
+        let output = background_command("/bin/bash")
             .args(&["-lc", "which tectonic"])
             .output()
             .ok()?;
@@ -117,7 +118,7 @@ fn find_tectonic(_app: &tauri::AppHandle, custom_path: Option<&str>) -> Option<S
     }
     #[cfg(windows)]
     {
-        let output = Command::new("where").arg("tectonic").output().ok()?;
+        let output = background_command("where").arg("tectonic").output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -148,7 +149,7 @@ fn find_system_tex() -> Option<String> {
             }
         }
 
-        let output = Command::new("/bin/bash")
+        let output = background_command("/bin/bash")
             .args(["-lc", "which latexmk"])
             .output()
             .ok()?;
@@ -162,7 +163,7 @@ fn find_system_tex() -> Option<String> {
 
     #[cfg(windows)]
     {
-        let output = Command::new("where").arg("latexmk").output().ok()?;
+        let output = background_command("where").arg("latexmk").output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -333,7 +334,7 @@ fn compile_with_tectonic(
     eprintln!("[latex] Using tectonic at: {}", tectonic_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
-    let output = Command::new(tectonic_path)
+    let output = background_command(tectonic_path)
         .args(["-X", "compile", "--synctex", "--keep-logs", tex_path])
         .current_dir(dir)
         .output()
@@ -352,7 +353,7 @@ fn compile_with_system_tex(
     eprintln!("[latex] Using system TeX at: {}", system_tex_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
-    let output = Command::new(system_tex_path)
+    let output = background_command(system_tex_path)
         .args([
             "-pdf",
             "-interaction=nonstopmode",
@@ -585,7 +586,7 @@ pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> 
         // Windows: use PowerShell to extract
         #[cfg(windows)]
         {
-            let status = Command::new("powershell")
+            let status = background_command("powershell")
                 .args(&[
                     "-NoProfile",
                     "-Command",
@@ -607,7 +608,7 @@ pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> 
         }
     } else {
         // Unix: use tar to extract
-        let status = Command::new("tar")
+        let status = background_command("tar")
             .args(&[
                 "xzf",
                 &archive_path.to_string_lossy(),

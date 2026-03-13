@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::sync::Mutex;
 use tauri::Emitter;
+
+use crate::process_utils::background_command;
 
 pub const ALLOWED_HOSTS: &[&str] = &[
     "api.anthropic.com",
@@ -322,14 +323,14 @@ pub async fn search_file_contents(
 #[tauri::command]
 pub async fn run_shell_command(cwd: String, command: String) -> Result<String, String> {
     #[cfg(unix)]
-    let output = Command::new("bash")
+    let output = background_command("bash")
         .args(&["-c", &command])
         .current_dir(&cwd)
         .output()
         .map_err(|e| e.to_string())?;
 
     #[cfg(windows)]
-    let output = Command::new("cmd")
+    let output = background_command("cmd")
         .args(&["/C", &command])
         .current_dir(&cwd)
         .output()
