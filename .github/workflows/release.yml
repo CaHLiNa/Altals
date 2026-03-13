@@ -83,7 +83,7 @@ jobs:
           - platform: macos-latest
             label: macOS ARM
             rust-target: aarch64-apple-darwin
-            tauri-args: --target aarch64-apple-darwin --bundles app,dmg --no-sign
+            tauri-args: --target aarch64-apple-darwin --bundles app --no-sign
           - platform: ubuntu-22.04
             label: Linux
             rust-target: ""
@@ -146,3 +146,17 @@ jobs:
           releaseBody: Download the Altals installer for your platform below.
           releaseDraft: false
           prerelease: false
+
+      - name: Build helper DMG
+        if: matrix.platform == 'macos-latest'
+        id: helper_dmg
+        shell: bash
+        run: |
+          DMG_PATH="$(node scripts/build-macos-dmg.mjs --target "${{ matrix.rust-target }}")"
+          echo "path=${DMG_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload helper DMG to release
+        if: matrix.platform == 'macos-latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.prepare-release.outputs.tag }}" "${{ steps.helper_dmg.outputs.path }}" --clobber

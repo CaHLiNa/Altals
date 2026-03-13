@@ -25,9 +25,12 @@ For **local development**, you can also use a system-wide install (`brew install
 npx tauri build                    # unsigned build (fast, for testing)
 npx tauri build --bundles app      # macOS .app only
 npx tauri build --bundles dmg      # macOS .dmg installer
+npm run build:macos:dmg            # macOS .dmg with bundled Fix Altals.command helper
 ```
 
 Output lands in `src-tauri/target/release/bundle/macos/`.
+
+For unsigned local macOS builds, prefer `npm run build:macos:dmg`. It creates the DMG manually from the built `.app` and adds `Fix Altals.command` at the DMG root. That helper removes the `com.apple.quarantine` attribute from `Altals.app` if Gatekeeper shows "Altals is damaged and can't be opened".
 
 ### Cross-compiling for Intel on Apple Silicon
 
