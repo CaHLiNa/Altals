@@ -1,7 +1,11 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use tauri::Manager;
+use url::Url;
+use uuid::Uuid;
 
 use crate::process_utils::background_command;
 
@@ -19,6 +23,22 @@ pub struct ExportResult {
     pub errors: Vec<ExportError>,
     pub warnings: Vec<ExportError>,
     pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypstCompileResult {
+    pub success: bool,
+    pub pdf_path: Option<String>,
+    pub errors: Vec<ExportError>,
+    pub warnings: Vec<ExportError>,
+    pub log: String,
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypstCompilerStatus {
+    pub installed: bool,
+    pub path: Option<String>,
 }
 
 /// PDF export settings passed from frontend
@@ -170,7 +190,7 @@ fn current_target_triple() -> String {
 }
 
 /// Convert markdown to Typst markup using pulldown-cmark.
-fn markdown_to_typst(markdown: &str) -> String {
+fn markdown_to_typst(markdown: &str, image_overrides: &HashMap<String, String>) -> String {
     // Pre-process: convert Pandoc citations BEFORE parsing, because pulldown-cmark
     // consumes the [] brackets and the citation pattern is lost.
     let preprocessed = preprocess_citations(markdown);
@@ -256,10 +276,10 @@ fn markdown_to_typst(markdown: &str) -> String {
                     }
                 }
                 Tag::Emphasis => {
-                    output.push('_');
+                    output.push_str("#emph[");
                 }
                 Tag::Strong => {
-                    output.push('*');
+                    output.push_str("#strong[");
                 }
                 Tag::Strikethrough => {
                     output.push_str("#strike[");
@@ -273,7 +293,11 @@ fn markdown_to_typst(markdown: &str) -> String {
                 Tag::Image {
                     dest_url, title: _, ..
                 } => {
-                    output.push_str(&format!("#image(\"{}\")", escape_typst_string(&dest_url)));
+                    let resolved_url = image_overrides
+                        .get(dest_url.as_ref())
+                        .map(String::as_str)
+                        .unwrap_or(dest_url.as_ref());
+                    output.push_str(&format!("#image(\"{}\")", escape_typst_string(resolved_url)));
                 }
                 Tag::Table(alignments) => {
                     table_cols = alignments.len();
@@ -317,15 +341,8 @@ fn markdown_to_typst(markdown: &str) -> String {
                 }
                 TagEnd::CodeBlock => {
                     in_code_block = false;
-                    if code_lang.is_empty() {
-                        output.push_str(&format!("```\n{}\n```\n\n", code_buf.trim_end()));
-                    } else {
-                        output.push_str(&format!(
-                            "```{}\n{}\n```\n\n",
-                            code_lang,
-                            code_buf.trim_end()
-                        ));
-                    }
+                    output.push_str(&render_typst_raw_block(&code_lang, code_buf.trim_end()));
+                    output.push_str("\n\n");
                 }
                 TagEnd::List(_) => {
                     list_stack.pop();
@@ -339,10 +356,10 @@ fn markdown_to_typst(markdown: &str) -> String {
                     }
                 }
                 TagEnd::Emphasis => {
-                    output.push('_');
+                    output.push(']');
                 }
                 TagEnd::Strong => {
-                    output.push('*');
+                    output.push(']');
                 }
                 TagEnd::Strikethrough => {
                     output.push(']');
@@ -372,9 +389,7 @@ fn markdown_to_typst(markdown: &str) -> String {
                 }
             }
             Event::Code(code) => {
-                output.push('`');
-                output.push_str(&code);
-                output.push('`');
+                output.push_str(&render_typst_raw_inline(&code));
             }
             Event::InlineMath(math) => {
                 output.push('$');
@@ -547,6 +562,168 @@ fn escape_typst_markup(text: &str) -> String {
     result
 }
 
+fn escape_typst_raw_string(s: &str) -> String {
+    let mut escaped = String::with_capacity(s.len() + s.len() / 8);
+
+    for ch in s.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+
+    escaped
+}
+
+fn render_typst_raw_inline(code: &str) -> String {
+    format!("#raw(\"{}\")", escape_typst_raw_string(code))
+}
+
+fn render_typst_raw_block(lang: &str, code: &str) -> String {
+    if lang.is_empty() {
+        format!("#raw(\"{}\", block: true)", escape_typst_raw_string(code))
+    } else {
+        format!(
+            "#raw(\"{}\", block: true, lang: \"{}\")",
+            escape_typst_raw_string(code),
+            escape_typst_string(lang)
+        )
+    }
+}
+
+fn is_remote_http_url(value: &str) -> bool {
+    matches!(
+        Url::parse(value).ok().map(|url| url.scheme().to_string()),
+        Some(scheme) if scheme == "http" || scheme == "https"
+    )
+}
+
+fn infer_image_extension(url: &str, content_type: Option<&str>) -> &'static str {
+    if let Ok(parsed) = Url::parse(url) {
+        if let Some(ext) = Path::new(parsed.path())
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_ascii_lowercase())
+        {
+            match ext.as_str() {
+                "png" => return "png",
+                "jpg" | "jpeg" => return "jpg",
+                "svg" => return "svg",
+                "gif" => return "gif",
+                "webp" => return "webp",
+                "bmp" => return "bmp",
+                "ico" => return "ico",
+                "avif" => return "avif",
+                _ => {}
+            }
+        }
+    }
+
+    match content_type.unwrap_or_default().split(';').next().unwrap_or_default() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/svg+xml" => "svg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
+        "image/avif" => "avif",
+        _ => "img",
+    }
+}
+
+fn collect_remote_image_urls(markdown: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut urls = Vec::new();
+
+    for event in Parser::new_ext(markdown, Options::empty()) {
+        if let Event::Start(Tag::Image { dest_url, .. }) = event {
+            let url = dest_url.to_string();
+            if is_remote_http_url(&url) && seen.insert(url.clone()) {
+                urls.push(url);
+            }
+        }
+    }
+
+    urls
+}
+
+async fn materialize_remote_images(
+    markdown: &str,
+) -> Result<(HashMap<String, String>, Option<PathBuf>), String> {
+    let remote_urls = collect_remote_image_urls(markdown);
+    if remote_urls.is_empty() {
+        return Ok((HashMap::new(), None));
+    }
+
+    let asset_dir = std::env::temp_dir().join(format!("altals-typst-assets-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&asset_dir)
+        .map_err(|e| format!("Failed to create temporary image directory: {}", e))?;
+
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| format!("Failed to create image download client: {}", e))?;
+
+    let mut overrides = HashMap::new();
+
+    for (index, remote_url) in remote_urls.iter().enumerate() {
+        let response = match client.get(remote_url).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(&asset_dir);
+                return Err(format!(
+                    "Failed to download remote image {}: {}",
+                    remote_url, error
+                ));
+            }
+        };
+
+        if !response.status().is_success() {
+            let _ = std::fs::remove_dir_all(&asset_dir);
+            return Err(format!(
+                "Failed to download remote image {}: HTTP {}",
+                remote_url,
+                response.status()
+            ));
+        }
+
+        let content_type = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+
+        let bytes = match response.bytes().await {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(&asset_dir);
+                return Err(format!(
+                    "Failed to read remote image {}: {}",
+                    remote_url, error
+                ));
+            }
+        };
+
+        let extension = infer_image_extension(remote_url, content_type.as_deref());
+        let image_path = asset_dir.join(format!("image-{}.{}", index + 1, extension));
+        if let Err(error) = std::fs::write(&image_path, &bytes) {
+            let _ = std::fs::remove_dir_all(&asset_dir);
+            return Err(format!(
+                "Failed to store remote image {}: {}",
+                remote_url, error
+            ));
+        }
+
+        overrides.insert(remote_url.clone(), image_path.to_string_lossy().to_string());
+    }
+
+    Ok((overrides, Some(asset_dir)))
+}
+
 /// Wrap converted content in a Typst template.
 fn wrap_in_template(content: &str, bib_path: Option<&str>, settings: &PdfSettings) -> String {
     let template = settings.template.as_deref().unwrap_or("clean");
@@ -685,6 +862,84 @@ fn parse_typst_output(stderr: &str) -> (Vec<ExportError>, Vec<ExportError>) {
     (errors, warnings)
 }
 
+fn build_typst_result(
+    output: std::process::Output,
+    pdf_path: &Path,
+    duration_ms: u64,
+) -> TypstCompileResult {
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let mut combined_log = String::new();
+    if !stdout.trim().is_empty() {
+        combined_log.push_str(stdout.trim_end());
+    }
+    if !stderr.trim().is_empty() {
+        if !combined_log.is_empty() {
+            combined_log.push('\n');
+        }
+        combined_log.push_str(stderr.trim_end());
+    }
+    let (errors, warnings) = parse_typst_output(&stderr);
+
+    if output.status.success() {
+        TypstCompileResult {
+            success: true,
+            pdf_path: Some(pdf_path.to_string_lossy().to_string()),
+            errors: vec![],
+            warnings,
+            log: combined_log,
+            duration_ms,
+        }
+    } else {
+        TypstCompileResult {
+            success: false,
+            pdf_path: None,
+            errors: if errors.is_empty() {
+                vec![ExportError {
+                    line: None,
+                    message: if combined_log.is_empty() {
+                        "Typst compilation failed.".to_string()
+                    } else {
+                        combined_log.clone()
+                    },
+                    severity: "error".to_string(),
+                }]
+            } else {
+                errors
+            },
+            warnings,
+            log: combined_log,
+            duration_ms,
+        }
+    }
+}
+
+fn run_typst_compile(
+    typst_bin: &str,
+    source_path: &Path,
+    pdf_path: &Path,
+    app: &tauri::AppHandle,
+) -> Result<TypstCompileResult, String> {
+    let start = std::time::Instant::now();
+    let mut cmd = background_command(typst_bin);
+    cmd.arg("compile");
+    if let Some(font_dir) = find_font_dir(app) {
+        cmd.args(["--font-path", &font_dir]);
+    }
+    cmd.arg(source_path);
+    cmd.arg(pdf_path);
+    cmd.current_dir(source_path.parent().unwrap_or(Path::new(".")));
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to run typst: {}", e))?;
+
+    Ok(build_typst_result(
+        output,
+        pdf_path,
+        start.elapsed().as_millis() as u64,
+    ))
+}
+
 fn extract_line_info(msg: &str) -> (Option<u32>, &str) {
     // Try to extract line number from patterns like "at line 42" or ":42:"
     if let Some(idx) = msg.find(":") {
@@ -711,14 +966,15 @@ pub async fn export_md_to_pdf(
     let typst_bin = find_typst(&app)
         .ok_or_else(|| "Typst not found. Install with: brew install typst".to_string())?;
 
-    let start = std::time::Instant::now();
-
     // Read markdown file
     let md_content = std::fs::read_to_string(&md_path)
         .map_err(|e| format!("Failed to read {}: {}", md_path, e))?;
 
+    // Download remote markdown images so Typst receives local file paths.
+    let (image_overrides, temp_asset_dir) = materialize_remote_images(&md_content).await?;
+
     // Convert to Typst
-    let typst_content = markdown_to_typst(&md_content);
+    let typst_content = markdown_to_typst(&md_content, &image_overrides);
 
     // Only include bibliography if the document actually cites references
     // and the bib file has real entries
@@ -751,48 +1007,29 @@ pub async fn export_md_to_pdf(
     // If bib_path provided, copy it next to .typ for Typst to find
     // (Typst resolves bibliography paths relative to the .typ file)
 
-    // Run typst compile
-    let mut cmd = background_command(&typst_bin);
-    cmd.arg("compile");
-    if let Some(font_dir) = find_font_dir(&app) {
-        cmd.args(&["--font-path", &font_dir]);
-    }
-    cmd.args(&[&*typ_path.to_string_lossy(), &*pdf_path.to_string_lossy()]);
-    cmd.current_dir(md_pathbuf.parent().unwrap_or(Path::new(".")));
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to run typst: {}", e))?;
+    let compile_result = run_typst_compile(&typst_bin, &typ_path, &pdf_path, &app)?;
 
-    let duration_ms = start.elapsed().as_millis() as u64;
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let (errors, warnings) = parse_typst_output(&stderr);
-
-    // Clean up .typ file
+    // Clean up temporary files
     let _ = std::fs::remove_file(&typ_path);
+    if let Some(asset_dir) = temp_asset_dir {
+        let _ = std::fs::remove_dir_all(asset_dir);
+    }
 
-    if output.status.success() {
+    if compile_result.success {
         Ok(ExportResult {
             success: true,
-            pdf_path: Some(pdf_path.to_string_lossy().to_string()),
+            pdf_path: compile_result.pdf_path,
             errors: vec![],
-            warnings,
-            duration_ms,
+            warnings: compile_result.warnings,
+            duration_ms: compile_result.duration_ms,
         })
     } else {
         Ok(ExportResult {
             success: false,
             pdf_path: None,
-            errors: if errors.is_empty() {
-                vec![ExportError {
-                    line: None,
-                    message: stderr.clone(),
-                    severity: "error".to_string(),
-                }]
-            } else {
-                errors
-            },
-            warnings,
-            duration_ms,
+            errors: compile_result.errors,
+            warnings: compile_result.warnings,
+            duration_ms: compile_result.duration_ms,
         })
     }
 }
@@ -800,4 +1037,206 @@ pub async fn export_md_to_pdf(
 #[tauri::command]
 pub async fn is_typst_available(app: tauri::AppHandle) -> Result<bool, String> {
     Ok(find_typst(&app).is_some())
+}
+
+#[tauri::command]
+pub async fn check_typst_compiler(app: tauri::AppHandle) -> Result<TypstCompilerStatus, String> {
+    let path = find_typst(&app);
+    Ok(TypstCompilerStatus {
+        installed: path.is_some(),
+        path,
+    })
+}
+
+#[tauri::command]
+pub async fn compile_typst_file(
+    typ_path: String,
+    app: tauri::AppHandle,
+) -> Result<TypstCompileResult, String> {
+    let typst_bin = find_typst(&app)
+        .ok_or_else(|| "Typst not found. Install with: brew install typst".to_string())?;
+    let typ_pathbuf = PathBuf::from(&typ_path);
+    if !typ_pathbuf.exists() {
+        return Err(format!("Typst file not found: {}", typ_path));
+    }
+    let pdf_path = typ_pathbuf.with_extension("pdf");
+    run_typst_compile(&typst_bin, &typ_pathbuf, &pdf_path, &app)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::ffi::OsStr;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::thread;
+    use uuid::Uuid;
+
+    fn typst_from_markdown(markdown: &str) -> String {
+        wrap_in_template(
+            &markdown_to_typst(markdown, &HashMap::new()),
+            None,
+            &PdfSettings::default(),
+        )
+    }
+
+    fn compile_typst(markdown: &str) -> Result<(), String> {
+        let temp_dir = std::env::temp_dir();
+        let stem = format!("altals-typst-export-{}", Uuid::new_v4());
+        let typ_path: PathBuf = temp_dir.join(format!("{stem}.typ"));
+        let pdf_path: PathBuf = temp_dir.join(format!("{stem}.pdf"));
+        let doc = typst_from_markdown(markdown);
+
+        std::fs::write(&typ_path, doc).map_err(|e| e.to_string())?;
+        let output = std::process::Command::new("typst")
+            .arg("compile")
+            .arg(&typ_path)
+            .arg(&pdf_path)
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        let _ = std::fs::remove_file(&typ_path);
+        let _ = std::fs::remove_file(&pdf_path);
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&output.stderr).to_string())
+        }
+    }
+
+    #[test]
+    fn exports_common_markdown_snippets_to_valid_typst() {
+        let cases = [
+            "# Heading\n\nPlain paragraph with **bold** and _emphasis_.\n",
+            "- first\n- second\n- third\n",
+            "- [x] done\n- [ ] todo\n",
+            "| A | B |\n| - | - |\n| 1 | 2 |\n",
+            "| Field | Value |\n| - | - |\n| Example | **layout/** |\n",
+            "| File | Role |\n| - | - |\n| `src/editor/codeChunks.js` | Parses ```` ```{r} ```` fences into chunk objects `{ language, headerLine }`. |\n",
+            "> quoted text\n>\n> second line\n",
+            "Inline math $a+b$ and code `let x = 1`.\n",
+            "Inline code with literal backticks: `````{r}``.\n",
+            "Typst special chars: `\\`, `#`, `$`, `@`, `~`, `*`, `_`, `` ` ``, `[`, `]`, `{`, `}`, `<`, `>`.\n",
+            "$$\na^2 + b^2 = c^2\n$$\n",
+            "~~struck~~ text with a [link](https://example.com).\n",
+        ];
+
+        for markdown in cases {
+            let result = compile_typst(markdown);
+            assert!(
+                result.is_ok(),
+                "failed to compile markdown:\n{}\n---\n{}",
+                markdown,
+                result.err().unwrap_or_default()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn downloads_remote_images_before_typst_export() {
+        const PNG_BYTES: &[u8] = &[
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0,
+            0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99,
+            248, 207, 192, 240, 31, 0, 5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78,
+            68, 174, 66, 96, 130,
+        ];
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test http server");
+        let addr = listener.local_addr().expect("get local addr");
+
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut buf = [0_u8; 1024];
+            let _ = stream.read(&mut buf);
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                PNG_BYTES.len()
+            );
+            stream
+                .write_all(headers.as_bytes())
+                .and_then(|_| stream.write_all(PNG_BYTES))
+                .expect("write image response");
+        });
+
+        let markdown = format!("![logo](http://{}/pixel.png)\n", addr);
+        let (image_overrides, temp_asset_dir) = materialize_remote_images(&markdown)
+            .await
+            .expect("materialize remote image");
+
+        server.join().expect("join test http server");
+
+        assert_eq!(image_overrides.len(), 1);
+        let path = image_overrides
+            .values()
+            .next()
+            .expect("image override path exists");
+        assert!(path.ends_with(".png"));
+        assert!(Path::new(path).exists());
+
+        if let Some(asset_dir) = temp_asset_dir {
+            let _ = std::fs::remove_dir_all(asset_dir);
+        }
+    }
+
+    fn collect_markdown_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        let entries = match fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(_) => return,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+
+            if path.is_dir() {
+                if matches!(
+                    name.as_ref(),
+                    ".git" | "node_modules" | "dist" | "target" | ".vite"
+                ) {
+                    continue;
+                }
+                collect_markdown_files(&path, out);
+                continue;
+            }
+
+            let ext = path.extension().and_then(OsStr::to_str).unwrap_or_default();
+            if matches!(ext, "md" | "qmd" | "rmd") {
+                out.push(path);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic coverage for real workspace markdown files"]
+    fn exports_workspace_markdown_files_to_valid_typst() {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut files = Vec::new();
+        collect_markdown_files(&repo_root, &mut files);
+
+        let mut failures = Vec::new();
+        for path in files {
+            let markdown = match fs::read_to_string(&path) {
+                Ok(content) => content,
+                Err(error) => {
+                    failures.push(format!("{}: read failed: {}", path.display(), error));
+                    continue;
+                }
+            };
+
+            if let Err(error) = compile_typst(&markdown) {
+                failures.push(format!("{}:\n{}", path.display(), error));
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "workspace markdown export failures:\n{}",
+            failures.join("\n\n---\n\n")
+        );
+    }
 }

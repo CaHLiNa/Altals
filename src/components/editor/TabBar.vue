@@ -213,6 +213,30 @@
       </button>
     </div>
 
+    <!-- Typst actions (for .typ files) -->
+    <div v-if="showTypstCompileButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r relative" style="border-color: var(--border);">
+      <span v-if="typstStatus === 'compiling'" class="flex items-center gap-1 text-[11px]" style="color: var(--fg-muted);">
+        <span class="tex-spinner"></span>
+        {{ t('Compiling...') }}
+      </span>
+      <span v-else-if="typstStatus === 'success'" class="text-[11px]" style="color: var(--success, #4ade80);">
+        ● {{ typstDuration }}
+      </span>
+
+      <button
+        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        style="color: var(--success, #4ade80);"
+        @click="$emit('compile-typst')"
+        :disabled="typstStatus === 'compiling'"
+        :title="t('Compile Typst')"
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 2l10 6-10 6V2z"/>
+        </svg>
+        {{ t('Compile') }}
+      </button>
+    </div>
+
     <!-- PDF translation actions -->
     <div v-if="showPdfTranslateButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
       <span
@@ -309,7 +333,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
-import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isLatex, isMarkdown, isPreviewPath, isChatTab, getChatSessionId, isNewTab, getViewerType } from '../../utils/fileTypes'
+import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isLatex, isMarkdown, isPreviewPath, isChatTab, getChatSessionId, isNewTab, getViewerType, isTypst } from '../../utils/fileTypes'
 import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
@@ -323,7 +347,7 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'sync-tex', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'sync-tex', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
 
 const typstStore = useTypstStore()
 const chatStore = useChatStore()
@@ -410,6 +434,15 @@ const texState = computed(() => props.activeTab ? latexStore.stateForFile(props.
 const texStatus = computed(() => texState.value?.status || null)
 const texDuration = computed(() => {
   const ms = texState.value?.durationMs
+  if (!ms) return t('Compiled')
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+})
+const showTypstCompileButtons = computed(() => props.activeTab && isTypst(props.activeTab))
+const typstState = computed(() => props.activeTab ? typstStore.stateForFile(props.activeTab) : null)
+const typstStatus = computed(() => typstState.value?.status || null)
+const typstDuration = computed(() => {
+  const ms = typstState.value?.durationMs
   if (!ms) return t('Compiled')
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`

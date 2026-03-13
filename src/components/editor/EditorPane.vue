@@ -20,6 +20,7 @@
       @run-file="handleRunFile"
       @render-document="handleRenderDocument"
       @compile-tex="handleCompileTex"
+      @compile-typst="handleCompileTypst"
       @sync-tex="handleSyncTex"
       @preview-markdown="handlePreviewMarkdown"
       @export-pdf="handleExportPdf"
@@ -84,12 +85,6 @@
         :filePath="activeTab"
         :paneId="paneId"
       />
-      <CanvasEditor
-        v-else-if="activeTab && viewerType === 'canvas'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-      />
       <MarkdownPreview
         v-else-if="activeTab && viewerType === 'markdown-preview'"
         :key="activeTab"
@@ -148,9 +143,10 @@ import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { EditorView } from '@codemirror/view'
-import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId } from '../../utils/fileTypes'
+import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId, isTypst } from '../../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../../services/codeRunner'
 import { useLatexStore } from '../../stores/latex'
+import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
@@ -165,7 +161,6 @@ const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue')
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const LatexPdfViewer = defineAsyncComponent(() => import('./LatexPdfViewer.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
-const CanvasEditor = defineAsyncComponent(() => import('./CanvasEditor.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
@@ -185,6 +180,7 @@ const filesStore = useFilesStore()
 const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
+const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
 const pdfTranslateStore = usePdfTranslateStore()
@@ -378,6 +374,15 @@ async function handleCompileTex() {
   }
 }
 
+async function handleCompileTypst() {
+  if (!props.activeTab || !isTypst(props.activeTab)) return
+  await typstStore.compile(props.activeTab)
+  const state = typstStore.stateForFile(props.activeTab)
+  if (state?.status === 'success' && state.pdfPath) {
+    ensurePdfOpen(state.pdfPath)
+  }
+}
+
 async function handleTranslatePdf() {
   if (!props.activeTab || viewerType.value !== 'pdf') return
 
@@ -539,13 +544,22 @@ function handleLatexCompileDone(e) {
   ensurePdfOpen(pdf_path)
 }
 
+function handleTypstCompileDone(e) {
+  const { typPath, pdf_path, success } = e.detail || {}
+  if (!success || !pdf_path) return
+  if (!props.tabs.includes(typPath)) return
+  ensurePdfOpen(pdf_path)
+}
+
 onMounted(() => {
   window.addEventListener('latex-compile-done', handleLatexCompileDone)
+  window.addEventListener('typst-compile-done', handleTypstCompileDone)
   window.addEventListener('comment-create', handleCommentCreate)
   window.addEventListener('comment-scroll-to', handleCommentScrollTo)
 })
 onUnmounted(() => {
   window.removeEventListener('latex-compile-done', handleLatexCompileDone)
+  window.removeEventListener('typst-compile-done', handleTypstCompileDone)
   window.removeEventListener('comment-create', handleCommentCreate)
   window.removeEventListener('comment-scroll-to', handleCommentScrollTo)
 })

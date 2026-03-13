@@ -227,6 +227,7 @@ async function openWorkspace(path) {
     commentsStore.loadComments()
     referencesStore.loadLibrary()
     typstStore.loadSettings()
+    typstStore.checkCompiler()
   } catch (e) {
     console.error('Failed to open workspace:', e)
     await closeWorkspace()
@@ -248,6 +249,7 @@ async function closeWorkspace() {
   reviews.cleanup()
   await kernelStore.shutdownAll()
   latexStore.cleanup()
+  typstStore.cleanup()
   await workspace.closeWorkspace()
 }
 

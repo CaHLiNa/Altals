@@ -87,8 +87,8 @@
     </div>
 
     <div class="env-actions">
-      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers" @click="redetectSystem">
-        {{ envStore.detecting || latexStore.checkingCompilers ? t('Checking...') : t('Re-detect') }}
+      <button class="env-redetect-btn" :disabled="envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler" @click="redetectSystem">
+        {{ envStore.detecting || latexStore.checkingCompilers || typstStore.checkingCompiler ? t('Checking...') : t('Re-detect') }}
       </button>
       <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
       <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
@@ -186,6 +186,24 @@
       </div>
     </div>
 
+    <h3 class="settings-section-title env-section-offset">{{ t('Typst Compiler') }}</h3>
+    <p class="settings-hint">{{ t('Compile .typ files with the local Typst CLI.') }}</p>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="typstStore.available ? 'good' : 'none'"></span>
+        <span class="env-lang-name">Typst</span>
+        <span v-if="typstStore.available" class="env-lang-version">{{ t('Installed') }}</span>
+        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+      </div>
+      <div v-if="typstStore.compilerPath" class="env-lang-details">
+        <div class="env-lang-path">{{ typstStore.compilerPath }}</div>
+      </div>
+      <div class="env-lang-hint env-hint-inline">
+        {{ t('Use the Typst CLI to compile .typ files directly to PDF.') }}
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -193,10 +211,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
+import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 
 const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
+const typstStore = useTypstStore()
 const { t } = useI18n()
 const customPythonPathDraft = ref(envStore.customPythonPath || '')
 
@@ -251,6 +271,7 @@ async function redetectSystem() {
   await Promise.all([
     envStore.detect(true),
     latexStore.checkCompilers(true),
+    typstStore.checkCompiler(true),
   ])
 }
 
@@ -277,6 +298,7 @@ function warmSystemChecks() {
   scheduleAfterFirstPaint(() => Promise.all([
     envStore.detect(),
     latexStore.checkCompilers(),
+    typstStore.checkCompiler(),
   ]))
 }
 

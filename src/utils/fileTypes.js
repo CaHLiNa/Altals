@@ -52,7 +52,6 @@ export function getViewerType(path) {
   if (DOCX_EXTS.includes(ext)) return 'docx'
   if (IMAGE_EXTS.includes(ext)) return 'image'
   if (ext === 'ipynb') return 'notebook'
-  if (ext === 'canvas') return 'canvas'
   return 'text'
 }
 
@@ -64,6 +63,10 @@ export function isMarkdown(path) {
 export function isLatex(path) {
   const ext = getExt(path)
   return ext === 'tex' || ext === 'latex'
+}
+
+export function isTypst(path) {
+  return getExt(path) === 'typ'
 }
 
 export function isImage(path) {
@@ -160,8 +163,8 @@ const ICON_MAP = {
   qmd: 'IconFileText',
   jl: 'IconFileCode',
   ipynb: 'IconNotebook',
-  canvas: 'IconVectorSpline',
   tex: 'IconMath',
+  typ: 'IconMath',
   bib: 'IconFileText',
   lua: 'IconFileCode',
   zig: 'IconFileCode',

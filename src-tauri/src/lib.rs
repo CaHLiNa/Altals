@@ -441,6 +441,8 @@ pub fn run() {
             model_sync::model_sync_list_openai_models,
             typst_export::export_md_to_pdf,
             typst_export::is_typst_available,
+            typst_export::check_typst_compiler,
+            typst_export::compile_typst_file,
             usage_db::usage_record,
             usage_db::usage_query_month,
             usage_db::usage_query_monthly_trend,

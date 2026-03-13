@@ -6,7 +6,7 @@ import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { nanoid } from '../stores/utils'
 import { extractDocumentText, extractBlockList } from './docxContext'
-import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
+import { isMultimodalImage, isPdf, getMimeType, isTypst } from '../utils/fileTypes'
 
 // External tools that transmit data to third-party services
 export const EXTERNAL_TOOLS = ['web_search', 'search_papers', 'fetch_url', 'add_reference']
@@ -592,7 +592,7 @@ export function getAiTools(workspace) {
     }),
 
     cite_reference: tool({
-      description: 'Insert a citation [@key] at the cursor position in the active editor.',
+      description: 'Insert a citation at the cursor position in the active editor, using the correct syntax for Markdown, LaTeX, or Typst.',
       inputSchema: z.object({
         key: z.string().describe('The citation key to insert'),
       }),
@@ -603,7 +603,11 @@ export function getAiTools(workspace) {
         const view = editorStore.getEditorView(pane.id, pane.activeTab)
         if (!view) return 'No active text editor.'
         const isTexFile = pane.activeTab.endsWith('.tex') || pane.activeTab.endsWith('.latex')
-        const cite = isTexFile ? `\\cite{${key}}` : `[@${key}]`
+        const cite = isTexFile
+          ? `\\cite{${key}}`
+          : isTypst(pane.activeTab)
+            ? `@${key}`
+            : `[@${key}]`
         const pos = view.state.selection.main.head
         view.dispatch({
           changes: { from: pos, to: pos, insert: cite },
@@ -1235,163 +1239,6 @@ export function getAiTools(workspace) {
       },
     }),
 
-    // ── Canvas Tools ────────────────────────────────────────────────
-
-    read_canvas: tool({
-      description: 'Read the full graph structure of the currently open canvas (nodes, edges, content summaries). Only works when a .canvas file is active.',
-      inputSchema: z.object({}),
-      execute: async () => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const { buildGraphSummary } = await import('./canvasMessages')
-        const nodes = canvasStore._editor.getNodes()
-        const edges = canvasStore._editor.getEdges()
-        return buildGraphSummary(nodes, edges)
-      },
-    }),
-
-    add_node: tool({
-      description: 'Add a node to the canvas. Only works when a .canvas file is active.',
-      inputSchema: z.object({
-        type: z.enum(['text', 'prompt', 'file']).describe('Node type'),
-        content: z.string().describe('Node content (text/prompt) or file path (file)'),
-        x: z.number().optional().describe('X position (default 0)'),
-        y: z.number().optional().describe('Y position (default 0)'),
-        connect_to: z.string().optional().describe('Optional node ID to connect this node to (creates edge from connect_to → new node)'),
-        title: z.string().optional().describe('Optional title for text nodes'),
-      }),
-      execute: async ({ type, content, x, y, connect_to, title }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const pos = { x: x || 0, y: y || 0 }
-        let newId
-        if (type === 'text') {
-          newId = canvasStore._editor.addTextNode(pos, { content, title: title || null })
-        } else if (type === 'prompt') {
-          newId = canvasStore._editor.addPromptNode(pos, { content })
-        } else if (type === 'file') {
-          newId = canvasStore._editor.addFileNode(pos, { filePath: content, preview: content.split('/').pop() })
-        } else {
-          return `Unknown node type: ${type}`
-        }
-        if (connect_to && newId) {
-          const edges = canvasStore._editor.getEdges()
-          const { nanoid: nid } = await import('../stores/utils')
-          edges.push({ id: `e_${nid(8)}`, source: connect_to, target: newId, type: 'smoothstep' })
-          canvasStore._editor.scheduleSave()
-        }
-        return `Created ${type} node: ${newId}`
-      },
-    }),
-
-    edit_node: tool({
-      description: 'Modify content of an existing node on the canvas.',
-      inputSchema: z.object({
-        node_id: z.string().describe('The node ID to edit'),
-        content: z.string().optional().describe('New content for the node'),
-        title: z.string().optional().nullable().describe('New title (null to remove)'),
-      }),
-      execute: async ({ node_id, content, title }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const nodes = canvasStore._editor.getNodes()
-        const node = nodes.find(n => n.id === node_id)
-        if (!node) return `Node not found: ${node_id}`
-        const patch = {}
-        if (content !== undefined) patch.content = content
-        if (title !== undefined) patch.title = title
-        canvasStore._editor.updateNodeData(node_id, patch)
-        canvasStore._editor.scheduleSave()
-        return `Updated node ${node_id}`
-      },
-    }),
-
-    delete_node: tool({
-      description: 'Remove a node and its connected edges from the canvas.',
-      inputSchema: z.object({
-        node_id: z.string().describe('The node ID to delete'),
-      }),
-      execute: async ({ node_id }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const nodes = canvasStore._editor.getNodes()
-        const edges = canvasStore._editor.getEdges()
-        const idx = nodes.findIndex(n => n.id === node_id)
-        if (idx === -1) return `Node not found: ${node_id}`
-        canvasStore.pushSnapshot(nodes, edges)
-        const filtered = edges.filter(e => e.source !== node_id && e.target !== node_id)
-        edges.splice(0, edges.length, ...filtered)
-        nodes.splice(idx, 1)
-        canvasStore._editor.scheduleSave()
-        return `Deleted node ${node_id}`
-      },
-    }),
-
-    move_node: tool({
-      description: 'Reposition a node on the canvas.',
-      inputSchema: z.object({
-        node_id: z.string().describe('The node ID to move'),
-        x: z.number().describe('New X position'),
-        y: z.number().describe('New Y position'),
-      }),
-      execute: async ({ node_id, x, y }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const nodes = canvasStore._editor.getNodes()
-        const node = nodes.find(n => n.id === node_id)
-        if (!node) return `Node not found: ${node_id}`
-        node.position = { x, y }
-        canvasStore._editor.scheduleSave()
-        return `Moved node ${node_id} to (${x}, ${y})`
-      },
-    }),
-
-    add_edge: tool({
-      description: 'Connect two nodes on the canvas with a directed edge.',
-      inputSchema: z.object({
-        source: z.string().describe('Source node ID'),
-        target: z.string().describe('Target node ID'),
-      }),
-      execute: async ({ source, target }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const nodes = canvasStore._editor.getNodes()
-        const edges = canvasStore._editor.getEdges()
-        if (!nodes.find(n => n.id === source)) return `Source node not found: ${source}`
-        if (!nodes.find(n => n.id === target)) return `Target node not found: ${target}`
-        const { nanoid: nid } = await import('../stores/utils')
-        const edgeId = `e_${nid(8)}`
-        canvasStore.pushSnapshot(nodes, edges)
-        edges.push({ id: edgeId, source, target, type: 'smoothstep' })
-        canvasStore._editor.scheduleSave()
-        return `Created edge ${edgeId}: ${source} → ${target}`
-      },
-    }),
-
-    remove_edge: tool({
-      description: 'Remove an edge (connection) from the canvas.',
-      inputSchema: z.object({
-        edge_id: z.string().describe('The edge ID to remove'),
-      }),
-      execute: async ({ edge_id }) => {
-        const { useCanvasStore } = await import('../stores/canvas')
-        const canvasStore = useCanvasStore()
-        if (!canvasStore._editor) return 'No canvas is currently open.'
-        const edges = canvasStore._editor.getEdges()
-        const idx = edges.findIndex(e => e.id === edge_id)
-        if (idx === -1) return `Edge not found: ${edge_id}`
-        canvasStore.pushSnapshot(canvasStore._editor.getNodes(), edges)
-        edges.splice(idx, 1)
-        canvasStore._editor.scheduleSave()
-        return `Removed edge ${edge_id}`
-      },
-    }),
   }
 
   // Filter out disabled tools

@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from './workspace'
+import { t } from '../i18n'
+
+const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 
 // Default PDF settings
 const DEFAULTS = {
@@ -13,19 +16,104 @@ const DEFAULTS = {
   bib_style: null, // null = use global citation style from references store
 }
 
+function fileNameForLog(filePath = '') {
+  return String(filePath).split('/').pop() || filePath
+}
+
+function formatIssue(issue) {
+  const line = issue?.line ? `L${issue.line}: ` : ''
+  return `${line}${issue?.message || ''}`.trim()
+}
+
+function buildTypstTerminalOutput(filePath, result) {
+  const errors = Array.isArray(result.errors) ? result.errors : []
+  const warnings = Array.isArray(result.warnings) ? result.warnings : []
+  const lines = [
+    `[Typst] ${fileNameForLog(filePath)}`,
+    result.success
+      ? t('Compilation succeeded in {duration}', { duration: `${result.duration_ms || 0}ms` })
+      : t('Compilation failed'),
+    `${t('Errors')}: ${errors.length}`,
+    `${t('Warnings')}: ${warnings.length}`,
+  ]
+
+  if (errors.length > 0) {
+    lines.push('')
+    lines.push(t('Errors'))
+    for (const issue of errors) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push('')
+    lines.push(t('Warnings'))
+    for (const issue of warnings) {
+      lines.push(`- ${formatIssue(issue)}`)
+    }
+  }
+
+  const rawLog = String(result.log || '').trim()
+  if (rawLog) {
+    lines.push('')
+    lines.push(`----- ${t('Full log')} -----`)
+    lines.push(rawLog)
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function pushTypstLogToTerminal(filePath, result) {
+  if (typeof window === 'undefined') return
+  const shouldOpenTerminal = !result.success
+    || (Array.isArray(result.errors) && result.errors.length > 0)
+  window.dispatchEvent(new CustomEvent('terminal-log', {
+    detail: {
+      key: 'typst-log',
+      label: 'Typst',
+      text: buildTypstTerminalOutput(filePath, result),
+      clear: true,
+      open: shouldOpenTerminal,
+    },
+  }))
+}
+
 export const useTypstStore = defineStore('typst', {
   state: () => ({
     available: false,
+    compilerPath: null,
+    checkingCompiler: false,
+    lastCompilerCheckAt: 0,
     exporting: {}, // { [path]: 'exporting' | 'done' | 'error' }
+    compileState: {}, // { [typPath]: { status, errors, warnings, pdfPath, log, durationMs, lastCompiled } }
     pdfSettings: {}, // { [relativePath]: PdfSettings }
   }),
 
+  getters: {
+    stateForFile: (state) => (filePath) => state.compileState[filePath] || null,
+    isCompiling: (state) => (filePath) => state.compileState[filePath]?.status === 'compiling',
+  },
+
   actions: {
-    async checkAvailability() {
+    async checkAvailability(force = false) {
+      await this.checkCompiler(force)
+      return this.available
+    },
+
+    async checkCompiler(force = false) {
+      if (this.checkingCompiler) return
+      if (!force && this.lastCompilerCheckAt && Date.now() - this.lastCompilerCheckAt < COMPILER_CHECK_CACHE_MS) return
+      this.checkingCompiler = true
       try {
-        this.available = await invoke('is_typst_available')
+        const result = await invoke('check_typst_compiler')
+        this.available = result?.installed === true
+        this.compilerPath = result?.path || null
       } catch {
         this.available = false
+        this.compilerPath = null
+      } finally {
+        this.lastCompilerCheckAt = Date.now()
+        this.checkingCompiler = false
       }
     },
 
@@ -83,6 +171,72 @@ export const useTypstStore = defineStore('typst', {
         this.exporting[mdPath] = 'error'
         throw e
       }
+    },
+
+    async compile(filePath) {
+      this.compileState[filePath] = {
+        ...this.compileState[filePath],
+        status: 'compiling',
+        errors: [],
+        warnings: [],
+      }
+
+      try {
+        const result = await invoke('compile_typst_file', { typPath: filePath })
+        this.compileState[filePath] = {
+          status: result.success ? 'success' : 'error',
+          errors: result.errors,
+          warnings: result.warnings,
+          pdfPath: result.pdf_path,
+          log: result.log,
+          durationMs: result.duration_ms,
+          lastCompiled: Date.now(),
+        }
+
+        window.dispatchEvent(new CustomEvent('typst-compile-done', {
+          detail: { typPath: filePath, ...result },
+        }))
+        if (result.success && result.pdf_path) {
+          window.dispatchEvent(new CustomEvent('pdf-updated', {
+            detail: { path: result.pdf_path },
+          }))
+        }
+        pushTypstLogToTerminal(filePath, result)
+
+        if (result.success) {
+          import('../services/telemetry').then(({ events }) => events.exportPdf())
+        }
+      } catch (error) {
+        const message = error?.message || String(error)
+        const result = {
+          success: false,
+          pdf_path: null,
+          errors: [{ line: null, message, severity: 'error' }],
+          warnings: [],
+          log: message,
+          duration_ms: 0,
+        }
+        this.compileState[filePath] = {
+          ...this.compileState[filePath],
+          status: 'error',
+          errors: result.errors,
+          warnings: [],
+          log: message,
+        }
+        window.dispatchEvent(new CustomEvent('typst-compile-done', {
+          detail: { typPath: filePath, ...result },
+        }))
+        pushTypstLogToTerminal(filePath, result)
+      }
+    },
+
+    clearState(filePath) {
+      delete this.compileState[filePath]
+    },
+
+    cleanup() {
+      this.compileState = {}
+      this.exporting = {}
     },
   },
 })

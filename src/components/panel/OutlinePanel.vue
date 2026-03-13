@@ -40,7 +40,7 @@ import { ref, computed, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLinksStore, parseHeadings } from '../../stores/links'
-import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
+import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -64,6 +64,7 @@ const fileType = computed(() => {
   const vt = getViewerType(path)
   if (vt === 'text' && isMarkdown(path)) return 'markdown'
   if (vt === 'text' && isLatex(path)) return 'latex'
+  if (vt === 'text' && isTypst(path)) return 'typst'
   if (vt === 'docx') return 'docx'
   if (vt === 'notebook') return 'notebook'
   return null
@@ -92,6 +93,12 @@ const headings = computed(() => {
     const content = filesStore.fileContents[path]
     if (!content) return []
     return parseLatexHeadings(content)
+  }
+
+  if (ft === 'typst') {
+    const content = filesStore.fileContents[path]
+    if (!content) return []
+    return parseTypstHeadings(content)
   }
 
   if (ft === 'notebook') {
@@ -143,6 +150,16 @@ function parseLatexHeadings(content) {
     })
   }
   return result
+}
+
+function parseTypstHeadings(content) {
+  const headings = []
+  const re = /^(={1,6})\s+(.+)$/gm
+  let m
+  while ((m = re.exec(content)) !== null) {
+    headings.push({ text: m[2].trim(), level: m[1].length, offset: m.index })
+  }
+  return headings
 }
 
 function parseNotebookHeadings(content) {

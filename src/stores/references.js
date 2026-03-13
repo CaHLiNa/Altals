@@ -66,6 +66,7 @@ export const useReferencesStore = defineStore('references', {
       // LaTeX-style: \cite{key}, \citep{key1, key2}
       const latexCiteRe = /\\(?:cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite)\{([^}]*)\}/g
       const latexKeyRe = /([a-zA-Z][\w.-]*)/g
+      const typstCiteRe = /(^|[^\w])@([a-zA-Z][\w.-]*)/gm
 
       for (const [path, content] of Object.entries(filesStore.fileContents)) {
         if (!content) continue
@@ -93,6 +94,14 @@ export const useReferencesStore = defineStore('references', {
               if (!map[key]) map[key] = []
               if (!map[key].includes(path)) map[key].push(path)
             }
+          }
+        } else if (path.endsWith('.typ')) {
+          typstCiteRe.lastIndex = 0
+          let match
+          while ((match = typstCiteRe.exec(content)) !== null) {
+            const key = match[2]
+            if (!map[key]) map[key] = []
+            if (!map[key].includes(path)) map[key].push(path)
           }
         }
       }

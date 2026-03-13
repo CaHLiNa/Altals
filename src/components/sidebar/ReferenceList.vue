@@ -351,6 +351,7 @@ import { IconSearch, IconArrowsSort } from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'
+import { isTypst } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -720,14 +721,17 @@ function handleDragStart({ key, event }) {
     ? [...referencesStore.selectedKeys]
     : [key]
 
-  // Detect if active editor is a .tex file — use \cite{} syntax instead of [@]
+  // Detect citation syntax based on the active text target.
   const activeTab = editorStore.activeTab
   const isTexTarget = activeTab && (activeTab.endsWith('.tex') || activeTab.endsWith('.latex'))
+  const isTypstTarget = activeTab && isTypst(activeTab)
 
   const citeText = isTexTarget
     ? (selected.length === 1
         ? `\\cite{${selected[0]}}`
         : `\\cite{${selected.join(', ')}}`)
+    : isTypstTarget
+      ? selected.map(k => `@${k}`).join(' ')
     : (selected.length === 1
         ? `[@${selected[0]}]`
         : `[${selected.map(k => '@' + k).join('; ')}]`)

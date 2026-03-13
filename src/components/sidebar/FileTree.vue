@@ -178,10 +178,10 @@
             <span class="flex-1">{{ t('LaTeX') }}</span>
             <span class="context-menu-ext">.tex</span>
           </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.canvas' })">
-            <IconVectorSpline :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Canvas') }}</span>
-            <span class="context-menu-ext">.canvas</span>
+          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.typ' })">
+            <IconMath :size="14" :stroke-width="1.5" />
+            <span class="flex-1">Typst</span>
+            <span class="context-menu-ext">.typ</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.R' })">
@@ -225,7 +225,7 @@ import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
 import {
   IconSearch, IconX, IconPlus, IconFileText, IconNotebook, IconMath,
-  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconVectorSpline,
+  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
@@ -911,10 +911,6 @@ function handleNewMenuCreate({ ext, isDir }) {
   } else if (!ext) {
     // "Other..." — generic inline create
     startInlineCreate(dir, false)
-  } else if (ext === '.canvas') {
-    // Canvas: name first, then create (avoids CanvasEditor save-on-unmount recreating old file)
-    startInlineCreate(dir, false)
-    renaming.autoExtension = '.canvas'
   } else {
     createTypedFile(dir, ext)
   }
@@ -929,9 +925,6 @@ function handleContextCreate({ ext, isDir }) {
     startInlineCreate(dir, true)
   } else if (!ext) {
     startInlineCreate(dir, false)
-  } else if (ext === '.canvas') {
-    startInlineCreate(dir, false)
-    renaming.autoExtension = '.canvas'
   } else {
     createTypedFile(dir, ext)
   }

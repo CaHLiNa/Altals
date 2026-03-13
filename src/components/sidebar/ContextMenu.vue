@@ -28,10 +28,10 @@
             <span class="flex-1">{{ t('LaTeX') }}</span>
             <span class="context-menu-ext">.tex</span>
           </div>
-          <div class="context-menu-item" @click="$emit('create', { ext: '.canvas' })">
-            <IconVectorSpline :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Canvas') }}</span>
-            <span class="context-menu-ext">.canvas</span>
+          <div class="context-menu-item" @click="$emit('create', { ext: '.typ' })">
+            <IconMath :size="14" :stroke-width="1.5" />
+            <span class="flex-1">Typst</span>
+            <span class="context-menu-ext">.typ</span>
           </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('create', { ext: '.R' })">
@@ -106,7 +106,7 @@ import { computed } from 'vue'
 import {
   IconFileText, IconNotebook, IconMath, IconCode, IconBrandPython,
   IconFilePlus, IconFolderPlus, IconPencil, IconCopy, IconTrash, IconClock,
-  IconExternalLink, IconBook2, IconVectorSpline,
+  IconExternalLink, IconBook2,
 } from '@tabler/icons-vue'
 import { isMac } from '../../platform'
 import { useI18n } from '../../i18n'
