@@ -3,24 +3,76 @@
     <h3 class="settings-section-title">{{ t('API Keys') }}</h3>
     <p class="settings-hint">{{ t('You only need a key for the provider you want to use. Keys are shared across all workspaces.') }}</p>
 
-    <div class="keys-list">
-      <div v-for="k in keyFields" :key="k.env" class="key-field">
+    <div v-if="configuredProviderDefs.length > 0" class="provider-group">
+      <div class="provider-group-label">{{ t('Configured') }}</div>
+      <div class="provider-grid">
+        <button
+          v-for="spec in configuredProviderDefs"
+          :key="spec.id"
+          class="provider-card"
+          :class="{ active: spec.id === selectedProviderId }"
+          @click="selectProvider(spec.id)"
+        >
+          <span class="provider-card-name">{{ spec.label }}</span>
+          <span class="provider-card-status is-good">{{ t('Configured') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="moreProviderDefs.length > 0" class="provider-group">
+      <div class="advanced-toggle" @click="showMoreProviders = !showMoreProviders">
+        <svg :class="{ rotated: showMoreProviders }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M3 1l4 4-4 4z"/>
+        </svg>
+        {{ t('More Providers') }}
+      </div>
+
+      <div v-if="showMoreProviders || configuredProviderDefs.length === 0" class="provider-grid">
+        <button
+          v-for="spec in moreProviderDefs"
+          :key="spec.id"
+          class="provider-card"
+          :class="{ active: spec.id === selectedProviderId }"
+          @click="selectProvider(spec.id)"
+        >
+          <span class="provider-card-name">{{ spec.label }}</span>
+          <span class="provider-card-status">{{ t('Not configured') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="activeProviderSpec" class="provider-detail-card">
+      <div class="provider-detail-head">
+        <div class="provider-detail-copy">
+          <div class="provider-detail-title">{{ activeProviderSpec.label }}</div>
+          <div class="provider-detail-meta">{{ activeProviderSpec.apiKeyEnv }}</div>
+        </div>
+        <span class="provider-card-status" :class="{ 'is-good': isProviderConfigured(activeProviderSpec) }">
+          {{ isProviderConfigured(activeProviderSpec) ? t('Configured') : t('Not configured') }}
+        </span>
+      </div>
+
+      <div class="key-field">
         <label class="key-label">
-          <span class="key-provider">{{ k.label }}</span>
-          <span class="key-env">{{ k.env }}</span>
+          <span class="key-provider">{{ t('API Key') }}</span>
+          <span class="key-env">{{ activeProviderSpec.apiKeyEnv }}</span>
         </label>
         <div class="key-input-row">
           <input
-            :type="k.visible ? 'text' : 'password'"
-            :value="editKeys[k.env]"
-            @input="editKeys[k.env] = $event.target.value"
+            :type="visibilityByEnv[activeProviderSpec.apiKeyEnv] ? 'text' : 'password'"
+            :value="editKeys[activeProviderSpec.apiKeyEnv]"
+            @input="editKeys[activeProviderSpec.apiKeyEnv] = $event.target.value"
             class="key-input"
-            :placeholder="k.placeholder"
+            :placeholder="keyPlaceholderFor(activeProviderSpec)"
             spellcheck="false"
             autocomplete="off"
           />
-          <button class="key-toggle" @click="k.visible = !k.visible" :title="k.visible ? t('Hide') : t('Show')">
-            <svg v-if="!k.visible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <button
+            class="key-toggle"
+            @click="visibilityByEnv[activeProviderSpec.apiKeyEnv] = !visibilityByEnv[activeProviderSpec.apiKeyEnv]"
+            :title="visibilityByEnv[activeProviderSpec.apiKeyEnv] ? t('Hide') : t('Show')"
+          >
+            <svg v-if="!visibilityByEnv[activeProviderSpec.apiKeyEnv]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
             <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -30,19 +82,48 @@
           </button>
         </div>
       </div>
-    </div>
 
-    <div class="keys-actions">
-      <button class="key-save-btn" :class="{ saved: keySaved }" @click="saveKeys">
-        {{ keySaved ? t('Saved') : t('Save Keys') }}
-      </button>
-      <span v-if="keySaved" class="key-saved-hint">{{ t('Restart chat to use new keys') }}</span>
-      <button class="key-save-btn key-secondary-btn" :disabled="syncingModels" @click="syncModels">
-        {{ syncingModels ? t('Syncing models...') : t('Sync Models') }}
-      </button>
+      <div class="keys-actions">
+        <button class="key-save-btn" :class="{ saved: keySaved }" @click="saveKeys">
+          {{ keySaved ? t('Saved') : t('Save Keys') }}
+        </button>
+        <span v-if="keySaved" class="key-saved-hint">{{ t('Restart chat to use new keys') }}</span>
+        <button class="key-save-btn key-secondary-btn" :disabled="syncingModels" @click="syncModels">
+          {{ syncingModels ? t('Syncing models...') : t('Sync Models') }}
+        </button>
+      </div>
+      <p v-if="syncMessage" class="settings-hint" :class="{ 'key-error-hint': syncError }">{{ syncMessage }}</p>
+
+      <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
+        <svg :class="{ rotated: showAdvanced }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <path d="M3 1l4 4-4 4z"/>
+        </svg>
+        {{ t('Advanced') }}
+      </div>
+
+      <div v-if="showAdvanced" class="advanced-section">
+        <p class="settings-hint">{{ t('Custom API endpoints for enterprise/private deployments') }}</p>
+        <div class="key-field">
+          <label class="key-label">
+            <span class="key-provider">{{ t('API URL') }}</span>
+          </label>
+          <input
+            type="text"
+            :value="editUrls[activeProviderSpec.id]"
+            @input="editUrls[activeProviderSpec.id] = $event.target.value"
+            class="key-input"
+            :placeholder="getProviderPlaceholder(activeProviderSpec.id)"
+            spellcheck="false"
+          />
+        </div>
+        <p class="settings-hint">{{ t('Default URL: {url}', { url: getProviderDefaultUrl(activeProviderSpec.id) }) }}</p>
+        <div class="keys-actions">
+          <button class="key-save-btn" :class="{ saved: urlSaved }" @click="saveUrls">
+            {{ urlSaved ? t('Saved') : t('Save URLs') }}
+          </button>
+        </div>
+      </div>
     </div>
-    <p v-if="syncMessage" class="settings-hint" :class="{ 'key-error-hint': syncError }">{{ syncMessage }}</p>
-    <p class="settings-hint">{{ t('OpenAI-compatible providers sync models automatically after you save keys. Anthropic and Google keep the built-in curated list.') }}</p>
 
     <!-- Monthly Budget (conditional on having direct keys) -->
     <template v-if="hasDirectKeys && (usageStore.showCostEstimates || usageStore.monthlyLimit > 0)">
@@ -76,41 +157,11 @@
       </div>
     </template>
 
-    <!-- Advanced: Custom API URLs -->
-    <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
-      <svg :class="{ rotated: showAdvanced }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-        <path d="M3 1l4 4-4 4z"/>
-      </svg>
-      {{ t('Advanced') }}
-    </div>
-
-    <div v-if="showAdvanced" class="advanced-section">
-      <p class="settings-hint">{{ t('Custom API endpoints for enterprise/private deployments') }}</p>
-      <div class="keys-list">
-        <div v-for="p in urlFields" :key="p.provider" class="key-field">
-          <label class="key-label">
-            <span class="key-provider">{{ p.label }} URL</span>
-          </label>
-          <input
-            type="text"
-            v-model="editUrls[p.provider]"
-            class="key-input"
-            :placeholder="p.placeholder"
-            spellcheck="false"
-          />
-        </div>
-      </div>
-      <div class="keys-actions">
-        <button class="key-save-btn" :class="{ saved: urlSaved }" @click="saveUrls">
-          {{ urlSaved ? t('Saved') : t('Save URLs') }}
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUsageStore } from '../../stores/usage'
 import { formatCost } from '../../services/tokenUsage'
@@ -130,10 +181,25 @@ const showAdvanced = ref(false)
 const urlSaved = ref(false)
 const editMonthlyLimit = ref('')
 const limitSaved = ref(false)
+const selectedProviderId = ref('')
+const showMoreProviders = ref(false)
 const syncingModels = ref(false)
 const syncMessage = ref('')
 const syncError = ref(false)
 const providerDefs = getProviderDefinitions()
+
+function isProviderConfigured(spec) {
+  return !!String(editKeys[spec.apiKeyEnv] || '').trim()
+}
+
+const configuredProviderDefs = computed(() => providerDefs.filter(spec => isProviderConfigured(spec)))
+const moreProviderDefs = computed(() => providerDefs.filter(spec => !isProviderConfigured(spec)))
+const orderedProviderDefs = computed(() => [...configuredProviderDefs.value, ...moreProviderDefs.value])
+const activeProviderSpec = computed(() => (
+  orderedProviderDefs.value.find(spec => spec.id === selectedProviderId.value)
+  || orderedProviderDefs.value[0]
+  || null
+))
 
 const hasDirectKeys = computed(() => {
   return providerDefs.some(spec => !!workspace.apiKeys?.[spec.apiKeyEnv])
@@ -172,13 +238,10 @@ const editKeys = reactive({
   ),
 })
 
-const keyFields = reactive(
-  providerDefs.map(spec => ({
-    env: spec.apiKeyEnv,
-    label: spec.label,
-    placeholder: keyPlaceholderFor(spec),
-    visible: false,
-  })),
+const visibilityByEnv = reactive(
+  Object.fromEntries(
+    providerDefs.map(spec => [spec.apiKeyEnv, false]),
+  ),
 )
 
 const editUrls = reactive({
@@ -198,6 +261,32 @@ function keyPlaceholderFor(spec) {
   if (spec.id === 'google') return 'AIza...'
   return 'sk-...'
 }
+
+function selectProvider(providerId) {
+  selectedProviderId.value = providerId
+  if (moreProviderDefs.value.some(spec => spec.id === providerId)) {
+    showMoreProviders.value = true
+  }
+}
+
+watch(
+  () => orderedProviderDefs.value.map(spec => spec.id).join('|'),
+  () => {
+    const available = orderedProviderDefs.value
+    if (!available.length) {
+      selectedProviderId.value = ''
+      return
+    }
+    const hasSelected = available.some(spec => spec.id === selectedProviderId.value)
+    if (!hasSelected) {
+      selectedProviderId.value = configuredProviderDefs.value[0]?.id || available[0].id
+    }
+    if (configuredProviderDefs.value.length === 0) {
+      showMoreProviders.value = true
+    }
+  },
+  { immediate: true },
+)
 
 async function saveKeys() {
   try {
@@ -315,14 +404,6 @@ async function syncModels({ auto = false } = {}) {
   font-variant-numeric: tabular-nums;
 }
 
-.key-secondary-btn {
-  margin-left: 8px;
-}
-
-.key-error-hint {
-  color: var(--error);
-}
-
 .advanced-toggle {
   margin-top: 20px;
   padding: 6px 0;
@@ -353,5 +434,106 @@ async function syncModels({ auto = false } = {}) {
 
 .advanced-section .settings-hint {
   margin: 0 0 12px;
+}
+
+.provider-group {
+  margin-top: 14px;
+}
+
+.provider-group-label {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.provider-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  text-align: left;
+}
+
+.provider-card:hover {
+  border-color: var(--fg-muted);
+  transform: translateY(-1px);
+}
+
+.provider-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
+}
+
+.provider-card-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.provider-card-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--fg-muted);
+  background: var(--bg-tertiary);
+}
+
+.provider-card-status.is-good {
+  color: var(--success);
+  background: rgba(158, 206, 106, 0.12);
+}
+
+.provider-detail-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+}
+
+.provider-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.provider-detail-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.provider-detail-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+
+.key-secondary-btn {
+  margin-left: 8px;
+}
+
+.key-error-hint {
+  color: var(--error);
 }
 </style>
