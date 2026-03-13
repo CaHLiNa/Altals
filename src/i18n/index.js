@@ -5,6 +5,7 @@ const ZH_MESSAGES = {
   'Theme': '主题',
   'Editor': '编辑器',
   'Models': '模型',
+  'Provider': '提供商',
   'Tools': '工具',
   'GitHub': 'GitHub',
   'System': '系统',

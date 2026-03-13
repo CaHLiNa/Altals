@@ -121,15 +121,33 @@
           :style="modelDropdownPos"
           style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
           <template v-if="availableModels.length > 0">
-            <div v-for="m in availableModels" :key="m.id"
-              class="px-3 py-1.5 ui-text-base cursor-pointer hover:bg-[var(--bg-hover)] flex items-center"
-              style="color: var(--fg-secondary);"
-              @click="selectModel(m)">
-              <span v-if="m.id === currentModelId" class="mr-1.5" style="color: var(--accent);">&#x2713;</span>
-              <span v-else style="width: 16px; display: inline-block;"></span>
-              {{ m.name }}
-              <span v-if="m.recommended" class="recommended-badge">{{ t('default') }}</span>
-              <span v-else-if="showRouteBadges && m.route === 'direct'" class="route-label">{{ t('API Key') }}</span>
+            <div class="model-picker-shell">
+              <div class="model-provider-column">
+                <div
+                  v-for="group in availableModelGroups"
+                  :key="group.provider"
+                  class="model-provider-item"
+                  :class="{ active: group.provider === selectedProviderId }"
+                  @click="selectProvider(group.provider)"
+                >
+                  {{ group.label }}
+                </div>
+              </div>
+              <div class="model-model-column">
+                <div class="model-column-title">{{ selectedProviderLabel }}</div>
+                <div
+                  v-for="m in selectedProviderModels"
+                  :key="m.id"
+                  class="model-model-item"
+                  @click="selectModel(m)"
+                >
+                  <span v-if="m.id === currentModelId" class="mr-1.5" style="color: var(--accent);">&#x2713;</span>
+                  <span v-else style="width: 16px; display: inline-block;"></span>
+                  <span class="truncate flex-1">{{ m.name }}</span>
+                  <span v-if="m.recommended" class="recommended-badge">{{ t('default') }}</span>
+                  <span v-else-if="showRouteBadges && m.route === 'direct'" class="route-label">{{ t('API Key') }}</span>
+                </div>
+              </div>
             </div>
           </template>
           <div v-else class="px-3 py-2 ui-text-sm" style="color: var(--fg-muted);">
@@ -151,7 +169,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { IconNotes } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
@@ -160,6 +178,7 @@ import { useChatStore } from '../../stores/chat'
 import { useReviewsStore } from '../../stores/reviews'
 import { getBillingRoute } from '../../services/apiClient'
 import { useI18n } from '../../i18n'
+import { findModelById, groupModelsByProvider } from '../../services/modelCatalog'
 import RichTextInput from '../shared/RichTextInput.vue'
 
 const props = defineProps({
@@ -191,6 +210,7 @@ const isFocused       = ref(false)
 const hasContent      = ref(false)   // tracks whether richInput is empty (for canSend)
 const showModelPicker = ref(false)
 const modelDropdownPos = ref({})
+const selectedProviderId = ref('')
 
 const canSend = computed(() => hasContent.value && !isOverBudget.value)
 
@@ -287,7 +307,7 @@ const currentModelId = computed(() => props.modelId)
 const currentModelName = computed(() => {
   const config = workspace.modelsConfig
   if (!config) return 'Sonnet'
-  const model = config.models?.find(m => m.id === currentModelId.value)
+  const model = findModelById(config.models, currentModelId.value)
   return model?.name || 'Sonnet'
 })
 
@@ -309,6 +329,39 @@ const showRouteBadges = computed(() => {
   return routes.size > 1
 })
 
+const availableModelGroups = computed(() => groupModelsByProvider(availableModels.value))
+
+const selectedProviderGroup = computed(() => (
+  availableModelGroups.value.find(group => group.provider === selectedProviderId.value)
+  || availableModelGroups.value[0]
+  || null
+))
+
+const selectedProviderModels = computed(() => selectedProviderGroup.value?.models || [])
+const selectedProviderLabel = computed(() => selectedProviderGroup.value?.label || '')
+
+function preferredProviderId() {
+  return findModelById(availableModels.value, currentModelId.value)?.provider
+    || availableModelGroups.value[0]?.provider
+    || ''
+}
+
+function ensureSelectedProvider(preferCurrent = false) {
+  if (availableModelGroups.value.length === 0) {
+    selectedProviderId.value = ''
+    return
+  }
+
+  const hasSelected = availableModelGroups.value.some(group => group.provider === selectedProviderId.value)
+  if (preferCurrent || !hasSelected) {
+    selectedProviderId.value = preferredProviderId()
+  }
+}
+
+function selectProvider(providerId) {
+  selectedProviderId.value = providerId
+}
+
 function selectModel(m) {
   emit('update-model', m.id)
   showModelPicker.value = false
@@ -319,12 +372,15 @@ function toggleModelPicker() {
     showModelPicker.value = false
     return
   }
+  ensureSelectedProvider(true)
   const el = modelButtonRef.value
   if (el) {
     const rect = el.getBoundingClientRect()
+    const width = Math.max(360, Math.min(window.innerWidth - rect.left - 12, 440))
     modelDropdownPos.value = {
       bottom: (window.innerHeight - rect.top + 4) + 'px',
       left: rect.left + 'px',
+      width: `${width}px`,
     }
   }
   showModelPicker.value = true
@@ -382,10 +438,72 @@ function focus() {
   richInputRef.value?.focus()
 }
 
+watch(
+  () => `${currentModelId.value}|${availableModelGroups.value.map(group => `${group.provider}:${group.models.length}`).join('|')}`,
+  () => {
+    ensureSelectedProvider()
+  },
+  { immediate: true },
+)
+
 defineExpose({ focus })
 </script>
 
 <style scoped>
+.model-picker-shell {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  min-height: 180px;
+}
+
+.model-provider-column {
+  border-right: 1px solid var(--border);
+  padding: 6px 0;
+}
+
+.model-provider-item,
+.model-model-item {
+  cursor: pointer;
+  color: var(--fg-secondary);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.model-provider-item {
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.model-provider-item:hover,
+.model-provider-item.active,
+.model-model-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.model-provider-item.active {
+  font-weight: 600;
+}
+
+.model-model-column {
+  padding: 6px 0;
+  min-width: 0;
+}
+
+.model-column-title {
+  padding: 4px 12px 8px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.model-model-item {
+  padding: 7px 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+
 .token-donut-wrap {
   position: relative;
   cursor: default;

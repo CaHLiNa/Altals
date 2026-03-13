@@ -93,6 +93,10 @@ const PROVIDER_SPEC_BY_ID = Object.fromEntries(
   PROVIDER_SPECS.map(spec => [spec.id, spec]),
 )
 
+const PROVIDER_INDEX_BY_ID = Object.fromEntries(
+  PROVIDER_SPECS.map((spec, index) => [spec.id, index]),
+)
+
 const DEFAULT_MODELS = [
   { id: 'opus', name: 'Opus 4.6', provider: 'anthropic', model: 'claude-opus-4-6', default: false },
   { id: 'sonnet', name: 'Sonnet 4.6', provider: 'anthropic', model: 'claude-sonnet-4-6', default: true },
@@ -129,6 +133,15 @@ export function getProviderSpec(provider) {
   return PROVIDER_SPEC_BY_ID[provider] || null
 }
 
+export function compareProviders(a, b) {
+  const indexA = PROVIDER_INDEX_BY_ID[a]
+  const indexB = PROVIDER_INDEX_BY_ID[b]
+  if (Number.isInteger(indexA) && Number.isInteger(indexB)) return indexA - indexB
+  if (Number.isInteger(indexA)) return -1
+  if (Number.isInteger(indexB)) return 1
+  return String(providerLabel(a)).localeCompare(String(providerLabel(b)))
+}
+
 export function providerLabel(provider) {
   return getProviderSpec(provider)?.label || provider
 }
@@ -163,6 +176,31 @@ export function getPdfTranslationEngine(provider) {
 
 export function providerSupportsPdfTranslation(provider) {
   return !!getPdfTranslationEngine(provider)
+}
+
+export function findModelById(models = [], modelId = '') {
+  return (Array.isArray(models) ? models : []).find(model => model.id === modelId) || null
+}
+
+export function getFirstModelForProvider(models = [], provider = '') {
+  return (Array.isArray(models) ? models : []).find(model => model.provider === provider) || null
+}
+
+export function groupModelsByProvider(models = []) {
+  const grouped = new Map()
+  for (const model of Array.isArray(models) ? models : []) {
+    if (!model?.provider) continue
+    if (!grouped.has(model.provider)) grouped.set(model.provider, [])
+    grouped.get(model.provider).push(model)
+  }
+
+  return [...grouped.entries()]
+    .sort(([providerA], [providerB]) => compareProviders(providerA, providerB))
+    .map(([provider, providerModels]) => ({
+      provider,
+      label: providerLabel(provider),
+      models: providerModels,
+    }))
 }
 
 export function getDefaultModelsConfig() {

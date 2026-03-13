@@ -6,12 +6,29 @@
     <div class="pdft-card">
       <div class="pdft-grid">
         <label class="pdft-field">
-          <span class="pdft-label">{{ t('Default model') }}</span>
+          <span class="pdft-label">{{ t('Provider') }}</span>
           <div class="pdft-select-shell">
-            <select v-model="draft.modelId" class="pdft-select">
-              <option v-if="compatibleModels.length === 0" value="">{{ t('No compatible models available') }}</option>
-              <option v-for="model in compatibleModels" :key="model.id" :value="model.id">
-                {{ model.name }} · {{ providerLabel(model.provider) }}
+            <select v-model="selectedProviderId" class="pdft-select" :disabled="compatibleModelGroups.length === 0">
+              <option v-if="compatibleModelGroups.length === 0" value="">{{ t('No compatible models available') }}</option>
+              <option v-for="group in compatibleModelGroups" :key="group.provider" :value="group.provider">
+                {{ group.label }}
+              </option>
+            </select>
+            <span class="pdft-caret" aria-hidden="true">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M1 3l4 4 4-4z" />
+              </svg>
+            </span>
+          </div>
+        </label>
+
+        <label class="pdft-field">
+          <span class="pdft-label">{{ t('Model') }}</span>
+          <div class="pdft-select-shell">
+            <select v-model="draft.modelId" class="pdft-select" :disabled="selectedProviderModels.length === 0">
+              <option v-if="selectedProviderModels.length === 0" value="">{{ t('No compatible models available') }}</option>
+              <option v-for="model in selectedProviderModels" :key="model.id" :value="model.id">
+                {{ model.name }}
               </option>
             </select>
             <span class="pdft-caret" aria-hidden="true">
@@ -167,13 +184,14 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useI18n } from '../../i18n'
-import { providerLabel } from '../../services/modelCatalog'
+import { findModelById, getFirstModelForProvider, groupModelsByProvider } from '../../services/modelCatalog'
 
 const { t } = useI18n()
 const pdfTranslateStore = usePdfTranslateStore()
 const envStore = useEnvironmentStore()
 const showAdvanced = ref(false)
 const saved = ref(false)
+const selectedProviderId = ref('')
 
 const draft = reactive({
   modelId: '',
@@ -204,6 +222,13 @@ const sourceLanguages = computed(() => ([
 
 const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
 const compatibleModels = computed(() => pdfTranslateStore.compatibleModels)
+const compatibleModelGroups = computed(() => groupModelsByProvider(compatibleModels.value))
+const selectedProviderGroup = computed(() => (
+  compatibleModelGroups.value.find(group => group.provider === selectedProviderId.value)
+  || compatibleModelGroups.value[0]
+  || null
+))
+const selectedProviderModels = computed(() => selectedProviderGroup.value?.models || [])
 
 const selectedPythonPath = computed(() => (
   envStore.selectedInterpreterPath('python') || t('No Python selected in System settings')
@@ -222,6 +247,30 @@ const runtimeError = computed(() => (
 
 function syncDraft() {
   Object.assign(draft, pdfTranslateStore.settings)
+}
+
+function preferredProviderId() {
+  return findModelById(compatibleModels.value, draft.modelId)?.provider
+    || compatibleModelGroups.value[0]?.provider
+    || ''
+}
+
+function ensureProviderSelection(preferCurrent = false) {
+  if (compatibleModelGroups.value.length === 0) {
+    selectedProviderId.value = ''
+    if (draft.modelId) draft.modelId = ''
+    return
+  }
+
+  const hasSelected = compatibleModelGroups.value.some(group => group.provider === selectedProviderId.value)
+  if (preferCurrent || !hasSelected) {
+    selectedProviderId.value = preferredProviderId()
+  }
+
+  const currentModel = findModelById(compatibleModels.value, draft.modelId)
+  if (!currentModel || currentModel.provider !== selectedProviderId.value) {
+    draft.modelId = getFirstModelForProvider(compatibleModels.value, selectedProviderId.value)?.id || ''
+  }
 }
 
 function markSaved() {
@@ -257,6 +306,18 @@ async function prepareRuntime() {
 }
 
 watch(() => pdfTranslateStore.settings, syncDraft, { deep: true })
+watch(() => draft.modelId, () => {
+  ensureProviderSelection(true)
+})
+watch(selectedProviderId, (providerId, previousProviderId) => {
+  if (!providerId || providerId === previousProviderId) return
+  const currentModel = findModelById(compatibleModels.value, draft.modelId)
+  if (currentModel?.provider === providerId) return
+  draft.modelId = getFirstModelForProvider(compatibleModels.value, providerId)?.id || ''
+})
+watch(compatibleModelGroups, () => {
+  ensureProviderSelection()
+}, { immediate: true, deep: true })
 
 onMounted(async () => {
   if (!envStore.detected && !envStore.detecting) {
