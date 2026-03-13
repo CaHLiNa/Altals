@@ -30,6 +30,7 @@
           <SettingsEditor v-if="activeSection === 'editor'" />
           <SettingsModels v-if="activeSection === 'models'" />
           <SettingsTools v-if="activeSection === 'tools'" />
+          <SettingsPdfTranslate v-if="activeSection === 'pdf-translate'" />
           <SettingsGitHub v-if="activeSection === 'github'" />
           <SettingsEnvironment v-if="visible" v-show="activeSection === 'system'" />
           <SettingsUsage v-if="activeSection === 'usage'" />
@@ -42,11 +43,12 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh } from '@tabler/icons-vue'
+import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh, IconFileTypePdf } from '@tabler/icons-vue'
 import SettingsTheme from './SettingsTheme.vue'
 import SettingsEditor from './SettingsEditor.vue'
 import SettingsModels from './SettingsModels.vue'
 import SettingsTools from './SettingsTools.vue'
+import SettingsPdfTranslate from './SettingsPdfTranslate.vue'
 import SettingsEnvironment from './SettingsEnvironment.vue'
 import SettingsUsage from './SettingsUsage.vue'
 import SettingsGitHub from './SettingsGitHub.vue'
@@ -88,6 +90,7 @@ const sections = [
   { separator: true },
   { id: 'models', label: t('Models'), icon: IconKey },
   { id: 'tools', label: t('Tools'), icon: IconTool },
+  { id: 'pdf-translate', label: t('PDF Translation'), icon: IconFileTypePdf },
   { id: 'github', label: 'GitHub', icon: IconBrandGithub },
   { id: 'system', label: t('System'), icon: IconCpu },
   { separator: true },

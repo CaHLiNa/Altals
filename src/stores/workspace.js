@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { gitInit, gitAdd, gitCommit, gitStatus, gitRemoteGetUrl } from '../services/git'
+import {
+  getDefaultModelsConfig,
+  getProviderDefaultUrl,
+  mergeRemoteModelsIntoConfig,
+  mergeWithDefaultModelsConfig,
+  providerSupportsModelSync,
+} from '../services/modelCatalog'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
 import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
 
@@ -219,23 +226,7 @@ When reviewing text:
           if (!migrated) {
             await invoke('write_file', {
               path: globalModelsPath,
-              content: JSON.stringify({
-                models: [
-                  { id: 'opus', name: 'Opus 4.6', provider: 'anthropic', model: 'claude-opus-4-6', default: false },
-                  { id: 'sonnet', name: 'Sonnet 4.6', provider: 'anthropic', model: 'claude-sonnet-4-6', default: true },
-                  { id: 'haiku', name: 'Haiku 4.5', provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
-                  { id: 'gpt-5.2', name: 'GPT-5.2', provider: 'openai', model: 'gpt-5.2-2025-12-11' },
-                  { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'openai', model: 'gpt-5-mini-2025-08-07' },
-                  { id: 'gemini-3.1-pro-fast', name: 'Gemini 3.1 Pro (Low)', provider: 'google', model: 'gemini-3.1-pro-preview', thinking: 'low' },
-                  { id: 'gemini-3.1-pro-deep', name: 'Gemini 3.1 Pro (High)', provider: 'google', model: 'gemini-3.1-pro-preview', thinking: 'high' },
-                  { id: 'gemini-flash', name: 'Gemini 3 Flash', provider: 'google', model: 'gemini-3-flash-preview', thinking: 'medium' },
-                ],
-                providers: {
-                  anthropic: { url: 'https://api.anthropic.com/v1/messages', apiKeyEnv: 'ANTHROPIC_API_KEY' },
-                  openai: { url: 'https://api.openai.com/v1/responses', apiKeyEnv: 'OPENAI_API_KEY' },
-                  google: { url: 'https://generativelanguage.googleapis.com/v1beta/models', apiKeyEnv: 'GOOGLE_API_KEY' },
-                },
-              }, null, 2),
+              content: JSON.stringify(getDefaultModelsConfig(), null, 2),
             })
           }
         }
@@ -508,11 +499,16 @@ exit 0
 
       // Load models config from global directory
       try {
-        const modelsPath = this.globalConfigDir
-          ? `${this.globalConfigDir}/models.json`
-          : `${shouldersDir}/models.json`
+        const modelsPath = this._modelsPath()
         const modelsContent = await invoke('read_file', { path: modelsPath })
-        this.modelsConfig = JSON.parse(modelsContent)
+        const { config, changed } = mergeWithDefaultModelsConfig(JSON.parse(modelsContent))
+        this.modelsConfig = config
+        if (changed) {
+          await invoke('write_file', {
+            path: modelsPath,
+            content: JSON.stringify(config, null, 2),
+          })
+        }
       } catch (e) {
         this.modelsConfig = null
       }
@@ -578,6 +574,84 @@ exit 0
         })
       } catch (e) {
         console.warn('Failed to save global keys:', e)
+      }
+    },
+
+    _modelsPath() {
+      if (this.globalConfigDir) return `${this.globalConfigDir}/models.json`
+      if (this.shouldersDir) return `${this.shouldersDir}/models.json`
+      return ''
+    },
+
+    async saveModelsConfig(config) {
+      const modelsPath = this._modelsPath()
+      if (!modelsPath) return null
+
+      const { config: normalized } = mergeWithDefaultModelsConfig(config || {})
+      await invoke('write_file', {
+        path: modelsPath,
+        content: JSON.stringify(normalized, null, 2),
+      })
+      this.modelsConfig = normalized
+      return normalized
+    },
+
+    async syncProviderModels({ providerIds = null } = {}) {
+      if (!this.modelsConfig) {
+        await this.loadSettings()
+      }
+
+      const baseConfig = mergeWithDefaultModelsConfig(this.modelsConfig || getDefaultModelsConfig()).config
+      let nextConfig = baseConfig
+      let addedCount = 0
+      const syncedProviders = []
+      const failedProviders = []
+
+      const targetIds = (Array.isArray(providerIds) && providerIds.length > 0
+        ? providerIds
+        : Object.keys(nextConfig.providers || {})
+      ).filter(providerSupportsModelSync)
+
+      for (const providerId of targetIds) {
+        const providerConfig = nextConfig.providers?.[providerId]
+        const keyEnv = providerConfig?.apiKeyEnv
+        const apiKey = keyEnv ? this.apiKeys?.[keyEnv] : ''
+        if (!apiKey || apiKey.includes('your-')) continue
+
+        const baseUrl = providerConfig?.customUrl || providerConfig?.url || getProviderDefaultUrl(providerId)
+        if (!baseUrl) continue
+
+        try {
+          const remoteModels = await invoke('model_sync_list_openai_models', {
+            baseUrl,
+            apiKey,
+          })
+          const merged = mergeRemoteModelsIntoConfig(
+            nextConfig,
+            providerId,
+            (remoteModels || []).map(entry => entry?.id).filter(Boolean),
+          )
+          nextConfig = merged.config
+          addedCount += merged.addedCount
+          syncedProviders.push(providerId)
+        } catch (error) {
+          failedProviders.push({
+            provider: providerId,
+            error: error?.message || String(error),
+          })
+        }
+      }
+
+      if (JSON.stringify(nextConfig) !== JSON.stringify(baseConfig)) {
+        await this.saveModelsConfig(nextConfig)
+      } else {
+        this.modelsConfig = nextConfig
+      }
+
+      return {
+        addedCount,
+        syncedProviders,
+        failedProviders,
       }
     },
 

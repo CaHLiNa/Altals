@@ -23,6 +23,7 @@
       @sync-tex="handleSyncTex"
       @preview-markdown="handlePreviewMarkdown"
       @export-pdf="handleExportPdf"
+      @translate-pdf="handleTranslatePdf"
       @new-tab="editorStore.openNewTab(paneId)"
     />
 
@@ -145,10 +146,12 @@ import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
+import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { EditorView } from '@codemirror/view'
 import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId } from '../../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../../services/codeRunner'
 import { useLatexStore } from '../../stores/latex'
+import { useI18n } from '../../i18n'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
 import TextEditor from './TextEditor.vue'
@@ -184,6 +187,8 @@ const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
+const pdfTranslateStore = usePdfTranslateStore()
+const { t } = useI18n()
 
 // ── Comment state ──────────────────────────────────────────────────
 const hasEditorSelection = ref(false)
@@ -370,6 +375,23 @@ async function handleCompileTex() {
   const state = latexStore.stateForFile(props.activeTab)
   if (state?.status === 'success' && state.pdfPath) {
     ensurePdfOpen(state.pdfPath)
+  }
+}
+
+async function handleTranslatePdf() {
+  if (!props.activeTab || viewerType.value !== 'pdf') return
+
+  try {
+    await pdfTranslateStore.startTranslation(props.activeTab)
+    const name = props.activeTab.split('/').pop()
+    toastStore.show(t('Started translating {name}', { name }), {
+      type: 'success',
+      duration: 2500,
+    })
+  } catch (error) {
+    const message = error?.message || String(error)
+    toastStore.show(message, { type: 'error', duration: 5000 })
+    workspace.openSettings('pdf-translate')
   }
 }
 

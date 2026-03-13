@@ -213,6 +213,32 @@
       </button>
     </div>
 
+    <!-- PDF translation actions -->
+    <div v-if="showPdfTranslateButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
+      <span
+        v-if="pdfTranslateStatus"
+        class="text-[11px]"
+        :title="pdfTranslateTask?.message || ''"
+        :style="{ color: pdfTranslateStatusColor }"
+      >
+        {{ pdfTranslateStatus }}
+      </span>
+      <button
+        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        :style="{ color: pdfTranslateTask?.status === 'failed' ? 'var(--error)' : 'var(--accent)' }"
+        :disabled="pdfTranslateTask?.status === 'running'"
+        @click="$emit('translate-pdf')"
+        :title="t('Translate this PDF')"
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M2.5 3.5h11v9h-11z"/>
+          <path d="M5 6.5h1.5M5 9h4"/>
+          <path d="M9.5 5.75l2 4.5M10 9.25h3"/>
+        </svg>
+        {{ pdfTranslateTask?.status === 'running' ? t('Translating...') : t('Translate') }}
+      </button>
+    </div>
+
     <!-- Pane actions -->
     <div class="flex items-center gap-0.5 px-1 shrink-0">
       <!-- Comment margin toggle (for text files) -->
@@ -286,6 +312,7 @@ import { useTypstStore } from '../../stores/typst'
 import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isLatex, isMarkdown, isPreviewPath, isChatTab, getChatSessionId, isNewTab, getViewerType } from '../../utils/fileTypes'
 import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
+import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import PdfSettingsPopover from './PdfSettingsPopover.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -296,11 +323,12 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'sync-tex', 'preview-markdown', 'export-pdf', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'sync-tex', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
 
 const typstStore = useTypstStore()
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
+const pdfTranslateStore = usePdfTranslateStore()
 const { t } = useI18n()
 
 // Comment margin toggle
@@ -353,6 +381,27 @@ function isChatStreaming(path) {
 const showRunButtons = computed(() => props.activeTab && isRunnable(props.activeTab))
 const showRenderButton = computed(() => props.activeTab && isRmdOrQmd(props.activeTab))
 const showMarkdownButtons = computed(() => props.activeTab && isMarkdown(props.activeTab) && !isPreviewPath(props.activeTab))
+const showPdfTranslateButtons = computed(() => props.activeTab && getViewerType(props.activeTab) === 'pdf')
+const pdfTranslateTask = computed(() => props.activeTab ? pdfTranslateStore.latestTaskForInput(props.activeTab) : null)
+const pdfTranslateStatus = computed(() => {
+  const task = pdfTranslateTask.value
+  if (!task) return ''
+  if (task.status === 'running') {
+    const pct = Number.isFinite(task.progress) ? Math.round(task.progress) : 0
+    return `${pct}%`
+  }
+  if (task.status === 'completed') return t('Ready')
+  if (task.status === 'failed') return t('Failed')
+  if (task.status === 'canceled') return t('Canceled')
+  return ''
+})
+const pdfTranslateStatusColor = computed(() => {
+  const status = pdfTranslateTask.value?.status
+  if (status === 'completed') return 'var(--success, #4ade80)'
+  if (status === 'failed') return 'var(--error)'
+  if (status === 'canceled') return 'var(--fg-muted)'
+  return 'var(--fg-muted)'
+})
 
 // LaTeX compile buttons
 const latexStore = useLatexStore()

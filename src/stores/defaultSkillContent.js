@@ -52,6 +52,11 @@ Altals uses the user's own provider keys.
 - Anthropic
 - OpenAI
 - Google
+- DeepSeek
+- Kimi
+- Qwen
+- MiniMax
+- GLM
 
 ### Search tools
 - \`web_search\` and \`fetch_url\` need \`EXA_API_KEY\`.

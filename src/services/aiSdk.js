@@ -23,21 +23,27 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
  */
 export function createModel(access, customFetch) {
   const provider = access.provider
+  const sdkProvider = access.sdkProvider || provider
+  const sdkMode = access.sdkMode || 'native'
   const opts = {}
   if (customFetch) opts.fetch = customFetch
 
   opts.apiKey = access.apiKey
-  if (access.url) opts.baseURL = _providerBaseUrl(provider, access.url)
+  if (access.url) opts.baseURL = _providerBaseUrl(sdkProvider, access.url)
 
-  switch (provider) {
+  switch (sdkProvider) {
     case 'anthropic':
       return createAnthropic(opts)(access.model)
-    case 'openai':
-      return createOpenAI(opts)(access.model)
+    case 'openai': {
+      const openaiFactory = createOpenAI({ ...opts, name: provider })
+      return sdkMode === 'chat'
+        ? openaiFactory.chat(access.model)
+        : openaiFactory(access.model)
+    }
     case 'google':
       return createGoogleGenerativeAI(opts)(access.model)
     default:
-      throw new Error(`Unknown provider: ${provider}`)
+      throw new Error(`Unknown provider: ${sdkProvider}`)
   }
 }
 
@@ -161,8 +167,9 @@ export function convertSdkUsage(sdkUsage, providerMetadata, provider) {
     return usage
   }
 
-  if (providerMetadata?.openai) {
-    const raw = providerMetadata.openai.usage || providerMetadata.openai
+  const openAiLike = _resolveOpenAiMetadata(providerMetadata, provider)
+  if (openAiLike) {
+    const raw = openAiLike.usage || openAiLike
     if (raw.inputTokens || raw.outputTokens) {
       const cached = raw.cachedInputTokens || 0
       usage.input_cache_miss = (raw.inputTokens || 0) - cached
@@ -170,6 +177,18 @@ export function convertSdkUsage(sdkUsage, providerMetadata, provider) {
       usage.input_total = raw.inputTokens || 0
       usage.output = raw.outputTokens || 0
       usage.thinking = raw.reasoningTokens || 0
+      usage.total = usage.input_total + usage.output
+      return usage
+    }
+
+    if (raw.prompt_tokens || raw.completion_tokens) {
+      const cached = raw.prompt_tokens_details?.cached_tokens || 0
+      const reasoning = raw.completion_tokens_details?.reasoning_tokens || 0
+      usage.input_cache_miss = (raw.prompt_tokens || 0) - cached
+      usage.input_cache_hit = cached
+      usage.input_total = raw.prompt_tokens || 0
+      usage.output = raw.completion_tokens || 0
+      usage.thinking = reasoning
       usage.total = usage.input_total + usage.output
       return usage
     }
@@ -182,6 +201,27 @@ export function convertSdkUsage(sdkUsage, providerMetadata, provider) {
   usage.total = sdkUsage.totalTokens || (usage.input_total + usage.output)
 
   return usage
+}
+
+function _resolveOpenAiMetadata(providerMetadata, provider) {
+  if (!providerMetadata || typeof providerMetadata !== 'object') return null
+  if (providerMetadata.openai) return providerMetadata.openai
+  if (provider && providerMetadata[provider]) return providerMetadata[provider]
+
+  for (const value of Object.values(providerMetadata)) {
+    if (!value || typeof value !== 'object') continue
+    if (
+      value.usage
+      || value.inputTokens
+      || value.outputTokens
+      || value.prompt_tokens
+      || value.completion_tokens
+    ) {
+      return value
+    }
+  }
+
+  return null
 }
 
 /**
@@ -205,8 +245,11 @@ function _providerBaseUrl(provider, fullUrl) {
       // https://api.anthropic.com/v1/messages → https://api.anthropic.com/v1
       return fullUrl.replace(/\/messages$/, '')
     case 'openai':
-      // https://api.openai.com/v1/responses → https://api.openai.com/v1
-      return fullUrl.replace(/\/responses$/, '')
+      // OpenAI-compatible providers may point at /v1, /responses, /chat/completions, or /models.
+      return fullUrl
+        .replace(/\/responses$/, '')
+        .replace(/\/chat\/completions$/, '')
+        .replace(/\/models$/, '')
     case 'google':
       // https://generativelanguage.googleapis.com/v1beta/models → as-is
       return fullUrl.replace(/\/models$/, '')

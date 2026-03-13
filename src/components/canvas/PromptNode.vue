@@ -68,7 +68,7 @@
             @click.stop="selectModel(model.id)"
           >
             <span class="model-option-name">{{ model.name }}</span>
-            <span class="model-option-provider">{{ model.provider }}</span>
+            <span class="model-option-provider">{{ providerLabel(model.provider) }}</span>
           </div>
         </div>
       </div>
@@ -89,6 +89,7 @@ import { NodeResizer } from '@vue-flow/node-resizer'
 import { useCanvasStore } from '../../stores/canvas'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import { providerLabel } from '../../services/modelCatalog'
 
 const props = defineProps({
   id: { type: String, required: true },

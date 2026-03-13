@@ -19,7 +19,7 @@
               @click="aiChoice = 'keys'"
             >
               <div class="wizard-option-title">{{ t('I have API keys') }}</div>
-              <div class="wizard-option-desc">{{ t('Anthropic, OpenAI, or Google') }}</div>
+              <div class="wizard-option-desc">{{ t('Anthropic, OpenAI, Google, DeepSeek, Kimi, Qwen, MiniMax, or GLM') }}</div>
             </button>
 
             <button

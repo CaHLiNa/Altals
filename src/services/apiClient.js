@@ -7,24 +7,53 @@
  *   resolveApiAccess(options, workspace) — "who do I call and with what key?"
  */
 
-const PROVIDER_URLS = {
-  anthropic: 'https://api.anthropic.com/v1/messages',
-  openai: 'https://api.openai.com/v1/responses',
-  google: 'https://generativelanguage.googleapis.com/v1beta/models',
-}
+import {
+  getDefaultModelsConfig,
+  getProviderDefaultUrl,
+  getProviderDefinitions,
+  getProviderSdkFamily,
+  getProviderSdkMode,
+} from './modelCatalog'
+
+const PROVIDER_URLS = Object.fromEntries(
+  getProviderDefinitions().map(spec => [spec.id, spec.defaultUrl]),
+)
 
 // Fallback models for strategy-based resolution
 export const GHOST_MODELS = [
   { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', keyEnv: 'ANTHROPIC_API_KEY' },
   { provider: 'google', model: 'gemini-3.1-flash-lite-preview', keyEnv: 'GOOGLE_API_KEY' },
   { provider: 'openai', model: 'gpt-5-nano-2025-08-07', keyEnv: 'OPENAI_API_KEY' },
+  { provider: 'deepseek', model: 'deepseek-chat', keyEnv: 'DEEPSEEK_API_KEY' },
+  { provider: 'qwen', model: 'qwen-turbo-latest', keyEnv: 'QWEN_API_KEY' },
+  { provider: 'glm', model: 'glm-4-flash', keyEnv: 'GLM_API_KEY' },
+  { provider: 'kimi', model: 'moonshot-v1-8k', keyEnv: 'KIMI_API_KEY' },
 ]
 
 const CHEAP_MODELS = [
   { provider: 'google', model: 'gemini-3.1-flash-lite-preview', keyEnv: 'GOOGLE_API_KEY' },
+  { provider: 'deepseek', model: 'deepseek-chat', keyEnv: 'DEEPSEEK_API_KEY' },
+  { provider: 'qwen', model: 'qwen-turbo-latest', keyEnv: 'QWEN_API_KEY' },
+  { provider: 'glm', model: 'glm-4-flash', keyEnv: 'GLM_API_KEY' },
   { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', keyEnv: 'ANTHROPIC_API_KEY' },
   { provider: 'openai', model: 'gpt-5-nano-2025-08-07', keyEnv: 'OPENAI_API_KEY' },
+  { provider: 'kimi', model: 'moonshot-v1-8k', keyEnv: 'KIMI_API_KEY' },
 ]
+
+function _accessForResolvedModel(model, providerConfig, apiKey) {
+  return {
+    model: model.model,
+    provider: model.provider,
+    apiKey,
+    url: providerConfig?.customUrl || providerConfig?.url || getProviderDefaultUrl(model.provider),
+    sdkProvider: getProviderSdkFamily(model.provider),
+    sdkMode: getProviderSdkMode(model.provider),
+  }
+}
+
+function _getConfig(workspace) {
+  return workspace.modelsConfig || getDefaultModelsConfig()
+}
 
 /**
  * Synchronously determine the billing route for a given model.
@@ -66,19 +95,8 @@ export function getBillingRoute(modelId, workspace) {
 export async function resolveApiAccess(options, workspace) {
   if (options.strategy === 'ghost') {
     if (workspace.ghostModelId) {
-      const preferred = GHOST_MODELS.find(m => m.model === workspace.ghostModelId)
-      if (preferred) {
-        const keys = workspace.apiKeys || {}
-        const key = keys[preferred.keyEnv]
-        if (key && !key.includes('your-')) {
-          return {
-            model: preferred.model,
-            provider: preferred.provider,
-            apiKey: key,
-            url: PROVIDER_URLS[preferred.provider],
-          }
-        }
-      }
+      const preferred = await _resolveModelAccess(workspace.ghostModelId, workspace)
+      if (preferred) return preferred
     }
     return _resolveFromList(GHOST_MODELS, workspace)
   }
@@ -93,9 +111,36 @@ async function _resolveFromList(modelList, workspace) {
   for (const { provider, model, keyEnv } of modelList) {
     const key = keys[keyEnv]
     if (key && !key.includes('your-')) {
-      return { model, provider, apiKey: key, url: PROVIDER_URLS[provider] }
+      return {
+        model,
+        provider,
+        apiKey: key,
+        url: PROVIDER_URLS[provider],
+        sdkProvider: getProviderSdkFamily(provider),
+        sdkMode: getProviderSdkMode(provider),
+      }
     }
   }
+  return _resolveFromConfiguredModels(workspace)
+}
+
+function _resolveFromConfiguredModels(workspace) {
+  const config = _getConfig(workspace)
+  const keys = workspace.apiKeys || {}
+  const defaultModelId = config.models?.find(model => model.default)?.id
+  const candidates = [
+    ...(defaultModelId ? config.models.filter(model => model.id === defaultModelId) : []),
+    ...(config.models || []).filter(model => model.id !== defaultModelId),
+  ]
+
+  for (const model of candidates) {
+    const providerConfig = config.providers?.[model.provider]
+    const keyEnv = providerConfig?.apiKeyEnv
+    const apiKey = keyEnv ? keys[keyEnv] : ''
+    if (!apiKey || apiKey.includes('your-')) continue
+    return _accessForResolvedModel(model, providerConfig, apiKey)
+  }
+
   return null
 }
 
@@ -108,6 +153,8 @@ async function _resolveModelAccess(modelId, workspace) {
         provider: 'anthropic',
         apiKey: workspace.apiKey,
         url: PROVIDER_URLS.anthropic,
+        sdkProvider: 'anthropic',
+        sdkMode: 'native',
       }
     }
     return null
@@ -123,20 +170,21 @@ async function _resolveModelAccess(modelId, workspace) {
   const hasDirectKey = apiKey && !apiKey.includes('your-')
   if (!hasDirectKey) return null
 
-  let url = providerConfig.url || PROVIDER_URLS[model.provider]
-  if (model.provider === 'openai' && url?.includes('/v1/chat/completions')) {
-    url = PROVIDER_URLS.openai
-  }
-
-  return {
-    model: model.model,
-    provider: model.provider,
-    apiKey,
-    url,
-  }
+  return _accessForResolvedModel(model, providerConfig, apiKey)
 }
 
 export function hasAnyAccess(workspace) {
+  const config = workspace.modelsConfig
+  if (config?.providers) {
+    const keys = workspace.apiKeys || {}
+    for (const providerConfig of Object.values(config.providers)) {
+      const keyEnv = providerConfig?.apiKeyEnv
+      const key = keyEnv ? keys[keyEnv] : ''
+      if (key && !key.includes('your-')) return true
+    }
+    return false
+  }
+
   const keys = workspace.apiKeys || {}
   for (const { keyEnv } of CHEAP_MODELS) {
     const key = keys[keyEnv]

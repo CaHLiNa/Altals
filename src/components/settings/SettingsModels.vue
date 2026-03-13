@@ -37,7 +37,12 @@
         {{ keySaved ? t('Saved') : t('Save Keys') }}
       </button>
       <span v-if="keySaved" class="key-saved-hint">{{ t('Restart chat to use new keys') }}</span>
+      <button class="key-save-btn key-secondary-btn" :disabled="syncingModels" @click="syncModels">
+        {{ syncingModels ? t('Syncing models...') : t('Sync Models') }}
+      </button>
     </div>
+    <p v-if="syncMessage" class="settings-hint" :class="{ 'key-error-hint': syncError }">{{ syncMessage }}</p>
+    <p class="settings-hint">{{ t('OpenAI-compatible providers sync models automatically after you save keys. Anthropic and Google keep the built-in curated list.') }}</p>
 
     <!-- Monthly Budget (conditional on having direct keys) -->
     <template v-if="hasDirectKeys && (usageStore.showCostEstimates || usageStore.monthlyLimit > 0)">
@@ -106,11 +111,16 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUsageStore } from '../../stores/usage'
 import { formatCost } from '../../services/tokenUsage'
 import { useI18n } from '../../i18n'
+import {
+  getDefaultModelsConfig,
+  getProviderDefaultUrl,
+  getProviderDefinitions,
+  getProviderPlaceholder,
+} from '../../services/modelCatalog'
 
 const workspace = useWorkspaceStore()
 const usageStore = useUsageStore()
@@ -120,10 +130,13 @@ const showAdvanced = ref(false)
 const urlSaved = ref(false)
 const editMonthlyLimit = ref('')
 const limitSaved = ref(false)
+const syncingModels = ref(false)
+const syncMessage = ref('')
+const syncError = ref(false)
+const providerDefs = getProviderDefinitions()
 
 const hasDirectKeys = computed(() => {
-  const keys = workspace.apiKeys || {}
-  return !!(keys.ANTHROPIC_API_KEY || keys.OPENAI_API_KEY || keys.GOOGLE_API_KEY)
+  return providerDefs.some(spec => !!workspace.apiKeys?.[spec.apiKeyEnv])
 })
 
 const showBudgetBar = computed(() => {
@@ -154,28 +167,37 @@ onMounted(() => {
 })
 
 const editKeys = reactive({
-  ANTHROPIC_API_KEY: workspace.apiKeys?.ANTHROPIC_API_KEY || '',
-  OPENAI_API_KEY: workspace.apiKeys?.OPENAI_API_KEY || '',
-  GOOGLE_API_KEY: workspace.apiKeys?.GOOGLE_API_KEY || '',
+  ...Object.fromEntries(
+    providerDefs.map(spec => [spec.apiKeyEnv, workspace.apiKeys?.[spec.apiKeyEnv] || '']),
+  ),
 })
 
-const keyFields = reactive([
-  { env: 'ANTHROPIC_API_KEY', label: 'Anthropic', placeholder: 'sk-ant-...', visible: false },
-  { env: 'OPENAI_API_KEY', label: 'OpenAI', placeholder: 'sk-...', visible: false },
-  { env: 'GOOGLE_API_KEY', label: 'Google', placeholder: 'AIza...', visible: false },
-])
+const keyFields = reactive(
+  providerDefs.map(spec => ({
+    env: spec.apiKeyEnv,
+    label: spec.label,
+    placeholder: keyPlaceholderFor(spec),
+    visible: false,
+  })),
+)
 
 const editUrls = reactive({
-  anthropic: workspace.modelsConfig?.providers?.anthropic?.customUrl || '',
-  openai: workspace.modelsConfig?.providers?.openai?.customUrl || '',
-  google: workspace.modelsConfig?.providers?.google?.customUrl || '',
+  ...Object.fromEntries(
+    providerDefs.map(spec => [spec.id, workspace.modelsConfig?.providers?.[spec.id]?.customUrl || '']),
+  ),
 })
 
-const urlFields = [
-  { provider: 'anthropic', label: 'Anthropic', placeholder: 'https://api.anthropic.com/v1/messages' },
-  { provider: 'openai', label: 'OpenAI', placeholder: 'https://api.openai.com/v1/responses' },
-  { provider: 'google', label: 'Google', placeholder: 'https://generativelanguage.googleapis.com/v1beta/models' },
-]
+const urlFields = providerDefs.map(spec => ({
+  provider: spec.id,
+  label: spec.label,
+  placeholder: getProviderPlaceholder(spec.id),
+}))
+
+function keyPlaceholderFor(spec) {
+  if (spec.id === 'anthropic') return 'sk-ant-...'
+  if (spec.id === 'google') return 'AIza...'
+  return 'sk-...'
+}
 
 async function saveKeys() {
   try {
@@ -190,19 +212,15 @@ async function saveKeys() {
     await workspace.loadSettings()
     keySaved.value = true
     setTimeout(() => keySaved.value = false, 3000)
+    await syncModels({ auto: true })
   } catch (e) {
     console.error('Failed to save keys:', e)
   }
 }
 
 async function saveUrls() {
-  const configDir = workspace.globalConfigDir || workspace.shouldersDir
-  if (!configDir) return
-
   try {
-    const modelsPath = `${configDir}/models.json`
-    const raw = await invoke('read_file', { path: modelsPath })
-    const config = JSON.parse(raw)
+    const config = JSON.parse(JSON.stringify(workspace.modelsConfig || getDefaultModelsConfig()))
 
     for (const p of urlFields) {
       if (config.providers?.[p.provider]) {
@@ -212,22 +230,48 @@ async function saveUrls() {
           config.providers[p.provider].url = url
         } else {
           delete config.providers[p.provider].customUrl
-          const defaults = {
-            anthropic: 'https://api.anthropic.com/v1/messages',
-            openai: 'https://api.openai.com/v1/responses',
-            google: 'https://generativelanguage.googleapis.com/v1beta/models',
-          }
-          config.providers[p.provider].url = defaults[p.provider]
+          config.providers[p.provider].url = getProviderDefaultUrl(p.provider)
         }
       }
     }
 
-    await invoke('write_file', { path: modelsPath, content: JSON.stringify(config, null, 2) })
-    await workspace.loadSettings()
+    await workspace.saveModelsConfig(config)
     urlSaved.value = true
     setTimeout(() => urlSaved.value = false, 3000)
   } catch (e) {
     console.error('Failed to save URLs:', e)
+  }
+}
+
+async function syncModels({ auto = false } = {}) {
+  syncError.value = false
+  syncMessage.value = auto ? t('Syncing models...') : ''
+  syncingModels.value = true
+
+  try {
+    const result = await workspace.syncProviderModels()
+    if (result.failedProviders.length > 0 && result.syncedProviders.length === 0) {
+      throw new Error(result.failedProviders[0].error || t('Unknown error'))
+    }
+
+    if (result.addedCount > 0) {
+      syncMessage.value = t('Synced {count} new models', { count: result.addedCount })
+    } else if (result.syncedProviders.length > 0) {
+      syncMessage.value = t('Models are already up to date')
+    } else {
+      syncMessage.value = t('No syncable providers are configured yet')
+    }
+
+    if (result.failedProviders.length > 0 && result.syncedProviders.length > 0) {
+      syncMessage.value = `${syncMessage.value} · ${t('Some providers failed to sync')}`
+    }
+  } catch (e) {
+    syncError.value = true
+    syncMessage.value = t('Failed to sync models: {error}', {
+      error: e?.message || String(e),
+    })
+  } finally {
+    syncingModels.value = false
   }
 }
 </script>
@@ -269,6 +313,14 @@ async function saveUrls() {
   margin-top: 4px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.key-secondary-btn {
+  margin-left: 8px;
+}
+
+.key-error-hint {
+  color: var(--error);
 }
 
 .advanced-toggle {

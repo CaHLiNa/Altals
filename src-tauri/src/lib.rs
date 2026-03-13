@@ -3,6 +3,8 @@ mod fs_commands;
 mod git;
 mod kernel;
 mod latex;
+mod model_sync;
+mod pdf_translate;
 mod pty;
 mod process_utils;
 mod typst_export;
@@ -356,6 +358,7 @@ pub fn run() {
         .manage(chat::ChatState::default())
         .manage(kernel::KernelState::default())
         .manage(latex::LatexState::default())
+        .manage(pdf_translate::PdfTranslateState::default())
         .manage(usage_db::UsageDbState::default());
 
     #[cfg(target_os = "macos")]
@@ -430,6 +433,12 @@ pub fn run() {
             latex::download_tectonic,
             latex::synctex_forward,
             latex::synctex_backward,
+            pdf_translate::pdf_translate_list_tasks,
+            pdf_translate::pdf_translate_check_env_status,
+            pdf_translate::pdf_translate_setup_env,
+            pdf_translate::pdf_translate_start,
+            pdf_translate::pdf_translate_cancel,
+            model_sync::model_sync_list_openai_models,
             typst_export::export_md_to_pdf,
             typst_export::is_typst_available,
             usage_db::usage_record,
