@@ -172,7 +172,7 @@ function handleClick(e) {
   max-width: 800px;
   margin-left: auto;
   margin-right: auto;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   background: var(--bg-secondary);
   border-radius: 6px;

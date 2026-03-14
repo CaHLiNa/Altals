@@ -60,7 +60,7 @@ function splitPane() { editorStore.openNewTabBeside() }
 
 .wordmark {
   font-family: 'Crimson Text', 'Lora', Georgia, serif;
-  font-size: 32px;
+  font-size: var(--ui-font-hero-lg);
   font-weight: 600;
   color: var(--fg-muted);
   opacity: 0.5;
@@ -95,7 +95,7 @@ function splitPane() { editorStore.openNewTabBeside() }
 
 .key {
   font-family: ui-monospace, monospace;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   flex-shrink: 0;
   opacity: 1;
   transition: opacity 75ms;
@@ -106,7 +106,7 @@ function splitPane() { editorStore.openNewTabBeside() }
 }
 
 .lbl {
-  font-size: 12.5px;
+  font-size: var(--ui-font-label);
   letter-spacing: 0.035em;
   width: 11ch;
   text-align: left;

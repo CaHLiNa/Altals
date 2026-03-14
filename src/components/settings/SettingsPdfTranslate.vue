@@ -602,7 +602,7 @@ onMounted(async () => {
 
 .pdft-label,
 .pdft-inline-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
 }
 
@@ -610,7 +610,7 @@ onMounted(async () => {
 .pdft-inline-copy,
 .pdft-progress-meta,
 .pdft-save-hint {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1.45;
   color: var(--fg-muted);
 }
@@ -629,7 +629,7 @@ onMounted(async () => {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   line-height: 1.2;
   padding: 8px 34px 8px 10px;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -671,7 +671,7 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: color-mix(in srgb, var(--bg-secondary) 88%, white 12%);
   color: var(--fg-secondary);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -711,7 +711,7 @@ onMounted(async () => {
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
     var(--bg-primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: inherit;
   color: var(--fg-secondary);
   font-weight: 600;
@@ -749,7 +749,7 @@ onMounted(async () => {
 
 .pdft-inline-warning {
   margin: 10px 0 0;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1.45;
   color: var(--warning, #e0af68);
 }
@@ -757,7 +757,7 @@ onMounted(async () => {
 .pdft-runtime-path {
   margin-top: 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1.5;
   color: var(--fg-muted);
   word-break: break-all;
@@ -778,7 +778,7 @@ onMounted(async () => {
   width: 100%;
   min-height: 28px;
   padding: 5px 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   white-space: nowrap;
 }
 
@@ -820,7 +820,7 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: var(--bg-primary);
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
   white-space: nowrap;
@@ -860,7 +860,7 @@ onMounted(async () => {
 .pdft-runtime-error {
   margin-top: 10px;
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1.45;
 }
 
@@ -878,7 +878,7 @@ onMounted(async () => {
   background: var(--bg-secondary);
   padding: 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1.5;
   color: var(--fg-muted);
 }

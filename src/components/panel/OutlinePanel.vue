@@ -12,7 +12,7 @@
       </div>
 
 
-      <div v-else-if="headings.length === 0" class="px-3 py-3 text-[11px]" style="color: var(--fg-muted);">
+      <div v-else-if="headings.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
         {{ t('No headings') }}
       </div>
       <div v-else class="flex-1 overflow-y-auto py-1">

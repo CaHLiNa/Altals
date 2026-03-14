@@ -778,7 +778,7 @@ watch(() => referencesStore.citationStyle, (style) => {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
   resize: none;
   outline: none;
@@ -798,7 +798,7 @@ watch(() => referencesStore.citationStyle, (style) => {
   margin-top: 8px;
 }
 .docx-comment-btn {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   padding: 4px 12px;
   border-radius: 4px;
   border: none;

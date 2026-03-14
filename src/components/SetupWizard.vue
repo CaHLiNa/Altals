@@ -236,7 +236,7 @@ function finish() {
 
 .wizard-wordmark {
   font-family: 'Crimson Text','Lora', 'Georgia', serif;
-  font-size: 28px;
+  font-size: var(--ui-font-hero-md);
   font-weight: 500;
   color: var(--fg-primary);
   letter-spacing: -0.01em;
@@ -244,14 +244,14 @@ function finish() {
 
 /* Step title + hint */
 .wizard-step-title {
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 500;
   color: var(--fg-secondary);
   margin: 0 0 16px;
 }
 
 .wizard-step-hint {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   margin: 0 0 16px;
 }
@@ -287,13 +287,13 @@ function finish() {
 }
 
 .wizard-option-title {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .wizard-option-desc {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
   margin-top: 1px;
 }
@@ -308,7 +308,7 @@ function finish() {
 
 .wizard-key-field label {
   display: block;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   color: var(--fg-muted);
   margin-bottom: 3px;
@@ -321,7 +321,7 @@ function finish() {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: var(--font-mono);
   outline: none;
   transition: border-color 0.15s;
@@ -333,7 +333,7 @@ function finish() {
 }
 
 .wizard-auth-hint {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin: 0;
 }
@@ -345,7 +345,7 @@ function finish() {
   border-radius: 5px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 .wizard-success {
@@ -354,14 +354,14 @@ function finish() {
   border-radius: 5px;
   background: rgba(158, 206, 106, 0.1);
   color: var(--success);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 /* Buttons */
 .wizard-btn {
   padding: 8px 20px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
@@ -434,7 +434,7 @@ function finish() {
 
 /* Theme grid */
 .wizard-theme-group-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   color: var(--fg-muted);
   margin-bottom: 6px;
@@ -494,7 +494,7 @@ function finish() {
 }
 
 .wizard-theme-label {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
   color: var(--fg-primary);
   white-space: nowrap;

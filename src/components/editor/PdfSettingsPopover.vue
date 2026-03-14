@@ -144,7 +144,7 @@ function doExport() {
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
 }
 
@@ -154,14 +154,14 @@ function doExport() {
   align-items: center;
   margin-bottom: 10px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
 }
 
 .pdf-close {
   background: none;
   border: none;
   color: var(--fg-muted);
-  font-size: 16px;
+  font-size: var(--ui-font-display-sm);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -170,7 +170,7 @@ function doExport() {
 
 .pdf-label {
   display: block;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--fg-muted);
@@ -193,7 +193,7 @@ function doExport() {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -214,7 +214,7 @@ function doExport() {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -241,7 +241,7 @@ function doExport() {
   border: none;
   background: var(--accent);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;

@@ -206,7 +206,7 @@ const themes = [
 }
 
 .theme-label {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-primary);
   margin-bottom: 4px;

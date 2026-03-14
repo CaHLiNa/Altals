@@ -24,8 +24,114 @@ html, body, #app {
   background: var(--bg-primary);
   color: var(--fg-primary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer utilities {
+  .text-xs {
+    font-size: var(--ui-font-caption) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-sm {
+    font-size: var(--ui-font-label) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-base {
+    font-size: var(--ui-font-body) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-lg {
+    font-size: var(--ui-font-title) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-xl {
+    font-size: var(--ui-font-display) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[9px\],
+  .text-\[10px\],
+  .text-\[11px\] {
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[9px\] {
+    font-size: var(--ui-font-fine) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[10px\] {
+    font-size: var(--ui-font-micro) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[11px\] {
+    font-size: var(--ui-font-caption) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[12px\] {
+    font-size: var(--ui-font-label) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[13px\] {
+    font-size: var(--ui-font-body) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[14px\] {
+    font-size: var(--ui-font-title) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[15px\] {
+    font-size: var(--ui-font-display) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[16px\] {
+    font-size: var(--ui-font-display-sm) !important;
+    line-height: var(--ui-line-height) !important;
+  }
+
+  .text-\[20px\] {
+    font-size: var(--ui-font-hero-xs) !important;
+    line-height: 1.2 !important;
+  }
+
+  .text-\[24px\] {
+    font-size: var(--ui-font-hero-sm) !important;
+    line-height: 1.15 !important;
+  }
+
+  .text-\[28px\] {
+    font-size: var(--ui-font-hero-md) !important;
+    line-height: 1.1 !important;
+  }
+
+  .text-\[32px\] {
+    font-size: var(--ui-font-hero-lg) !important;
+    line-height: 1.05 !important;
+  }
+
+  .text-\[44px\] {
+    font-size: var(--ui-font-hero-xl) !important;
+    line-height: 1 !important;
+  }
 }
 
 /* Scrollbar */

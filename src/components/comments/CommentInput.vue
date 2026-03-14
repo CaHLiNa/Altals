@@ -180,7 +180,7 @@ function checkAtTrigger() {
   const pos = el.selectionStart
 
   if (showFileRef.value) {
-    const atIdx = val.lastIndexOf('@', pos - 1)
+    const atIdx = val.lastIndexOf('var(--ui-font-tiny)', pos - 1)
     if (atIdx >= 0) {
       const filterText = val.substring(atIdx + 1, pos)
       if (filterText.includes(' ') || filterText.includes('\n')) {
@@ -194,7 +194,7 @@ function checkAtTrigger() {
     return
   }
 
-  if (pos > 0 && val[pos - 1] === '@' && (pos === 1 || val[pos - 2] === ' ' || val[pos - 2] === '\n')) {
+  if (pos > 0 && val[pos - 1] === 'var(--ui-font-tiny)' && (pos === 1 || val[pos - 2] === ' ' || val[pos - 2] === '\n')) {
     openFilePopover()
   }
 }
@@ -219,7 +219,7 @@ function triggerAtMention() {
   const pos = el.selectionStart
   const val = inputText.value
   const needsSpace = pos > 0 && val[pos - 1] !== ' ' && val[pos - 1] !== '\n'
-  const insert = (needsSpace ? ' ' : '') + '@'
+  const insert = (needsSpace ? ' ' : '') + 'var(--ui-font-tiny)'
   inputText.value = val.substring(0, pos) + insert + val.substring(pos)
   nextTick(() => {
     el.focus()
@@ -237,7 +237,7 @@ async function onFileSelected(file) {
   if (el) {
     const val = el.value
     const pos = el.selectionStart
-    const atIdx = val.lastIndexOf('@', pos - 1)
+    const atIdx = val.lastIndexOf('var(--ui-font-tiny)', pos - 1)
     if (atIdx >= 0) {
       inputText.value = val.substring(0, atIdx) + val.substring(pos)
       nextTick(() => {

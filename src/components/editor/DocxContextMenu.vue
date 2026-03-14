@@ -277,7 +277,7 @@ function rejectChange() {
   padding: 6px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
   white-space: nowrap;
 }
@@ -286,7 +286,7 @@ function rejectChange() {
 }
 .docx-ctx-shortcut {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   opacity: 0.6;
 }

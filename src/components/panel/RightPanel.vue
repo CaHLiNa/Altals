@@ -5,7 +5,7 @@
       <button
         v-for="tab in mainTabs"
         :key="tab"
-        class="px-3 h-full ui-text-lg flex items-center gap-0.5 text-[11px] font-medium uppercase tracking-wider"
+        class="px-3 h-full ui-text-xs flex items-center gap-0.5 font-medium uppercase tracking-wider"
         :style="{
           color: mainTab === tab ? 'var(--fg-primary)' : 'var(--fg-muted)',
           borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',

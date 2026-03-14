@@ -1,5 +1,5 @@
 <template>
-  <footer class="grid items-center px-3 text-xs select-none shrink-0"
+  <footer class="grid items-center px-3 ui-text-xs select-none shrink-0"
     style="grid-template-columns: 1fr auto 1fr; background: var(--bg-secondary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;">
 
     <!-- LEFT: word count + sync status -->
@@ -42,7 +42,7 @@
           <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
           <path d="M4 20L20 4"/>
         </svg>
-        <span v-if="syncLabel" class="text-[11px]">{{ syncLabel }}</span>
+        <span v-if="syncLabel" class="ui-text-xs">{{ syncLabel }}</span>
       </span>
 
       <!-- Pending changes -->
@@ -71,7 +71,7 @@
         </button>
         <button
           ref="zoomTriggerRef"
-          class="min-w-[36px] text-center text-[11px] px-0.5 bg-transparent border-none cursor-pointer transition-colors"
+          class="min-w-[36px] text-center ui-text-xs px-0.5 bg-transparent border-none cursor-pointer transition-colors"
           :style="{ color: zoomPercent !== 100 ? 'var(--accent)' : 'var(--fg-muted)' }"
           style="font-family: inherit;"
           @click="toggleZoomPopover"
@@ -97,11 +97,11 @@
       <div class="footer-center-layer flex items-center gap-1" :class="{ 'footer-center-hidden': !saveConfirmationActive }">
       
         <IconCheck width="12" height="12" style="color: var(--success);" />
-        <div class="font-medium text-sm pe-2" style="color: var(--success);">
+        <div class="font-medium ui-text-sm pe-2" style="color: var(--success);">
           {{ t('Saved') }}
         </div>
         <div
-          class="cursor-pointer underline hover:opacity-80 text-sm font-medium"
+          class="cursor-pointer underline hover:opacity-80 ui-text-sm font-medium"
           style="color: var(--accent);"
           @click="openSnapshotDialog"
         >{{ t('Name this version?') }}</div>
@@ -109,7 +109,7 @@
 
       <!-- Transient center message (e.g. "All saved (no changes)") -->
       <div class="footer-center-layer" :class="{ 'footer-center-hidden': !centerMessage }">
-        <span class="flex items-center gap-1.5" style="color: var(--success);">
+        <span class="flex items-center gap-1.5 ui-text-sm" style="color: var(--success);">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
           {{ centerMessage }}
         </span>
@@ -181,11 +181,11 @@
       <div class="fixed z-50 rounded-lg border overflow-hidden"
         style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4); width: 300px; bottom: 44px; right: 12px;"
         @click.stop>
-        <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
+        <div class="px-3 py-2 ui-text-xs font-medium uppercase tracking-wider"
           style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
           {{ t('Keyboard shortcuts') }}
         </div>
-        <div class="px-3 py-2 space-y-1.5 text-xs" style="color: var(--fg-secondary);">
+        <div class="px-3 py-2 space-y-1.5 ui-text-sm" style="color: var(--fg-secondary);">
           <div class="flex justify-between"><span>{{ t('Toggle left sidebar') }}</span><kbd>{{ modKey }}+B</kbd></div>
           <div class="flex justify-between"><span>{{ t('Toggle right sidebar') }}</span><kbd>{{ modKey }}+J</kbd></div>
           <div class="flex justify-between"><span>{{ t('Quick open') }}</span><kbd>{{ modKey }}+P</kbd></div>
@@ -224,11 +224,11 @@
         @click.stop>
         <div class="py-1">
           <div v-for="level in zoomPresets" :key="level"
-            class="px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between hover:bg-[var(--bg-hover)]"
+            class="px-3 py-1.5 ui-text-sm cursor-pointer flex items-center justify-between hover:bg-[var(--bg-hover)]"
             :style="{ color: level === zoomPercent ? 'var(--accent)' : 'var(--fg-secondary)' }"
             @click="selectZoom(level)">
             <span>{{ level }}%</span>
-            <span v-if="level === 100" class="text-[10px]" style="color: var(--fg-muted);">{{ t('default') }}</span>
+            <span v-if="level === 100" class="ui-text-xs" style="color: var(--fg-muted);">{{ t('default') }}</span>
           </div>
         </div>
       </div>
@@ -242,18 +242,18 @@
         :style="pendingPopoverPos"
         style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 200px; max-width: 360px;"
         @click.stop>
-        <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
+        <div class="px-3 py-2 ui-text-xs font-medium uppercase tracking-wider"
           style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
           {{ t('Pending Changes') }}
         </div>
         <div class="py-1 max-h-48 overflow-y-auto">
           <div v-for="file in reviews.filesWithEdits" :key="file"
-            class="px-3 py-1.5 text-xs cursor-pointer flex items-center gap-2 hover:bg-[var(--bg-hover)]"
+            class="px-3 py-1.5 ui-text-sm cursor-pointer flex items-center gap-2 hover:bg-[var(--bg-hover)]"
             style="color: var(--fg-secondary);"
             :title="file"
             @click="openPendingFile(file)">
             <span class="truncate">{{ file.split('/').pop() }}</span>
-            <span class="ml-auto text-[10px] shrink-0 px-1.5 rounded-full"
+            <span class="ml-auto ui-text-xs shrink-0 px-1.5 rounded-full"
               style="background: rgba(224, 175, 104, 0.2); color: var(--warning);">
               {{ reviews.editsForFile(file).length }}
             </span>

@@ -74,7 +74,7 @@
     <!-- Run actions (for runnable files) -->
     <div v-if="showRunButtons" class="flex items-center gap-0.5 px-1 shrink-0 border-r" style="border-color: var(--border);">
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('run-code')"
         :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
@@ -85,7 +85,7 @@
         {{ t('Run') }}
       </button>
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('run-file')"
         :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
@@ -98,7 +98,7 @@
       </button>
       <button
         v-if="showRenderButton"
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('render-document')"
         :title="t('Render document')"
@@ -114,7 +114,7 @@
     <!-- Markdown actions (for .md files) -->
     <div v-if="showMarkdownButtons" class="flex items-center gap-0.5 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('preview-markdown')"
         :title="t('Preview rendered markdown')"
@@ -127,7 +127,7 @@
         {{ t('Preview') }}
       </button>
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('export-pdf')"
         :title="t('Create PDF')"
@@ -141,7 +141,7 @@
       </button>
       <button
         ref="pdfSettingsBtnEl"
-        class="h-6 w-5 flex items-center justify-center rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 w-5 flex items-center justify-center rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="togglePdfSettings"
         :title="t('PDF export settings')"
@@ -163,17 +163,17 @@
     <!-- LaTeX actions (for .tex files) -->
     <div v-if="showCompileButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r relative" style="border-color: var(--border);">
       <!-- Status indicator -->
-      <span v-if="texStatus === 'compiling'" class="flex items-center gap-1 text-[11px]" style="color: var(--fg-muted);">
+      <span v-if="texStatus === 'compiling'" class="flex items-center gap-1 ui-text-xs" style="color: var(--fg-muted);">
         <span class="tex-spinner"></span>
         {{ t('Compiling...') }}
       </span>
-      <span v-else-if="texStatus === 'success'" class="text-[11px]" style="color: var(--success, #4ade80);">
+      <span v-else-if="texStatus === 'success'" class="ui-text-xs" style="color: var(--success, #4ade80);">
         ● {{ texDuration }}
       </span>
 
       <!-- Compile button -->
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('compile-tex')"
         :disabled="texStatus === 'compiling'"
@@ -187,7 +187,7 @@
 
       <!-- Auto-compile toggle -->
       <button
-        class="h-6 px-1.5 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-1.5 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         :style="{ color: latexStore.autoCompile ? 'var(--success, #4ade80)' : 'var(--fg-muted)' }"
         @click="latexStore.autoCompile = !latexStore.autoCompile"
         :title="latexStore.autoCompile ? t('Auto-compile: ON (click to disable)') : t('Auto-compile: OFF (click to enable)')"
@@ -201,7 +201,7 @@
 
       <!-- Forward sync button -->
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('sync-tex')"
         :title="t('Sync to PDF position')"
@@ -215,16 +215,16 @@
 
     <!-- Typst actions (for .typ files) -->
     <div v-if="showTypstCompileButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r relative" style="border-color: var(--border);">
-      <span v-if="typstStatus === 'compiling'" class="flex items-center gap-1 text-[11px]" style="color: var(--fg-muted);">
+      <span v-if="typstStatus === 'compiling'" class="flex items-center gap-1 ui-text-xs" style="color: var(--fg-muted);">
         <span class="tex-spinner"></span>
         {{ t('Compiling...') }}
       </span>
-      <span v-else-if="typstStatus === 'success'" class="text-[11px]" style="color: var(--success, #4ade80);">
+      <span v-else-if="typstStatus === 'success'" class="ui-text-xs" style="color: var(--success, #4ade80);">
         ● {{ typstDuration }}
       </span>
 
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--success, #4ade80);"
         @click="$emit('compile-typst')"
         :disabled="typstStatus === 'compiling'"
@@ -241,14 +241,14 @@
     <div v-if="showPdfTranslateButtons" class="flex items-center gap-1 px-1.5 shrink-0 border-r" style="border-color: var(--border);">
       <span
         v-if="pdfTranslateStatus"
-        class="text-[11px]"
+        class="ui-text-xs"
         :title="pdfTranslateTask?.message || ''"
         :style="{ color: pdfTranslateStatusColor }"
       >
         {{ pdfTranslateStatus }}
       </span>
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded text-[11px] hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         :style="{ color: pdfTranslateTask?.status === 'failed' ? 'var(--error)' : 'var(--accent)' }"
         :disabled="pdfTranslateTask?.status === 'running'"
         @click="$emit('translate-pdf')"
@@ -279,7 +279,7 @@
         <span
           v-if="commentBadgeCount > 0"
           class="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full text-white"
-          style="font-size: 8px; font-weight: 600; background: var(--accent); padding: 0 2px;"
+          style="font-size: var(--ui-font-tiny); font-weight: 600; background: var(--accent); padding: 0 2px;"
         >
           {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
         </span>

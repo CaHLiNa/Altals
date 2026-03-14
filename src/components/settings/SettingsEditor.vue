@@ -169,9 +169,9 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
 const proseFonts = [
-  { value: 'inter', labelKey: 'Sans',  family: "'Inter', system-ui, sans-serif",     fontSize: '11px' },
-  { value: 'stix',  labelKey: 'Serif', family: "'STIX Two Text', Georgia, serif",    fontSize: '13px' },
-  { value: 'mono',  labelKey: 'Mono',  family: "'JetBrains Mono', monospace",        fontSize: '11px' },
+  { value: 'inter', labelKey: 'Sans',  family: "'Inter', system-ui, sans-serif",     fontSize: 'var(--ui-font-caption)' },
+  { value: 'stix',  labelKey: 'Serif', family: "'STIX Two Text', Georgia, serif",    fontSize: 'var(--ui-font-body)' },
+  { value: 'mono',  labelKey: 'Mono',  family: "'JetBrains Mono', monospace",        fontSize: 'var(--ui-font-caption)' },
 ]
 
 const currentFontLabel = computed(() =>
@@ -249,7 +249,7 @@ function selectGhostModel(model) {
 }
 
 .ghost-model-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -266,7 +266,7 @@ function selectGhostModel(model) {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-family: inherit;
   cursor: pointer;
   transition: border-color 150ms;
@@ -291,7 +291,7 @@ function selectGhostModel(model) {
   display: flex;
   align-items: center;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-secondary);
   cursor: pointer;
 }
@@ -304,7 +304,7 @@ function selectGhostModel(model) {
   width: 16px;
   display: inline-block;
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 .wrap-column-row {
@@ -323,7 +323,7 @@ function selectGhostModel(model) {
 
 .wrap-preset-btn {
   padding: 2px 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-family: inherit;
   color: var(--fg-secondary);
   background: var(--bg-primary);

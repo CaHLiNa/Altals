@@ -261,7 +261,7 @@ async function saveToolKeys() {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
   margin-bottom: 14px;
@@ -323,13 +323,13 @@ async function saveToolKeys() {
 }
 
 .tool-category-name {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .tool-category-count {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   font-family: var(--font-mono);
 }
@@ -340,7 +340,7 @@ async function saveToolKeys() {
 }
 
 .tool-privacy-summary {
-  font-size: 9px;
+  font-size: var(--ui-font-fine);
   padding: 1px 6px;
   border-radius: 8px;
   font-weight: 500;
@@ -368,7 +368,7 @@ async function saveToolKeys() {
 }
 
 .tool-subgroup-label {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
   color: var(--fg-muted);
   text-transform: uppercase;
@@ -390,7 +390,7 @@ async function saveToolKeys() {
 }
 
 .tool-name {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-family: var(--font-mono);
   color: var(--fg-primary);
   white-space: nowrap;
@@ -398,7 +398,7 @@ async function saveToolKeys() {
 }
 
 .tool-desc {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   flex: 1;
   white-space: nowrap;
@@ -407,7 +407,7 @@ async function saveToolKeys() {
 }
 
 .privacy-badge {
-  font-size: 9px;
+  font-size: var(--ui-font-fine);
   padding: 1px 5px;
   border-radius: 8px;
   color: var(--warning, #e0af68);
@@ -433,7 +433,7 @@ async function saveToolKeys() {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   padding: 6px 10px;
   border-radius: 5px;
 }

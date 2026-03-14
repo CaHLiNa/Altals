@@ -13,6 +13,17 @@
  * limitations under the License.
  */
 
+:root{
+  --viewer-font-micro:10px;
+  --viewer-font-caption:11px;
+  --viewer-font-label:12px;
+  --viewer-font-body:13px;
+  --viewer-font-title:15px;
+  --viewer-font-display-sm:17px;
+  --viewer-font-display-md:18px;
+  --viewer-font-hero-xs:44px;
+}
+
 .messageBar{
   --closing-button-icon:url(images/messageBar_closingButton.svg);
   --message-bar-close-button-color:var(--text-primary-color);
@@ -290,7 +301,7 @@
   padding-inline:16px 8px;
 
   font:menu;
-  font-size:15px;
+  font-size: var(--viewer-font-title);
 
   cursor:default;
 }
@@ -579,7 +590,7 @@
 .dialog{
 
   font:message-box;
-  font-size:13px;
+  font-size: var(--viewer-font-body);
   font-weight:400;
   line-height:150%;
   border-radius:4px;
@@ -605,7 +616,7 @@
     }
 
 :is(:is(.dialog .mainContainer) .title)  > span{
-        font-size:13px;
+        font-size: var(--viewer-font-body);
         font-style:normal;
         font-weight:590;
         line-height:150%;
@@ -670,7 +681,7 @@
 
 :is(:is(:is(.dialog .mainContainer) .radio) > .radioLabel)  > span{
           flex:1 0 0;
-          font-size:11px;
+          font-size: var(--viewer-font-caption);
           color:var(--text-secondary-color);
         }
 
@@ -679,7 +690,7 @@
       border:1px solid;
       font:menu;
       font-weight:590;
-      font-size:13px;
+      font-size: var(--viewer-font-body);
       padding:4px 16px;
       width:auto;
       height:32px;
@@ -861,12 +872,12 @@
         }
 
 :is(:is(:is(:is(.dialog .mainContainer) .messageBar) > div) > div) .title{
-            font-size:13px;
+            font-size: var(--viewer-font-body);
             font-weight:590;
           }
 
 :is(:is(:is(:is(.dialog .mainContainer) .messageBar) > div) > div) .description{
-            font-size:13px;
+            font-size: var(--viewer-font-body);
           }
 
 :is(.dialog .mainContainer) .toggler{
@@ -1521,7 +1532,7 @@
   color:black;
   font-weight:normal;
   font-kerning:none;
-  font-size:10px;
+  font-size: var(--viewer-font-micro);
   font-style:normal;
   letter-spacing:0;
   text-decoration:none;
@@ -2153,7 +2164,7 @@
   }
 
 :is(.signatureDialog .mainContainer) span:not([role="sectionhead"]){
-      font-size:13px;
+      font-size: var(--viewer-font-body);
       font-style:normal;
       font-weight:400;
       line-height:normal;
@@ -2349,7 +2360,7 @@
         border-radius:0;
 
         font:menu;
-        font-size:13px;
+        font-size: var(--viewer-font-body);
         font-style:normal;
         line-height:normal;
         font-weight:400;
@@ -2430,7 +2441,7 @@
             border-radius:var(--tab-panel-border-radius);
 
             font-family:"Brush script", "Apple Chancery", "Segoe script", "Freestyle Script", "Palace Script MT", "Brush Script MT", TK, cursive, serif;
-            font-size:44px;
+            font-size: var(--viewer-font-hero-xs);
             font-style:italic;
             font-weight:400;
           }
@@ -2442,7 +2453,7 @@
               font:menu;
               font-style:normal;
               font-weight:274;
-              font-size:44px;
+              font-size: var(--viewer-font-hero-xs);
               line-height:normal;
             }
 
@@ -2453,7 +2464,7 @@
               font:menu;
               font-style:normal;
               font-weight:274;
-              font-size:44px;
+              font-size: var(--viewer-font-hero-xs);
               line-height:normal;
             }
 
@@ -2744,7 +2755,7 @@
             display:block;
             opacity:1;
             color:var(--save-warning-color);
-            font-size:11px;
+            font-size: var(--viewer-font-caption);
           }
 
 #editSignatureDescriptionDialog .mainContainer{
@@ -2920,7 +2931,7 @@
           white-space:nowrap;
           flex:1 1 auto;
           font:menu;
-          font-size:13px;
+          font-size: var(--viewer-font-body);
           font-style:normal;
           font-weight:400;
           line-height:normal;
@@ -3369,7 +3380,7 @@
         font-style:normal;
         font-weight:590;
         line-height:normal;
-        font-size:17px;
+        font-size: var(--viewer-font-display-sm);
         color:var(--comment-fg-color);
       }
 
@@ -3382,7 +3393,7 @@
         text-align:center;
 
         font:menu;
-        font-size:13px;
+        font-size: var(--viewer-font-body);
         font-style:normal;
         font-weight:400;
         line-height:normal;
@@ -3529,7 +3540,7 @@
           font-style:normal;
           font-weight:400;
           line-height:normal;
-          font-size:15px;
+          font-size: var(--viewer-font-title);
           width:100%;
           height:-moz-fit-content;
           height:fit-content;
@@ -3559,7 +3570,7 @@
             font-style:normal;
             font-weight:400;
             line-height:normal;
-            font-size:15px;
+            font-size: var(--viewer-font-title);
             width:100%;
             height:auto;
             overflow-wrap:break-word;
@@ -3585,7 +3596,7 @@
           font-style:normal;
           font-weight:400;
           line-height:normal;
-          font-size:13px;
+          font-size: var(--viewer-font-body);
         }
 
 :is(:is(:is(:is(#editorCommentsSidebar #editorCommentsSidebarListContainer) #editorCommentsSidebarList) .sidebarComment) time)::after{
@@ -3718,7 +3729,7 @@
       font-style:normal;
       font-weight:400;
       line-height:normal;
-      font-size:13px;
+      font-size: var(--viewer-font-body);
       color:var(--comment-date-fg-color);
     }
 
@@ -3792,7 +3803,7 @@
     font-style:normal;
     font-weight:400;
     line-height:normal;
-    font-size:15px;
+    font-size: var(--viewer-font-title);
     color:var(--comment-fg-color);
   }
 
@@ -4206,7 +4217,7 @@
         pointer-events:all;
         font:menu;
         font-weight:590;
-        font-size:12px;
+        font-size: var(--viewer-font-label);
         color:var(--editor-toolbar-fg-color);
       }
 
@@ -4327,7 +4338,7 @@
             width:-moz-max-content;
             width:max-content;
             height:auto;
-            font-size:12px;
+            font-size: var(--viewer-font-label);
 
             border:0.5px solid var(--alt-text-tooltip-border);
             background:var(--alt-text-tooltip-bg);
@@ -4658,7 +4669,7 @@
       }
 
 :is(:is(.dialog.altText #altTextContainer) #overallDescription) .title{
-        font-size:13px;
+        font-size: var(--viewer-font-body);
         font-style:normal;
         font-weight:590;
       }
@@ -4837,7 +4848,7 @@
             }
 
 :is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDescription{
-          font-size:11px;
+          font-size: var(--viewer-font-caption);
         }
 
 :is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDisclaimer{
@@ -4845,7 +4856,7 @@
           flex-direction:row;
           align-items:flex-start;
           gap:4px;
-          font-size:11px;
+          font-size: var(--viewer-font-caption);
         }
 
 :is(:is(:is(:is(.dialog.newAltText #newAltTextContainer) #mainContent) #descriptionInstruction) #newAltTextDisclaimer)::before{
@@ -5571,7 +5582,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         padding-inline-start:6px;
 
         font:menu;
-        font-size:13px;
+        font-size: var(--viewer-font-body);
         font-style:normal;
         font-weight:510;
         line-height:normal;
@@ -5693,7 +5704,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
       padding-inline-start:4px;
       border-radius:2px;
       color:var(--treeitem-color);
-      font-size:13px;
+      font-size: var(--viewer-font-body);
       line-height:15px;
       -webkit-user-select:none;
          -moz-user-select:none;
@@ -6085,7 +6096,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
               user-select:none;
 
       font:menu;
-      font-size:15px;
+      font-size: var(--viewer-font-title);
       font-style:normal;
       font-weight:400;
       line-height:normal;
@@ -6236,7 +6247,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
         gap:8px;
 
         font:menu;
-        font-size:13px;
+        font-size: var(--viewer-font-body);
       }
 
 :is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) #viewsManagerStatusAction{
@@ -6461,7 +6472,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
           translate:calc(var(--dir-factor) * 50%);
 
           font:menu;
-          font-size:13px;
+          font-size: var(--viewer-font-body);
           font-style:normal;
           font-weight:400;
           line-height:normal;
@@ -6585,7 +6596,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
 
 :is(#viewsManager #viewsManagerHeader) .viewsManagerLabel{
   font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size:13px;
+  font-size: var(--viewer-font-body);
   font-weight:600;
   letter-spacing:0;
   color:#cccccc;
@@ -6640,7 +6651,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
 
 :is(:is(#viewsManager #viewsManagerHeader) #viewsManagerStatus) .viewsManagerStatusLabel{
   font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size:11px;
+  font-size: var(--viewer-font-caption);
   font-weight:500;
   letter-spacing:0;
   text-transform:none;
@@ -6703,7 +6714,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
   background:transparent;
   box-shadow:none;
   font-family:"Segoe UI","Segoe WPC","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
-  font-size:11px;
+  font-size: var(--viewer-font-caption);
   font-weight:500;
   line-height:1;
   letter-spacing:0;
@@ -6836,7 +6847,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
           padding-inline-start:4px;
           border-radius:2px;
           color:var(--attachment-color);
-          font-size:13px;
+          font-size: var(--viewer-font-body);
           line-height:15px;
           -webkit-user-select:none;
              -moz-user-select:none;
@@ -7711,7 +7722,7 @@ body.wait::before{
   border:none;
   border-radius:2px;
   color:var(--main-color);
-  font-size:12px;
+  font-size: var(--viewer-font-label);
   line-height:14px;
   -webkit-user-select:none;
      -moz-user-select:none;
@@ -7867,7 +7878,7 @@ body.wait::before{
   border:1px solid var(--field-border-color);
   box-shadow:none;
   color:var(--field-color);
-  font-size:12px;
+  font-size: var(--viewer-font-label);
   line-height:16px;
   outline:none;
 }
@@ -7944,7 +7955,7 @@ dialog{
   border-spacing:4px;
   color:var(--main-color);
   font:message-box;
-  font-size:12px;
+  font-size: var(--viewer-font-label);
   line-height:14px;
   background-color:var(--doorhanger-bg-color);
   border:1px solid rgb(0 0 0 / 0.5);
@@ -8193,7 +8204,7 @@ dialog :link{
 :is(.toolbarButtonWithContainer .editorParamsToolbar) .editorParamsLabel{
       flex:none;
       font:menu;
-      font-size:13px;
+      font-size: var(--viewer-font-body);
       font-style:normal;
       font-weight:400;
       line-height:150%;
@@ -8547,7 +8558,7 @@ dialog :link{
   margin:2px;
   border-radius:2px;
   color:var(--main-color);
-  font-size:12px;
+  font-size: var(--viewer-font-label);
   line-height:14px;
   text-align:left;
   -webkit-user-select:none;
@@ -8592,7 +8603,7 @@ dialog :link{
   border:var(--dropdown-btn-border);
   border-radius:2px;
   color:var(--main-color);
-  font-size:12px;
+  font-size: var(--viewer-font-label);
   line-height:14px;
   -webkit-user-select:none;
      -moz-user-select:none;
@@ -8614,7 +8625,7 @@ dialog :link{
     min-width:inherit;
     height:28px;
     font:message-box;
-    font-size:12px;
+    font-size: var(--viewer-font-label);
     color:var(--main-color);
     margin:0;
     padding-block:1px 2px;

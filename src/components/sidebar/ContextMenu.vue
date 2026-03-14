@@ -147,7 +147,7 @@ const menuStyle = computed(() => {
 
 <style>
 .context-menu-ext {
-  font-size: 10px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   opacity: 0.6;
   margin-left: auto;

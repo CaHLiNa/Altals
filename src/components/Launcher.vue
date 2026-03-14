@@ -202,7 +202,7 @@ function removeRecent(path) {
   border-radius: 12px;
   background: var(--accent);
   color: var(--bg-primary);
-  font-size: 24px;
+  font-size: var(--ui-font-hero-sm);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -213,19 +213,19 @@ function removeRecent(path) {
   font-family: 'Lora', ui-serif, Georgia, serif;
   font-style: italic;
   font-weight: 400;
-  font-size: 20px;
+  font-size: var(--ui-font-hero-xs);
   color: var(--fg-primary);
   letter-spacing: -0.02em;
 }
 
 .launcher-tagline {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   margin: 6px 0 0;
 }
 
 .launcher-hint {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   margin-top: 12px;
   text-align: center;
@@ -234,7 +234,7 @@ function removeRecent(path) {
 
 .launcher-btn-hint {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   opacity: 0.5;
   margin-left: 4px;
 }
@@ -252,7 +252,7 @@ function removeRecent(path) {
   gap: 6px;
   padding: 8px 20px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -287,14 +287,14 @@ function removeRecent(path) {
 
 .launcher-btn.small {
   padding: 5px 14px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 .launcher-btn-text {
   background: none;
   border: none;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   cursor: pointer;
   padding: 4px 8px;
 }
@@ -324,7 +324,7 @@ function removeRecent(path) {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: var(--font-mono);
   outline: none;
   transition: border-color 0.15s;
@@ -350,7 +350,7 @@ function removeRecent(path) {
   border-radius: 5px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   line-height: 1.4;
 }
 
@@ -361,7 +361,7 @@ function removeRecent(path) {
 }
 
 .launcher-recents-heading {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   color: var(--fg-muted);
   text-transform: uppercase;
@@ -399,7 +399,7 @@ function removeRecent(path) {
 }
 
 .launcher-recent-name {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
   white-space: nowrap;
@@ -408,7 +408,7 @@ function removeRecent(path) {
 }
 
 .launcher-recent-path {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   white-space: nowrap;
   overflow: hidden;

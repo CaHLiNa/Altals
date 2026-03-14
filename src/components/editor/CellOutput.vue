@@ -140,7 +140,7 @@ function ansiToHtml(text) {
 .cell-output {
   border-top: 1px solid var(--border);
   padding: 6px 0 2px 0;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   overflow-x: auto;
 }
 
@@ -152,7 +152,7 @@ function ansiToHtml(text) {
   margin: 0;
   padding: 4px 8px;
   font-family: var(--font-mono, 'SF Mono', 'Menlo', monospace);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
@@ -168,7 +168,7 @@ function ansiToHtml(text) {
   margin: 0;
   padding: 6px 8px;
   font-family: var(--font-mono, 'SF Mono', 'Menlo', monospace);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
@@ -190,7 +190,7 @@ function ansiToHtml(text) {
 
 .output-html :deep(table) {
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 .output-html :deep(th),

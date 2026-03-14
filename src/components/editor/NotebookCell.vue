@@ -401,7 +401,7 @@ defineExpose({
 
 .exec-count {
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   min-width: 28px;
   text-align: right;
@@ -412,7 +412,7 @@ defineExpose({
 }
 
 .cell-type-badge {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   padding: 0 4px;
   border-radius: 3px;
   color: var(--fg-muted);
@@ -429,7 +429,7 @@ defineExpose({
   color: var(--fg-muted);
   cursor: pointer;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1;
   transition: background 0.1s, color 0.1s;
 }
@@ -494,7 +494,7 @@ defineExpose({
 }
 
 .cell-review-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   color: var(--fg-muted);
 }
@@ -512,7 +512,7 @@ defineExpose({
   border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -553,7 +553,7 @@ defineExpose({
 /* Rendered markdown */
 .cell-markdown-rendered {
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   line-height: 1.6;
   color: var(--fg-primary);
   cursor: text;

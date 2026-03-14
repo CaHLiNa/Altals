@@ -12,7 +12,7 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="text-[11px] font-medium uppercase tracking-wider truncate min-w-0">{{ workspaceName }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{ workspaceName }}</span>
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
@@ -31,7 +31,7 @@
         </button>
         <button
           ref="newBtnEl"
-          class="h-5 flex items-center gap-0.5 rounded px-1 hover:opacity-80 text-[11px]"
+          class="h-5 flex items-center gap-0.5 rounded px-1 hover:opacity-80 ui-text-xs"
           style="color: var(--fg-muted);"
           @click.stop="toggleNewMenu"
           :title="t('New File or Folder')">
@@ -56,7 +56,7 @@
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           @keydown="handleFilterKeydown"
         />
-        <span v-if="filterQuery" class="text-[10px] tabular-nums shrink-0 mr-0.5" style="color: var(--fg-muted);">
+        <span v-if="filterQuery" class="ui-text-micro tabular-nums shrink-0 mr-0.5" style="color: var(--fg-muted);">
           {{ filterMatches.length }}
         </span>
         <button class="w-4 h-4 flex items-center justify-center shrink-0 rounded hover:opacity-80"

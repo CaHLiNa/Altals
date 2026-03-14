@@ -142,7 +142,7 @@ async function openInBrowser(url) {
 
 .sync-header {
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -159,7 +159,7 @@ async function openInBrowser(url) {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 .sync-dot {
@@ -198,7 +198,7 @@ async function openInBrowser(url) {
 .sync-link {
   color: var(--accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -214,7 +214,7 @@ async function openInBrowser(url) {
   padding: 6px 8px;
   border-radius: 4px;
   background: rgba(247, 118, 142, 0.1);
-  font-size: 11px;
+  font-size: var(--ui-font-label);
   line-height: 1.4;
 }
 
@@ -236,13 +236,13 @@ async function openInBrowser(url) {
   border-radius: 4px;
   background: rgba(224, 175, 104, 0.1);
   color: var(--warning);
-  font-size: 11px;
+  font-size: var(--ui-font-label);
   line-height: 1.4;
 }
 
 .sync-conflict-hint {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -264,7 +264,7 @@ async function openInBrowser(url) {
   border: 1px solid var(--border);
   background: none;
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-label);
   cursor: pointer;
 }
 

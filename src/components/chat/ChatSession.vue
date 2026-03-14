@@ -271,7 +271,7 @@ defineExpose({ focus })
   border: none;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   color: var(--fg-secondary);
   padding: 4px 0;
   transition: color 75ms;
@@ -282,7 +282,7 @@ defineExpose({ focus })
 .gutter {
   width: 12px;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   line-height: 1;
   color: transparent;
   transition: color 75ms;

@@ -142,7 +142,7 @@ const sections = [
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -156,7 +156,7 @@ const sections = [
   gap: 8px;
   padding: 6px 8px;
   border-radius: 5px;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   color: var(--fg-secondary);
   background: none;
   border: none;
@@ -191,14 +191,14 @@ const sections = [
 <!-- Shared styles for all settings sections (scoped under .settings-modal to prevent leakage) -->
 <style>
 .settings-modal .settings-section-title {
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 600;
   color: var(--fg-primary);
   margin-bottom: 16px;
 }
 
 .settings-modal .settings-hint {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin: -8px 0 16px;
 }
@@ -208,7 +208,7 @@ const sections = [
   padding: 1px 4px;
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 
 /* Shared key/form styles */
@@ -231,13 +231,13 @@ const sections = [
 }
 
 .settings-modal .key-provider {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .settings-modal .key-env {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   font-family: var(--font-mono);
 }
@@ -254,7 +254,7 @@ const sections = [
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: var(--font-mono);
   outline: none;
   transition: border-color 0.15s;
@@ -301,7 +301,7 @@ const sections = [
   border: 1px solid var(--accent);
   background: rgba(122, 162, 247, 0.1);
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -323,7 +323,7 @@ const sections = [
 }
 
 .settings-modal .key-saved-hint {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -386,19 +386,19 @@ const sections = [
 .settings-modal .env-lang-dot.none { background: var(--fg-muted); opacity: 0.4; }
 
 .settings-modal .env-lang-name {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .settings-modal .env-lang-version {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-family: var(--font-mono);
 }
 
 .settings-modal .env-lang-missing {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-style: italic;
 }
@@ -406,7 +406,7 @@ const sections = [
 .settings-modal .env-lang-hint {
   margin-top: 4px;
   padding-left: 16px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 

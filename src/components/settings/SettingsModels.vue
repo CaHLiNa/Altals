@@ -374,7 +374,7 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .usage-limit-dollar {
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 500;
   color: var(--fg-muted);
 }
@@ -400,14 +400,14 @@ async function syncModels({ auto = false } = {}) {
 
 .budget-progress-label {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-variant-numeric: tabular-nums;
 }
 
 .advanced-toggle {
   margin-top: 20px;
   padding: 6px 0;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   cursor: pointer;
   display: flex;
@@ -442,7 +442,7 @@ async function syncModels({ auto = false } = {}) {
 
 .provider-group-label {
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -481,7 +481,7 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .provider-card-name {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 600;
 }
 
@@ -490,7 +490,7 @@ async function syncModels({ auto = false } = {}) {
   align-items: center;
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   background: var(--bg-tertiary);
 }
@@ -517,14 +517,14 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .provider-detail-title {
-  font-size: 15px;
+  font-size: var(--ui-font-display);
   font-weight: 600;
   color: var(--fg-primary);
 }
 
 .provider-detail-meta {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-family: var(--font-mono);
 }

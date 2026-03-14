@@ -12,11 +12,11 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="text-[11px] font-medium uppercase tracking-wider">{{ t('References') }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ t('References') }}</span>
       </div>
       <span
         v-if="referencesStore.refCount > 0"
-        class="text-[11px] px-1.5 py-0.5 rounded-full"
+        class="ui-text-xs px-1.5 py-0.5 rounded-full"
         :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }"
       >
         {{ referencesStore.refCount }}
@@ -28,7 +28,7 @@
         <button
           v-if="referencesStore.refCount > 0"
           ref="exportBtnEl"
-          class="h-5 px-1.5 flex items-center gap-1 rounded text-[11px] hover:opacity-80"
+          class="h-5 px-1.5 flex items-center gap-1 rounded ui-text-xs hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
           :title="t('Export references')"
           @click.stop="toggleExportMenu"
@@ -666,7 +666,7 @@ function copyCitation(key) {
 
 function copyMultiCitation() {
   const keys = [...referencesStore.selectedKeys]
-  const cite = `[${keys.map(k => '@' + k).join('; ')}]`
+  const cite = `[${keys.map(k => 'var(--ui-font-tiny)' + k).join('; ')}]`
   navigator.clipboard.writeText(cite)
   contextMenu.show = false
 }
@@ -734,7 +734,7 @@ function handleDragStart({ key, event }) {
       ? selected.map(k => `@${k}`).join(' ')
     : (selected.length === 1
         ? `[@${selected[0]}]`
-        : `[${selected.map(k => '@' + k).join('; ')}]`)
+        : `[${selected.map(k => 'var(--ui-font-tiny)' + k).join('; ')}]`)
 
   const ghost = document.createElement('div')
   ghost.className = 'tab-ghost'

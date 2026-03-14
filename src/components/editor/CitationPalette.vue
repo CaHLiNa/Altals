@@ -497,7 +497,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
 }
 
@@ -527,7 +527,7 @@ onUnmounted(() => {
 
 .cp-line2 {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-top: 1px;
 }
@@ -542,7 +542,7 @@ onUnmounted(() => {
   padding: 16px 12px;
   text-align: center;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 /* ── Cited entries (edit mode) ── */
@@ -575,7 +575,7 @@ onUnmounted(() => {
 
 .cp-key {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -584,7 +584,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   padding: 1px 6px;
   width: 60px;
   outline: none;
@@ -637,7 +637,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   padding: 5px 8px;
   outline: none;
 }
@@ -660,7 +660,7 @@ onUnmounted(() => {
 }
 
 .cp-import-hdr {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   color: var(--fg-secondary);
   margin-bottom: 6px;
@@ -673,7 +673,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   padding: 6px 8px;
   outline: none;
   resize: vertical;
@@ -693,12 +693,12 @@ onUnmounted(() => {
 }
 
 .cp-import-status {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
 .cp-import-err {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--error);
 }
 
@@ -715,7 +715,7 @@ onUnmounted(() => {
   display: flex;
   gap: 6px;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 .cp-import-journal {
@@ -723,7 +723,7 @@ onUnmounted(() => {
 }
 
 .cp-confidence {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   padding: 0 4px;
   border-radius: 2px;
 }
@@ -740,12 +740,12 @@ onUnmounted(() => {
 }
 
 .cp-import-exists {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
 .cp-import-done {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--success);
 }
 
@@ -757,7 +757,7 @@ onUnmounted(() => {
   border: none;
   background: var(--accent);
   color: var(--bg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
 }
 .cp-btn-accent:disabled {
@@ -774,7 +774,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
 }
 .cp-btn-ghost:hover {
@@ -791,7 +791,7 @@ onUnmounted(() => {
   justify-content: space-between;
   cursor: pointer;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   transition: background 0.1s;
 }
 .cp-footer:hover {
@@ -800,7 +800,7 @@ onUnmounted(() => {
 }
 
 .cp-plus {
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 300;
 }
 </style>

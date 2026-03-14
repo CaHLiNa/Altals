@@ -2,7 +2,7 @@
   <div class="flex flex-col h-full" style="background: var(--bg-primary);">
     <!-- Toolbar -->
     <div class="flex items-center h-7 px-2 shrink-0 border-b" style="border-color: var(--border);">
-      <span class="text-[11px] truncate flex-1" style="color: var(--fg-muted);">
+      <span class="ui-text-xs truncate flex-1" style="color: var(--fg-muted);">
         {{ fileName }}
       </span>
       <button

@@ -103,14 +103,14 @@ async function handleRefresh() {
 }
 
 .conflict-title {
-  font-size: 15px;
+  font-size: var(--ui-font-display);
   font-weight: 600;
   color: var(--fg-primary);
   margin-bottom: 12px;
 }
 
 .conflict-body {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   color: var(--fg-secondary);
   line-height: 1.5;
   margin-bottom: 10px;
@@ -120,7 +120,7 @@ async function handleRefresh() {
 .conflict-body strong {
   color: var(--accent);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 .conflict-details {
@@ -129,7 +129,7 @@ async function handleRefresh() {
 }
 
 .conflict-details summary {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   cursor: pointer;
   user-select: none;
@@ -140,7 +140,7 @@ async function handleRefresh() {
 }
 
 .conflict-details p {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   line-height: 1.5;
   margin-top: 6px;
@@ -159,7 +159,7 @@ async function handleRefresh() {
   border: 1px solid var(--border);
   background: none;
   color: var(--fg-secondary);
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -174,7 +174,7 @@ async function handleRefresh() {
   color: #fff;
   background: var(--accent);
   padding: 9px 24px;
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 500;
 }
 

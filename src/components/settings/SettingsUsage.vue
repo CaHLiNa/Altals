@@ -415,7 +415,7 @@ function formatTokens(n) {
 }
 
 .month-nav-label {
-  font-size: 14px;
+  font-size: var(--ui-font-title);
   font-weight: 600;
   color: var(--fg-primary);
   min-width: 160px;
@@ -429,7 +429,7 @@ function formatTokens(n) {
   border: 1px solid var(--border);
   background: none;
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -469,14 +469,14 @@ function formatTokens(n) {
 }
 
 .chart-y-label {
-  font-size: 9px;
+  font-size: var(--ui-font-fine);
   fill: var(--fg-muted);
   font-variant-numeric: tabular-nums;
   font-family: inherit;
 }
 
 .chart-x-label {
-  font-size: 9px;
+  font-size: var(--ui-font-fine);
   fill: var(--fg-muted);
   font-variant-numeric: tabular-nums;
   font-family: inherit;
@@ -522,7 +522,7 @@ function formatTokens(n) {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 7px 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   z-index: 10;
@@ -568,7 +568,7 @@ function formatTokens(n) {
 }
 
 .chart-tooltip-calls {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 
@@ -577,7 +577,7 @@ function formatTokens(n) {
   display: flex;
   gap: 14px;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 
@@ -620,19 +620,19 @@ function formatTokens(n) {
 }
 
 .usage-source-title {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 600;
   color: var(--fg-primary);
 }
 
 .usage-source-balance {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .usage-source-disclaimer {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   margin-bottom: 8px;
   line-height: 1.4;
@@ -641,7 +641,7 @@ function formatTokens(n) {
 
 /* Summary line */
 .usage-summary-line {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-secondary);
   font-variant-numeric: tabular-nums;
   margin-bottom: 10px;
@@ -653,7 +653,7 @@ function formatTokens(n) {
 }
 
 .usage-empty-hint {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-style: italic;
   margin-bottom: 4px;
@@ -668,7 +668,7 @@ function formatTokens(n) {
 
 .usage-breakdown-tab {
   padding: 3px 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   background: none;
   border: 1px solid var(--border);
@@ -706,7 +706,7 @@ function formatTokens(n) {
 .usage-table-row {
   display: grid;
   padding: 5px 10px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 
@@ -719,7 +719,7 @@ function formatTokens(n) {
 }
 
 .usage-table-row {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -738,7 +738,7 @@ function formatTokens(n) {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 .usage-feature-name {
@@ -747,7 +747,7 @@ function formatTokens(n) {
 
 .usage-model-name {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 /* All-time stat */
@@ -755,7 +755,7 @@ function formatTokens(n) {
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -765,7 +765,7 @@ function formatTokens(n) {
   margin-top: 20px;
   padding: 20px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   line-height: 1.5;
   border: 1px dashed var(--border);

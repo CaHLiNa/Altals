@@ -28,7 +28,7 @@
           <button
             v-for="tab in visibleTabs"
             :key="tab.id"
-            class="text-[9px] font-semibold tracking-[0.08em] uppercase bg-transparent border-none cursor-pointer pb-0.5 transition-colors duration-75"
+            class="ui-text-fine font-semibold tracking-[0.08em] uppercase bg-transparent border-none cursor-pointer pb-0.5 transition-colors duration-75"
             :style="{
               color: activeTabId === tab.id ? 'var(--fg-primary)' : 'var(--fg-muted)',
               borderBottom: activeTabId === tab.id ? '1px solid var(--fg-primary)' : '1px solid transparent',
@@ -40,7 +40,7 @@
         <template v-for="(item, i) in currentItems" :key="activeTabId + '-' + i">
           <div
             v-if="item.groupHeader"
-            class="text-[9px] font-semibold tracking-[0.08em] uppercase pl-5 pb-0.5"
+            class="ui-text-fine font-semibold tracking-[0.08em] uppercase pl-5 pb-0.5"
             :class="i > 0 ? 'mt-4' : ''"
             style="color: var(--fg-muted);"
           >{{ item.groupHeader }}</div>
@@ -52,13 +52,13 @@
           >
             <span
               class="w-3 shrink-0 leading-none select-none"
-              style="font-size: 14px;"
+              style="font-size: var(--ui-font-title);"
               :style="{ color: selectedIdx === i ? 'var(--fg-muted)' : 'transparent' }"
             >›</span>
-            <span class="flex-1 text-[13px] truncate min-w-0">{{ item.label }}</span>
+            <span class="flex-1 ui-text-base truncate min-w-0">{{ item.label }}</span>
             <span
               v-if="item.meta"
-              class="text-[11px] shrink-0 whitespace-nowrap mx-4"
+              class="ui-text-xs shrink-0 whitespace-nowrap mx-4"
               style="color: var(--fg-muted);"
             >{{ item.meta }}</span>
           </button>

@@ -361,7 +361,7 @@ onMounted(() => {
 }
 
 .env-lang-path {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   font-family: var(--font-mono);
   margin-bottom: 10px;
@@ -371,7 +371,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
   flex-wrap: wrap;
 }
@@ -404,7 +404,7 @@ onMounted(() => {
 }
 
 .env-control-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
 }
 
@@ -469,7 +469,7 @@ onMounted(() => {
   -webkit-backdrop-filter: none;
   box-shadow: none;
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   line-height: 1.2;
   padding: 8px 34px 8px 10px;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -513,7 +513,7 @@ onMounted(() => {
   border: none;
   background: transparent;
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   padding: 0;
 }
 
@@ -532,7 +532,7 @@ onMounted(() => {
 }
 
 .env-kernel-badge {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   padding: 1px 6px;
   border-radius: 8px;
   font-weight: 500;
@@ -558,7 +558,7 @@ onMounted(() => {
   border: 1px solid var(--accent);
   background: rgba(122, 162, 247, 0.1);
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -579,7 +579,7 @@ onMounted(() => {
   border-radius: 4px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 
 .env-install-error-inline {
@@ -603,7 +603,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -619,7 +619,7 @@ onMounted(() => {
 }
 
 .env-hint-text {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 

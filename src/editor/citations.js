@@ -157,7 +157,7 @@ function citationTriggerPlugin(callbacks) {
         let insideBrackets = false
         if (lastBracket !== -1) {
           const afterBracket = textBefore.substring(lastBracket + 1)
-          if (!afterBracket.includes(']') && afterBracket.includes('@')) {
+          if (!afterBracket.includes(']') && afterBracket.includes('var(--ui-font-tiny)')) {
             insideBrackets = true
           }
         }
@@ -166,11 +166,11 @@ function citationTriggerPlugin(callbacks) {
         let atIdx = -1
         if (insideBrackets) {
           const afterBracket = textBefore.substring(lastBracket + 1)
-          const lastAt = afterBracket.lastIndexOf('@')
+          const lastAt = afterBracket.lastIndexOf('var(--ui-font-tiny)')
           if (lastAt !== -1) atIdx = lastBracket + 1 + lastAt
         } else {
           // Bare @ or [@
-          const lastAt = textBefore.lastIndexOf('@')
+          const lastAt = textBefore.lastIndexOf('var(--ui-font-tiny)')
           if (lastAt !== -1) {
             // Must be preceded by [ or whitespace or SOL (not mid-word like email)
             if (lastAt === 0 || textBefore[lastAt - 1] === '[' || /\s/.test(textBefore[lastAt - 1])) {

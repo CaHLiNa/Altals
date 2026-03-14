@@ -59,7 +59,7 @@ const popoverFilter = ref('')
 const popoverPos   = ref({})
 
 // Saved Range start for the @ trigger (so we know where to insert the pill)
-// { node: TextNode, offset: number } — the index of the '@' character
+// { node: TextNode, offset: number } — the index of the 'var(--ui-font-tiny)' character
 let atTriggerAnchor = null
 
 // Context pill data (stored separately since it's structured data, not file content)
@@ -164,7 +164,7 @@ function triggerAtMention() {
       prefix = ' '
     }
 
-    const textToInsert = prefix + '@'
+    const textToInsert = prefix + 'var(--ui-font-tiny)'
     const textNode = document.createTextNode(textToInsert)
     range.deleteContents()
     range.insertNode(textNode)
@@ -176,7 +176,7 @@ function triggerAtMention() {
     sel.removeAllRanges()
     sel.addRange(newRange)
 
-    // Record the '@' position and open popover
+    // Record the 'var(--ui-font-tiny)' position and open popover
     atTriggerAnchor = { node: textNode, offset: textNode.length - 1 }
     popoverFilter.value = ''
     openPopover()
@@ -427,13 +427,13 @@ function detectAtTrigger() {
 
   const text = node.textContent
   // The character just typed is at offset - 1
-  if (offset < 1 || text[offset - 1] !== '@') return
+  if (offset < 1 || text[offset - 1] !== 'var(--ui-font-tiny)') return
 
   // Must be preceded by start-of-node or whitespace
   const charBefore = offset >= 2 ? text[offset - 2] : null
   if (charBefore !== null && !/\s/.test(charBefore)) return
 
-  // Record the position of '@' (index offset - 1 in this text node)
+  // Record the position of 'var(--ui-font-tiny)' (index offset - 1 in this text node)
   atTriggerAnchor = { node, offset: offset - 1 }
   popoverFilter.value = ''
   openPopover()

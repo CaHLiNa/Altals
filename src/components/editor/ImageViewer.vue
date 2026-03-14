@@ -161,7 +161,7 @@ onUnmounted(() => {
 .img-btn {
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   cursor: pointer;
   background: var(--bg-tertiary);
   color: var(--fg-secondary);

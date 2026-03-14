@@ -11,7 +11,7 @@
           v-for="(term, idx) in terminals"
           :key="term.id"
           :ref="el => termTabEls[idx] = el"
-          class="flex items-center h-full px-2 text-[11px] cursor-pointer shrink-0 group"
+          class="flex items-center h-full px-2 ui-text-xs cursor-pointer shrink-0 group"
           :style="{
             background: activeTerminal === idx ? 'var(--bg-primary)' : 'transparent',
             color: activeTerminal === idx ? 'var(--fg-primary)' : 'var(--fg-muted)',
@@ -28,7 +28,7 @@
             <input
               ref="termRenameInputRef"
               v-model="termRenameText"
-              class="bg-transparent border-none outline-none text-[11px] w-20"
+              class="bg-transparent border-none outline-none ui-text-xs w-20"
               :style="{ color: 'var(--fg-primary)' }"
               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
               @keydown.enter="finishTermRename"
@@ -61,7 +61,7 @@
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M8 3v10M3 8h10"/>
           </svg>
-          <span class="text-[11px]">{{ t('New Terminal') }}</span>
+          <span class="ui-text-xs">{{ t('New Terminal') }}</span>
         </button>
 
         <!-- Drop indicator line -->

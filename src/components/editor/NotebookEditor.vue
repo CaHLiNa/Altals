@@ -19,7 +19,7 @@
       </button>
 
       <!-- Kernel status (when Jupyter mode and kernel active) -->
-      <span v-if="mode === 'jupyter' && kernelId" class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+      <span v-if="mode === 'jupyter' && kernelId" class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
         :style="kernelStatusStyle">
         {{ kernelStatusLabel }}
       </span>
@@ -37,7 +37,7 @@
         </button>
       </div>
 
-      <span class="ml-auto text-[10px]" style="color: var(--fg-muted);">
+      <span class="ml-auto ui-text-micro" style="color: var(--fg-muted);">
         {{ t('{count} cells', { count: cells.length }) }}
         <template v-if="saving"> &middot; {{ t('Saving...') }}</template>
       </span>
@@ -74,7 +74,7 @@
           <!-- Jupyter info -->
           <div v-if="envStore.jupyter.found" class="nb-pop-section">
             <div class="nb-pop-label">Jupyter</div>
-            <div class="nb-pop-value" style="font-size: 10px; font-family: var(--font-mono); color: var(--fg-muted);">
+            <div class="nb-pop-value" style="font-size: var(--ui-font-micro); font-family: var(--font-mono); color: var(--fg-muted);">
               {{ envStore.jupyter.path }}
             </div>
           </div>
@@ -773,7 +773,7 @@ onUnmounted(async () => {
 
 <style scoped>
 .notebook-toolbar {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 /* Status chip */
@@ -786,7 +786,7 @@ onUnmounted(async () => {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -835,7 +835,7 @@ onUnmounted(async () => {
 }
 
 .nb-pop-label {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -844,13 +844,13 @@ onUnmounted(async () => {
 }
 
 .nb-pop-value {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
   font-weight: 500;
 }
 
 .nb-pop-status {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   padding: 6px 8px;
   border-radius: 5px;
   display: flex;
@@ -882,7 +882,7 @@ onUnmounted(async () => {
 
 .nb-pop-hint {
   width: 100%;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   margin-top: 4px;
   line-height: 1.4;
@@ -895,7 +895,7 @@ onUnmounted(async () => {
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   outline: none;
 }
 
@@ -905,7 +905,7 @@ onUnmounted(async () => {
   border: 1px solid var(--accent);
   background: rgba(122, 162, 247, 0.1);
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -926,7 +926,7 @@ onUnmounted(async () => {
   border-radius: 4px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 
 .nb-pop-footer {
@@ -936,7 +936,7 @@ onUnmounted(async () => {
 }
 
 .nb-pop-link {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   background: none;
   border: none;
@@ -969,14 +969,14 @@ onUnmounted(async () => {
 }
 
 .nb-setup-title {
-  font-size: 16px;
+  font-size: var(--ui-font-display-sm);
   font-weight: 600;
   color: var(--fg-primary);
   margin-bottom: 8px;
 }
 
 .nb-setup-desc {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   margin-bottom: 24px;
   line-height: 1.5;
@@ -1002,7 +1002,7 @@ onUnmounted(async () => {
   border-radius: 50%;
   background: var(--bg-tertiary, var(--bg-secondary));
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1011,7 +1011,7 @@ onUnmounted(async () => {
 }
 
 .nb-setup-step-title {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-primary);
   margin-bottom: 4px;
@@ -1019,7 +1019,7 @@ onUnmounted(async () => {
 
 .nb-setup-code {
   display: block;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-family: var(--font-mono);
   color: var(--accent);
   background: var(--bg-primary);
@@ -1041,7 +1041,7 @@ onUnmounted(async () => {
   border: 1px solid var(--accent);
   background: rgba(122, 162, 247, 0.1);
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -1062,7 +1062,7 @@ onUnmounted(async () => {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--fg-muted);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -1083,7 +1083,7 @@ onUnmounted(async () => {
   border-radius: 5px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   text-align: left;
 }
 
@@ -1093,7 +1093,7 @@ onUnmounted(async () => {
 }
 
 .nb-setup-output pre {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-family: var(--font-mono);
   color: var(--fg-muted);
   background: var(--bg-primary);
@@ -1117,7 +1117,7 @@ onUnmounted(async () => {
   color: var(--fg-muted);
   cursor: pointer;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   transition: background 0.1s, color 0.1s;
 }
 
@@ -1138,7 +1138,7 @@ onUnmounted(async () => {
   color: var(--fg-muted);
   cursor: pointer;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   transition: border-color 0.15s, color 0.15s;
 }
 

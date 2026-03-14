@@ -19,7 +19,7 @@
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
           {{ t('Add Comment') }}
-          <span class="ml-auto" style="color: var(--fg-muted); font-size: 11px;">&#x21E7;&#x2318;L</span>
+          <span class="ml-auto" style="color: var(--fg-muted); font-size: var(--ui-font-caption);">&#x21E7;&#x2318;L</span>
         </div>
         <div class="context-menu-separator"></div>
         <div class="context-menu-item" @click="askAI">

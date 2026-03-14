@@ -55,19 +55,19 @@ onMounted(async () => {
 }
 
 .update-app-name {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   color: var(--fg-secondary);
 }
 
 .update-version-tag {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   font-family: var(--font-mono);
 }
 
 .update-copy {
   margin: 10px 0 0;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   line-height: 1.6;
   color: var(--fg-secondary);
 }
@@ -81,7 +81,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   padding: 4px 11px;
   border-radius: 4px;

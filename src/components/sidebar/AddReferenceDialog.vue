@@ -50,7 +50,7 @@
           </div>
 
           <div class="flex items-center mt-2">
-            <span class="text-[10px]" :style="{ color: 'var(--fg-muted)' }">
+            <span class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
               {{ statusText }}
             </span>
             <div class="flex-1"></div>
@@ -71,7 +71,7 @@
 
         <!-- Results -->
         <div v-if="results.length > 0" class="border-t" :style="{ borderColor: 'var(--border)' }">
-          <div class="px-4 py-1.5 text-[10px] font-medium uppercase tracking-wider" :style="{ color: 'var(--fg-muted)' }">
+          <div class="px-4 py-1.5 ui-text-micro font-medium uppercase tracking-wider" :style="{ color: 'var(--fg-muted)' }">
             {{ t('Results') }}
           </div>
           <div class="overflow-y-auto" style="max-height: 280px;">
@@ -82,33 +82,33 @@
               :style="{ borderBottom: idx < results.length - 1 ? '1px solid var(--border)' : 'none' }"
             >
               <div class="flex items-center gap-2 mb-1">
-                <span class="text-[10px] px-1.5 py-0.5 rounded-full" :class="confidenceClass(r.confidence)">
+                <span class="ui-text-micro px-1.5 py-0.5 rounded-full" :class="confidenceClass(r.confidence)">
                   {{ confidenceLabel(r.confidence) }}
                 </span>
                 <span class="ref-key-badge">{{ r.csl._key || t('auto') }}</span>
               </div>
               <div class="text-xs mb-0.5" :style="{ color: 'var(--fg-primary)' }">{{ r.csl.title || t('Untitled') }}</div>
-              <div class="text-[10px]" :style="{ color: 'var(--fg-muted)' }">
+              <div class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
                 {{ formatAuthors(r.csl) }}{{ r.csl.issued?.['date-parts']?.[0]?.[0] ? ' (' + r.csl.issued['date-parts'][0][0] + ')' : '' }}
                 <template v-if="r.csl['container-title']"> — {{ r.csl['container-title'] }}</template>
               </div>
-              <div v-if="r.csl.DOI" class="text-[10px] mt-0.5" :style="{ color: 'var(--fg-muted)' }">DOI: {{ r.csl.DOI }}</div>
+              <div v-if="r.csl.DOI" class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">DOI: {{ r.csl.DOI }}</div>
               <div class="flex items-center justify-end gap-2 mt-1.5">
                 <template v-if="r.existingKey && !r.added">
-                  <span class="text-[10px] px-1.5 py-0.5 rounded-full" :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }">{{ t('Already in library') }}</span>
+                  <span class="ui-text-micro px-1.5 py-0.5 rounded-full" :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }">{{ t('Already in library') }}</span>
                   <button
-                    class="text-[11px] underline"
+                    class="ui-text-xs underline"
                     :style="{ color: 'var(--accent)' }"
                     @click="viewExisting(r.existingKey)"
                   >{{ t('View') }}</button>
                 </template>
                 <button
                   v-else-if="!r.added"
-                  class="px-2.5 py-0.5 text-[11px] rounded"
+                  class="px-2.5 py-0.5 ui-text-xs rounded"
                   :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
                   @click="addResult(r)"
                 >{{ t('Add') }}</button>
-                <span v-else class="text-[11px]" :style="{ color: 'var(--success)' }">{{ t('Added') }}</span>
+                <span v-else class="ui-text-xs" :style="{ color: 'var(--success)' }">{{ t('Added') }}</span>
               </div>
             </div>
           </div>
@@ -119,7 +119,7 @@
               :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
               @click="addAll"
             >{{ addAllLabel }}</button>
-            <div v-if="dupCount > 0" class="text-[10px] mt-1 text-center" :style="{ color: 'var(--fg-muted)' }">
+            <div v-if="dupCount > 0" class="ui-text-micro mt-1 text-center" :style="{ color: 'var(--fg-muted)' }">
               {{ t('{count} already in library', { count: dupCount }) }}
             </div>
           </div>
@@ -127,7 +127,7 @@
 
         <!-- Errors -->
         <div v-if="errors.length > 0" class="px-4 py-2">
-          <div v-for="(err, idx) in errors" :key="idx" class="text-[11px]" :style="{ color: 'var(--error)' }">{{ err }}</div>
+          <div v-for="(err, idx) in errors" :key="idx" class="ui-text-xs" :style="{ color: 'var(--error)' }">{{ err }}</div>
         </div>
       </div>
     </div>

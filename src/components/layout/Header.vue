@@ -19,7 +19,7 @@
     <!-- Hamburger dropdown -->
     <Teleport to="body">
       <div v-if="menuOpen" ref="menuDropdownRef" class="context-menu" :style="menuStyle">
-        <div class="context-menu-item" style="font-size: 12px;" @click="doOpenFolder">
+        <div class="context-menu-item" @click="doOpenFolder">
           {{ t('Open Folder...') }}
           <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+O</span>
         </div>
@@ -30,7 +30,6 @@
             v-for="r in recents"
             :key="r.path"
             class="context-menu-item"
-            style="font-size: 12px;"
             @click="doOpenWorkspace(r.path)"
           >
             {{ r.name }}
@@ -38,12 +37,12 @@
         </template>
         <template v-if="workspace.isOpen">
           <div class="context-menu-separator"></div>
-          <div class="context-menu-item" style="font-size: 12px;" @click="doCloseFolder">
+          <div class="context-menu-item" @click="doCloseFolder">
             {{ t('Close Folder') }}
           </div>
         </template>
         <div class="context-menu-separator"></div>
-        <div class="context-menu-item" style="font-size: 12px;" @click="doSettings">
+        <div class="context-menu-item" @click="doSettings">
           {{ t('Settings...') }}
           <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+,</span>
         </div>
@@ -70,7 +69,7 @@
           class="flex-1 bg-transparent border-none outline-none px-2"
           :style="{
             color: 'var(--fg-primary)',
-            fontSize: '12px',
+            fontSize: 'var(--ui-font-body)',
             fontFamily: 'inherit',
             height: '24px',
           }"
@@ -82,7 +81,7 @@
         />
         <kbd v-if="!searchFocused && !query"
           class="mr-2 shrink-0"
-          style="font-size: 9px; padding: 0px 4px; line-height: 16px;">
+          style="padding: 0px 4px; line-height: 16px;">
           {{ modKey }}+P
         </kbd>
       </div>

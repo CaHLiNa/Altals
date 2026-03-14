@@ -1154,7 +1154,7 @@ function setMode(mode) {
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: var(--ui-font, 'Inter', sans-serif);
   white-space: nowrap;
   transition: background 0.08s, color 0.08s;
@@ -1181,11 +1181,11 @@ function setMode(mode) {
 .dtb-label {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   line-height: 1;
 }
 .dtb-badge {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   line-height: 1;
   padding: 1px 5px;
   border-radius: 8px;
@@ -1230,7 +1230,7 @@ function setMode(mode) {
   min-width: 40px;
   padding: 0 2px;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   opacity: 0.8;
 }
 .dtb-zoom-pct:hover {
@@ -1267,7 +1267,7 @@ function setMode(mode) {
   padding: 5px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
   font-family: var(--ui-font, 'Inter', sans-serif);
   white-space: nowrap;
@@ -1318,7 +1318,7 @@ function setMode(mode) {
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--fg-primary);
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-family: var(--ui-font, 'Inter', sans-serif);
   outline: none;
 }
@@ -1337,7 +1337,7 @@ function setMode(mode) {
   border-radius: 4px;
   background: var(--bg-secondary);
   color: var(--fg-primary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   font-family: var(--ui-font, 'Inter', sans-serif);
 }
@@ -1354,7 +1354,7 @@ function setMode(mode) {
   padding: 8px;
 }
 .dtb-table-label {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   text-align: center;
   margin-bottom: 6px;
@@ -1395,7 +1395,7 @@ function setMode(mode) {
   border-top: 1px solid var(--border);
 }
 .dtb-overflow-label {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--fg-muted);
   padding: 0 6px 4px;
   font-family: var(--ui-font, 'Inter', sans-serif);

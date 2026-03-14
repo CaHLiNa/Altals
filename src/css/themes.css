@@ -63,8 +63,25 @@
   --canvas-orange: #3d2a1a;
   --canvas-gray: #2a2e38;
 
-  --editor-font-size: 14px;
-  --ui-font-size: 13px;
+  --editor-font-size: var(--ui-font-title);
+  --ui-font-size: var(--ui-font-body);
+  --ui-font-tiny: calc(var(--ui-font-size) - 5px);
+  --ui-font-fine: calc(var(--ui-font-size) - 4px);
+  --ui-font-micro: calc(var(--ui-font-size) - 3px);
+  --ui-font-caption: calc(var(--ui-font-size) - 2px);
+  --ui-font-label: calc(var(--ui-font-size) - 1px);
+  --ui-font-body: var(--ui-font-size);
+  --ui-font-title: calc(var(--ui-font-size) + 1px);
+  --ui-font-display: calc(var(--ui-font-size) + 2px);
+  --ui-font-display-sm: calc(var(--ui-font-size) + 3px);
+  --ui-font-display-md: calc(var(--ui-font-size) + 4px);
+  --ui-font-display-lg: calc(var(--ui-font-size) + 5px);
+  --ui-font-hero-xs: calc(var(--ui-font-size) + 7px);
+  --ui-font-hero-sm: calc(var(--ui-font-size) + 11px);
+  --ui-font-hero-md: calc(var(--ui-font-size) + 15px);
+  --ui-font-hero-lg: calc(var(--ui-font-size) + 19px);
+  --ui-font-hero-xl: calc(var(--ui-font-size) + 31px);
+  --ui-line-height: 1.4;
 
   /* Font stacks — single source of truth */
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -73,14 +90,33 @@
   --ui-font: var(--font-sans);
 }
 
-/* Zoom-responsive UI font sizes (scale with --ui-font-size via Cmd+/-) */
-.ui-text-xs  { font-size: calc(var(--ui-font-size) - 4px); } /* 9px at default */
-.ui-text-sm  { font-size: calc(var(--ui-font-size) - 3px); } /* 10px at default */
-.ui-text-md  { font-size: calc(var(--ui-font-size) - 2px); } /* 11px at default */
-.ui-text-base { font-size: calc(var(--ui-font-size) - 1px); } /* 12px at default */
-.ui-text-lg  { font-size: var(--ui-font-size); }              /* 13px at default */
-.ui-text-xl  { font-size: calc(var(--ui-font-size) + 1px); }  /* 14px at default */
-.ui-text-2xl { font-size: calc(var(--ui-font-size) + 2px); }  /* 15px at default */
+/* Workbench typography follows a VS Code-style scale:
+   caption 11, label 12, body 13, title 14, display 15 at default zoom. */
+.ui-text-tiny { font-size: var(--ui-font-tiny); }
+.ui-text-fine { font-size: var(--ui-font-fine); }
+.ui-text-micro { font-size: var(--ui-font-micro); }
+.ui-text-caption { font-size: var(--ui-font-caption); }
+.ui-text-label { font-size: var(--ui-font-label); }
+.ui-text-body { font-size: var(--ui-font-body); }
+.ui-text-title { font-size: var(--ui-font-title); }
+.ui-text-display { font-size: var(--ui-font-display); }
+.ui-text-display-sm { font-size: var(--ui-font-display-sm); }
+.ui-text-display-md { font-size: var(--ui-font-display-md); }
+.ui-text-display-lg { font-size: var(--ui-font-display-lg); }
+.ui-text-hero-xs { font-size: var(--ui-font-hero-xs); }
+.ui-text-hero-sm { font-size: var(--ui-font-hero-sm); }
+.ui-text-hero-md { font-size: var(--ui-font-hero-md); }
+.ui-text-hero-lg { font-size: var(--ui-font-hero-lg); }
+.ui-text-hero-xl { font-size: var(--ui-font-hero-xl); }
+
+/* Keep legacy helpers mapped to the new scale to avoid broad regressions. */
+.ui-text-xs  { font-size: var(--ui-font-caption); }
+.ui-text-sm  { font-size: var(--ui-font-label); }
+.ui-text-md  { font-size: var(--ui-font-caption); }
+.ui-text-base { font-size: var(--ui-font-body); }
+.ui-text-lg  { font-size: var(--ui-font-body); }
+.ui-text-xl  { font-size: var(--ui-font-title); }
+.ui-text-2xl { font-size: var(--ui-font-display); }
 
 /* ===== Light (Cadet Blue) ===== */
 .theme-light {

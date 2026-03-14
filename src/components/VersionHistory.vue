@@ -58,8 +58,8 @@
           </div>
           <!-- Empty state -->
           <div v-else-if="!selectedCommit" class="version-empty-state">
-            <div style="color: var(--fg-muted); font-size: 13px;">{{ t('Select a version to preview') }}</div>
-            <div style="color: var(--fg-muted); opacity: 0.5; font-size: 11px; margin-top: 6px;">
+            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('Select a version to preview') }}</div>
+            <div style="color: var(--fg-muted); opacity: 0.5; font-size: var(--ui-font-caption); margin-top: 6px;">
               {{ t('Click a commit on the left') }}
             </div>
           </div>

@@ -171,7 +171,7 @@ function onCitUpdate({ cites }) {
     const parts = cites.map(c => {
       let part = ''
       if (c.prefix) part += c.prefix + ' '
-      part += '@' + c.key
+      part += 'var(--ui-font-tiny)' + c.key
       if (c.locator) part += ', ' + c.locator
       return part
     })

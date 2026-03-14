@@ -436,13 +436,13 @@ async function handleSyncNow() {
 }
 
 .gh-username {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .gh-login {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -452,7 +452,7 @@ async function handleSyncNow() {
   border: 1px solid var(--border);
   background: none;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
 }
 
@@ -466,7 +466,7 @@ async function handleSyncNow() {
 }
 
 .gh-section-label {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-muted);
   text-transform: uppercase;
@@ -492,13 +492,13 @@ async function handleSyncNow() {
 }
 
 .gh-repo-name {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .gh-repo-url {
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -510,7 +510,7 @@ async function handleSyncNow() {
   border: 1px solid var(--border);
   background: none;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -525,7 +525,7 @@ async function handleSyncNow() {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -551,7 +551,7 @@ async function handleSyncNow() {
   border: 1px solid var(--border);
   background: none;
   color: var(--fg-secondary);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
 }
 
@@ -581,14 +581,14 @@ async function handleSyncNow() {
 
 .gh-option-title {
   display: block;
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   font-weight: 500;
   color: var(--fg-primary);
 }
 
 .gh-option-desc {
   display: block;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-top: 2px;
 }
@@ -607,7 +607,7 @@ async function handleSyncNow() {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-secondary);
   cursor: pointer;
 }
@@ -631,12 +631,12 @@ async function handleSyncNow() {
 }
 
 .gh-repo-item-name {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-secondary);
 }
 
 .gh-repo-badge {
-  font-size: 9px;
+  font-size: var(--ui-font-fine);
   padding: 1px 5px;
   border-radius: 3px;
   background: var(--bg-tertiary);
@@ -645,7 +645,7 @@ async function handleSyncNow() {
 
 .gh-loading {
   padding: 8px 0;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
 }
 
@@ -655,12 +655,12 @@ async function handleSyncNow() {
   border-radius: 5px;
   background: rgba(247, 118, 142, 0.1);
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
 }
 
 .gh-hint {
   margin-top: 10px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   line-height: 1.5;
 }
@@ -669,7 +669,7 @@ async function handleSyncNow() {
   background: var(--bg-tertiary);
   padding: 1px 4px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 
 .gh-pat-section {
@@ -679,7 +679,7 @@ async function handleSyncNow() {
 }
 
 .gh-pat-toggle {
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   background: none;
   border: none;

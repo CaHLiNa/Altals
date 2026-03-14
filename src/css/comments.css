@@ -55,12 +55,12 @@
   gap: 4px;
 }
 .comment-margin-title {
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   font-weight: 600;
   color: var(--fg-secondary);
 }
 .comment-margin-count {
-  font-size: calc(var(--ui-font-size, 13px) - 3px);
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
 }
 
@@ -79,12 +79,12 @@
   background: color-mix(in srgb, var(--accent) 5%, var(--bg-secondary));
 }
 .comment-card-author {
-  font-size: calc(var(--ui-font-size, 13px) - 3px);
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-bottom: 2px;
 }
 .comment-card-text {
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   color: var(--fg-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -92,7 +92,7 @@
   overflow: hidden;
 }
 .comment-card-meta {
-  font-size: calc(var(--ui-font-size, 13px) - 4px);
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-top: 3px;
 }
@@ -114,7 +114,7 @@
 .comment-panel-header {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   color: var(--fg-muted);
   display: flex;
   align-items: center;
@@ -131,18 +131,18 @@
   border-bottom: none;
 }
 .comment-panel-reply-author {
-  font-size: calc(var(--ui-font-size, 13px) - 3px);
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   color: var(--fg-secondary);
   margin-bottom: 2px;
 }
 .comment-panel-reply-text {
-  font-size: calc(var(--ui-font-size, 13px) - 1px);
+  font-size: var(--ui-font-body);
   color: var(--fg-primary);
   line-height: 1.5;
 }
 .comment-panel-reply-time {
-  font-size: calc(var(--ui-font-size, 13px) - 4px);
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-top: 2px;
 }
@@ -153,7 +153,7 @@
   border-radius: 4px;
   color: var(--fg-primary);
   font-family: var(--font-sans);
-  font-size: calc(var(--ui-font-size, 13px) - 1px);
+  font-size: var(--ui-font-body);
   padding: 4px 8px;
   resize: none;
   outline: none;
@@ -196,7 +196,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   font-weight: 500;
   padding: 3px 10px;
   border-radius: 4px;
@@ -265,7 +265,7 @@
   background: transparent;
   color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: calc(var(--ui-font-size, 13px) - 3px);
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   border: 1px solid var(--border);
   cursor: default;
@@ -288,7 +288,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   font-weight: 500;
   padding: 3px 10px;
   border-radius: 4px;
@@ -305,7 +305,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   font-weight: 500;
   padding: 3px 10px;
   border-radius: 4px;
@@ -325,7 +325,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: calc(var(--ui-font-size, 13px) - 2px);
+  font-size: var(--ui-font-label);
   padding: 3px 8px;
   border-radius: 4px;
   transition: background 0.15s;

@@ -114,11 +114,11 @@
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   max-width: 120px !important;
-  font-size: 12px !important;
+  font-size: var(--ui-font-label) !important;
   color: #1a1a1a !important;
 }
 .comments-dialog .user-timestamp {
-  font-size: 11px !important;
+  font-size: var(--ui-font-caption) !important;
   color: #888 !important;
 }
 
@@ -141,7 +141,7 @@
 
 /* Comment body text */
 .comments-dialog .comment {
-  font-size: 12.5px !important;
+  font-size: var(--ui-font-body) !important;
   line-height: 1.45 !important;
   margin: 6px 0 !important;
   color: #1a1a1a !important;
@@ -149,13 +149,13 @@
 
 /* Tracked change labels */
 .comments-dialog .change-type {
-  font-size: 10px !important;
+  font-size: var(--ui-font-micro) !important;
   color: #666 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.3px !important;
 }
 .comments-dialog .tracked-change-text {
-  font-size: 12px !important;
+  font-size: var(--ui-font-label) !important;
   color: #222 !important;
 }
 
@@ -188,7 +188,7 @@
    ============================================================ */
 .sd-button {
   border-radius: 6px !important;
-  font-size: 12px !important;
+  font-size: var(--ui-font-label) !important;
   padding: 5px 10px !important;
   font-weight: 500 !important;
   font-family: var(--ui-font, 'Inter', sans-serif) !important;

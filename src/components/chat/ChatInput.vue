@@ -470,7 +470,7 @@ defineExpose({ focus })
 
 .model-provider-item {
   padding: 7px 12px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
 }
 
 .model-provider-item:hover,
@@ -491,7 +491,7 @@ defineExpose({ focus })
 
 .model-column-title {
   padding: 4px 12px 8px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -499,7 +499,7 @@ defineExpose({ focus })
 
 .model-model-item {
   padding: 7px 12px;
-  font-size: 12px;
+  font-size: var(--ui-font-label);
   display: flex;
   align-items: center;
 }
@@ -515,7 +515,7 @@ defineExpose({ focus })
   left: 50%;
   transform: translateX(-50%);
   white-space: pre;
-  font-size: calc(var(--ui-font-size) - 1px);
+  font-size: var(--ui-font-label);
   line-height: 1.4;
   padding: 4px 8px;
   border-radius: 4px;
@@ -532,7 +532,7 @@ defineExpose({ focus })
 
 .route-label {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   opacity: 0.7;
   flex-shrink: 0;
@@ -540,7 +540,7 @@ defineExpose({ focus })
 
 .recommended-badge {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--ui-font-caption);
   background: var(--accent);
   color: var(--bg-primary);
   padding: 1px 5px;
