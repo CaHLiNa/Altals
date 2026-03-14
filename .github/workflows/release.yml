@@ -138,6 +138,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_AUTH_ORIGIN: ${{ vars.VITE_GITHUB_AUTH_ORIGIN }}
         with:
           tauriScript: npm run tauri
           args: ${{ matrix.tauri-args }}

@@ -105,6 +105,26 @@
 
       <div v-if="error" class="gh-error">{{ error }}</div>
 
+      <div class="gh-bridge-section">
+        <h4 class="gh-section-label">{{ t('OAuth bridge') }}</h4>
+        <p class="gh-hint">{{ t('Set the GitHub OAuth bridge URL used to open authorization and poll for the token.') }}</p>
+        <div class="key-input-row">
+          <input
+            v-model="authOriginDraft"
+            class="key-input"
+            type="url"
+            placeholder="http://localhost:3000"
+            @keydown.enter="handleSaveAuthOrigin"
+          />
+          <button class="key-save-btn" :disabled="loading" @click="handleSaveAuthOrigin">
+            {{ t('Save Bridge URL') }}
+          </button>
+        </div>
+        <p class="gh-hint">{{ t('Leave blank to fall back to the bundled default.') }}</p>
+        <p v-if="githubAuthOrigin" class="gh-hint">{{ t('Current bridge: {origin}', { origin: githubAuthOrigin }) }}</p>
+        <p v-else class="gh-hint">{{ t('No GitHub OAuth bridge is configured yet.') }}</p>
+      </div>
+
       <!-- OAuth connect -->
       <div class="keys-actions">
         <button class="key-save-btn" :disabled="loading" @click="handleConnect">
@@ -145,7 +165,7 @@ import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
-const GITHUB_AUTH_ORIGIN = (import.meta.env.VITE_GITHUB_AUTH_ORIGIN || (import.meta.env.DEV ? 'http://localhost:3000' : '')).replace(/\/$/, '')
+const GITHUB_AUTH_ORIGIN_STORAGE_KEY = 'githubAuthOrigin'
 
 const loading = ref(false)
 const error = ref('')
@@ -157,12 +177,32 @@ const newRepoName = ref('')
 const newRepoPrivate = ref(true)
 const repos = ref([])
 const reposLoading = ref(false)
+const savedGitHubAuthOrigin = ref(loadSavedGitHubAuthOrigin())
+const authOriginDraft = ref(savedGitHubAuthOrigin.value || buildGitHubAuthOrigin())
+
+function normalizeOrigin(value = '') {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function buildGitHubAuthOrigin() {
+  return normalizeOrigin(import.meta.env.VITE_GITHUB_AUTH_ORIGIN || (import.meta.env.DEV ? 'http://localhost:3000' : ''))
+}
+
+function loadSavedGitHubAuthOrigin() {
+  try {
+    return normalizeOrigin(localStorage.getItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY) || '')
+  } catch {
+    return ''
+  }
+}
 
 const repoDisplayName = computed(() => {
   const url = workspace.remoteUrl
   const match = url.match(/github\.com[/:]([^/]+\/[^/.]+)/)
   return match ? match[1] : url
 })
+
+const githubAuthOrigin = computed(() => normalizeOrigin(savedGitHubAuthOrigin.value || buildGitHubAuthOrigin()))
 
 const repoHtmlUrl = computed(() => {
   const name = repoDisplayName.value
@@ -204,8 +244,8 @@ async function handleConnect() {
   error.value = ''
   loading.value = true
   try {
-    if (!GITHUB_AUTH_ORIGIN) {
-      error.value = t('GitHub OAuth bridge is not configured. Set VITE_GITHUB_AUTH_ORIGIN and try again.')
+    if (!githubAuthOrigin.value) {
+      error.value = t('GitHub OAuth bridge is not configured. Set an OAuth bridge URL below or define VITE_GITHUB_AUTH_ORIGIN and try again.')
       loading.value = false
       return
     }
@@ -216,7 +256,7 @@ async function handleConnect() {
     crypto.getRandomValues(arr)
     const state = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
 
-    await open(`${GITHUB_AUTH_ORIGIN}/api/v1/auth/github/connect?state=${state}`)
+    await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?state=${state}`)
 
     // Poll for the GitHub token after the OAuth callback stores it.
     const tokenData = await pollForGitHubToken(state)
@@ -233,9 +273,9 @@ async function handleConnect() {
 }
 
 async function pollForGitHubToken(state) {
-  if (!GITHUB_AUTH_ORIGIN) return null
+  if (!githubAuthOrigin.value) return null
 
-  const url = `${GITHUB_AUTH_ORIGIN}/api/v1/auth/github/poll`
+  const url = `${githubAuthOrigin.value}/api/v1/auth/github/poll`
 
   for (let i = 0; i < 150; i++) { // 5 min timeout (150 * 2s)
     await new Promise(r => setTimeout(r, 2000))
@@ -252,6 +292,20 @@ async function pollForGitHubToken(state) {
     } catch {}
   }
   return null
+}
+
+function handleSaveAuthOrigin() {
+  const normalized = normalizeOrigin(authOriginDraft.value)
+  savedGitHubAuthOrigin.value = normalized
+  authOriginDraft.value = normalized || buildGitHubAuthOrigin()
+  try {
+    if (normalized) {
+      localStorage.setItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY, normalized)
+    } else {
+      localStorage.removeItem(GITHUB_AUTH_ORIGIN_STORAGE_KEY)
+    }
+  } catch {}
+  error.value = ''
 }
 
 async function handlePatConnect() {
@@ -382,6 +436,10 @@ async function handleSyncNow() {
 
 .gh-section {
   margin-top: 4px;
+}
+
+.gh-bridge-section {
+  margin: 16px 0;
 }
 
 .gh-section-label {
