@@ -168,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { formatRelativeFromNow, useI18n } from '../../i18n'
 
@@ -189,6 +189,17 @@ const repos = ref([])
 const reposLoading = ref(false)
 const savedGitHubAuthOrigin = ref(loadSavedGitHubAuthOrigin())
 const authOriginDraft = ref(savedGitHubAuthOrigin.value || buildGitHubAuthOrigin())
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    await workspace.ensureGitHubInitialized()
+  } catch (e) {
+    console.warn('[github] Deferred init failed:', e)
+  } finally {
+    loading.value = false
+  }
+})
 
 function normalizeOrigin(value = '') {
   return String(value || '').trim().replace(/\/+$/, '')
@@ -344,6 +355,7 @@ async function handleLoadRepos() {
 
   reposLoading.value = true
   try {
+    await workspace.ensureGitHubInitialized()
     const { listGitHubRepos } = await import('../../services/githubSync')
     repos.value = await listGitHubRepos(workspace.githubToken.token)
   } catch (e) {
@@ -357,6 +369,7 @@ async function handleCreate() {
   loading.value = true
   error.value = ''
   try {
+    await workspace.ensureGitHubInitialized()
     const { createGitHubRepo } = await import('../../services/githubSync')
     const repo = await createGitHubRepo(workspace.githubToken.token, newRepoName.value.trim(), newRepoPrivate.value)
     await workspace.linkRepo(repo.cloneUrl)
@@ -389,6 +402,7 @@ async function handleUnlink() {
 
 async function handleSyncNow() {
   loading.value = true
+  await workspace.ensureGitHubInitialized()
   await workspace.syncNow()
   loading.value = false
 }

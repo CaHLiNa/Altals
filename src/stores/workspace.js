@@ -95,6 +95,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     // GitHub sync
     githubToken: null,   // { token, login, name, email, id, avatarUrl }
     githubUser: null,
+    githubInitialized: false,
+    _githubInitPromise: null,
     syncStatus: 'disconnected', // idle | syncing | synced | error | conflict | disconnected
     syncError: null,
     syncErrorType: null, // auth | network | conflict | generic
@@ -169,9 +171,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       // Start git auto-commit
       this.startAutoCommit()
 
-      // Initialize GitHub sync
-      this.initGitHub()
-
       // Persist last workspace + add to recents
       try {
         localStorage.setItem('lastWorkspace', path)
@@ -213,6 +212,16 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceId = ''
       this.workspaceDataDir = ''
       this.claudeConfigDir = ''
+      this.githubToken = null
+      this.githubUser = null
+      this.githubInitialized = false
+      this._githubInitPromise = null
+      this.syncStatus = 'disconnected'
+      this.syncError = null
+      this.syncErrorType = null
+      this.syncConflictBranch = null
+      this.lastSyncTime = null
+      this.remoteUrl = ''
       localStorage.removeItem('lastWorkspace')
     },
 
@@ -1143,43 +1152,72 @@ exit 0
 
     // ── GitHub Sync ──
 
-    async initGitHub() {
-      try {
-        const { loadGitHubToken, getGitHubUser, syncState } = await import('../services/githubSync')
-        const stored = await loadGitHubToken()
-        if (!stored?.token) return
+    async ensureGitHubInitialized(options = {}) {
+      const force = options?.force === true
+      if (this.githubInitialized && !force) return this.githubToken
+      if (this._githubInitPromise && !force) return this._githubInitPromise
 
-        this.githubToken = stored
-        // Verify token is still valid by fetching user
-        try {
-          const user = await getGitHubUser(stored.token)
-          this.githubUser = {
-            login: user.login,
-            name: user.name,
-            email: user.email,
-            id: user.id,
-            avatarUrl: user.avatar_url,
-          }
-        } catch {
-          // Token invalid — clear it
+      this._githubInitPromise = (async () => {
+        if (force) {
           this.githubToken = null
           this.githubUser = null
-          return
+          this.syncStatus = 'disconnected'
+          this.syncError = null
+          this.syncErrorType = null
+          this.syncConflictBranch = null
+          this.lastSyncTime = null
         }
 
-        // Check if workspace has a remote
-        if (this.path) {
-          this.remoteUrl = await gitRemoteGetUrl(this.path)
-          if (this.remoteUrl) {
-            this.syncStatus = 'idle'
-            this.startSyncTimer()
-          } else {
-            this.syncStatus = 'disconnected'
+        try {
+          const { loadGitHubToken, getGitHubUser } = await import('../services/githubSync')
+          const stored = await loadGitHubToken()
+          if (!stored?.token) {
+            this.githubToken = null
+            this.githubUser = null
+            return null
           }
+
+          this.githubToken = stored
+          try {
+            const user = await getGitHubUser(stored.token)
+            this.githubUser = {
+              login: user.login,
+              name: user.name,
+              email: user.email,
+              id: user.id,
+              avatarUrl: user.avatar_url,
+            }
+          } catch {
+            this.githubToken = null
+            this.githubUser = null
+            return null
+          }
+
+          if (this.path) {
+            this.remoteUrl = await gitRemoteGetUrl(this.path)
+            if (this.remoteUrl) {
+              this.syncStatus = 'idle'
+              this.startSyncTimer()
+            } else {
+              this.syncStatus = 'disconnected'
+            }
+          }
+
+          return stored
+        } catch (e) {
+          console.warn('[github] Init failed:', e)
+          return null
+        } finally {
+          this.githubInitialized = true
+          this._githubInitPromise = null
         }
-      } catch (e) {
-        console.warn('[github] Init failed:', e)
-      }
+      })()
+
+      return this._githubInitPromise
+    },
+
+    async initGitHub(options = {}) {
+      return this.ensureGitHubInitialized(options)
     },
 
     startSyncTimer() {
@@ -1200,9 +1238,13 @@ exit 0
     },
 
     async autoSync() {
-      if (!this.path || !this.githubToken?.token) return
+      if (!this.path) return
       const remote = await gitRemoteGetUrl(this.path)
       if (!remote) return
+      this.remoteUrl = remote
+
+      await this.ensureGitHubInitialized()
+      if (!this.githubToken?.token) return
 
       // Use the full sync cycle (fetch→check→pull/merge→push)
       const { syncNow, syncState } = await import('../services/githubSync')
@@ -1211,6 +1253,7 @@ exit 0
     },
 
     async fetchRemoteChanges() {
+      await this.ensureGitHubInitialized()
       if (!this.path || !this.githubToken?.token) return
       const remote = await gitRemoteGetUrl(this.path)
       if (!remote) return
@@ -1242,6 +1285,7 @@ exit 0
     },
 
     async syncNow() {
+      await this.ensureGitHubInitialized()
       if (!this.path || !this.githubToken?.token) return
       const { syncNow, syncState } = await import('../services/githubSync')
       await syncNow(this.path, this.githubToken.token)
@@ -1261,6 +1305,7 @@ exit 0
       const { storeGitHubToken, getGitHubUser, configureGitUser, ensureGitignore } = await import('../services/githubSync')
       await storeGitHubToken(tokenData)
       this.githubToken = tokenData
+      this.githubInitialized = true
 
       // Use user data from OAuth callback if available, otherwise fetch from GitHub
       let user
@@ -1298,6 +1343,8 @@ exit 0
       this.stopSyncTimer()
       this.githubToken = null
       this.githubUser = null
+      this.githubInitialized = true
+      this._githubInitPromise = null
       this.syncStatus = 'disconnected'
       this.syncError = null
       this.syncErrorType = null

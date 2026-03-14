@@ -141,6 +141,10 @@ async function doClone() {
 
   cloning.value = true
   try {
+    if (url.includes('github.com')) {
+      await workspace.ensureGitHubInitialized()
+    }
+
     // Use authenticated clone if GitHub token is available (enables private repos)
     if (workspace.githubToken?.token && url.includes('github.com')) {
       await invoke('git_clone_authenticated', { url, targetPath, token: workspace.githubToken.token })
