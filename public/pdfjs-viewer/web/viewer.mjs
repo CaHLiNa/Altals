@@ -17406,13 +17406,39 @@ const PDFViewerApplication = {
         l10n
       });
       this.viewsManager.onToggled = this.forceRendering.bind(this);
+      let thumbnailRefreshFrame = 0;
+      let thumbnailRefreshToken = 0;
       this.viewsManager.onUpdateThumbnails = () => {
-        for (const pageView of pdfViewer.getCachedPageViews()) {
-          if (pageView.renderingState === RenderingStates.FINISHED) {
+        const documentRef = this.pdfDocument;
+        const cachedPageViews = pdfViewer.getCachedPageViews().filter(pageView => pageView.renderingState === RenderingStates.FINISHED);
+        const refreshToken = ++thumbnailRefreshToken;
+        if (thumbnailRefreshFrame) {
+          cancelAnimationFrame(thumbnailRefreshFrame);
+          thumbnailRefreshFrame = 0;
+        }
+        if (cachedPageViews.length === 0) {
+          this.pdfThumbnailViewer?.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
+          return;
+        }
+        let index = 0;
+        const flushCachedThumbnails = () => {
+          if (refreshToken !== thumbnailRefreshToken || documentRef !== this.pdfDocument) {
+            thumbnailRefreshFrame = 0;
+            return;
+          }
+          const start = performance.now();
+          while (index < cachedPageViews.length && performance.now() - start < 6) {
+            const pageView = cachedPageViews[index++];
             this.pdfThumbnailViewer.getThumbnail(pageView.id - 1)?.setImage(pageView);
           }
-        }
-        this.pdfThumbnailViewer.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
+          if (index < cachedPageViews.length) {
+            thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
+            return;
+          }
+          thumbnailRefreshFrame = 0;
+          this.pdfThumbnailViewer?.scrollThumbnailIntoView(pdfViewer.currentPageNumber);
+        };
+        thumbnailRefreshFrame = requestAnimationFrame(flushCachedThumbnails);
       };
     }
   },
