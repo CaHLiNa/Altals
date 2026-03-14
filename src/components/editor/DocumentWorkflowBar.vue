@@ -141,6 +141,8 @@ const statusClass = computed(() => ({
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
   font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   white-space: nowrap;
@@ -190,12 +192,16 @@ const statusClass = computed(() => ({
 .workflow-controls {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 6px;
   margin-left: auto;
+  min-width: 0;
 }
 
 .workflow-primary-btn,
 .workflow-secondary-btn {
+  flex: 0 0 auto;
   height: 22px;
   padding: 0 8px;
   border-radius: 6px;
@@ -203,6 +209,7 @@ const statusClass = computed(() => ({
   background: transparent;
   font-size: var(--ui-font-caption);
   color: var(--fg-muted);
+  white-space: nowrap;
 }
 
 .workflow-primary-btn {
