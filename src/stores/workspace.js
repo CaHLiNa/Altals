@@ -55,6 +55,10 @@ function isDefaultInstructionsTemplate(raw = '') {
   return normalizeFileContent(raw).trim() === DEFAULT_INSTRUCTIONS_TEMPLATE
 }
 
+function logWorkspaceBootstrapWarning(step, error) {
+  console.warn(`[workspace] ${step} failed:`, error)
+}
+
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     path: null,
@@ -133,32 +137,58 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceDataDir = resolveWorkspaceDataDir(this.globalConfigDir, this.workspaceId)
       this.claudeConfigDir = resolveClaudeConfigDir(this.globalConfigDir)
 
-      // Initialize external workspace metadata
-      await this.initWorkspaceDataDir()
+      // Keep workspace opening resilient: metadata/bootstrap failures should not
+      // block the user from opening a readable folder on desktop builds.
+      try {
+        await this.initWorkspaceDataDir()
+      } catch (error) {
+        logWorkspaceBootstrapWarning('initWorkspaceDataDir', error)
+      }
 
-      // Initialize external project metadata
-      await this.initProjectDir()
+      try {
+        await this.initProjectDir()
+      } catch (error) {
+        logWorkspaceBootstrapWarning('initProjectDir', error)
+      }
 
-      // Install Claude Code edit interception hooks globally
-      await this.installEditHooks()
+      try {
+        await this.installEditHooks()
+      } catch (error) {
+        logWorkspaceBootstrapWarning('installEditHooks', error)
+      }
 
-      // Load settings
-      await this.loadSettings()
+      try {
+        await this.loadSettings()
+      } catch (error) {
+        logWorkspaceBootstrapWarning('loadSettings', error)
+      }
 
-      // Watch both the real workspace and Altals-owned external metadata
-      await invoke('watch_directory', { paths: [path, this.workspaceDataDir].filter(Boolean) })
+      let fsWatchReady = false
+      try {
+        // Watch both the real workspace and Altals-owned external metadata
+        await invoke('watch_directory', { paths: [path, this.workspaceDataDir].filter(Boolean) })
+        fsWatchReady = true
+      } catch (error) {
+        logWorkspaceBootstrapWarning('watch_directory', error)
+      }
 
-      // Hot-reload _instructions.md on change
-      this._instructionsUnlisten = await listen('fs-change', (event) => {
-        const paths = event.payload?.paths || []
-        const instructionsPaths = [
-          this.instructionsFilePath,
-          this.internalInstructionsPath,
-        ].filter(Boolean)
-        if (paths.some(path => instructionsPaths.includes(path))) {
-          this.loadInstructions()
+      if (fsWatchReady) {
+        try {
+          // Hot-reload _instructions.md on change
+          this._instructionsUnlisten = await listen('fs-change', (event) => {
+            const paths = event.payload?.paths || []
+            const instructionsPaths = [
+              this.instructionsFilePath,
+              this.internalInstructionsPath,
+            ].filter(Boolean)
+            if (paths.some(path => instructionsPaths.includes(path))) {
+              this.loadInstructions()
+            }
+          })
+        } catch (error) {
+          logWorkspaceBootstrapWarning('listen(fs-change)', error)
         }
-      })
+      }
 
       // Load usage data
       import('./usage').then(({ useUsageStore }) => {
@@ -1383,7 +1413,9 @@ exit 0
       }
       if (this.path) {
         await this.autoCommit()
-        await invoke('unwatch_directory')
+        await invoke('unwatch_directory').catch((error) => {
+          console.warn('[workspace] unwatch_directory failed:', error)
+        })
       }
     },
   },
