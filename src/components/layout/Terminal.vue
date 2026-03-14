@@ -165,12 +165,12 @@ defineExpose({
     if (fitAddon) fitAddon.fit()
   },
   async writeToPty(data) {
-    if (ptyId === null) return
+    if (ptyId === null) return false
 
     // Small payloads (< 2KB): send directly (well under 4KB PTY buffer)
     if (data.length < 2048) {
       await invoke('pty_write', { id: ptyId, data }).catch(console.error)
-      return
+      return true
     }
 
     // Large payloads: send in ~2KB chunks with brief pauses to avoid PTY buffer overflow
@@ -187,6 +187,7 @@ defineExpose({
         await new Promise(r => setTimeout(r, 10))
       }
     }
+    return true
   },
   writeOutput(data, options = {}) {
     if (!terminal) return

@@ -5,6 +5,7 @@ import { useTypstStore } from './typst.js'
 import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
+  getPreferredWorkflowPreviewKind,
   inferWorkflowPreviewKind,
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'

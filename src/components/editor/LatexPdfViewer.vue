@@ -99,7 +99,7 @@ function handleCursorResponse(e) {
   invoke('synctex_forward', { synctexPath, texPath: texPath.value, line })
     .then(result => {
       if (result?.page) {
-        pdfViewerRef.value?.scrollToPage(result.page)
+        pdfViewerRef.value?.scrollToLocation(result.page, result.x, result.y)
       }
     })
     .catch(() => {})

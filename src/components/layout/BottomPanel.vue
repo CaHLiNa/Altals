@@ -297,6 +297,9 @@ function findTerminalByKey(key) {
   return terminals.findIndex(t => t.key === key)
 }
 
+const SHARED_LOG_TERMINAL_KEY = 'shared-build-terminal'
+const SHARED_LOG_TERMINAL_LABEL = t('Build')
+
 function addLanguageTerminal(language) {
   const config = getLanguageConfig(language)
   if (!config) return -1
@@ -361,6 +364,39 @@ function addLogTerminal(key, label) {
   return idx
 }
 
+function addSharedShellTerminal() {
+  const existing = findTerminalByKey(SHARED_LOG_TERMINAL_KEY)
+  if (existing !== -1) {
+    terminals[existing].label = SHARED_LOG_TERMINAL_LABEL
+    return existing
+  }
+
+  const num = termNextId++
+  terminals.push({
+    id: num,
+    key: SHARED_LOG_TERMINAL_KEY,
+    label: SHARED_LOG_TERMINAL_LABEL,
+  })
+  return terminals.length - 1
+}
+
+function buildTerminalLogCommand(label, text, { clear = false } = {}) {
+  const body = String(text ?? '').replace(/\r\n/g, '\n')
+  let delimiter = 'ALTALS_LOG_EOF'
+  while (body.includes(delimiter)) {
+    delimiter += '_X'
+  }
+
+  const lines = []
+  if (clear) lines.push('clear')
+  lines.push(`printf '\\n\\033[1;36m[%s]\\033[0m\\n' ${JSON.stringify(label)}`)
+  lines.push(`cat <<'${delimiter}'`)
+  lines.push(body)
+  lines.push(delimiter)
+  lines.push('')
+  return `${lines.join('\n')}\n`
+}
+
 function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
   nextTick(() => {
     const term = terminalRefs[idx]
@@ -374,17 +410,34 @@ function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
   })
 }
 
+function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 } = {}) {
+  nextTick(async () => {
+    const term = terminalRefs[idx]
+    if (!term) {
+      if (retries > 0) {
+        setTimeout(() => writeLogToShellTerminal(idx, label, text, { clear, retries: retries - 1 }), 75)
+      }
+      return
+    }
+
+    const ok = await term.writeToPty(buildTerminalLogCommand(label, text, { clear }))
+    if (!ok && retries > 0) {
+      setTimeout(() => writeLogToShellTerminal(idx, label, text, { clear, retries: retries - 1 }), 100)
+    }
+  })
+}
+
 function onTerminalLog(e) {
   const { key, label, text, clear = false, open = true } = e.detail || {}
   if (!key || !text) return
 
   ensureInitialized()
-  const idx = addLogTerminal(key, label || key)
+  const idx = addSharedShellTerminal()
   if (idx === -1) return
 
-  activeTerminal.value = idx
+  if (open) activeTerminal.value = idx
   if (open) workspace.openBottomPanel()
-  writeTextToTerminal(idx, text, { clear })
+  writeLogToShellTerminal(idx, label || key, text, { clear })
 }
 
 const LANG_EXT = { r: '.R', python: '.py', julia: '.jl' }

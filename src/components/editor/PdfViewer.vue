@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineExpose } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
 
@@ -75,6 +75,37 @@ function onIframeLoad() {
   } catch (_) { /* cross-origin iframe — blob URLs should be same-origin */ }
 }
 
+function scrollToPage(pageNumber) {
+  const targetPage = Number(pageNumber)
+  if (!Number.isInteger(targetPage) || targetPage < 1) return
+
+  const win = iframeRef.value?.contentWindow
+  const app = win?.PDFViewerApplication
+  if (!app?.pdfLinkService?.goToPage) return
+
+  app.pdfLinkService.goToPage(targetPage)
+}
+
+function scrollToLocation(pageNumber, x, y) {
+  const targetPage = Number(pageNumber)
+  if (!Number.isInteger(targetPage) || targetPage < 1) return
+
+  const xCoord = Number(x)
+  const yCoord = Number(y)
+  const win = iframeRef.value?.contentWindow
+  const app = win?.PDFViewerApplication
+  if (!app?.pdfLinkService) return
+
+  if (Number.isFinite(xCoord) && Number.isFinite(yCoord) && typeof app.pdfLinkService.goToXY === 'function') {
+    app.pdfLinkService.goToXY(targetPage, xCoord, yCoord)
+    return
+  }
+
+  if (typeof app.pdfLinkService.goToPage === 'function') {
+    app.pdfLinkService.goToPage(targetPage)
+  }
+}
+
 // Re-apply when the user switches app theme while the viewer is open
 watch(isDark, applyTheme)
 
@@ -111,4 +142,9 @@ onUnmounted(() => {
 })
 
 watch(() => props.filePath, loadPdf)
+
+defineExpose({
+  scrollToPage,
+  scrollToLocation,
+})
 </script>

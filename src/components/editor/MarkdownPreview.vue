@@ -18,6 +18,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
 import { useLinksStore } from '../../stores/links'
 import { renderPreview } from '../../utils/markdownPreview'
@@ -31,6 +32,7 @@ const props = defineProps({
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const workflowStore = useDocumentWorkflowStore()
 const referencesStore = useReferencesStore()
 const linksStore = useLinksStore()
 const containerEl = ref(null)
@@ -51,6 +53,10 @@ const renderedHtml = ref('')
 async function doRender() {
   let md = filesStore.fileContents[sourcePath.value]
   if (md === undefined) return
+  workflowStore.setMarkdownPreviewState(sourcePath.value, {
+    status: 'rendering',
+    problems: [],
+  })
 
   // For .Rmd/.qmd: use knitted markdown if available, otherwise preprocess (strip {r} headers)
   if (isRmd.value) {
@@ -62,8 +68,30 @@ async function doRender() {
     }
   }
 
-  const result = renderPreview(md, referencesStore, referencesStore.citationStyle)
-  renderedHtml.value = result instanceof Promise ? await result : result
+  try {
+    const result = renderPreview(md, referencesStore, referencesStore.citationStyle)
+    renderedHtml.value = result instanceof Promise ? await result : result
+    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+      status: 'ready',
+      problems: [],
+    })
+  } catch (error) {
+    renderedHtml.value = ''
+    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+      status: 'error',
+      problems: [{
+        id: `markdown-preview:${sourcePath.value}`,
+        sourcePath: sourcePath.value,
+        line: null,
+        column: null,
+        severity: 'error',
+        message: error?.message || String(error),
+        origin: 'preview',
+        actionable: true,
+        raw: error?.stack || String(error),
+      }],
+    })
+  }
 }
 
 /**
@@ -83,6 +111,20 @@ async function doKnit() {
     await doRender()
   } catch (e) {
     console.error('Knit failed:', e)
+    workflowStore.setMarkdownPreviewState(sourcePath.value, {
+      status: 'error',
+      problems: [{
+        id: `markdown-knit:${sourcePath.value}`,
+        sourcePath: sourcePath.value,
+        line: null,
+        column: null,
+        severity: 'error',
+        message: e?.message || String(e),
+        origin: 'preview',
+        actionable: true,
+        raw: e?.stack || String(e),
+      }],
+    })
   } finally {
     knitting.value = false
     knittingProgress.value = ''

@@ -199,17 +199,22 @@
         {{ t('Auto') }}
       </button>
 
-      <!-- Forward sync button -->
       <button
         class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
-        @click="$emit('sync-tex')"
-        :title="t('Sync to PDF position')"
+        @click="$emit('preview-pdf')"
+        :title="t('Open PDF preview')"
       >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M2 8h12M10 4l4 4-4 4"/>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 1.5h7l3 3V14a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1Z"/>
+          <path d="M10 1.5V5h3"/>
+          <path d="M4.75 8.25h1.5a1.25 1.25 0 0 1 0 2.5h-1.5z"/>
+          <path d="M8 10.75v-2.5h1.2a1.25 1.25 0 0 1 0 2.5z"/>
+          <path d="M11.1 8.25h1.65"/>
+          <path d="M11.1 9.5h1.35"/>
+          <path d="M11.1 10.75h1.65"/>
         </svg>
-        {{ t('Sync') }}
+        {{ t('PDF') }}
       </button>
     </div>
 
@@ -234,6 +239,23 @@
           <path d="M4 2l10 6-10 6V2z"/>
         </svg>
         {{ t('Compile') }}
+      </button>
+      <button
+        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
+        style="color: var(--accent);"
+        @click="$emit('preview-pdf')"
+        :title="t('Open PDF preview')"
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 1.5h7l3 3V14a1 1 0 0 1-1 1H3.75a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1Z"/>
+          <path d="M10 1.5V5h3"/>
+          <path d="M4.75 8.25h1.5a1.25 1.25 0 0 1 0 2.5h-1.5z"/>
+          <path d="M8 10.75v-2.5h1.2a1.25 1.25 0 0 1 0 2.5z"/>
+          <path d="M11.1 8.25h1.65"/>
+          <path d="M11.1 9.5h1.35"/>
+          <path d="M11.1 10.75h1.65"/>
+        </svg>
+        {{ t('PDF') }}
       </button>
     </div>
 
@@ -347,7 +369,7 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'sync-tex', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
+const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'export-pdf', 'translate-pdf', 'new-tab'])
 
 const typstStore = useTypstStore()
 const chatStore = useChatStore()
