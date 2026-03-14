@@ -189,22 +189,30 @@
       </div>
     </Teleport>
 
-    <div v-if="loading" class="flex items-center justify-center h-full text-sm"
-         style="color: var(--fg-muted);">
-      {{ t('Loading PDF...') }}
+    <div class="relative flex-1 overflow-hidden">
+      <iframe
+        v-if="viewerSrc"
+        ref="iframeRef"
+        :src="viewerSrc"
+        class="w-full h-full border-0"
+        style="display: block;"
+        @load="onIframeLoad"
+      />
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center text-sm"
+        style="color: var(--fg-muted); background: var(--bg-primary);"
+      >
+        {{ t('Loading PDF...') }}
+      </div>
+      <div
+        v-else-if="error"
+        class="absolute inset-0 flex items-center justify-center text-sm"
+        style="color: var(--fg-muted); background: var(--bg-primary);"
+      >
+        {{ t('Could not load PDF') }}
+      </div>
     </div>
-    <div v-else-if="error" class="flex items-center justify-center h-full text-sm"
-         style="color: var(--fg-muted);">
-      {{ t('Could not load PDF') }}
-    </div>
-    <iframe
-      v-else-if="viewerSrc"
-      ref="iframeRef"
-      :src="viewerSrc"
-      class="w-full flex-1 border-0"
-      style="display: block;"
-      @load="onIframeLoad"
-    />
   </div>
 </template>
 
@@ -273,9 +281,7 @@ const pdfUi = reactive({
 let syncTimer = null
 let loadRequestId = 0
 let iframeListenersAttached = false
-let resolveViewerReady = null
-let rejectViewerReady = null
-let viewerReadyPromise = null
+let currentBlobUrl = null
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
@@ -342,13 +348,6 @@ function clearSyncTimer() {
     window.clearInterval(syncTimer)
     syncTimer = null
   }
-}
-
-function resetViewerReadyPromise() {
-  viewerReadyPromise = new Promise((resolve, reject) => {
-    resolveViewerReady = resolve
-    rejectViewerReady = reject
-  })
 }
 
 function getPdfWindow() {
@@ -648,7 +647,8 @@ async function onIframeLoad() {
   const win = getPdfWindow()
   const app = getPdfApp()
   if (!win || !app) {
-    rejectViewerReady?.(new Error('PDF viewer failed to initialize'))
+    error.value = t('Could not load PDF')
+    loading.value = false
     return
   }
 
@@ -657,7 +657,8 @@ async function onIframeLoad() {
       await app.initializedPromise
     }
   } catch (error) {
-    rejectViewerReady?.(error)
+    error.value = error?.message || String(error)
+    loading.value = false
     return
   }
 
@@ -666,6 +667,7 @@ async function onIframeLoad() {
   syncPdfUi()
   clearSyncTimer()
   syncTimer = window.setInterval(syncPdfUi, 250)
+  loading.value = false
 
   if (!iframeListenersAttached) {
     try {
@@ -698,7 +700,6 @@ async function onIframeLoad() {
     } catch {}
   }
 
-  resolveViewerReady?.(app)
 }
 
 function scrollToPage(pageNumber) {
@@ -741,24 +742,26 @@ async function loadPdf() {
   iframeListenersAttached = false
 
   try {
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl)
+      currentBlobUrl = null
+    }
+
+    viewerSrc.value = null
+    await nextTick()
+    if (requestId !== loadRequestId) return
+
     const bytes = await invoke('read_file_binary', { path: props.filePath })
     if (requestId !== loadRequestId) return
     const uint8Array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-    resetViewerReadyPromise()
-    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?instance=${requestId}`
-    const app = await viewerReadyPromise
-    if (requestId !== loadRequestId) return
-    await app.open({ data: uint8Array })
-    if (requestId !== loadRequestId) {
-      await app.close().catch(() => {})
-      return
-    }
-    syncPdfUi()
+    currentBlobUrl = URL.createObjectURL(new Blob([uint8Array], { type: 'application/pdf' }))
+    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?file=${encodeURIComponent(currentBlobUrl)}&instance=${requestId}`
   } catch (e) {
     if (requestId !== loadRequestId) return
     error.value = e.toString()
+    viewerSrc.value = null
   } finally {
-    if (requestId === loadRequestId) {
+    if (requestId === loadRequestId && error.value) {
       loading.value = false
     }
   }
@@ -769,7 +772,6 @@ function handlePdfUpdated(event) {
 }
 
 onMounted(() => {
-  resetViewerReadyPromise()
   window.addEventListener('pdf-updated', handlePdfUpdated)
   loadPdf()
 })
@@ -782,9 +784,10 @@ onUnmounted(() => {
   if (app?.close) {
     app.close().catch(() => {})
   }
-  viewerReadyPromise = null
-  resolveViewerReady = null
-  rejectViewerReady = null
+  if (currentBlobUrl) {
+    URL.revokeObjectURL(currentBlobUrl)
+    currentBlobUrl = null
+  }
 })
 
 watch(() => props.filePath, loadPdf)
