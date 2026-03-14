@@ -397,6 +397,25 @@ function buildTerminalLogCommand(label, text, { clear = false } = {}) {
   return `${lines.join('\n')}\n`
 }
 
+function buildTerminalStreamCommand(text, { clear = false, headerLabel = '' } = {}) {
+  const body = String(text ?? '').replace(/\r\n/g, '\n')
+  let delimiter = 'ALTALS_STREAM_EOF'
+  while (body.includes(delimiter)) {
+    delimiter += '_X'
+  }
+
+  const lines = []
+  if (clear) lines.push('clear')
+  if (headerLabel) {
+    lines.push(`printf '\\n\\033[1;36m[%s]\\033[0m\\n' ${JSON.stringify(headerLabel)}`)
+  }
+  lines.push(`cat <<'${delimiter}'`)
+  lines.push(body)
+  lines.push(delimiter)
+  lines.push('')
+  return `${lines.join('\n')}\n`
+}
+
 function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
   nextTick(() => {
     const term = terminalRefs[idx]
@@ -427,6 +446,31 @@ function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 
   })
 }
 
+function writeStreamToShellTerminal(idx, text, { clear = false, headerLabel = '', retries = 8 } = {}) {
+  nextTick(async () => {
+    const term = terminalRefs[idx]
+    if (!term) {
+      if (retries > 0) {
+        setTimeout(() => writeStreamToShellTerminal(idx, text, {
+          clear,
+          headerLabel,
+          retries: retries - 1,
+        }), 75)
+      }
+      return
+    }
+
+    const ok = await term.writeToPty(buildTerminalStreamCommand(text, { clear, headerLabel }))
+    if (!ok && retries > 0) {
+      setTimeout(() => writeStreamToShellTerminal(idx, text, {
+        clear,
+        headerLabel,
+        retries: retries - 1,
+      }), 100)
+    }
+  })
+}
+
 function onTerminalLog(e) {
   const { key, label, text, clear = false, open = true } = e.detail || {}
   if (!key || !text) return
@@ -438,6 +482,22 @@ function onTerminalLog(e) {
   if (open) activeTerminal.value = idx
   if (open) workspace.openBottomPanel()
   writeLogToShellTerminal(idx, label || key, text, { clear })
+}
+
+function onTerminalStream(e) {
+  const { key, label, text, clear = false, open = false, header = false } = e.detail || {}
+  if (!key || !text) return
+
+  ensureInitialized()
+  const idx = addSharedShellTerminal()
+  if (idx === -1) return
+
+  if (open) activeTerminal.value = idx
+  if (open) workspace.openBottomPanel()
+  writeStreamToShellTerminal(idx, text, {
+    clear,
+    headerLabel: header ? (label || key) : '',
+  })
 }
 
 const LANG_EXT = { r: '.R', python: '.py', julia: '.jl' }
@@ -490,6 +550,7 @@ onMounted(() => {
   window.addEventListener('focus-language-terminal', onFocusLanguageTerminal)
   window.addEventListener('send-to-repl', onSendToRepl)
   window.addEventListener('terminal-log', onTerminalLog)
+  window.addEventListener('terminal-stream', onTerminalStream)
 })
 
 onUnmounted(() => {
@@ -497,6 +558,7 @@ onUnmounted(() => {
   window.removeEventListener('focus-language-terminal', onFocusLanguageTerminal)
   window.removeEventListener('send-to-repl', onSendToRepl)
   window.removeEventListener('terminal-log', onTerminalLog)
+  window.removeEventListener('terminal-stream', onTerminalStream)
 })
 
 defineExpose({

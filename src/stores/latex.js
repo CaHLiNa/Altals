@@ -5,6 +5,9 @@ import { ensureBibFile } from '../services/latexBib'
 import { t } from '../i18n'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
+const LATEX_AUTOCOMPILE_DEBOUNCE_MS = 1200
+
+let latexStreamUnlistenPromise = null
 
 const readStoredValue = (key, fallback) => {
   try {
@@ -30,7 +33,7 @@ function formatIssue(issue) {
   return `${line}${issue?.message || ''}`.trim()
 }
 
-function buildLatexTerminalOutput(texPath, result) {
+function buildLatexTerminalOutput(texPath, result, { includeRawLog = true } = {}) {
   const errors = Array.isArray(result.errors) ? result.errors : []
   const warnings = Array.isArray(result.warnings) ? result.warnings : []
   const lines = [
@@ -59,7 +62,7 @@ function buildLatexTerminalOutput(texPath, result) {
   }
 
   const rawLog = String(result.log || '').trim()
-  if (rawLog) {
+  if (includeRawLog && rawLog) {
     lines.push('')
     lines.push(`----- ${t('Full log')} -----`)
     lines.push(rawLog)
@@ -76,11 +79,46 @@ function pushLatexLogToTerminal(texPath, result) {
     detail: {
       key: 'latex-log',
       label: 'LaTeX',
-      text: buildLatexTerminalOutput(texPath, result),
-      clear: true,
+      text: buildLatexTerminalOutput(texPath, result, { includeRawLog: false }),
+      clear: false,
       open: shouldOpenTerminal,
     },
   }))
+}
+
+function pushLatexStreamToTerminal({ texPath, line, clear = false, header = false, open = false } = {}) {
+  if (typeof window === 'undefined' || !line) return
+  window.dispatchEvent(new CustomEvent('terminal-stream', {
+    detail: {
+      key: 'latex-log',
+      label: 'LaTeX',
+      sourcePath: texPath,
+      text: line.endsWith('\n') ? line : `${line}\n`,
+      clear,
+      header,
+      open,
+    },
+  }))
+}
+
+async function ensureLatexStreamListener() {
+  if (latexStreamUnlistenPromise) {
+    await latexStreamUnlistenPromise
+    return
+  }
+
+  latexStreamUnlistenPromise = listen('latex-compile-stream', (event) => {
+    const payload = event.payload || {}
+    pushLatexStreamToTerminal({
+      texPath: payload.texPath,
+      line: payload.line,
+      clear: payload.clear === true,
+      header: payload.header === true,
+      open: payload.open === true,
+    })
+  })
+
+  await latexStreamUnlistenPromise
 }
 
 export const useLatexStore = defineStore('latex', {
@@ -151,14 +189,15 @@ export const useLatexStore = defineStore('latex', {
         clearTimeout(this._timers[texPath])
       }
 
-      // 4s debounce (auto-save is 1s, so total ~5s from last keystroke)
+      // Auto-save is 1s, so this keeps the total delay much closer to VS Code.
       this._timers[texPath] = setTimeout(() => {
         delete this._timers[texPath]
         this.compile(texPath)
-      }, 4000)
+      }, LATEX_AUTOCOMPILE_DEBOUNCE_MS)
     },
 
     async compile(texPath) {
+      await ensureLatexStreamListener()
       this.cancelAutoCompile(texPath)
 
       // If already compiling, set recompile flag and return
@@ -179,6 +218,13 @@ export const useLatexStore = defineStore('latex', {
       try {
         // Generate .bib file from reference library before compiling
         try { await ensureBibFile(texPath) } catch {}
+
+        pushLatexStreamToTerminal({
+          texPath,
+          line: t('Starting LaTeX compile for {file}', { file: fileNameForLog(texPath) }),
+          header: true,
+          open: false,
+        })
 
         const result = await invoke('compile_latex', {
           texPath,
@@ -260,7 +306,7 @@ export const useLatexStore = defineStore('latex', {
             warnings: state.warnings || [],
             log: state.log || '',
             duration_ms: state.durationMs || 0,
-          }),
+          }, { includeRawLog: true }),
           clear: true,
           open: true,
         },

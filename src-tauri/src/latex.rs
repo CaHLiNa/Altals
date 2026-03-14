@@ -3,11 +3,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::app_dirs;
-use crate::process_utils::background_command;
+use crate::process_utils::{background_command, background_tokio_command};
+
+const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";
 
 pub struct LatexState {
     pub enabled: Mutex<bool>,
@@ -39,6 +43,16 @@ pub struct CompileResult {
     pub warnings: Vec<LatexError>,
     pub log: String,
     pub duration_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LatexCompileStreamPayload {
+    tex_path: String,
+    line: String,
+    clear: bool,
+    header: bool,
+    open: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -275,21 +289,21 @@ fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
     (None, msg)
 }
 
-fn build_compile_result(
+fn build_compile_result_from_logs(
     tex: &Path,
-    output: std::process::Output,
+    status_success: bool,
+    stdout: String,
+    stderr: String,
     start: std::time::Instant,
 ) -> CompileResult {
     let dir = tex.parent().unwrap_or_else(|| Path::new("."));
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let full_log = format!("{}\n{}", stdout, stderr);
     let (mut errors, warnings) = parse_latex_output(&full_log);
 
     let stem = tex.file_stem().unwrap_or_default().to_string_lossy();
     let pdf_path = dir.join(format!("{}.pdf", stem));
     let synctex_path = dir.join(format!("{}.synctex.gz", stem));
-    let success = output.status.success() && pdf_path.exists();
+    let success = status_success && pdf_path.exists();
 
     if !success && errors.is_empty() {
         let message = full_log
@@ -325,7 +339,8 @@ fn build_compile_result(
     }
 }
 
-fn compile_with_tectonic(
+async fn compile_with_tectonic(
+    app: &tauri::AppHandle,
     tectonic_path: &str,
     tex_path: &str,
     start: std::time::Instant,
@@ -335,16 +350,107 @@ fn compile_with_tectonic(
     eprintln!("[latex] Using tectonic at: {}", tectonic_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
-    let output = background_command(tectonic_path)
-        .args(["-X", "compile", "--synctex", "--keep-logs", tex_path])
-        .current_dir(dir)
-        .output()
-        .map_err(|e| format!("Failed to run tectonic: {}", e))?;
+    let mut command = background_tokio_command(tectonic_path);
+    command.args(["-X", "compile", "--synctex", "--keep-logs", tex_path]);
+    command.current_dir(dir);
 
-    Ok(build_compile_result(tex, output, start))
+    run_latex_command_with_streaming(app, command, tex_path, start).await
 }
 
-fn compile_with_system_tex(
+async fn run_latex_command_with_streaming(
+    app: &tauri::AppHandle,
+    mut command: tokio::process::Command,
+    tex_path: &str,
+    start: std::time::Instant,
+) -> Result<CompileResult, String> {
+    let tex = Path::new(tex_path);
+    let stdout_log = Arc::new(Mutex::new(String::new()));
+    let stderr_log = Arc::new(Mutex::new(String::new()));
+
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to start LaTeX compiler: {}", e))?;
+
+    let stdout_task = if let Some(stdout) = child.stdout.take() {
+        let app = app.clone();
+        let tex_path = tex_path.to_string();
+        let stdout_log = stdout_log.clone();
+        Some(tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Ok(mut buffer) = stdout_log.lock() {
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+                let _ = app.emit(
+                    LATEX_COMPILE_STREAM_EVENT,
+                    LatexCompileStreamPayload {
+                        tex_path: tex_path.clone(),
+                        line,
+                        clear: false,
+                        header: false,
+                        open: false,
+                    },
+                );
+            }
+        }))
+    } else {
+        None
+    };
+
+    let stderr_task = if let Some(stderr) = child.stderr.take() {
+        let app = app.clone();
+        let tex_path = tex_path.to_string();
+        let stderr_log = stderr_log.clone();
+        Some(tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Ok(mut buffer) = stderr_log.lock() {
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+                let _ = app.emit(
+                    LATEX_COMPILE_STREAM_EVENT,
+                    LatexCompileStreamPayload {
+                        tex_path: tex_path.clone(),
+                        line,
+                        clear: false,
+                        header: false,
+                        open: false,
+                    },
+                );
+            }
+        }))
+    } else {
+        None
+    };
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed waiting for LaTeX compiler: {}", e))?;
+
+    if let Some(task) = stdout_task {
+        let _ = task.await;
+    }
+    if let Some(task) = stderr_task {
+        let _ = task.await;
+    }
+
+    let stdout = stdout_log.lock().map(|s| s.clone()).unwrap_or_default();
+    let stderr = stderr_log.lock().map(|s| s.clone()).unwrap_or_default();
+    Ok(build_compile_result_from_logs(
+        tex,
+        status.success(),
+        stdout,
+        stderr,
+        start,
+    ))
+}
+
+async fn compile_with_system_tex(
+    app: &tauri::AppHandle,
     system_tex_path: &str,
     tex_path: &str,
     start: std::time::Instant,
@@ -354,20 +460,18 @@ fn compile_with_system_tex(
     eprintln!("[latex] Using system TeX at: {}", system_tex_path);
     eprintln!("[latex] Compiling: {} in dir: {}", tex_path, dir.display());
 
-    let output = background_command(system_tex_path)
-        .args([
+    let mut command = background_tokio_command(system_tex_path);
+    command.args([
             "-pdf",
             "-interaction=nonstopmode",
             "-synctex=1",
             "-file-line-error",
             "-halt-on-error",
             tex_path,
-        ])
-        .current_dir(dir)
-        .output()
-        .map_err(|e| format!("Failed to run system TeX compiler: {}", e))?;
+        ]);
+    command.current_dir(dir);
 
-    Ok(build_compile_result(tex, output, start))
+    run_latex_command_with_streaming(app, command, tex_path, start).await
 }
 
 #[tauri::command]
@@ -389,36 +493,34 @@ pub async fn compile_latex(
 
     let start = std::time::Instant::now();
 
-    let result = (|| -> Result<CompileResult, String> {
-        let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
-        let system_tex = find_system_tex();
-        let tectonic = find_tectonic(&app, custom_tectonic_path.as_deref());
+    let preference = compiler_preference.unwrap_or_else(|| "auto".to_string());
+    let system_tex = find_system_tex();
+    let tectonic = find_tectonic(&app, custom_tectonic_path.as_deref());
 
-        match preference.as_str() {
-            "system" | "system-tex" => {
-                let system_tex = system_tex.ok_or_else(|| {
-                    "System TeX compiler not found. Install MacTeX or TeX Live and try again."
-                        .to_string()
-                })?;
-                compile_with_system_tex(&system_tex, &tex_path, start)
-            }
-            "tectonic" => {
-                let tectonic = tectonic.ok_or_else(|| {
-                    "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
-                })?;
-                compile_with_tectonic(&tectonic, &tex_path, start)
-            }
-            _ => {
-                if let Some(system_tex) = system_tex {
-                    compile_with_system_tex(&system_tex, &tex_path, start)
-                } else if let Some(tectonic) = tectonic {
-                    compile_with_tectonic(&tectonic, &tex_path, start)
-                } else {
-                    Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
-                }
+    let result = match preference.as_str() {
+        "system" | "system-tex" => {
+            let system_tex = system_tex.ok_or_else(|| {
+                "System TeX compiler not found. Install MacTeX or TeX Live and try again."
+                    .to_string()
+            })?;
+            compile_with_system_tex(&app, &system_tex, &tex_path, start).await
+        }
+        "tectonic" => {
+            let tectonic = tectonic.ok_or_else(|| {
+                "Tectonic not found. Install it or choose System TeX in Settings.".to_string()
+            })?;
+            compile_with_tectonic(&app, &tectonic, &tex_path, start).await
+        }
+        _ => {
+            if let Some(system_tex) = system_tex {
+                compile_with_system_tex(&app, &system_tex, &tex_path, start).await
+            } else if let Some(tectonic) = tectonic {
+                compile_with_tectonic(&app, &tectonic, &tex_path, start).await
+            } else {
+                Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
             }
         }
-    })();
+    };
 
     // Clear compiling flag
     {

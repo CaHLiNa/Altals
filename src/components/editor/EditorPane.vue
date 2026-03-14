@@ -37,16 +37,6 @@
     <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
          :class="{ 'flex flex-col': viewerType === 'text' }"
          style="background: var(--bg-primary);">
-      <div v-if="activeTab && viewerType === 'text' && workflowUi && workflowProblems.length > 0" class="shrink-0 w-full">
-        <DocumentProblemsPanel
-          :problems="workflowProblems"
-          :expanded="workflowProblemsExpanded"
-          :can-view-log="workflowCanViewLog"
-          @toggle="workflowStore.toggleProblemPanel(activeTab)"
-          @focus-problem="workflowStore.focusProblem"
-          @view-log="workflowStore.openLogForFile(activeTab)"
-        />
-      </div>
       <div v-if="activeTab && viewerType === 'text'" class="flex-1 min-w-0 h-full">
         <TextEditor
           :key="activeTab"
@@ -169,7 +159,6 @@ import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
 import TextEditor from './TextEditor.vue'
 import PdfViewer from './PdfViewer.vue'
-import DocumentProblemsPanel from './DocumentProblemsPanel.vue'
 import CsvEditor from './CsvEditor.vue'
 import ImageViewer from './ImageViewer.vue'
 const DocxEditor = defineAsyncComponent(() => import('./DocxEditor.vue'))
@@ -284,11 +273,6 @@ const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
 
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
-const workflowUi = computed(() => props.activeTab ? workflowStore.getUiStateForFile(props.activeTab) : null)
-const workflowProblems = computed(() => props.activeTab ? workflowStore.getProblemsForFile(props.activeTab) : [])
-const workflowProblemsExpanded = computed(() => props.activeTab ? workflowStore.isProblemPanelExpanded(props.activeTab) : false)
-const workflowCanViewLog = computed(() => workflowUi.value?.kind === 'latex' || workflowUi.value?.kind === 'typst')
-
 // Check if this PDF has a corresponding .tex source (for LaTeX PDF viewer)
 const hasTexSource = computed(() => {
   if (viewerType.value !== 'pdf' || !props.activeTab) return false
