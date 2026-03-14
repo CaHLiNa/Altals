@@ -1,204 +1,313 @@
 <template>
-  <div>
-    <h3 class="settings-section-title">{{ t('PDF Translation') }}</h3>
-    <p class="settings-hint">{{ t('Run PDF translation directly from the PDF toolbar using global defaults and your existing model credentials.') }}</p>
-
-    <div class="pdft-card">
-      <div class="pdft-grid">
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Provider') }}</span>
-          <div class="pdft-select-shell">
-            <select v-model="selectedProviderId" class="pdft-select" :disabled="compatibleModelGroups.length === 0">
-              <option v-if="compatibleModelGroups.length === 0" value="">{{ t('No compatible models available') }}</option>
-              <option v-for="group in compatibleModelGroups" :key="group.provider" :value="group.provider">
-                {{ group.label }}
-              </option>
-            </select>
-            <span class="pdft-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
-          </div>
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Model') }}</span>
-          <div class="pdft-select-shell">
-            <select v-model="draft.modelId" class="pdft-select" :disabled="selectedProviderModels.length === 0">
-              <option v-if="selectedProviderModels.length === 0" value="">{{ t('No compatible models available') }}</option>
-              <option v-for="model in selectedProviderModels" :key="model.id" :value="model.id">
-                {{ model.name }}
-              </option>
-            </select>
-            <span class="pdft-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
-          </div>
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Source language') }}</span>
-          <div class="pdft-select-shell">
-            <select v-model="draft.langIn" class="pdft-select">
-              <option v-for="option in sourceLanguages" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-            <span class="pdft-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
-          </div>
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Target language') }}</span>
-          <div class="pdft-select-shell">
-            <select v-model="draft.langOut" class="pdft-select">
-              <option v-for="option in targetLanguages" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-            <span class="pdft-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
-          </div>
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Output mode') }}</span>
-          <div class="pdft-select-shell">
-            <select v-model="draft.mode" class="pdft-select">
-              <option value="mono">{{ t('Translated only') }}</option>
-              <option value="dual">{{ t('Bilingual PDF') }}</option>
-              <option value="both">{{ t('Create both') }}</option>
-            </select>
-            <span class="pdft-caret" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 3l4 4 4-4z" />
-              </svg>
-            </span>
-          </div>
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('QPS') }}</span>
-          <input v-model.number="draft.qps" type="number" min="1" max="32" class="pdft-input" />
-        </label>
-
-        <label class="pdft-field">
-          <span class="pdft-label">{{ t('Worker pool') }}</span>
-          <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
-          <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
-        </label>
-      </div>
-
-      <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
-        <svg :class="{ rotated: showAdvanced }" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-          <path d="M3 1l4 4-4 4z"/>
-        </svg>
-        {{ t('Advanced') }}
-      </div>
-
-      <div v-if="showAdvanced" class="pdft-advanced">
-        <label class="pdft-toggle">
-          <input v-model="draft.autoMapPoolMaxWorkers" type="checkbox" />
-          <span>{{ t('Auto-map worker pool from QPS') }}</span>
-        </label>
-        <p class="pdft-inline-hint">
-          {{ t('When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.') }}
-        </p>
-        <label class="pdft-toggle">
-          <input v-model="draft.translateTableText" type="checkbox" />
-          <span>{{ t('Translate table text') }}</span>
-        </label>
-        <label class="pdft-toggle">
-          <input :checked="draft.ocrWorkaround" type="checkbox" @change="toggleOcr($event.target.checked)" />
-          <span>{{ t('Enable OCR workaround') }}</span>
-        </label>
-        <label class="pdft-toggle">
-          <input :checked="draft.autoEnableOcrWorkaround" type="checkbox" @change="toggleAutoOcr($event.target.checked)" />
-          <span>{{ t('Auto-enable OCR workaround') }}</span>
-        </label>
-        <label class="pdft-toggle">
-          <input v-model="draft.noWatermarkMode" type="checkbox" />
-          <span>{{ t('Prefer no-watermark outputs when available') }}</span>
-        </label>
-      </div>
-
-      <div class="keys-actions">
-        <button class="key-save-btn" :class="{ saved }" @click="saveSettings">
-          {{ saved ? t('Saved') : t('Save Settings') }}
-        </button>
-      </div>
-
-      <p v-if="compatibleModels.length === 0" class="pdft-warning">
-        {{ t('PDF translation currently supports Google and OpenAI-compatible models. Configure one in Settings > Models first.') }}
-      </p>
+  <div class="pdft-shell">
+    <div>
+      <h3 class="settings-section-title">{{ t('PDF Translation') }}</h3>
     </div>
 
-    <h3 class="settings-section-title pdft-runtime-title">{{ t('Runtime') }}</h3>
-    <p class="settings-hint">{{ t('The translator reuses the Python interpreter selected in System settings, but keeps its dependencies in a separate global venv.') }}</p>
-
-    <div class="pdft-card">
-      <div class="pdft-runtime-row">
-        <div>
-          <div class="pdft-runtime-label">{{ t('Status') }}</div>
-          <div class="pdft-runtime-value" :class="runtimeClass">{{ pdfTranslateStore.runtimeLabel }}</div>
+    <div class="pdft-stack">
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="compatibleModels.length > 0 ? 'good' : 'none'"></span>
+          <span class="env-lang-name">{{ t('Model') }}</span>
+          <span class="env-lang-version">{{ modelSummary }}</span>
         </div>
-        <button class="key-save-btn" :disabled="pdfTranslateStore.runtimeRefreshing" @click="refreshRuntimeStatus(true)">
-          {{ pdfTranslateStore.runtimeRefreshing ? t('Checking...') : t('Refresh') }}
-        </button>
+
+        <div class="pdft-form-grid pdft-section-pad">
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Provider') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="selectedProviderId" class="pdft-select" :disabled="compatibleModelGroups.length === 0">
+                <option v-if="compatibleModelGroups.length === 0" value="">{{ t('No compatible models available') }}</option>
+                <option v-for="group in compatibleModelGroups" :key="group.provider" :value="group.provider">
+                  {{ group.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
+
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Model') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.modelId" class="pdft-select" :disabled="selectedProviderModels.length === 0">
+                <option v-if="selectedProviderModels.length === 0" value="">{{ t('No compatible models available') }}</option>
+                <option v-for="model in selectedProviderModels" :key="model.id" :value="model.id">
+                  {{ model.name }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
+        </div>
+
+        <p v-if="compatibleModels.length === 0" class="pdft-inline-warning pdft-section-pad">
+          {{ t('PDF translation currently supports Google and OpenAI-compatible models. Configure one in Settings > Models first.') }}
+        </p>
       </div>
 
-      <div class="pdft-runtime-block">
-        <div class="pdft-runtime-label">{{ t('Python interpreter') }}</div>
-        <div class="pdft-runtime-path">{{ selectedPythonPath }}</div>
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot good"></span>
+          <span class="env-lang-name">{{ t('Languages') }}</span>
+          <span class="env-lang-version">{{ languageSummary }}</span>
+        </div>
+
+        <div class="pdft-form-grid pdft-section-pad">
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Source language') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.langIn" class="pdft-select">
+                <option v-for="option in sourceLanguages" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
+
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Target language') }}</span>
+            <div class="pdft-select-shell">
+              <select v-model="draft.langOut" class="pdft-select">
+                <option v-for="option in targetLanguages" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span class="pdft-caret" aria-hidden="true">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <path d="M1 3l4 4 4-4z" />
+                </svg>
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
 
-      <div class="pdft-runtime-actions">
-        <button
-          class="key-save-btn"
-          :disabled="runtimeBusy"
-          @click="prepareRuntime"
-        >
-          {{ pdfTranslateStore.setupInProgress ? t('Preparing...') : t('Prepare Runtime') }}
-        </button>
-        <button
-          class="key-save-btn"
-          :disabled="runtimeBusy || pdfTranslateStore.runtimeStatus?.status !== 'Ready'"
-          @click="warmupRuntime"
-        >
-          {{ pdfTranslateStore.warmupInProgress ? t('Warming up...') : t('Warm Up Runtime') }}
-        </button>
-        <span v-if="runtimeBusy" class="pdft-progress-text">
+      <div class="env-lang-card">
+        <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row">
+            <span class="env-lang-dot good"></span>
+            <span class="env-lang-name">{{ t('Output mode') }}</span>
+            <span class="pdft-summary-badge">{{ outputModeLabel }}</span>
+          </div>
+        </div>
+
+        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Output mode')">
+          <button
+            v-for="option in outputModes"
+            :key="option.value"
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: draft.mode === option.value }"
+            @click="draft.mode = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="draft.autoMapPoolMaxWorkers ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Throughput') }}</span>
+          <span class="env-lang-version">{{ throughputSummary }}</span>
+        </div>
+
+        <div class="pdft-form-grid pdft-section-pad">
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('QPS') }}</span>
+            <input v-model.number="draft.qps" type="number" min="1" max="32" class="pdft-input" />
+          </label>
+
+          <label class="pdft-field">
+            <span class="pdft-label">{{ t('Worker pool') }}</span>
+            <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
+            <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
+          </label>
+        </div>
+
+        <div class="pdft-inline-setting pdft-section-pad">
+          <div>
+            <div class="pdft-inline-label">{{ t('Auto-map worker pool from QPS') }}</div>
+            <div class="pdft-inline-copy">
+              {{ t('When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.') }}
+            </div>
+          </div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: draft.autoMapPoolMaxWorkers }"
+            @click="draft.autoMapPoolMaxWorkers = !draft.autoMapPoolMaxWorkers"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="draft.translateTableText ? 'good' : 'none'"></span>
+          <span class="env-lang-name">{{ t('Translate table text') }}</span>
+          <span class="env-lang-version">{{ draft.translateTableText ? t('Enabled') : t('Disabled') }}</span>
+          <div class="pdft-card-spacer"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: draft.translateTableText }"
+            @click="draft.translateTableText = !draft.translateTableText"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row">
+            <span class="env-lang-dot" :class="ocrMode === 'off' ? 'none' : 'warn'"></span>
+            <span class="env-lang-name">{{ t('OCR fallback') }}</span>
+            <span class="pdft-summary-badge">{{ ocrModeLabel }}</span>
+          </div>
+        </div>
+
+        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('OCR fallback')">
+          <button
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: ocrMode === 'off' }"
+            @click="setOcrMode('off')"
+          >
+            {{ t('Off') }}
+          </button>
+          <button
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: ocrMode === 'manual' }"
+            @click="setOcrMode('manual')"
+          >
+            {{ t('Manual') }}
+          </button>
+          <button
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: ocrMode === 'auto' }"
+            @click="setOcrMode('auto')"
+          >
+            {{ t('Automatic') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="draft.noWatermarkMode ? 'good' : 'none'"></span>
+          <span class="env-lang-name">{{ t('Prefer no-watermark outputs when available') }}</span>
+          <span class="env-lang-version">{{ draft.noWatermarkMode ? t('Enabled') : t('Disabled') }}</span>
+          <div class="pdft-card-spacer"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: draft.noWatermarkMode }"
+            @click="draft.noWatermarkMode = !draft.noWatermarkMode"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="draft.saveAutoExtractedGlossary ? 'warn' : 'none'"></span>
+          <span class="env-lang-name">{{ t('Save automatically extracted glossary (CSV)') }}</span>
+          <span class="env-lang-version">{{ draft.saveAutoExtractedGlossary ? t('Enabled') : t('Disabled') }}</span>
+          <div class="pdft-card-spacer"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: draft.saveAutoExtractedGlossary }"
+            @click="draft.saveAutoExtractedGlossary = !draft.saveAutoExtractedGlossary"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row pdft-card-header-main">
+            <span class="env-lang-dot" :class="runtimeDotClass"></span>
+            <span class="env-lang-name">{{ t('Runtime') }}</span>
+            <span class="pdft-summary-badge" :class="[`tone-${runtimeDotClass}`]">{{ pdfTranslateStore.runtimeLabel }}</span>
+          </div>
+          <button
+            class="pdft-toolbar-btn"
+            :disabled="pdfTranslateStore.runtimeRefreshing"
+            @click="refreshRuntimeStatus(true)"
+          >
+            {{ pdfTranslateStore.runtimeRefreshing ? t('Checking...') : t('Refresh') }}
+          </button>
+        </div>
+
+        <div class="pdft-runtime-block pdft-section-pad">
+          <div class="pdft-inline-label">{{ t('Python interpreter') }}</div>
+          <div class="pdft-runtime-path">{{ selectedPythonPath }}</div>
+        </div>
+
+        <div class="pdft-runtime-actions pdft-section-pad">
+          <button
+            class="key-save-btn pdft-action-btn pdft-action-btn--primary"
+            :disabled="runtimeBusy"
+            @click="prepareRuntime"
+          >
+            {{ pdfTranslateStore.setupInProgress ? t('Preparing...') : t('Prepare Runtime') }}
+          </button>
+          <button
+            class="pdft-action-btn pdft-action-btn--secondary"
+            :disabled="runtimeBusy || !runtimeReady"
+            @click="warmupRuntime"
+          >
+            {{ pdfTranslateStore.warmupInProgress ? t('Warming up...') : t('Warm Up Runtime') }}
+          </button>
+        </div>
+
+        <div v-if="runtimeBusy" class="pdft-progress-meta pdft-section-pad">
           {{ runtimeProgressLabel }}
-          <span v-if="pdfTranslateStore.setupProgress > 0"> · {{ pdfTranslateStore.setupProgress }}%</span>
-        </span>
-      </div>
+          <span v-if="pdfTranslateStore.setupProgress > 0">· {{ pdfTranslateStore.setupProgress }}%</span>
+        </div>
 
-      <p class="pdft-inline-hint">
-        {{ t('Warmup downloads translator assets so the first translation starts faster.') }}
-      </p>
+        <div v-if="runtimeBusy" class="pdft-progress-track">
+          <div class="pdft-progress-fill" :style="{ width: `${pdfTranslateStore.setupProgress}%` }"></div>
+        </div>
 
-      <div v-if="runtimeBusy" class="pdft-progress-track">
-        <div class="pdft-progress-fill" :style="{ width: `${pdfTranslateStore.setupProgress}%` }"></div>
-      </div>
+        <div v-if="runtimeError" class="pdft-runtime-error pdft-section-pad">
+          {{ runtimeError }}
+        </div>
 
-      <div v-if="runtimeError" class="pdft-warning">
-        {{ runtimeError }}
+        <div v-if="pdfTranslateStore.setupLogs.length > 0" class="pdft-log-shell pdft-section-pad">
+          <div class="pdft-inline-label">{{ t('Runtime log') }}</div>
+          <pre class="pdft-log">{{ pdfTranslateStore.setupLogs.join('\n') }}</pre>
+        </div>
       </div>
+    </div>
 
-      <div v-if="pdfTranslateStore.setupLogs.length > 0" class="pdft-log-shell">
-        <div class="pdft-log-title">{{ t('Runtime log') }}</div>
-        <pre class="pdft-log">{{ pdfTranslateStore.setupLogs.join('\n') }}</pre>
-      </div>
+    <div class="keys-actions pdft-save-row">
+      <span v-if="saved" class="pdft-save-hint">{{ t('Saved') }}</span>
+      <button
+        class="key-save-btn pdft-action-btn pdft-action-btn--save"
+        :class="{ saved }"
+        :disabled="pdfTranslateStore.saving || !isDirty"
+        @click="saveSettings"
+      >
+        {{ pdfTranslateStore.saving ? t('Saving...') : saved ? t('Saved') : t('Save Settings') }}
+      </button>
     </div>
   </div>
 </template>
@@ -213,7 +322,6 @@ import { findModelById, getFirstModelForProvider, groupModelsByProvider } from '
 const { t } = useI18n()
 const pdfTranslateStore = usePdfTranslateStore()
 const envStore = useEnvironmentStore()
-const showAdvanced = ref(false)
 const saved = ref(false)
 const selectedProviderId = ref('')
 
@@ -229,6 +337,7 @@ const draft = reactive({
   autoEnableOcrWorkaround: false,
   noWatermarkMode: false,
   translateTableText: true,
+  saveAutoExtractedGlossary: false,
 })
 
 const sourceLanguages = computed(() => ([
@@ -246,6 +355,12 @@ const sourceLanguages = computed(() => ([
   { value: 'pt', label: t('Portuguese (pt)') },
 ]))
 
+const outputModes = computed(() => ([
+  { value: 'mono', label: t('Translated only') },
+  { value: 'dual', label: t('Bilingual PDF') },
+  { value: 'both', label: t('Create both') },
+]))
+
 const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
 const compatibleModels = computed(() => pdfTranslateStore.compatibleModels)
 const compatibleModelGroups = computed(() => groupModelsByProvider(compatibleModels.value))
@@ -255,12 +370,16 @@ const selectedProviderGroup = computed(() => (
   || null
 ))
 const selectedProviderModels = computed(() => selectedProviderGroup.value?.models || [])
+const selectedProviderLabel = computed(() => selectedProviderGroup.value?.label || t('Not configured'))
+const selectedModelLabel = computed(() => (
+  selectedProviderModels.value.find(model => model.id === draft.modelId)?.name || t('Not configured')
+))
 
 const selectedPythonPath = computed(() => (
   envStore.selectedInterpreterPath('python') || t('No Python selected in System settings')
 ))
 
-const runtimeClass = computed(() => {
+const runtimeDotClass = computed(() => {
   const status = pdfTranslateStore.runtimeStatus?.status
   if (status === 'Ready') return 'good'
   if (status === 'Error' || status === 'PythonMissing') return 'bad'
@@ -271,10 +390,55 @@ const runtimeError = computed(() => (
   pdfTranslateStore.runtimeStatus?.status === 'Error' ? pdfTranslateStore.runtimeStatus.data : ''
 ))
 const runtimeBusy = computed(() => pdfTranslateStore.setupInProgress || pdfTranslateStore.warmupInProgress)
+const runtimeReady = computed(() => pdfTranslateStore.runtimeStatus?.status === 'Ready')
 const runtimeProgressLabel = computed(() => (
   pdfTranslateStore.setupMessage
   || (pdfTranslateStore.warmupInProgress ? t('Warming up translation runtime') : t('Preparing translation runtime'))
 ))
+
+function optionLabel(options, value, fallback = '') {
+  return options.find(option => option.value === value)?.label || fallback
+}
+
+const modelSummary = computed(() => (
+  compatibleModels.value.length === 0
+    ? t('Not configured')
+    : `${selectedProviderLabel.value} · ${selectedModelLabel.value}`
+))
+
+const languageSummary = computed(() => (
+  `${optionLabel(sourceLanguages.value, draft.langIn, draft.langIn)} -> ${optionLabel(targetLanguages.value, draft.langOut, draft.langOut)}`
+))
+
+const outputModeLabel = computed(() => optionLabel(outputModes.value, draft.mode, draft.mode))
+const throughputSummary = computed(() => `${draft.qps} QPS`)
+const ocrMode = computed(() => (
+  draft.autoEnableOcrWorkaround ? 'auto' : draft.ocrWorkaround ? 'manual' : 'off'
+))
+const ocrModeLabel = computed(() => {
+  if (ocrMode.value === 'auto') return t('Automatic')
+  if (ocrMode.value === 'manual') return t('Manual')
+  return t('Off')
+})
+
+function draftSnapshot() {
+  return {
+    modelId: draft.modelId,
+    langIn: draft.langIn,
+    langOut: draft.langOut,
+    mode: draft.mode,
+    qps: draft.qps,
+    poolMaxWorkers: draft.poolMaxWorkers,
+    autoMapPoolMaxWorkers: draft.autoMapPoolMaxWorkers,
+    ocrWorkaround: draft.ocrWorkaround,
+    autoEnableOcrWorkaround: draft.autoEnableOcrWorkaround,
+    noWatermarkMode: draft.noWatermarkMode,
+    translateTableText: draft.translateTableText,
+    saveAutoExtractedGlossary: draft.saveAutoExtractedGlossary,
+  }
+}
+
+const isDirty = computed(() => JSON.stringify(draftSnapshot()) !== JSON.stringify(pdfTranslateStore.settings))
 
 function syncDraft() {
   Object.assign(draft, pdfTranslateStore.settings)
@@ -304,6 +468,11 @@ function ensureProviderSelection(preferCurrent = false) {
   }
 }
 
+function setOcrMode(mode) {
+  draft.ocrWorkaround = mode === 'manual'
+  draft.autoEnableOcrWorkaround = mode === 'auto'
+}
+
 function markSaved() {
   saved.value = true
   setTimeout(() => {
@@ -311,18 +480,8 @@ function markSaved() {
   }, 2000)
 }
 
-function toggleOcr(checked) {
-  draft.ocrWorkaround = checked
-  if (checked) draft.autoEnableOcrWorkaround = false
-}
-
-function toggleAutoOcr(checked) {
-  draft.autoEnableOcrWorkaround = checked
-  if (checked) draft.ocrWorkaround = false
-}
-
 async function saveSettings() {
-  await pdfTranslateStore.saveSettings({ ...draft })
+  await pdfTranslateStore.saveSettings({ ...draftSnapshot() })
   syncDraft()
   markSaved()
 }
@@ -337,6 +496,7 @@ async function prepareRuntime() {
 }
 
 async function warmupRuntime() {
+  await saveSettings()
   await pdfTranslateStore.warmupRuntime()
 }
 
@@ -390,34 +550,69 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.pdft-card {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-primary);
-  padding: 14px;
+.pdft-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.pdft-grid {
+.pdft-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdft-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pdft-card-header-row {
+  flex-wrap: wrap;
+}
+
+.pdft-card-header-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pdft-card-spacer {
+  flex: 1;
+}
+
+.pdft-section-pad {
+  padding-left: 16px;
+}
+
+.pdft-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .pdft-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+
+.pdft-label,
+.pdft-inline-label {
+  font-size: 11px;
+  color: var(--fg-secondary);
 }
 
 .pdft-field-hint,
-.pdft-inline-hint {
-  font-size: 11px;
+.pdft-inline-copy,
+.pdft-progress-meta,
+.pdft-save-hint {
+  font-size: 10px;
+  line-height: 1.45;
   color: var(--fg-muted);
-}
-
-.pdft-label {
-  font-size: 11px;
-  color: var(--fg-secondary);
 }
 
 .pdft-select-shell {
@@ -434,12 +629,19 @@ onMounted(async () => {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--fg-primary);
-  font-size: 12px;
-  padding: 8px 32px 8px 10px;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 8px 34px 8px 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .pdft-input {
   padding-right: 10px;
+}
+
+.pdft-select:hover,
+.pdft-input:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .pdft-select:focus,
@@ -451,90 +653,199 @@ onMounted(async () => {
 .pdft-caret {
   position: absolute;
   top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--fg-muted);
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
-.pdft-advanced {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.pdft-toggle {
-  display: flex;
+.pdft-summary-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, white 12%);
   color: var(--fg-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.pdft-runtime-title {
-  margin-top: 24px;
+.pdft-summary-badge.tone-good {
+  color: var(--success, #4ade80);
+  background: rgba(158, 206, 106, 0.12);
+  border-color: rgba(158, 206, 106, 0.18);
 }
 
-.pdft-runtime-row {
+.pdft-summary-badge.tone-warn {
+  color: var(--warning, #e0af68);
+  background: rgba(224, 175, 104, 0.12);
+  border-color: rgba(224, 175, 104, 0.18);
+}
+
+.pdft-summary-badge.tone-bad {
+  color: var(--error);
+  background: rgba(247, 118, 142, 0.12);
+  border-color: rgba(247, 118, 142, 0.18);
+}
+
+.pdft-choice-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pdft-choice-btn {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    var(--bg-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--fg-secondary);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+
+.pdft-choice-btn:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.pdft-choice-btn.active {
+  background: linear-gradient(180deg, rgba(122, 162, 247, 0.95), rgba(122, 162, 247, 0.82));
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(122, 162, 247, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.pdft-inline-setting,
+.pdft-runtime-block {
+  margin-top: 10px;
+}
+
+.pdft-inline-setting {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.pdft-runtime-block {
-  margin-top: 12px;
-}
-
-.pdft-runtime-label {
-  font-size: 11px;
-  color: var(--fg-secondary);
-  margin-bottom: 4px;
-}
-
-.pdft-runtime-value {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pdft-runtime-value.good {
-  color: var(--success, #4ade80);
-}
-
-.pdft-runtime-value.warn {
+.pdft-inline-warning {
+  margin: 10px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
   color: var(--warning, #e0af68);
 }
 
-.pdft-runtime-value.bad {
-  color: var(--error);
-}
-
 .pdft-runtime-path {
+  margin-top: 6px;
   font-family: var(--font-mono);
   font-size: 10px;
+  line-height: 1.5;
   color: var(--fg-muted);
   word-break: break-all;
 }
 
 .pdft-runtime-actions {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 360px;
 }
 
-.pdft-progress-text {
+.pdft-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 10px;
   font-size: 11px;
-  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.pdft-action-btn--primary {
+  min-height: 32px;
+  font-weight: 600;
+}
+
+.pdft-action-btn--secondary {
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+    var(--bg-primary);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.pdft-action-btn--secondary:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--fg-primary);
+  background: var(--bg-hover);
+}
+
+.pdft-action-btn--secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pdft-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-primary);
+  color: var(--fg-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.pdft-toolbar-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--fg-primary);
+  background: var(--bg-hover);
+}
+
+.pdft-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.pdft-action-btn--save {
+  width: auto;
 }
 
 .pdft-progress-track {
-  margin-top: 12px;
-  height: 5px;
+  margin: 10px 16px 0;
+  height: 4px;
   border-radius: 999px;
   background: var(--bg-tertiary);
   overflow: hidden;
@@ -546,42 +857,61 @@ onMounted(async () => {
   transition: width 0.2s ease;
 }
 
-.pdft-warning {
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--warning, #e0af68);
+.pdft-runtime-error {
+  margin-top: 10px;
+  color: var(--error);
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .pdft-log-shell {
-  margin-top: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-
-.pdft-log-title {
-  font-size: 11px;
-  color: var(--fg-secondary);
-  margin-bottom: 6px;
 }
 
 .pdft-log {
-  margin: 0;
+  margin: 8px 0 0;
   max-height: 180px;
   overflow: auto;
   border-radius: 8px;
   background: var(--bg-secondary);
   padding: 10px;
+  font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.5;
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
-@media (max-width: 720px) {
-  .pdft-grid {
-    grid-template-columns: minmax(0, 1fr);
+.pdft-save-row {
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.env-lang-dot.bad {
+  background: var(--error);
+}
+
+@media (max-width: 640px) {
+  .pdft-form-grid,
+  .pdft-runtime-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .pdft-inline-setting,
+  .pdft-save-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pdft-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .pdft-choice-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

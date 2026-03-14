@@ -369,24 +369,58 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
     )
 
 
-def serialize_translate_result(result: Any) -> dict[str, Any]:
+def sanitize_auto_extracted_glossary_path(
+    glossary_path: str | None,
+    *,
+    keep_glossary: bool,
+) -> str | None:
+    normalized = clean(glossary_path)
+    if not normalized:
+        return None
+
+    if keep_glossary:
+        return normalized
+
+    with contextlib.suppress(OSError):
+        Path(normalized).unlink(missing_ok=True)
+    return None
+
+
+def serialize_translate_result(
+    result: Any,
+    *,
+    keep_glossary: bool,
+) -> dict[str, Any]:
+    glossary_path = sanitize_auto_extracted_glossary_path(
+        str(getattr(result, "auto_extracted_glossary_path", ""))
+        if getattr(result, "auto_extracted_glossary_path", None)
+        else None,
+        keep_glossary=keep_glossary,
+    )
     return {
         "original_pdf_path": str(getattr(result, "original_pdf_path", "")) if getattr(result, "original_pdf_path", None) else None,
         "mono_pdf_path": str(getattr(result, "mono_pdf_path", "")) if getattr(result, "mono_pdf_path", None) else None,
         "dual_pdf_path": str(getattr(result, "dual_pdf_path", "")) if getattr(result, "dual_pdf_path", None) else None,
         "no_watermark_mono_pdf_path": str(getattr(result, "no_watermark_mono_pdf_path", "")) if getattr(result, "no_watermark_mono_pdf_path", None) else None,
         "no_watermark_dual_pdf_path": str(getattr(result, "no_watermark_dual_pdf_path", "")) if getattr(result, "no_watermark_dual_pdf_path", None) else None,
-        "auto_extracted_glossary_path": str(getattr(result, "auto_extracted_glossary_path", "")) if getattr(result, "auto_extracted_glossary_path", None) else None,
+        "auto_extracted_glossary_path": glossary_path,
         "total_seconds": getattr(result, "total_seconds", None),
         "peak_memory_usage": getattr(result, "peak_memory_usage", None),
     }
 
 
-def serialize_event(event: dict[str, Any]) -> dict[str, Any]:
+def serialize_event(
+    event: dict[str, Any],
+    *,
+    keep_glossary: bool,
+) -> dict[str, Any]:
     event_type = event.get("type")
     if event_type == "finish" and "translate_result" in event:
         event = dict(event)
-        event["translate_result"] = serialize_translate_result(event["translate_result"])
+        event["translate_result"] = serialize_translate_result(
+            event["translate_result"],
+            keep_glossary=keep_glossary,
+        )
     return event
 
 
@@ -510,6 +544,7 @@ async def process_event_stream(
     output_dir: Path,
     lang_out: str,
     mode: str,
+    keep_glossary: bool,
     emit_func: Any = emit,
     heartbeat_interval_seconds: float = HEARTBEAT_INTERVAL_SECONDS,
     startup_idle_timeout_seconds: float = STARTUP_IDLE_TIMEOUT_SECONDS,
@@ -547,7 +582,7 @@ async def process_event_stream(
 
             has_received_event = True
             last_event_time = loop.time()
-            serialized = serialize_event(event)
+            serialized = serialize_event(event, keep_glossary=keep_glossary)
             if serialized.get("type") == "finish":
                 has_finish_event = True
             emit_func(serialized)
@@ -643,6 +678,7 @@ async def run() -> int:
 
     final_no_dual = args.mode == "mono"
     final_no_mono = args.mode == "dual"
+    keep_glossary = args.save_auto_extracted_glossary is True
 
     pdf_kwargs: dict[str, Any] = {
         "no_dual": final_no_dual,
@@ -676,6 +712,7 @@ async def run() -> int:
         output_dir=output_dir,
         lang_out=args.lang_out,
         mode=args.mode,
+        keep_glossary=keep_glossary,
     )
 
 

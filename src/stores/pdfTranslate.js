@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = () => ({
   autoEnableOcrWorkaround: false,
   noWatermarkMode: false,
   translateTableText: true,
+  saveAutoExtractedGlossary: false,
 })
 
 function clampQps(value) {
@@ -162,6 +163,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       next.autoEnableOcrWorkaround = next.autoEnableOcrWorkaround === true
       next.noWatermarkMode = next.noWatermarkMode === true
       next.translateTableText = next.translateTableText !== false
+      next.saveAutoExtractedGlossary = next.saveAutoExtractedGlossary === true
 
       if (next.ocrWorkaround) next.autoEnableOcrWorkaround = false
       if (next.autoEnableOcrWorkaround) next.ocrWorkaround = false
@@ -566,6 +568,7 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
         autoEnableOcrWorkaround: this.settings.autoEnableOcrWorkaround,
         noWatermarkMode: this.settings.noWatermarkMode,
         translateTableText: this.settings.translateTableText,
+        saveAutoExtractedGlossary: this.settings.saveAutoExtractedGlossary,
       }
 
       const task = await invoke('pdf_translate_start', { request })
