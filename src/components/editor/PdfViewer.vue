@@ -259,7 +259,7 @@ const pdfUi = reactive({
   canZoomOut: false,
   canZoomIn: false,
   scaleValue: 'auto',
-  scaleLabel: 'Automatic Zoom',
+  scaleLabel: t('Automatic Zoom'),
   sidebarOpen: false,
   searchOpen: false,
   searchQuery: '',
@@ -301,6 +301,16 @@ const translateStatusColor = computed(() => {
   return 'var(--fg-muted)'
 })
 
+function localizeScaleLabel(label) {
+  const normalized = String(label || '').trim()
+  if (!normalized) return normalized
+  if (normalized === 'Automatic Zoom') return t('Automatic Zoom')
+  if (normalized === 'Actual Size') return t('Actual Size')
+  if (normalized === 'Page Fit') return t('Page Fit')
+  if (normalized === 'Page Width') return t('Page Width')
+  return normalized
+}
+
 function resetPdfUi() {
   pdfUi.ready = false
   pdfUi.pageNumber = 1
@@ -310,7 +320,7 @@ function resetPdfUi() {
   pdfUi.canZoomOut = false
   pdfUi.canZoomIn = false
   pdfUi.scaleValue = 'auto'
-  pdfUi.scaleLabel = 'Automatic Zoom'
+  pdfUi.scaleLabel = t('Automatic Zoom')
   pdfUi.sidebarOpen = false
   pdfUi.searchOpen = false
   pdfUi.searchQuery = ''
@@ -365,7 +375,7 @@ function normalizeScaleOptions(select) {
     .filter(option => option.value)
     .map(option => ({
       value: option.value,
-      label: (option.textContent || '').trim(),
+      label: localizeScaleLabel(option.textContent),
     }))
   const customOption = options.find(option => option.value === 'custom')
   if (customOption && customOption.label) return options
@@ -472,7 +482,7 @@ function syncPdfUi() {
       scaleOptions.value = nextOptions
     }
     pdfUi.scaleValue = scaleSelect.value || 'auto'
-    pdfUi.scaleLabel = (scaleSelect.options[scaleSelect.selectedIndex]?.textContent || '').trim() || pdfUi.scaleLabel
+    pdfUi.scaleLabel = localizeScaleLabel(scaleSelect.options[scaleSelect.selectedIndex]?.textContent) || pdfUi.scaleLabel
   }
 
   if (document.activeElement !== pageInputRef.value) {
