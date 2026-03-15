@@ -150,6 +150,18 @@
   - `src/services/workspaceMeta.js`
   - `src/utils/pdfMetadata.js`
 
+### Follow-up Continuation 4: Store Warning Reduction
+- **Status:** complete
+- Actions taken:
+  - 将 `usage.js` 与 `citationFormatterCSL.js` 对 `workspace` 的动态访问改为静态引用，消除 `workspace.js` warning
+  - 将 `comments.js` 对 `files/editor/chat` 的动态访问改为静态引用，并让 `chatTools.js` 直接静态依赖 `comments store`
+  - 再次执行前端构建与 Rust 检查，确认 `chat.js` warning 也已消失且未引入回归
+- Files created/modified:
+  - `src/services/citationFormatterCSL.js`
+  - `src/stores/usage.js`
+  - `src/stores/comments.js`
+  - `src/services/chatTools.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -177,6 +189,10 @@
 | Rust 检查 Round 11 | `cargo check --manifest-path src-tauri/Cargo.toml` | `references` 与 `@codemirror/lang-markdown` 续扫后仍可编译 | 通过 | 通过 |
 | 前端构建 Round 12 | `npm run build` | `pdfjs-dist/legacy/build/pdf.mjs` 统一加载方式后仍可构建 | 通过，且 `pdfjs` warning 消失 | 通过 |
 | Rust 检查 Round 12 | `cargo check --manifest-path src-tauri/Cargo.toml` | `pdfjs` 续扫后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 13 | `npm run build` | `workspace.js` 低风险动态入口收敛后仍可构建 | 通过，且 `workspace.js` warning 消失 | 通过 |
+| Rust 检查 Round 13 | `cargo check --manifest-path src-tauri/Cargo.toml` | `workspace.js` 续扫后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 14 | `npm run build` | `chat.js/comments.js` 边缘动态入口收敛后仍可构建 | 通过，且 `chat.js` warning 消失 | 通过 |
+| Rust 检查 Round 14 | `cargo check --manifest-path src-tauri/Cargo.toml` | `chat.js/comments.js` 续扫后仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -190,4 +206,5 @@
 - `telemetry.js` 与 `errorMessages.js` 两组动态/静态导入混用 warning 已清掉。
 - 第二轮续扫后，`core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的混用 warning 也已清掉。
 - 第三轮续扫后，`references.js`、`@codemirror/lang-markdown`、`pdfjs-dist/legacy/build/pdf.mjs` 的混用 warning 也已清掉。
-- 目前剩余更高价值但更高风险的工作，已经集中在 stores 互相依赖、`workspace/usage` 状态回路、`documentWorkflow`/`files` 交叉依赖，以及包级分块优化。
+- 第四轮续扫后，`workspace.js` 与 `chat.js` 的 warning 也已清掉。
+- 目前剩余更高价值但更高风险的工作，已经集中在 `files/editor/comments/usage/documentWorkflow/links/reviews` 这些 store 的状态回路，以及包级分块优化。

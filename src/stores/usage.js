@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { formatCost } from '../services/tokenUsage'
 import { formatMonthYear, t } from '../i18n'
 import { useToastStore } from './toast'
+import { useWorkspaceStore } from './workspace'
 
 function getCurrentMonth() {
   const now = new Date()
@@ -53,7 +54,6 @@ export const useUsageStore = defineStore('usage', {
   actions: {
     async record({ usage, feature, provider, modelId, sessionId }) {
       if (!usage || (usage.total === 0 && !usage.cost)) return
-      const { useWorkspaceStore } = await import('./workspace')
       const workspace = useWorkspaceStore()
       try {
         await invoke('usage_record', {
@@ -80,7 +80,6 @@ export const useUsageStore = defineStore('usage', {
     },
 
     async loadMonth() {
-      const { useWorkspaceStore } = await import('./workspace')
       const workspace = useWorkspaceStore()
       try {
         this.monthData = await invoke('usage_query_month', {
@@ -93,7 +92,6 @@ export const useUsageStore = defineStore('usage', {
     },
 
     async loadTrend() {
-      const { useWorkspaceStore } = await import('./workspace')
       const workspace = useWorkspaceStore()
       try {
         this.trendData = await invoke('usage_query_monthly_trend', {
@@ -106,7 +104,6 @@ export const useUsageStore = defineStore('usage', {
     },
 
     async loadDailyTrend() {
-      const { useWorkspaceStore } = await import('./workspace')
       const workspace = useWorkspaceStore()
       try {
         this.dailyData = await invoke('usage_query_daily_trend', {
@@ -160,7 +157,6 @@ export const useUsageStore = defineStore('usage', {
 
       // Auto-clear stale budget if user has no direct API keys
       if (this.monthlyLimit > 0) {
-        const { useWorkspaceStore } = await import('./workspace')
         const keys = useWorkspaceStore().apiKeys || {}
         const hasDirectKeys = !!(keys.ANTHROPIC_API_KEY || keys.OPENAI_API_KEY || keys.GOOGLE_API_KEY)
         if (!hasDirectKeys) {

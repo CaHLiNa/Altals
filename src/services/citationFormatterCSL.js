@@ -6,6 +6,7 @@
  * then formats citations/bibliographies via the CSL engine.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { useWorkspaceStore } from '../stores/workspace'
 
 // Cache CSL engine instances by style ID
 const engineCache = new Map()
@@ -34,7 +35,6 @@ async function loadStyleXml(styleId) {
 
   // Fallback: try user styles in .project/styles/
   try {
-    const { useWorkspaceStore } = await import('../stores/workspace')
     const workspace = useWorkspaceStore()
     if (workspace.projectDir) {
       const userPath = `${workspace.projectDir}/styles/${styleId}.csl`

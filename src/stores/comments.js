@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { nanoid } from './utils'
+import { useFilesStore } from './files'
+import { useEditorStore } from './editor'
+import { useChatStore } from './chat'
 import { useWorkspaceStore } from './workspace'
 
 let _saveTimer = null
@@ -152,8 +155,6 @@ export const useCommentsStore = defineStore('comments', () => {
       return
     }
 
-    const { useFilesStore } = await import('./files')
-    const { useEditorStore } = await import('./editor')
     const filesStore = useFilesStore()
     const editorStore = useEditorStore()
 
@@ -264,9 +265,6 @@ export const useCommentsStore = defineStore('comments', () => {
     if (!unresolved.length) return
 
     const workspace = useWorkspaceStore()
-    const { useFilesStore } = await import('./files')
-    const { useChatStore } = await import('./chat')
-    const { useEditorStore } = await import('./editor')
     const filesStore = useFilesStore()
     const chatStore = useChatStore()
     const editorStore = useEditorStore()

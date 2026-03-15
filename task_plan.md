@@ -65,3 +65,4 @@ Complete
 - 首轮推送后继续做了一轮低风险续扫，重点收掉旧兼容导出、被新实现替代的 DOCX 老路径，以及构建里可安全消除的动态/静态导入混用 warning。
 - 第二轮续扫继续聚焦低风险依赖收缩，已清掉 `@tauri-apps/api/core`、`plugin-dialog`、`@tauri-apps/api/event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 等模块的混用 warning；剩余项已明显转向 store 间依赖回路与更深层的结构问题。
 - 第三轮续扫进一步清掉了 `references.js`、`@codemirror/lang-markdown` 和 `pdfjs-dist/legacy/build/pdf.mjs` 的混用 warning；当前构建告警已收敛到 store 互相依赖和超大 chunk 两类结构性问题。
+- 第四轮续扫又清掉了 `workspace.js` 与 `chat.js` 两组 store warning 的低风险动态入口；目前剩余项主要集中在 `files / editor / comments / usage / documentWorkflow / links / reviews` 这几组真实状态回路，以及超大 chunk。

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { tool } from 'ai'
 import { z } from 'zod'
 import { useReviewsStore } from '../stores/reviews'
+import { useCommentsStore } from '../stores/comments'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useReferencesStore } from '../stores/references'
@@ -297,7 +298,6 @@ export function getAiTools(workspace) {
         const content = await invoke('read_file', { path: readPath })
 
         // Append any active comments on this file
-        const { useCommentsStore } = await import('../stores/comments')
         const commentsStore = useCommentsStore()
         const unresolved = commentsStore.unresolvedForFile(readPath)
         if (unresolved.length) {
@@ -832,7 +832,6 @@ export function getAiTools(workspace) {
       execute: async ({ file_path, anchor_text, text, proposed_edit }) => {
         const resolved = _resolvePath(file_path, workspace)
         if (!resolved) return PATH_ERROR
-        const { useCommentsStore } = await import('../stores/comments')
         const commentsStore = useCommentsStore()
 
         // Read file to find anchor position
@@ -865,7 +864,6 @@ export function getAiTools(workspace) {
       }),
       execute: async (args) => {
         const { comment_id, text, proposed_edit } = args
-        const { useCommentsStore } = await import('../stores/comments')
         const commentsStore = useCommentsStore()
 
         const comment = commentsStore.comments.find(c => c.id === comment_id)
@@ -893,7 +891,6 @@ export function getAiTools(workspace) {
         comment_id: z.string().describe('The ID of the comment to resolve'),
       }),
       execute: async ({ comment_id }) => {
-        const { useCommentsStore } = await import('../stores/comments')
         const commentsStore = useCommentsStore()
 
         const comment = commentsStore.comments.find(c => c.id === comment_id)
