@@ -79,6 +79,7 @@
 import { computed } from 'vue'
 import { IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useCommentsStore } from '../../stores/comments'
+import { submitCommentsToChat } from '../../services/commentActions'
 import CommentCard from './CommentCard.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -111,7 +112,7 @@ function handleCardClick(comment) {
 }
 
 function handleSubmit() {
-  commentsStore.submitToChat(props.filePath)
+  submitCommentsToChat(props.filePath)
 }
 
 function handleAddComment() {

@@ -12,6 +12,7 @@ import {
   providerSupportsPdfTranslation,
 } from '../services/modelCatalog'
 import { calculateCost, normalizePdfTokenUsage } from '../services/tokenUsage'
+import { recordUsageEntry } from '../services/usageAccess'
 
 const DEFAULT_QPS = 8
 const DEFAULT_POOL_MAX_WORKERS = 0
@@ -297,15 +298,12 @@ export const usePdfTranslateStore = defineStore('pdfTranslate', {
       usage.cost = calculateCost(usage, task.model, task.provider)
       this.usageRecordedTaskIds[task.id] = true
 
-      import('./usage')
-        .then(({ useUsageStore }) => {
-          useUsageStore().record({
-            usage,
-            feature: 'pdf-translate',
-            provider: task.provider || 'unknown',
-            modelId: task.model || 'unknown',
-          })
-        })
+      Promise.resolve(recordUsageEntry({
+        usage,
+        feature: 'pdf-translate',
+        provider: task.provider || 'unknown',
+        modelId: task.model || 'unknown',
+      }))
         .catch((error) => {
           delete this.usageRecordedTaskIds[task.id]
           console.warn('Failed to record PDF translation usage:', error)

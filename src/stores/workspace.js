@@ -10,6 +10,11 @@ import {
   providerSupportsModelSync,
 } from '../services/modelCatalog'
 import { events } from '../services/telemetry'
+import {
+  loadWorkspaceUsage,
+  openWorkspaceFileInEditor,
+  reloadOpenFilesAfterPull,
+} from '../services/workspaceStoreEffects'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
 import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
 import { removeWorkspaceBookmark } from '../services/workspacePermissions'
@@ -229,13 +234,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
 
       if (!isStale()) {
-        import('./usage').then(({ useUsageStore }) => {
-          if (isStale()) return
-          const usageStore = useUsageStore()
-          usageStore.loadSettings()
-          usageStore.loadMonth()
-          usageStore.loadTrend()
-        })
+        loadWorkspaceUsage(isStale)
       }
 
       if (!isStale()) {
@@ -971,9 +970,7 @@ exit 0
       }
 
       // Open in editor
-      const { useEditorStore } = await import('./editor')
-      const editorStore = useEditorStore()
-      editorStore.openFile(filePath)
+      openWorkspaceFileInEditor(filePath)
     },
 
     async loadToolPermissions() {
@@ -1345,19 +1342,7 @@ exit 0
       // If files were pulled, reload open files
       if (result.pulled) {
         try {
-          const { useFilesStore } = await import('./files')
-          const { useEditorStore } = await import('./editor')
-          const filesStore = useFilesStore()
-          const editorStore = useEditorStore()
-          // Reload content for any open tabs
-          for (const tab of editorStore.tabs) {
-            if (tab.path && filesStore.fileContents[tab.path] !== undefined) {
-              try {
-                const content = await invoke('read_file', { path: tab.path })
-                filesStore.fileContents[tab.path] = content
-              } catch {}
-            }
-          }
+          await reloadOpenFilesAfterPull()
         } catch {}
       }
 

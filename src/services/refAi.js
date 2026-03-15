@@ -9,6 +9,7 @@ import { resolveApiAccess } from './apiClient'
 import { createModel, convertSdkUsage } from './aiSdk'
 import { createTauriFetch } from './tauriFetch'
 import { calculateCost } from './tokenUsage'
+import { isUsageBudgetExceeded, recordUsageEntry } from './usageAccess'
 
 const PARSE_SYSTEM = `You are an expert citation parser. Extract bibliographic references from text.
 
@@ -74,9 +75,7 @@ async function _generate(access, system, userContent, feature) {
   if (result.usage) {
     const usage = convertSdkUsage(result.usage, result.providerMetadata, provider)
     usage.cost = calculateCost(usage, access.model, access.provider)
-    import('../stores/usage').then(({ useUsageStore }) => {
-      useUsageStore().record({ usage, feature, provider: access.provider, modelId: access.model })
-    })
+    void recordUsageEntry({ usage, feature, provider: access.provider, modelId: access.model })
   }
 
   return result.text || null
@@ -86,8 +85,7 @@ async function _generate(access, system, userContent, feature) {
  * Parse text into structured references via AI.
  */
 export async function aiParseReferences(text, workspace) {
-  const { useUsageStore } = await import('../stores/usage')
-  if (useUsageStore().isOverBudget) return null
+  if (isUsageBudgetExceeded()) return null
 
   const access = await resolveApiAccess({ strategy: 'cheapest' }, workspace)
   if (!access) return null
@@ -121,8 +119,7 @@ export async function aiParseReferences(text, workspace) {
  * Extract metadata from paper text (for PDF import).
  */
 export async function aiExtractPdfMetadata(text, workspace) {
-  const { useUsageStore } = await import('../stores/usage')
-  if (useUsageStore().isOverBudget) return null
+  if (isUsageBudgetExceeded()) return null
 
   const access = await resolveApiAccess({ strategy: 'cheapest' }, workspace)
   if (!access) return null

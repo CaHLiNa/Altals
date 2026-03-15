@@ -162,6 +162,36 @@
   - `src/stores/comments.js`
   - `src/services/chatTools.js`
 
+### Follow-up Continuation 5: State Decoupling
+- **Status:** complete
+- Actions taken:
+  - 新增 `src/services/documentComments.js`，统一构建 `<document-comments>` block 和把未解决评论附加到文档内容的逻辑
+  - 新增 `src/services/commentActions.js`，把评论提交流程与 proposed edit 应用从 `comments store` 拆出
+  - 让 `src/stores/comments.js` 回到“评论状态 + 持久化”职责，并新增 `saveComments()` 供服务层复用
+  - 新增 `src/services/fileStoreEffects.js`，承接 `files store` 对 `documentWorkflow / editor / links / reviews` 的跨 store 副作用
+  - 新增 `src/services/workspaceStoreEffects.js`，承接 workspace usage 加载、说明文件打开与 Git pull 后的已开文件刷新
+  - 修正 pull 刷新逻辑，改为遍历真实存在的 `editorStore.allOpenFiles`，不再访问不存在的 `editorStore.tabs`
+  - 新增 `src/services/usageAccess.js`，统一预算判断、usage 记录和 usage 摘要加载，清空最后一条 `usage.js` mixed import warning
+  - 复跑前端构建与 Rust 检查，确认 `comments.js`、`documentWorkflow.js`、`links.js`、`reviews.js`、`editor.js`、`files.js`、`usage.js` 的 mixed import warning 都已消失
+- Files created/modified:
+  - `src/components/comments/CommentMargin.vue`
+  - `src/components/comments/CommentPanel.vue`
+  - `src/editor/docxGhost.js`
+  - `src/editor/ghostSuggestion.js`
+  - `src/services/chatTools.js`
+  - `src/services/commentActions.js`
+  - `src/services/documentComments.js`
+  - `src/services/fileStoreEffects.js`
+  - `src/services/workspaceStoreEffects.js`
+  - `src/services/usageAccess.js`
+  - `src/services/docxProvider.js`
+  - `src/services/refAi.js`
+  - `src/stores/chat.js`
+  - `src/stores/comments.js`
+  - `src/stores/files.js`
+  - `src/stores/pdfTranslate.js`
+  - `src/stores/workspace.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -193,6 +223,14 @@
 | Rust 检查 Round 13 | `cargo check --manifest-path src-tauri/Cargo.toml` | `workspace.js` 续扫后仍可编译 | 通过 | 通过 |
 | 前端构建 Round 14 | `npm run build` | `chat.js/comments.js` 边缘动态入口收敛后仍可构建 | 通过，且 `chat.js` warning 消失 | 通过 |
 | Rust 检查 Round 14 | `cargo check --manifest-path src-tauri/Cargo.toml` | `chat.js/comments.js` 续扫后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 15 | `npm run build` | `comments` 边缘动作与评论文档组装逻辑迁出 store 后仍可构建 | 通过，且 `comments.js` warning 消失 | 通过 |
+| Rust 检查 Round 15 | `cargo check --manifest-path src-tauri/Cargo.toml` | `comments/chat` 状态解藕后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 16 | `npm run build` | `files` 跨 store 副作用迁出到 `fileStoreEffects` 后仍可构建 | 通过，且 `documentWorkflow.js`、`links.js`、`reviews.js` warning 消失 | 通过 |
+| Rust 检查 Round 16 | `cargo check --manifest-path src-tauri/Cargo.toml` | `files` 状态解藕后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 17 | `npm run build` | `workspaceStoreEffects` 收口 usage/load/open/pull-refresh 后仍可构建 | 通过，且 `editor.js`、`files.js` warning 消失 | 通过 |
+| Rust 检查 Round 17 | `cargo check --manifest-path src-tauri/Cargo.toml` | `workspace` 状态解藕后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 18 | `npm run build` | `usageAccess` 收口剩余 usage 访问后仍可构建 | 通过，且 `usage.js` warning 消失 | 通过 |
+| Rust 检查 Round 18 | `cargo check --manifest-path src-tauri/Cargo.toml` | `usage` 访问统一后 Rust 仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -207,4 +245,5 @@
 - 第二轮续扫后，`core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的混用 warning 也已清掉。
 - 第三轮续扫后，`references.js`、`@codemirror/lang-markdown`、`pdfjs-dist/legacy/build/pdf.mjs` 的混用 warning 也已清掉。
 - 第四轮续扫后，`workspace.js` 与 `chat.js` 的 warning 也已清掉。
-- 目前剩余更高价值但更高风险的工作，已经集中在 `files/editor/comments/usage/documentWorkflow/links/reviews` 这些 store 的状态回路，以及包级分块优化。
+- 第五轮续扫后，状态层 mixed import warning 已全部清掉。
+- 目前剩余更高价值但更高风险的工作，已经集中在包级分块优化，以及如果要继续深挖就必须做更激进的 store 架构拆分。

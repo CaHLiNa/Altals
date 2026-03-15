@@ -16,6 +16,8 @@ import { calculateCost } from '../services/tokenUsage'
 import { cleanPartsForStorage } from '../services/aiSdk'
 import { createChatTransport } from '../services/chatTransport'
 import { buildWorkspaceMeta } from '../services/workspaceMeta'
+import { appendUnresolvedCommentsToContent } from '../services/documentComments'
+import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
 
 // Chat instances live OUTSIDE Pinia (non-reactive container).
@@ -254,14 +256,12 @@ export const useChatStore = defineStore('chat', () => {
             liveSession._lastInputTokens = normalized.input_total
           }
         }
-        import('./usage').then(({ useUsageStore }) => {
-          useUsageStore().record({
-            usage: normalized,
-            feature: 'chat',
-            provider: access.provider,
-            modelId,
-            sessionId: session.id,
-          })
+        void recordUsageEntry({
+          usage: normalized,
+          feature: 'chat',
+          provider: access.provider,
+          modelId,
+          sessionId: session.id,
         })
       },
     }
@@ -469,8 +469,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     // Budget gate
-    const { useUsageStore } = await import('./usage')
-    if (useUsageStore().isOverBudget) {
+    if (isUsageBudgetExceeded()) {
       console.warn('[chat] Budget exceeded')
       return
     }
@@ -533,24 +532,7 @@ export const useChatStore = defineStore('chat', () => {
           })
         } else if (ref.content) {
           // Text: embed as XML ref
-          let content = ref.content
-          // Auto-append comments if the file has active comments and they're not already included
-          if (!content.includes('<document-comments>')) {
-            try {
-              const { useCommentsStore } = await import('./comments')
-              const commentsStore = useCommentsStore()
-              const unresolved = commentsStore.unresolvedForFile(ref.path)
-              if (unresolved.length) {
-                let block = '\n\n<document-comments>\n'
-                for (const c of unresolved) {
-                  const lineNum = content.substring(0, c.range.from).split('\n').length
-                  block += `  <comment id="${c.id}" line="${lineNum}" author="${c.author}">${c.text}</comment>\n`
-                }
-                block += '</document-comments>'
-                content += block
-              }
-            } catch {}
-          }
+          const content = appendUnresolvedCommentsToContent(ref.path, ref.content)
           textParts.push(`<file-ref path="${ref.path}">\n${content}\n</file-ref>`)
         }
       }

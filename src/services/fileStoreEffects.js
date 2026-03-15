@@ -1,0 +1,53 @@
+import { useDocumentWorkflowStore } from '../stores/documentWorkflow'
+import { useEditorStore } from '../stores/editor'
+import { useLinksStore } from '../stores/links'
+import { useReviewsStore } from '../stores/reviews'
+
+export function getWorkflowSourcePathForPreview(previewPath) {
+  return useDocumentWorkflowStore().getSourcePathForPreview(previewPath)
+}
+
+export async function handleExternalFileChanges(filesStore, changedPaths) {
+  const editorStore = useEditorStore()
+  const openFiles = editorStore.allOpenFiles
+
+  for (const changedPath of changedPaths) {
+    filesStore.invalidatePdfSourceForPath(changedPath)
+
+    if (openFiles.has(changedPath)) {
+      if (changedPath.toLowerCase().endsWith('.pdf')) {
+        window.dispatchEvent(new CustomEvent('pdf-updated', {
+          detail: { path: changedPath },
+        }))
+      } else {
+        await filesStore.reloadFile(changedPath)
+      }
+    }
+
+    if (changedPath.endsWith('.md')) {
+      useLinksStore().updateFile(changedPath)
+    }
+  }
+}
+
+export function syncSavedMarkdownLinks(path) {
+  if (path.endsWith('.md')) {
+    useLinksStore().updateFile(path)
+  }
+}
+
+export async function handleRenamedPathEffects(oldPath, newPath) {
+  useEditorStore().updateFilePath(oldPath, newPath)
+  await useLinksStore().handleRename(oldPath, newPath)
+}
+
+export async function handleMovedPathEffects(srcPath, destPath) {
+  await useLinksStore().handleRename(srcPath, destPath)
+  useEditorStore().updateFilePath(srcPath, destPath)
+}
+
+export function handleDeletedPathEffects(path) {
+  useEditorStore().closeFileFromAllPanes(path)
+  useLinksStore().handleDelete(path)
+  useReviewsStore().discardAllForFile(path)
+}

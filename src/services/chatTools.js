@@ -8,6 +8,7 @@ import { useFilesStore } from '../stores/files'
 import { useReferencesStore } from '../stores/references'
 import { nanoid } from '../stores/utils'
 import { lookupByDoi } from './crossref'
+import { appendUnresolvedCommentsToContent } from './documentComments'
 import { extractDocumentText, extractBlockList } from './docxContext'
 import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
@@ -298,25 +299,7 @@ export function getAiTools(workspace) {
         const content = await invoke('read_file', { path: readPath })
 
         // Append any active comments on this file
-        const commentsStore = useCommentsStore()
-        const unresolved = commentsStore.unresolvedForFile(readPath)
-        if (unresolved.length) {
-          const lines = content.split('\n')
-          let commentBlock = '\n\n<document-comments>\n'
-          for (const c of unresolved) {
-            const lineNum = content.substring(0, c.range.from).split('\n').length
-            commentBlock += `  <comment id="${c.id}" line="${lineNum}" author="${c.author}">`
-            commentBlock += c.text
-            for (const r of c.replies) {
-              commentBlock += `\n    <reply author="${r.author}">${r.text}</reply>`
-            }
-            commentBlock += '</comment>\n'
-          }
-          commentBlock += '</document-comments>'
-          return content + commentBlock
-        }
-
-        return content
+        return appendUnresolvedCommentsToContent(readPath, content, { includeReplies: true })
       },
       toModelOutput({ output }) {
         // Image with base64: send as image-data content for native vision

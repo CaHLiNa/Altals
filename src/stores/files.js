@@ -2,6 +2,14 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
+import {
+  getWorkflowSourcePathForPreview,
+  handleDeletedPathEffects,
+  handleExternalFileChanges,
+  handleMovedPathEffects,
+  handleRenamedPathEffects,
+  syncSavedMarkdownLinks,
+} from '../services/fileStoreEffects'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
@@ -221,11 +229,9 @@ export const useFilesStore = defineStore('files', {
     },
 
     async _detectPdfSourceKind(pdfPath) {
-      const workflowStoreModule = await import('./documentWorkflow')
-      const workflowStore = workflowStoreModule.useDocumentWorkflowStore()
       const texPath = pdfPath.replace(/\.pdf$/i, '.tex')
       const typPath = pdfPath.replace(/\.pdf$/i, '.typ')
-      const workflowSourcePath = workflowStore.getSourcePathForPreview(pdfPath)
+      const workflowSourcePath = getWorkflowSourcePathForPreview(pdfPath)
 
       if (workflowSourcePath === texPath) return 'latex'
       if (workflowSourcePath === typPath) return 'typst'
@@ -651,29 +657,7 @@ export const useFilesStore = defineStore('files', {
             await this.refreshVisibleTree({ suppressErrors: true })
           }
 
-          // Reload any open files that changed externally
-          const { useEditorStore } = await import('./editor')
-          const editorStore = useEditorStore()
-          const openFiles = editorStore.allOpenFiles
-
-          for (const changedPath of changedPaths) {
-            this.invalidatePdfSourceForPath(changedPath)
-            if (openFiles.has(changedPath)) {
-              if (changedPath.toLowerCase().endsWith('.pdf')) {
-                window.dispatchEvent(new CustomEvent('pdf-updated', {
-                  detail: { path: changedPath },
-                }))
-              } else {
-                await this.reloadFile(changedPath)
-              }
-            }
-            // Update wiki link index for changed .md files
-            if (changedPath.endsWith('.md')) {
-              const { useLinksStore } = await import('./links')
-              const linksStore = useLinksStore()
-              linksStore.updateFile(changedPath)
-            }
-          }
+          await handleExternalFileChanges(this, changedPaths)
         }, 300)
       })
 
@@ -757,11 +741,7 @@ export const useFilesStore = defineStore('files', {
         this._clearFileLoadError(path)
 
         // Update wiki link index (markdown only)
-        if (path.endsWith('.md')) {
-          const { useLinksStore } = await import('./links')
-          const linksStore = useLinksStore()
-          linksStore.updateFile(path)
-        }
+        syncSavedMarkdownLinks(path)
       } catch (e) {
         console.error('Failed to save file:', e)
         useToastStore().showOnce(`save:${path}`, formatFileError('save', path, e), { type: 'error', duration: 5000 })
@@ -903,20 +883,13 @@ export const useFilesStore = defineStore('files', {
         this.invalidatePdfSourceForPath(newPath)
 
         // Update editor tabs so the open tab follows the rename
-        const { useEditorStore } = await import('./editor')
-        const editorStore = useEditorStore()
-        editorStore.updateFilePath(oldPath, newPath)
+        await handleRenamedPathEffects(oldPath, newPath)
 
         // Update expanded dirs
         if (this.expandedDirs.has(oldPath)) {
           this.expandedDirs.delete(oldPath)
           this.expandedDirs.add(newPath)
         }
-
-        // Update wiki links across workspace
-        const { useLinksStore } = await import('./links')
-        const linksStore = useLinksStore()
-        await linksStore.handleRename(oldPath, newPath)
 
         return true
       } catch (e) {
@@ -952,17 +925,11 @@ export const useFilesStore = defineStore('files', {
         await invoke('rename_path', { oldPath: srcPath, newPath: destPath })
         await this.syncTreeAfterMutation({ expandPath: destDir })
 
-        // Update wiki links
-        const { useLinksStore } = await import('./links')
-        const linksStore = useLinksStore()
-        await linksStore.handleRename(srcPath, destPath)
         this.invalidatePdfSourceForPath(srcPath)
         this.invalidatePdfSourceForPath(destPath)
 
-        // Update editor tabs
-        const { useEditorStore } = await import('./editor')
-        const editorStore = useEditorStore()
-        editorStore.updateFilePath(srcPath, destPath)
+        // Update editor tabs and wiki links
+        await handleMovedPathEffects(srcPath, destPath)
 
         return true
       } catch (e) {
@@ -1011,24 +978,12 @@ export const useFilesStore = defineStore('files', {
         await invoke('delete_path', { path })
         await this.syncTreeAfterMutation()
 
-        // Close all tabs for the deleted file
-        const { useEditorStore } = await import('./editor')
-        const editorStore = useEditorStore()
-        editorStore.closeFileFromAllPanes(path)
-
         // Remove from file contents cache
         delete this.fileContents[path]
         delete this.fileLoadErrors[path]
         this.invalidatePdfSourceForPath(path)
 
-        // Update wiki link index
-        const { useLinksStore } = await import('./links')
-        const linksStore = useLinksStore()
-        linksStore.handleDelete(path)
-
-        // Discard any pending AI edits for the deleted file
-        const { useReviewsStore } = await import('./reviews')
-        useReviewsStore().discardAllForFile(path)
+        handleDeletedPathEffects(path)
 
         return true
       } catch (e) {

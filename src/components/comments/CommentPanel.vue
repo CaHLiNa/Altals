@@ -141,6 +141,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useCommentsStore } from '../../stores/comments'
+import { applyCommentProposedEdit, submitCommentsToChat } from '../../services/commentActions'
 import CommentInput from './CommentInput.vue'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 
@@ -256,7 +257,7 @@ function handleCreateAndSubmit({ text, fileRefs }) {
     fileRefs.length > 0 ? fileRefs : null,
   )
   emit('comment-created', comment)
-  commentsStore.submitToChat(props.filePath)
+  submitCommentsToChat(props.filePath)
   emit('close')
 }
 
@@ -287,7 +288,7 @@ function handleDelete() {
 }
 
 function applyEdit(commentId, replyId) {
-  commentsStore.applyProposedEdit(commentId, replyId)
+  applyCommentProposedEdit(commentId, replyId)
   emit('close')
 }
 

@@ -18,15 +18,24 @@
 | 构建 warning 里还残留一批无状态工具模块的动态/静态混用 | 继续统一 `core`、`plugin-dialog`、`event`、`citationStyleRegistry`、`crossref`、`bibtexParser`、`codeRunner`、`latexBib`、`pdfMetadata`、`toast`、`tauriFetch` 的引用方式，进一步压缩 warning 面 | `src/App.vue`, `src/components/VersionHistory.vue`, `src/components/chat/ProposalCard.vue`, `src/components/editor/DocxEditor.vue`, `src/components/editor/DocxToolbar.vue`, `src/components/editor/EditorPane.vue`, `src/components/editor/NotebookEditor.vue`, `src/components/editor/ReferenceView.vue`, `src/components/editor/TextEditor.vue`, `src/components/shared/RichTextInput.vue`, `src/components/sidebar/AddReferenceDialog.vue`, `src/components/sidebar/ReferenceList.vue`, `src/services/chatTools.js`, `src/services/citationFormatterCSL.js`, `src/stores/chat.js`, `src/stores/files.js`, `src/stores/references.js`, `src/stores/reviews.js` |
 | 构建 warning 里还残留少量低风险模块混用 | 继续统一 `references.js`、`@codemirror/lang-markdown`、`pdfjs-dist/legacy/build/pdf.mjs` 的加载方式，把非 store 类 warning 基本清空 | `src/components/chat/ProposalCard.vue`, `src/components/editor/EditorPane.vue`, `src/components/VersionHistory.vue`, `src/services/chatTools.js`, `src/services/editorPersistence.js`, `src/services/workspaceMeta.js`, `src/utils/pdfMetadata.js` |
 | 剩余 store warning 中仍有一批单向配置读取或边缘动态入口 | 继续统一 `workspace.js` 与 `chat.js` 的低风险动态入口，进一步把 warning 收敛到更真实的状态回路 | `src/services/citationFormatterCSL.js`, `src/stores/usage.js`, `src/stores/comments.js`, `src/services/chatTools.js` |
+| `comments` store 同时承担评论状态、编辑器修改和聊天提交流程，形成边缘状态回路 | 抽出 `documentComments` 与 `commentActions` 服务，评论 store 只保留状态与持久化，UI 改为调用服务层动作 | `src/services/documentComments.js`, `src/services/commentActions.js`, `src/stores/comments.js`, `src/stores/chat.js`, `src/services/chatTools.js`, `src/components/comments/CommentPanel.vue`, `src/components/comments/CommentMargin.vue` |
+| `files` store 直接编排 `documentWorkflow / editor / links / reviews` 多组副作用，动态导入既制造 warning 也放大维护面 | 抽出 `fileStoreEffects`，统一承接预览源路径判断、外部文件变更、重命名/移动/删除后的跨 store 副作用 | `src/services/fileStoreEffects.js`, `src/stores/files.js` |
+| `workspace` store 把 usage 加载、说明文件打开和 pull 后刷新打开文件混在 store 内，且 pull 刷新逻辑使用了不存在的 `editorStore.tabs` 路径 | 抽出 `workspaceStoreEffects`，并修正为基于 `editorStore.allOpenFiles` 刷新已打开文件 | `src/services/workspaceStoreEffects.js`, `src/stores/workspace.js` |
+| `usage.js` 同时被组件静态导入和 AI 边缘模块动态导入，成为最后一条 mixed import warning | 新增 `usageAccess` 统一预算判断、usage 记录与摘要加载入口，清空 `usage.js` warning | `src/services/usageAccess.js`, `src/services/workspaceStoreEffects.js`, `src/stores/chat.js`, `src/stores/pdfTranslate.js`, `src/services/docxProvider.js`, `src/services/refAi.js`, `src/editor/docxGhost.js`, `src/editor/ghostSuggestion.js` |
 
 ## Verification Findings
-- 共完成 14 轮成功的“改完即测”验证。
+- 共完成 18 轮成功的“改完即测”验证。
 - 每一轮都运行了：
   - `npm run build`
   - `cargo check --manifest-path src-tauri/Cargo.toml`
 - 最后一轮的最新结果仍然是：
   - 根前端 `npm run build` 通过
   - Rust `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- 第五轮续扫新增 4 轮验证：
+  - `comments / chat / commentActions / documentComments` 解藕后通过
+  - `files / fileStoreEffects / documentWorkflow / links / reviews` 副作用收口后通过
+  - `workspace / workspaceStoreEffects` 解藕并修正 pull 刷新路径后通过
+  - `usageAccess` 收口剩余 usage 访问后通过，且 `usage.js` mixed import warning 消失
 - 本轮续扫中有 1 次中间构建失败：
   - 原因是把 `createTauriFetch()` 误写成不存在的命名导出 `tauriFetch`
   - 已按最小修正恢复，并在修正后重新完成完整验证
@@ -41,9 +50,7 @@
 
 ## Remaining Known Risks
 - 仓库仍然缺少自动化测试，本轮只能用构建/编译验证兜底，无法替代全链路交互回归。
-- 仍存在较多 “dynamic import + static import 混用” 的 Vite 警告，说明还有进一步的代码分块/依赖整理空间，但这已进入主链路重构风险区。
-- 其中 `telemetry.js` 与 `errorMessages.js` 两组混用告警已在续扫中消失，剩余 warning 主要集中在 stores 相互依赖、Tauri API 包装层和引用/预览子系统。
-- 第四轮续扫后，`workspace.js` 与 `chat.js` 这两组 warning 也已消失；当前剩余项已进一步收敛为 `files/editor/comments/usage/documentWorkflow/links/reviews` 之间的状态回路，以及包级分块问题。
+- 状态层 mixed import warning 已全部清空；接下来如果继续推进，主要就是更高风险的 store 拆分和包体分块优化，而不再是“安全删废代码”。
 - 主包体依旧很大，尤其 `superdoc` 和主 `index` chunk；这是后续性能/构建优化议题，不属于本轮“安全清屎山”范围。
 
 ## Decisions Made

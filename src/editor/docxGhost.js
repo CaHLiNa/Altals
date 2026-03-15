@@ -1,5 +1,6 @@
 import { Extensions } from 'superdoc/super-editor'
 import { getGhostSuggestions } from '../services/ai'
+import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { useToastStore } from '../stores/toast'
 
 const { Extension, Plugin, PluginKey } = Extensions
@@ -262,8 +263,7 @@ export function createDocxGhostExtension({ getWorkspace, getSystemPrompt, getIns
 
   async function triggerGhost(editor, pos) {
     // Budget gate — silent block at 100%
-    const { useUsageStore } = await import('../stores/usage')
-    if (useUsageStore().isOverBudget) return
+    if (isUsageBudgetExceeded()) return
 
     const gen = ++generation
 
@@ -311,9 +311,7 @@ export function createDocxGhostExtension({ getWorkspace, getSystemPrompt, getIns
       }
 
       if (usage) {
-        import('../stores/usage').then(({ useUsageStore }) => {
-          useUsageStore().record({ usage, feature: 'ghost', provider: billingProvider, modelId })
-        })
+        void recordUsageEntry({ usage, feature: 'ghost', provider: billingProvider, modelId })
       }
 
       if (ghostPluginKey.getState(editor.view.state)?.type !== 'loading') return

@@ -2,6 +2,7 @@ import { StateField, StateEffect, Annotation, Prec } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType } from '@codemirror/view'
 import { getGhostSuggestions } from '../services/ai'
 import { events } from '../services/telemetry'
+import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { useToastStore } from '../stores/toast'
 
 // One-per-session toast tracking (reset on page reload)
@@ -148,8 +149,7 @@ let currentGeneration = 0
  */
 async function triggerGhostSuggestion(view, pos, getWorkspace, getSystemPrompt, getInstructions) {
   // Budget gate — silent block at 100%
-  const { useUsageStore } = await import('../stores/usage')
-  if (useUsageStore().isOverBudget) return
+  if (isUsageBudgetExceeded()) return
 
   const doc = view.state.doc.toString()
   const gen = ++currentGeneration
@@ -187,9 +187,7 @@ async function triggerGhostSuggestion(view, pos, getWorkspace, getSystemPrompt, 
     }
 
     if (usage) {
-      import('../stores/usage').then(({ useUsageStore }) => {
-        useUsageStore().record({ usage, feature: 'ghost', provider: billingProvider, modelId })
-      })
+      void recordUsageEntry({ usage, feature: 'ghost', provider: billingProvider, modelId })
     }
 
     // If cancelled (generation changed or ghost cleared while loading), discard results

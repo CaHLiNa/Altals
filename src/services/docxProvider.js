@@ -4,6 +4,7 @@ import { resolveApiAccess } from './apiClient'
 import { createModel, convertSdkUsage } from './aiSdk'
 import { createTauriFetch } from './tauriFetch'
 import { calculateCost } from './tokenUsage'
+import { isUsageBudgetExceeded, recordUsageEntry } from './usageAccess'
 
 /**
  * Creates a provider for @superdoc-dev/ai AIActions.
@@ -15,8 +16,7 @@ export function createDocxAIProvider(modelId) {
 
     async getCompletion(messages, options) {
       const workspace = useWorkspaceStore()
-      const { useUsageStore } = await import('../stores/usage')
-      if (useUsageStore().isOverBudget) throw new Error('Monthly budget exceeded.')
+      if (isUsageBudgetExceeded()) throw new Error('Monthly budget exceeded.')
 
       const access = await resolveApiAccess({ modelId }, workspace)
       if (!access) throw new Error('No API key configured for this model.')
@@ -36,9 +36,7 @@ export function createDocxAIProvider(modelId) {
       if (result.usage) {
         const usage = convertSdkUsage(result.usage, result.providerMetadata, provider)
         usage.cost = calculateCost(usage, access.model, access.provider)
-        import('../stores/usage').then(({ useUsageStore }) => {
-          useUsageStore().record({ usage, feature: 'docx', provider: access.provider, modelId: access.model })
-        })
+        void recordUsageEntry({ usage, feature: 'docx', provider: access.provider, modelId: access.model })
       }
 
       return result.text || ''
@@ -46,8 +44,7 @@ export function createDocxAIProvider(modelId) {
 
     async *streamCompletion(messages, options) {
       const workspace = useWorkspaceStore()
-      const { useUsageStore } = await import('../stores/usage')
-      if (useUsageStore().isOverBudget) throw new Error('Monthly budget exceeded.')
+      if (isUsageBudgetExceeded()) throw new Error('Monthly budget exceeded.')
 
       const access = await resolveApiAccess({ modelId }, workspace)
       if (!access) throw new Error('No API key configured for this model.')
@@ -65,8 +62,11 @@ export function createDocxAIProvider(modelId) {
           if (usage) {
             const normalized = convertSdkUsage(usage, providerMetadata, provider)
             normalized.cost = calculateCost(normalized, access.model, access.provider)
-            import('../stores/usage').then(({ useUsageStore }) => {
-              useUsageStore().record({ usage: normalized, feature: 'docx', provider: access.provider, modelId: access.model })
+            void recordUsageEntry({
+              usage: normalized,
+              feature: 'docx',
+              provider: access.provider,
+              modelId: access.model,
             })
           }
         },

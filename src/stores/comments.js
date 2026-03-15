@@ -2,9 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { nanoid } from './utils'
-import { useFilesStore } from './files'
-import { useEditorStore } from './editor'
-import { useChatStore } from './chat'
 import { useWorkspaceStore } from './workspace'
 
 let _saveTimer = null
@@ -130,70 +127,6 @@ export const useCommentsStore = defineStore('comments', () => {
     marginVisible.value[filePath] = !isMarginVisible(filePath)
   }
 
-  // ─── Apply Proposed Edit ──────────────────────────────────────────
-
-  async function applyProposedEdit(commentId, replyId = null) {
-    const comment = comments.value.find(c => c.id === commentId)
-    if (!comment) return
-
-    const statusKey = replyId ? `${commentId}:${replyId}` : `${commentId}:`
-
-    // Check if already applied
-    if (editStatuses.value[statusKey]?.status === 'applied') return
-
-    // Find the proposed edit
-    let proposedEdit = null
-    if (replyId) {
-      const reply = comment.replies.find(r => r.id === replyId)
-      proposedEdit = reply?.proposedEdit
-    } else {
-      proposedEdit = comment.proposedEdit
-    }
-
-    if (!proposedEdit || !proposedEdit.oldText || !proposedEdit.newText) {
-      editStatuses.value[statusKey] = { status: 'error', error: 'No proposed edit found.' }
-      return
-    }
-
-    const filesStore = useFilesStore()
-    const editorStore = useEditorStore()
-
-    try {
-      editStatuses.value[statusKey] = { status: 'pending' }
-
-      const currentContent = await invoke('read_file', { path: comment.filePath })
-      const rawFrom = Number(comment.range?.from)
-      const rawTo = Number(comment.range?.to)
-      const from = Number.isFinite(rawFrom) ? Math.max(0, Math.min(rawFrom, currentContent.length)) : 0
-      const to = Number.isFinite(rawTo) ? Math.max(from, Math.min(rawTo, currentContent.length)) : from
-      const anchorSlice = currentContent.slice(from, to)
-
-      const localIdx = anchorSlice.indexOf(proposedEdit.oldText)
-      if (localIdx === -1) {
-        editStatuses.value[statusKey] = { status: 'error', error: 'oldText was not found inside the anchored comment range. The document likely changed and the suggestion must be re-anchored.' }
-        return
-      }
-
-      const editStart = from + localIdx
-      const editEnd = editStart + proposedEdit.oldText.length
-      const newContent = currentContent.slice(0, editStart) + proposedEdit.newText + currentContent.slice(editEnd)
-      await invoke('write_file', { path: comment.filePath, content: newContent })
-
-      // Update files store before triggering editor refresh
-      filesStore.fileContents[comment.filePath] = newContent
-      editorStore.openFile(comment.filePath)
-
-      // Update the comment range to cover the new text
-      comment.range = { from: editStart, to: editStart + proposedEdit.newText.length }
-
-      editStatuses.value[statusKey] = { status: 'applied' }
-      comment.updatedAt = new Date().toISOString()
-      _save()
-    } catch (e) {
-      editStatuses.value[statusKey] = { status: 'error', error: `Error applying edit: ${e}` }
-    }
-  }
-
   function getEditStatus(commentId, replyId = null) {
     const key = replyId ? `${commentId}:${replyId}` : `${commentId}:`
     return editStatuses.value[key] || null
@@ -213,6 +146,10 @@ export const useCommentsStore = defineStore('comments', () => {
     } catch (e) {
       console.warn('Failed to save comments:', e)
     }
+  }
+
+  async function saveComments() {
+    await _save()
   }
 
   function _debouncedSave() {
@@ -258,72 +195,6 @@ export const useCommentsStore = defineStore('comments', () => {
     editStatuses.value = {}
   }
 
-  // ─── Submit to Chat ──────────────────────────────────────────────
-
-  async function submitToChat(filePath) {
-    const unresolved = unresolvedForFile(filePath)
-    if (!unresolved.length) return
-
-    const workspace = useWorkspaceStore()
-    const filesStore = useFilesStore()
-    const chatStore = useChatStore()
-    const editorStore = useEditorStore()
-
-    const relativePath = workspace?.path
-      ? filePath.replace(workspace.path + '/', '')
-      : filePath
-
-    // Read file content (includes comments automatically via the @file ref system)
-    let fileContent = ''
-    try {
-      fileContent = filesStore.fileContents[filePath] || await invoke('read_file', { path: filePath })
-    } catch {}
-
-    // Build comment summary to append to the file content
-    let commentBlock = '\n\n<document-comments>\n'
-    for (const c of unresolved) {
-      const lineNum = fileContent ? fileContent.substring(0, c.range.from).split('\n').length : '?'
-      commentBlock += `  <comment id="${c.id}" line="${lineNum}" author="${c.author}" anchor-text="${_escapeXml(c.anchorText)}">`
-      commentBlock += _escapeXml(c.text)
-      for (const r of c.replies) {
-        commentBlock += `\n    <reply author="${r.author}">${_escapeXml(r.text)}</reply>`
-      }
-      commentBlock += '</comment>\n'
-    }
-    commentBlock += '</document-comments>'
-
-    const fileRef = {
-      path: filePath,
-      content: fileContent + commentBlock,
-    }
-
-    // Open a chat tab and auto-send the message
-    const n = unresolved.length
-    const userText = `Please review and address the ${n === 1 ? 'comment' : n + ' comments'} on ${relativePath}.`
-
-    // Open or reuse a chat tab
-    editorStore.openChatBeside()
-    // Wait for async component mount, then find the active chat session
-    await new Promise(r => setTimeout(r, 200))
-
-    const sid = chatStore.activeSessionId
-    if (sid) {
-      chatStore.sendMessage(sid, {
-        text: userText,
-        fileRefs: [fileRef],
-      })
-    }
-  }
-
-  function _escapeXml(str) {
-    if (!str) return ''
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-  }
-
   // ─── Public API ─────────────────────────────────────────────────
   return {
     // State
@@ -348,16 +219,11 @@ export const useCommentsStore = defineStore('comments', () => {
     updateRange,
     setActiveComment,
     toggleMargin,
-
-    // Edit application
-    applyProposedEdit,
     getEditStatus,
 
     // Persistence
+    saveComments,
     loadComments,
     cleanup,
-
-    // Chat integration
-    submitToChat,
   }
 })
