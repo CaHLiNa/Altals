@@ -16,73 +16,27 @@ import {
   reloadOpenFilesAfterPull,
 } from '../services/workspaceStoreEffects'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
-import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
 import { removeWorkspaceBookmark } from '../services/workspacePermissions'
-
-const DEFAULT_INSTRUCTIONS_TEMPLATE = DEFAULT_PROJECT_INSTRUCTIONS.replace(/\r\n/g, '\n').trim()
-
-let cachedHomeDir = undefined
-
-async function hashWorkspacePath(value = '') {
-  const bytes = new TextEncoder().encode(String(value || ''))
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function resolveWorkspaceDataDir(globalConfigDir = '', workspaceId = '') {
-  if (!globalConfigDir || !workspaceId) return ''
-  return `${globalConfigDir}/workspaces/${workspaceId}`
-}
-
-function resolveClaudeConfigDir(globalConfigDir = '') {
-  const normalized = String(globalConfigDir || '').replace(/\/+$/, '')
-  const idx = normalized.lastIndexOf('/')
-  if (idx < 0) return ''
-  return `${normalized.slice(0, idx)}/.claude`
-}
-
-function resolveSkillPath(projectDir = '', rawPath = '') {
-  const value = String(rawPath || '').trim()
-  if (!projectDir || !value) return value
-  if (value.startsWith('/')) return value
-  if (value.startsWith('.project/')) return `${projectDir}/${value.slice('.project/'.length)}`
-  return `${projectDir}/${value.replace(/^\.\//, '')}`
-}
-
-function normalizeFileContent(value = '') {
-  return String(value).replace(/\r\n/g, '\n')
-}
-
-function normalizePathValue(value = '') {
-  const normalized = String(value || '').replace(/\/+$/, '')
-  return normalized || '/'
-}
-
-async function getHomeDirCached() {
-  if (cachedHomeDir !== undefined) return cachedHomeDir
-  try {
-    const { homeDir } = await import('@tauri-apps/api/path')
-    cachedHomeDir = normalizePathValue(await homeDir())
-  } catch {
-    cachedHomeDir = ''
-  }
-  return cachedHomeDir
-}
-
-function stripInstructionComments(raw = '') {
-  return normalizeFileContent(raw).split('\n')
-    .filter(line => !(line.trim().startsWith('<!--') && line.trim().endsWith('-->')))
-    .join('\n')
-    .trim()
-}
-
-function isDefaultInstructionsTemplate(raw = '') {
-  return normalizeFileContent(raw).trim() === DEFAULT_INSTRUCTIONS_TEMPLATE
-}
-
-function logWorkspaceBootstrapWarning(step, error) {
-  console.warn(`[workspace] ${step} failed:`, error)
-}
+import {
+  getHomeDirCached,
+  hashWorkspacePath,
+  resolveClaudeConfigDir,
+  resolveSkillPath,
+  resolveWorkspaceDataDir,
+  normalizePathValue,
+} from '../services/workspacePaths'
+import {
+  initProjectDir as bootstrapProjectDir,
+  initWorkspaceDataDir as bootstrapWorkspaceDataDir,
+  installEditHooks as installWorkspaceEditHooks,
+  logWorkspaceBootstrapWarning,
+  pathExists,
+} from '../services/workspaceBootstrap'
+import {
+  loadWorkspaceInstructions,
+  migrateAutoInstructionsFile as migrateWorkspaceInstructionsFile,
+  resolveInstructionsFileToOpen,
+} from '../services/workspaceInstructions'
 
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
@@ -296,377 +250,35 @@ export const useWorkspaceStore = defineStore('workspace', {
       localStorage.removeItem('lastWorkspace')
     },
 
-    async _pathExists(path) {
-      if (!path) return false
-      try {
-        return await invoke('path_exists', { path })
-      } catch {
-        return false
-      }
-    },
-
-    async _copyFileIfMissing(src, dest) {
-      if (!src || !dest) return false
-      if (!(await this._pathExists(src)) || await this._pathExists(dest)) return false
-      const content = await invoke('read_file', { path: src })
-      await invoke('write_file', { path: dest, content })
-      return true
-    },
-
-    async _copyDirIfMissing(src, dest) {
-      if (!src || !dest) return false
-      if (!(await this._pathExists(src)) || await this._pathExists(dest)) return false
-      await invoke('copy_dir', { src, dest })
-      return true
-    },
-
     async initWorkspaceDataDir() {
-      const altalsDir = this.shouldersDir
-      const legacyDir = this.legacyShouldersDir
-      if (!altalsDir) return
-
-      await invoke('create_dir', { path: altalsDir })
-
-      if (legacyDir && legacyDir !== altalsDir && await this._pathExists(legacyDir)) {
-        const privateFiles = [
-          'system.md',
-          'pending-edits.json',
-          'comments.json',
-          '.direct-mode',
-          '.env',
-          'models.json',
-          'tools.json',
-          'editor-state.json',
-          'open-sessions.json',
-        ]
-        for (const name of privateFiles) {
-          await this._copyFileIfMissing(`${legacyDir}/${name}`, `${altalsDir}/${name}`)
-        }
-        await this._copyDirIfMissing(`${legacyDir}/chats`, `${altalsDir}/chats`)
-      }
-
-      if (!(await this._pathExists(`${altalsDir}/system.md`))) {
-        await invoke('write_file', {
-          path: `${altalsDir}/system.md`,
-          content: `You are a writing assistant integrated into Altals, a markdown editor.
-
-When suggesting completions:
-- Match the user's writing style and tone
-- Continue naturally from the context
-- Offer varied options (different lengths, approaches)
-
-When reviewing text:
-- Be concise and specific
-- Focus on clarity and impact
-- Suggest concrete improvements
-`,
-        })
-      }
-
-      if (!(await this._pathExists(`${altalsDir}/pending-edits.json`))) {
-        await invoke('write_file', {
-          path: `${altalsDir}/pending-edits.json`,
-          content: '[]',
-        })
-      }
-
-      // Ensure global models.json exists
-      if (this.globalConfigDir) {
-        const globalModelsPath = `${this.globalConfigDir}/models.json`
-        const globalModelsExists = await this._pathExists(globalModelsPath)
-        if (!globalModelsExists) {
-          // Try migrating from workspace-local models.json
-          let migrated = false
-          const localModelsPath = `${altalsDir}/models.json`
-          try {
-            const localRaw = await invoke('read_file', { path: localModelsPath })
-            JSON.parse(localRaw) // validate JSON
-            await invoke('write_file', { path: globalModelsPath, content: localRaw })
-            migrated = true
-          } catch { /* no local config to migrate */ }
-
-          if (!migrated) {
-            await invoke('write_file', {
-              path: globalModelsPath,
-              content: JSON.stringify(getDefaultModelsConfig(), null, 2),
-            })
-          }
-        }
-      }
-
-      // Ensure chats directory exists
-      if (!(await this._pathExists(`${altalsDir}/chats`))) {
-        await invoke('create_dir', { path: `${altalsDir}/chats` })
-      }
-
-      await invoke('write_file', {
-        path: `${altalsDir}/workspace.json`,
-        content: JSON.stringify({
-          id: this.workspaceId,
-          path: this.path,
-          name: this.path?.split('/').pop() || '',
-          lastOpenedAt: new Date().toISOString(),
-        }, null, 2),
-      }).catch(() => {})
+      await bootstrapWorkspaceDataDir({
+        altalsDir: this.shouldersDir,
+        legacyDir: this.legacyShouldersDir,
+        globalConfigDir: this.globalConfigDir,
+        workspaceId: this.workspaceId,
+        workspacePath: this.path,
+        defaultModelsConfig: getDefaultModelsConfig(),
+      })
     },
 
     async initProjectDir() {
-      const projectDir = this.projectDir
-      const altalsDir = this.shouldersDir
-      const legacyShouldersDir = this.legacyShouldersDir
-      const legacyProjectDir = this.legacyProjectDir
-      if (!projectDir) return
-
-      await invoke('create_dir', { path: projectDir })
-
-      if (legacyProjectDir && legacyProjectDir !== projectDir && await this._pathExists(legacyProjectDir)) {
-        await this._copyDirIfMissing(`${legacyProjectDir}/references`, `${projectDir}/references`)
-        await this._copyDirIfMissing(`${legacyProjectDir}/styles`, `${projectDir}/styles`)
-        await this._copyDirIfMissing(`${legacyProjectDir}/skills`, `${projectDir}/skills`)
-        await this._copyFileIfMissing(`${legacyProjectDir}/citation-style.json`, `${projectDir}/citation-style.json`)
-        await this._copyFileIfMissing(`${legacyProjectDir}/pdf-settings.json`, `${projectDir}/pdf-settings.json`)
-        await this._copyFileIfMissing(`${legacyProjectDir}/instructions.md`, `${projectDir}/instructions.md`)
-      }
-
-      if (legacyShouldersDir && legacyShouldersDir !== altalsDir && await this._pathExists(legacyShouldersDir)) {
-        await this._copyDirIfMissing(`${legacyShouldersDir}/references`, `${projectDir}/references`)
-        await this._copyDirIfMissing(`${legacyShouldersDir}/styles`, `${projectDir}/styles`)
-        await this._copyFileIfMissing(`${legacyShouldersDir}/pdf-settings.json`, `${projectDir}/pdf-settings.json`)
-        await this._copyFileIfMissing(`${legacyShouldersDir}/citation-style.json`, `${projectDir}/citation-style.json`)
-      }
-
-      // Ensure references directories exist
-      const refsDir = `${projectDir}/references`
-      if (!(await this._pathExists(refsDir))) {
-        await invoke('create_dir', { path: refsDir })
-        await invoke('create_dir', { path: `${refsDir}/pdfs` })
-        await invoke('create_dir', { path: `${refsDir}/fulltext` })
-        await invoke('write_file', { path: `${refsDir}/library.json`, content: '[]' })
-      } else {
-        await invoke('create_dir', { path: `${refsDir}/pdfs` }).catch(() => {})
-        await invoke('create_dir', { path: `${refsDir}/fulltext` }).catch(() => {})
-        if (!(await this._pathExists(`${refsDir}/library.json`))) {
-          await invoke('write_file', { path: `${refsDir}/library.json`, content: '[]' })
-        }
-      }
-
-      // Ensure styles directory exists
-      await invoke('create_dir', { path: `${projectDir}/styles` }).catch(() => {})
-
-      // Ensure skills directory and default skill exist
-      const skillsDir = `${projectDir}/skills`
-      if (!(await this._pathExists(skillsDir))) {
-        await invoke('create_dir', { path: skillsDir })
-        await invoke('create_dir', { path: `${skillsDir}/altals-meta` })
-        await invoke('write_file', {
-          path: `${skillsDir}/skills.json`,
-          content: JSON.stringify({
-            skills: [{
-              name: 'altals-meta',
-              description: 'Information about the Altals app. Trigger: user asks about app features, support, or how Altals works.',
-              path: 'skills/altals-meta/SKILL.md',
-            }],
-          }, null, 2),
-        })
-        await invoke('write_file', {
-          path: `${skillsDir}/altals-meta/SKILL.md`,
-          content: DEFAULT_SKILL_CONTENT,
-        })
-      } else if (!(await this._pathExists(`${skillsDir}/altals-meta/SKILL.md`))) {
-        await invoke('create_dir', { path: `${skillsDir}/altals-meta` }).catch(() => {})
-        await invoke('write_file', {
-          path: `${skillsDir}/altals-meta/SKILL.md`,
-          content: DEFAULT_SKILL_CONTENT,
-        })
-      }
-
-      if (legacyProjectDir && legacyProjectDir !== projectDir && await this._pathExists(legacyProjectDir)) {
-        await invoke('delete_path', { path: legacyProjectDir }).catch(() => {})
-      }
-      if (legacyShouldersDir && legacyShouldersDir !== altalsDir && await this._pathExists(legacyShouldersDir)) {
-        await invoke('delete_path', { path: legacyShouldersDir }).catch(() => {})
-      }
-
-      await this._migrateAutoInstructionsFile()
+      await bootstrapProjectDir({
+        projectDir: this.projectDir,
+        altalsDir: this.shouldersDir,
+        legacyShouldersDir: this.legacyShouldersDir,
+        legacyProjectDir: this.legacyProjectDir,
+        defaultSkillContent: DEFAULT_SKILL_CONTENT,
+        migrateAutoInstructions: () => this.migrateAutoInstructionsFile(),
+      })
     },
 
     async installEditHooks() {
-      const claudeDir = this.claudeDir
-      const hooksDir = this.claudeHooksDir
-      const legacyClaudeDir = this.legacyClaudeDir
-      if (!claudeDir || !hooksDir || !this.globalConfigDir) return
-
-      try {
-        await invoke('create_dir', { path: claudeDir })
-        await invoke('create_dir', { path: hooksDir })
-      } catch (e) {
-        console.warn('Failed to prepare Claude config directories:', e)
-        return
-      }
-
-      const hookPath = `${hooksDir}/intercept-edits.sh`
-      const hookScript = `#!/bin/bash
-# Managed by Altals - edit interception hook
-# Records Claude Code Edit/Write tool calls for review (non-blocking)
-
-ALTALS_HOME=${JSON.stringify(this.globalConfigDir)}
-
-INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
-
-if [[ "$TOOL_NAME" != "Edit" && "$TOOL_NAME" != "Write" ]]; then
-  exit 0
-fi
-
-WORKSPACE_DIR=$(pwd -P)
-if [[ -z "$WORKSPACE_DIR" ]]; then
-  exit 0
-fi
-
-hash_workspace() {
-  if command -v shasum >/dev/null 2>&1; then
-    printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
-    return
-  fi
-  if command -v sha256sum >/dev/null 2>&1; then
-    printf '%s' "$1" | sha256sum | awk '{print $1}'
-    return
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$1" <<'PY'
-import hashlib
-import sys
-print(hashlib.sha256(sys.argv[1].encode("utf-8")).hexdigest())
-PY
-    return
-  fi
-  exit 1
-}
-
-WORKSPACE_HASH=$(hash_workspace "$WORKSPACE_DIR")
-if [[ -z "$WORKSPACE_HASH" ]]; then
-  exit 0
-fi
-
-WORKSPACE_DATA_DIR="$ALTALS_HOME/workspaces/$WORKSPACE_HASH"
-if [[ ! -d "$WORKSPACE_DATA_DIR" ]]; then
-  exit 0
-fi
-
-# Direct mode: skip recording entirely
-if [[ -f "$WORKSPACE_DATA_DIR/.direct-mode" ]]; then
-  exit 0
-fi
-
-mkdir -p "$WORKSPACE_DATA_DIR"
-PENDING_FILE="$WORKSPACE_DATA_DIR/pending-edits.json"
-if [[ ! -f "$PENDING_FILE" ]]; then
-  echo "[]" > "$PENDING_FILE"
-fi
-
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-ID="edit-$(date +%s)-$$"
-TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input // empty')
-
-if [[ "$TOOL_NAME" == "Edit" ]]; then
-  FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path')
-  OLD_STRING=$(echo "$TOOL_INPUT" | jq -r '.old_string')
-  NEW_STRING=$(echo "$TOOL_INPUT" | jq -r '.new_string')
-  OLD_CONTENT=""
-  if [[ -f "$FILE_PATH" ]]; then
-    OLD_CONTENT=$(cat "$FILE_PATH")
-  fi
-  NEW_EDIT=$(jq -n \\
-    --arg id "$ID" --arg ts "$TIMESTAMP" --arg tool "$TOOL_NAME" \\
-    --arg fp "$FILE_PATH" --arg os "$OLD_STRING" --arg ns "$NEW_STRING" \\
-    --arg old_content "$OLD_CONTENT" \\
-    '{id:$id,timestamp:$ts,tool:$tool,file_path:$fp,old_string:$os,new_string:$ns,old_content:$old_content,status:"pending"}')
-elif [[ "$TOOL_NAME" == "Write" ]]; then
-  FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path')
-  CONTENT=$(echo "$TOOL_INPUT" | jq -r '.content')
-  if [[ -f "$FILE_PATH" ]]; then
-    OLD_CONTENT=$(cat "$FILE_PATH")
-    NEW_EDIT=$(jq -n \\
-      --arg id "$ID" --arg ts "$TIMESTAMP" --arg tool "$TOOL_NAME" \\
-      --arg fp "$FILE_PATH" --arg content "$CONTENT" --arg old_content "$OLD_CONTENT" \\
-      '{id:$id,timestamp:$ts,tool:$tool,file_path:$fp,content:$content,old_content:$old_content,status:"pending"}')
-  else
-    NEW_EDIT=$(jq -n \\
-      --arg id "$ID" --arg ts "$TIMESTAMP" --arg tool "$TOOL_NAME" \\
-      --arg fp "$FILE_PATH" --arg content "$CONTENT" \\
-      '{id:$id,timestamp:$ts,tool:$tool,file_path:$fp,content:$content,old_content:null,status:"pending"}')
-  fi
-fi
-
-CURRENT=$(cat "$PENDING_FILE")
-echo "$CURRENT" | jq ". + [$NEW_EDIT]" > "$PENDING_FILE"
-exit 0
-`
-      try {
-        await invoke('write_file', { path: hookPath, content: hookScript })
-      } catch (e) {
-        console.warn('Failed to write hook script:', e)
-        return
-      }
-
-      // Merge into user-level Claude settings without clobbering unrelated hooks
-      let settings = {}
-      try {
-        const existing = await invoke('read_file', { path: `${claudeDir}/settings.json` })
-        settings = JSON.parse(existing)
-      } catch (e) {
-        // File doesn't exist or invalid JSON - start fresh
-      }
-
-      if (!settings.hooks) settings.hooks = {}
-      if (!Array.isArray(settings.hooks.PreToolUse)) settings.hooks.PreToolUse = []
-
-      settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(h => !(
-        h.matcher === 'Edit|Write' &&
-        h.hooks?.some(hh => String(hh.command || '').includes('intercept-edits.sh'))
-      ))
-
-      settings.hooks.PreToolUse.push({
-        matcher: 'Edit|Write',
-        hooks: [{
-          type: 'command',
-          command: `bash ${JSON.stringify(hookPath)}`,
-        }],
+      await installWorkspaceEditHooks({
+        claudeDir: this.claudeDir,
+        hooksDir: this.claudeHooksDir,
+        legacyClaudeDir: this.legacyClaudeDir,
+        globalConfigDir: this.globalConfigDir,
       })
-
-      try {
-        await invoke('write_file', {
-          path: `${claudeDir}/settings.json`,
-          content: JSON.stringify(settings, null, 2),
-        })
-      } catch (e) {
-        console.warn('Failed to write Claude settings.json:', e)
-      }
-
-      // Remove the old workspace-local Altals hook to avoid duplicate interception
-      if (legacyClaudeDir && await this._pathExists(`${legacyClaudeDir}/settings.json`)) {
-        try {
-          const legacyRaw = await invoke('read_file', { path: `${legacyClaudeDir}/settings.json` })
-          const legacySettings = JSON.parse(legacyRaw)
-          if (!legacySettings.hooks) legacySettings.hooks = {}
-          if (Array.isArray(legacySettings.hooks.PreToolUse)) {
-            legacySettings.hooks.PreToolUse = legacySettings.hooks.PreToolUse.filter(h => !(
-              h.matcher === 'Edit|Write' &&
-              h.hooks?.some(hh => String(hh.command || '').includes('.claude/hooks/intercept-edits.sh'))
-            ))
-            await invoke('write_file', {
-              path: `${legacyClaudeDir}/settings.json`,
-              content: JSON.stringify(legacySettings, null, 2),
-            }).catch(() => {})
-          }
-        } catch {
-          // Ignore legacy config cleanup failures
-        }
-      }
-
-      if (legacyClaudeDir && await this._pathExists(`${legacyClaudeDir}/hooks/intercept-edits.sh`)) {
-        await invoke('delete_path', { path: `${legacyClaudeDir}/hooks/intercept-edits.sh` }).catch(() => {})
-      }
     },
 
     async loadSettings() {
@@ -743,7 +355,7 @@ exit 0
       if (!projectDir) { this.skillsManifest = null; return }
       try {
         const skillsPath = `${projectDir}/skills/skills.json`
-        const exists = await this._pathExists(skillsPath)
+        const exists = await pathExists(skillsPath)
         if (!exists) { this.skillsManifest = null; return }
         const content = await invoke('read_file', { path: skillsPath })
         const data = JSON.parse(content)
@@ -762,7 +374,7 @@ exit 0
       if (!this.globalConfigDir) return {}
       const keysPath = `${this.globalConfigDir}/keys.env`
       try {
-        const exists = await invoke('path_exists', { path: keysPath })
+        const exists = await pathExists(keysPath)
         if (!exists) return {}
         const content = await invoke('read_file', { path: keysPath })
         const keys = {}
@@ -878,94 +490,35 @@ exit 0
       }
     },
 
-    async _ensureInternalInstructionsFile(seedContent = DEFAULT_PROJECT_INSTRUCTIONS) {
-      const filePath = this.internalInstructionsPath
-      if (!filePath) return
-      const exists = await invoke('path_exists', { path: filePath })
-      if (exists) return
-
-      await invoke('write_file', {
-        path: filePath,
-        content: seedContent,
-      })
-    },
-
-    async _migrateAutoInstructionsFile() {
+    async migrateAutoInstructionsFile() {
       const rootPath = this.instructionsFilePath
       const internalPath = this.internalInstructionsPath
       if (!rootPath || !internalPath) return
 
-      const rootExists = await invoke('path_exists', { path: rootPath })
-      if (!rootExists) return
-
       try {
-        const raw = await invoke('read_file', { path: rootPath })
-        if (!isDefaultInstructionsTemplate(raw)) return
-
-        await this._ensureInternalInstructionsFile(raw)
-        await invoke('delete_path', { path: rootPath })
-      } catch (e) {
-        console.warn('Failed to migrate auto-generated instructions file:', e)
+        await migrateWorkspaceInstructionsFile({
+          rootPath,
+          internalPath,
+        })
+      } catch (error) {
+        console.warn('Failed to migrate auto-generated instructions file:', error)
       }
     },
 
     async loadInstructions() {
-      const rootPath = this.instructionsFilePath
-      const internalPath = this.internalInstructionsPath
-      if (!rootPath || !internalPath) return
-
-      try {
-        let rootRaw = null
-        let internalRaw = null
-
-        try {
-          rootRaw = await invoke('read_file', { path: rootPath })
-        } catch { /* no manual root instructions */ }
-
-        if (rootRaw !== null && !isDefaultInstructionsTemplate(rootRaw)) {
-          this.instructions = stripInstructionComments(rootRaw)
-          return
-        }
-
-        try {
-          internalRaw = await invoke('read_file', { path: internalPath })
-        } catch { /* no internal instructions yet */ }
-
-        if (internalRaw !== null) {
-          this.instructions = stripInstructionComments(internalRaw)
-          return
-        }
-
-        this.instructions = rootRaw !== null ? stripInstructionComments(rootRaw) : ''
-      } catch (e) {
-        this.instructions = ''
-      }
+      this.instructions = await loadWorkspaceInstructions({
+        rootPath: this.instructionsFilePath,
+        internalPath: this.internalInstructionsPath,
+      })
     },
 
     async openInstructionsFile() {
-      const rootPath = this.instructionsFilePath
-      const internalPath = this.internalInstructionsPath
-      if (!rootPath || !internalPath) return
+      const filePath = await resolveInstructionsFileToOpen({
+        rootPath: this.instructionsFilePath,
+        internalPath: this.internalInstructionsPath,
+      })
+      if (!filePath) return
 
-      let filePath = internalPath
-      const rootExists = await invoke('path_exists', { path: rootPath })
-
-      if (rootExists) {
-        try {
-          const rootRaw = await invoke('read_file', { path: rootPath })
-          if (!isDefaultInstructionsTemplate(rootRaw)) {
-            filePath = rootPath
-          } else {
-            await this._migrateAutoInstructionsFile()
-          }
-        } catch { /* fall back to internal instructions */ }
-      }
-
-      if (filePath === internalPath) {
-        await this._ensureInternalInstructionsFile()
-      }
-
-      // Open in editor
       openWorkspaceFileInEditor(filePath)
     },
 
@@ -1194,7 +747,7 @@ exit 0
       if (normalizedHome && normalizedPath === normalizedHome) {
         return false
       }
-      return this._pathExists(`${normalizedPath}/.git`)
+      return pathExists(`${normalizedPath}/.git`)
     },
 
     async autoCommit() {
