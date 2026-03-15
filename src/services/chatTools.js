@@ -40,7 +40,7 @@ export const TOOL_CATEGORIES = [
       {
         label: 'System',
         tools: [
-          { name: 'run_command', description: 'Execute a bash command' },
+          { name: 'run_command', description: 'Execute a safe workspace command' },
         ],
       },
     ],
@@ -128,22 +128,31 @@ function _buildTypographicRegex(str) {
 
 function _resolvePath(p, workspace) {
   if (!workspace.path) return null
-  if (!p) return workspace.path
+  const root = _normalizeAbsolutePath(workspace.path)
+  if (!p) return root
 
   const resolved = p.startsWith('/')
     ? p
-    : workspace.path + '/' + p
+    : root + '/' + p
 
-  const parts = resolved.split('/')
+  const canonicalized = _normalizeAbsolutePath(resolved)
+  if (!_isWithinRoot(canonicalized, root)) return null
+  return canonicalized
+}
+
+function _normalizeAbsolutePath(path) {
+  const parts = String(path || '').split('/')
   const normalized = []
   for (const part of parts) {
+    if (!part || part === '.') continue
     if (part === '..') normalized.pop()
-    else if (part !== '.' && part !== '') normalized.push(part)
+    else normalized.push(part)
   }
-  const canonicalized = '/' + normalized.join('/')
+  return '/' + normalized.join('/')
+}
 
-  if (!canonicalized.startsWith(workspace.path)) return null
-  return canonicalized
+function _isWithinRoot(path, root) {
+  return path === root || path.startsWith(root === '/' ? '/' : `${root}/`)
 }
 
 const PATH_ERROR = 'Error: path is outside the workspace. Only files within the project folder can be accessed.'
@@ -208,12 +217,12 @@ export function getAiTools(workspace) {
     // ── Workspace Tools ─────────────────────────────────────────────
 
     run_command: tool({
-      description: 'Execute a bash command in the workspace directory. Use for git, npm, build tools, etc.',
+      description: 'Execute a single safe workspace command in the project directory. No shell chaining, redirects, pipes, or inline code evaluation.',
       inputSchema: z.object({
         command: z.string().describe('The bash command to execute'),
       }),
       execute: async ({ command }) => {
-        return await invoke('run_shell_command', { cwd: workspace.path, command })
+        return await invoke('run_workspace_command', { cwd: workspace.path, command })
       },
     }),
 

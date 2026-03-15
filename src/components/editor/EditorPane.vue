@@ -631,10 +631,18 @@ async function handleExportPdf(settingsOverride) {
       invoke('delete_path', { path: tempMdPath }).catch(() => {})
       // Clean up temp chunk images (_chunk_img_*.png/jpg)
       const dir = tempMdPath.substring(0, tempMdPath.lastIndexOf('/'))
-      invoke('run_shell_command', {
-        cwd: dir,
-        command: 'rm -f _chunk_img_*',
-      }).catch(() => {})
+      ;(async () => {
+        try {
+          const entries = await invoke('read_dir_shallow', { path: dir })
+          await Promise.all(
+            (entries || [])
+              .filter(entry => !entry.is_dir && entry.name?.startsWith('_chunk_img_'))
+              .map(entry => invoke('delete_path', { path: entry.path }).catch(() => {})),
+          )
+        } catch {
+          // ignore temp cleanup failures
+        }
+      })()
     }
 
     if (result?.success && result.pdf_path) {

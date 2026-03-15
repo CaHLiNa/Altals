@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n'
+import { useWorkspaceStore } from './workspace'
 
 const DETECTION_CACHE_MS = 5 * 60 * 1000
 
@@ -238,7 +239,9 @@ export const useEnvironmentStore = defineStore('environment', {
 
     async _run(cmd) {
       try {
-        return await invoke('run_shell_command', { cwd: '.', command: cmd })
+        const workspace = useWorkspaceStore()
+        const cwd = workspace.path || workspace.globalConfigDir || await invoke('get_global_config_dir').catch(() => '.')
+        return await invoke('run_shell_command', { cwd, command: cmd })
       } catch {
         return ''
       }

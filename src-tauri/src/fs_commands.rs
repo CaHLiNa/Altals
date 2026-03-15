@@ -10,6 +10,8 @@ use tokio::task;
 
 use crate::app_dirs;
 use crate::process_utils::background_command;
+use crate::security;
+use crate::security::WorkspaceScopeState;
 
 pub const ALLOWED_HOSTS: &[&str] = &[
     "api.anthropic.com",
@@ -541,6 +543,93 @@ pub async fn run_shell_command(cwd: String, command: String) -> Result<String, S
         .output()
         .map_err(|e| e.to_string())?;
 
+    format_command_output(output)
+}
+
+#[tauri::command]
+pub async fn run_workspace_command(
+    cwd: String,
+    command: String,
+    state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<String, String> {
+    let cwd = security::ensure_workspace_cwd(&state, &cwd)?;
+    let (program, args) = parse_workspace_command(&command)?;
+
+    let output = background_command(&program)
+        .args(&args)
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    format_command_output(output)
+}
+
+fn parse_workspace_command(command: &str) -> Result<(String, Vec<String>), String> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err("Command cannot be empty".to_string());
+    }
+    if trimmed.contains('\n') || trimmed.contains('\r') || trimmed.contains('\0') {
+        return Err("Multiline commands are not allowed".to_string());
+    }
+
+    let forbidden_fragments = ["&&", "||", ";", "|", ">", "<", "`", "$("];
+    if forbidden_fragments.iter().any(|fragment| trimmed.contains(fragment)) {
+        return Err("Command chaining, pipes, redirects, and substitutions are not allowed".to_string());
+    }
+
+    let parts = shell_words::split(trimmed)
+        .map_err(|e| format!("Failed to parse command arguments: {e}"))?;
+    if parts.is_empty() {
+        return Err("Command cannot be empty".to_string());
+    }
+
+    let program = parts[0].clone();
+    let args = parts[1..].to_vec();
+    let program_name = Path::new(&program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&program)
+        .to_ascii_lowercase();
+
+    let forbidden_programs = [
+        "bash",
+        "sh",
+        "zsh",
+        "fish",
+        "cmd",
+        "cmd.exe",
+        "powershell",
+        "pwsh",
+        "sudo",
+        "su",
+        "doas",
+        "rm",
+        "chmod",
+        "chown",
+        "dd",
+        "diskutil",
+        "mkfs",
+        "shutdown",
+        "reboot",
+        "halt",
+        "poweroff",
+        "launchctl",
+        "osascript",
+    ];
+    if forbidden_programs.contains(&program_name.as_str()) {
+        return Err(format!("Program is not allowed in workspace command mode: {program_name}"));
+    }
+
+    let eval_flags = ["-c", "-C", "/C", "-command", "-encodedcommand", "--eval", "-e"];
+    if args.iter().any(|arg| eval_flags.contains(&arg.as_str())) {
+        return Err("Inline code-evaluation flags are not allowed in workspace command mode".to_string());
+    }
+
+    Ok((program, args))
+}
+
+fn format_command_output(output: std::process::Output) -> Result<String, String> {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
@@ -556,7 +645,13 @@ pub async fn run_shell_command(cwd: String, command: String) -> Result<String, S
         result.push_str("\n... [truncated at 100KB]");
     }
 
-    Ok(result)
+    if output.status.success() {
+        Ok(result)
+    } else if result.trim().is_empty() {
+        Err(format!("Command failed with status {}", output.status))
+    } else {
+        Err(result)
+    }
 }
 
 fn search_dir_contents(
@@ -629,23 +724,49 @@ fn search_dir_contents(
 #[tauri::command]
 pub async fn fetch_url_content(url: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client
-        .get(&url)
-        .header("User-Agent", "Altals/1.0")
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut current = security::validate_public_fetch_url(&url).await?;
+    let mut redirects_remaining = 5usize;
 
-    let status = response.status().as_u16();
-    if status < 200 || status >= 300 {
-        return Err(format!("HTTP error {}", status));
-    }
+    let html = loop {
+        let response = client
+            .get(current.clone())
+            .header("User-Agent", "Altals/1.0")
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
 
-    let html = response.text().await.map_err(|e| e.to_string())?;
+        if response.status().is_redirection() {
+            if redirects_remaining == 0 {
+                return Err("Too many redirects while fetching URL".to_string());
+            }
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .ok_or_else(|| "Redirect response missing Location header".to_string())?
+                .to_str()
+                .map_err(|e| format!("Invalid redirect location: {e}"))?;
+            let next = current
+                .join(location)
+                .or_else(|_| url::Url::parse(location))
+                .map_err(|e| format!("Invalid redirect URL: {e}"))?;
+            current = security::validate_public_fetch_url(next.as_str()).await?;
+            redirects_remaining -= 1;
+            continue;
+        }
+
+        let status = response.status().as_u16();
+        if status < 200 || status >= 300 {
+            return Err(format!("HTTP error {}", status));
+        }
+
+        break response.text().await.map_err(|e| e.to_string())?;
+    };
+
     let text = strip_html(&html);
 
     // Truncate at 50KB

@@ -68,7 +68,7 @@
                 <span class="tool-name">{{ tool.name }}</span>
                 <span class="tool-desc">{{ t(tool.description) }}</span>
                 <span v-if="tool.external" class="privacy-badge">{{ t(tool.external) }}</span>
-                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">{{ t('unsandboxed') }}</span>
+                <span v-if="tool.name === 'run_command'" class="privacy-badge shell-warning">{{ t('workspace only') }}</span>
               </div>
             </div>
           </template>

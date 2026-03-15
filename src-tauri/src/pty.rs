@@ -2,23 +2,24 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde_json;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 
 pub struct PtySession {
     writer: Box<dyn Write + Send>,
     master: Box<dyn portable_pty::MasterPty + Send>,
+    killer: Box<dyn portable_pty::ChildKiller + Send + Sync>,
 }
 
 pub struct PtyState {
-    sessions: Mutex<HashMap<u32, PtySession>>,
+    sessions: Arc<Mutex<HashMap<u32, PtySession>>>,
     next_id: Mutex<u32>,
 }
 
 impl Default for PtyState {
     fn default() -> Self {
         Self {
-            sessions: Mutex::new(HashMap::new()),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
             next_id: Mutex::new(1),
         }
     }
@@ -60,10 +61,11 @@ pub async fn pty_spawn(
         cmd_builder.env("PS1", "\\W \\$ ");
     }
 
-    let _child = pair
+    let mut child = pair
         .slave
         .spawn_command(cmd_builder)
         .map_err(|e| e.to_string())?;
+    let killer = child.clone_killer();
 
     // Drop the slave - we only need the master
     drop(pair.slave);
@@ -84,13 +86,14 @@ pub async fn pty_spawn(
             PtySession {
                 writer,
                 master: pair.master,
+                killer,
             },
         );
     }
 
     // Spawn reader thread
     let event_name = format!("pty-output-{}", id);
-    let app_clone = app.clone();
+    let app_reader = app.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
@@ -98,13 +101,34 @@ pub async fn pty_spawn(
                 Ok(0) => break,
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app_clone.emit(&event_name, serde_json::json!({ "data": data }));
+                    let _ = app_reader.emit(&event_name, serde_json::json!({ "data": data }));
                 }
                 Err(_) => break,
             }
         }
-        // PTY closed - notify frontend
-        let _ = app_clone.emit(&format!("pty-exit-{}", id), serde_json::json!({ "id": id }));
+    });
+
+    let sessions = state.sessions.clone();
+    let app_exit = app.clone();
+    std::thread::spawn(move || {
+        let status = child.wait();
+        if let Ok(mut sessions) = sessions.lock() {
+            sessions.remove(&id);
+        }
+
+        let payload = match status {
+            Ok(status) => serde_json::json!({
+                "id": id,
+                "code": status.exit_code(),
+                "success": status.success(),
+            }),
+            Err(error) => serde_json::json!({
+                "id": id,
+                "error": error.to_string(),
+                "success": false,
+            }),
+        };
+        let _ = app_exit.emit(&format!("pty-exit-{}", id), payload);
     });
 
     Ok(id)
@@ -156,6 +180,9 @@ pub async fn pty_resize(
 #[tauri::command]
 pub async fn pty_kill(state: tauri::State<'_, PtyState>, id: u32) -> Result<(), String> {
     let mut sessions = state.sessions.lock().unwrap();
-    sessions.remove(&id);
-    Ok(())
+    if let Some(mut session) = sessions.remove(&id) {
+        session.killer.kill().map_err(|e| e.to_string())
+    } else {
+        Err("PTY session not found".to_string())
+    }
 }

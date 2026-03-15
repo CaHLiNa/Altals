@@ -31,13 +31,7 @@ async function saveImage(b64, ext, imageDir, imageIdx) {
   const cleaned = b64.replace(/\s/g, '')
   const filename = `_chunk_img_${imageIdx}.${ext}`
   const path = `${imageDir}/${filename}`
-  // Write base64 to a temp file, decode with shell
-  const b64Path = `${path}.b64`
-  await invoke('write_file', { path: b64Path, content: cleaned })
-  await invoke('run_shell_command', {
-    cwd: imageDir,
-    command: `base64 -d < '${b64Path}' > '${path}' && rm '${b64Path}'`,
-  })
+  await invoke('write_file_base64', { path, data: cleaned })
   return { path, filename }
 }
 

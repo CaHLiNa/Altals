@@ -161,13 +161,21 @@ export const useCommentsStore = defineStore('comments', () => {
       editStatuses.value[statusKey] = { status: 'pending' }
 
       const currentContent = await invoke('read_file', { path: comment.filePath })
+      const rawFrom = Number(comment.range?.from)
+      const rawTo = Number(comment.range?.to)
+      const from = Number.isFinite(rawFrom) ? Math.max(0, Math.min(rawFrom, currentContent.length)) : 0
+      const to = Number.isFinite(rawTo) ? Math.max(from, Math.min(rawTo, currentContent.length)) : from
+      const anchorSlice = currentContent.slice(from, to)
 
-      if (!currentContent.includes(proposedEdit.oldText)) {
-        editStatuses.value[statusKey] = { status: 'error', error: 'oldText not found in file. The text may have changed.' }
+      const localIdx = anchorSlice.indexOf(proposedEdit.oldText)
+      if (localIdx === -1) {
+        editStatuses.value[statusKey] = { status: 'error', error: 'oldText was not found inside the anchored comment range. The document likely changed and the suggestion must be re-anchored.' }
         return
       }
 
-      const newContent = currentContent.replace(proposedEdit.oldText, proposedEdit.newText)
+      const editStart = from + localIdx
+      const editEnd = editStart + proposedEdit.oldText.length
+      const newContent = currentContent.slice(0, editStart) + proposedEdit.newText + currentContent.slice(editEnd)
       await invoke('write_file', { path: comment.filePath, content: newContent })
 
       // Update files store before triggering editor refresh
@@ -175,10 +183,7 @@ export const useCommentsStore = defineStore('comments', () => {
       editorStore.openFile(comment.filePath)
 
       // Update the comment range to cover the new text
-      const editStart = currentContent.indexOf(proposedEdit.oldText)
-      if (editStart !== -1) {
-        comment.range = { from: editStart, to: editStart + proposedEdit.newText.length }
-      }
+      comment.range = { from: editStart, to: editStart + proposedEdit.newText.length }
 
       editStatuses.value[statusKey] = { status: 'applied' }
       comment.updatedAt = new Date().toISOString()

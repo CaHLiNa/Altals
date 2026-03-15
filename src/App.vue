@@ -103,6 +103,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
@@ -263,6 +264,7 @@ async function openWorkspace(path, options = {}) {
   }
 
   try {
+    await invoke('workspace_set_active_root', { path: targetPath })
     await workspace.openWorkspace(targetPath)
     editorStore.loadRecentFiles(targetPath)
 
@@ -361,6 +363,9 @@ async function closeWorkspace() {
   latexStore.cleanup()
   typstStore.cleanup()
   await workspace.closeWorkspace()
+  await invoke('workspace_clear_active_root').catch((error) => {
+    console.warn('[workspace] failed to clear active root:', error)
+  })
   void releaseWorkspaceBookmark(closingWorkspacePath)
 }
 

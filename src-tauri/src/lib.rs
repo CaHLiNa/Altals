@@ -9,6 +9,7 @@ mod model_sync;
 mod pdf_translate;
 mod process_utils;
 mod pty;
+mod security;
 mod typst_export;
 mod usage_db;
 mod workspace_access;
@@ -363,6 +364,7 @@ pub fn run() {
         .manage(kernel::KernelState::default())
         .manage(latex::LatexState::default())
         .manage(pdf_translate::PdfTranslateState::default())
+        .manage(security::WorkspaceScopeState::default())
         .manage(usage_db::UsageDbState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
 
@@ -419,8 +421,11 @@ pub fn run() {
             git::git_clone_authenticated,
             fs_commands::search_file_contents,
             fs_commands::run_shell_command,
+            fs_commands::run_workspace_command,
             fs_commands::fetch_url_content,
             fs_commands::get_global_config_dir,
+            security::workspace_set_active_root,
+            security::workspace_clear_active_root,
             workspace_access::macos_create_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark,
             workspace_access::macos_release_workspace_access,
