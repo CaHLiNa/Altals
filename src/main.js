@@ -1,3 +1,5 @@
+import './utils/runtimePolyfills'
+
 // Suppress SuperDoc's bundled Vue warning (it inlines its own Vue copy — unfixable)
 const _warn = console.warn
 console.warn = (...args) => {

@@ -5,9 +5,9 @@ import { invoke } from '@tauri-apps/api/core'
  * Handles two-column layouts, detects paragraphs and headings.
  */
 export async function extractTextFromPdf(filePath) {
-  const pdfjsLib = await import('pdfjs-dist')
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
+    'pdfjs-dist/legacy/build/pdf.worker.mjs',
     import.meta.url
   ).href
 
@@ -183,9 +183,9 @@ function _buildParagraphs(lines, medianGap, bodyFontSize) {
  * Tier 2: AI extraction from first ~3000 chars
  */
 export async function extractFromPdf(filePath) {
-  const pdfjsLib = await import('pdfjs-dist')
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
+    'pdfjs-dist/legacy/build/pdf.worker.mjs',
     import.meta.url
   ).href
 

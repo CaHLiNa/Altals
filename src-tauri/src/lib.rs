@@ -173,6 +173,11 @@ fn handle_workspace_protocol<R: Runtime>(
     app: &AppHandle<R>,
     request: tauri::http::Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
+    eprintln!(
+        "[workspace-protocol] request uri={} path={}",
+        request.uri(),
+        request.uri().path()
+    );
     let (scope, relative_path) = match parse_workspace_protocol_request_path(request.uri().path()) {
         Ok(parts) => parts,
         Err(error) => return workspace_protocol_error(StatusCode::BAD_REQUEST, error),
@@ -189,6 +194,13 @@ fn handle_workspace_protocol<R: Runtime>(
         }
         Err(error) => return workspace_protocol_error(StatusCode::BAD_REQUEST, error),
     };
+
+    eprintln!(
+        "[workspace-protocol] resolved scope={} relative_path={} absolute_path={}",
+        scope,
+        relative_path,
+        resolved.display()
+    );
 
     let bytes = match fs::read(&resolved) {
         Ok(bytes) => bytes,

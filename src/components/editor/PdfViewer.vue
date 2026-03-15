@@ -8,20 +8,11 @@
               <button
                 class="pdf-toolbar-btn"
                 :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
-                :disabled="!pdfUi.ready || !pdfUi.sidebarSupported"
+                :disabled="!pdfUi.ready || !sidebarAvailable"
                 :title="t('Toggle sidebar')"
                 @click="toggleSidebar"
               >
                 <component :is="sidebarIcon" :size="14" :stroke-width="1.6" />
-              </button>
-              <button
-                class="pdf-toolbar-btn"
-                :class="{ 'pdf-toolbar-btn-active': pdfUi.searchOpen }"
-                :disabled="!pdfUi.ready"
-                :title="t('Search')"
-                @click="toggleSearch"
-              >
-                <IconSearch :size="14" :stroke-width="1.6" />
               </button>
             </div>
 
@@ -123,76 +114,122 @@
             </div>
           </div>
         </div>
-
-        <div v-if="pdfUi.searchOpen" class="pdf-search-popover">
-          <input
-            ref="searchInputRef"
-            v-model="pdfUi.searchQuery"
-            class="pdf-toolbar-input pdf-toolbar-search"
-            type="text"
-            spellcheck="false"
-            :placeholder="t('Find in document...')"
-            @input="onSearchInput"
-            @keydown.enter.prevent="searchAgain(false)"
-            @keydown.shift.enter.prevent="searchAgain(true)"
-            @keydown.esc.prevent="closeSearch"
-          />
-          <button
-            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-            :disabled="!pdfUi.ready || !pdfUi.searchQuery"
-            :title="t('Previous match')"
-            @click="searchAgain(true)"
-          >
-            <IconChevronLeft :size="12" :stroke-width="1.8" />
-          </button>
-          <button
-            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-            :disabled="!pdfUi.ready || !pdfUi.searchQuery"
-            :title="t('Next match')"
-            @click="searchAgain(false)"
-          >
-            <IconChevronRight :size="12" :stroke-width="1.8" />
-          </button>
-          <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
-          <button
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
-            @click="toggleSearchOption('searchHighlightAll')"
-          >
-            {{ t('Highlight All') }}
-          </button>
-          <button
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
-            @click="toggleSearchOption('searchCaseSensitive')"
-          >
-            {{ t('Match Case') }}
-          </button>
-          <button
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
-            @click="toggleSearchOption('searchMatchDiacritics')"
-          >
-            {{ t('Match Diacritics') }}
-          </button>
-          <button
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
-            @click="toggleSearchOption('searchEntireWord')"
-          >
-            {{ t('Whole Words') }}
-          </button>
-        </div>
       </div>
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
-      <div
-        ref="viewerContainerRef"
-        class="pdf-stage altals-pdf-stage"
-        @dblclick="handleViewerDoubleClick"
-      >
-        <div ref="viewerRef" class="pdfViewer"></div>
+      <div class="pdf-reader-shell">
+        <div class="pdf-stage-shell">
+          <div
+            ref="viewerContainerRef"
+            class="pdf-stage altals-pdf-stage"
+            @dblclick="handleViewerDoubleClick"
+          >
+            <div ref="viewerRef" class="pdfViewer"></div>
+          </div>
+        </div>
+
+        <Transition name="pdf-sidebar-overlay">
+          <aside
+            v-if="pdfUi.sidebarOpen"
+            class="pdf-sidebar-shell"
+          >
+            <div class="pdf-sidebar-header">
+              <button
+                type="button"
+                class="pdf-sidebar-tab"
+                :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarMode === 'outline' }"
+                :disabled="!pdfUi.outlineSupported && !outlineLoading"
+                @click="selectSidebarMode('outline')"
+              >
+                {{ t('Outline') }}
+              </button>
+              <button
+                type="button"
+                class="pdf-sidebar-tab"
+                :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarMode === 'pages' }"
+                :disabled="!pdfUi.pagesSupported"
+                @click="selectSidebarMode('pages')"
+              >
+                {{ t('Page View') }}
+              </button>
+            </div>
+
+            <div
+              v-if="pdfUi.sidebarMode === 'outline'"
+              class="pdf-outline-list"
+            >
+              <div
+                v-if="outlineLoading"
+                class="pdf-outline-empty"
+              >
+                {{ t('Loading PDF...') }}
+              </div>
+              <div
+                v-else-if="outlineItems.length === 0"
+                class="pdf-outline-empty"
+              >
+                {{ t('No outline') }}
+              </div>
+              <button
+                v-for="item in outlineItems"
+                :key="item.id"
+                type="button"
+                class="pdf-outline-item"
+                :style="{
+                  paddingLeft: `${12 + item.depth * 14}px`,
+                  fontWeight: item.bold ? 600 : 500,
+                  fontStyle: item.italic ? 'italic' : 'normal',
+                }"
+                :title="item.title"
+                @click="activateOutlineItem(item)"
+              >
+                <span class="pdf-outline-item-title">{{ item.title }}</span>
+              </button>
+            </div>
+
+            <div
+              v-else
+              ref="sidebarScrollRef"
+              class="pdf-page-list"
+            >
+              <button
+                v-for="thumbnail in pageThumbnails"
+                :key="thumbnail.pageNumber"
+                :ref="el => setThumbnailItemRef(thumbnail.pageNumber, el)"
+                type="button"
+                class="pdf-page-item"
+                :class="{ 'pdf-page-item-active': thumbnail.pageNumber === pdfUi.pageNumber }"
+                :data-page-number="thumbnail.pageNumber"
+                :title="t('Page {page}', { page: thumbnail.pageNumber })"
+                @click="activatePageThumbnail(thumbnail.pageNumber)"
+              >
+                <div
+                  class="pdf-page-thumb"
+                  :style="thumbnailPreviewStyle(thumbnail)"
+                >
+                  <img
+                    v-if="thumbnail.imageSrc"
+                    class="pdf-page-thumb-image"
+                    :src="thumbnail.imageSrc"
+                    :alt="t('Page {page}', { page: thumbnail.pageNumber })"
+                  />
+                  <div
+                    v-else-if="thumbnail.status === 'error'"
+                    class="pdf-page-thumb-fallback"
+                  >
+                    {{ t('Preview unavailable') }}
+                  </div>
+                  <div
+                    v-else
+                    class="pdf-page-thumb-skeleton"
+                  ></div>
+                </div>
+                <div class="pdf-page-label">{{ t('Page {page}', { page: thumbnail.pageNumber }) }}</div>
+              </button>
+            </div>
+          </aside>
+        </Transition>
       </div>
 
       <div
@@ -204,10 +241,13 @@
       </div>
       <div
         v-else-if="error"
-        class="absolute inset-0 flex items-center justify-center text-sm"
+        class="absolute inset-0 flex items-center justify-center px-6 text-sm"
         style="color: var(--fg-muted); background: var(--bg-primary);"
       >
-        {{ t('Could not load PDF') }}
+        <div class="max-w-xl text-center">
+          <div>{{ t('Could not load PDF') }}</div>
+          <div v-if="error" class="mt-2 text-xs" style="word-break: break-word;">{{ error }}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -217,26 +257,23 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch, defineExpose, defineEmits, nextTick, shallowRef } from 'vue'
 import {
   IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
   IconChevronUp,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconMinus,
   IconPlus,
-  IconSearch,
 } from '@tabler/icons-vue'
-import * as pdfjsLib from 'pdfjs-dist'
-import { EventBus, PDFLinkService, PDFFindController, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import 'pdfjs-dist/web/pdf_viewer.css'
+import { invoke } from '@tauri-apps/api/core'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+import 'pdfjs-dist/legacy/web/pdf_viewer.css'
 import { useI18n } from '../../i18n'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
+  'pdfjs-dist/legacy/build/pdf.worker.mjs',
   import.meta.url,
 ).href
 
@@ -263,12 +300,10 @@ const PDF_SCALE_PRESETS = [
 ]
 const MIN_SCALE = 0.3
 const MAX_SCALE = 5
-const FIND_STATE = {
-  FOUND: 0,
-  NOT_FOUND: 1,
-  WRAPPED: 2,
-  PENDING: 3,
-}
+const DEFAULT_PAGE_THUMB_ASPECT_RATIO = 1 / Math.SQRT2
+const PAGE_THUMBNAIL_TARGET_WIDTH = 132
+const PAGE_THUMBNAIL_CONCURRENCY = 2
+const PAGE_THUMBNAIL_NEARBY_RANGE = 1
 
 const workspace = useWorkspaceStore()
 const pdfTranslateStore = usePdfTranslateStore()
@@ -277,13 +312,16 @@ const { t } = useI18n()
 
 const viewerContainerRef = ref(null)
 const viewerRef = ref(null)
-const searchInputRef = ref(null)
+const sidebarScrollRef = ref(null)
 const pageInputRef = ref(null)
 const pageInput = ref('1')
 const loading = ref(true)
 const error = ref(null)
 const pdfSession = shallowRef(null)
-const reloadVersion = ref(0)
+const outlineItems = ref([])
+const outlineLoading = ref(false)
+const outlineResolved = ref(false)
+const pageThumbnails = ref([])
 
 const pdfUi = reactive({
   ready: false,
@@ -296,21 +334,25 @@ const pdfUi = reactive({
   scaleValue: 'page-width',
   scaleLabel: '',
   sidebarOpen: false,
+  sidebarMode: 'outline',
   sidebarSupported: false,
-  searchOpen: false,
-  searchQuery: '',
-  searchResultText: '',
-  searchHighlightAll: true,
-  searchCaseSensitive: false,
-  searchMatchDiacritics: false,
-  searchEntireWord: false,
+  outlineSupported: false,
+  pagesSupported: false,
 })
 
 let loadRequestId = 0
 let resizeObserver = null
+let thumbnailObserver = null
+let thumbnailQueue = []
+const thumbnailQueuedPages = new Set()
+const thumbnailRenderingPages = new Set()
+const thumbnailItemElements = new Map()
 
 const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
+))
+const sidebarAvailable = computed(() => (
+  pdfUi.sidebarSupported || outlineLoading.value
 ))
 const translateTask = computed(() => (
   props.filePath ? pdfTranslateStore.latestTaskForInput(props.filePath) : null
@@ -360,10 +402,6 @@ function getPdfLinkService() {
   return pdfSession.value?.linkService || null
 }
 
-function getPdfEventBus() {
-  return pdfSession.value?.eventBus || null
-}
-
 function localizeScaleLabel(value, numericScale = null) {
   switch (String(value || '').trim()) {
     case 'auto':
@@ -396,15 +434,15 @@ function resetPdfUi() {
   pdfUi.scaleValue = 'page-width'
   pdfUi.scaleLabel = t('Page Width')
   pdfUi.sidebarOpen = false
+  pdfUi.sidebarMode = 'outline'
   pdfUi.sidebarSupported = false
-  pdfUi.searchOpen = false
-  pdfUi.searchQuery = ''
-  pdfUi.searchResultText = ''
-  pdfUi.searchHighlightAll = true
-  pdfUi.searchCaseSensitive = false
-  pdfUi.searchMatchDiacritics = false
-  pdfUi.searchEntireWord = false
+  pdfUi.outlineSupported = false
+  pdfUi.pagesSupported = false
   pageInput.value = '1'
+  outlineItems.value = []
+  outlineLoading.value = false
+  outlineResolved.value = false
+  resetPageThumbnails()
 }
 
 function syncPdfUi() {
@@ -429,36 +467,210 @@ function syncPdfUi() {
   pdfUi.canZoomIn = currentScale < MAX_SCALE
   pdfUi.scaleValue = currentScaleValue
   pdfUi.scaleLabel = localizeScaleLabel(currentScaleValue, currentScale)
+  pdfUi.pagesSupported = pagesCount > 0
+
+  if (pageThumbnails.value.length !== pagesCount) {
+    initializePageThumbnails(pagesCount)
+  }
+  syncSidebarSupport()
 
   if (document.activeElement !== pageInputRef.value) {
     pageInput.value = String(pageNumber || 1)
   }
 }
 
-function updateSearchResultText(event = {}) {
-  const matchesCount = event.matchesCount || { current: 0, total: 0 }
-  const total = Number(matchesCount.total || 0)
-  const current = Number(matchesCount.current || 0)
+function syncSidebarSupport() {
+  pdfUi.sidebarSupported = pdfUi.pagesSupported || pdfUi.outlineSupported
+  if (!pdfUi.sidebarSupported && !outlineLoading.value) {
+    pdfUi.sidebarOpen = false
+  }
+  if (outlineResolved.value && !pdfUi.outlineSupported && pdfUi.pagesSupported && pdfUi.sidebarMode === 'outline') {
+    pdfUi.sidebarMode = 'pages'
+  }
+  if (!pdfUi.pagesSupported && pdfUi.sidebarMode === 'pages') {
+    pdfUi.sidebarMode = 'outline'
+  }
+}
 
-  if (event.state === FIND_STATE.PENDING) {
-    pdfUi.searchResultText = t('Searching...')
+function initializePageThumbnails(totalPages) {
+  const count = Math.max(0, Number(totalPages || 0))
+  pageThumbnails.value = Array.from({ length: count }, (_, index) => ({
+    pageNumber: index + 1,
+    status: 'idle',
+    imageSrc: '',
+    aspectRatio: DEFAULT_PAGE_THUMB_ASPECT_RATIO,
+  }))
+}
+
+function resetPageThumbnails() {
+  disconnectThumbnailObserver()
+  thumbnailQueue = []
+  thumbnailQueuedPages.clear()
+  thumbnailRenderingPages.clear()
+  thumbnailItemElements.clear()
+  pageThumbnails.value = []
+}
+
+function disconnectThumbnailObserver() {
+  if (!thumbnailObserver) return
+  thumbnailObserver.disconnect()
+  thumbnailObserver = null
+}
+
+function updatePageThumbnail(pageNumber, patch) {
+  const index = Number(pageNumber) - 1
+  const current = pageThumbnails.value[index]
+  if (!current) return
+  pageThumbnails.value[index] = {
+    ...current,
+    ...patch,
+  }
+}
+
+function queueThumbnailWindow(pageNumber) {
+  const center = Number(pageNumber)
+  if (!Number.isInteger(center) || center < 1) return
+  const start = Math.max(1, center - PAGE_THUMBNAIL_NEARBY_RANGE)
+  const end = Math.min(pageThumbnails.value.length, center + PAGE_THUMBNAIL_NEARBY_RANGE)
+  for (let page = start; page <= end; page += 1) {
+    enqueueThumbnail(page)
+  }
+}
+
+function enqueueThumbnail(pageNumber) {
+  const page = Number(pageNumber)
+  const thumbnail = pageThumbnails.value[page - 1]
+  if (!thumbnail) return
+  if (thumbnail.status === 'ready' || thumbnail.status === 'loading') return
+  if (thumbnailQueuedPages.has(page) || thumbnailRenderingPages.has(page)) return
+  thumbnailQueuedPages.add(page)
+  thumbnailQueue.push(page)
+  processThumbnailQueue()
+}
+
+function processThumbnailQueue() {
+  while (thumbnailRenderingPages.size < PAGE_THUMBNAIL_CONCURRENCY && thumbnailQueue.length > 0) {
+    const pageNumber = thumbnailQueue.shift()
+    thumbnailQueuedPages.delete(pageNumber)
+    const thumbnail = pageThumbnails.value[pageNumber - 1]
+    if (!thumbnail || thumbnail.status === 'ready' || thumbnail.status === 'loading') continue
+    thumbnailRenderingPages.add(pageNumber)
+    updatePageThumbnail(pageNumber, { status: 'loading' })
+
+    const requestId = loadRequestId
+    void renderPageThumbnail(pageNumber, requestId).finally(() => {
+      thumbnailRenderingPages.delete(pageNumber)
+      processThumbnailQueue()
+    })
+  }
+}
+
+async function renderPageThumbnail(pageNumber, requestId) {
+  const session = pdfSession.value
+  const pdfDocument = session?.pdfDocument
+  if (!pdfDocument || requestId !== loadRequestId) return
+
+  let page = null
+  try {
+    page = await pdfDocument.getPage(pageNumber)
+    if (requestId !== loadRequestId || session !== pdfSession.value) return
+
+    const baseViewport = page.getViewport({ scale: 1 })
+    const scale = PAGE_THUMBNAIL_TARGET_WIDTH / Math.max(baseViewport.width || 1, 1)
+    const viewport = page.getViewport({ scale })
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d', { alpha: false })
+    if (!context) {
+      throw new Error('Canvas 2D context unavailable')
+    }
+
+    canvas.width = Math.max(1, Math.round(viewport.width))
+    canvas.height = Math.max(1, Math.round(viewport.height))
+
+    const renderTask = page.render({
+      canvasContext: context,
+      viewport,
+      background: 'rgb(255,255,255)',
+    })
+    await renderTask.promise
+    if (requestId !== loadRequestId || session !== pdfSession.value) return
+
+    updatePageThumbnail(pageNumber, {
+      status: 'ready',
+      imageSrc: canvas.toDataURL('image/png'),
+      aspectRatio: canvas.width / Math.max(canvas.height, 1),
+    })
+  } catch (thumbnailError) {
+    if (requestId !== loadRequestId || session !== pdfSession.value) return
+    console.warn('[pdf] failed to render page thumbnail:', thumbnailError)
+    updatePageThumbnail(pageNumber, { status: 'error' })
+  } finally {
+    try {
+      page?.cleanup?.()
+    } catch {}
+  }
+}
+
+function connectThumbnailObserver() {
+  disconnectThumbnailObserver()
+
+  if (!sidebarScrollRef.value || pageThumbnails.value.length === 0) return
+  if (typeof IntersectionObserver !== 'function') {
+    queueThumbnailWindow(pdfUi.pageNumber || 1)
     return
   }
-  if (event.state === FIND_STATE.NOT_FOUND) {
-    pdfUi.searchResultText = t('Phrase not found')
+
+  thumbnailObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return
+      const pageNumber = Number(entry.target?.dataset?.pageNumber || 0)
+      if (!Number.isInteger(pageNumber) || pageNumber < 1) return
+      queueThumbnailWindow(pageNumber)
+    })
+  }, {
+    root: sidebarScrollRef.value,
+    rootMargin: '160px 0px 160px 0px',
+    threshold: 0.01,
+  })
+
+  thumbnailItemElements.forEach((element) => {
+    thumbnailObserver?.observe(element)
+  })
+  queueThumbnailWindow(pdfUi.pageNumber || 1)
+}
+
+function setThumbnailItemRef(pageNumber, element) {
+  const key = Number(pageNumber)
+  const previous = thumbnailItemElements.get(key)
+  if (previous && thumbnailObserver) {
+    thumbnailObserver.unobserve(previous)
+  }
+
+  if (element) {
+    thumbnailItemElements.set(key, element)
+    if (thumbnailObserver) {
+      thumbnailObserver.observe(element)
+    }
     return
   }
-  if (event.state === FIND_STATE.WRAPPED) {
-    pdfUi.searchResultText = event.previous
-      ? t('Reached top of document, continued from bottom')
-      : t('Reached end of document, continued from top')
-    return
+
+  thumbnailItemElements.delete(key)
+}
+
+function thumbnailPreviewStyle(thumbnail) {
+  const ratio = Number(thumbnail?.aspectRatio)
+  return {
+    aspectRatio: String(Number.isFinite(ratio) && ratio > 0 ? ratio : DEFAULT_PAGE_THUMB_ASPECT_RATIO),
   }
-  if (total > 0) {
-    pdfUi.searchResultText = `${current} / ${total}`
-    return
-  }
-  pdfUi.searchResultText = ''
+}
+
+function scrollCurrentThumbnailIntoView() {
+  if (!pdfUi.sidebarOpen || pdfUi.sidebarMode !== 'pages') return
+  const element = thumbnailItemElements.get(Number(pdfUi.pageNumber))
+  if (!element) return
+  window.requestAnimationFrame(() => {
+    element.scrollIntoView({ block: 'nearest' })
+  })
 }
 
 function attachViewerListeners(session, requestId) {
@@ -490,18 +702,6 @@ function attachViewerListeners(session, requestId) {
     if (requestId !== loadRequestId) return
     syncPdfUi()
   })
-
-  eventBus.on('updatefindmatchescount', (event) => {
-    if (requestId !== loadRequestId) return
-    updateSearchResultText(event)
-    syncPdfUi()
-  })
-
-  eventBus.on('updatefindcontrolstate', (event) => {
-    if (requestId !== loadRequestId) return
-    updateSearchResultText(event)
-    syncPdfUi()
-  })
 }
 
 async function cleanupPdfSession() {
@@ -519,10 +719,6 @@ async function cleanupPdfSession() {
   } catch {}
 
   try {
-    session.findController?.setDocument(null)
-  } catch {}
-
-  try {
     session.linkService?.setDocument(null, null)
   } catch {}
 
@@ -536,36 +732,29 @@ async function cleanupPdfSession() {
   } catch {}
 }
 
-async function buildViewerSession(requestId, url) {
+async function buildViewerSession(requestId, bytes) {
   await nextTick()
   if (requestId !== loadRequestId || !viewerContainerRef.value || !viewerRef.value) return null
 
   const eventBus = new EventBus()
   const linkService = new PDFLinkService({ eventBus })
-  const findController = new PDFFindController({ eventBus, linkService })
   const abortController = new AbortController()
   const pdfViewer = new PDFViewer({
     container: viewerContainerRef.value,
     viewer: viewerRef.value,
     eventBus,
     linkService,
-    findController,
     removePageBorders: true,
     abortSignal: abortController.signal,
   })
 
   linkService.setViewer(pdfViewer)
 
-  const loadingTask = pdfjsLib.getDocument({
-    url,
-    disableRange: true,
-    disableStream: true,
-  })
+  const loadingTask = pdfjsLib.getDocument({ data: bytes })
   const session = {
     requestId,
     eventBus,
     linkService,
-    findController,
     pdfViewer,
     loadingTask,
     abortController,
@@ -576,6 +765,60 @@ async function buildViewerSession(requestId, url) {
   return session
 }
 
+function normalizeOutlineTitle(title) {
+  const normalized = String(title || '').replace(/\u0000/g, '').trim()
+  return normalized || '-'
+}
+
+function flattenOutline(items, depth = 0, path = '', acc = []) {
+  if (!Array.isArray(items)) return acc
+
+  items.forEach((item, index) => {
+    const id = path ? `${path}.${index}` : String(index)
+    acc.push({
+      id,
+      depth,
+      title: normalizeOutlineTitle(item?.title),
+      dest: item?.dest ?? null,
+      url: item?.url ?? '',
+      bold: !!item?.bold,
+      italic: !!item?.italic,
+    })
+    if (Array.isArray(item?.items) && item.items.length > 0) {
+      flattenOutline(item.items, depth + 1, id, acc)
+    }
+  })
+
+  return acc
+}
+
+async function loadOutline(session, requestId) {
+  outlineResolved.value = false
+  outlineLoading.value = true
+  pdfUi.outlineSupported = false
+  syncSidebarSupport()
+
+  try {
+    const outline = await session.pdfDocument?.getOutline?.()
+    if (requestId !== loadRequestId || session !== pdfSession.value) return
+
+    const nextOutlineItems = flattenOutline(outline)
+    outlineItems.value = nextOutlineItems
+    pdfUi.outlineSupported = nextOutlineItems.length > 0
+  } catch (outlineError) {
+    if (requestId !== loadRequestId || session !== pdfSession.value) return
+    console.warn('[pdf] failed to load outline:', outlineError)
+    outlineItems.value = []
+    pdfUi.outlineSupported = false
+  } finally {
+    if (requestId === loadRequestId) {
+      outlineLoading.value = false
+      outlineResolved.value = true
+      syncSidebarSupport()
+    }
+  }
+}
+
 async function loadPdf() {
   const requestId = ++loadRequestId
   loading.value = true
@@ -584,13 +827,10 @@ async function loadPdf() {
   await cleanupPdfSession()
 
   try {
-    const pdfUrl = toWorkspaceProtocolUrl(props.filePath, workspace, {
-      version: reloadVersion.value,
-    })
-    if (!pdfUrl) {
-      throw new Error(`PDF path is outside the active workspace scope: ${props.filePath}`)
-    }
-    const session = await buildViewerSession(requestId, pdfUrl)
+    const rawBytes = await invoke('read_file_binary', { path: props.filePath })
+    if (requestId !== loadRequestId) return
+    const bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes)
+    const session = await buildViewerSession(requestId, bytes)
     if (!session || requestId !== loadRequestId) return
 
     const pdfDocument = await session.loadingTask.promise
@@ -603,68 +843,48 @@ async function loadPdf() {
     session.linkService.setDocument(pdfDocument, null)
     await session.pdfViewer.setDocument(pdfDocument)
     syncPdfUi()
+    void loadOutline(session, requestId)
   } catch (e) {
     if (requestId !== loadRequestId) return
+    console.error('[pdf] failed to load document:', e)
     error.value = e?.message || String(e)
     loading.value = false
     await cleanupPdfSession()
   }
 }
 
-function dispatchFind(type = '', findPrevious = false) {
-  const eventBus = getPdfEventBus()
-  if (!eventBus) return
-
-  eventBus.dispatch('find', {
-    source: getPdfViewer(),
-    type,
-    query: pdfUi.searchQuery,
-    caseSensitive: pdfUi.searchCaseSensitive,
-    entireWord: pdfUi.searchEntireWord,
-    highlightAll: pdfUi.searchHighlightAll,
-    findPrevious,
-    matchDiacritics: pdfUi.searchMatchDiacritics,
-  })
-}
-
-function openSearch() {
-  pdfUi.searchOpen = true
-  nextTick(() => searchInputRef.value?.focus())
-}
-
-function closeSearch() {
-  pdfUi.searchOpen = false
-}
-
-function toggleSearch() {
-  if (pdfUi.searchOpen) {
-    closeSearch()
-    return
-  }
-  openSearch()
-}
-
-function onSearchInput() {
-  if (!pdfUi.searchQuery) {
-    pdfUi.searchResultText = ''
-    return
-  }
-  dispatchFind('')
-}
-
-function searchAgain(findPrevious = false) {
-  if (!pdfUi.searchQuery) return
-  dispatchFind('again', findPrevious)
-}
-
-function toggleSearchOption(key) {
-  pdfUi[key] = !pdfUi[key]
-  if (!pdfUi.searchQuery) return
-  dispatchFind('')
+function selectSidebarMode(mode) {
+  if (mode === 'outline' && !pdfUi.outlineSupported && !outlineLoading.value) return
+  if (mode === 'pages' && !pdfUi.pagesSupported) return
+  pdfUi.sidebarMode = mode
 }
 
 function toggleSidebar() {
-  if (!pdfUi.sidebarSupported) return
+  if (!sidebarAvailable.value) return
+  pdfUi.sidebarOpen = !pdfUi.sidebarOpen
+}
+
+async function activateOutlineItem(item) {
+  if (!item) return
+
+  if (item.url) {
+    const { open } = await import('@tauri-apps/plugin-shell')
+    open(item.url).catch(() => {})
+    return
+  }
+
+  if (item.dest == null) return
+
+  const linkService = getPdfLinkService()
+  if (!linkService?.goToDestination) return
+
+  await linkService.goToDestination(item.dest)
+  syncPdfUi()
+}
+
+function activatePageThumbnail(pageNumber) {
+  scrollToPage(pageNumber)
+  scrollCurrentThumbnailIntoView()
 }
 
 function goPreviousPage() {
@@ -782,7 +1002,6 @@ function scrollToLocation(pageNumber, x, y) {
 
 function handlePdfUpdated(event) {
   if (event.detail?.path === props.filePath) {
-    reloadVersion.value += 1
     loadPdf()
   }
 }
@@ -811,13 +1030,34 @@ onUnmounted(async () => {
   loadRequestId += 1
   resizeObserver?.disconnect()
   resizeObserver = null
+  disconnectThumbnailObserver()
   window.removeEventListener('pdf-updated', handlePdfUpdated)
   await cleanupPdfSession()
 })
 
 watch(() => props.filePath, () => {
-  reloadVersion.value = 0
   loadPdf()
+})
+
+watch(
+  () => [pdfUi.sidebarOpen, pdfUi.sidebarMode, pageThumbnails.value.length],
+  async ([sidebarOpen, sidebarMode, thumbnailsCount]) => {
+    if (!sidebarOpen || sidebarMode !== 'pages' || thumbnailsCount === 0) {
+      disconnectThumbnailObserver()
+      return
+    }
+    await nextTick()
+    connectThumbnailObserver()
+    scrollCurrentThumbnailIntoView()
+  },
+)
+
+watch(() => pdfUi.pageNumber, (pageNumber) => {
+  if (!pdfUi.sidebarOpen || pdfUi.sidebarMode !== 'pages') return
+  queueThumbnailWindow(pageNumber)
+  nextTick(() => {
+    scrollCurrentThumbnailIntoView()
+  })
 })
 
 defineExpose({
@@ -934,11 +1174,6 @@ defineExpose({
   cursor: default;
 }
 
-.pdf-toolbar-btn-sm {
-  width: 18px;
-  height: 18px;
-}
-
 .pdf-toolbar-input,
 .pdf-toolbar-select {
   height: 20px;
@@ -953,10 +1188,6 @@ defineExpose({
 
 .pdf-toolbar-input {
   padding: 0 8px;
-}
-
-.pdf-toolbar-search {
-  width: 120px;
 }
 
 .pdf-toolbar-select {
@@ -981,16 +1212,10 @@ defineExpose({
   font-weight: 600;
 }
 
-.pdf-toolbar-label,
-.pdf-toolbar-hint {
+.pdf-toolbar-label {
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
   white-space: nowrap;
-}
-
-.pdf-toolbar-hint {
-  color: var(--fg-muted);
-  font-size: 11px;
 }
 
 .pdf-toolbar-group-translate {
@@ -1001,53 +1226,198 @@ defineExpose({
   gap: 6px;
 }
 
-.pdf-search-popover {
+.pdf-reader-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pdf-sidebar-shell {
+  display: flex;
+  flex-direction: column;
   position: absolute;
-  top: calc(var(--document-header-row-height, 24px) + 6px);
-  left: 6px;
-  z-index: 24;
+  inset: 0 auto 0 0;
+  width: 220px;
+  min-width: 180px;
+  max-width: 280px;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  box-shadow: 10px 0 28px rgba(0, 0, 0, 0.22);
+  z-index: 8;
+  backdrop-filter: blur(10px);
+}
+
+.pdf-sidebar-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: max-content;
-  max-width: calc(100% - 12px);
-  box-sizing: border-box;
-  padding: 6px;
-  min-height: 32px;
-  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-  overflow-x: auto;
-  scrollbar-width: none;
+  gap: 4px;
+  flex: none;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
 }
 
-.pdf-search-popover::-webkit-scrollbar {
-  display: none;
-}
-
-.pdf-search-toggle {
+.pdf-sidebar-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
+  height: 24px;
   padding: 0 10px;
-  border-radius: 6px;
   border: 1px solid transparent;
+  border-radius: 7px;
   background: transparent;
-  color: var(--fg-primary);
+  color: var(--fg-muted);
   font-size: var(--ui-font-caption);
-  white-space: nowrap;
+  font-weight: 600;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 
-.pdf-search-toggle:hover {
+.pdf-sidebar-tab:hover:not(:disabled) {
   background: var(--bg-hover);
+  color: var(--fg-primary);
 }
 
-.pdf-search-toggle-active {
+.pdf-sidebar-tab:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pdf-sidebar-tab-active {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-outline-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 0;
+}
+
+.pdf-outline-empty {
+  padding: 12px;
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+}
+
+.pdf-outline-item {
+  display: block;
+  width: 100%;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.35;
+  text-align: left;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.pdf-outline-item:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.pdf-outline-item-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-page-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 10px 12px;
+}
+
+.pdf-page-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-primary);
+  text-align: center;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.pdf-page-item + .pdf-page-item {
+  margin-top: 10px;
+}
+
+.pdf-page-item:hover {
+  background: color-mix(in srgb, var(--bg-hover) 84%, transparent);
+}
+
+.pdf-page-item-active {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pdf-page-thumb {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.pdf-page-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pdf-page-thumb-skeleton {
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.26) 50%, rgba(255, 255, 255, 0) 100%),
+    color-mix(in srgb, var(--bg-tertiary, #d6d8df) 78%, white);
+  background-size: 180px 100%, 100% 100%;
+  background-repeat: no-repeat;
+  animation: pdf-page-thumb-shimmer 1.2s linear infinite;
+}
+
+.pdf-page-thumb-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  padding: 12px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  background: color-mix(in srgb, var(--bg-secondary) 85%, white);
+}
+
+.pdf-page-label {
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pdf-stage-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .pdf-translate-status {
@@ -1097,5 +1467,25 @@ defineExpose({
 
 .pdf-stage :deep(.page) {
   box-shadow: none;
+}
+
+@keyframes pdf-page-thumb-shimmer {
+  0% {
+    background-position: -180px 0, 0 0;
+  }
+  100% {
+    background-position: 180px 0, 0 0;
+  }
+}
+
+.pdf-sidebar-overlay-enter-active,
+.pdf-sidebar-overlay-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.pdf-sidebar-overlay-enter-from,
+.pdf-sidebar-overlay-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 </style>

@@ -304,7 +304,25 @@ pub async fn read_file_base64(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
-    run_blocking(move || fs::read(&path).map_err(|e| e.to_string())).await
+    eprintln!("[fs] read_file_binary start path={}", path);
+    let started = std::time::Instant::now();
+    let path_for_read = path.clone();
+    let result = run_blocking(move || fs::read(&path_for_read).map_err(|e| e.to_string())).await;
+    match &result {
+        Ok(bytes) => eprintln!(
+            "[fs] read_file_binary ok path={} bytes={} elapsed_ms={}",
+            path,
+            bytes.len(),
+            started.elapsed().as_millis()
+        ),
+        Err(error) => eprintln!(
+            "[fs] read_file_binary err path={} elapsed_ms={} error={}",
+            path,
+            started.elapsed().as_millis(),
+            error
+        ),
+    }
+    result
 }
 
 #[tauri::command]
