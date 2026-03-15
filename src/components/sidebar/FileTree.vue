@@ -220,9 +220,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { ref, reactive, computed, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -235,6 +233,9 @@ import {
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
+import { pathExists, revealPathInFileManager } from '../../services/fileTreeSystem'
+import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
+import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -257,17 +258,7 @@ const filterInputEl = ref(null)
 const newBtnEl = ref(null)
 const newMenuOpen = ref(false)
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
-const treeScrollTop = ref(0)
-const containerHeight = ref(0)
 
-const TREE_ROW_HEIGHT = 24
-const TREE_OVERSCAN = 12
-let treeResizeObserver = null
-
-// Filter state
-const filterActive = ref(false)
-const filterQuery = ref('')
-const filterSelectedIdx = ref(0)
 const renaming = reactive({
   active: false,
   value: '',
@@ -278,614 +269,67 @@ const renaming = reactive({
   parentDir: '',
 })
 
-// Selection state
-const selectedPaths = reactive(new Set())
-let lastSelectedPath = null // anchor for shift+click range selection
-
-function flattenVisibleRows(entries, depth = 0, rows = [], options = {}) {
-  const { expandAll = false } = options
-  for (const entry of entries) {
-    rows.push({ entry, depth })
-    if (entry.is_dir && Array.isArray(entry.children) && (expandAll || files.isDirExpanded(entry.path))) {
-      flattenVisibleRows(entry.children, depth + 1, rows, options)
-    }
-  }
-  return rows
-}
-
-const visibleRows = computed(() => flattenVisibleRows(displayTree.value, 0, [], {
-  expandAll: filterActive.value && !!filterQuery.value,
-}))
-
-const visiblePathIndexMap = computed(() => {
-  const map = new Map()
-  visibleRows.value.forEach((row, index) => map.set(row.entry.path, index))
-  return map
+const {
+  filterActive,
+  filterQuery,
+  filterMatches,
+  filterHighlightPath,
+  visibleRows,
+  virtualRows,
+  virtualOffset,
+  totalTreeHeight,
+  selectedPaths,
+  onTreeScroll,
+  onSelectFile,
+  handleFilterKeydown,
+  activateFilter,
+  closeFilter,
+  findEntry,
+  getActivePath,
+  handleTreeKeydown: rawHandleTreeKeydown,
+} = useFileTreeFilter({
+  files,
+  editor,
+  workspace,
+  treeContainer,
+  filterInputEl,
+  isMod,
+  t,
 })
 
-const virtualStart = computed(() => Math.max(0, Math.floor(treeScrollTop.value / TREE_ROW_HEIGHT) - TREE_OVERSCAN))
-const virtualEnd = computed(() => Math.min(
-  visibleRows.value.length,
-  Math.ceil((treeScrollTop.value + containerHeight.value) / TREE_ROW_HEIGHT) + TREE_OVERSCAN,
-))
-const virtualRows = computed(() => visibleRows.value.slice(virtualStart.value, virtualEnd.value))
-const virtualOffset = computed(() => virtualStart.value * TREE_ROW_HEIGHT)
-const totalTreeHeight = computed(() => visibleRows.value.length * TREE_ROW_HEIGHT)
-
-function getVisiblePaths() {
-  return visibleRows.value.map(row => row.entry.path)
-}
-
-function onTreeScroll(event) {
-  treeScrollTop.value = event.target?.scrollTop || 0
-  files.noteTreeActivity()
-}
-
-// Internal drag state
-const dragGhostVisible = ref(false)
-const dragGhostX = ref(0)
-const dragGhostY = ref(0)
-const dragGhostLabel = ref('')
-const dragOverDir = ref(null)
-let draggedPaths = []
-
-// External drag state
-const externalDragOver = ref(false)
-
-// File extensions that can be imported into references
-const IMPORTABLE_EXTS = ['.bib', '.ris', '.json', '.pdf', '.csl', '.nbib', '.enw', '.txt']
-
-function isImportableFile(path) {
-  const lower = path.toLowerCase()
-  return IMPORTABLE_EXTS.some(ext => lower.endsWith(ext))
-}
-
-function hasImportableFiles(paths) {
-  return paths.some(p => isImportableFile(p))
-}
+const {
+  dragGhostVisible,
+  dragGhostX,
+  dragGhostY,
+  dragGhostLabel,
+  dragOverDir,
+  externalDragOver,
+  onDragStart,
+  onDragLeaveDir,
+  onDropOnDir,
+  onTreeMouseUp,
+  isImportableFile,
+} = useFileTreeDrag({
+  files,
+  editor,
+  workspace,
+  treeContainer,
+  selectedPaths,
+})
 
 function openFile(path) {
   editor.openFile(path)
 }
 
-function onSelectFile({ path, event }) {
-  if (event.shiftKey && lastSelectedPath) {
-    // Range select: everything between anchor and clicked item
-    try {
-      const visible = getVisiblePaths()
-      const anchorIdx = visible.indexOf(lastSelectedPath)
-      const targetIdx = visible.indexOf(path)
-      if (anchorIdx !== -1 && targetIdx !== -1) {
-        const from = Math.min(anchorIdx, targetIdx)
-        const to = Math.max(anchorIdx, targetIdx)
-        if (!isMod(event)) selectedPaths.clear()
-        for (let i = from; i <= to; i++) {
-          selectedPaths.add(visible[i])
-        }
-        return // don't update anchor on shift+click
-      }
-    } catch (e) {
-      // Fall through to single select on any edge case
-    }
-  }
-
-  if (isMod(event)) {
-    // Toggle individual item
-    if (selectedPaths.has(path)) {
-      selectedPaths.delete(path)
-    } else {
-      selectedPaths.add(path)
-    }
-  } else if (!event.shiftKey) {
-    // Single select
-    selectedPaths.clear()
-    selectedPaths.add(path)
-  }
-
-  lastSelectedPath = path
-}
-
-// Keyboard handling
 async function handleTreeKeydown(e) {
   if (renaming.active) return
-
-  // Arrow Up: move cursor to previous visible item
-  if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    navigateTree(-1)
-    return
+  await rawHandleTreeKeydown(e)
+  if (e.__fileTreeRenameEntry) {
+    handleRename(e.__fileTreeRenameEntry)
   }
-
-  // Arrow Down: move cursor to next visible item
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    navigateTree(1)
-    return
+  if (e.__fileTreeDeleteSelected) {
+    await handleDeleteSelected()
   }
-
-  // Arrow Right: expand dir or move down
-  if (e.key === 'ArrowRight') {
-    e.preventDefault()
-    await handleArrowRight()
-    return
-  }
-
-  // Arrow Left: collapse dir or jump to parent
-  if (e.key === 'ArrowLeft') {
-    e.preventDefault()
-    handleArrowLeft()
-    return
-  }
-
-  // Space: open file or toggle dir
-  if (e.key === ' ') {
-    e.preventDefault()
-    await handleSpace()
-    return
-  }
-
-  // Home: jump to first visible item
-  if (e.key === 'Home') {
-    e.preventDefault()
-    const visible = getVisiblePaths()
-    if (visible.length > 0) selectSinglePath(visible[0])
-    return
-  }
-
-  // End: jump to last visible item
-  if (e.key === 'End') {
-    e.preventDefault()
-    const visible = getVisiblePaths()
-    if (visible.length > 0) selectSinglePath(visible[visible.length - 1])
-    return
-  }
-
-  // Cmd+F: activate filter
-  if (isMod(e) && e.key === 'f') {
-    e.preventDefault()
-    e.stopPropagation()
-    activateFilter()
-    return
-  }
-
-  // Enter: rename selected item
-  if (e.key === 'Enter' && selectedPaths.size === 1) {
-    e.preventDefault()
-    const path = [...selectedPaths][0]
-    const entry = findEntry(path)
-    if (entry) handleRename(entry)
-    return
-  }
-
-  // Delete / Backspace: delete selected items
-  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPaths.size > 0) {
-    e.preventDefault()
-    handleDeleteSelected()
-    return
-  }
-}
-
-// Set selection to a single path and scroll it into view
-function selectSinglePath(path) {
-  selectedPaths.clear()
-  selectedPaths.add(path)
-  lastSelectedPath = path
-  nextTick(() => {
-    const index = visiblePathIndexMap.value.get(path)
-    if (index == null || !treeContainer.value) return
-    const rowTop = index * TREE_ROW_HEIGHT
-    const rowBottom = rowTop + TREE_ROW_HEIGHT
-    const viewportTop = treeContainer.value.scrollTop
-    const viewportBottom = viewportTop + treeContainer.value.clientHeight
-    if (rowTop < viewportTop) {
-      treeContainer.value.scrollTop = rowTop
-    } else if (rowBottom > viewportBottom) {
-      treeContainer.value.scrollTop = rowBottom - treeContainer.value.clientHeight
-    }
-  })
-}
-
-// Arrow Up/Down: move through visible items
-function navigateTree(delta) {
-  const visible = getVisiblePaths()
-  if (visible.length === 0) return
-
-  const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
-  let currentIdx = currentPath ? visible.indexOf(currentPath) : -1
-
-  let nextIdx
-  if (currentIdx === -1) {
-    nextIdx = delta > 0 ? 0 : visible.length - 1
-  } else {
-    nextIdx = Math.max(0, Math.min(visible.length - 1, currentIdx + delta))
-  }
-
-  selectSinglePath(visible[nextIdx])
-}
-
-// Arrow Right: expand collapsed dir, or move to next item
-async function handleArrowRight() {
-  const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
-  if (!currentPath) { navigateTree(1); return }
-
-  const entry = findEntry(currentPath)
-  if (entry?.is_dir && !files.isDirExpanded(currentPath)) {
-    await files.toggleDir(currentPath)
-  } else {
-    navigateTree(1)
-  }
-}
-
-// Arrow Left: collapse expanded dir, or jump to parent
-function handleArrowLeft() {
-  const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
-  if (!currentPath) return
-
-  const entry = findEntry(currentPath)
-  if (entry?.is_dir && files.isDirExpanded(currentPath)) {
-    files.expandedDirs.delete(currentPath)
-  } else {
-    // Jump to parent directory
-    const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'))
-    if (parentPath && parentPath !== workspace.path && parentPath.startsWith(workspace.path)) {
-      selectSinglePath(parentPath)
-    }
-  }
-}
-
-// Space: open file or toggle directory
-async function handleSpace() {
-  const currentPath = lastSelectedPath || (selectedPaths.size > 0 ? [...selectedPaths][0] : null)
-  if (!currentPath) return
-
-  const entry = findEntry(currentPath)
-  if (!entry) return
-
-  if (entry.is_dir) {
-    await files.toggleDir(entry.path)
-  } else {
-    editor.openFile(entry.path)
-  }
-}
-
-function findEntry(path) {
-  const walk = (entries) => {
-    for (const e of entries) {
-      if (e.path === path) return e
-      if (Array.isArray(e.children)) {
-        const found = walk(e.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
-  return walk(files.tree)
-}
-
-// --- Filter logic ---
-
-function filterTreeEntries(entries, query) {
-  const q = query.toLowerCase()
-  const matchesPath = q.includes('/')
-  const result = []
-  for (const entry of entries) {
-    const target = matchesPath ? entry.path.toLowerCase() : entry.name.toLowerCase()
-    if (entry.is_dir) {
-      if (target.includes(q)) {
-        // Dir name matches — keep it with ALL children
-        result.push(entry)
-      } else if (Array.isArray(entry.children)) {
-        const filteredChildren = filterTreeEntries(entry.children, query)
-        if (filteredChildren.length > 0) {
-          result.push({ ...entry, children: filteredChildren })
-        }
-      }
-    } else {
-      if (target.includes(q)) {
-        result.push(entry)
-      }
-    }
-  }
-  return result
-}
-
-function collectFileMatches(entries, result) {
-  for (const entry of entries) {
-    if (entry.is_dir && Array.isArray(entry.children)) {
-      collectFileMatches(entry.children, result)
-    } else if (!entry.is_dir) {
-      result.push(entry)
-    }
-  }
-}
-
-const filteredTree = computed(() => {
-  if (!filterQuery.value) return files.tree
-  return filterTreeEntries(files.tree, filterQuery.value)
-})
-
-const filterMatches = computed(() => {
-  if (!filterQuery.value) return []
-  const matches = []
-  collectFileMatches(filteredTree.value, matches)
-  return matches
-})
-
-const displayTree = computed(() => {
-  return filterActive.value && filterQuery.value ? filteredTree.value : files.tree
-})
-
-const filterHighlightPath = computed(() => {
-  if (!filterActive.value || !filterQuery.value || filterMatches.value.length === 0) return ''
-  const idx = Math.min(filterSelectedIdx.value, filterMatches.value.length - 1)
-  return filterMatches.value[idx]?.path || ''
-})
-
-watch(filterQuery, () => {
-  filterSelectedIdx.value = 0
-})
-
-function activateFilter() {
-  filterActive.value = true
-  filterQuery.value = ''
-  filterSelectedIdx.value = 0
-  nextTick(() => {
-    // rAF ensures the v-if element's template ref is assigned after DOM paint
-    requestAnimationFrame(() => filterInputEl.value?.focus())
-  })
-}
-
-function closeFilter() {
-  filterActive.value = false
-  filterQuery.value = ''
-  filterSelectedIdx.value = 0
-  // Return focus to tree container
-  nextTick(() => {
-    treeContainer.value?.focus()
-  })
-}
-
-function handleFilterKeydown(e) {
-  if (e.key === 'Escape') {
-    e.preventDefault()
-    e.stopPropagation()
-    closeFilter()
-    return
-  }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    if (filterMatches.value.length > 0) {
-      filterSelectedIdx.value = (filterSelectedIdx.value + 1) % filterMatches.value.length
-    }
-    return
-  }
-  if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    if (filterMatches.value.length > 0) {
-      filterSelectedIdx.value = (filterSelectedIdx.value - 1 + filterMatches.value.length) % filterMatches.value.length
-    }
-    return
-  }
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    openFilteredMatch()
-    return
-  }
-}
-
-function openFilteredMatch() {
-  if (filterMatches.value.length === 0) return
-  const idx = Math.min(filterSelectedIdx.value, filterMatches.value.length - 1)
-  const match = filterMatches.value[idx]
-  if (match) {
-    editor.openFile(match.path)
-    closeFilter()
-  }
-}
-
-// Internal drag handlers
-function onDragStart({ path, event }) {
-  // If dragging a selected item, drag all selected; otherwise just this one
-  if (selectedPaths.has(path)) {
-    draggedPaths = [...selectedPaths]
-  } else {
-    draggedPaths = [path]
-  }
-  const names = draggedPaths.map(p => p.split('/').pop())
-  dragGhostLabel.value = names.length === 1 ? names[0] : `${names.length} items`
-  dragGhostVisible.value = true
-  dragGhostX.value = event.clientX
-  dragGhostY.value = event.clientY
-  document.body.classList.add('tab-dragging')
-  window.dispatchEvent(new CustomEvent('filetree-drag-start', { detail: { paths: [...draggedPaths] } }))
-
-  const canImport = hasImportableFiles(draggedPaths)
-  let overRefZone = false
-
-  function onMouseMove(ev) {
-    dragGhostX.value = ev.clientX
-    dragGhostY.value = ev.clientY
-
-    // Show/hide reference drop zone feedback for importable files
-    if (canImport) {
-      const nowOverRef = isOverRefZone({ x: ev.clientX, y: ev.clientY })
-      if (nowOverRef && !overRefZone) {
-        window.dispatchEvent(new CustomEvent('ref-drag-over'))
-        dragOverDir.value = null
-        overRefZone = true
-      } else if (!nowOverRef && overRefZone) {
-        window.dispatchEvent(new CustomEvent('ref-drag-leave'))
-        overRefZone = false
-      }
-    }
-  }
-  function onMouseUp(ev) {
-    // Check if dropped on reference panel with importable files
-    if (canImport && overRefZone && draggedPaths.length > 0) {
-      const importPaths = [...draggedPaths]
-      dragGhostVisible.value = false
-      dragOverDir.value = null
-      draggedPaths = []
-      document.body.classList.remove('tab-dragging')
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      window.dispatchEvent(new CustomEvent('ref-drag-leave'))
-      window.dispatchEvent(new CustomEvent('ref-file-drop', { detail: { paths: importPaths } }))
-      window.dispatchEvent(new CustomEvent('filetree-drag-end'))
-      return
-    }
-
-    const endPaths = [...draggedPaths]
-    dragGhostVisible.value = false
-    dragOverDir.value = null
-    draggedPaths = []
-    document.body.classList.remove('tab-dragging')
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
-    window.dispatchEvent(new CustomEvent('filetree-drag-end', { detail: { paths: endPaths, x: ev.clientX, y: ev.clientY } }))
-  }
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
-}
-
-function onDragLeaveDir(dir) {
-  if (dragOverDir.value === dir) dragOverDir.value = null
-}
-
-async function onDropOnDir(destDir) {
-  if (!draggedPaths.length) return
-  for (const srcPath of draggedPaths) {
-    // Don't move a folder into itself
-    if (destDir.startsWith(srcPath + '/') || destDir === srcPath) continue
-    await files.movePath(srcPath, destDir)
-  }
-  dragGhostVisible.value = false
-  dragOverDir.value = null
-  draggedPaths = []
-  selectedPaths.clear()
-  document.body.classList.remove('tab-dragging')
-}
-
-// Drop onto empty tree area = move to workspace root
-function onTreeMouseUp(event) {
-  if (!draggedPaths.length || !workspace.path) return
-  // Only handle if not already dropped on a folder (dragOverDir would be set)
-  if (dragOverDir.value) return
-  // Check that the drag is active
-  if (!document.body.classList.contains('tab-dragging')) return
-  onDropOnDir(workspace.path)
-}
-
-// Tauri native file drop handling
-let unlistenDragOver = null
-let unlistenDragDrop = null
-let unlistenDragLeave = null
-let pendingDropPaths = []
-
-function isOverRefZone(position) {
-  // Check if AddReferenceDialog is open (highest priority — it's modal)
-  if (document.querySelector('[data-ref-dialog]')) return true
-  // Check if cursor is within the reference panel bounds (more reliable than elementFromPoint)
-  const refZone = document.querySelector('[data-ref-drop-zone]')
-  if (!refZone) return false
-  const rect = refZone.getBoundingClientRect()
-  return position.x >= rect.left && position.x <= rect.right &&
-         position.y >= rect.top && position.y <= rect.bottom
-}
-
-onMounted(async () => {
-  containerHeight.value = treeContainer.value?.clientHeight || 0
-  treeResizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      containerHeight.value = entry.contentRect.height
-    }
-  })
-  if (treeContainer.value) {
-    treeResizeObserver.observe(treeContainer.value)
-  }
-
-  unlistenDragOver = await listen('tauri://drag-over', (event) => {
-    if (draggedPaths.length > 0) return // internal drag in progress
-    const { position } = event.payload
-
-    // Route to reference components if applicable
-    if (isOverRefZone(position)) {
-      externalDragOver.value = false
-      dragOverDir.value = null
-      window.dispatchEvent(new CustomEvent('ref-drag-over'))
-      return
-    }
-
-    // Otherwise show FileTree drag state
-    window.dispatchEvent(new CustomEvent('ref-drag-leave'))
-    externalDragOver.value = true
-    const dir = dirAtPosition(position.x, position.y)
-    dragOverDir.value = dir
-  })
-
-  unlistenDragDrop = await listen('tauri://drag-drop', async (event) => {
-    if (draggedPaths.length > 0) return
-    const { paths, position } = event.payload
-    externalDragOver.value = false
-
-    if (!workspace.path || !paths || paths.length === 0) {
-      dragOverDir.value = null
-      return
-    }
-
-    // Route to reference components if applicable
-    if (isOverRefZone(position)) {
-      dragOverDir.value = null
-      window.dispatchEvent(new CustomEvent('ref-drag-leave'))
-      window.dispatchEvent(new CustomEvent('ref-file-drop', { detail: { paths } }))
-      return
-    }
-
-    // Default: copy to workspace
-    const destDir = dirAtPosition(position.x, position.y) || workspace.path
-    dragOverDir.value = null
-
-    let lastCopied = null
-    for (const srcPath of paths) {
-      const result = await files.copyExternalFile(srcPath, destDir)
-      if (result) lastCopied = result
-    }
-    if (lastCopied) {
-      files.expandedDirs.add(destDir)
-      if (lastCopied.isDir) {
-        files.expandedDirs.add(lastCopied.path)
-      } else {
-        editor.openFile(lastCopied.path)
-      }
-    }
-  })
-
-  unlistenDragLeave = await listen('tauri://drag-leave', () => {
-    externalDragOver.value = false
-    if (draggedPaths.length === 0) {
-      dragOverDir.value = null
-    }
-    window.dispatchEvent(new CustomEvent('ref-drag-leave'))
-  })
-})
-
-onUnmounted(() => {
-  treeResizeObserver?.disconnect()
-  treeResizeObserver = null
-  unlistenDragOver?.()
-  unlistenDragDrop?.()
-  unlistenDragLeave?.()
-})
-
-function dirAtPosition(x, y) {
-  // Find the folder element under the cursor using data-dir-path attributes
-  const el = document.elementFromPoint(x, y)
-  if (!el) return null
-  const dirEl = el.closest('[data-dir-path]')
-  if (dirEl) return dirEl.dataset.dirPath
-  // If over the tree container but not a folder, return workspace root
-  if (treeContainer.value?.contains(el)) return workspace.path
-  return null
 }
 
 function showContextMenu({ event, entry }) {
@@ -940,7 +384,7 @@ async function createTypedFile(dir, ext) {
   let i = 2
   while (
     files.flatFiles.some(f => f.name === name) ||
-    await invoke('path_exists', { path: `${dir}/${name}` })
+    await pathExists(`${dir}/${name}`)
   ) {
     name = `${baseName} ${i}${ext}`
     i++
@@ -1118,22 +562,8 @@ function handleImportToRefs(entry) {
 }
 
 async function revealInFinder(entry) {
-  const isMacOS = /Mac|iPhone|iPad/.test(navigator.platform)
-  const isWin = /Win/.test(navigator.platform)
-  const dir = entry.is_dir ? entry.path : entry.path.substring(0, entry.path.lastIndexOf('/'))
-
-  let cmd
-  if (isMacOS) {
-    // -R reveals and selects the file in Finder
-    cmd = entry.is_dir ? `open "${entry.path}"` : `open -R "${entry.path}"`
-  } else if (isWin) {
-    cmd = entry.is_dir ? `explorer "${entry.path}"` : `explorer /select,"${entry.path}"`
-  } else {
-    cmd = `xdg-open "${dir}"`
-  }
-
   try {
-    await invoke('run_shell_command', { cwd: dir, command: cmd })
+    await revealPathInFileManager(entry)
   } catch (e) {
     console.error('Failed to reveal in file manager:', e)
   }
@@ -1145,7 +575,7 @@ defineExpose({
     let targetDir = workspace.path
 
     if (selectedPaths.size > 0) {
-      const selectedPath = lastSelectedPath || [...selectedPaths][0]
+      const selectedPath = getActivePath()
       const entry = findEntry(selectedPath)
       if (entry) {
         if (entry.is_dir) {
