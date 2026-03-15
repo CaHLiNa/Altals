@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { gitAdd, gitCommit, gitStatus } from '../services/git'
 import { getDefaultModelsConfig } from '../services/modelCatalog'
 import { events } from '../services/telemetry'
 import {
@@ -12,18 +11,15 @@ import {
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
 import { removeWorkspaceBookmark } from '../services/workspacePermissions'
 import {
-  getHomeDirCached,
   hashWorkspacePath,
   resolveClaudeConfigDir,
   resolveWorkspaceDataDir,
-  normalizePathValue,
 } from '../services/workspacePaths'
 import {
   initProjectDir as bootstrapProjectDir,
   initWorkspaceDataDir as bootstrapWorkspaceDataDir,
   installEditHooks as installWorkspaceEditHooks,
   logWorkspaceBootstrapWarning,
-  pathExists,
 } from '../services/workspaceBootstrap'
 import {
   loadWorkspaceInstructions,
@@ -54,6 +50,32 @@ import {
   runWorkspaceSyncNow,
   unlinkWorkspaceRepo,
 } from '../services/workspaceGitHub'
+import {
+  applyWorkspaceFontSizes,
+  createWorkspacePreferenceState,
+  decreaseWorkspaceZoom,
+  increaseWorkspaceZoom,
+  persistStoredString,
+  resetWorkspaceZoom,
+  restoreWorkspaceTheme,
+  setDocxZoomPreference,
+  setWorkspaceTheme,
+  setWorkspaceProseFont,
+  setWorkspaceZoomPercent,
+  setWrapColumnPreference,
+  toggleStoredBoolean,
+} from '../services/workspacePreferences'
+import {
+  addRecentWorkspace,
+  clearLastWorkspace,
+  getRecentWorkspaces as readRecentWorkspaces,
+  removeRecentWorkspace,
+  setLastWorkspace,
+} from '../services/workspaceRecents'
+import {
+  canAutoCommitWorkspace,
+  runWorkspaceAutoCommit as performWorkspaceAutoCommit,
+} from '../services/workspaceAutoCommit'
 
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
@@ -68,22 +90,8 @@ export const useWorkspaceStore = defineStore('workspace', {
     gitAutoCommitTimer: null,
     settingsOpen: false,
     settingsSection: null,
-    leftSidebarOpen: localStorage.getItem('leftSidebarOpen') !== 'false',
-    rightSidebarOpen: localStorage.getItem('rightSidebarOpen') === 'true',
-    bottomPanelOpen: localStorage.getItem('bottomPanelOpen') === 'true',
+    ...createWorkspacePreferenceState(),
     disabledTools: [],
-    selectedModelId: localStorage.getItem('lastModelId') || '',
-    ghostModelId: localStorage.getItem('ghostModelId') || '',
-    ghostEnabled: localStorage.getItem('ghostEnabled') !== 'false',
-    livePreviewEnabled: localStorage.getItem('livePreviewEnabled') !== 'false',
-    softWrap: localStorage.getItem('softWrap') !== 'false',
-    wrapColumn: parseInt(localStorage.getItem('wrapColumn')) || 0,
-    spellcheck: localStorage.getItem('spellcheck') !== 'false',
-    editorFontSize: parseInt(localStorage.getItem('editorFontSize')) || 14,
-    uiFontSize: parseInt(localStorage.getItem('uiFontSize')) || 13,
-    proseFont: localStorage.getItem('proseFont') || 'inter',
-    docxZoomPercent: parseInt(localStorage.getItem('docxZoomPercent')) || 100,
-    theme: localStorage.getItem('theme') || 'default',
     globalConfigDir: '',
     workspaceId: '',
     workspaceDataDir: '',
@@ -140,7 +148,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
       // Persist last workspace + add to recents
       try {
-        localStorage.setItem('lastWorkspace', path)
+        setLastWorkspace(path)
         this.addRecent(path)
       } catch (e) { /* ignore */ }
 
@@ -221,21 +229,15 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     // Recent workspaces (persisted in localStorage, max 10)
     getRecentWorkspaces() {
-      try {
-        return JSON.parse(localStorage.getItem('recentWorkspaces') || '[]')
-      } catch { return [] }
+      return readRecentWorkspaces()
     },
 
     addRecent(path) {
-      const recents = this.getRecentWorkspaces().filter(r => r.path !== path)
-      recents.unshift({ path, name: path.split('/').pop(), lastOpened: new Date().toISOString() })
-      if (recents.length > 10) recents.length = 10
-      localStorage.setItem('recentWorkspaces', JSON.stringify(recents))
+      addRecentWorkspace(path)
     },
 
     removeRecent(path) {
-      const recents = this.getRecentWorkspaces().filter(r => r.path !== path)
-      localStorage.setItem('recentWorkspaces', JSON.stringify(recents))
+      removeRecentWorkspace(path)
       removeWorkspaceBookmark(path)
     },
 
@@ -264,7 +266,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.lastSyncTime = null
       this.remoteUrl = ''
       this._workspaceBootstrapPromise = null
-      localStorage.removeItem('lastWorkspace')
+      clearLastWorkspace()
     },
 
     async initWorkspaceDataDir() {
@@ -424,24 +426,20 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     toggleLeftSidebar() {
-      this.leftSidebarOpen = !this.leftSidebarOpen
-      localStorage.setItem('leftSidebarOpen', String(this.leftSidebarOpen))
+      this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
     },
 
     toggleRightSidebar() {
-      this.rightSidebarOpen = !this.rightSidebarOpen
-      localStorage.setItem('rightSidebarOpen', String(this.rightSidebarOpen))
+      this.rightSidebarOpen = toggleStoredBoolean(this.rightSidebarOpen, 'rightSidebarOpen')
     },
 
     toggleBottomPanel() {
-      this.bottomPanelOpen = !this.bottomPanelOpen
-      localStorage.setItem('bottomPanelOpen', String(this.bottomPanelOpen))
+      this.bottomPanelOpen = toggleStoredBoolean(this.bottomPanelOpen, 'bottomPanelOpen')
     },
 
     openBottomPanel() {
       if (!this.bottomPanelOpen) {
-        this.bottomPanelOpen = true
-        localStorage.setItem('bottomPanelOpen', 'true')
+        this.bottomPanelOpen = persistStoredString('bottomPanelOpen', true)
       }
     },
 
@@ -456,69 +454,63 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setSelectedModelId(id) {
-      this.selectedModelId = id
-      localStorage.setItem('lastModelId', id)
+      this.selectedModelId = persistStoredString('lastModelId', id)
     },
 
     setGhostModelId(modelId) {
-      this.ghostModelId = modelId
-      localStorage.setItem('ghostModelId', modelId)
+      this.ghostModelId = persistStoredString('ghostModelId', modelId)
     },
 
     setGhostEnabled(val) {
-      this.ghostEnabled = val
-      localStorage.setItem('ghostEnabled', String(val))
+      this.ghostEnabled = persistStoredString('ghostEnabled', val)
     },
 
     toggleLivePreview() {
-      this.livePreviewEnabled = !this.livePreviewEnabled
-      localStorage.setItem('livePreviewEnabled', String(this.livePreviewEnabled))
+      this.livePreviewEnabled = toggleStoredBoolean(this.livePreviewEnabled, 'livePreviewEnabled')
     },
 
     toggleSoftWrap() {
-      this.softWrap = !this.softWrap
-      localStorage.setItem('softWrap', String(this.softWrap))
+      this.softWrap = toggleStoredBoolean(this.softWrap, 'softWrap')
     },
 
     setWrapColumn(n) {
-      this.wrapColumn = Math.max(0, parseInt(n) || 0)
-      localStorage.setItem('wrapColumn', String(this.wrapColumn))
+      this.wrapColumn = setWrapColumnPreference(n)
     },
 
     toggleSpellcheck() {
-      this.spellcheck = !this.spellcheck
-      localStorage.setItem('spellcheck', String(this.spellcheck))
+      this.spellcheck = toggleStoredBoolean(this.spellcheck, 'spellcheck')
     },
 
     zoomIn() {
-      this.editorFontSize = Math.min(24, this.editorFontSize + 1)
-      this.uiFontSize = Math.min(20, this.uiFontSize + 1)
+      const nextZoom = increaseWorkspaceZoom(this.editorFontSize, this.uiFontSize)
+      this.editorFontSize = nextZoom.editorFontSize
+      this.uiFontSize = nextZoom.uiFontSize
       this.applyFontSizes()
     },
 
     zoomOut() {
-      this.editorFontSize = Math.max(10, this.editorFontSize - 1)
-      this.uiFontSize = Math.max(9, this.uiFontSize - 1)
+      const nextZoom = decreaseWorkspaceZoom(this.editorFontSize, this.uiFontSize)
+      this.editorFontSize = nextZoom.editorFontSize
+      this.uiFontSize = nextZoom.uiFontSize
       this.applyFontSizes()
     },
 
     resetZoom() {
-      this.editorFontSize = 14
-      this.uiFontSize = 13
+      const nextZoom = resetWorkspaceZoom()
+      this.editorFontSize = nextZoom.editorFontSize
+      this.uiFontSize = nextZoom.uiFontSize
       this.applyFontSizes()
     },
 
     setZoomPercent(pct) {
-      this.editorFontSize = Math.round(14 * pct / 100)
-      this.uiFontSize = Math.round(13 * pct / 100)
-      this.editorFontSize = Math.max(10, Math.min(24, this.editorFontSize))
-      this.uiFontSize = Math.max(9, Math.min(20, this.uiFontSize))
+      const nextZoom = setWorkspaceZoomPercent(pct)
+      this.editorFontSize = nextZoom.editorFontSize
+      this.uiFontSize = nextZoom.uiFontSize
       this.applyFontSizes()
     },
 
     setDocxZoom(pct) {
-      this.docxZoomPercent = Math.max(50, Math.min(200, Math.round(pct)))
-      localStorage.setItem('docxZoomPercent', String(this.docxZoomPercent))
+      this.docxZoomPercent = setDocxZoomPreference(pct)
     },
 
     docxZoomIn() {
@@ -534,21 +526,12 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     applyFontSizes() {
-      document.documentElement.style.setProperty('--editor-font-size', this.editorFontSize + 'px')
-      document.documentElement.style.setProperty('--ui-font-size', this.uiFontSize + 'px')
-      localStorage.setItem('editorFontSize', String(this.editorFontSize))
-      localStorage.setItem('uiFontSize', String(this.uiFontSize))
+      applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
     },
 
     setProseFont(name) {
       this.proseFont = name
-      localStorage.setItem('proseFont', name)
-      const stacks = {
-        inter: "'Inter', system-ui, sans-serif",
-        stix:  "'STIX Two Text', Georgia, serif",
-        mono:  "'JetBrains Mono', 'Menlo', 'Consolas', monospace",
-      }
-      document.documentElement.style.setProperty('--font-prose', stacks[name] || stacks.geist)
+      setWorkspaceProseFont(name)
     },
 
     restoreProseFont() {
@@ -557,24 +540,14 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     setTheme(name) {
       this.theme = name
-      localStorage.setItem('theme', name)
+      setWorkspaceTheme(name)
       events.themeChange(name)
-      // Remove any existing theme class, apply new one
-      const el = document.documentElement
-      el.classList.remove('theme-light', 'theme-monokai', 'theme-nord', 'theme-solarized', 'theme-humane', 'theme-one-light', 'theme-dracula')
-      if (name !== 'default') {
-        el.classList.add(`theme-${name}`)
-      }
     },
 
     restoreTheme() {
-      const saved = localStorage.getItem('theme')
-      if (!saved) {
-        // First launch — pick based on OS preference
-        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
-        this.setTheme(prefersDark ? 'monokai' : 'humane')
-      } else if (this.theme !== 'default') {
-        document.documentElement.classList.add(`theme-${this.theme}`)
+      const fallbackTheme = restoreWorkspaceTheme(this.theme)
+      if (fallbackTheme) {
+        this.setTheme(fallbackTheme)
       }
     },
 
@@ -595,29 +568,14 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async _canAutoCommitWorkspace(path = this.path) {
-      if (!path) return false
-      const normalizedPath = normalizePathValue(path)
-      const normalizedHome = await getHomeDirCached()
-      if (normalizedHome && normalizedPath === normalizedHome) {
-        return false
-      }
-      return pathExists(`${normalizedPath}/.git`)
+      return canAutoCommitWorkspace(path)
     },
 
     async autoCommit() {
       if (!(await this._canAutoCommitWorkspace())) return
       try {
-        // Stage all changes
-        await gitAdd(this.path)
-
-        // Check if there are changes to commit
-        const status = await gitStatus(this.path)
-        if (status.trim()) {
-          const now = new Date()
-          const timestamp = now.toISOString().replace('T', ' ').substring(0, 16)
-          await gitCommit(this.path, `Auto: ${timestamp}`)
-
-          // Auto-push if GitHub is connected
+        const result = await performWorkspaceAutoCommit(this.path)
+        if (result.committed) {
           await this.autoSync()
         }
       } catch (e) {
