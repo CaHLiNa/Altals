@@ -1,14 +1,8 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { gitAdd, gitCommit, gitStatus, gitRemoteGetUrl } from '../services/git'
-import {
-  getDefaultModelsConfig,
-  getProviderDefaultUrl,
-  mergeRemoteModelsIntoConfig,
-  mergeWithDefaultModelsConfig,
-  providerSupportsModelSync,
-} from '../services/modelCatalog'
+import { gitAdd, gitCommit, gitStatus } from '../services/git'
+import { getDefaultModelsConfig } from '../services/modelCatalog'
 import { events } from '../services/telemetry'
 import {
   loadWorkspaceUsage,
@@ -21,7 +15,6 @@ import {
   getHomeDirCached,
   hashWorkspacePath,
   resolveClaudeConfigDir,
-  resolveSkillPath,
   resolveWorkspaceDataDir,
   normalizePathValue,
 } from '../services/workspacePaths'
@@ -37,6 +30,30 @@ import {
   migrateAutoInstructionsFile as migrateWorkspaceInstructionsFile,
   resolveInstructionsFileToOpen,
 } from '../services/workspaceInstructions'
+import {
+  loadGlobalKeys as loadWorkspaceGlobalKeys,
+  loadModelsConfig as loadWorkspaceModelsConfig,
+  loadSystemPrompt,
+  loadToolPermissions as loadWorkspaceToolPermissions,
+  loadWorkspaceSkillsManifest,
+  migrateWorkspaceEnvKeys,
+  saveGlobalKeys as saveWorkspaceGlobalKeys,
+  saveModelsConfig as saveWorkspaceModelsConfig,
+  saveToolPermissions as saveWorkspaceToolPermissions,
+  syncWorkspaceProviderModels,
+} from '../services/workspaceSettings'
+import {
+  connectWorkspaceGitHub,
+  createDisconnectedGitHubState,
+  disconnectWorkspaceGitHub,
+  fetchWorkspaceRemoteChanges,
+  linkWorkspaceRepo,
+  loadWorkspaceGitHubSession,
+  mapWorkspaceSyncState,
+  runWorkspaceAutoSync,
+  runWorkspaceSyncNow,
+  unlinkWorkspaceRepo,
+} from '../services/workspaceGitHub'
 
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
@@ -285,147 +302,46 @@ export const useWorkspaceStore = defineStore('workspace', {
       const shouldersDir = this.shouldersDir
       if (!shouldersDir) return
 
-      // Load system prompt
-      try {
-        this.systemPrompt = await invoke('read_file', {
-          path: `${shouldersDir}/system.md`,
-        })
-      } catch (e) {
-        this.systemPrompt = ''
-      }
-
-      // Load user instructions (_instructions.md at workspace root)
+      this.systemPrompt = await loadSystemPrompt(shouldersDir)
       await this.loadInstructions()
 
-      // Load API keys from global ~/.altals/keys.env
       this.apiKeys = await this.loadGlobalKeys()
-
-      // Migration: if global is empty, check workspace .env for real keys
       if (Object.keys(this.apiKeys).length === 0) {
-        try {
-          const envContent = await invoke('read_file', { path: `${shouldersDir}/.env` })
-          const workspaceKeys = {}
-          for (const line of envContent.split('\n')) {
-            const trimmed = line.trim()
-            if (!trimmed || trimmed.startsWith('#')) continue
-            const eqIdx = trimmed.indexOf('=')
-            if (eqIdx > 0) {
-              const key = trimmed.substring(0, eqIdx).trim()
-              const value = trimmed.substring(eqIdx + 1).trim()
-              if (value && !value.includes('your-')) {
-                workspaceKeys[key] = value
-              }
-            }
-          }
-          if (Object.keys(workspaceKeys).length > 0) {
-            await this.saveGlobalKeys(workspaceKeys)
-            this.apiKeys = workspaceKeys
-          }
-        } catch { /* no workspace .env — that's fine */ }
-      }
-
-      // Backwards-compat alias
-      this.apiKey = this.apiKeys.ANTHROPIC_API_KEY || ''
-
-      // Load models config from global directory
-      try {
-        const modelsPath = this._modelsPath()
-        const modelsContent = await invoke('read_file', { path: modelsPath })
-        const { config, changed } = mergeWithDefaultModelsConfig(JSON.parse(modelsContent))
-        this.modelsConfig = config
-        if (changed) {
-          await invoke('write_file', {
-            path: modelsPath,
-            content: JSON.stringify(config, null, 2),
-          })
+        const workspaceKeys = await migrateWorkspaceEnvKeys({
+          shouldersDir,
+          globalConfigDir: this.globalConfigDir,
+        })
+        if (Object.keys(workspaceKeys).length > 0) {
+          this.apiKeys = workspaceKeys
         }
-      } catch (e) {
-        this.modelsConfig = null
       }
 
-      // Load tool permissions
+      this.apiKey = this.apiKeys.ANTHROPIC_API_KEY || ''
+      this.modelsConfig = await loadWorkspaceModelsConfig({
+        globalConfigDir: this.globalConfigDir,
+        shouldersDir,
+      })
       await this.loadToolPermissions()
-
-      // Load skills manifest
       await this.loadSkillsManifest()
     },
 
     async loadSkillsManifest() {
-      const projectDir = this.projectDir
-      if (!projectDir) { this.skillsManifest = null; return }
-      try {
-        const skillsPath = `${projectDir}/skills/skills.json`
-        const exists = await pathExists(skillsPath)
-        if (!exists) { this.skillsManifest = null; return }
-        const content = await invoke('read_file', { path: skillsPath })
-        const data = JSON.parse(content)
-        this.skillsManifest = Array.isArray(data.skills)
-          ? data.skills.map(skill => ({
-            ...skill,
-            path: resolveSkillPath(projectDir, skill.path),
-          }))
-          : null
-      } catch {
-        this.skillsManifest = null
-      }
+      this.skillsManifest = await loadWorkspaceSkillsManifest(this.projectDir)
     },
 
     async loadGlobalKeys() {
-      if (!this.globalConfigDir) return {}
-      const keysPath = `${this.globalConfigDir}/keys.env`
-      try {
-        const exists = await pathExists(keysPath)
-        if (!exists) return {}
-        const content = await invoke('read_file', { path: keysPath })
-        const keys = {}
-        for (const line of content.split('\n')) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed.startsWith('#')) continue
-          const eqIdx = trimmed.indexOf('=')
-          if (eqIdx > 0) {
-            const key = trimmed.substring(0, eqIdx).trim()
-            const value = trimmed.substring(eqIdx + 1).trim()
-            if (value) keys[key] = value
-          }
-        }
-        return keys
-      } catch (e) {
-        console.warn('Failed to load global keys:', e)
-        return {}
-      }
+      return loadWorkspaceGlobalKeys(this.globalConfigDir)
     },
 
     async saveGlobalKeys(keys) {
-      if (!this.globalConfigDir) return
-      const keysPath = `${this.globalConfigDir}/keys.env`
-      const lines = []
-      for (const [k, v] of Object.entries(keys)) {
-        if (v) lines.push(`${k}=${v}`)
-      }
-      try {
-        await invoke('write_file', {
-          path: keysPath,
-          content: lines.length > 0 ? lines.join('\n') + '\n' : '',
-        })
-      } catch (e) {
-        console.warn('Failed to save global keys:', e)
-      }
-    },
-
-    _modelsPath() {
-      if (this.globalConfigDir) return `${this.globalConfigDir}/models.json`
-      if (this.shouldersDir) return `${this.shouldersDir}/models.json`
-      return ''
+      await saveWorkspaceGlobalKeys(this.globalConfigDir, keys)
     },
 
     async saveModelsConfig(config) {
-      const modelsPath = this._modelsPath()
-      if (!modelsPath) return null
-
-      const { config: normalized } = mergeWithDefaultModelsConfig(config || {})
-      await invoke('write_file', {
-        path: modelsPath,
-        content: JSON.stringify(normalized, null, 2),
+      const normalized = await saveWorkspaceModelsConfig({
+        globalConfigDir: this.globalConfigDir,
+        shouldersDir: this.shouldersDir,
+        config,
       })
       this.modelsConfig = normalized
       return normalized
@@ -436,57 +352,18 @@ export const useWorkspaceStore = defineStore('workspace', {
         await this.loadSettings()
       }
 
-      const baseConfig = mergeWithDefaultModelsConfig(this.modelsConfig || getDefaultModelsConfig()).config
-      let nextConfig = baseConfig
-      let addedCount = 0
-      const syncedProviders = []
-      const failedProviders = []
-
-      const targetIds = (Array.isArray(providerIds) && providerIds.length > 0
-        ? providerIds
-        : Object.keys(nextConfig.providers || {})
-      ).filter(providerSupportsModelSync)
-
-      for (const providerId of targetIds) {
-        const providerConfig = nextConfig.providers?.[providerId]
-        const keyEnv = providerConfig?.apiKeyEnv
-        const apiKey = keyEnv ? this.apiKeys?.[keyEnv] : ''
-        if (!apiKey || apiKey.includes('your-')) continue
-
-        const baseUrl = providerConfig?.customUrl || providerConfig?.url || getProviderDefaultUrl(providerId)
-        if (!baseUrl) continue
-
-        try {
-          const remoteModels = await invoke('model_sync_list_openai_models', {
-            baseUrl,
-            apiKey,
-          })
-          const merged = mergeRemoteModelsIntoConfig(
-            nextConfig,
-            providerId,
-            (remoteModels || []).map(entry => entry?.id).filter(Boolean),
-          )
-          nextConfig = merged.config
-          addedCount += merged.addedCount
-          syncedProviders.push(providerId)
-        } catch (error) {
-          failedProviders.push({
-            provider: providerId,
-            error: error?.message || String(error),
-          })
-        }
-      }
-
-      if (JSON.stringify(nextConfig) !== JSON.stringify(baseConfig)) {
-        await this.saveModelsConfig(nextConfig)
-      } else {
-        this.modelsConfig = nextConfig
-      }
-
+      const result = await syncWorkspaceProviderModels({
+        globalConfigDir: this.globalConfigDir,
+        shouldersDir: this.shouldersDir,
+        modelsConfig: this.modelsConfig || getDefaultModelsConfig(),
+        apiKeys: this.apiKeys,
+        providerIds,
+      })
+      this.modelsConfig = result.config
       return {
-        addedCount,
-        syncedProviders,
-        failedProviders,
+        addedCount: result.addedCount,
+        syncedProviders: result.syncedProviders,
+        failedProviders: result.failedProviders,
       }
     },
 
@@ -523,40 +400,17 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async loadToolPermissions() {
-      if (!this.globalConfigDir) return
-      const globalPath = `${this.globalConfigDir}/tools.json`
-      try {
-        const raw = await invoke('read_file', { path: globalPath })
-        const data = JSON.parse(raw)
-        this.disabledTools = Array.isArray(data.disabled) ? data.disabled : []
-      } catch {
-        // Global file doesn't exist — try migrating from workspace-local
-        if (this.shouldersDir) {
-          try {
-            const localRaw = await invoke('read_file', { path: `${this.shouldersDir}/tools.json` })
-            const localData = JSON.parse(localRaw)
-            this.disabledTools = Array.isArray(localData.disabled) ? localData.disabled : []
-            // Migrate to global
-            await this.saveToolPermissions()
-          } catch {
-            this.disabledTools = []
-          }
-        } else {
-          this.disabledTools = []
-        }
-      }
+      this.disabledTools = await loadWorkspaceToolPermissions({
+        globalConfigDir: this.globalConfigDir,
+        shouldersDir: this.shouldersDir,
+      })
     },
 
     async saveToolPermissions() {
-      if (!this.globalConfigDir) return
-      try {
-        await invoke('write_file', {
-          path: `${this.globalConfigDir}/tools.json`,
-          content: JSON.stringify({ version: 1, disabled: this.disabledTools }, null, 2),
-        })
-      } catch (e) {
-        console.warn('Failed to save tool permissions:', e)
-      }
+      await saveWorkspaceToolPermissions({
+        globalConfigDir: this.globalConfigDir,
+        disabledTools: this.disabledTools,
+      })
     },
 
     toggleTool(name) {
@@ -780,51 +634,26 @@ export const useWorkspaceStore = defineStore('workspace', {
 
       this._githubInitPromise = (async () => {
         if (force) {
-          this.githubToken = null
-          this.githubUser = null
-          this.syncStatus = 'disconnected'
-          this.syncError = null
-          this.syncErrorType = null
-          this.syncConflictBranch = null
-          this.lastSyncTime = null
+          Object.assign(this, createDisconnectedGitHubState({ remoteUrl: this.remoteUrl }))
         }
 
         try {
-          const { loadGitHubToken, getGitHubUser } = await import('../services/githubSync')
-          const stored = await loadGitHubToken()
-          if (!stored?.token) {
+          const session = await loadWorkspaceGitHubSession(this.path)
+          if (!session) {
             this.githubToken = null
             this.githubUser = null
             return null
           }
 
-          this.githubToken = stored
-          try {
-            const user = await getGitHubUser(stored.token)
-            this.githubUser = {
-              login: user.login,
-              name: user.name,
-              email: user.email,
-              id: user.id,
-              avatarUrl: user.avatar_url,
-            }
-          } catch {
-            this.githubToken = null
-            this.githubUser = null
-            return null
+          this.githubToken = session.token
+          this.githubUser = session.user
+          this.remoteUrl = session.remoteUrl
+          this.syncStatus = session.syncStatus
+          if (session.syncStatus === 'idle') {
+            this.startSyncTimer()
           }
 
-          if (this.path) {
-            this.remoteUrl = await gitRemoteGetUrl(this.path)
-            if (this.remoteUrl) {
-              this.syncStatus = 'idle'
-              this.startSyncTimer()
-            } else {
-              this.syncStatus = 'disconnected'
-            }
-          }
-
-          return stored
+          return session.token
         } catch (e) {
           console.warn('[github] Init failed:', e)
           return null
@@ -859,114 +688,72 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async autoSync() {
-      if (!this.path) return
-      const remote = await gitRemoteGetUrl(this.path)
-      if (!remote) return
-      this.remoteUrl = remote
-
       await this.ensureGitHubInitialized()
       if (!this.githubToken?.token) return
 
-      // Use the full sync cycle (fetch→check→pull/merge→push)
-      const { syncNow, syncState } = await import('../services/githubSync')
-      await syncNow(this.path, this.githubToken.token)
-      this._applySyncState(syncState)
+      const result = await runWorkspaceAutoSync(this.path, this.githubToken.token)
+      if (!result) return
+
+      this.remoteUrl = result.remoteUrl
+      this._applySyncState(result.syncState)
     },
 
     async fetchRemoteChanges() {
       await this.ensureGitHubInitialized()
       if (!this.path || !this.githubToken?.token) return
-      const remote = await gitRemoteGetUrl(this.path)
-      if (!remote) return
 
-      const { fetchAndPull, syncState } = await import('../services/githubSync')
-      const result = await fetchAndPull(this.path, this.githubToken.token)
-      this._applySyncState(syncState)
+      const response = await fetchWorkspaceRemoteChanges(this.path, this.githubToken.token)
+      if (!response) return
+
+      this.remoteUrl = response.remoteUrl
+      this._applySyncState(response.syncState)
 
       // If files were pulled, reload open files
-      if (result.pulled) {
+      if (response.result?.pulled) {
         try {
           await reloadOpenFilesAfterPull()
         } catch {}
       }
 
-      return result
+      return response.result
     },
 
     async syncNow() {
       await this.ensureGitHubInitialized()
       if (!this.path || !this.githubToken?.token) return
-      const { syncNow, syncState } = await import('../services/githubSync')
-      await syncNow(this.path, this.githubToken.token)
-      this._applySyncState(syncState)
+      const result = await runWorkspaceSyncNow(this.path, this.githubToken.token)
+      if (!result) return
+      this._applySyncState(result.syncState)
     },
 
     _applySyncState(syncState) {
-      this.syncStatus = syncState.status
-      this.syncError = syncState.error
-      this.syncErrorType = syncState.errorType || null
-      this.syncConflictBranch = syncState.conflictBranch
-      this.lastSyncTime = syncState.lastSyncTime
-      this.remoteUrl = syncState.remoteUrl || this.remoteUrl
+      Object.assign(this, mapWorkspaceSyncState(syncState, this.remoteUrl))
     },
 
     async connectGitHub(tokenData) {
-      const { storeGitHubToken, getGitHubUser, configureGitUser, ensureGitignore } = await import('../services/githubSync')
-      await storeGitHubToken(tokenData)
-      this.githubToken = tokenData
+      const session = await connectWorkspaceGitHub({
+        tokenData,
+        path: this.path,
+      })
+      this.githubToken = session.token
       this.githubInitialized = true
-
-      // Use user data from OAuth callback if available, otherwise fetch from GitHub
-      let user
-      if (tokenData.login) {
-        user = tokenData
-      } else {
-        const ghUser = await getGitHubUser(tokenData.token)
-        user = {
-          login: ghUser.login,
-          name: ghUser.name,
-          email: ghUser.email,
-          id: ghUser.id,
-          avatarUrl: ghUser.avatar_url,
-        }
-      }
-
-      this.githubUser = {
-        login: user.login,
-        name: user.name,
-        email: user.email,
-        id: user.id,
-        avatarUrl: user.avatarUrl || user.avatar_url,
-      }
-
-      // Set git user identity from GitHub profile
-      if (this.path) {
-        await configureGitUser(this.path, this.githubUser)
-        await ensureGitignore(this.path)
-      }
+      this.githubUser = session.user
     },
 
     async disconnectGitHub() {
-      const { clearGitHubToken } = await import('../services/githubSync')
-      await clearGitHubToken()
+      await disconnectWorkspaceGitHub()
       this.stopSyncTimer()
-      this.githubToken = null
-      this.githubUser = null
+      Object.assign(this, createDisconnectedGitHubState({ remoteUrl: this.remoteUrl }))
       this.githubInitialized = true
       this._githubInitPromise = null
-      this.syncStatus = 'disconnected'
-      this.syncError = null
-      this.syncErrorType = null
-      this.syncConflictBranch = null
     },
 
     async linkRepo(cloneUrl) {
       if (!this.path) return
-      const { setupRemote, ensureGitignore, syncState } = await import('../services/githubSync')
-      await setupRemote(this.path, cloneUrl)
-      await ensureGitignore(this.path)
-      this.remoteUrl = cloneUrl
-      this.syncStatus = 'idle'
+      const result = await linkWorkspaceRepo(this.path, cloneUrl)
+      if (!result) return
+      this.remoteUrl = result.remoteUrl
+      this.syncStatus = result.syncStatus
       this.startSyncTimer()
 
       // Initial push
@@ -975,8 +762,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     async unlinkRepo() {
       if (!this.path) return
-      const { removeRemote } = await import('../services/githubSync')
-      await removeRemote(this.path)
+      await unlinkWorkspaceRepo(this.path)
       this.stopSyncTimer()
       this.remoteUrl = ''
       this.syncStatus = 'disconnected'
