@@ -24,7 +24,7 @@
           v-if="workspace.leftSidebarOpen"
           data-sidebar="left"
           class="shrink-0 overflow-hidden border-r"
-          :style="{ width: workspace.leftSidebarWidth + 'px', borderColor: 'var(--border)' }"
+          :style="{ width: leftSidebarWidth + 'px', borderColor: 'var(--border)' }"
         >
           <LeftSidebar
             ref="leftSidebarRef"
@@ -58,7 +58,7 @@
           />
 
           <!-- Bottom panel: Terminals -->
-          <BottomPanel ref="bottomPanelRef" />
+          <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
         </div>
 
         <!-- Right resize handle -->
@@ -73,7 +73,7 @@
         <div
           v-show="workspace.rightSidebarOpen"
           class="shrink-0 overflow-hidden border-l"
-          :style="{ width: workspace.rightSidebarWidth + 'px', borderColor: 'var(--border)' }"
+          :style="{ width: rightSidebarWidth + 'px', borderColor: 'var(--border)' }"
         >
           <RightPanel ref="rightPanelRef" />
         </div>
@@ -134,6 +134,7 @@ import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { events } from './services/telemetry'
+import { useAppShellLayout } from './composables/useAppShellLayout'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightPanel = defineAsyncComponent(() => import('./components/panel/RightPanel.vue'))
@@ -164,12 +165,19 @@ const bottomPanelRef = ref(null)
 const setupWizardVisible = ref(false)
 const versionHistoryVisible = ref(false)
 const versionHistoryFile = ref('')
-
-const rightSidebarPreSnapWidth = ref(null)
-let sidebarWidthSaveTimer = null
 let backgroundWorkspaceLoadTimer = null
 let backgroundWorkspaceTaskTimers = []
 let workspaceLoadGeneration = 0
+const {
+  leftSidebarWidth,
+  rightSidebarWidth,
+  bottomPanelHeight,
+  onLeftResize,
+  onBottomResize,
+  onRightResize,
+  onRightResizeSnap,
+  cleanupAppShellLayout,
+} = useAppShellLayout()
 
 function normalizeWorkspacePath(path = '') {
   const normalized = String(path || '').replace(/\/+$/, '')
@@ -610,6 +618,7 @@ onMounted(() => {
 onUnmounted(() => {
   workspaceLoadGeneration += 1
   cancelWorkspaceBackgroundTasks()
+  cleanupAppShellLayout()
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('keydown', handleAltZ, true)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -685,44 +694,6 @@ async function forceSaveAndCommit() {
       console.error('Save+commit error:', e)
       footerRef.value?.showSaveMessage(t('Saved (commit failed)'))
     }
-  }
-}
-
-// Resize handlers
-function debounceSidebarWidthSave() {
-  clearTimeout(sidebarWidthSaveTimer)
-  sidebarWidthSaveTimer = setTimeout(() => {
-    localStorage.setItem('leftSidebarWidth', String(workspace.leftSidebarWidth))
-    localStorage.setItem('rightSidebarWidth', String(workspace.rightSidebarWidth))
-  }, 300)
-}
-
-function onLeftResize(e) {
-  workspace.leftSidebarWidth = Math.max(160, Math.min(500, e.x))
-  debounceSidebarWidthSave()
-}
-
-function onBottomResize(e) {
-  workspace.setBottomPanelHeight(Math.max(100, Math.min(600, window.innerHeight - e.y)))
-}
-
-function onRightResize(e) {
-  const maxWidth = Math.floor(window.innerWidth * 0.8)
-  workspace.rightSidebarWidth = Math.max(200, Math.min(maxWidth, window.innerWidth - e.x))
-  rightSidebarPreSnapWidth.value = null // clear snap memory on manual resize
-  debounceSidebarWidthSave()
-}
-
-function onRightResizeSnap() {
-  const halfWindow = Math.floor(window.innerWidth / 2)
-  if (rightSidebarPreSnapWidth.value !== null) {
-    // Snap back to previous width
-    workspace.rightSidebarWidth = rightSidebarPreSnapWidth.value
-    rightSidebarPreSnapWidth.value = null
-  } else {
-    // Store current width, snap to 50%
-    rightSidebarPreSnapWidth.value = workspace.rightSidebarWidth
-    workspace.rightSidebarWidth = halfWindow
   }
 }
 

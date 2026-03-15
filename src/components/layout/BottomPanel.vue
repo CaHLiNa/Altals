@@ -1,7 +1,7 @@
 <template>
   <div v-if="hasEverOpened" v-show="workspace.bottomPanelOpen"
     class="flex flex-col overflow-hidden shrink-0"
-    :style="{ height: workspace.bottomPanelHeight + 'px' }">
+    :style="{ height: panelHeight + 'px' }">
 
     <!-- Terminal sub-tabs -->
     <div class="flex items-center h-7 shrink-0 border-b" style="border-color: var(--border); background: var(--bg-secondary);">
@@ -112,6 +112,13 @@ import { getLanguageConfig } from '../../services/codeRunner'
 import { invoke } from '@tauri-apps/api/core'
 import Terminal from './Terminal.vue'
 import { useI18n } from '../../i18n'
+
+defineProps({
+  panelHeight: {
+    type: Number,
+    required: true,
+  },
+})
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()

@@ -100,9 +100,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     leftSidebarOpen: localStorage.getItem('leftSidebarOpen') !== 'false',
     rightSidebarOpen: localStorage.getItem('rightSidebarOpen') === 'true',
     bottomPanelOpen: localStorage.getItem('bottomPanelOpen') === 'true',
-    leftSidebarWidth: parseInt(localStorage.getItem('leftSidebarWidth')) || 240,
-    rightSidebarWidth: parseInt(localStorage.getItem('rightSidebarWidth')) || 360,
-    bottomPanelHeight: parseInt(localStorage.getItem('bottomPanelHeight')) || 250,
     disabledTools: [],
     selectedModelId: localStorage.getItem('lastModelId') || '',
     ghostModelId: localStorage.getItem('ghostModelId') || '',
@@ -116,7 +113,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     proseFont: localStorage.getItem('proseFont') || 'inter',
     docxZoomPercent: parseInt(localStorage.getItem('docxZoomPercent')) || 100,
     theme: localStorage.getItem('theme') || 'default',
-    referencesPanelHeight: parseInt(localStorage.getItem('referencesPanelHeight')) || 250,
     globalConfigDir: '',
     workspaceId: '',
     workspaceDataDir: '',
@@ -1040,11 +1036,6 @@ exit 0
         this.bottomPanelOpen = true
         localStorage.setItem('bottomPanelOpen', 'true')
       }
-    },
-
-    setBottomPanelHeight(h) {
-      this.bottomPanelHeight = h
-      localStorage.setItem('bottomPanelHeight', String(h))
     },
 
     openSettings(section = null) {

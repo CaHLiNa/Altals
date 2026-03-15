@@ -181,8 +181,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { computed, ref, toRef, defineAsyncComponent } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
@@ -191,13 +190,12 @@ import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
-import { EditorView } from '@codemirror/view'
-import { getViewerType, isReferencePath, referenceKeyFromPath, getLanguage, isLatex, isRmdOrQmd, isChatTab, getChatSessionId, isTypst } from '../../utils/fileTypes'
-import { sendCode, runFile, renderDocument } from '../../services/codeRunner'
-import { ensureBibFile } from '../../services/latexBib'
+import { getViewerType, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
+import { useEditorPaneComments } from '../../composables/useEditorPaneComments'
+import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
@@ -238,154 +236,75 @@ const commentsStore = useCommentsStore()
 const workflowStore = useDocumentWorkflowStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
-
-const pdfToolbarTargetId = computed(() => `pdf-toolbar-slot-${String(props.paneId || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`)
-const pdfToolbarTargetSelector = computed(() => (
-  props.activeTab && viewerType.value === 'pdf'
-    ? `#${pdfToolbarTargetId.value}`
-    : ''
-))
-const showDocumentHeader = computed(() => (
-  !!props.activeTab && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
-))
-
-// ── Comment state ──────────────────────────────────────────────────
-const hasEditorSelection = ref(false)
-const editorContainerRef = ref(null)
-const commentPanelMode = ref('view')
-const commentSelectionRange = ref(null)
-const commentSelectionText = ref(null)
-
-function onSelectionChange(hasSelection) {
-  hasEditorSelection.value = hasSelection
-}
-
-const showCommentPanel = computed(() => {
-  if (commentPanelMode.value === 'create') return true
-  if (!commentsStore.activeCommentId) return false
-  const comment = commentsStore.activeComment
-  return comment && comment.filePath === props.activeTab
-})
-
-const containerRect = computed(() => {
-  return editorContainerRef.value?.getBoundingClientRect() || null
-})
-
-const currentEditorView = computed(() => {
-  if (!props.activeTab || viewerType.value !== 'text') return null
-  return editorStore.getEditorView(props.paneId, props.activeTab)
-})
-
-function closeCommentPanel() {
-  commentsStore.setActiveComment(null)
-  commentPanelMode.value = 'view'
-  commentSelectionRange.value = null
-  commentSelectionText.value = null
-}
-
-function onCommentCreated(comment) {
-  commentPanelMode.value = 'view'
-  commentSelectionRange.value = null
-  commentSelectionText.value = null
-  commentsStore.setActiveComment(comment.id)
-}
-
-function startComment() {
-  const view = currentEditorView.value
-  if (!view) return
-  const sel = view.state.selection.main
-  if (sel.from === sel.to) return
-
-  commentPanelMode.value = 'create'
-  commentSelectionRange.value = { from: sel.from, to: sel.to }
-  commentSelectionText.value = view.state.sliceDoc(sel.from, sel.to)
-  commentsStore.setActiveComment(null)
-
-  if (!commentsStore.isMarginVisible(props.activeTab)) {
-    commentsStore.toggleMargin(props.activeTab)
-  }
-}
-
-function handleCommentCreate(e) {
-  if (e.detail?.paneId !== props.paneId) return
-  startComment()
-}
-
-function handleCommentScrollTo(e) {
-  const { commentId, filePath } = e.detail || {}
-  if (filePath !== props.activeTab) return
-  const view = currentEditorView.value
-  if (!view) return
-  const comment = commentsStore.commentsForFile(filePath).find(c => c.id === commentId)
-  if (!comment) return
-  view.dispatch({
-    effects: EditorView.scrollIntoView(comment.range.from, { y: 'start', yMargin: 50 }),
-  })
-}
+const paneIdRef = toRef(props, 'paneId')
+const tabsRef = toRef(props, 'tabs')
+const activeTabRef = toRef(props, 'activeTab')
 
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
-const workflowUiState = computed(() => props.activeTab ? workflowStore.getUiStateForFile(props.activeTab) : null)
-const workflowCanViewLog = computed(() => {
-  const kind = workflowUiState.value?.kind
-  return kind === 'latex' || kind === 'typst'
-})
-const workflowStatusText = computed(() => {
-  if (!props.activeTab || !workflowUiState.value) return ''
-
-  if (workflowUiState.value.kind === 'latex') {
-    const state = latexStore.stateForFile(props.activeTab)
-    if (state?.status === 'compiling') return t('Compiling...')
-    if (state?.status === 'success') {
-      const ms = state?.durationMs
-      if (!ms) return t('Compiled')
-      if (ms < 1000) return `${ms}ms`
-      return `${(ms / 1000).toFixed(1)}s`
-    }
-  }
-
-  if (workflowUiState.value.kind === 'typst') {
-    const state = typstStore.stateForFile(props.activeTab)
-    if (state?.status === 'compiling') return t('Compiling...')
-    if (state?.status === 'success') {
-      const ms = state?.durationMs
-      if (!ms) return t('Compiled')
-      if (ms < 1000) return `${ms}ms`
-      return `${(ms / 1000).toFixed(1)}s`
-    }
-  }
-
-  if (workflowUiState.value.kind === 'markdown' && workflowUiState.value.phase === 'rendering') {
-    return t('Rendering...')
-  }
-
-  return ''
-})
-const workflowStatusTone = computed(() => {
-  if (!workflowUiState.value) return 'muted'
-  if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
-  if (workflowUiState.value.phase === 'ready') return 'success'
-  return 'muted'
-})
-
+const viewerTypeRef = viewerType
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
 const textTabs = computed(() => props.tabs.filter(tab => getViewerType(tab) === 'text'))
-const previewSourcePath = computed(() => (
-  props.activeTab && viewerType.value === 'pdf'
-    ? workflowStore.getSourcePathForPreview(props.activeTab)
-    : ''
-))
-const pdfSourceState = computed(() => (
-  props.activeTab && viewerType.value === 'pdf'
-    ? filesStore.getPdfSourceState(props.activeTab)
-    : null
-))
-const pdfSourceReady = computed(() => (
-  viewerType.value !== 'pdf'
-    || !props.activeTab
-    || pdfSourceState.value?.status === 'ready'
-))
-const pdfSourceKind = computed(() => pdfSourceState.value?.kind || 'plain')
+
+const editorContainerRef = ref(null)
+const {
+  hasEditorSelection,
+  showCommentPanel,
+  containerRect,
+  currentEditorView,
+  commentPanelMode,
+  commentSelectionRange,
+  commentSelectionText,
+  onSelectionChange,
+  closeCommentPanel,
+  onCommentCreated,
+  startComment,
+} = useEditorPaneComments({
+  paneIdRef,
+  activeTabRef,
+  viewerTypeRef,
+  editorStore,
+  commentsStore,
+  editorContainerRef,
+})
+
+const {
+  pdfToolbarTargetId,
+  pdfToolbarTargetSelector,
+  showDocumentHeader,
+  workflowUiState,
+  workflowCanViewLog,
+  workflowStatusText,
+  workflowStatusTone,
+  pdfSourceReady,
+  pdfSourceKind,
+  handleRunCode,
+  handleRunFile,
+  handleRenderDocument,
+  handleCompileTex,
+  handleCompileTypst,
+  handlePreviewPdf,
+  handlePreviewMarkdown,
+  handleWorkflowPrimaryAction,
+  handleWorkflowRevealPreview,
+  handleWorkflowViewLog,
+  handleExportPdf,
+} = useEditorPaneWorkflow({
+  paneIdRef,
+  tabsRef,
+  activeTabRef,
+  viewerTypeRef,
+  editorStore,
+  filesStore,
+  chatStore,
+  workspace,
+  latexStore,
+  typstStore,
+  toastStore,
+  workflowStore,
+  referencesStore,
+  t,
+})
 
 function selectTab(path) {
   editorStore.setActiveTab(props.paneId, path)
@@ -412,376 +331,6 @@ function splitHorizontal() {
   const newPaneId = editorStore.splitPane('horizontal')
   editorStore.openNewTab(newPaneId)
 }
-
-function handleRunCode() {
-  if (!props.activeTab) return
-  const lang = getLanguage(props.activeTab)
-  if (!lang) return
-  const editorView = editorStore.getEditorView(props.paneId, props.activeTab)
-  if (!editorView) return
-
-  const state = editorView.state
-  const sel = state.selection.main
-
-  if (isRmdOrQmd(props.activeTab)) {
-    // Dispatch through chunk-execute so it routes through the kernel bridge in TextEditor
-    import('../../editor/codeChunks').then(({ chunkField, chunkAtPosition }) => {
-      const chunks = state.field(chunkField)
-      const chunk = chunkAtPosition(chunks, state.doc, sel.head)
-      if (!chunk) return // Cursor in prose — do nothing
-      const idx = chunks.indexOf(chunk)
-      if (idx >= 0) {
-        editorView.dom.dispatchEvent(new CustomEvent('chunk-execute', {
-          bubbles: true,
-          detail: { chunkIdx: idx },
-        }))
-      }
-    })
-    return
-  }
-
-  // Plain script: send line or selection
-  let code
-  if (sel.from !== sel.to) {
-    code = state.sliceDoc(sel.from, sel.to)
-  } else {
-    const line = state.doc.lineAt(sel.head)
-    code = line.text
-    if (line.number < state.doc.lines) {
-      const nextLine = state.doc.line(line.number + 1)
-      editorView.dispatch({
-        selection: { anchor: nextLine.from },
-        scrollIntoView: true,
-      })
-    }
-  }
-  if (code) sendCode(code, lang)
-}
-
-function handleRunFile() {
-  if (!props.activeTab) return
-  const lang = getLanguage(props.activeTab)
-  if (!lang) return
-
-  if (isRmdOrQmd(props.activeTab)) {
-    // Single event → TextEditor runs all chunks sequentially (shared kernel state)
-    const editorView = editorStore.getEditorView(props.paneId, props.activeTab)
-    if (!editorView) return
-    editorView.dom.dispatchEvent(new CustomEvent('chunk-execute-all', { bubbles: true }))
-    return
-  }
-
-  runFile(props.activeTab, lang)
-}
-
-function handleRenderDocument() {
-  if (!props.activeTab) return
-  renderDocument(props.activeTab)
-}
-
-async function handleCompileTex() {
-  if (!props.activeTab || !isLatex(props.activeTab)) return
-  await latexStore.compile(props.activeTab)
-  const state = latexStore.stateForFile(props.activeTab)
-  if (state?.status === 'success' && state.pdfPath) {
-    ensurePdfOpen(state.pdfPath)
-  }
-}
-
-async function handleCompileTypst() {
-  if (!props.activeTab || !isTypst(props.activeTab)) return
-  await typstStore.compile(props.activeTab)
-}
-
-function handlePreviewPdf() {
-  if (!props.activeTab) return
-
-  if (isLatex(props.activeTab)) {
-    const state = latexStore.stateForFile(props.activeTab)
-    const pdfPath = state?.pdfPath || props.activeTab.replace(/\.tex$/i, '.pdf')
-    ensurePdfOpen(pdfPath)
-    return
-  }
-
-  if (isTypst(props.activeTab)) {
-    workflowStore.revealPreview(props.activeTab, {
-      previewKind: 'pdf',
-      sourcePaneId: props.paneId,
-      trigger: 'typst-preview-button',
-    })
-  }
-}
-
-function handlePreviewMarkdown() {
-  if (!props.activeTab) return
-  workflowStore.ensurePreviewForSource(props.activeTab, {
-    previewKind: 'html',
-    activatePreview: true,
-    sourcePaneId: props.paneId,
-    trigger: 'markdown-preview-button',
-  })
-}
-
-function handleWorkflowPrimaryAction() {
-  if (!workflowUiState.value || !props.activeTab) return
-
-  if (workflowUiState.value.kind === 'latex') {
-    handleCompileTex()
-    return
-  }
-  if (workflowUiState.value.kind === 'typst') {
-    handleCompileTypst()
-    return
-  }
-  handlePreviewMarkdown()
-}
-
-async function handleWorkflowRevealPreview() {
-  if (!workflowUiState.value || !props.activeTab) return
-
-  if (workflowUiState.value.kind === 'markdown') {
-    try {
-      const pdfPath = props.activeTab.replace(/\.(md|rmd|qmd)$/i, '.pdf')
-      const hasPdf = await invoke('path_exists', { path: pdfPath })
-      if (hasPdf) {
-        workflowStore.revealPreview(props.activeTab, {
-          previewKind: 'pdf',
-          sourcePaneId: props.paneId,
-          trigger: 'workflow-reveal-markdown-pdf',
-        })
-        return
-      }
-    } catch {
-      // Fall back to HTML preview if existence check fails.
-    }
-
-    handlePreviewMarkdown()
-    return
-  }
-
-  workflowStore.revealPreview(props.activeTab, {
-    previewKind: workflowUiState.value.previewKind,
-    sourcePaneId: props.paneId,
-    trigger: 'workflow-reveal-preview',
-  })
-}
-
-function handleWorkflowViewLog() {
-  if (!props.activeTab) return
-  workflowStore.openLogForFile(props.activeTab)
-}
-
-async function handleExportPdf(settingsOverride) {
-  if (!props.activeTab) return
-  workflowStore.setMarkdownPdfState(props.activeTab, {
-    status: 'rendering',
-    problems: [],
-  })
-  try {
-    // For .Rmd/.qmd: knit first (execute chunks, produce clean .md), then export that
-    let mdPathForExport = props.activeTab
-    let tempMdPath = null
-    if (isRmdOrQmd(props.activeTab)) {
-      const content = filesStore.fileContents[props.activeTab]
-      if (content) {
-        const { knitRmd } = await import('../../services/rmdKnit')
-        // Write to .md with same stem so Typst outputs correctly-named PDF
-        tempMdPath = props.activeTab.replace(/\.(rmd|qmd)$/i, '.md')
-        const imageDir = props.activeTab.substring(0, props.activeTab.lastIndexOf('/'))
-        const knitted = await knitRmd(content, workspace.path, { imageDir })
-        await invoke('write_file', { path: tempMdPath, content: knitted })
-        mdPathForExport = tempMdPath
-      }
-    }
-
-    // Resolve settings: popover override > saved per-file > defaults
-    const settings = settingsOverride || typstStore.getSettings(props.activeTab)
-
-    // Inject citation style from references store if not already set
-    if (!settings.bib_style) {
-      settings.bib_style = referencesStore.citationStyle
-    }
-
-    // For non-built-in styles, copy .csl file next to the .typ and pass filename
-    const builtinTypstStyles = ['apa', 'chicago', 'ieee', 'harvard', 'vancouver']
-    if (settings.bib_style && !builtinTypstStyles.includes(settings.bib_style)) {
-      try {
-        const cslUrl = `/csl/${settings.bib_style}.csl`
-        const resp = await fetch(cslUrl)
-        if (resp.ok) {
-          const cslContent = await resp.text()
-          const dir = props.activeTab.substring(0, props.activeTab.lastIndexOf('/'))
-          const cslPath = `${dir}/${settings.bib_style}.csl`
-          await invoke('write_file', { path: cslPath, content: cslContent })
-          settings.bib_style = `${settings.bib_style}.csl`
-        }
-      } catch {
-        // Fall back to APA if CSL file can't be loaded
-        settings.bib_style = 'apa'
-      }
-    }
-
-    // Check if PDF already exists before export
-    const expectedPdfPath = props.activeTab.replace(/\.(md|rmd|qmd)$/i, '.pdf')
-    const pdfExisted = await invoke('path_exists', { path: expectedPdfPath })
-
-    // Generate .bib file from reference library (reuses LaTeX pipeline)
-    let bibPath = null
-    try {
-      bibPath = await ensureBibFile(props.activeTab)
-    } catch (e) {
-      // No references or bib generation failed — continue without
-    }
-
-    const result = await typstStore.exportToPdf(mdPathForExport, bibPath, settings)
-
-    // Clean up temp files for .Rmd exports
-    if (tempMdPath) {
-      invoke('delete_path', { path: tempMdPath }).catch(() => {})
-      // Clean up temp chunk images (_chunk_img_*.png/jpg)
-      const dir = tempMdPath.substring(0, tempMdPath.lastIndexOf('/'))
-      ;(async () => {
-        try {
-          const entries = await invoke('read_dir_shallow', { path: dir })
-          await Promise.all(
-            (entries || [])
-              .filter(entry => !entry.is_dir && entry.name?.startsWith('_chunk_img_'))
-              .map(entry => invoke('delete_path', { path: entry.path }).catch(() => {})),
-          )
-        } catch {
-          // ignore temp cleanup failures
-        }
-      })()
-    }
-
-    if (result?.success && result.pdf_path) {
-      workflowStore.setMarkdownPdfState(props.activeTab, {
-        status: 'ready',
-        problems: [],
-        pdfPath: result.pdf_path,
-      })
-      workflowStore.bindPreview({
-        previewPath: result.pdf_path,
-        sourcePath: props.activeTab,
-        previewKind: 'pdf',
-        kind: 'markdown',
-      })
-      if (!pdfExisted) {
-        const pdfName = result.pdf_path.split('/').pop()
-        const dur = result.duration_ms ? ` in ${result.duration_ms}ms` : ''
-        toastStore.show(`Created ${pdfName}${dur}`)
-      }
-
-      workflowStore.revealPreview(props.activeTab, {
-        previewKind: 'pdf',
-        trigger: 'markdown-export-pdf',
-      })
-      window.dispatchEvent(new CustomEvent('pdf-updated', {
-        detail: { path: result.pdf_path },
-      }))
-    } else if (result?.errors?.length) {
-      workflowStore.setMarkdownPdfState(props.activeTab, {
-        status: 'error',
-        problems: result.errors.map((error, index) => ({
-          id: `markdown-pdf:${props.activeTab}:${index}`,
-          sourcePath: props.activeTab,
-          line: error?.line || null,
-          column: error?.column || null,
-          severity: error?.severity || 'error',
-          message: error?.message || String(error),
-          origin: 'preview',
-          actionable: true,
-          raw: error?.raw || error?.message || String(error),
-        })),
-      })
-      const errMsg = result.errors.map(e => e.message).join('\n')
-      editorStore.openChatBeside({ prefill: `Typst export error:\n\`\`\`\n${errMsg}\n\`\`\`\nBriefly explain and fix.` })
-    }
-  } catch (e) {
-    console.error('PDF export failed:', e)
-    workflowStore.setMarkdownPdfState(props.activeTab, {
-      status: 'error',
-      problems: [{
-        id: `markdown-pdf:${props.activeTab}:catch`,
-        sourcePath: props.activeTab,
-        line: null,
-        column: null,
-        severity: 'error',
-        message: e?.message || String(e),
-        origin: 'preview',
-        actionable: true,
-        raw: e?.stack || String(e),
-      }],
-    })
-  }
-}
-
-function ensurePdfOpen(pdfPath) {
-  const leaves = getAllLeaves(editorStore.paneTree)
-  if (leaves.some(p => p.tabs.includes(pdfPath))) return
-
-  const sourcePaneId = editorStore.activePaneId
-  editorStore.splitPaneWith(sourcePaneId, 'vertical', pdfPath)
-}
-
-function getAllLeaves(node) {
-  if (!node) return []
-  if (node.type === 'leaf') return [node]
-  return (node.children || []).flatMap(getAllLeaves)
-}
-
-function handleLatexCompileDone(e) {
-  const { texPath, pdf_path, success } = e.detail || {}
-  if (!success || !pdf_path) return
-  if (!props.tabs.includes(texPath)) return
-  ensurePdfOpen(pdf_path)
-}
-
-function handleTypstCompileDone(e) {
-  const { typPath, pdf_path, success } = e.detail || {}
-  if (!success || !pdf_path) return
-  if (!props.tabs.includes(typPath)) return
-  workflowStore.ensurePreviewForSource(typPath, {
-    previewKind: 'pdf',
-    activatePreview: false,
-    sourcePaneId: props.paneId,
-    trigger: 'typst-compile-success',
-  })
-}
-
-watch(
-  [() => props.activeTab, () => editorStore.activePaneId],
-  () => {
-    workflowStore.reconcile({ trigger: 'editor-pane-sync' })
-  },
-  { immediate: true },
-)
-
-watch(
-  [() => props.activeTab, () => viewerType.value, previewSourcePath],
-  async ([activeTab, type]) => {
-    if (!activeTab || type !== 'pdf') return
-    try {
-      await filesStore.ensurePdfSourceKind(activeTab, { force: true })
-    } catch (error) {
-      console.warn('[editor] failed to resolve PDF source kind:', error)
-    }
-  },
-  { immediate: true },
-)
-
-onMounted(() => {
-  window.addEventListener('latex-compile-done', handleLatexCompileDone)
-  window.addEventListener('typst-compile-done', handleTypstCompileDone)
-  window.addEventListener('comment-create', handleCommentCreate)
-  window.addEventListener('comment-scroll-to', handleCommentScrollTo)
-})
-onUnmounted(() => {
-  window.removeEventListener('latex-compile-done', handleLatexCompileDone)
-  window.removeEventListener('typst-compile-done', handleTypstCompileDone)
-  window.removeEventListener('comment-create', handleCommentCreate)
-  window.removeEventListener('comment-scroll-to', handleCommentScrollTo)
-})
 
 function closePane() {
   const pane = editorStore.findPane(editorStore.paneTree, props.paneId)
