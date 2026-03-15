@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use std::ffi::OsStr;
+use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
@@ -7,7 +8,13 @@ use tokio::net::lookup_host;
 use url::Url;
 
 pub struct WorkspaceScopeState {
-    active_workspace_root: Mutex<Option<PathBuf>>,
+    allowed_roots: Mutex<AllowedRoots>,
+}
+
+#[derive(Clone, Default)]
+struct AllowedRoots {
+    workspace_root: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
 }
 
 impl Default for WorkspaceScopeState {
@@ -15,20 +22,37 @@ impl Default for WorkspaceScopeState {
         let _ = app_dirs::data_root_dir();
 
         Self {
-            active_workspace_root: Mutex::new(None),
+            allowed_roots: Mutex::new(AllowedRoots::default()),
         }
     }
 }
 
 impl WorkspaceScopeState {
-    fn allowed_workspace_root(&self) -> Result<PathBuf, String> {
+    fn allowed_roots(&self) -> Result<AllowedRoots, String> {
         let guard = self
-            .active_workspace_root
+            .allowed_roots
             .lock()
-            .map_err(|_| "Workspace scope state is unavailable".to_string())?;
-        guard
-            .clone()
+            .map_err(|_| "Allowed roots state is unavailable".to_string())?;
+        Ok(guard.clone())
+    }
+
+    fn allowed_workspace_root(&self) -> Result<PathBuf, String> {
+        self.allowed_roots()?
+            .workspace_root
             .ok_or_else(|| "No active workspace is registered".to_string())
+    }
+
+    fn allowed_root_for_scope(&self, scope: &str) -> Result<PathBuf, String> {
+        let roots = self.allowed_roots()?;
+        match scope {
+            "workspace" => roots
+                .workspace_root
+                .ok_or_else(|| "No active workspace root is registered".to_string()),
+            "data" => roots
+                .data_dir
+                .ok_or_else(|| "No active workspace data directory is registered".to_string()),
+            other => Err(format!("Unsupported scope: {other}")),
+        }
     }
 
     fn is_allowed_workspace_path(&self, path: &Path) -> Result<bool, String> {
@@ -37,33 +61,69 @@ impl WorkspaceScopeState {
     }
 }
 
-#[tauri::command]
-pub fn workspace_set_active_root(
-    path: String,
-    state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let canonical = canonicalize_for_scope(Path::new(&path))?;
-    if !canonical.is_dir() {
-        return Err(format!("Workspace root is not a directory: {}", canonical.display()));
+fn prepare_allowed_directory(path: &Path, create_if_missing: bool) -> Result<PathBuf, String> {
+    if create_if_missing && !path.exists() {
+        fs::create_dir_all(path).map_err(|e| e.to_string())?;
     }
 
+    let canonical = canonicalize_for_scope(path)?;
+    if !canonical.is_dir() {
+        return Err(format!(
+            "Allowed root is not a directory: {}",
+            canonical.display()
+        ));
+    }
+    Ok(canonical)
+}
+
+#[tauri::command]
+pub fn workspace_set_allowed_roots(
+    workspace_root: String,
+    data_dir: Option<String>,
+    state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    let canonical_workspace_root = prepare_allowed_directory(Path::new(&workspace_root), false)
+        .map_err(|error| {
+            if error.starts_with("Allowed root is not a directory:") {
+                error.replacen("Allowed root", "Workspace root", 1)
+            } else {
+                error
+            }
+        })?;
+
+    let canonical_data_dir = match data_dir {
+        Some(path) if !path.trim().is_empty() => Some(
+            prepare_allowed_directory(Path::new(&path), true).map_err(|error| {
+                if error.starts_with("Allowed root is not a directory:") {
+                    error.replacen("Allowed root", "Workspace data directory", 1)
+                } else {
+                    error
+                }
+            })?,
+        ),
+        _ => None,
+    };
+
     let mut guard = state
-        .active_workspace_root
+        .allowed_roots
         .lock()
-        .map_err(|_| "Workspace scope state is unavailable".to_string())?;
-    *guard = Some(canonical);
+        .map_err(|_| "Allowed roots state is unavailable".to_string())?;
+    *guard = AllowedRoots {
+        workspace_root: Some(canonical_workspace_root),
+        data_dir: canonical_data_dir,
+    };
     Ok(())
 }
 
 #[tauri::command]
-pub fn workspace_clear_active_root(
+pub fn workspace_clear_allowed_roots(
     state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
     let mut guard = state
-        .active_workspace_root
+        .allowed_roots
         .lock()
-        .map_err(|_| "Workspace scope state is unavailable".to_string())?;
-    *guard = None;
+        .map_err(|_| "Allowed roots state is unavailable".to_string())?;
+    *guard = AllowedRoots::default();
     Ok(())
 }
 
@@ -80,6 +140,34 @@ pub fn ensure_workspace_cwd(
             canonical.display()
         ))
     }
+}
+
+pub fn resolve_allowed_scoped_path(
+    state: &WorkspaceScopeState,
+    scope: &str,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    let root = state.allowed_root_for_scope(scope)?;
+    let mut resolved = root.clone();
+
+    for component in Path::new(relative_path).components() {
+        match component {
+            Component::Normal(segment) => resolved.push(segment),
+            Component::CurDir => {}
+            Component::RootDir | Component::ParentDir | Component::Prefix(_) => {
+                return Err("Path traversal is not allowed".to_string())
+            }
+        }
+    }
+
+    let canonical = canonicalize_for_scope(&resolved)?;
+    if !is_within_root(&canonical, &root) {
+        return Err(format!(
+            "Path is outside the allowed {scope} scope: {}",
+            canonical.display()
+        ));
+    }
+    Ok(canonical)
 }
 
 pub async fn validate_public_fetch_url(raw_url: &str) -> Result<Url, String> {
@@ -224,4 +312,86 @@ fn is_public_ipv6(ip: Ipv6Addr) -> bool {
         || ip.is_unique_local()
         || ip.is_unicast_link_local()
         || (segments[0] == 0x2001 && segments[1] == 0x0db8))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("altals-security-{label}-{}", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn resolves_workspace_and_data_scopes() {
+        let workspace_root = temp_path("workspace");
+        let data_root = temp_path("data");
+        fs::create_dir_all(workspace_root.join("docs")).unwrap();
+        fs::create_dir_all(data_root.join("references")).unwrap();
+        fs::write(workspace_root.join("docs/file.pdf"), b"workspace").unwrap();
+        fs::write(data_root.join("references/file.pdf"), b"data").unwrap();
+
+        let state = WorkspaceScopeState::default();
+        *state.allowed_roots.lock().unwrap() = AllowedRoots {
+            workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
+            data_dir: Some(canonicalize_for_scope(&data_root).unwrap()),
+        };
+
+        let workspace_file = resolve_allowed_scoped_path(&state, "workspace", "docs/file.pdf").unwrap();
+        let data_file = resolve_allowed_scoped_path(&state, "data", "references/file.pdf").unwrap();
+
+        assert!(workspace_file.ends_with("docs/file.pdf"));
+        assert!(data_file.ends_with("references/file.pdf"));
+
+        fs::remove_dir_all(workspace_root).unwrap();
+        fs::remove_dir_all(data_root).unwrap();
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        let workspace_root = temp_path("workspace-traversal");
+        fs::create_dir_all(&workspace_root).unwrap();
+
+        let state = WorkspaceScopeState::default();
+        *state.allowed_roots.lock().unwrap() = AllowedRoots {
+            workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
+            data_dir: None,
+        };
+
+        let err = resolve_allowed_scoped_path(&state, "workspace", "../outside.pdf").unwrap_err();
+        assert!(err.contains("Path traversal"));
+
+        fs::remove_dir_all(workspace_root).unwrap();
+    }
+
+    #[test]
+    fn rejects_unconfigured_scope() {
+        let workspace_root = temp_path("workspace-only");
+        fs::create_dir_all(&workspace_root).unwrap();
+
+        let state = WorkspaceScopeState::default();
+        *state.allowed_roots.lock().unwrap() = AllowedRoots {
+            workspace_root: Some(canonicalize_for_scope(&workspace_root).unwrap()),
+            data_dir: None,
+        };
+
+        let err = resolve_allowed_scoped_path(&state, "data", "references/file.pdf").unwrap_err();
+        assert!(err.contains("data directory"));
+
+        fs::remove_dir_all(workspace_root).unwrap();
+    }
+
+    #[test]
+    fn creates_missing_data_root_before_registering_scope() {
+        let workspace_root = temp_path("workspace-root");
+        let data_root = temp_path("workspace-data-root");
+        fs::create_dir_all(&workspace_root).unwrap();
+        let prepared = prepare_allowed_directory(&data_root, true).unwrap();
+        assert!(prepared.is_dir());
+        assert_eq!(prepared, canonicalize_for_scope(&data_root).unwrap());
+
+        fs::remove_dir_all(workspace_root).unwrap();
+        fs::remove_dir_all(data_root).unwrap();
+    }
 }

@@ -62,30 +62,43 @@
     <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
          :class="{ 'flex flex-col': viewerType === 'text' }"
          style="background: var(--bg-primary);">
-      <div v-if="activeTab && viewerType === 'text'" class="flex-1 min-w-0 h-full">
-        <TextEditor
-          :key="activeTab"
-          :filePath="activeTab"
-          :paneId="paneId"
-          @cursor-change="(pos) => $emit('cursor-change', pos)"
-          @editor-stats="(stats) => $emit('editor-stats', stats)"
-          @selection-change="onSelectionChange"
-        />
+      <div v-if="textTabs.length > 0" v-show="viewerType === 'text'" class="flex-1 min-w-0 h-full">
+        <div
+          v-for="tabPath in textTabs"
+          :key="tabPath"
+          v-show="activeTab === tabPath"
+          class="h-full"
+        >
+          <TextEditor
+            :filePath="tabPath"
+            :paneId="paneId"
+            @cursor-change="(pos) => $emit('cursor-change', pos)"
+            @editor-stats="(stats) => $emit('editor-stats', stats)"
+            @selection-change="onSelectionChange"
+          />
+        </div>
       </div>
       <LatexPdfViewer
-        v-else-if="activeTab && viewerType === 'pdf' && hasTexSource"
+        v-if="activeTab && viewerType === 'pdf' && pdfSourceReady && pdfSourceKind === 'latex'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
         :toolbar-target-selector="pdfToolbarTargetSelector"
       />
       <TypstPdfViewer
-        v-else-if="activeTab && viewerType === 'pdf' && hasTypstSource"
+        v-else-if="activeTab && viewerType === 'pdf' && pdfSourceReady && pdfSourceKind === 'typst'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
         :toolbar-target-selector="pdfToolbarTargetSelector"
       />
+      <div
+        v-else-if="activeTab && viewerType === 'pdf' && !pdfSourceReady"
+        class="absolute inset-0 flex items-center justify-center text-sm"
+        style="color: var(--fg-muted); background: var(--bg-primary);"
+      >
+        {{ t('Detecting PDF source...') }}
+      </div>
       <PdfViewer
         v-else-if="activeTab && viewerType === 'pdf'"
         :key="activeTab"
@@ -352,22 +365,23 @@ const workflowStatusTone = computed(() => {
 })
 
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
-// Check if this PDF has a corresponding .tex source (for LaTeX PDF viewer)
-const hasTexSource = computed(() => {
-  if (viewerType.value !== 'pdf' || !props.activeTab) return false
-  const texPath = props.activeTab.replace(/\.pdf$/, '.tex')
-  // Check if .tex file is known to the file system (open or in tree)
-  return filesStore.fileContents[texPath] !== undefined ||
-         filesStore.flatFiles.some(f => f.path === texPath)
-})
-
-const hasTypstSource = computed(() => {
-  if (viewerType.value !== 'pdf' || !props.activeTab || hasTexSource.value) return false
-  const typPath = props.activeTab.replace(/\.pdf$/i, '.typ')
-  return filesStore.fileContents[typPath] !== undefined
-    || filesStore.flatFiles.some(f => f.path === typPath)
-    || workflowStore.getSourcePathForPreview(props.activeTab) === typPath
-})
+const textTabs = computed(() => props.tabs.filter(tab => getViewerType(tab) === 'text'))
+const previewSourcePath = computed(() => (
+  props.activeTab && viewerType.value === 'pdf'
+    ? workflowStore.getSourcePathForPreview(props.activeTab)
+    : ''
+))
+const pdfSourceState = computed(() => (
+  props.activeTab && viewerType.value === 'pdf'
+    ? filesStore.getPdfSourceState(props.activeTab)
+    : null
+))
+const pdfSourceReady = computed(() => (
+  viewerType.value !== 'pdf'
+    || !props.activeTab
+    || pdfSourceState.value?.status === 'ready'
+))
+const pdfSourceKind = computed(() => pdfSourceState.value?.kind || 'plain')
 
 function selectTab(path) {
   editorStore.setActiveTab(props.paneId, path)
@@ -744,6 +758,19 @@ watch(
   [() => props.activeTab, () => editorStore.activePaneId],
   () => {
     workflowStore.reconcile({ trigger: 'editor-pane-sync' })
+  },
+  { immediate: true },
+)
+
+watch(
+  [() => props.activeTab, () => viewerType.value, previewSourcePath],
+  async ([activeTab, type]) => {
+    if (!activeTab || type !== 'pdf') return
+    try {
+      await filesStore.ensurePdfSourceKind(activeTab, { force: true })
+    } catch (error) {
+      console.warn('[editor] failed to resolve PDF source kind:', error)
+    }
   },
   { immediate: true },
 )

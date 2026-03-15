@@ -264,8 +264,11 @@ async function openWorkspace(path, options = {}) {
   }
 
   try {
-    await invoke('workspace_set_active_root', { path: targetPath })
     await workspace.openWorkspace(targetPath)
+    await invoke('workspace_set_allowed_roots', {
+      workspaceRoot: targetPath,
+      dataDir: workspace.workspaceDataDir || null,
+    })
     editorStore.loadRecentFiles(targetPath)
 
     const hadCachedTree = filesStore.restoreCachedTree(targetPath)
@@ -363,8 +366,8 @@ async function closeWorkspace() {
   latexStore.cleanup()
   typstStore.cleanup()
   await workspace.closeWorkspace()
-  await invoke('workspace_clear_active_root').catch((error) => {
-    console.warn('[workspace] failed to clear active root:', error)
+  await invoke('workspace_clear_allowed_roots').catch((error) => {
+    console.warn('[workspace] failed to clear allowed roots:', error)
   })
   void releaseWorkspaceBookmark(closingWorkspacePath)
 }

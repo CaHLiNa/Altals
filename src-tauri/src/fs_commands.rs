@@ -13,6 +13,7 @@ use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
 
+const FILE_TOO_LARGE_ERROR_CODE: &str = "FILE_TOO_LARGE";
 pub const ALLOWED_HOSTS: &[&str] = &[
     "api.anthropic.com",
     "api.openai.com",
@@ -203,6 +204,21 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result<(),
     Ok(())
 }
 
+fn format_file_too_large_error(max_bytes: u64, actual_bytes: u64) -> String {
+    format!("{FILE_TOO_LARGE_ERROR_CODE}:{max_bytes}:{actual_bytes}")
+}
+
+fn read_text_file_with_limit(path: &Path, max_bytes: Option<u64>) -> Result<String, String> {
+    if let Some(limit) = max_bytes {
+        let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
+        if metadata.len() > limit {
+            return Err(format_file_too_large_error(limit, metadata.len()));
+        }
+    }
+
+    fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
 where
     F: FnOnce() -> Result<T, String> + Send + 'static,
@@ -255,11 +271,11 @@ pub async fn list_files_recursive(path: String) -> Result<Vec<FileEntry>, String
 }
 
 #[tauri::command]
-pub async fn read_file(path: String) -> Result<String, String> {
+pub async fn read_file(path: String, max_bytes: Option<u64>) -> Result<String, String> {
     eprintln!("[fs] read_file start path={}", path);
     let started = std::time::Instant::now();
     let path_for_read = path.clone();
-    let result = run_blocking(move || fs::read_to_string(&path_for_read).map_err(|e| e.to_string())).await;
+    let result = run_blocking(move || read_text_file_with_limit(Path::new(&path_for_read), max_bytes)).await;
     match &result {
         Ok(content) => eprintln!(
             "[fs] read_file ok path={} bytes={} elapsed_ms={}",
@@ -358,6 +374,37 @@ pub async fn copy_dir(src: String, dest: String) -> Result<(), String> {
         copy_dir_recursive(src, dest).map_err(|e| e.to_string())
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_file_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("altals-fs-{label}-{}", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn read_text_file_with_limit_returns_error_code_when_file_is_too_large() {
+        let path = temp_file_path("too-large");
+        fs::write(&path, "1234567890").unwrap();
+
+        let error = read_text_file_with_limit(&path, Some(4)).unwrap_err();
+        assert_eq!(error, format_file_too_large_error(4, 10));
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn read_text_file_with_limit_reads_when_within_limit() {
+        let path = temp_file_path("within-limit");
+        fs::write(&path, "hello").unwrap();
+
+        let content = read_text_file_with_limit(&path, Some(8)).unwrap();
+        assert_eq!(content, "hello");
+
+        fs::remove_file(path).unwrap();
+    }
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {

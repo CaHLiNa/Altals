@@ -14,10 +14,15 @@ mod typst_export;
 mod usage_db;
 mod workspace_access;
 
+use std::fs;
+use std::path::Path;
+use percent_encoding::percent_decode_str;
+use tauri::http::{header, Response, StatusCode};
+use tauri::{AppHandle, Manager, Runtime};
+
 #[cfg(target_os = "macos")]
 use tauri::{
     menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder},
-    AppHandle, Manager, Runtime,
 };
 
 /// Enable macOS spellcheck for WKWebView (must run before webview init)
@@ -99,6 +104,136 @@ const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
     "auth-data",
     "github-token",
 ];
+
+fn workspace_file_content_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}
+
+fn workspace_protocol_response(
+    status: StatusCode,
+    content_type: &'static str,
+    body: Vec<u8>,
+) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(body)
+        .unwrap()
+}
+
+fn workspace_protocol_error(status: StatusCode, message: impl Into<String>) -> Response<Vec<u8>> {
+    workspace_protocol_response(status, "text/plain; charset=utf-8", message.into().into_bytes())
+}
+
+fn parse_workspace_protocol_request_path(request_path: &str) -> Result<(String, String), String> {
+    let mut segments = request_path
+        .split('/')
+        .filter(|segment| !segment.is_empty());
+
+    let scope = segments
+        .next()
+        .ok_or_else(|| "Missing file scope".to_string())?;
+
+    let scope = percent_decode_str(scope)
+        .decode_utf8()
+        .map_err(|_| "Invalid workspace scope encoding".to_string())?
+        .into_owned();
+
+    let decoded_segments = segments
+        .map(|segment| {
+            percent_decode_str(segment)
+                .decode_utf8()
+                .map(|value| value.into_owned())
+                .map_err(|_| format!("Invalid workspace path segment encoding: {segment}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let relative_path = decoded_segments.join("/");
+    if relative_path.is_empty() {
+        return Err("Missing file path".to_string());
+    }
+
+    Ok((scope, relative_path))
+}
+
+fn handle_workspace_protocol<R: Runtime>(
+    app: &AppHandle<R>,
+    request: tauri::http::Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let (scope, relative_path) = match parse_workspace_protocol_request_path(request.uri().path()) {
+        Ok(parts) => parts,
+        Err(error) => return workspace_protocol_error(StatusCode::BAD_REQUEST, error),
+    };
+
+    let state = app.state::<security::WorkspaceScopeState>();
+    let resolved = match security::resolve_allowed_scoped_path(&state, &scope, &relative_path) {
+        Ok(path) => path,
+        Err(error) if error.contains("No active") => {
+            return workspace_protocol_error(StatusCode::FORBIDDEN, error)
+        }
+        Err(error) if error.contains("outside") || error.contains("traversal") => {
+            return workspace_protocol_error(StatusCode::FORBIDDEN, error)
+        }
+        Err(error) => return workspace_protocol_error(StatusCode::BAD_REQUEST, error),
+    };
+
+    let bytes = match fs::read(&resolved) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return workspace_protocol_error(
+                StatusCode::NOT_FOUND,
+                format!("File not found: {}", resolved.display()),
+            )
+        }
+        Err(error) => {
+            return workspace_protocol_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to read file: {error}"),
+            )
+        }
+    };
+
+    workspace_protocol_response(
+        StatusCode::OK,
+        workspace_file_content_type(&resolved),
+        bytes,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_workspace_protocol_request_path;
+
+    #[test]
+    fn workspace_protocol_decodes_percent_encoded_segments() {
+        let (scope, relative_path) = parse_workspace_protocol_request_path(
+            "/workspace/paper/An%20%E7%AD%89%20-%202026%20-%20test.pdf",
+        )
+        .unwrap();
+
+        assert_eq!(scope, "workspace");
+        assert_eq!(relative_path, "paper/An 等 - 2026 - test.pdf");
+    }
+
+    #[test]
+    fn workspace_protocol_requires_file_path() {
+        let error = parse_workspace_protocol_request_path("/workspace").unwrap_err();
+        assert!(error.contains("Missing file path"));
+    }
+}
 
 #[tauri::command]
 fn keychain_get(key: String) -> Result<String, String> {
@@ -353,6 +488,9 @@ pub fn run() {
     enable_macos_spellcheck();
 
     let builder = tauri::Builder::default()
+        .register_uri_scheme_protocol("altals-workspace", |ctx, request| {
+            handle_workspace_protocol(ctx.app_handle(), request)
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
@@ -424,8 +562,8 @@ pub fn run() {
             fs_commands::run_workspace_command,
             fs_commands::fetch_url_content,
             fs_commands::get_global_config_dir,
-            security::workspace_set_active_root,
-            security::workspace_clear_active_root,
+            security::workspace_set_allowed_roots,
+            security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,
             workspace_access::macos_activate_workspace_bookmark,
             workspace_access::macos_release_workspace_access,

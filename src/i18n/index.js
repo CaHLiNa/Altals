@@ -164,6 +164,7 @@ const ZH_MESSAGES = {
   'Match Diacritics': '匹配变音符号',
   'Whole Words': '整词匹配',
   'Loading PDF...': '正在加载 PDF...',
+  'Detecting PDF source...': '正在识别 PDF 来源...',
   'Could not load PDF': '无法加载 PDF',
   'Automatic Zoom': '自动缩放',
   'Actual Size': '实际大小',

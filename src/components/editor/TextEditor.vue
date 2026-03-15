@@ -1,6 +1,16 @@
 <template>
   <div class="typst-editor-shell h-full w-full" :class="{ 'cm-prose-file': isMd }" :data-editor-filepath="props.filePath">
-    <div ref="editorContainer" class="min-h-0 flex-1 w-full overflow-hidden" @contextmenu.prevent="onContextMenu"></div>
+    <div
+      v-if="loadError"
+      class="flex h-full items-center justify-center px-6 text-sm"
+      style="color: var(--fg-muted);"
+    >
+      <div class="max-w-lg text-center space-y-2">
+        <div>{{ loadError.message }}</div>
+        <div v-if="loadError.detail" class="text-xs">{{ loadError.detail }}</div>
+      </div>
+    </div>
+    <div v-else ref="editorContainer" class="min-h-0 flex-1 w-full overflow-hidden" @contextmenu.prevent="onContextMenu"></div>
   </div>
   <EditorContextMenu
     :visible="ctxMenu.show"
@@ -91,6 +101,7 @@ const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
+const loadError = computed(() => files.getFileLoadError(props.filePath))
 
 const ctxMenu = reactive({ show: false, x: 0, y: 0, hasSelection: false })
 
@@ -429,6 +440,9 @@ onMounted(async () => {
   let content = files.fileContents[props.filePath]
   if (content === undefined) {
     content = await files.readFile(props.filePath)
+  }
+  if (content === null && loadError.value) {
+    return
   }
   if (content === null) content = ''
 

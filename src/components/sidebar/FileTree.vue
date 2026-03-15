@@ -258,9 +258,11 @@ const newBtnEl = ref(null)
 const newMenuOpen = ref(false)
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
 const treeScrollTop = ref(0)
+const containerHeight = ref(0)
 
 const TREE_ROW_HEIGHT = 24
 const TREE_OVERSCAN = 12
+let treeResizeObserver = null
 
 // Filter state
 const filterActive = ref(false)
@@ -304,7 +306,7 @@ const visiblePathIndexMap = computed(() => {
 const virtualStart = computed(() => Math.max(0, Math.floor(treeScrollTop.value / TREE_ROW_HEIGHT) - TREE_OVERSCAN))
 const virtualEnd = computed(() => Math.min(
   visibleRows.value.length,
-  Math.ceil((treeScrollTop.value + (treeContainer.value?.clientHeight || 0)) / TREE_ROW_HEIGHT) + TREE_OVERSCAN,
+  Math.ceil((treeScrollTop.value + containerHeight.value) / TREE_ROW_HEIGHT) + TREE_OVERSCAN,
 ))
 const virtualRows = computed(() => visibleRows.value.slice(virtualStart.value, virtualEnd.value))
 const virtualOffset = computed(() => virtualStart.value * TREE_ROW_HEIGHT)
@@ -316,6 +318,7 @@ function getVisiblePaths() {
 
 function onTreeScroll(event) {
   treeScrollTop.value = event.target?.scrollTop || 0
+  files.noteTreeActivity()
 }
 
 // Internal drag state
@@ -791,6 +794,16 @@ function isOverRefZone(position) {
 }
 
 onMounted(async () => {
+  containerHeight.value = treeContainer.value?.clientHeight || 0
+  treeResizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      containerHeight.value = entry.contentRect.height
+    }
+  })
+  if (treeContainer.value) {
+    treeResizeObserver.observe(treeContainer.value)
+  }
+
   unlistenDragOver = await listen('tauri://drag-over', (event) => {
     if (draggedPaths.length > 0) return // internal drag in progress
     const { position } = event.payload
@@ -857,6 +870,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  treeResizeObserver?.disconnect()
+  treeResizeObserver = null
   unlistenDragOver?.()
   unlistenDragDrop?.()
   unlistenDragLeave?.()

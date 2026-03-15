@@ -226,7 +226,6 @@ import {
   IconPlus,
   IconSearch,
 } from '@tabler/icons-vue'
-import { invoke } from '@tauri-apps/api/core'
 import * as pdfjsLib from 'pdfjs-dist'
 import { EventBus, PDFLinkService, PDFFindController, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import 'pdfjs-dist/web/pdf_viewer.css'
@@ -234,6 +233,7 @@ import { useI18n } from '../../i18n'
 import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -283,6 +283,7 @@ const pageInput = ref('1')
 const loading = ref(true)
 const error = ref(null)
 const pdfSession = shallowRef(null)
+const reloadVersion = ref(0)
 
 const pdfUi = reactive({
   ready: false,
@@ -306,6 +307,7 @@ const pdfUi = reactive({
 })
 
 let loadRequestId = 0
+let resizeObserver = null
 
 const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
@@ -534,7 +536,7 @@ async function cleanupPdfSession() {
   } catch {}
 }
 
-async function buildViewerSession(requestId, bytes) {
+async function buildViewerSession(requestId, url) {
   await nextTick()
   if (requestId !== loadRequestId || !viewerContainerRef.value || !viewerRef.value) return null
 
@@ -554,7 +556,11 @@ async function buildViewerSession(requestId, bytes) {
 
   linkService.setViewer(pdfViewer)
 
-  const loadingTask = pdfjsLib.getDocument({ data: bytes })
+  const loadingTask = pdfjsLib.getDocument({
+    url,
+    disableRange: true,
+    disableStream: true,
+  })
   const session = {
     requestId,
     eventBus,
@@ -578,11 +584,13 @@ async function loadPdf() {
   await cleanupPdfSession()
 
   try {
-    const rawBytes = await invoke('read_file_binary', { path: props.filePath })
-    if (requestId !== loadRequestId) return
-
-    const bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes)
-    const session = await buildViewerSession(requestId, bytes)
+    const pdfUrl = toWorkspaceProtocolUrl(props.filePath, workspace, {
+      version: reloadVersion.value,
+    })
+    if (!pdfUrl) {
+      throw new Error(`PDF path is outside the active workspace scope: ${props.filePath}`)
+    }
+    const session = await buildViewerSession(requestId, pdfUrl)
     if (!session || requestId !== loadRequestId) return
 
     const pdfDocument = await session.loadingTask.promise
@@ -774,22 +782,41 @@ function scrollToLocation(pageNumber, x, y) {
 
 function handlePdfUpdated(event) {
   if (event.detail?.path === props.filePath) {
+    reloadVersion.value += 1
     loadPdf()
   }
 }
 
 onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    const viewer = getPdfViewer()
+    const scaleValue = String(pdfUi.scaleValue || viewer?.currentScaleValue || '').trim()
+    if (!viewer || !scaleValue) return
+    if (scaleValue !== 'auto' && scaleValue !== 'page-width' && scaleValue !== 'page-fit') return
+    window.requestAnimationFrame(() => {
+      const latestViewer = getPdfViewer()
+      if (!latestViewer) return
+      latestViewer.currentScaleValue = scaleValue
+      syncPdfUi()
+    })
+  })
+  if (viewerContainerRef.value) {
+    resizeObserver.observe(viewerContainerRef.value)
+  }
   window.addEventListener('pdf-updated', handlePdfUpdated)
   loadPdf()
 })
 
 onUnmounted(async () => {
   loadRequestId += 1
+  resizeObserver?.disconnect()
+  resizeObserver = null
   window.removeEventListener('pdf-updated', handlePdfUpdated)
   await cleanupPdfSession()
 })
 
 watch(() => props.filePath, () => {
+  reloadVersion.value = 0
   loadPdf()
 })
 

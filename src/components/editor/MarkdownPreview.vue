@@ -9,7 +9,14 @@
       </div>
       <span>Knitting{{ knittingProgress ? ` (${knittingProgress})` : '' }}...</span>
     </div>
-    <div class="md-preview-content" v-html="renderedHtml" @click="handleClick"></div>
+    <div
+      v-if="loadError"
+      class="md-preview-error"
+    >
+      <div>{{ loadError.message }}</div>
+      <div v-if="loadError.detail" class="md-preview-error-detail">{{ loadError.detail }}</div>
+    </div>
+    <div v-else class="md-preview-content" v-html="renderedHtml" @click="handleClick"></div>
   </div>
 </template>
 
@@ -39,6 +46,7 @@ const containerEl = ref(null)
 
 // Extract source path from preview: prefix
 const sourcePath = computed(() => props.filePath.replace(/^preview:/, ''))
+const loadError = computed(() => filesStore.getFileLoadError(sourcePath.value))
 const isRmd = computed(() => isRmdOrQmd(sourcePath.value))
 
 // Knitting state
@@ -51,6 +59,10 @@ let renderTimer = null
 const renderedHtml = ref('')
 
 async function doRender() {
+  if (loadError.value) {
+    renderedHtml.value = ''
+    return
+  }
   let md = filesStore.fileContents[sourcePath.value]
   if (md === undefined) return
   workflowStore.setMarkdownPreviewState(sourcePath.value, {
@@ -98,6 +110,7 @@ async function doRender() {
  * Knit the .Rmd: execute all chunks and embed outputs in the preview.
  */
 async function doKnit() {
+  if (loadError.value) return
   const md = filesStore.fileContents[sourcePath.value]
   if (!md) return
 
@@ -141,6 +154,12 @@ watch(
   }
 )
 
+watch(loadError, (nextError) => {
+  if (nextError) {
+    renderedHtml.value = ''
+  }
+})
+
 // Re-render when citation style changes
 watch(() => referencesStore.citationStyle, doRender)
 
@@ -150,6 +169,7 @@ onMounted(async () => {
   if (content === undefined) {
     content = await filesStore.readFile(sourcePath.value)
   }
+  if (content === null && loadError.value) return
 
   if (isRmd.value) {
     // For .Rmd: auto-knit on open (execute chunks, show outputs)
@@ -203,6 +223,21 @@ function handleClick(e) {
   line-height: 1.7;
   font-family: 'Geist', var(--font-sans);
   font-size: var(--editor-font-size, 14px);
+}
+
+.md-preview-error {
+  max-width: 800px;
+  margin: 24px auto 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--fg-muted);
+}
+
+.md-preview-error-detail {
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .md-preview-knitting {

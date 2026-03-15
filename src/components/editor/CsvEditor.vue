@@ -9,13 +9,23 @@
 
     <!-- Table -->
     <div ref="hotWrapper" class="flex-1 overflow-hidden relative">
-      <div ref="hotContainer" class="absolute inset-0"></div>
+      <div
+        v-if="fileLoadError"
+        class="absolute inset-0 flex items-center justify-center px-6 text-sm"
+        style="color: var(--fg-muted); background: var(--bg-primary);"
+      >
+        <div class="max-w-lg text-center space-y-2">
+          <div>{{ fileLoadError.message }}</div>
+          <div v-if="fileLoadError.detail" class="text-xs">{{ fileLoadError.detail }}</div>
+        </div>
+      </div>
+      <div v-else ref="hotContainer" class="absolute inset-0"></div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import Handsontable from 'handsontable'
 import 'handsontable/dist/handsontable.full.min.css'
 import Papa from 'papaparse'
@@ -34,6 +44,7 @@ const hotContainer = ref(null)
 const dimensions = ref('')
 const saving = ref(false)
 const error = ref(null)
+const fileLoadError = computed(() => files.getFileLoadError(props.filePath))
 
 let hot = null
 let saveTimeout = null
@@ -71,6 +82,9 @@ onMounted(async () => {
     let content = files.fileContents[props.filePath]
     if (content === undefined) {
       content = await files.readFile(props.filePath)
+    }
+    if (content === null && fileLoadError.value) {
+      return
     }
     if (content === null) content = ''
 
