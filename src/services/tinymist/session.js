@@ -147,13 +147,16 @@ class TinymistSession {
     this.documents = new Map()
     this.latestDiagnostics = new Map()
     this.latestDocumentSymbols = new Map()
+    this.latestSemanticTokens = new Map()
     this.diagnosticSubscribers = new Map()
     this.symbolSubscribers = new Map()
+    this.semanticTokenSubscribers = new Map()
     this.statusSubscribers = new Set()
     this.available = null
     this.lastError = ''
     this.binaryPath = null
     this.activeSessionToken = 0
+    this.semanticTokenLegend = null
   }
 
   subscribeStatus(listener) {
@@ -204,6 +207,29 @@ class TinymistSession {
     }
   }
 
+  subscribeSemanticTokens(filePath, listener) {
+    const key = String(filePath || '')
+    if (!this.semanticTokenSubscribers.has(key)) {
+      this.semanticTokenSubscribers.set(key, new Set())
+    }
+    const listeners = this.semanticTokenSubscribers.get(key)
+    listeners.add(listener)
+
+    if (this.latestSemanticTokens.has(key)) {
+      listener({
+        tokens: this.latestSemanticTokens.get(key),
+        legend: this.semanticTokenLegend,
+      })
+    }
+
+    return () => {
+      listeners.delete(listener)
+      if (listeners.size === 0) {
+        this.semanticTokenSubscribers.delete(key)
+      }
+    }
+  }
+
   getStatus() {
     return {
       available: this.available === true,
@@ -234,6 +260,17 @@ class TinymistSession {
     if (!listeners || listeners.size === 0) return
     for (const listener of listeners) {
       listener(symbols)
+    }
+  }
+
+  emitSemanticTokens(filePath, tokens) {
+    const listeners = this.semanticTokenSubscribers.get(filePath)
+    if (!listeners || listeners.size === 0) return
+    for (const listener of listeners) {
+      listener({
+        tokens,
+        legend: this.semanticTokenLegend,
+      })
     }
   }
 
@@ -269,9 +306,11 @@ class TinymistSession {
     this.documents.clear()
     this.latestDiagnostics.clear()
     this.latestDocumentSymbols.clear()
+    this.latestSemanticTokens.clear()
     this.started = false
     this.lastError = ''
     this.binaryPath = null
+    this.semanticTokenLegend = null
 
     const launchStatus = await resolveTinymistLaunchStatus()
     if (!launchStatus.available || !launchStatus.launchCommand) {
@@ -306,7 +345,8 @@ class TinymistSession {
 
     try {
       this.child = await command.spawn()
-      await this.request('initialize', buildInitializeParams(workspacePath))
+      const initializeResult = await this.request('initialize', buildInitializeParams(workspacePath))
+      this.semanticTokenLegend = initializeResult?.capabilities?.semanticTokensProvider?.legend || null
       await this.notify('initialized', {})
       this.available = true
       this.started = true
@@ -362,6 +402,7 @@ class TinymistSession {
     })
 
     void this.refreshDocumentSymbols(filePath)
+    void this.refreshSemanticTokens(filePath)
 
     return true
   }
@@ -383,6 +424,7 @@ class TinymistSession {
     })
 
     void this.refreshDocumentSymbols(filePath)
+    void this.refreshSemanticTokens(filePath)
 
     return true
   }
@@ -394,7 +436,9 @@ class TinymistSession {
     this.documents.delete(uri)
     this.latestDiagnostics.delete(filePath)
     this.latestDocumentSymbols.delete(filePath)
+    this.latestSemanticTokens.delete(filePath)
     this.emitDocumentSymbols(filePath, [])
+    this.emitSemanticTokens(filePath, null)
     await this.notify('textDocument/didClose', {
       textDocument: { uri },
     })
@@ -418,6 +462,30 @@ class TinymistSession {
     }
   }
 
+  async refreshSemanticTokens(filePath) {
+    if (!this.started || !this.child || !this.semanticTokenLegend) return null
+    const uri = filePathToTinymistUri(filePath)
+    const existing = this.documents.get(uri)
+    if (!existing) return null
+    const currentVersion = existing.version
+
+    try {
+      const result = await this.request('textDocument/semanticTokens/full', {
+        textDocument: { uri },
+      })
+      const latest = this.documents.get(uri)
+      if (!latest || latest.version !== currentVersion) {
+        return null
+      }
+      const semanticTokens = result?.data ? result : null
+      this.latestSemanticTokens.set(filePath, semanticTokens)
+      this.emitSemanticTokens(filePath, semanticTokens)
+      return semanticTokens
+    } catch {
+      return null
+    }
+  }
+
   async requestCompletion(filePath, position, context = {}) {
     if (!this.started || !this.child) return null
     const uri = filePathToTinymistUri(filePath)
@@ -428,6 +496,55 @@ class TinymistSession {
         textDocument: { uri },
         position,
         context,
+      })
+    } catch {
+      return null
+    }
+  }
+
+  async requestDefinition(filePath, position) {
+    if (!this.started || !this.child) return null
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return null
+
+    try {
+      return await this.request('textDocument/definition', {
+        textDocument: { uri },
+        position,
+      })
+    } catch {
+      return null
+    }
+  }
+
+  async requestReferences(filePath, position, context = {}) {
+    if (!this.started || !this.child) return null
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return null
+
+    try {
+      return await this.request('textDocument/references', {
+        textDocument: { uri },
+        position,
+        context: {
+          includeDeclaration: context.includeDeclaration === true,
+        },
+      })
+    } catch {
+      return null
+    }
+  }
+
+  async requestRename(filePath, position, newName) {
+    if (!this.started || !this.child) return null
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return null
+
+    try {
+      return await this.request('textDocument/rename', {
+        textDocument: { uri },
+        position,
+        newName,
       })
     } catch {
       return null
@@ -576,9 +693,11 @@ class TinymistSession {
     this.available = false
     this.lastError = lastError
     this.binaryPath = null
+    this.semanticTokenLegend = null
     this.documents.clear()
     this.latestDiagnostics.clear()
     this.latestDocumentSymbols.clear()
+    this.latestSemanticTokens.clear()
     this.emitStatus()
 
     for (const [, deferred] of this.pendingRequests) {
@@ -607,6 +726,10 @@ export function subscribeTinymistDocumentSymbols(filePath, listener) {
   return sharedSession.subscribeDocumentSymbols(filePath, listener)
 }
 
+export function subscribeTinymistSemanticTokens(filePath, listener) {
+  return sharedSession.subscribeSemanticTokens(filePath, listener)
+}
+
 export function ensureTinymistDocument(filePath, text, options = {}) {
   return sharedSession.openDocument(filePath, text, options)
 }
@@ -625,6 +748,18 @@ export function getTinymistSessionStatus() {
 
 export function requestTinymistCompletion(filePath, position, context = {}) {
   return sharedSession.requestCompletion(filePath, position, context)
+}
+
+export function requestTinymistDefinition(filePath, position) {
+  return sharedSession.requestDefinition(filePath, position)
+}
+
+export function requestTinymistReferences(filePath, position, context = {}) {
+  return sharedSession.requestReferences(filePath, position, context)
+}
+
+export function requestTinymistRename(filePath, position, newName) {
+  return sharedSession.requestRename(filePath, position, newName)
 }
 
 export function requestTinymistHover(filePath, position) {

@@ -1,11 +1,11 @@
 import { snippetCompletion } from '@codemirror/autocomplete'
-import { createTypstSnippetCompletions } from './snippets.js'
-import { collectTypstReferenceOptions } from './utils.js'
-import { requestTinymistCompletion } from '../../services/tinymist/session.js'
+import { createTypstSnippetCompletions } from '../../../editor/typstSnippets.js'
+import { collectTypstReferenceOptions } from '../../../editor/typstDocument.js'
+import { requestTinymistCompletion } from '../session.js'
 import {
   getTinymistCompletionPosition,
   normalizeTinymistCompletionResult,
-} from '../../services/tinymist/completion.js'
+} from '../completion.js'
 
 const HASH_OPTIONS = [
   snippetCompletion('#set page(paper: "${paper}", margin: (${margin_x}, ${margin_y}))', {
@@ -126,11 +126,20 @@ function createLocalTypstCompletionSource(options = {}) {
     const { state, pos, explicit } = context
     const line = state.doc.lineAt(pos)
     const textBefore = line.text.slice(0, pos - line.from)
+    const hasBareHashTrigger = /#$/.test(textBefore)
 
-    const hashMatch = textBefore.match(/#[\w-]*$/)
+    const hashMatch = textBefore.match(/#[\w-]+$/)
     if (hashMatch) {
       return {
         from: pos - hashMatch[0].length,
+        options: HASH_OPTIONS,
+        validFor: /#[\w-]*/,
+      }
+    }
+
+    if (explicit && hasBareHashTrigger) {
+      return {
+        from: pos - 1,
         options: HASH_OPTIONS,
         validFor: /#[\w-]*/,
       }
@@ -192,12 +201,18 @@ function mergeCompletionResults(primary, secondary) {
   }
 }
 
-export function createTypstCompletionSource(options = {}) {
+export function createTinymistTypstCompletionSource(options = {}) {
   const localCompletionSource = createLocalTypstCompletionSource(options)
 
   return async (context) => {
+    const line = context.state.doc.lineAt(context.pos)
+    const textBefore = line.text.slice(0, context.pos - line.from)
     const localResult = localCompletionSource(context)
     if (localResult?.filter === false) {
+      return localResult
+    }
+
+    if (!context.explicit && /#$/.test(textBefore)) {
       return localResult
     }
 
@@ -216,5 +231,3 @@ export function createTypstCompletionSource(options = {}) {
     return mergeCompletionResults(normalizedTinymist, localResult)
   }
 }
-
-export { collectTypstReferenceOptions }

@@ -1,10 +1,10 @@
 import { hoverTooltip } from '@codemirror/view'
-import { requestTinymistHover } from '../../services/tinymist/session.js'
+import { requestTinymistHover } from '../session.js'
 import {
   offsetToTinymistPosition,
   tinymistRangeToOffsets,
-} from '../../services/tinymist/textEdits.js'
-import { renderMarkdown } from '../../utils/chatMarkdown.js'
+} from '../textEdits.js'
+import { renderMarkdown } from '../../../utils/chatMarkdown.js'
 
 function normalizeHoverText(contents) {
   if (!contents) return ''
@@ -36,7 +36,7 @@ function createHoverDom(text) {
   return dom
 }
 
-export function createTypstHoverExtension(options = {}) {
+export function createTinymistTypstHoverExtension(options = {}) {
   const { filePath } = options
   if (!filePath) return []
 

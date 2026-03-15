@@ -48,7 +48,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
-import { parseTypstOutlineItems } from '../../editor/typstSupport/utils'
+import { parseTypstOutlineItems } from '../../editor/typstDocument.js'
 import {
   subscribeTinymistDocumentSymbols,
   subscribeTinymistStatus,

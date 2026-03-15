@@ -258,7 +258,6 @@ export function collectTypstReferenceOptions({ referencesStore, documentText = '
       apply: insertText,
     })
     seen.add(insertText)
-
     if (options.length >= limit) break
   }
 

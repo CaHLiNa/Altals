@@ -124,6 +124,72 @@ export const shouldersTheme = EditorView.theme(
       color: 'var(--hl-link)',
       textDecoration: 'underline',
     },
+    '.cm-tinymist-token-comment': {
+      color: 'var(--hl-comment)',
+      fontStyle: 'italic',
+    },
+    '.cm-tinymist-token-string': {
+      color: 'var(--hl-string)',
+    },
+    '.cm-tinymist-token-keyword': {
+      color: 'var(--hl-keyword)',
+      fontWeight: '600',
+    },
+    '.cm-tinymist-token-operator, .cm-tinymist-token-punct, .cm-tinymist-token-delim': {
+      color: 'var(--hl-punctuation)',
+    },
+    '.cm-tinymist-token-number, .cm-tinymist-token-bool': {
+      color: 'var(--hl-number)',
+    },
+    '.cm-tinymist-token-function': {
+      color: 'var(--hl-function)',
+    },
+    '.cm-tinymist-token-decorator': {
+      color: 'var(--hl-decorator)',
+    },
+    '.cm-tinymist-token-type, .cm-tinymist-token-namespace': {
+      color: 'var(--hl-type)',
+    },
+    '.cm-tinymist-token-escape': {
+      color: 'var(--hl-escape)',
+      fontWeight: '700',
+    },
+    '.cm-tinymist-token-link, .cm-tinymist-token-ref': {
+      color: 'var(--hl-link)',
+      textDecoration: 'underline',
+    },
+    '.cm-tinymist-token-raw': {
+      color: 'var(--hl-code)',
+      fontFamily: 'var(--font-mono)',
+    },
+    '.cm-tinymist-token-label, .cm-tinymist-token-term, .cm-tinymist-token-pol': {
+      color: 'var(--hl-attribute)',
+      fontWeight: '600',
+    },
+    '.cm-tinymist-token-heading': {
+      color: 'var(--hl-heading)',
+      fontWeight: '700',
+    },
+    '.cm-tinymist-token-marker': {
+      color: 'var(--hl-heading-minor)',
+      fontWeight: '700',
+    },
+    '.cm-tinymist-token-error': {
+      color: 'var(--error)',
+      textDecoration: 'underline wavy',
+    },
+    '.cm-tinymist-mod-strong': {
+      fontWeight: '700',
+    },
+    '.cm-tinymist-mod-emph': {
+      fontStyle: 'italic',
+    },
+    '.cm-tinymist-mod-math': {
+      color: 'var(--hl-number)',
+    },
+    '.cm-tinymist-mod-readonly, .cm-tinymist-mod-static, .cm-tinymist-mod-defaultLibrary': {
+      opacity: '0.92',
+    },
     '.cm-typst-heading-mark': {
       color: 'var(--hl-heading-minor)',
       fontWeight: '700',

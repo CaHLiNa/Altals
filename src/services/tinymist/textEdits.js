@@ -25,10 +25,10 @@ export function tinymistRangeToOffsets(state, range = {}) {
   }
 }
 
-export function applyTinymistTextEdits(view, edits = []) {
-  const changes = edits
+function buildChangesFromTinymistTextEdits(state, edits = []) {
+  return edits
     .map((edit) => {
-      const offsets = tinymistRangeToOffsets(view.state, edit?.range)
+      const offsets = tinymistRangeToOffsets(state, edit?.range)
       if (!offsets) return null
       return {
         from: offsets.from,
@@ -40,9 +40,44 @@ export function applyTinymistTextEdits(view, edits = []) {
     .sort((left, right) => (
       right.from - left.from || right.to - left.to
     ))
+}
+
+export function applyTinymistTextEdits(view, edits = []) {
+  const changes = buildChangesFromTinymistTextEdits(view.state, edits)
 
   if (changes.length === 0) return false
 
   view.dispatch({ changes })
   return true
+}
+
+export function applyTinymistTextEditsToText(text = '', edits = []) {
+  const state = {
+    doc: {
+      lines: String(text || '').split('\n').length || 1,
+      line(lineNumber) {
+        const normalized = Math.max(1, Math.min(lineNumber, this.lines))
+        const lines = String(text || '').split('\n')
+        let offset = 0
+        for (let index = 1; index < normalized; index += 1) {
+          offset += (lines[index - 1] || '').length + 1
+        }
+        const lineText = lines[normalized - 1] || ''
+        return {
+          from: offset,
+          to: offset + lineText.length,
+          length: lineText.length,
+        }
+      },
+    },
+  }
+
+  const changes = buildChangesFromTinymistTextEdits(state, edits)
+  if (changes.length === 0) return String(text || '')
+
+  let nextText = String(text || '')
+  for (const change of changes) {
+    nextText = `${nextText.slice(0, change.from)}${change.insert}${nextText.slice(change.to)}`
+  }
+  return nextText
 }

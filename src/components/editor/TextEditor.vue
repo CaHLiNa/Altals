@@ -70,13 +70,14 @@ import { useLatexStore } from '../../stores/latex'
 import { latexCitationsExtension } from '../../editor/latexCitations'
 import { latexCommandCompletionSource } from '../../editor/latexAutocomplete'
 import {
-  supportsTypstEditorSupport,
-  createTypstEditorSupport,
-} from '../../editor/typstSupport'
+  supportsTinymistTypstEditor as supportsTypstEditorSupport,
+  createTinymistTypstEditorExtensions as createTypstEditorSupport,
+} from '../../services/tinymist/editor'
 import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
 import { useTypstDiagnostics } from '../../composables/useTypstDiagnostics'
+import { useTypstEditorNavigation } from '../../composables/useTypstEditorNavigation'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
 import { useI18n } from '../../i18n'
 
@@ -157,6 +158,21 @@ const {
   typstStore,
   editorStore,
   getWorkspacePath: () => workspace.path,
+  t,
+})
+
+const {
+  buildDefinitionKeymap,
+  handleDefinitionClick,
+  handleNavigationSelectionChange,
+  tinymistNavUi,
+} = useTypstEditorNavigation({
+  filePath: props.filePath,
+  getView,
+  editorStore,
+  filesStore: files,
+  toastStore,
+  isTinymistAvailable: () => typstUi.tinymistActive,
   t,
 })
 
@@ -287,9 +303,13 @@ onMounted(async () => {
       }
       if (isTyp && update.docChanged) {
         scheduleTinymistSync(update.state.doc.toString())
+        if (!tinymistNavUi.jumpInFlight) {
+          handleNavigationSelectionChange()
+        }
       }
-      if (isTyp && update.selectionSet && !typstUi.jumpInFlight) {
+      if (isTyp && update.selectionSet && !typstUi.jumpInFlight && !tinymistNavUi.jumpInFlight) {
         handleEditorSelectionChange(update.state.selection.main.head)
+        handleNavigationSelectionChange()
       }
     }),
   ]
@@ -548,6 +568,7 @@ onMounted(async () => {
       referencesStore,
     }))
     extraExtensions.push(Prec.highest(keymap.of([
+      ...buildDefinitionKeymap(),
       {
         key: 'Mod-Shift-f',
         run: () => {
@@ -625,6 +646,7 @@ function attachEditorRuntimeListeners() {
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
   }
   if (isTyp) {
+    editorContainer.value?.addEventListener('click', handleDefinitionClick)
     editorContainer.value?.addEventListener('click', handleTypstCitationClick)
   }
   editorContainer.value?.addEventListener('comment-click', handleCommentClick)
@@ -651,6 +673,7 @@ function detachEditorRuntimeListeners() {
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
   }
   if (isTyp) {
+    editorContainer.value?.removeEventListener('click', handleDefinitionClick)
     editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
   }
   editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
