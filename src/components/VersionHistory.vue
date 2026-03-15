@@ -104,6 +104,7 @@ import { useFilesStore } from '../stores/files'
 import { gitLog, gitShow, gitShowBase64 } from '../services/git'
 import { getViewerType } from '../utils/fileTypes'
 import { base64ToFile } from '../utils/docxBridge'
+import { formatFileError } from '../utils/errorMessages'
 import { invoke } from '@tauri-apps/api/core'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n, formatDate as formatLocaleDate } from '../i18n'
@@ -300,7 +301,6 @@ async function restoreVersion() {
   } catch (e) {
     console.error('Failed to restore:', e)
     const { useToastStore } = await import('../stores/toast')
-    const { formatFileError } = await import('../utils/errorMessages')
     useToastStore().show(formatFileError('restore', props.filePath, e), { type: 'error', duration: 5000 })
   }
 }

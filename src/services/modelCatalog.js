@@ -129,11 +129,11 @@ export function getProviderDefinitions() {
   return PROVIDER_SPECS.map(spec => ({ ...spec }))
 }
 
-export function getProviderSpec(provider) {
+function getProviderSpec(provider) {
   return PROVIDER_SPEC_BY_ID[provider] || null
 }
 
-export function compareProviders(a, b) {
+function compareProviders(a, b) {
   const indexA = PROVIDER_INDEX_BY_ID[a]
   const indexB = PROVIDER_INDEX_BY_ID[b]
   if (Number.isInteger(indexA) && Number.isInteger(indexB)) return indexA - indexB
@@ -271,7 +271,7 @@ export function mergeWithDefaultModelsConfig(raw = {}) {
   return { config: next, changed }
 }
 
-export function isLikelyChatModel(modelId = '') {
+function isLikelyChatModel(modelId = '') {
   const value = String(modelId || '').toLowerCase()
   if (!value) return false
   if (/embedding|rerank|tts|speech|audio|transcription|image|vision|whisper|moderation/.test(value)) {
@@ -280,7 +280,7 @@ export function isLikelyChatModel(modelId = '') {
   return true
 }
 
-export function buildSyncedModelId(provider, remoteModelId, existingIds = new Set()) {
+function buildSyncedModelId(provider, remoteModelId, existingIds = new Set()) {
   const preferred = `${provider}:${remoteModelId}`
   if (!existingIds.has(preferred)) return preferred
 

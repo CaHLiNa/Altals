@@ -10,6 +10,7 @@ import { createModel } from '../services/aiSdk'
 import { generateText } from 'ai'
 import { getContextWindow, getThinkingConfig } from '../services/chatModels'
 import { buildBaseSystemPrompt } from '../services/systemPrompt'
+import { events } from '../services/telemetry'
 import { calculateCost } from '../services/tokenUsage'
 import { cleanPartsForStorage } from '../services/aiSdk'
 import { createChatTransport } from '../services/chatTransport'
@@ -482,7 +483,7 @@ export const useChatStore = defineStore('chat', () => {
     // Build message text + multimodal files
     const { text: messageText, files } = await _buildMessageTextAndFiles({ text, fileRefs, context })
 
-    import('../services/telemetry').then(({ events }) => events.chatSend(session.modelId || 'unknown'))
+    events.chatSend(session.modelId || 'unknown')
     // Capture count before send so we can identify the new user message afterward
     const userCountBefore = chat.state.messagesRef.value.filter(m => m.role === 'user').length
     if (files.length > 0) {

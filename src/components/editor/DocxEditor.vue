@@ -85,6 +85,7 @@ import { createDocxGhostExtension, ghostPluginKey } from '../../editor/docxGhost
 import { createHeadingNormalizeExtension } from '../../editor/docxHeadingNormalize'
 import { prescanDocxForZotero, postProcessCitationsOrdered, getCitationMeta, setCitationMeta, loadCitationMeta, persistCitationMeta, isCitationHref, citationIdFromHref, reformatAllCitations, removeCitationLink, insertNewCitation, getAllCitedKeys, hasBibliography, insertBibliography, refreshBibliography, createCitationMarkGuardExtension } from '../../services/docxCitationImporter'
 import { extractDocumentText } from '../../services/docxContext'
+import { formatFileError } from '../../utils/errorMessages'
 import { useI18n } from '../../i18n'
 import DocxToolbar from './DocxToolbar.vue'
 import DocxContextMenu from './DocxContextMenu.vue'
@@ -460,7 +461,6 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed to load DOCX:', e)
     const { useToastStore } = await import('../../stores/toast')
-    const { formatFileError } = await import('../../utils/errorMessages')
     useToastStore().show(formatFileError('load', props.filePath, e), { type: 'error', duration: 5000 })
   }
 })
@@ -609,7 +609,6 @@ async function saveNow() {
   } catch (e) {
     console.error('DOCX save error:', e)
     const { useToastStore } = await import('../../stores/toast')
-    const { formatFileError } = await import('../../utils/errorMessages')
     useToastStore().showOnce(`save:${props.filePath}`, formatFileError('save', props.filePath, e), { type: 'error', duration: 5000 })
   } finally {
     isSaving = false

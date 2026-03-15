@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 
@@ -191,7 +192,7 @@ export const useTypstStore = defineStore('typst', {
           settings: settings || null,
         })
         this.exporting[mdPath] = result.success ? 'done' : 'error'
-        if (result.success) import('../services/telemetry').then(({ events }) => events.exportPdf())
+        if (result.success) events.exportPdf()
         return result
       } catch (e) {
         this.exporting[mdPath] = 'error'
@@ -230,7 +231,7 @@ export const useTypstStore = defineStore('typst', {
         pushTypstLogToTerminal(filePath, result)
 
         if (result.success) {
-          import('../services/telemetry').then(({ events }) => events.exportPdf())
+          events.exportPdf()
         }
       } catch (error) {
         const message = error?.message || String(error)

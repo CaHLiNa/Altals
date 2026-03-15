@@ -1,6 +1,7 @@
 import { StateField, StateEffect, Annotation, Prec } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType } from '@codemirror/view'
 import { getGhostSuggestions } from '../services/ai'
+import { events } from '../services/telemetry'
 import { useToastStore } from '../stores/toast'
 
 // One-per-session toast tracking (reset on page reload)
@@ -167,7 +168,7 @@ async function triggerGhostSuggestion(view, pos, getWorkspace, getSystemPrompt, 
     const systemPrompt = getSystemPrompt()
     const instructions = getInstructions ? getInstructions() : ''
 
-    import('../services/telemetry').then(({ events }) => events.ghostTrigger())
+    events.ghostTrigger()
     const result = await getGhostSuggestions(before, after, systemPrompt, workspace, instructions)
     const { suggestions, usage, provider, billingProvider, modelId, noAccess, networkError } = result
 
@@ -242,7 +243,7 @@ function acceptGhostSuggestion(view) {
     effects: clearGhost.of(null),
     annotations: ghostAcceptAnnotation.of(true),
   })
-  import('../services/telemetry').then(({ events }) => events.ghostAccept())
+  events.ghostAccept()
 }
 
 /**

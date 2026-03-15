@@ -82,6 +82,31 @@
   - 重新执行 Tauri 未调用命令扫描，结果为空
   - 更新记录文件并准备交付
 
+### Follow-up Continuation: Post-push Low-risk Cleanup
+- **Status:** complete
+- Actions taken:
+  - 删除 `src/services/chatTools.js` 中完全无调用的 legacy export
+  - 删除 `src/services/docxCitationImporter.js` 中被 `postProcessCitationsOrdered` 取代的旧 Phase 2 路径，并将多处内部 helper 收回私有
+  - 将 `src/services/modelCatalog.js` 中仅文件内使用的 helper 改回私有函数
+  - 统一 `telemetry` 与 `errorMessages` 的引用方式，消掉两组 Vite 动态/静态导入混用 warning
+  - 每一小轮后都重新执行前端构建与 Rust 编译验证
+- Files created/modified:
+  - `src/services/chatTools.js`
+  - `src/services/docxCitationImporter.js`
+  - `src/services/modelCatalog.js`
+  - `src/App.vue`
+  - `src/components/VersionHistory.vue`
+  - `src/components/editor/DocxEditor.vue`
+  - `src/components/editor/NotebookEditor.vue`
+  - `src/editor/ghostSuggestion.js`
+  - `src/stores/chat.js`
+  - `src/stores/editor.js`
+  - `src/stores/files.js`
+  - `src/stores/references.js`
+  - `src/stores/reviews.js`
+  - `src/stores/typst.js`
+  - `src/stores/workspace.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -93,6 +118,12 @@
 | Rust 检查 Round 3 | `cargo check --manifest-path src-tauri/Cargo.toml` | 删除 services/utils 死代码后仍可编译 | 通过 | 通过 |
 | 前端构建 Round 4 | `npm run build` | 收拢内部 helper API 后仍可构建 | 通过 | 通过 |
 | Rust 检查 Round 4 | `cargo check --manifest-path src-tauri/Cargo.toml` | 收拢内部 helper API 后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 5 | `npm run build` | 删除旧兼容导出与废弃 DOCX Phase 2 后仍可构建 | 通过 | 通过 |
+| Rust 检查 Round 5 | `cargo check --manifest-path src-tauri/Cargo.toml` | 删除旧兼容导出与废弃 DOCX Phase 2 后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 6 | `npm run build` | 统一 `telemetry` 引用方式后仍可构建 | 通过，且对应 warning 消失 | 通过 |
+| Rust 检查 Round 6 | `cargo check --manifest-path src-tauri/Cargo.toml` | 统一 `telemetry` 引用方式后仍可编译 | 通过 | 通过 |
+| 前端构建 Round 7 | `npm run build` | 统一 `errorMessages` 引用方式后仍可构建 | 通过，且对应 warning 消失 | 通过 |
+| Rust 检查 Round 7 | `cargo check --manifest-path src-tauri/Cargo.toml` | 统一 `errorMessages` 引用方式后仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -103,4 +134,5 @@
 - 本轮大清理已经完成一个安全收束点。
 - 主入口不可达文件扫描为空。
 - Tauri 已注册但前端未调用的命令扫描为空。
-- 目前剩余更高价值但更高风险的工作，已经转向代码分块、动态导入整理和主链路抽象重构。
+- `telemetry.js` 与 `errorMessages.js` 两组动态/静态导入混用 warning 已清掉。
+- 目前剩余更高价值但更高风险的工作，已经转向 stores 互相依赖、Tauri API 包装层、引用/预览子系统的动态导入整理，以及主链路抽象重构。

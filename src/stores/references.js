@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 
@@ -303,7 +304,7 @@ export const useReferencesStore = defineStore('references', {
       this.library.push(cslJson)
       this._rebuildKeyMap()
       this.saveLibrary()
-      import('../services/telemetry').then(({ events }) => events.refImport(cslJson._importMethod || 'manual'))
+      events.refImport(cslJson._importMethod || 'manual')
 
       return { key: cslJson._key, status: 'added' }
     },

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
+import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 
 function cloneRootEntries(entries = []) {
@@ -763,7 +764,6 @@ export const useFilesStore = defineStore('files', {
       } catch (e) {
         console.error('Failed to save file:', e)
         const { useToastStore } = await import('./toast')
-        const { formatFileError } = await import('../utils/errorMessages')
         useToastStore().showOnce(`save:${path}`, formatFileError('save', path, e), { type: 'error', duration: 5000 })
       }
     },

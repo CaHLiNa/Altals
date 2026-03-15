@@ -9,6 +9,7 @@ import {
   mergeWithDefaultModelsConfig,
   providerSupportsModelSync,
 } from '../services/modelCatalog'
+import { events } from '../services/telemetry'
 import DEFAULT_SKILL_CONTENT from './defaultSkillContent.js'
 import { DEFAULT_PROJECT_INSTRUCTIONS } from '../constants/instructionsTemplate.js'
 import { removeWorkspaceBookmark } from '../services/workspacePermissions'
@@ -172,7 +173,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       } catch (e) { /* ignore */ }
 
       // Telemetry
-      import('../services/telemetry').then(({ events }) => events.workspaceOpen())
+      events.workspaceOpen()
     },
 
     async _bootstrapWorkspace(path, generation) {
@@ -1162,7 +1163,7 @@ exit 0
     setTheme(name) {
       this.theme = name
       localStorage.setItem('theme', name)
-      import('../services/telemetry').then(({ events }) => events.themeChange(name))
+      events.themeChange(name)
       // Remove any existing theme class, apply new one
       const el = document.documentElement
       el.classList.remove('theme-light', 'theme-monokai', 'theme-nord', 'theme-solarized', 'theme-humane', 'theme-one-light', 'theme-dracula')

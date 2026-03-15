@@ -225,86 +225,6 @@ function extractZoteroPrefs(customXml) {
 }
 
 /**
- * Phase 2: Post-process a loaded SuperDoc document.
- *
- * Scans the ProseMirror document for text matching Zotero citation display
- * strings and replaces them with citation nodes.
- *
- * @param {Object} editor - SuperDoc editor instance
- * @param {Array} citations - From prescanDocxForZotero().citations
- * @param {Object} referencesStore - The Pinia references store
- * @returns {number} Number of citations successfully replaced
- */
-export function postProcessCitations(editor, citations, referencesStore) {
-  if (!citations.length || !editor?.view) return 0
-
-  const { state } = editor.view
-  const { schema, doc } = state
-
-  // Check that our citation node type exists in the schema
-  if (!schema.nodes.citation) {
-    console.warn('[docxCitationImporter] citation node type not in schema')
-    return 0
-  }
-
-  // First, import any unknown references into the library
-  const importedKeys = importZoteroReferences(citations, referencesStore)
-
-  // Build a list of replacements: find display text in document, replace with citation nodes
-  const replacements = []
-
-  for (const citation of citations) {
-    const { displayText, cslCitation } = citation
-    if (!displayText?.trim() || !cslCitation?.citationItems?.length) continue
-
-    // Build cites array from CSL citationItems
-    const cites = cslCitation.citationItems.map(item => {
-      const key = findMatchingKey(item, importedKeys, referencesStore)
-      return {
-        key: key || `unknown-${item.id}`,
-        locator: item.locator || '',
-        prefix: item.prefix || '',
-        suffix: item.suffix || '',
-        suppressAuthor: item['suppress-author'] || false,
-      }
-    })
-
-    // Find the display text in the document
-    const textPos = findTextInDoc(doc, displayText.trim())
-    if (textPos) {
-      replacements.push({
-        from: textPos.from,
-        to: textPos.to,
-        cites,
-        citationId: cslCitation.citationID || Math.random().toString(36).slice(2, 10),
-        zoteroData: cslCitation,
-      })
-    }
-  }
-
-  if (!replacements.length) return 0
-
-  // Apply replacements in reverse order (to preserve positions)
-  const tr = state.tr
-  const sorted = replacements.sort((a, b) => b.from - a.from)
-
-  for (const r of sorted) {
-    const citationNode = schema.nodes.citation.create({
-      citationId: r.citationId,
-      cites: r.cites,
-      mode: 'normal',
-      zoteroData: r.zoteroData,
-    })
-    tr.replaceWith(r.from, r.to, citationNode)
-  }
-
-  tr.setMeta('addToHistory', false)
-  editor.view.dispatch(tr)
-
-  return sorted.length
-}
-
-/**
  * Import Zotero CSL-JSON references into the references store.
  * Returns a Map of zoteroUri → libraryKey for matching.
  */
@@ -394,55 +314,12 @@ function findMatchingKey(item, importedKeys, referencesStore) {
 }
 
 /**
- * Find exact text match in a ProseMirror document.
- * Returns { from, to } or null.
- *
- * Searches for the text string across text nodes, handling runs and paragraphs.
- */
-function findTextInDoc(doc, searchText) {
-  if (!searchText) return null
-
-  // Collect all text with position mapping
-  const textRanges = []
-  doc.descendants((node, pos) => {
-    if (node.isText) {
-      textRanges.push({ text: node.text, from: pos, to: pos + node.nodeSize })
-    }
-  })
-
-  // Build a flat text string with position offsets
-  // We need to handle text that might span multiple runs
-  let flatText = ''
-  const posMap = [] // flatText index → doc position
-
-  for (const range of textRanges) {
-    for (let i = 0; i < range.text.length; i++) {
-      posMap.push(range.from + i)
-      flatText += range.text[i]
-    }
-    // Don't add separators between adjacent text nodes in the same run
-  }
-
-  // Search for the citation text
-  const idx = flatText.indexOf(searchText)
-  if (idx === -1) return null
-
-  const from = posMap[idx]
-  const to = posMap[idx + searchText.length - 1] + 1
-
-  // Mark this range as "consumed" to prevent duplicate matches
-  // We do this by returning the match and letting the caller track it
-  return { from, to }
-}
-
-/**
  * Find all citation display text occurrences in document order.
  * Handles the case where multiple citations have the same display text
  * by matching them in document order (same as field code order in DOCX).
  */
-export function findAllCitationTextPositions(doc, citations) {
+function findAllCitationTextPositions(doc, citations) {
   const results = []
-  const consumed = new Set()
 
   // Collect full flat text with position mapping
   const textRanges = []
@@ -587,8 +464,8 @@ function expandToFieldBoundary(doc, from, to) {
 // The `cite:` scheme is blocked (rendered as <span>, no click events).
 // Solution: use https://cite.local/{id} — passes validation, renders as <a>, we intercept clicks.
 
-export const CITE_HREF_PREFIX = 'https://cite.local/'
-export function citationHref(id) { return CITE_HREF_PREFIX + id }
+const CITE_HREF_PREFIX = 'https://cite.local/'
+function citationHref(id) { return CITE_HREF_PREFIX + id }
 export function isCitationHref(href) { return href?.startsWith(CITE_HREF_PREFIX) }
 export function citationIdFromHref(href) { return href?.slice(CITE_HREF_PREFIX.length) || null }
 
@@ -638,7 +515,7 @@ export function loadCitationMeta(filePath) {
  * Find the text range of a citation link mark in the document.
  * Returns { from, to } or null.
  */
-export function findCitationLinkRange(doc, citationId) {
+function findCitationLinkRange(doc, citationId) {
   const href = citationHref(citationId)
   let from = null, to = null
   doc.descendants((node, pos) => {
@@ -661,7 +538,7 @@ export function findCitationLinkRange(doc, citationId) {
  * Update the display text of a citation link in the document.
  * Keeps the link mark with the same href.
  */
-export function updateCitationText(editor, citationId, newText) {
+function updateCitationText(editor, citationId, newText) {
   const { state } = editor.view
   const { doc, schema } = state
   const range = findCitationLinkRange(doc, citationId)
@@ -747,7 +624,7 @@ export function insertNewCitation(editor, key, from, to, referencesStore) {
  * Find all citation link IDs in document order.
  * Returns array of { citationId, from } sorted by position.
  */
-export function findAllCitationLinksInOrder(doc) {
+function findAllCitationLinksInOrder(doc) {
   const results = []
   doc.descendants((node, pos) => {
     if (node.isText) {

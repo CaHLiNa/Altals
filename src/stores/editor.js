@@ -6,6 +6,7 @@ import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
 import { isChatTab, getChatSessionId, isNewTab } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
+import { events } from '../services/telemetry'
 
 // Pane tree: either a leaf (has tabs) or a split (has children)
 // { type: 'leaf', id, tabs: [path, ...], activeTab: path }
@@ -729,7 +730,7 @@ export const useEditorStore = defineStore('editor', {
 
     recordFileOpen(path) {
       if (path.startsWith('ref:@') || path.startsWith('preview:') || isChatTab(path) || isNewTab(path)) return
-      import('../services/telemetry').then(({ events }) => events.fileOpen(path.split('.').pop()))
+      events.fileOpen(path.split('.').pop())
       this.recentFiles = this.recentFiles.filter(e => e.path !== path)
       this.recentFiles.unshift({ path, openedAt: Date.now() })
       if (this.recentFiles.length > 20) this.recentFiles.length = 20

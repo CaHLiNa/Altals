@@ -139,6 +139,7 @@ import SetupWizard from './components/SetupWizard.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import BottomPanel from './components/layout/BottomPanel.vue'
 import { useI18n } from './i18n'
+import { events } from './services/telemetry'
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -202,7 +203,7 @@ function scheduleWorkspaceBackgroundTask(delayMs, generation, targetPath, task, 
 // Startup
 onMounted(async () => {
   // Telemetry: app launched
-  import('./services/telemetry').then(({ events }) => events.appOpen())
+  events.appOpen()
 
   // Restore saved theme + font sizes + prose font
   workspace.restoreTheme()

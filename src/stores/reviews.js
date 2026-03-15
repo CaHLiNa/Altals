@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { useEditorStore } from './editor'
+import { formatFileError } from '../utils/errorMessages'
 
 const NOTEBOOK_TOOLS = ['NotebookEditCell', 'NotebookAddCell', 'NotebookDeleteCell']
 
@@ -153,7 +154,6 @@ export const useReviewsStore = defineStore('reviews', {
       } catch (e) {
         console.warn('Failed to revert edit:', e)
         const { useToastStore } = await import('./toast')
-        const { formatFileError } = await import('../utils/errorMessages')
         useToastStore().show(formatFileError('restore', edit.file_path, e), { type: 'error', duration: 5000 })
       }
     },
