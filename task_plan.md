@@ -68,3 +68,5 @@ Complete
 - 第四轮续扫又清掉了 `workspace.js` 与 `chat.js` 两组 store warning 的低风险动态入口；目前剩余项主要集中在 `files / editor / comments / usage / documentWorkflow / links / reviews` 这几组真实状态回路，以及超大 chunk。
 - 第五轮续扫进入状态层解藕：已把评论提交/采纳、文件变更副作用、workspace 拉取后刷新和 usage 访问分别抽到服务层，构建中的 `comments.js`、`documentWorkflow.js`、`links.js`、`reviews.js`、`editor.js`、`files.js`、`usage.js` mixed import warning 已全部清空。
 - 当前构建剩余告警只剩超大 chunk；这已经是分包与包体优化问题，不再属于低风险状态解藕范围。
+- 第六轮续扫进入分包与包体优化：根壳层和工作区重视图已切成异步入口，`Settings`/`LeftSidebar`/`RightPanel` 做了二级按需加载，`manualChunks` 已把 `vue`、`ai`、`codemirror-data`、`markdown`、`citations`、`pdf-viewer`、`xterm`、`handsontable`、`superdoc` 等重依赖切成稳定 vendor 包。
+- 当前主入口包已从约 `3.68 MB` 压到约 `379 KB`，根样式入口也从约 `496 KB` 压到约 `79 KB`；剩余超大 chunk 主要来自近单体第三方依赖：`superdoc`、`codemirror`、`handsontable` 和 `pdfjs` 核心。

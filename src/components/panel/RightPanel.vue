@@ -21,12 +21,12 @@
     <!-- Content -->
     <div class="flex-1 overflow-hidden relative">
       <!-- Outline panel -->
-      <div v-show="mainTab === 'outline'" class="absolute inset-0 overflow-auto">
+      <div v-if="mainTab === 'outline'" class="absolute inset-0 overflow-auto">
         <OutlinePanel :collapsed="false" :overrideActiveFile="documentTab" />
       </div>
 
       <!-- Backlinks panel -->
-      <div v-show="mainTab === 'backlinks'" class="absolute inset-0 overflow-auto">
+      <div v-else class="absolute inset-0 overflow-auto">
         <Backlinks :overrideActiveFile="documentTab" />
       </div>
 
@@ -35,11 +35,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { useLinksStore } from '../../stores/links'
 import { useEditorStore } from '../../stores/editor'
-import Backlinks from './Backlinks.vue'
-import OutlinePanel from './OutlinePanel.vue'
+
+const Backlinks = defineAsyncComponent(() => import('./Backlinks.vue'))
+const OutlinePanel = defineAsyncComponent(() => import('./OutlinePanel.vue'))
 
 const linksStore = useLinksStore()
 const editorStore = useEditorStore()

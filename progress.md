@@ -192,6 +192,29 @@
   - `src/stores/pdfTranslate.js`
   - `src/stores/workspace.js`
 
+### Follow-up Continuation 6: Bundle Optimization
+- **Status:** complete
+- Actions taken:
+  - 新增 `docs/plans/2026-03-15-bundle-optimization-design.md` 与 `docs/plans/2026-03-15-bundle-optimization.md`，把分包策略和实施边界固定下来
+  - 将 `App.vue` 中的 `Settings`、`VersionHistory`、`LeftSidebar`、`RightPanel`、`BottomPanel` 改成异步组件，首屏只保留工作区必要骨架
+  - 将 `Settings` 各 section 改成切到对应 tab 才加载
+  - 为 `LeftSidebar` 增加轻量引用折叠头，未展开前不加载 `ReferenceList`
+  - 将 `RightPanel` 的 `Backlinks` 改为切到对应 tab 才挂载
+  - 将 `EditorPane` 中的 `TextEditor`、`PdfViewer`、`CsvEditor`、`ImageViewer` 改成异步组件，并将 `Header` 中的 `SearchResults` 改成按需加载
+  - 在 `vite.config.js` 中加入稳定 `manualChunks`，将重量级依赖拆到更清晰的 vendor chunk
+  - 试过进一步细拆 `codemirror`，虽然能继续压低单包体积，但会引入循环 chunk warning；最终回退到无循环的稳定方案
+  - 最终将主 `index` chunk 从约 `3,681 KB` 压到约 `379 KB`，将根样式入口从约 `496 KB` 压到约 `79 KB`
+- Files created/modified:
+  - `docs/plans/2026-03-15-bundle-optimization-design.md`
+  - `docs/plans/2026-03-15-bundle-optimization.md`
+  - `src/App.vue`
+  - `src/components/settings/Settings.vue`
+  - `src/components/sidebar/LeftSidebar.vue`
+  - `src/components/panel/RightPanel.vue`
+  - `src/components/editor/EditorPane.vue`
+  - `src/components/layout/Header.vue`
+  - `vite.config.js`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -231,6 +254,14 @@
 | Rust 检查 Round 17 | `cargo check --manifest-path src-tauri/Cargo.toml` | `workspace` 状态解藕后 Rust 仍可编译 | 通过 | 通过 |
 | 前端构建 Round 18 | `npm run build` | `usageAccess` 收口剩余 usage 访问后仍可构建 | 通过，且 `usage.js` warning 消失 | 通过 |
 | Rust 检查 Round 18 | `cargo check --manifest-path src-tauri/Cargo.toml` | `usage` 访问统一后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 19 | `npm run build` | 根壳层异步化与首版 vendor 分组后仍可构建 | 通过，且主 `index` chunk 大幅下降 | 通过 |
+| Rust 检查 Round 19 | `cargo check --manifest-path src-tauri/Cargo.toml` | 首轮分包后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 20 | `npm run build` | `Settings / LeftSidebar / RightPanel` 二级按需加载后仍可构建 | 通过，且设置页拆成按 section 独立 chunk | 通过 |
+| Rust 检查 Round 20 | `cargo check --manifest-path src-tauri/Cargo.toml` | 次级面板按需加载后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 21 | `npm run build` | 工作区重视图异步化与更细 vendor 分组试验后仍可构建 | 通过，但 `codemirror` 细拆引入循环 chunk warning | 通过 |
+| Rust 检查 Round 21 | `cargo check --manifest-path src-tauri/Cargo.toml` | 细分 vendor 试验后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 Round 22 | `npm run build` | 回退有循环 warning 的 `codemirror` 细拆后仍可构建 | 通过，且循环 chunk warning 消失 | 通过 |
+| Rust 检查 Round 22 | `cargo check --manifest-path src-tauri/Cargo.toml` | 最终分包方案下 Rust 仍可编译 | 通过 | 通过 |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -246,4 +277,5 @@
 - 第三轮续扫后，`references.js`、`@codemirror/lang-markdown`、`pdfjs-dist/legacy/build/pdf.mjs` 的混用 warning 也已清掉。
 - 第四轮续扫后，`workspace.js` 与 `chat.js` 的 warning 也已清掉。
 - 第五轮续扫后，状态层 mixed import warning 已全部清掉。
-- 目前剩余更高价值但更高风险的工作，已经集中在包级分块优化，以及如果要继续深挖就必须做更激进的 store 架构拆分。
+- 第六轮续扫后，主入口和二级面板的按需加载已经完成，且主 `index` chunk 已降到约 `379 KB`。
+- 目前剩余更高价值但更高风险的工作，主要是进一步处理近单体第三方依赖的大包问题；这通常意味着更激进的功能替代、运行时远程加载，或放弃部分库能力。

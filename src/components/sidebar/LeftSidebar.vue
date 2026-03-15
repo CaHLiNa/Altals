@@ -33,18 +33,34 @@
       :style="refsStyle"
     >
       <ReferenceList
+        v-if="refsLoaded"
         :collapsed="refsCollapsed"
         @toggle-collapse="toggleRefs"
       />
+      <button
+        v-else
+        type="button"
+        class="flex items-center w-full h-7 px-2 gap-1 select-none"
+        :style="{ color: 'var(--fg-muted)' }"
+        @click="toggleRefs"
+      >
+        <svg
+          width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+        >
+          <path d="M6 4l4 4-4 4"/>
+        </svg>
+        <span class="ui-text-xs font-medium uppercase tracking-wider">References</span>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import FileTree from './FileTree.vue'
-import ReferenceList from './ReferenceList.vue'
+
+const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 
 const emit = defineEmits(['version-history'])
 
@@ -58,6 +74,7 @@ const refsCollapsed = ref(false)
 
 // Panel heights when expanded (resizable)
 const refHeight = ref(250)
+const refsLoaded = ref(false)
 
 onMounted(() => {
   try {
@@ -65,6 +82,7 @@ onMounted(() => {
     if (rh) refHeight.value = parseInt(rh, 10) || 250
     explorerCollapsed.value = localStorage.getItem('explorerCollapsed') === 'true'
     refsCollapsed.value = localStorage.getItem('refsCollapsed') === 'true'
+    refsLoaded.value = !refsCollapsed.value
   } catch { /* ignore */ }
 })
 
@@ -74,6 +92,7 @@ function toggleExplorer() {
 }
 
 function toggleRefs() {
+  if (refsCollapsed.value) refsLoaded.value = true
   refsCollapsed.value = !refsCollapsed.value
   try { localStorage.setItem('refsCollapsed', String(refsCollapsed.value)) } catch {}
 }

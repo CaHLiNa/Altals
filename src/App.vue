@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from './stores/workspace'
@@ -129,17 +129,18 @@ import {
 import Header from './components/layout/Header.vue'
 import Footer from './components/layout/Footer.vue'
 import ResizeHandle from './components/layout/ResizeHandle.vue'
-import LeftSidebar from './components/sidebar/LeftSidebar.vue'
 import PaneContainer from './components/editor/PaneContainer.vue'
-import RightPanel from './components/panel/RightPanel.vue'
 import Launcher from './components/Launcher.vue'
-import VersionHistory from './components/VersionHistory.vue'
-import Settings from './components/settings/Settings.vue'
-import SetupWizard from './components/SetupWizard.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
-import BottomPanel from './components/layout/BottomPanel.vue'
 import { useI18n } from './i18n'
 import { events } from './services/telemetry'
+
+const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
+const RightPanel = defineAsyncComponent(() => import('./components/panel/RightPanel.vue'))
+const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
+const VersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
+const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
+const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()

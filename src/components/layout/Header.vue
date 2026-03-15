@@ -151,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import {
@@ -163,7 +163,7 @@ import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { buildCitationText } from '../../editor/citationSyntax'
 
-import SearchResults from '../SearchResults.vue'
+const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
 const emit = defineEmits(['open-settings', 'open-folder', 'open-workspace', 'close-folder'])
 

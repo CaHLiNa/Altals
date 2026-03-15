@@ -200,10 +200,10 @@ import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
-import TextEditor from './TextEditor.vue'
-import PdfViewer from './PdfViewer.vue'
-import CsvEditor from './CsvEditor.vue'
-import ImageViewer from './ImageViewer.vue'
+const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
+const PdfViewer = defineAsyncComponent(() => import('./PdfViewer.vue'))
+const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
+const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
 const DocxEditor = defineAsyncComponent(() => import('./DocxEditor.vue'))
 const DocxReviewBar = defineAsyncComponent(() => import('./DocxReviewBar.vue'))
 const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))

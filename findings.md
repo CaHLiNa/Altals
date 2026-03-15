@@ -22,9 +22,13 @@
 | `files` store 直接编排 `documentWorkflow / editor / links / reviews` 多组副作用，动态导入既制造 warning 也放大维护面 | 抽出 `fileStoreEffects`，统一承接预览源路径判断、外部文件变更、重命名/移动/删除后的跨 store 副作用 | `src/services/fileStoreEffects.js`, `src/stores/files.js` |
 | `workspace` store 把 usage 加载、说明文件打开和 pull 后刷新打开文件混在 store 内，且 pull 刷新逻辑使用了不存在的 `editorStore.tabs` 路径 | 抽出 `workspaceStoreEffects`，并修正为基于 `editorStore.allOpenFiles` 刷新已打开文件 | `src/services/workspaceStoreEffects.js`, `src/stores/workspace.js` |
 | `usage.js` 同时被组件静态导入和 AI 边缘模块动态导入，成为最后一条 mixed import warning | 新增 `usageAccess` 统一预算判断、usage 记录与摘要加载入口，清空 `usage.js` warning | `src/services/usageAccess.js`, `src/services/workspaceStoreEffects.js`, `src/stores/chat.js`, `src/stores/pdfTranslate.js`, `src/services/docxProvider.js`, `src/services/refAi.js`, `src/editor/docxGhost.js`, `src/editor/ghostSuggestion.js` |
+| 根入口同步装配了设置、版本历史、侧栏和底部面板，导致主包过胖 | 将 `Settings`、`VersionHistory`、`LeftSidebar`、`RightPanel`、`BottomPanel` 收成异步组件，主壳层只保留首屏必要骨架 | `src/App.vue` |
+| 设置页和次级面板虽然 UI 不总显示，但内部 section/子面板仍会提前进入共享包 | 将 `Settings` 各 section、`ReferenceList`、`Backlinks` 改成真正按需加载 | `src/components/settings/Settings.vue`, `src/components/sidebar/LeftSidebar.vue`, `src/components/panel/RightPanel.vue` |
+| `TextEditor / PdfViewer / CsvEditor / ImageViewer / SearchResults` 仍通过同步入口进入工作区主包 | 将这些入口收成异步组件，减少主 `index` chunk 的同步代码量 | `src/components/editor/EditorPane.vue`, `src/components/layout/Header.vue` |
+| `vite.config.js` 缺少稳定 vendor 分包策略，导致主入口与重依赖粘连 | 新增 `manualChunks`，按功能簇拆出 `vendor-vue`、`vendor-ai`、`vendor-codemirror-data`、`vendor-markdown`、`vendor-citations`、`vendor-pdf-viewer`、`vendor-xterm`、`vendor-handsontable`、`vendor-superdoc` 等稳定 chunk | `vite.config.js` |
 
 ## Verification Findings
-- 共完成 18 轮成功的“改完即测”验证。
+- 共完成 22 轮成功的“改完即测”验证。
 - 每一轮都运行了：
   - `npm run build`
   - `cargo check --manifest-path src-tauri/Cargo.toml`
@@ -36,6 +40,11 @@
   - `files / fileStoreEffects / documentWorkflow / links / reviews` 副作用收口后通过
   - `workspace / workspaceStoreEffects` 解藕并修正 pull 刷新路径后通过
   - `usageAccess` 收口剩余 usage 访问后通过，且 `usage.js` mixed import warning 消失
+- 第六轮续扫新增 4 轮验证：
+  - 根壳层异步化与首版 `manualChunks` 后通过
+  - `Settings / LeftSidebar / RightPanel` 二级按需加载后通过
+  - 工作区重视图异步化与更细 vendor 分组试验后通过
+  - 回退有循环 warning 的 `codemirror` 细拆、保留稳定分包方案后通过
 - 本轮续扫中有 1 次中间构建失败：
   - 原因是把 `createTauriFetch()` 误写成不存在的命名导出 `tauriFetch`
   - 已按最小修正恢复，并在修正后重新完成完整验证
@@ -51,7 +60,8 @@
 ## Remaining Known Risks
 - 仓库仍然缺少自动化测试，本轮只能用构建/编译验证兜底，无法替代全链路交互回归。
 - 状态层 mixed import warning 已全部清空；接下来如果继续推进，主要就是更高风险的 store 拆分和包体分块优化，而不再是“安全删废代码”。
-- 主包体依旧很大，尤其 `superdoc` 和主 `index` chunk；这是后续性能/构建优化议题，不属于本轮“安全清屎山”范围。
+- 本轮分包后，主 `index` chunk 已显著下降，但仍有几个大包来自近单体上游依赖：`superdoc`、`codemirror`、`handsontable`、`pdfjs`。
+- 其中 `superdoc` 与 `handsontable` 的剩余体积主要受第三方库形态限制；继续压缩通常意味着更激进的功能替代或更深层运行时拆分。
 
 ## Decisions Made
 | Decision | Rationale |

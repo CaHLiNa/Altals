@@ -32,15 +32,7 @@
 
           <!-- Main content -->
           <div class="settings-content">
-            <SettingsTheme v-if="activeSection === 'theme'" />
-            <SettingsEditor v-if="activeSection === 'editor'" />
-            <SettingsModels v-if="activeSection === 'models'" />
-            <SettingsTools v-if="activeSection === 'tools'" />
-            <SettingsPdfTranslate v-if="activeSection === 'pdf-translate'" />
-            <SettingsGitHub v-if="activeSection === 'github'" />
-            <SettingsEnvironment v-if="activeSection === 'system'" />
-            <SettingsUsage v-if="activeSection === 'usage'" />
-            <SettingsUpdates v-if="activeSection === 'updates'" />
+            <component :is="activeSectionComponent" :key="activeSection" />
           </div>
         </div>
       </div>
@@ -49,18 +41,19 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IconPalette, IconEdit, IconKey, IconTool, IconCpu, IconChartBar, IconBrandGithub, IconRefresh, IconFileTypePdf } from '@tabler/icons-vue'
-import SettingsTheme from './SettingsTheme.vue'
-import SettingsEditor from './SettingsEditor.vue'
-import SettingsModels from './SettingsModels.vue'
-import SettingsTools from './SettingsTools.vue'
-import SettingsPdfTranslate from './SettingsPdfTranslate.vue'
-import SettingsEnvironment from './SettingsEnvironment.vue'
-import SettingsUsage from './SettingsUsage.vue'
-import SettingsGitHub from './SettingsGitHub.vue'
-import SettingsUpdates from './SettingsUpdates.vue'
 import { useI18n } from '../../i18n'
+
+const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
+const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
+const SettingsModels = defineAsyncComponent(() => import('./SettingsModels.vue'))
+const SettingsTools = defineAsyncComponent(() => import('./SettingsTools.vue'))
+const SettingsPdfTranslate = defineAsyncComponent(() => import('./SettingsPdfTranslate.vue'))
+const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
+const SettingsUsage = defineAsyncComponent(() => import('./SettingsUsage.vue'))
+const SettingsGitHub = defineAsyncComponent(() => import('./SettingsGitHub.vue'))
+const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -106,8 +99,24 @@ const sections = [
   { id: 'updates', label: t('Updates'), icon: IconRefresh },
 ]
 
+const sectionComponents = {
+  theme: SettingsTheme,
+  editor: SettingsEditor,
+  models: SettingsModels,
+  tools: SettingsTools,
+  'pdf-translate': SettingsPdfTranslate,
+  github: SettingsGitHub,
+  system: SettingsEnvironment,
+  usage: SettingsUsage,
+  updates: SettingsUpdates,
+}
+
 const activeSectionLabel = computed(() =>
   sections.find(item => item.id === activeSection.value)?.label ?? t('Settings')
+)
+
+const activeSectionComponent = computed(() =>
+  sectionComponents[activeSection.value] || SettingsTheme
 )
 
 function clampModalPosition(x, y) {
