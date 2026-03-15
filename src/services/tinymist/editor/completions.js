@@ -137,7 +137,7 @@ function createLocalTypstCompletionSource(options = {}) {
       }
     }
 
-    if (explicit && hasBareHashTrigger) {
+    if (hasBareHashTrigger) {
       return {
         from: pos - 1,
         options: HASH_OPTIONS,

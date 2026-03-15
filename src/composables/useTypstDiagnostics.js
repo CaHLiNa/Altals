@@ -45,6 +45,34 @@ export function useTypstDiagnostics(options) {
   let cleanupTinymistStatus = null
   let tinymistDocumentOpen = false
 
+  function getDocumentLineText(lineNumber) {
+    if (!Number.isInteger(lineNumber) || lineNumber <= 0) return ''
+    const view = getView()
+    if (!view) return ''
+    const safeLine = Math.max(1, Math.min(lineNumber, view.state.doc.lines))
+    return view.state.doc.line(safeLine).text
+  }
+
+  function isTransientTinymistDiagnostic(diagnostic) {
+    const message = String(diagnostic?.message || '').trim().toLowerCase()
+    const lineText = getDocumentLineText(diagnostic?.line).trim()
+    if (!lineText) return false
+
+    if (message === 'expected expression' && lineText === '#') {
+      return true
+    }
+
+    if (message.startsWith('unknown variable:') && /^#[A-Za-z-]+\s*$/.test(lineText)) {
+      return true
+    }
+
+    if (message === 'unclosed delimiter' && /^#[A-Za-z-]+(?:\(|\[)\s*$/.test(lineText)) {
+      return true
+    }
+
+    return false
+  }
+
   function clearTypstDiagnosticsUi() {
     typstUi.diagnostics = []
     typstUi.activeSignature = ''
@@ -115,6 +143,7 @@ export function useTypstDiagnostics(options) {
 
   function applyTinymistDiagnosticsState(rawDiagnostics = [], options = {}) {
     const normalized = normalizeTinymistDiagnostics(filePath, rawDiagnostics)
+      .filter(diagnostic => !isTransientTinymistDiagnostic(diagnostic))
     typstUi.diagnosticsProvider = 'tinymist'
     applyNormalizedDiagnostics(normalized, {
       ...options,
@@ -220,7 +249,9 @@ export function useTypstDiagnostics(options) {
     if (cleanupTinymistDiagnostics == null) {
       cleanupTinymistDiagnostics = subscribeTinymistDiagnostics(filePath, (diagnostics) => {
         applyTinymistDiagnosticsState(diagnostics, {
-          allowAutoJump: editorStore.activeTab === filePath,
+          // Live language-service diagnostics should never steal the caret
+          // while the user is actively typing incomplete Typst commands.
+          allowAutoJump: false,
         })
       })
     }
