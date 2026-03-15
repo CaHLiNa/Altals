@@ -177,8 +177,8 @@
           @add-above="addCell(idx, 'code')"
           @add-below="addCell(idx + 1, 'code')"
           @content-change="(src) => updateCellSource(idx, src)"
-          @accept-edit="(id) => reviews.acceptNotebookEdit(id)"
-          @reject-edit="(id) => reviews.rejectNotebookEdit(id)"
+          @accept-edit="acceptPendingEdit"
+          @reject-edit="rejectPendingEdit"
         />
 
         <!-- Add cell button -->
@@ -192,18 +192,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { useWorkspaceStore } from '../../stores/workspace'
-import { useFilesStore } from '../../stores/files'
-import { useEditorStore } from '../../stores/editor'
-import { useKernelStore } from '../../stores/kernel'
-import { useReviewsStore } from '../../stores/reviews'
-import { useEnvironmentStore } from '../../stores/environment'
-import { useToastStore } from '../../stores/toast'
-import { formatFileError } from '../../utils/errorMessages'
-import { parseNotebook, serializeNotebook, generateCellId, getNotebookLanguage } from '../../utils/notebookFormat'
 import NotebookCell from './NotebookCell.vue'
+import { useNotebookEditor } from '../../composables/useNotebookEditor'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -211,564 +201,46 @@ const props = defineProps({
   paneId: { type: String, required: true },
 })
 
-const workspace = useWorkspaceStore()
-const filesStore = useFilesStore()
-const editorStore = useEditorStore()
-const kernelStore = useKernelStore()
-const reviews = useReviewsStore()
-const envStore = useEnvironmentStore()
 const { t } = useI18n()
-
-// Notebook state
-const cells = reactive([])
-const metadata = ref({})
-const nbformat = ref(4)
-const nbformatMinor = ref(5)
-const activeCell = ref(0)
-const saving = ref(false)
-const kernelId = ref(null)
-const selectedSpec = ref('')
-const runningCells = reactive(new Set())
-const cellRefs = {}
-
-// UI state
-const showStatusPopover = ref(false)
-const statusChipRef = ref(null)
-const popoverX = ref(0)
-const popoverY = ref(0)
-
-// Pending notebook edits
-const pendingNotebookEdits = computed(() => reviews.notebookEditsForFile(props.filePath))
-
-// Display cells: merges real cells with phantom add-cells, annotates pending states
-const displayCells = computed(() => {
-  const edits = pendingNotebookEdits.value
-  if (edits.length === 0) return cells.map((c) => ({ ...c, _pendingEdit: null, _pendingDelete: false, _pendingAdd: false, _editId: null }))
-
-  const result = []
-  const editsByCell = {}
-  const addEdits = []
-
-  for (const edit of edits) {
-    if (edit.tool === 'NotebookAddCell') {
-      addEdits.push(edit)
-    } else {
-      editsByCell[edit.cell_id] = edit
-    }
-  }
-
-  // Insert real cells with annotations
-  for (const cell of cells) {
-    const edit = editsByCell[cell.id]
-    result.push({
-      ...cell,
-      _pendingEdit: edit?.tool === 'NotebookEditCell' ? edit : null,
-      _pendingDelete: edit?.tool === 'NotebookDeleteCell',
-      _pendingAdd: false,
-      _editId: edit?.id || null,
-    })
-  }
-
-  // Insert phantom add-cells at correct positions (reverse order to keep indices stable)
-  const sortedAdds = [...addEdits].sort((a, b) => b.cell_index - a.cell_index)
-  for (const add of sortedAdds) {
-    const idx = Math.min(add.cell_index, result.length)
-    result.splice(idx, 0, {
-      id: add.cell_id,
-      type: add.cell_type || 'code',
-      source: add.cell_source || '',
-      outputs: [],
-      executionCount: null,
-      metadata: {},
-      _pendingEdit: null,
-      _pendingDelete: false,
-      _pendingAdd: true,
-      _editId: add.id,
-    })
-  }
-
-  return result
-})
-
-// Computed
-const kernelspecs = computed(() => kernelStore.kernelspecs)
-const notebookLanguage = computed(() => getNotebookLanguage(metadata.value))
-
-const langDisplayName = computed(() => {
-  const lang = notebookLanguage.value
-  if (lang === 'r') return 'R'
-  return lang.charAt(0).toUpperCase() + lang.slice(1)
-})
-
-const mode = computed(() => envStore.capability(notebookLanguage.value))
-
-const kernelPackageName = computed(() => {
-  const map = { python: 'ipykernel', r: 'IRkernel', julia: 'IJulia' }
-  return map[notebookLanguage.value] || 'kernel'
-})
-
-const statusChipLabel = computed(() => {
-  return envStore.statusLabel(notebookLanguage.value)
-})
-
-const statusChipClass = computed(() => ({
-  'nb-chip-jupyter': mode.value === 'jupyter',
-  'nb-chip-none': mode.value === 'none',
-}))
-
-const statusDotClass = computed(() => ({
-  good: mode.value === 'jupyter',
-  none: mode.value === 'none',
-}))
-
-const kernelStatusLabel = computed(() => {
-  if (!kernelId.value) return t('No kernel')
-  const k = kernelStore.kernels[kernelId.value]
-  return k ? k.status : t('disconnected')
-})
-
-const kernelStatusStyle = computed(() => {
-  const status = kernelStatusLabel.value
-  if (status === 'idle') return { color: 'var(--success)', background: 'rgba(80, 250, 123, 0.1)' }
-  if (status === 'busy') return { color: 'var(--warning, #e2b93d)', background: 'rgba(226, 185, 61, 0.1)' }
-  return { color: 'var(--fg-muted)', background: 'var(--bg-secondary)' }
-})
-
-// Cell ref management
-function setCellRef(idx, el) {
-  if (el) cellRefs[idx] = el
-  else delete cellRefs[idx]
-}
-
-// ============ Status popover ============
-
-function toggleStatusPopover() {
-  if (showStatusPopover.value) {
-    showStatusPopover.value = false
-    return
-  }
-  if (statusChipRef.value) {
-    const rect = statusChipRef.value.getBoundingClientRect()
-    popoverX.value = rect.left
-    popoverY.value = rect.bottom + 4
-  }
-  showStatusPopover.value = true
-}
-
-async function handleInstallKernel() {
-  const success = await envStore.installKernel(notebookLanguage.value)
-  if (success) {
-    // Re-discover kernels so the kernel picker updates
-    await kernelStore.discover()
-    // Auto-select the new kernel
-    if (kernelspecs.value.length > 0 && !selectedSpec.value) {
-      selectedSpec.value = kernelspecs.value[0].name
-    }
-  }
-}
-
-async function redetect() {
-  await envStore.detect()
-  if (mode.value === 'jupyter') {
-    await kernelStore.discover()
-  }
-}
-
-// ============ Load notebook ============
-
-async function loadNotebook() {
-  let content = filesStore.fileContents[props.filePath]
-  if (!content) {
-    content = await invoke('read_file', { path: props.filePath })
-    filesStore.fileContents[props.filePath] = content
-  }
-
-  const nb = parseNotebook(content)
-  cells.splice(0, cells.length, ...nb.cells)
-  metadata.value = nb.metadata
-  nbformat.value = nb.nbformat
-  nbformatMinor.value = nb.nbformat_minor
-
-  // Auto-select kernel spec from metadata
-  const specName = nb.metadata?.kernelspec?.name
-  if (specName && kernelspecs.value.find(k => k.name === specName)) {
-    selectedSpec.value = specName
-  } else if (kernelspecs.value.length > 0) {
-    selectedSpec.value = kernelspecs.value[0].name
-  }
-}
-
-// ============ Save notebook ============
-
-let saveTimer = null
-
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(saveNotebook, 1500)
-}
-
-async function saveNotebook() {
-  saving.value = true
-  try {
-    // Sync editor content for non-pending cells only
-    const pendingEdits = pendingNotebookEdits.value
-    for (const [idxStr, cellRef] of Object.entries(cellRefs)) {
-      if (!cellRef?.syncContent) continue
-      const idx = parseInt(idxStr)
-      const dc = displayCells.value[idx]
-      if (dc && !dc._pendingEdit && !dc._pendingDelete && !dc._pendingAdd) {
-        cellRef.syncContent()
-      }
-    }
-
-    if (pendingEdits.length === 0) {
-      // No pending reviews — save all cells directly
-      const content = serializeNotebook(cells, metadata.value, nbformat.value, nbformatMinor.value)
-      await invoke('write_file', { path: props.filePath, content })
-      filesStore.fileContents[props.filePath] = content
-    } else {
-      // Surgical save: read disk, update only non-pending cells, write back
-      const raw = await invoke('read_file', { path: props.filePath })
-      const nb = parseNotebook(raw)
-
-      for (const diskCell of nb.cells) {
-        const reactiveCell = cells.find(c => c.id === diskCell.id)
-        if (!reactiveCell) continue
-        const pending = reviews.notebookEditForCell(props.filePath, diskCell.id)
-        if (!pending) {
-          diskCell.source = reactiveCell.source
-        }
-      }
-
-      const content = serializeNotebook(nb.cells, nb.metadata, nb.nbformat, nb.nbformat_minor)
-      await invoke('write_file', { path: props.filePath, content })
-      filesStore.fileContents[props.filePath] = content
-    }
-  } catch (e) {
-    console.error('Notebook save failed:', e)
-    useToastStore().showOnce(`save:${props.filePath}`, formatFileError('save', props.filePath, e), { type: 'error', duration: 5000 })
-  } finally {
-    saving.value = false
-  }
-}
-
-// ============ Cell operations ============
-
-function addCell(index, type) {
-  const newCell = {
-    id: generateCellId(),
-    type,
-    source: '',
-    outputs: [],
-    executionCount: null,
-    metadata: {},
-  }
-  cells.splice(index, 0, newCell)
-  activeCell.value = index
-  scheduleSave()
-  nextTick(() => {
-    if (cellRefs[index]?.focus) cellRefs[index].focus()
-  })
-}
-
-function deleteCell(index) {
-  if (cells.length <= 1) return
-  cells.splice(index, 1)
-  if (activeCell.value >= cells.length) {
-    activeCell.value = cells.length - 1
-  }
-  scheduleSave()
-}
-
-function moveCell(index, direction) {
-  const newIndex = index + direction
-  if (newIndex < 0 || newIndex >= cells.length) return
-  const [cell] = cells.splice(index, 1)
-  cells.splice(newIndex, 0, cell)
-  activeCell.value = newIndex
-  scheduleSave()
-}
-
-function toggleCellType(index) {
-  const cell = cells[index]
-  cell.type = cell.type === 'code' ? 'markdown' : 'code'
-  if (cell.type === 'markdown') {
-    cell.outputs = []
-    cell.executionCount = null
-  }
-  scheduleSave()
-}
-
-function updateCellSource(index, source) {
-  cells[index].source = source
-  scheduleSave()
-}
-
-function clearAllOutputs() {
-  for (const cell of cells) {
-    if (cell.type === 'code') {
-      cell.outputs = []
-      cell.executionCount = null
-    }
-  }
-  scheduleSave()
-}
-
-function scrollToCell(cellIndex) {
-  const cellRef = cellRefs[cellIndex]
-  if (cellRef?.$el) {
-    cellRef.$el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    activeCell.value = cellIndex
-    nextTick(() => cellRef.focus?.())
-  }
-}
-
-// ============ Kernel management (Jupyter mode) ============
-
-async function ensureKernel() {
-  if (kernelId.value && kernelStore.kernels[kernelId.value]) {
-    return kernelId.value
-  }
-
-  if (!selectedSpec.value) {
-    if (kernelspecs.value.length === 0) {
-      await kernelStore.discover()
-    }
-    if (kernelspecs.value.length === 0) {
-      throw new Error(t('No Jupyter kernels available'))
-    }
-    selectedSpec.value = kernelspecs.value[0].name
-  }
-
-  kernelId.value = await kernelStore.launch(selectedSpec.value)
-  return kernelId.value
-}
-
-async function restartKernel() {
-  if (kernelId.value) {
-    await kernelStore.shutdown(kernelId.value)
-    kernelId.value = null
-  }
-  for (const cell of cells) {
-    if (cell.type === 'code') {
-      cell.executionCount = null
-    }
-  }
-  await ensureKernel()
-}
-
-// ============ Cell execution ============
-
-let executionCounter = 0
-
-async function runCell(index) {
-  const cell = cells[index]
-  if (cell.type !== 'code' || !cell.source.trim()) return
-
-  if (mode.value !== 'jupyter') {
-    cell.outputs = [{
-      output_type: 'error',
-      ename: t('No Kernel'),
-      evalue: t('Set up a Jupyter kernel to run cells. Click the status chip in the toolbar.'),
-      traceback: [],
-    }]
-    return { outputs: cell.outputs, success: false }
-  }
-
-  try {
-    const kid = await ensureKernel()
-    runningCells.add(cell.id)
-    cell.outputs = []
-
-    const { outputs, success } = await kernelStore.execute(kid, cell.source)
-
-    executionCounter++
-    cell.executionCount = executionCounter
-    cell.outputs = outputs.map(normalizeOutput)
-
-    scheduleSave()
-    return { outputs: cell.outputs, success }
-  } catch (e) {
-    cell.outputs = [{
-      output_type: 'error',
-      ename: t('ExecutionError'),
-      evalue: e.message || String(e),
-      traceback: [e.message || String(e)],
-    }]
-    return { outputs: cell.outputs, success: false }
-  } finally {
-    runningCells.delete(cell.id)
-  }
-}
-
-async function runAllCells() {
-  for (let i = 0; i < cells.length; i++) {
-    if (cells[i].type === 'code') {
-      const result = await runCell(i)
-      if (result && !result.success) break
-    }
-  }
-}
-
-function normalizeOutput(raw) {
-  const type = raw.output_type || raw.type
-  if (type === 'stream') {
-    return {
-      output_type: 'stream',
-      name: raw.name || raw.data?.name || 'stdout',
-      text: raw.text || raw.data?.text || '',
-    }
-  }
-  if (type === 'display_data') {
-    return {
-      output_type: 'display_data',
-      data: raw.data || {},
-      metadata: raw.metadata || {},
-    }
-  }
-  if (type === 'execute_result') {
-    return {
-      output_type: 'execute_result',
-      data: raw.data || {},
-      metadata: raw.metadata || {},
-      execution_count: raw.execution_count || null,
-    }
-  }
-  if (type === 'error') {
-    return {
-      output_type: 'error',
-      ename: raw.ename || raw.data?.ename || 'Error',
-      evalue: raw.evalue || raw.data?.evalue || '',
-      traceback: raw.traceback || raw.data?.traceback || [],
-    }
-  }
-  return {
-    output_type: 'stream',
-    name: 'stdout',
-    text: JSON.stringify(raw),
-  }
-}
-
-// ============ External event listeners (for AI tools) ============
-
-function onNotebookScrollToCell(e) {
-  const { path, cellId } = e.detail || {}
-  if (path !== props.filePath) return
-  const idx = cells.findIndex(c => c.id === cellId)
-  if (idx >= 0) scrollToCell(idx)
-}
-
-function onRunNotebookCell(e) {
-  const { path, index } = e.detail || {}
-  if (path !== props.filePath) return
-  runCell(index).then(result => {
-        const outputText = (result?.outputs || []).map(o => {
-          if (o.output_type === 'stream') return Array.isArray(o.text) ? o.text.join('') : o.text
-          if (o.output_type === 'execute_result' || o.output_type === 'display_data') {
-        return o.data?.['text/plain'] ? (Array.isArray(o.data['text/plain']) ? o.data['text/plain'].join('') : o.data['text/plain']) : `[${t('rich output')}]`
-          }
-          if (o.output_type === 'error') return `${o.ename}: ${o.evalue}`
-          return ''
-    }).join('\n')
-
-    window.dispatchEvent(new CustomEvent('cell-execution-complete', {
-      detail: {
-        path,
-        index,
-        output: outputText || `(${t('no output')})`,
-        success: result?.success !== false,
-        error: result?.success === false ? outputText : null,
-      },
-    }))
-  })
-}
-
-function onRunAllNotebookCells(e) {
-  const { path } = e.detail || {}
-  if (path !== props.filePath) return
-  runAllCells().then(() => {
-    const summary = cells
-      .filter(c => c.type === 'code' && c.outputs.length > 0)
-      .map((c, i) => {
-        const out = c.outputs.map(o => {
-          if (o.output_type === 'error') return `ERROR: ${o.ename}: ${o.evalue}`
-          if (o.output_type === 'stream') return (Array.isArray(o.text) ? o.text.join('') : o.text).slice(0, 200)
-          return `[${t('output')}]`
-        }).join('\n')
-        return `Cell ${i}: ${out.slice(0, 300)}`
-      }).join('\n\n')
-
-    window.dispatchEvent(new CustomEvent('all-cells-execution-complete', {
-      detail: {
-        path,
-        summary: summary || t('All cells executed (no output)'),
-      },
-    }))
-  })
-}
-
-// ============ Notebook review events ============
-
-function onNotebookPendingEdit(e) {
-  const { file_path } = e.detail || {}
-  if (file_path !== props.filePath) return
-  // displayCells computed will update reactively via reviews store
-}
-
-function onNotebookReviewResolved(e) {
-  const { file_path } = e.detail || {}
-  if (file_path !== props.filePath) return
-  // Reload notebook from disk after accept (content changed on disk)
-  loadNotebook()
-}
-
-// ============ Watch for external file changes (AI edits) ============
-
-watch(() => filesStore.fileContents[props.filePath], (newContent) => {
-  if (!newContent || saving.value) return
-  try {
-    const nb = parseNotebook(newContent)
-    if (JSON.stringify(nb.cells.map(c => c.source)) !== JSON.stringify(cells.map(c => c.source))) {
-      cells.splice(0, cells.length, ...nb.cells)
-      metadata.value = nb.metadata
-    }
-  } catch { /* ignore parse errors */ }
-})
-
-// ============ Lifecycle ============
-
-onMounted(async () => {
-  // Detect languages if not already done
-  if (!envStore.detected) {
-    await envStore.detect()
-  }
-
-  // Only discover kernels if we have Jupyter capability
-  if (mode.value === 'jupyter') {
-    await kernelStore.discover()
-  }
-
-  await loadNotebook()
-
-  window.addEventListener('run-notebook-cell', onRunNotebookCell)
-  window.addEventListener('run-all-notebook-cells', onRunAllNotebookCells)
-  window.addEventListener('notebook-scroll-to-cell', onNotebookScrollToCell)
-  window.addEventListener('notebook-pending-edit', onNotebookPendingEdit)
-  window.addEventListener('notebook-review-resolved', onNotebookReviewResolved)
-})
-
-onUnmounted(async () => {
-  window.removeEventListener('run-notebook-cell', onRunNotebookCell)
-  window.removeEventListener('run-all-notebook-cells', onRunAllNotebookCells)
-  window.removeEventListener('notebook-scroll-to-cell', onNotebookScrollToCell)
-  window.removeEventListener('notebook-pending-edit', onNotebookPendingEdit)
-  window.removeEventListener('notebook-review-resolved', onNotebookReviewResolved)
-
-  if (saveTimer) clearTimeout(saveTimer)
-  if (!filesStore.deletingPaths.has(props.filePath)) {
-    await saveNotebook()
-  }
-})
+const {
+  cells,
+  activeCell,
+  saving,
+  kernelId,
+  selectedSpec,
+  runningCells,
+  showStatusPopover,
+  statusChipRef,
+  popoverX,
+  popoverY,
+  envStore,
+  displayCells,
+  kernelspecs,
+  notebookLanguage,
+  langDisplayName,
+  mode,
+  kernelPackageName,
+  statusChipLabel,
+  statusChipClass,
+  statusDotClass,
+  kernelStatusLabel,
+  kernelStatusStyle,
+  setCellRef,
+  toggleStatusPopover,
+  handleInstallKernel,
+  redetect,
+  addCell,
+  deleteCell,
+  moveCell,
+  toggleCellType,
+  updateCellSource,
+  clearAllOutputs,
+  runCell,
+  runAllCells,
+  restartKernel,
+  acceptPendingEdit,
+  rejectPendingEdit,
+} = useNotebookEditor(props)
 </script>
 
 <style scoped>
