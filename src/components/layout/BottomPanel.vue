@@ -10,7 +10,7 @@
         <div
           v-for="(term, idx) in terminals"
           :key="term.id"
-          :ref="el => termTabEls[idx] = el"
+          :ref="el => setTermTabEl(term.id, el)"
           class="flex items-center h-full px-2 ui-text-xs cursor-pointer shrink-0 group"
           :style="{
             background: activeTerminal === idx ? 'var(--bg-primary)' : 'transparent',
@@ -93,7 +93,7 @@
       <Terminal
         v-for="(term, idx) in terminals"
         :key="term.id"
-        :ref="el => { if (el) terminalRefs[idx] = el }"
+        :ref="el => setTerminalRef(term.id, el)"
         v-show="activeTerminal === idx"
         :termId="term.id"
         :spawnCmd="term.spawnCmd || null"
@@ -131,6 +131,7 @@ let termNextId = 1
 const terminals = reactive([])
 const activeTerminal = ref(0)
 const terminalRefs = reactive({})
+const termTabEls = reactive({})
 
 // Terminal rename
 const termRenamingIdx = ref(-1)
@@ -141,7 +142,6 @@ const termRenameInputRef = ref(null)
 const termDragIdx = ref(-1)
 const termDragOverIdx = ref(-1)
 const termTabsContainer = ref(null)
-const termTabEls = reactive({})
 const termDropIndicatorLeft = ref(null)
 const termGhostVisible = ref(false)
 const termGhostX = ref(0)
@@ -150,6 +150,32 @@ const termGhostLabel = ref('')
 
 function defaultTerminalLabel(number) {
   return t('Terminal {number}', { number })
+}
+
+function setTerminalRef(termId, instance) {
+  if (instance) {
+    terminalRefs[termId] = instance
+  } else {
+    delete terminalRefs[termId]
+  }
+}
+
+function getTerminalRefByIndex(idx) {
+  const term = terminals[idx]
+  return term ? terminalRefs[term.id] : null
+}
+
+function setTermTabEl(termId, element) {
+  if (element) {
+    termTabEls[termId] = element
+  } else {
+    delete termTabEls[termId]
+  }
+}
+
+function getTermTabElByIndex(idx) {
+  const term = terminals[idx]
+  return term ? termTabEls[term.id] : null
 }
 
 // Seed first terminal if panel was already open from a previous session
@@ -169,7 +195,7 @@ watch(() => workspace.bottomPanelOpen, (open) => {
   }
   if (open) {
     nextTick(() => {
-      const term = terminalRefs[activeTerminal.value]
+      const term = getTerminalRefByIndex(activeTerminal.value)
       if (term) term.refitTerminal()
     })
   }
@@ -188,7 +214,11 @@ function addTerminal() {
 }
 
 function closeTerminal(idx) {
-  terminals.splice(idx, 1)
+  const [removed] = terminals.splice(idx, 1)
+  if (removed) {
+    delete terminalRefs[removed.id]
+    delete termTabEls[removed.id]
+  }
   if (terminals.length === 0) {
     // Last tab closed — hide the panel
     workspace.toggleBottomPanel()
@@ -247,9 +277,6 @@ function onTermMouseDown(idx, e) {
       const toIdx = termDragOverIdx.value
       const [moved] = terminals.splice(fromIdx, 1)
       terminals.splice(toIdx, 0, moved)
-      const tmpRef = terminalRefs[fromIdx]
-      terminalRefs[fromIdx] = terminalRefs[toIdx]
-      terminalRefs[toIdx] = tmpRef
       if (activeTerminal.value === fromIdx) activeTerminal.value = toIdx
       else if (fromIdx < activeTerminal.value && toIdx >= activeTerminal.value) activeTerminal.value--
       else if (fromIdx > activeTerminal.value && toIdx <= activeTerminal.value) activeTerminal.value++
@@ -276,15 +303,15 @@ function updateTermDropIndicator(mouseX) {
   let bestIdx = -1, bestDist = Infinity
   for (let i = 0; i <= terminals.length; i++) {
     let edgeX
-    if (i === 0) { const el = termTabEls[0]; if (!el) continue; edgeX = el.getBoundingClientRect().left }
-    else { const el = termTabEls[i - 1]; if (!el) continue; edgeX = el.getBoundingClientRect().right }
+    if (i === 0) { const el = getTermTabElByIndex(0); if (!el) continue; edgeX = el.getBoundingClientRect().left }
+    else { const el = getTermTabElByIndex(i - 1); if (!el) continue; edgeX = el.getBoundingClientRect().right }
     const dist = Math.abs(mouseX - edgeX)
     if (dist < bestDist) { bestDist = dist; bestIdx = i }
   }
   if (bestIdx !== -1 && bestIdx !== termDragIdx.value && bestIdx !== termDragIdx.value + 1) {
     let edgeX
-    if (bestIdx === 0) edgeX = termTabEls[0]?.getBoundingClientRect().left || 0
-    else edgeX = termTabEls[bestIdx - 1]?.getBoundingClientRect().right || 0
+    if (bestIdx === 0) edgeX = getTermTabElByIndex(0)?.getBoundingClientRect().left || 0
+    else edgeX = getTermTabElByIndex(bestIdx - 1)?.getBoundingClientRect().right || 0
     termDropIndicatorLeft.value = edgeX - containerRect.left - 1
     termDragOverIdx.value = bestIdx > termDragIdx.value ? bestIdx - 1 : bestIdx
   } else {
@@ -354,7 +381,7 @@ function onFocusLanguageTerminal(e) {
     activeTerminal.value = idx
     workspace.openBottomPanel()
     nextTick(() => {
-      const term = terminalRefs[idx]
+      const term = getTerminalRefByIndex(idx)
       if (term) { term.refitTerminal(); term.focus() }
     })
   }
@@ -407,7 +434,7 @@ function buildTerminalLogText(label, text, { clear = false } = {}) {
 
 function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
   nextTick(() => {
-    const term = terminalRefs[idx]
+    const term = getTerminalRefByIndex(idx)
     if (!term) {
       if (retries > 0) {
         setTimeout(() => writeTextToTerminal(idx, text, { clear, retries: retries - 1 }), 50)
@@ -420,7 +447,7 @@ function writeTextToTerminal(idx, text, { clear = false, retries = 6 } = {}) {
 
 function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 } = {}) {
   nextTick(() => {
-    const term = terminalRefs[idx]
+    const term = getTerminalRefByIndex(idx)
     if (!term) {
       if (retries > 0) {
         setTimeout(() => writeLogToShellTerminal(idx, label, text, { clear, retries: retries - 1 }), 75)
@@ -433,7 +460,7 @@ function writeLogToShellTerminal(idx, label, text, { clear = false, retries = 8 
 
 function writeStreamToShellTerminal(idx, text, { clear = false, headerLabel = '', retries = 8 } = {}) {
   nextTick(() => {
-    const term = terminalRefs[idx]
+    const term = getTerminalRefByIndex(idx)
     if (!term) {
       if (retries > 0) {
         setTimeout(() => writeStreamToShellTerminal(idx, text, {
@@ -496,7 +523,7 @@ async function buildReplCommand(code, language) {
 }
 
 async function sendCodeToTerminal(idx, code, language) {
-  const term = terminalRefs[idx]
+  const term = getTerminalRefByIndex(idx)
   if (!term) return
   const cmd = await buildReplCommand(code, language)
   await new Promise(r => setTimeout(r, 8))
@@ -556,7 +583,7 @@ defineExpose({
     }
     workspace.openBottomPanel()
     nextTick(() => {
-      const term = terminalRefs[activeTerminal.value]
+      const term = getTerminalRefByIndex(activeTerminal.value)
       if (term) { term.refitTerminal(); term.focus() }
     })
   },

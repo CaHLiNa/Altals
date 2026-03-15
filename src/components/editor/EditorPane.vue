@@ -62,22 +62,19 @@
     <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
          :class="{ 'flex flex-col': viewerType === 'text' }"
          style="background: var(--bg-primary);">
-      <div v-if="textTabs.length > 0" v-show="viewerType === 'text'" class="flex-1 min-w-0 h-full">
-        <div
-          v-for="tabPath in textTabs"
-          :key="tabPath"
-          v-show="activeTab === tabPath"
-          class="h-full"
-        >
-          <TextEditor
-            :filePath="tabPath"
-            :paneId="paneId"
-            @cursor-change="(pos) => $emit('cursor-change', pos)"
-            @editor-stats="(stats) => $emit('editor-stats', stats)"
-            @selection-change="onSelectionChange"
-          />
-        </div>
-      </div>
+      <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
+        <component
+          :is="TextEditor"
+          v-if="activeTab && viewerType === 'text'"
+          :key="`text:${activeTab}`"
+          class="flex-1 min-w-0 h-full"
+          :filePath="activeTab"
+          :paneId="paneId"
+          @cursor-change="(pos) => $emit('cursor-change', pos)"
+          @editor-stats="(stats) => $emit('editor-stats', stats)"
+          @selection-change="onSelectionChange"
+        />
+      </KeepAlive>
       <LatexPdfViewer
         v-if="activeTab && viewerType === 'pdf' && pdfSourceReady && pdfSourceKind === 'latex'"
         :key="activeTab"
@@ -244,7 +241,7 @@ const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => props.activeTab ? getViewerType(props.activeTab) : null)
 const viewerTypeRef = viewerType
 const refKey = computed(() => props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null)
-const textTabs = computed(() => props.tabs.filter(tab => getViewerType(tab) === 'text'))
+const TEXT_EDITOR_CACHE_MAX = 4
 
 const editorContainerRef = ref(null)
 const {

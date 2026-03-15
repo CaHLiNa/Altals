@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch } from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
@@ -102,6 +102,7 @@ let chunkExecuteAllHandler = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let cleanupTypstWindowListeners = null
+let editorRuntimeActive = false
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
@@ -531,45 +532,12 @@ onMounted(async () => {
     parent: editorContainer.value,
   })
 
-  // Register view
-  editorStore.registerEditorView(props.paneId, props.filePath, view)
-  cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
+  activateEditorRuntime()
+})
 
-  // Set initial merge view if there are pending edits
-  showMergeViewIfNeeded()
-
-  // Native click handler for wiki link + citation navigation (markdown only)
-  if (isMd) {
-    editorContainer.value.addEventListener('click', handleWikiLinkClick)
-    editorContainer.value.addEventListener('click', handleCitationClick)
-  }
-
-  // LaTeX citation click → edit mode
-  if (isTex) {
-    editorContainer.value.addEventListener('click', handleLatexCitationClick)
-  }
-
-  if (isTyp) {
-    editorContainer.value.addEventListener('click', handleTypstCitationClick)
-  }
-
-  // Comment-click handler (gutter dot + range clicks)
-  editorContainer.value.addEventListener('comment-click', handleCommentClick)
-
-  // Chunk execute handlers for .Rmd/.qmd
-  if (chunkExecuteHandler) {
-    editorContainer.value.addEventListener('chunk-execute', chunkExecuteHandler)
-    editorContainer.value.addEventListener('chunk-execute-all', chunkExecuteAllHandler)
-  }
-
-  // Initial comment sync
-  syncCommentsToEditor(view)
-
-  if (isTyp) {
-    hydrateTypstDiagnostics()
-  }
-
-  if (isTex) {
+function ensureLatexWindowHandlers() {
+  if (!isTex) return
+  if (!backwardSyncHandler) {
     backwardSyncHandler = (event) => {
       const { file, line } = event.detail || {}
       if (file && !props.filePath.endsWith(file.split('/').pop())) return
@@ -577,7 +545,8 @@ onMounted(async () => {
         focusEditorLine(line, { center: true })
       }
     }
-
+  }
+  if (!latexCursorRequestHandler) {
     latexCursorRequestHandler = (event) => {
       if (!view || event.detail?.texPath !== props.filePath) return
       const pos = view.state.selection.main.head
@@ -586,10 +555,93 @@ onMounted(async () => {
         detail: { texPath: props.filePath, line },
       }))
     }
+  }
+}
 
+function attachEditorRuntimeListeners() {
+  if (isMd) {
+    editorContainer.value?.addEventListener('click', handleWikiLinkClick)
+    editorContainer.value?.addEventListener('click', handleCitationClick)
+  }
+  if (isTex) {
+    editorContainer.value?.addEventListener('click', handleLatexCitationClick)
+  }
+  if (isTyp) {
+    editorContainer.value?.addEventListener('click', handleTypstCitationClick)
+  }
+  editorContainer.value?.addEventListener('comment-click', handleCommentClick)
+  if (chunkExecuteHandler) {
+    editorContainer.value?.addEventListener('chunk-execute', chunkExecuteHandler)
+    editorContainer.value?.addEventListener('chunk-execute-all', chunkExecuteAllHandler)
+  }
+  if (isTyp && !cleanupTypstWindowListeners) {
+    cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
+  }
+  if (isTex) {
+    ensureLatexWindowHandlers()
     window.addEventListener('latex-backward-sync', backwardSyncHandler)
     window.addEventListener('latex-request-cursor', latexCursorRequestHandler)
   }
+}
+
+function detachEditorRuntimeListeners() {
+  if (isMd) {
+    editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
+    editorContainer.value?.removeEventListener('click', handleCitationClick)
+  }
+  if (isTex) {
+    editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
+  }
+  if (isTyp) {
+    editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
+  }
+  editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
+  if (chunkExecuteHandler) {
+    editorContainer.value?.removeEventListener('chunk-execute', chunkExecuteHandler)
+    editorContainer.value?.removeEventListener('chunk-execute-all', chunkExecuteAllHandler)
+  }
+  if (cleanupTypstWindowListeners) {
+    cleanupTypstWindowListeners()
+    cleanupTypstWindowListeners = null
+  }
+  if (backwardSyncHandler) {
+    window.removeEventListener('latex-backward-sync', backwardSyncHandler)
+  }
+  if (latexCursorRequestHandler) {
+    window.removeEventListener('latex-request-cursor', latexCursorRequestHandler)
+  }
+}
+
+function activateEditorRuntime() {
+  if (!view || editorRuntimeActive) return
+  editorRuntimeActive = true
+  editorStore.registerEditorView(props.paneId, props.filePath, view)
+  attachEditorRuntimeListeners()
+  showMergeViewIfNeeded()
+  syncCommentsToEditor(view)
+  if (isTyp) {
+    hydrateTypstDiagnostics()
+  }
+  requestAnimationFrame(() => {
+    view?.requestMeasure?.()
+  })
+}
+
+function deactivateEditorRuntime() {
+  if (!editorRuntimeActive) return
+  editorRuntimeActive = false
+  ctxMenu.show = false
+  citPalette.show = false
+  detachEditorRuntimeListeners()
+  editorStore.unregisterEditorView(props.paneId, props.filePath)
+}
+
+onActivated(() => {
+  activateEditorRuntime()
+})
+
+onDeactivated(() => {
+  deactivateEditorRuntime()
 })
 
 // Wiki link click navigation (plain click navigates, like Obsidian)
@@ -703,42 +755,17 @@ if (isMd) {
 }
 
 onUnmounted(() => {
-  if (isMd) {
-    editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
-    editorContainer.value?.removeEventListener('click', handleCitationClick)
-  }
-  if (isTex) {
-    editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
-  }
-  if (isTyp) {
-    editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
-  }
-  if (cleanupTypstWindowListeners) {
-    cleanupTypstWindowListeners()
-    cleanupTypstWindowListeners = null
-  }
-  if (backwardSyncHandler) {
-    window.removeEventListener('latex-backward-sync', backwardSyncHandler)
-    backwardSyncHandler = null
-  }
-  if (latexCursorRequestHandler) {
-    window.removeEventListener('latex-request-cursor', latexCursorRequestHandler)
-    latexCursorRequestHandler = null
-  }
-  if (chunkExecuteHandler) {
-    editorContainer.value?.removeEventListener('chunk-execute', chunkExecuteHandler)
-    editorContainer.value?.removeEventListener('chunk-execute-all', chunkExecuteAllHandler)
-  }
-  editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
+  deactivateEditorRuntime()
   if (rmdKernelBridge) {
     rmdKernelBridge.shutdown()
     rmdKernelBridge = null
   }
   if (view) {
-    editorStore.unregisterEditorView(props.paneId, props.filePath)
     view.destroy()
     view = null
   }
+  backwardSyncHandler = null
+  latexCursorRequestHandler = null
 })
 </script>
 
