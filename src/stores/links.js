@@ -88,6 +88,7 @@ export const useLinksStore = defineStore('links', {
     // filePath → [heading1, heading2, ...]
     headings: {},
     initialized: false,
+    _scanGeneration: 0,
   }),
 
   getters: {
@@ -160,6 +161,8 @@ export const useLinksStore = defineStore('links', {
       const workspace = useWorkspaceStore()
       const filesStore = useFilesStore()
       if (!workspace.path) return
+      const scanGeneration = ++this._scanGeneration
+      const workspacePath = workspace.path
 
       // Reset
       this.forwardLinks = {}
@@ -172,6 +175,9 @@ export const useLinksStore = defineStore('links', {
 
       // Read all files and build indices
       for (const file of mdFiles) {
+        if (scanGeneration !== this._scanGeneration || workspace.path !== workspacePath) {
+          return
+        }
         try {
           let content = filesStore.fileContents[file.path]
           if (content == null) {
@@ -185,6 +191,9 @@ export const useLinksStore = defineStore('links', {
       }
 
       // Build backlinks from forward links
+      if (scanGeneration !== this._scanGeneration || workspace.path !== workspacePath) {
+        return
+      }
       this._rebuildBacklinks()
 
       this.initialized = true
@@ -356,6 +365,15 @@ export const useLinksStore = defineStore('links', {
           })
         }
       }
+    },
+
+    cleanup() {
+      this._scanGeneration += 1
+      this.forwardLinks = {}
+      this.backlinks = {}
+      this.nameMap = {}
+      this.headings = {}
+      this.initialized = false
     },
   },
 })

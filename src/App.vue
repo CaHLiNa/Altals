@@ -159,6 +159,7 @@ const versionHistoryFile = ref('')
 
 const rightSidebarPreSnapWidth = ref(null)
 let sidebarWidthSaveTimer = null
+let backgroundWorkspaceLoadTimer = null
 
 // Startup
 onMounted(async () => {
@@ -203,6 +204,11 @@ async function pickWorkspace() {
 }
 
 async function openWorkspace(path) {
+  if (backgroundWorkspaceLoadTimer) {
+    clearTimeout(backgroundWorkspaceLoadTimer)
+    backgroundWorkspaceLoadTimer = null
+  }
+
   // Close any currently open workspace first
   if (workspace.isOpen) {
     await closeWorkspace()
@@ -212,22 +218,26 @@ async function openWorkspace(path) {
     await workspace.openWorkspace(path)
     editorStore.loadRecentFiles(path)
 
-    // Critical path: file tree + editor restore in parallel → UI is usable immediately
-    await Promise.all([
-      filesStore.loadFileTree(),
-      editorStore.restoreEditorState(),
-    ])
+    // Load the file tree first so restored PDF/preview tabs resolve to a stable viewer branch.
+    await filesStore.loadFileTree()
+    await editorStore.restoreEditorState()
     if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
 
     // Background: don't block the editor opening
     filesStore.startWatching()
     reviews.startWatching()
-    linksStore.fullScan()
     chatStore.loadSessions()
     commentsStore.loadComments()
     referencesStore.loadLibrary()
     typstStore.loadSettings()
     typstStore.checkCompiler()
+    backgroundWorkspaceLoadTimer = window.setTimeout(() => {
+      if (workspace.path !== path) return
+      linksStore.fullScan().catch((scanError) => {
+        console.warn('[workspace] linksStore.fullScan failed:', scanError)
+      })
+      backgroundWorkspaceLoadTimer = null
+    }, 600)
   } catch (e) {
     console.error('Failed to open workspace:', e)
     await closeWorkspace()
@@ -242,11 +252,17 @@ async function openWorkspace(path) {
 }
 
 async function closeWorkspace() {
+  if (backgroundWorkspaceLoadTimer) {
+    clearTimeout(backgroundWorkspaceLoadTimer)
+    backgroundWorkspaceLoadTimer = null
+  }
+
   // Save editor state before cleanup resets the pane tree
   await editorStore.saveEditorStateImmediate()
   editorStore.cleanup()
   filesStore.cleanup()
   reviews.cleanup()
+  linksStore.cleanup()
   await kernelStore.shutdownAll()
   latexStore.cleanup()
   typstStore.cleanup()
@@ -488,6 +504,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (backgroundWorkspaceLoadTimer) {
+    clearTimeout(backgroundWorkspaceLoadTimer)
+    backgroundWorkspaceLoadTimer = null
+  }
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('keydown', handleAltZ, true)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -502,6 +522,7 @@ onUnmounted(() => {
   workspace.cleanup()
   filesStore.cleanup()
   reviews.cleanup()
+  linksStore.cleanup()
 })
 
 // Force save + commit

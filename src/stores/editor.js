@@ -37,6 +37,8 @@ export const useEditorStore = defineStore('editor', {
     recentFiles: [],  // { path, openedAt }
     // Last pane the user viewed that had a chat or newtab as its active tab
     lastChatPaneId: null,
+    // Invalidate async restore validation work when switching workspaces.
+    restoreGeneration: 0,
   }),
 
   getters: {
@@ -777,6 +779,9 @@ export const useEditorStore = defineStore('editor', {
       const workspace = useWorkspaceStore()
       const state = await loadState(workspace.shouldersDir)
       if (!state) return false
+      const restoreGeneration = ++this.restoreGeneration
+      const restoredWorkspacePath = workspace.path
+      const restoredShouldersDir = workspace.shouldersDir
 
       // Optimistic: apply immediately — UI renders now
       this.paneTree = state.paneTree
@@ -789,6 +794,13 @@ export const useEditorStore = defineStore('editor', {
 
       // Background: validate all tabs in parallel, close any that are gone
       findInvalidTabs(workspace.shouldersDir, this.paneTree).then(invalidTabs => {
+        if (
+          restoreGeneration !== this.restoreGeneration
+          || workspace.path !== restoredWorkspacePath
+          || workspace.shouldersDir !== restoredShouldersDir
+        ) {
+          return
+        }
         if (invalidTabs.size === 0) return
         for (const tab of invalidTabs) {
           this.closeFileFromAllPanes(tab)
@@ -806,6 +818,9 @@ export const useEditorStore = defineStore('editor', {
     },
 
     cleanup() {
+      clearTimeout(_saveStateTimer)
+      _saveStateTimer = null
+
       // Destroy all CodeMirror EditorView instances
       for (const key of Object.keys(this.editorViews)) {
         try { this.editorViews[key]?.destroy() } catch (e) { /* component may already be unmounted */ }
@@ -825,6 +840,7 @@ export const useEditorStore = defineStore('editor', {
       this.recentFiles = []
       this.cursorOffset = 0
       this.docxUpdateCount = 0
+      this.restoreGeneration += 1
     },
   },
 })
