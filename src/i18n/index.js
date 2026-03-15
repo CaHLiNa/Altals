@@ -985,7 +985,7 @@ const ZH_MESSAGES = {
   'Compute and interpret descriptive statistics for each column in this dataset.': '请计算并解读这个数据集中各列的描述性统计量。',
 }
 
-export function normalizeLocale(value = '') {
+function normalizeLocale(value = '') {
   return String(value).toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
 }
 

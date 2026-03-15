@@ -1,9 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export async function gitInit(path) {
-  return invoke('git_init', { path })
-}
-
 export async function gitAdd(repoPath) {
   return invoke('git_add_all', { repoPath })
 }
@@ -48,13 +44,6 @@ export async function gitShow(repoPath, commitHash, filePath) {
  */
 export async function gitShowBase64(repoPath, commitHash, filePath) {
   return invoke('git_show_file_base64', { repoPath, commitHash, filePath })
-}
-
-/**
- * Get a diff between working copy and last commit.
- */
-export async function gitDiff(repoPath) {
-  return invoke('git_diff', { repoPath })
 }
 
 /**
@@ -116,8 +105,4 @@ export async function gitMergeRemote(repoPath, remote, branch) {
 
 export async function gitSetUser(repoPath, name, email) {
   return invoke('git_set_user', { repoPath, name, email })
-}
-
-export async function gitCloneAuthenticated(url, targetPath, token) {
-  return invoke('git_clone_authenticated', { url, targetPath, token })
 }

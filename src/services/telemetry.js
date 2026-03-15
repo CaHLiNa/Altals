@@ -8,18 +8,7 @@ export function initTelemetry() {
   } catch { /* ignore */ }
 }
 
-export function setTelemetryEnabled(value) {
-  enabled = value
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled }))
-  } catch { /* ignore */ }
-}
-
-export function isTelemetryEnabled() {
-  return enabled
-}
-
-export function trackEvent(eventType, eventData = null) {
+function trackEvent(eventType, eventData = null) {
   void eventType
   void eventData
 }

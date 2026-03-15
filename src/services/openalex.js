@@ -14,7 +14,7 @@ const SELECT_FIELDS = [
  * Input: { "Despite": [0], "growing": [1], "interest": [2, 45], ... }
  * Output: "Despite growing interest ..."
  */
-export function reconstructAbstract(invertedIndex) {
+function reconstructAbstract(invertedIndex) {
   if (!invertedIndex || typeof invertedIndex !== 'object') return ''
   const words = []
   for (const [word, positions] of Object.entries(invertedIndex)) {
@@ -80,85 +80,4 @@ export async function searchWorks(query, { perPage = 5, apiKey = null } = {}) {
 
   const data = JSON.parse(response)
   return (data.results || []).map(slimWork)
-}
-
-/**
- * Slim results from raw OpenAlex JSON.
- */
-export function slimResults(rawResults) {
-  return (rawResults || []).map(slimWork)
-}
-
-/**
- * Convert an OpenAlex work object to CSL-JSON.
- * Mirrors crossrefToCsl() output shape for compatibility with references store.
- * Accepts either raw or slim works (checks for both field shapes).
- */
-export function openalexToCsl(work) {
-  const typeMap = {
-    'article': 'article-journal',
-    'preprint': 'article',
-    'book': 'book',
-    'book-chapter': 'chapter',
-    'dissertation': 'thesis',
-    'dataset': 'dataset',
-    'editorial': 'article-journal',
-    'erratum': 'article-journal',
-    'letter': 'article-journal',
-    'review': 'review',
-    'paratext': 'article',
-  }
-
-  const csl = {
-    type: typeMap[work.type] || 'article',
-    title: work.display_name || work.title || '',
-    DOI: work.doi ? work.doi.replace('https://doi.org/', '') : '',
-  }
-
-  // Authors
-  if (work.authorships?.length) {
-    csl.author = work.authorships.map(a => {
-      const name = a.author?.display_name || ''
-      const parts = name.split(' ')
-      return {
-        family: parts.length > 1 ? parts.slice(-1)[0] : name,
-        given: parts.length > 1 ? parts.slice(0, -1).join(' ') : '',
-      }
-    })
-  }
-
-  // Date
-  if (work.publication_year) {
-    csl.issued = { 'date-parts': [[work.publication_year]] }
-  }
-
-  // Journal / source
-  const source = work.primary_location?.source
-  if (source?.display_name) {
-    csl['container-title'] = source.display_name
-  }
-
-  // Biblio: volume, issue, pages
-  if (work.biblio) {
-    if (work.biblio.volume) csl.volume = work.biblio.volume
-    if (work.biblio.issue) csl.issue = work.biblio.issue
-    if (work.biblio.first_page) {
-      csl.page = work.biblio.last_page
-        ? `${work.biblio.first_page}-${work.biblio.last_page}`
-        : work.biblio.first_page
-    }
-  }
-
-  // Abstract
-  const abstract_ = work.abstract || reconstructAbstract(work.abstract_inverted_index)
-  if (abstract_) csl.abstract = abstract_
-
-  // URL (prefer OA URL, fall back to DOI)
-  if (work.open_access?.oa_url) {
-    csl.URL = work.open_access.oa_url
-  } else if (work.doi) {
-    csl.URL = work.doi
-  }
-
-  return csl
 }

@@ -172,23 +172,3 @@ async function _resolveModelAccess(modelId, workspace) {
 
   return _accessForResolvedModel(model, providerConfig, apiKey)
 }
-
-export function hasAnyAccess(workspace) {
-  const config = workspace.modelsConfig
-  if (config?.providers) {
-    const keys = workspace.apiKeys || {}
-    for (const providerConfig of Object.values(config.providers)) {
-      const keyEnv = providerConfig?.apiKeyEnv
-      const key = keyEnv ? keys[keyEnv] : ''
-      if (key && !key.includes('your-')) return true
-    }
-    return false
-  }
-
-  const keys = workspace.apiKeys || {}
-  for (const { keyEnv } of CHEAP_MODELS) {
-    const key = keys[keyEnv]
-    if (key && !key.includes('your-')) return true
-  }
-  return false
-}

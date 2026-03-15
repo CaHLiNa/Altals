@@ -32,30 +32,6 @@ pub async fn git_clone(url: String, target_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_init(path: String) -> Result<(), String> {
-    let repo = Repository::init(&path).map_err(|e| e.message().to_string())?;
-
-    // Write default .gitignore if it doesn't exist
-    let gitignore_path = Path::new(&path).join(".gitignore");
-    if !gitignore_path.exists() {
-        std::fs::write(
-            &gitignore_path,
-            "node_modules/\n.DS_Store\n",
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    // Stage the .gitignore so the initial commit isn't empty
-    let mut index = repo.index().map_err(|e| e.message().to_string())?;
-    index
-        .add_path(Path::new(".gitignore"))
-        .map_err(|e| e.message().to_string())?;
-    index.write().map_err(|e| e.message().to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn git_add_all(repo_path: String) -> Result<(), String> {
     let repo = open_repo(&repo_path)?;
     let mut index = repo.index().map_err(|e| e.message().to_string())?;
@@ -304,62 +280,6 @@ pub async fn git_show_file_base64(
         .map_err(|e| e.message().to_string())?;
 
     Ok(STANDARD.encode(blob.content()))
-}
-
-#[tauri::command]
-pub async fn git_diff(repo_path: String) -> Result<String, String> {
-    let repo = open_repo(&repo_path)?;
-
-    let head_tree = match repo.head() {
-        Ok(head) => {
-            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
-            Some(commit.tree().map_err(|e| e.message().to_string())?)
-        }
-        Err(_) => None,
-    };
-
-    let mut opts = DiffOptions::new();
-    let diff = repo
-        .diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))
-        .map_err(|e| e.message().to_string())?;
-
-    let mut patch = String::new();
-    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-        let origin = line.origin();
-        if origin == '+' || origin == '-' || origin == ' ' {
-            patch.push(origin);
-        }
-        patch.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
-        true
-    })
-    .map_err(|e| e.message().to_string())?;
-
-    Ok(patch)
-}
-
-#[tauri::command]
-pub async fn git_diff_stat(repo_path: String) -> Result<String, String> {
-    let repo = open_repo(&repo_path)?;
-
-    let head_tree = match repo.head() {
-        Ok(head) => {
-            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
-            Some(commit.tree().map_err(|e| e.message().to_string())?)
-        }
-        Err(_) => None,
-    };
-
-    let mut opts = DiffOptions::new();
-    let diff = repo
-        .diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))
-        .map_err(|e| e.message().to_string())?;
-
-    let stats = diff.stats().map_err(|e| e.message().to_string())?;
-    let buf = stats
-        .to_buf(git2::DiffStatsFormat::FULL, 80)
-        .map_err(|e| e.message().to_string())?;
-
-    Ok(buf.as_str().unwrap_or("").to_string())
 }
 
 #[derive(Serialize, Clone)]

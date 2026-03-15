@@ -14,14 +14,12 @@ use crate::process_utils::{background_command, background_tokio_command};
 const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";
 
 pub struct LatexState {
-    pub enabled: Mutex<bool>,
     pub compiling: Mutex<HashMap<String, bool>>,
 }
 
 impl Default for LatexState {
     fn default() -> Self {
         Self {
-            enabled: Mutex::new(true),
             compiling: Mutex::new(HashMap::new()),
         }
     }
@@ -632,42 +630,6 @@ pub async fn compile_latex(
     }
 
     result
-}
-
-#[tauri::command]
-pub async fn set_tectonic_enabled(
-    state: tauri::State<'_, LatexState>,
-    enabled: bool,
-) -> Result<(), String> {
-    let mut flag = state.enabled.lock().unwrap();
-    *flag = enabled;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn is_tectonic_enabled(state: tauri::State<'_, LatexState>) -> Result<bool, String> {
-    let flag = state.enabled.lock().unwrap();
-    Ok(*flag)
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TectonicStatus {
-    pub installed: bool,
-    pub path: Option<String>,
-}
-
-#[tauri::command]
-pub async fn check_tectonic(app: tauri::AppHandle) -> Result<TectonicStatus, String> {
-    match find_tectonic(&app, None) {
-        Some(path) => Ok(TectonicStatus {
-            installed: true,
-            path: Some(path),
-        }),
-        None => Ok(TectonicStatus {
-            installed: false,
-            path: None,
-        }),
-    }
 }
 
 #[tauri::command]

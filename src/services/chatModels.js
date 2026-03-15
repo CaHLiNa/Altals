@@ -33,10 +33,3 @@ export function getThinkingConfig(apiModel, provider, thinkingLevel) {
   }
   return null
 }
-
-export function modelHasAccess(modelConfig, providerConfig, workspace) {
-  const keyEnv = providerConfig?.apiKeyEnv
-  const key = keyEnv ? workspace.apiKeys?.[keyEnv] : null
-  const hasDirectKey = key && !key.includes('your-')
-  return !!hasDirectKey
-}

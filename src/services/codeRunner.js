@@ -36,19 +36,11 @@ export function getLanguageConfig(language) {
   return config
 }
 
-export function getLanguageForFile(filePath) {
-  const name = filePath.split('/').pop() || ''
-  const dot = name.lastIndexOf('.')
-  if (dot <= 0) return null
-  const ext = name.substring(dot + 1)
-  return EXT_LANGUAGE_MAP[ext] || null
-}
-
 /**
  * Ensure a language REPL terminal exists. Dispatches event for RightPanel to handle.
  * Returns immediately — the terminal may take a moment to spawn.
  */
-export function ensureSession(language) {
+function ensureSession(language) {
   window.dispatchEvent(new CustomEvent('create-language-terminal', { detail: { language } }))
 }
 

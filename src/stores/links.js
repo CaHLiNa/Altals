@@ -5,11 +5,11 @@ import { useFilesStore } from './files'
 
 // --- Pure helpers ---
 
-export function normalizeName(name) {
+function normalizeName(name) {
   return name.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
 }
 
-export function parseWikiLinks(content) {
+function parseWikiLinks(content) {
   const links = []
   const re = /\[\[([^\]]+)\]\]/g
   let m

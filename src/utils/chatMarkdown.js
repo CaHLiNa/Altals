@@ -106,7 +106,7 @@ export function isSkillRead(name, input) {
  * Extract a human-readable skill name from a skill file path.
  * e.g. "/Users/name/.altals/.../skills/altals-meta/SKILL.md" → "Altals Meta"
  */
-export function getSkillDisplayName(input) {
+function getSkillDisplayName(input) {
   if (!input?.path) return 'Skill'
   const parts = input.path.split('/')
   const skillIdx = parts.indexOf('skills')

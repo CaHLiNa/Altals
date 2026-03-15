@@ -1252,11 +1252,6 @@ pub async fn export_md_to_pdf(
 }
 
 #[tauri::command]
-pub async fn is_typst_available(app: tauri::AppHandle) -> Result<bool, String> {
-    Ok(find_typst(&app).is_some())
-}
-
-#[tauri::command]
 pub async fn check_typst_compiler(app: tauri::AppHandle) -> Result<TypstCompilerStatus, String> {
     let path = find_typst(&app);
     Ok(TypstCompilerStatus {

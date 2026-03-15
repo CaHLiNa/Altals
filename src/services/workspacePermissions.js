@@ -20,20 +20,20 @@ function writeBookmarks(bookmarks) {
   localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks))
 }
 
-export function getWorkspaceBookmark(path) {
+function getWorkspaceBookmark(path) {
   if (!path) return ''
   const bookmarks = readBookmarks()
   return bookmarks[normalizeWorkspacePath(path)] || ''
 }
 
-export function setWorkspaceBookmark(path, bookmark) {
+function setWorkspaceBookmark(path, bookmark) {
   if (!path || !bookmark) return
   const bookmarks = readBookmarks()
   bookmarks[normalizeWorkspacePath(path)] = bookmark
   writeBookmarks(bookmarks)
 }
 
-export function moveWorkspaceBookmark(oldPath, newPath, fallbackBookmark = '') {
+function moveWorkspaceBookmark(oldPath, newPath, fallbackBookmark = '') {
   const bookmarks = readBookmarks()
   const oldKey = normalizeWorkspacePath(oldPath)
   const newKey = normalizeWorkspacePath(newPath)

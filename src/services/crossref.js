@@ -119,7 +119,7 @@ export async function searchByMetadata(title, author, year) {
 /**
  * Convert CrossRef work item to CSL-JSON.
  */
-export function crossrefToCsl(work) {
+function crossrefToCsl(work) {
   const typeMap = {
     'journal-article': 'article-journal',
     'proceedings-article': 'paper-conference',

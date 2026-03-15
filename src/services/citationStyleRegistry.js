@@ -67,7 +67,7 @@ export function getAvailableStyles() {
 /**
  * Find a style by ID.
  */
-export function getStyleInfo(id) {
+function getStyleInfo(id) {
   return BUILTIN_STYLES.find(s => s.id === id) || userStyles.find(s => s.id === id) || null
 }
 

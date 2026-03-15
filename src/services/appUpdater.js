@@ -9,28 +9,6 @@ export async function getAppVersion() {
   }
 }
 
-export async function checkForUpdate() {
-  return null
-}
-
-export async function downloadUpdate(update, onProgress) {
-  void update
-  if (onProgress) onProgress(0)
-  return false
-}
-
-export async function installAndRestart() {
-  return false
-}
-
-export function isAutoCheckEnabled() {
-  return false
-}
-
-export function setAutoCheckEnabled(enabled) {
-  void enabled
-}
-
 export async function openReleasesPage() {
   const { open } = await import('@tauri-apps/plugin-shell')
   await open(RELEASES_URL)

@@ -34,21 +34,6 @@ fn enable_macos_spellcheck() {
     defaults.setBool_forKey(true, &key);
 }
 
-/// Open the macOS Spelling & Grammar panel
-#[cfg(target_os = "macos")]
-#[tauri::command]
-fn open_spelling_panel(app: tauri::AppHandle) -> Result<(), String> {
-    use objc2_app_kit::NSSpellChecker;
-    app.run_on_main_thread(move || {
-        let mtm = objc2::MainThreadMarker::new().unwrap();
-        let checker = NSSpellChecker::sharedSpellChecker();
-        let panel = checker.spellingPanel(mtm);
-        panel.makeKeyAndOrderFront(None);
-    })
-    .map_err(|e| format!("{:?}", e))?;
-    Ok(())
-}
-
 /// Get spelling suggestions for a word via macOS NSSpellChecker
 #[cfg(target_os = "macos")]
 #[tauri::command]
@@ -87,12 +72,6 @@ fn spell_suggest(word: String) -> Vec<String> {
 #[tauri::command]
 fn spell_suggest(_word: String) -> Vec<String> {
     vec![]
-}
-
-#[cfg(not(target_os = "macos"))]
-#[tauri::command]
-fn open_spelling_panel() -> Result<(), String> {
-    Err("Spelling panel is only available on macOS".into())
 }
 
 const KEYRING_SERVICE: &str = "com.altals.desktop";
@@ -545,7 +524,6 @@ pub fn run() {
             fs_commands::unwatch_directory,
             fs_commands::proxy_api_call,
             git::git_clone,
-            git::git_init,
             git::git_add_all,
             git::git_commit,
             git::git_status,
@@ -553,8 +531,6 @@ pub fn run() {
             git::git_log,
             git::git_show_file,
             git::git_show_file_base64,
-            git::git_diff,
-            git::git_diff_stat,
             git::git_diff_summary,
             git::git_remote_add,
             git::git_remote_get_url,
@@ -594,9 +570,6 @@ pub fn run() {
             kernel::kernel_shutdown,
             kernel::kernel_complete,
             latex::compile_latex,
-            latex::set_tectonic_enabled,
-            latex::is_tectonic_enabled,
-            latex::check_tectonic,
             latex::check_latex_compilers,
             latex::download_tectonic,
             latex::synctex_forward,
@@ -609,7 +582,6 @@ pub fn run() {
             pdf_translate::pdf_translate_cancel,
             model_sync::model_sync_list_openai_models,
             typst_export::export_md_to_pdf,
-            typst_export::is_typst_available,
             typst_export::check_typst_compiler,
             typst_export::download_typst,
             typst_export::compile_typst_file,
@@ -622,7 +594,6 @@ pub fn run() {
             keychain_get,
             keychain_set,
             keychain_delete,
-            open_spelling_panel,
             spell_suggest,
         ])
         .run(tauri::generate_context!())

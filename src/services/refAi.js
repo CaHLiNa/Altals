@@ -5,7 +5,7 @@
  */
 
 import { generateText } from 'ai'
-import { resolveApiAccess, hasAnyAccess } from './apiClient'
+import { resolveApiAccess } from './apiClient'
 import { createModel, convertSdkUsage } from './aiSdk'
 import { createTauriFetch } from './tauriFetch'
 import { calculateCost } from './tokenUsage'
@@ -55,13 +55,6 @@ const EXTRACT_SCHEMA = `{
   "issue": "string",
   "pages": "string"
 }`
-
-/**
- * Check if any AI model is available.
- */
-export function hasAiAccess(workspace) {
-  return hasAnyAccess(workspace)
-}
 
 /**
  * Helper: call generateText with tauriFetch and record usage.

@@ -71,7 +71,7 @@ function matchesPreviewBinding(tabPath, sourcePath, preferredPreview, workflowSt
   return inferredKind !== null && (!preferredPreview || inferredKind === preferredPreview)
 }
 
-export function chooseWorkflowPreviewAction(context, options = {}) {
+function chooseWorkflowPreviewAction(context, options = {}) {
   const kind = getDocumentWorkflowKind(context?.activeFile)
   if (!kind) {
     return { type: 'inactive', kind: null }

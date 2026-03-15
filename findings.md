@@ -1,48 +1,50 @@
 # Findings & Decisions
 
 ## Requirements
-- 用户先要求对整个项目做一次从头开始、细致的全面检查。
-- 在审查结果给出后，用户进一步要求直接开始修复。
-- 交付需要同时覆盖问题证据、修复结果和验证结果。
+- 用户要求对整个项目做一次全局检查和大力度清理。
+- 清理范围包括：没用的代码、旧代码、写了但没用的代码、两套相同作用但只用其中一套的代码。
+- 用户明确选择激进清理方案，但要求每次改完后都要做测试。
+- Markdown/LaTeX、DOCX、聊天 AI、终端、GitHub 同步、引用管理、PDF/Typst 等主流程都不能被打坏。
 
 ## Resolved Findings
-| Finding | Fix Summary | Evidence |
-|---------|-------------|----------|
-| AI `run_command` 原本可直接落到整机级 shell | 新增 `run_workspace_command`，要求工作区内执行、禁止 shell 链式语法和高风险程序，并按真实退出码返回结果 | `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/fs_commands.rs`, `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/security.rs`, `/Users/math173sr/Documents/GitHub项目/Altals/src/services/chatTools.js` |
-| AI 文件工具路径校验存在 `startsWith` 前缀绕过 | 将前端路径解析改为绝对路径规范化 + 目录边界判断 | `/Users/math173sr/Documents/GitHub项目/Altals/src/services/chatTools.js` |
-| `fetch_url` fallback 可访问 `localhost` / 内网 | 新增公共 URL 校验并对 redirect 逐跳重新校验 | `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/security.rs`, `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/fs_commands.rs` |
-| 聊天输入 `@` mention 触发逻辑被错误替换 | 将触发字符和检测逻辑恢复为真实 `@` 路径 | `/Users/math173sr/Documents/GitHub项目/Altals/src/components/shared/RichTextInput.vue` |
-| 评论建议会按全文首个匹配替换，可能改错位置 | 改为只在 comment anchor 范围内查找并替换，找不到时提示 re-anchor | `/Users/math173sr/Documents/GitHub项目/Altals/src/stores/comments.js` |
-| PTY kill 不会真正杀进程，退出后 session 也可能残留 | 保存 `killer`，新增 wait 线程清理 session，并发送退出事件 | `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/pty.rs` |
-| `run_shell_command` 忽略退出码，失败会被当作成功 | 统一经过 `format_command_output`，非零退出码直接报错 | `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/fs_commands.rs` |
-| 内部图片落盘/清理依赖 shell 命令 | 改为 `write_file_base64` 和显式 `delete_path` / `read_dir_shallow` | `/Users/math173sr/Documents/GitHub项目/Altals/src/services/rmdKnit.js`, `/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/EditorPane.vue` |
-| 环境探测命令默认在 `.` 执行，容易脱离工作区上下文 | 改为优先使用当前工作区路径，再回退到全局配置目录 | `/Users/math173sr/Documents/GitHub项目/Altals/src/stores/environment.js` |
+| Finding | Cleanup | Evidence |
+|---------|---------|----------|
+| 前端存在一批从 `src/main.js` 根本不可达的死文件 | 删除 6 个完全不可达文件，包括旧的 DOCX citation overlay、旧 HTML/PDF preview UI 和废弃 workspace 协议工具 | `src/components/editor/DocxCitationOverlays.vue`, `src/components/editor/HtmlPreview.vue`, `src/components/editor/PdfSettingsPopover.vue`, `src/components/editor/PreviewSyncActions.vue`, `src/editor/docxCitations.js`, `src/utils/workspaceProtocol.js` |
+| Tauri 注册了前端根本不会调用的命令 | 删除 6 个无调用 command，并清理它们唯一依赖的残留状态/结构 | `src-tauri/src/latex.rs`, `src-tauri/src/git.rs`, `src-tauri/src/typst_export.rs`, `src-tauri/src/lib.rs` |
+| services / utils 中存在断链 wrapper 和完全未使用 helper | 删除无调用导出、断链 git wrapper、无效更新 stub、DOCX/OpenAlex 辅助死代码 | `src/services/appUpdater.js`, `src/services/codeRunner.js`, `src/services/docxContext.js`, `src/services/openalex.js`, `src/services/refAi.js`, `src/services/git.js`, `src/utils/errorMessages.js`, `src/utils/fileTypes.js` |
+| 多个模块把仅文件内使用的 helper 暴露成公共 API，增加维护噪音 | 将内部 helper 改回私有函数，缩小维护面而不改行为 | `src/services/citationStyleRegistry.js`, `src/services/crossref.js`, `src/services/documentWorkflow/policy.js`, `src/services/documentWorkflow/reconcile.js`, `src/services/workspacePermissions.js`, `src/stores/links.js`, `src/utils/chatMarkdown.js`, `src/i18n/index.js`, `src/services/telemetry.js`, `src/services/apiClient.js`, `src/services/chatModels.js` |
 
 ## Verification Findings
-- 根前端 `npm run build` 通过，仍有大量动态导入与大 chunk 告警。
-- Rust `cargo check --manifest-path src-tauri/Cargo.toml` 通过。
-- `web/` 下 `npm run build` 通过。
+- 共完成 4 轮“改完即测”验证。
+- 每一轮都运行了：
+  - `npm run build`
+  - `cargo check --manifest-path src-tauri/Cargo.toml`
+- 最后一轮的最新结果仍然是：
+  - 根前端 `npm run build` 通过
+  - Rust `cargo check --manifest-path src-tauri/Cargo.toml` 通过
+- 额外复盘扫描结果：
+  - 从 `src/main.js` 出发的前端不可达文件扫描结果为空
+  - Tauri `generate_handler!` 中“已注册但前端未调用命令”扫描结果为空
+
+## Quantified Outcome
+- 本轮共改动 32 个文件。
+- 净删除约 1621 行，新增约 102 行。
+- 删除的代码以死文件、未调用命令、断链 wrapper 和无效导出为主，没有扩展用户功能范围。
 
 ## Remaining Known Risks
-- 根前端打包产物依旧偏大，`dist/assets/index-CONXqqQ8.js` 和 `dist/assets/superdoc.es-Dplj1OpB.js` 仍在 3.6-3.8 MB 量级。
-- 仓库仍缺少自动化测试，本轮只能用构建检查和定向代码验证兜底。
-- 更底层的通用文件命令仍然是高权限能力；本轮已把 AI 暴露面的关键越界点封住，但如果要做更彻底的权限模型收口，需要额外梳理导入、克隆、外部文件打开等合法场景。
+- 仓库仍然缺少自动化测试，本轮只能用构建/编译验证兜底，无法替代全链路交互回归。
+- 仍存在较多 “dynamic import + static import 混用” 的 Vite 警告，说明还有进一步的代码分块/依赖整理空间，但这已进入主链路重构风险区。
+- 主包体依旧很大，尤其 `superdoc` 和主 `index` chunk；这是后续性能/构建优化议题，不属于本轮“安全清屎山”范围。
 
-## Technical Decisions
+## Decisions Made
 | Decision | Rationale |
 |----------|-----------|
-| 先修复确认可复现的高风险问题，再保留结构性优化为后续工作 | 避免大改期间引入新的回归 |
-| 对安全边界采用“前端路径约束 + 后端工作区命令/URL 校验”双层防护 | 既封住 AI 工具入口，也减少未来接入点分叉 |
-| 保持现有工作流兼容，不把所有文件操作都硬封进工作区 | 导入、克隆、打开外部文件等流程需要额外产品级设计 |
+| 优先删除“可证明不可达”的文件和命令 | 这是收益最高、风险最低的全局清理入口 |
+| 将仅文件内部使用的 helper 改为私有，而不是继续暴露导出 | 减少误导性的公共 API 面 |
+| 当可达性扫描和未调用命令扫描均清空后停止继续扩大范围 | 再往下会进入真实业务链路重构，不适合在缺少自动化测试的前提下继续激进推进 |
 
 ## Resources
-- `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/security.rs`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/fs_commands.rs`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src/pty.rs`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/App.vue`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/services/chatTools.js`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/components/shared/RichTextInput.vue`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/stores/comments.js`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/services/rmdKnit.js`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/EditorPane.vue`
-- `/Users/math173sr/Documents/GitHub项目/Altals/src/stores/environment.js`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-15-global-cleanup-design.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-15-global-cleanup.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/src`
+- `/Users/math173sr/Documents/GitHub项目/Altals/src-tauri/src`

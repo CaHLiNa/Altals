@@ -11,7 +11,7 @@
  *   "Request error: connection refused"
  *   plain string
  */
-export function parseApiError(rawError) {
+function parseApiError(rawError) {
   const str = typeof rawError === 'string' ? rawError : String(rawError || 'Unknown error')
   const result = { friendly: '', status: 0, isAuthError: false, isRateLimit: false }
 
@@ -74,17 +74,6 @@ export function noApiKeyMessage(modelId) {
 export function formatChatApiError(rawError) {
   const parsed = parseApiError(rawError)
   return `**Error:** ${parsed.friendly}`
-}
-
-/**
- * Format a Tauri invoke() error for display.
- */
-export function formatInvokeError(error) {
-  const str = typeof error === 'string' ? error : String(error || 'Unknown error')
-  if (/connection|network|refused/i.test(str)) {
-    return 'Could not reach the AI service. Check your connection.'
-  }
-  return `Something went wrong: ${str.length > 150 ? str.slice(0, 150) + '...' : str}`
 }
 
 /**

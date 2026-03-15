@@ -29,7 +29,7 @@ export function isDocumentWorkflowSource(path) {
   return getDocumentWorkflowKind(path) !== null
 }
 
-export function getDefaultWorkflowPreviewKind(kind) {
+function getDefaultWorkflowPreviewKind(kind) {
   if (kind === 'markdown') return 'html'
   if (kind === 'latex' || kind === 'typst') return 'pdf'
   return null
