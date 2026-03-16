@@ -110,6 +110,7 @@
 import { ref, computed, nextTick, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
+import { useToastStore } from '../../stores/toast'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
   IconLayoutSidebarRight, IconLayoutSidebarRightFilled,
@@ -117,7 +118,7 @@ import {
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
-import { buildCitationText } from '../../editor/citationSyntax'
+import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -125,6 +126,7 @@ const emit = defineEmits(['open-settings'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 const isMacDesktop = isMac
   && typeof window !== 'undefined'
@@ -219,11 +221,12 @@ function onSelectCitation(key) {
   if (pane?.activeTab) {
     const view = editorStore.getEditorView(pane.id, pane.activeTab)
     if (view) {
-      const cite = buildCitationText(pane.activeTab, key)
-      const selection = view.state.selection.main
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert: cite },
-        selection: { anchor: selection.from + cite.length },
+      insertCitationWithAssist({
+        view,
+        filePath: pane.activeTab,
+        keys: key,
+        t,
+        toastStore,
       })
       view.focus()
     }

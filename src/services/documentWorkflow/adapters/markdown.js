@@ -225,7 +225,10 @@ const markdownCompileAdapter = {
 
       let bibPath = null
       try {
-        bibPath = await ensureBibFile(filePath)
+        bibPath = await ensureBibFile(filePath, {
+          sourceContent: context.filesStore?.fileContents?.[filePath],
+          force: true,
+        })
       } catch {
         // Continue without bibliography.
       }

@@ -91,7 +91,8 @@ export function buildBaseSystemPrompt(workspace) {
   if (workspace.projectDir) {
     prompt += `\n\n# Altals Metadata`
     prompt += `\nThese paths live outside the user's project folder in Altals-managed storage.`
-    prompt += `\n- \`${workspace.projectDir}/references/\` — library.json (CSL-JSON metadata), pdfs/, fulltext/`
+    prompt += `\n- \`${workspace.globalReferencesDir || '~/.altals/references'}\` — global references library, pdfs/, fulltext/`
+    prompt += `\n- \`${workspace.workspaceReferencesDir || `${workspace.projectDir}/references`}\` — current workspace reference collection`
     prompt += `\n- \`${workspace.projectDir}/skills/\` — domain-specific skill files`
   }
 

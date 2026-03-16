@@ -359,14 +359,14 @@ export async function importFromPdf(filePath, workspace, referencesStore) {
 
     // Store full text for search only when we have attached a fresh PDF or when
     // the existing reference does not have extracted text yet.
-    const projectDir = workspace.projectDir
     const shouldWriteText = targetKey && text && (
       addResult.status !== 'duplicate' || !existingRef?._textFile
     )
-    if (projectDir && shouldWriteText) {
+    const fulltextPath = targetKey ? referencesStore.fulltextPathForKey(targetKey) : null
+    if (fulltextPath && shouldWriteText) {
       try {
         await invoke('write_file', {
-          path: `${projectDir}/references/fulltext/${targetKey}.txt`,
+          path: fulltextPath,
           content: text,
         })
         referencesStore.updateReference(targetKey, { _textFile: `${targetKey}.txt` })

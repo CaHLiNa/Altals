@@ -420,8 +420,7 @@ const addableFields = computed(() => {
 const ref = computed(() => referencesStore.getByKey(props.refKey))
 
 const pdfPath = computed(() => {
-  if (!ref.value?._pdfFile) return null
-  return `${workspace.projectDir}/references/pdfs/${ref.value._pdfFile}`
+  return referencesStore.pdfPathForKey(props.refKey)
 })
 const citedInLabel = computed(() => t(citedInFiles.value.length === 1 ? 'Cited in {count} file' : 'Cited in {count} files', { count: citedInFiles.value.length }))
 
@@ -604,10 +603,12 @@ function openPdf() {
 
 async function deleteRef() {
   if (!ref.value) return
-  const yes = await ask(t('Delete reference @{key}?', { key: ref.value._key }), { title: t('Confirm Delete'), kind: 'warning' })
+  const yes = await ask(t('Remove reference @{key} from this project?', { key: ref.value._key }), { title: t('Confirm Remove'), kind: 'warning' })
   if (yes) {
-    referencesStore.removeReference(ref.value._key)
-    // Tab auto-closes via the watcher above
+    const removed = referencesStore.removeReference(ref.value._key)
+    if (removed) {
+      editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+    }
   }
 }
 
@@ -618,12 +619,7 @@ async function attachPdf() {
   })
   if (!selected || !ref.value) return
 
-  // Copy PDF to references/pdfs/ and update the reference
-  const fileName = selected.split('/').pop()
-  const destDir = `${workspace.projectDir}/references/pdfs`
-  await invoke('create_dir', { path: destDir })
-  await invoke('copy_file', { src: selected, dest: `${destDir}/${fileName}` })
-  referencesStore.updateReference(ref.value._key, { _pdfFile: fileName })
+  await referencesStore.storePdf(ref.value._key, selected)
 }
 
 function relativePath(path) {

@@ -44,8 +44,13 @@ function specsForWorkspace(workspace) {
       reload: () => useReviewsStore().loadPendingEdits(),
     },
     {
-      id: 'references-library',
-      path: workspace.projectDir ? `${workspace.projectDir}/references/library.json` : '',
+      id: 'references-global-library',
+      path: workspace.globalReferencesLibraryPath || '',
+      reload: () => useReferencesStore().loadLibrary(),
+    },
+    {
+      id: 'references-workspace-library',
+      path: workspace.workspaceReferenceCollectionPath || '',
       reload: () => useReferencesStore().loadLibrary(),
     },
     {

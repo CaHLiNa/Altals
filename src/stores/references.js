@@ -7,6 +7,20 @@ import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { buildReferenceKey } from '../utils/referenceKeys'
+import {
+  createEmptyWorkspaceReferenceCollection,
+  parseWorkspaceReferenceCollection,
+  resolveGlobalReferenceFulltextPath,
+  resolveGlobalReferenceLibraryPath,
+  resolveGlobalReferencePdfPath,
+  resolveGlobalReferencePdfsDir,
+  resolveGlobalReferenceFulltextDir,
+  resolveLegacyWorkspaceReferenceFulltextDir,
+  resolveLegacyWorkspaceReferenceLibraryPath,
+  resolveLegacyWorkspaceReferencePdfsDir,
+  resolveWorkspaceReferenceCollectionPath,
+  resolveWorkspaceReferencesDir,
+} from '../services/referenceLibraryPaths'
 
 function normalizeDoi(value) {
   return String(value || '')
@@ -55,10 +69,132 @@ function mergeableFieldNames(existing = {}, incoming = {}) {
   ))
 }
 
+function referenceKey(ref = {}) {
+  return ref?._key || ref?.id || null
+}
+
+function buildKeyMapFromList(list = []) {
+  const map = {}
+  for (let i = 0; i < list.length; i += 1) {
+    const key = referenceKey(list[i])
+    if (key) map[key] = i
+  }
+  return map
+}
+
+function buildWorkspaceLibrary(globalLibrary = [], globalKeyMap = {}, workspaceKeys = []) {
+  const seen = new Set()
+  const library = []
+  const keys = []
+
+  for (const key of workspaceKeys || []) {
+    if (!key || seen.has(key)) continue
+    const idx = globalKeyMap[key]
+    if (idx === undefined) continue
+    seen.add(key)
+    library.push(globalLibrary[idx])
+    keys.push(key)
+  }
+
+  return { library, keys }
+}
+
+function sortReferences(list = [], sortBy = 'addedAt', sortDir = 'desc') {
+  const copy = [...list]
+  const dir = sortDir === 'asc' ? 1 : -1
+  switch (sortBy) {
+    case 'author':
+      return copy.sort((a, b) => {
+        const aAuth = a.author?.[0]?.family || ''
+        const bAuth = b.author?.[0]?.family || ''
+        return dir * aAuth.localeCompare(bAuth)
+      })
+    case 'year':
+      return copy.sort((a, b) => {
+        const aYear = a.issued?.['date-parts']?.[0]?.[0] || 0
+        const bYear = b.issued?.['date-parts']?.[0]?.[0] || 0
+        return dir * (aYear - bYear)
+      })
+    case 'title':
+      return copy.sort((a, b) => dir * (a.title || '').localeCompare(b.title || ''))
+    case 'addedAt':
+    default:
+      return copy.sort((a, b) => {
+        const aDate = a._addedAt || ''
+        const bDate = b._addedAt || ''
+        return dir * aDate.localeCompare(bDate)
+      })
+  }
+}
+
+function filterReferences(list = [], query = '') {
+  if (!query || !query.trim()) return list
+
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
+  return list.filter(ref => {
+    const searchable = [
+      ref.title || '',
+      ref._key || '',
+      ref.DOI || '',
+      String(ref.issued?.['date-parts']?.[0]?.[0] || ''),
+      ...(ref.author || []).map(a => `${a.family || ''} ${a.given || ''}`),
+      ...(ref._tags || []),
+      ref['container-title'] || '',
+      ref.abstract || '',
+    ].join(' ').toLowerCase()
+
+    return tokens.every(token => searchable.includes(token))
+  })
+}
+
+async function readFileIfExists(path) {
+  if (!path) return null
+  try {
+    const exists = await invoke('path_exists', { path })
+    if (!exists) return null
+    return await invoke('read_file', { path })
+  } catch {
+    return null
+  }
+}
+
+async function readJsonArray(path) {
+  const raw = await readFileIfExists(path)
+  if (!raw) return []
+  try {
+    const data = JSON.parse(raw)
+    return Array.isArray(data) ? data : []
+  } catch {
+    return []
+  }
+}
+
+async function readWorkspaceReferenceCollection(path) {
+  return parseWorkspaceReferenceCollection(await readFileIfExists(path))
+}
+
+async function copyFileIfPresent(src, dest) {
+  if (!src || !dest) return false
+  try {
+    const exists = await invoke('path_exists', { path: src })
+    if (!exists) return false
+    const destExists = await invoke('path_exists', { path: dest })
+    if (!destExists) {
+      await invoke('copy_file', { src, dest })
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 export const useReferencesStore = defineStore('references', {
   state: () => ({
     library: [],
     keyMap: {},         // citeKey → index in library
+    globalLibrary: [],
+    globalKeyMap: {},
+    workspaceKeys: [],
     initialized: false,
     loading: false,
     activeKey: null,
@@ -70,43 +206,19 @@ export const useReferencesStore = defineStore('references', {
 
   getters: {
     getByKey: (state) => (key) => {
+      const globalIdx = state.globalKeyMap[key]
+      if (globalIdx !== undefined) return state.globalLibrary[globalIdx]
       const idx = state.keyMap[key]
       return idx !== undefined ? state.library[idx] : null
     },
 
-    allKeys: (state) => state.library.map(r => r._key),
+    allKeys: (state) => state.globalLibrary.map((ref) => referenceKey(ref)).filter(Boolean),
 
     refCount: (state) => state.library.length,
 
     refsWithPdf: (state) => state.library.filter(r => r._pdfFile),
 
-    sortedLibrary: (state) => {
-      const copy = [...state.library]
-      const dir = state.sortDir === 'asc' ? 1 : -1
-      switch (state.sortBy) {
-        case 'author':
-          return copy.sort((a, b) => {
-            const aAuth = a.author?.[0]?.family || ''
-            const bAuth = b.author?.[0]?.family || ''
-            return dir * aAuth.localeCompare(bAuth)
-          })
-        case 'year':
-          return copy.sort((a, b) => {
-            const aYear = a.issued?.['date-parts']?.[0]?.[0] || 0
-            const bYear = b.issued?.['date-parts']?.[0]?.[0] || 0
-            return dir * (aYear - bYear)
-          })
-        case 'title':
-          return copy.sort((a, b) => dir * (a.title || '').localeCompare(b.title || ''))
-        case 'addedAt':
-        default:
-          return copy.sort((a, b) => {
-            const aDate = a._addedAt || ''
-            const bDate = b._addedAt || ''
-            return dir * aDate.localeCompare(bDate)
-          })
-      }
-    },
+    sortedLibrary: (state) => sortReferences(state.library, state.sortBy, state.sortDir),
 
     // Citation index: key → [filePaths] that cite it
     citedIn: (state) => {
@@ -170,33 +282,43 @@ export const useReferencesStore = defineStore('references', {
 
     async loadLibrary() {
       const workspace = useWorkspaceStore()
-      if (!workspace.projectDir) return
+      if (!workspace.projectDir || !workspace.globalConfigDir) return
 
       this.loading = true
-      const libPath = `${workspace.projectDir}/references/library.json`
 
       try {
-        const exists = await invoke('path_exists', { path: libPath })
-        if (!exists) {
-          this.library = []
-          this.keyMap = {}
-          this.initialized = true
-          this.loading = false
-          return
+        await this._ensureReferenceStorageReady()
+        let globalLibrary = await readJsonArray(resolveGlobalReferenceLibraryPath(workspace.globalConfigDir))
+        let workspaceCollection = await readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(workspace.projectDir))
+
+        const migration = await this._migrateLegacyWorkspaceData({
+          globalLibrary,
+          workspaceKeys: workspaceCollection.keys,
+        })
+
+        globalLibrary = migration.globalLibrary
+        workspaceCollection = {
+          ...workspaceCollection,
+          keys: migration.workspaceKeys,
         }
 
-        const content = await invoke('read_file', { path: libPath })
-        const data = JSON.parse(content)
-        if (!Array.isArray(data)) {
-          this.library = []
-        } else {
-          this.library = data
+        this.globalLibrary = globalLibrary
+        this.globalKeyMap = buildKeyMapFromList(globalLibrary)
+        const workspaceView = buildWorkspaceLibrary(globalLibrary, this.globalKeyMap, workspaceCollection.keys)
+        this.library = workspaceView.library
+        this.workspaceKeys = workspaceView.keys
+        this.keyMap = buildKeyMapFromList(workspaceView.library)
+
+        if (migration.didChange) {
+          await this._writeLibraries()
         }
-        this._rebuildKeyMap()
       } catch (e) {
         console.warn('Failed to load reference library:', e)
         this.library = []
         this.keyMap = {}
+        this.globalLibrary = []
+        this.globalKeyMap = {}
+        this.workspaceKeys = []
       }
 
       // Load persisted citation style
@@ -255,39 +377,57 @@ export const useReferencesStore = defineStore('references', {
 
     _saveTimer: null,
     async saveLibrary() {
-      // Debounced save
       clearTimeout(this._saveTimer)
       this._saveTimer = setTimeout(() => this._doSave(), 500)
     },
 
     async _doSave() {
-      const workspace = useWorkspaceStore()
-      if (!workspace.projectDir) return
+      await this._writeLibraries()
+    },
 
-      this._selfWriteCount = (this._selfWriteCount || 0) + 1
+    async _writeLibraries() {
+      const workspace = useWorkspaceStore()
+      if (!workspace.projectDir || !workspace.globalConfigDir) return
+
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
       try {
+        this._markSelfWrite(globalLibraryPath)
         await invoke('write_file', {
-          path: `${workspace.projectDir}/references/library.json`,
-          content: JSON.stringify(this.library, null, 2),
+          path: globalLibraryPath,
+          content: JSON.stringify(this.globalLibrary, null, 2),
+        })
+        this._markSelfWrite(workspaceCollectionPath)
+        await invoke('write_file', {
+          path: workspaceCollectionPath,
+          content: JSON.stringify({
+            ...createEmptyWorkspaceReferenceCollection(),
+            keys: [...this.workspaceKeys],
+          }, null, 2),
         })
       } catch (e) {
-        this._selfWriteCount = Math.max(0, (this._selfWriteCount || 0) - 1)
         console.warn('Failed to save reference library:', e)
       }
     },
 
     async startWatching() {
       const workspace = useWorkspaceStore()
-      if (!workspace.projectDir) return
+      if (!workspace.projectDir || !workspace.globalConfigDir) return
       if (this._unlisten) this._unlisten()
 
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
       this._unlisten = await listen('fs-change', async (event) => {
         const paths = event.payload?.paths || []
-        if (paths.some(p => p.includes('library.json'))) {
-          if (this._selfWriteCount > 0) {
-            this._selfWriteCount--
-            return
-          }
+        const relevant = paths.filter((path) => path === globalLibraryPath || path === workspaceCollectionPath)
+        if (relevant.length === 0) return
+
+        let needsReload = false
+        for (const path of relevant) {
+          if (this._consumeSelfWrite(path)) continue
+          needsReload = true
+        }
+        if (needsReload) {
           await this.loadLibrary()
         }
       })
@@ -301,6 +441,9 @@ export const useReferencesStore = defineStore('references', {
       this.stopWatching()
       this.library = []
       this.keyMap = {}
+      this.globalLibrary = []
+      this.globalKeyMap = {}
+      this.workspaceKeys = []
       this.initialized = false
       this.loading = false
       this.activeKey = null
@@ -322,28 +465,154 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    _rebuildKeyMap() {
-      this.keyMap = {}
-      for (let i = 0; i < this.library.length; i++) {
-        const key = this.library[i]._key || this.library[i].id
-        if (key) this.keyMap[key] = i
+    _markSelfWrite(path) {
+      if (!path) return
+      if (!this._selfWriteCounts) this._selfWriteCounts = {}
+      this._selfWriteCounts[path] = (this._selfWriteCounts[path] || 0) + 1
+    },
+
+    _consumeSelfWrite(path) {
+      if (!path || !this._selfWriteCounts?.[path]) return false
+      this._selfWriteCounts[path] -= 1
+      if (this._selfWriteCounts[path] <= 0) delete this._selfWriteCounts[path]
+      return true
+    },
+
+    _syncWorkspaceView() {
+      this.globalKeyMap = buildKeyMapFromList(this.globalLibrary)
+      const workspaceView = buildWorkspaceLibrary(this.globalLibrary, this.globalKeyMap, this.workspaceKeys)
+      this.library = workspaceView.library
+      this.workspaceKeys = workspaceView.keys
+      this.keyMap = buildKeyMapFromList(workspaceView.library)
+    },
+
+    async _ensureReferenceStorageReady() {
+      const workspace = useWorkspaceStore()
+      if (!workspace.projectDir || !workspace.globalConfigDir) return
+
+      const globalPdfsDir = resolveGlobalReferencePdfsDir(workspace.globalConfigDir)
+      const globalFulltextDir = resolveGlobalReferenceFulltextDir(workspace.globalConfigDir)
+      const globalLibraryPath = resolveGlobalReferenceLibraryPath(workspace.globalConfigDir)
+      const workspaceRefsDir = resolveWorkspaceReferencesDir(workspace.projectDir)
+      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(workspace.projectDir)
+
+      await invoke('create_dir', { path: workspace.globalReferencesDir }).catch(() => {})
+      await invoke('create_dir', { path: globalPdfsDir }).catch(() => {})
+      await invoke('create_dir', { path: globalFulltextDir }).catch(() => {})
+      await invoke('create_dir', { path: workspaceRefsDir }).catch(() => {})
+
+      const globalLibraryExists = await invoke('path_exists', { path: globalLibraryPath }).catch(() => false)
+      if (!globalLibraryExists) {
+        await invoke('write_file', {
+          path: globalLibraryPath,
+          content: '[]',
+        })
       }
+
+      const workspaceCollectionExists = await invoke('path_exists', { path: workspaceCollectionPath }).catch(() => false)
+      if (!workspaceCollectionExists) {
+        await invoke('write_file', {
+          path: workspaceCollectionPath,
+          content: JSON.stringify(createEmptyWorkspaceReferenceCollection(), null, 2),
+        })
+      }
+    },
+
+    async _migrateLegacyWorkspaceData({ globalLibrary = [], workspaceKeys = [] } = {}) {
+      const workspace = useWorkspaceStore()
+      const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(workspace.projectDir)
+      const legacyRefs = await readJsonArray(legacyLibraryPath)
+      if (legacyRefs.length === 0) {
+        return {
+          globalLibrary,
+          workspaceKeys,
+          didChange: false,
+        }
+      }
+
+      const nextGlobalLibrary = [...globalLibrary]
+      const nextWorkspaceKeys = [...workspaceKeys]
+      const nextGlobalKeyMap = buildKeyMapFromList(nextGlobalLibrary)
+      let didChange = false
+
+      for (const legacyRef of legacyRefs) {
+        const key = referenceKey(legacyRef) || buildReferenceKey(legacyRef, new Set(Object.keys(nextGlobalKeyMap)))
+        let targetRef = nextGlobalKeyMap[key] !== undefined ? nextGlobalLibrary[nextGlobalKeyMap[key]] : null
+
+        if (!targetRef) {
+          const nextRef = {
+            ...cloneValue(legacyRef),
+            _key: key,
+            id: key,
+          }
+          nextGlobalLibrary.push(nextRef)
+          nextGlobalKeyMap[key] = nextGlobalLibrary.length - 1
+          targetRef = nextRef
+          didChange = true
+        }
+
+        if (!nextWorkspaceKeys.includes(key)) {
+          nextWorkspaceKeys.push(key)
+          didChange = true
+        }
+
+        const assetChanged = await this._migrateLegacyReferenceAssets(targetRef, legacyRef, key)
+        if (assetChanged) didChange = true
+      }
+
+      return {
+        globalLibrary: nextGlobalLibrary,
+        workspaceKeys: nextWorkspaceKeys,
+        didChange,
+      }
+    },
+
+    async _migrateLegacyReferenceAssets(targetRef, legacyRef, key) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.projectDir || !workspace.globalConfigDir) return false
+
+      let changed = false
+      const legacyPdfsDir = resolveLegacyWorkspaceReferencePdfsDir(workspace.projectDir)
+      const legacyFulltextDir = resolveLegacyWorkspaceReferenceFulltextDir(workspace.projectDir)
+
+      if (legacyRef?._pdfFile && !targetRef?._pdfFile) {
+        const copied = await copyFileIfPresent(
+          `${legacyPdfsDir}/${legacyRef._pdfFile}`,
+          resolveGlobalReferencePdfPath(workspace.globalConfigDir, `${key}.pdf`),
+        )
+        if (copied) {
+          targetRef._pdfFile = `${key}.pdf`
+          changed = true
+        }
+      }
+
+      if (legacyRef?._textFile && !targetRef?._textFile) {
+        const copied = await copyFileIfPresent(
+          `${legacyFulltextDir}/${legacyRef._textFile}`,
+          resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, `${key}.txt`),
+        )
+        if (copied) {
+          targetRef._textFile = `${key}.txt`
+          changed = true
+        }
+      }
+
+      return changed
     },
 
     // --- CRUD ---
 
     addReference(cslJson) {
-      // Generate key if missing
       if (!cslJson._key) {
         cslJson._key = this.generateKey(cslJson)
       }
       cslJson.id = cslJson._key
 
-      // Check duplicates
       const duplicateAudit = this.auditImportCandidate(cslJson)
       if (duplicateAudit.existingKey) {
+        this.addKeyToWorkspace(duplicateAudit.existingKey)
         return {
-          key: cslJson._key,
+          key: duplicateAudit.existingKey,
           status: 'duplicate',
           existingKey: duplicateAudit.existingKey,
           matchType: duplicateAudit.matchType,
@@ -354,8 +623,9 @@ export const useReferencesStore = defineStore('references', {
         cslJson._addedAt = new Date().toISOString()
       }
 
-      this.library.push(cslJson)
-      this._rebuildKeyMap()
+      this.globalLibrary.push(cslJson)
+      this.workspaceKeys.push(cslJson._key)
+      this._syncWorkspaceView()
       this.saveLibrary()
       events.refImport(cslJson._importMethod || 'manual')
 
@@ -377,17 +647,17 @@ export const useReferencesStore = defineStore('references', {
     },
 
     updateReference(key, updates) {
-      const idx = this.keyMap[key]
+      const idx = this.globalKeyMap[key]
       if (idx === undefined) return false
 
-      Object.assign(this.library[idx], updates)
+      Object.assign(this.globalLibrary[idx], updates)
 
-      // If key changed, rebuild map
       if (updates._key && updates._key !== key) {
-        this.library[idx].id = updates._key
-        this._rebuildKeyMap()
+        this.globalLibrary[idx].id = updates._key
+        this.workspaceKeys = this.workspaceKeys.map((item) => (item === key ? updates._key : item))
       }
 
+      this._syncWorkspaceView()
       this.saveLibrary()
       return true
     },
@@ -414,25 +684,18 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
+    addKeyToWorkspace(key) {
+      if (!key || this.workspaceKeys.includes(key)) return false
+      this.workspaceKeys.push(key)
+      this._syncWorkspaceView()
+      this.saveLibrary()
+      return true
+    },
+
     removeReference(key) {
-      const idx = this.keyMap[key]
-      if (idx === undefined) return false
-
-      const ref = this.library[idx]
-
-      // Clean up associated PDF and fulltext files
-      const workspace = useWorkspaceStore()
-      if (workspace.projectDir) {
-        if (ref._pdfFile) {
-          invoke('delete_path', { path: `${workspace.projectDir}/references/pdfs/${ref._pdfFile}` }).catch(() => {})
-        }
-        if (ref._textFile) {
-          invoke('delete_path', { path: `${workspace.projectDir}/references/fulltext/${ref._textFile}` }).catch(() => {})
-        }
-      }
-
-      this.library.splice(idx, 1)
-      this._rebuildKeyMap()
+      if (!this.workspaceKeys.includes(key)) return false
+      this.workspaceKeys = this.workspaceKeys.filter((item) => item !== key)
+      this._syncWorkspaceView()
 
       if (this.activeKey === key) this.activeKey = null
       this.selectedKeys.delete(key)
@@ -451,28 +714,13 @@ export const useReferencesStore = defineStore('references', {
 
     searchRefs(query) {
       if (!query || !query.trim()) return this.sortedLibrary
-
-      const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
-      return this.library.filter(ref => {
-        const searchable = [
-          ref.title || '',
-          ref._key || '',
-          ref.DOI || '',
-          String(ref.issued?.['date-parts']?.[0]?.[0] || ''),
-          ...(ref.author || []).map(a => `${a.family || ''} ${a.given || ''}`),
-          ...(ref._tags || []),
-          ref['container-title'] || '',
-          ref.abstract || '',
-        ].join(' ').toLowerCase()
-
-        return tokens.every(t => searchable.includes(t))
-      })
+      return filterReferences(this.library, query)
     },
 
     // --- Key generation ---
 
     generateKey(cslJson) {
-      return buildReferenceKey(cslJson, new Set(Object.keys(this.keyMap)))
+      return buildReferenceKey(cslJson, new Set(Object.keys(this.globalKeyMap)))
     },
 
     // --- Dedup ---
@@ -488,7 +736,7 @@ export const useReferencesStore = defineStore('references', {
     auditImportCandidate(cslJson) {
       const incomingDoi = normalizeDoi(cslJson?.DOI)
       if (incomingDoi) {
-        const strong = this.library.find((ref) => normalizeDoi(ref?.DOI) === incomingDoi)
+        const strong = this.globalLibrary.find((ref) => normalizeDoi(ref?.DOI) === incomingDoi)
         if (strong) {
           return {
             existingKey: strong._key,
@@ -503,7 +751,7 @@ export const useReferencesStore = defineStore('references', {
       const incomingYear = issuedYear(cslJson)
 
       if (incomingTitle && incomingAuthor && incomingYear) {
-        const possible = this.library.find((ref) => (
+        const possible = this.globalLibrary.find((ref) => (
           normalizeTitle(ref?.title) === incomingTitle &&
           normalizeAuthorToken(ref?.author?.[0]) === incomingAuthor &&
           issuedYear(ref) === incomingYear
@@ -528,13 +776,14 @@ export const useReferencesStore = defineStore('references', {
 
     async storePdf(key, sourcePath) {
       const workspace = useWorkspaceStore()
-      if (!workspace.projectDir) return
+      if (!workspace.globalConfigDir) return
 
-      const pdfsDir = `${workspace.projectDir}/references/pdfs`
-      const textDir = `${workspace.projectDir}/references/fulltext`
-      const destPdf = `${pdfsDir}/${key}.pdf`
+      const pdfsDir = resolveGlobalReferencePdfsDir(workspace.globalConfigDir)
+      const textDir = resolveGlobalReferenceFulltextDir(workspace.globalConfigDir)
+      const destPdf = resolveGlobalReferencePdfPath(workspace.globalConfigDir, `${key}.pdf`)
 
       try {
+        await invoke('create_dir', { path: pdfsDir }).catch(() => {})
         await invoke('copy_file', { src: sourcePath, dest: destPdf })
         this.updateReference(key, { _pdfFile: `${key}.pdf` })
       } catch (e) {
@@ -545,8 +794,9 @@ export const useReferencesStore = defineStore('references', {
       try {
         const text = await extractTextFromPdf(destPdf)
         if (text) {
+          await invoke('create_dir', { path: textDir }).catch(() => {})
           await invoke('write_file', {
-            path: `${textDir}/${key}.txt`,
+            path: resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, `${key}.txt`),
             content: text,
           })
           this.updateReference(key, { _textFile: `${key}.txt` })
@@ -634,6 +884,21 @@ export const useReferencesStore = defineStore('references', {
 
         return lines.join('\n')
       }).join('\n\n')
+    },
+
+    pdfPathForKey(key) {
+      const workspace = useWorkspaceStore()
+      const ref = this.getByKey(key)
+      if (!workspace.globalConfigDir || !ref?._pdfFile) return null
+      return resolveGlobalReferencePdfPath(workspace.globalConfigDir, ref._pdfFile)
+    },
+
+    fulltextPathForKey(key) {
+      const workspace = useWorkspaceStore()
+      const ref = this.getByKey(key)
+      const fileName = ref?._textFile || (key ? `${key}.txt` : '')
+      if (!workspace.globalConfigDir || !fileName) return null
+      return resolveGlobalReferenceFulltextPath(workspace.globalConfigDir, fileName)
     },
   },
 })

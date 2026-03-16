@@ -230,6 +230,7 @@ function extractZoteroPrefs(customXml) {
  */
 function importZoteroReferences(citations, referencesStore) {
   const keyMap = new Map() // zoteroUri → our library key
+  const globalLibrary = referencesStore.globalLibrary?.length ? referencesStore.globalLibrary : referencesStore.library
 
   for (const citation of citations) {
     const items = citation.cslCitation?.citationItems || []
@@ -243,10 +244,10 @@ function importZoteroReferences(citations, referencesStore) {
       // Check if this reference already exists in our library (by DOI or title)
       let existing = null
       if (itemData.DOI) {
-        existing = referencesStore.library.find(r => r.DOI === itemData.DOI)
+        existing = globalLibrary.find(r => r.DOI === itemData.DOI)
       }
       if (!existing && itemData.title) {
-        existing = referencesStore.library.find(r =>
+        existing = globalLibrary.find(r =>
           r.title?.toLowerCase() === itemData.title?.toLowerCase()
         )
       }
@@ -289,6 +290,7 @@ function importZoteroReferences(citations, referencesStore) {
  * Find a matching reference library key for a Zotero citation item.
  */
 function findMatchingKey(item, importedKeys, referencesStore) {
+  const globalLibrary = referencesStore.globalLibrary?.length ? referencesStore.globalLibrary : referencesStore.library
   // Try by Zotero URI first
   const uri = item.uris?.[0] || item.uri?.[0]
   if (uri && importedKeys.has(uri)) return importedKeys.get(uri)
@@ -298,13 +300,13 @@ function findMatchingKey(item, importedKeys, referencesStore) {
 
   // Try by DOI
   if (item.itemData?.DOI) {
-    const match = referencesStore.library.find(r => r.DOI === item.itemData.DOI)
+    const match = globalLibrary.find(r => r.DOI === item.itemData.DOI)
     if (match) return match._key || match.id
   }
 
   // Try by title
   if (item.itemData?.title) {
-    const match = referencesStore.library.find(r =>
+    const match = globalLibrary.find(r =>
       r.title?.toLowerCase() === item.itemData.title?.toLowerCase()
     )
     if (match) return match._key || match.id

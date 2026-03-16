@@ -1,4 +1,13 @@
 import { invoke } from '@tauri-apps/api/core'
+import {
+  createEmptyWorkspaceReferenceCollection,
+  resolveGlobalReferenceFulltextDir,
+  resolveGlobalReferenceLibraryPath,
+  resolveGlobalReferencePdfsDir,
+  resolveGlobalReferencesDir,
+  resolveWorkspaceReferenceCollectionPath,
+  resolveWorkspaceReferencesDir,
+} from './referenceLibraryPaths'
 
 const DEFAULT_SYSTEM_PROMPT = `You are a writing assistant integrated into Altals, a markdown editor.
 
@@ -86,6 +95,23 @@ export async function initWorkspaceDataDir({
   }
 
   if (globalConfigDir) {
+    const globalReferencesDir = resolveGlobalReferencesDir(globalConfigDir)
+    const globalReferencesLibraryPath = resolveGlobalReferenceLibraryPath(globalConfigDir)
+    const globalReferencesPdfsDir = resolveGlobalReferencePdfsDir(globalConfigDir)
+    const globalReferencesFulltextDir = resolveGlobalReferenceFulltextDir(globalConfigDir)
+
+    if (globalReferencesDir) {
+      await invoke('create_dir', { path: globalReferencesDir }).catch(() => {})
+      await invoke('create_dir', { path: globalReferencesPdfsDir }).catch(() => {})
+      await invoke('create_dir', { path: globalReferencesFulltextDir }).catch(() => {})
+      if (!(await pathExists(globalReferencesLibraryPath))) {
+        await invoke('write_file', {
+          path: globalReferencesLibraryPath,
+          content: '[]',
+        })
+      }
+    }
+
     const globalModelsPath = `${globalConfigDir}/models.json`
     const globalModelsExists = await pathExists(globalModelsPath)
     if (!globalModelsExists) {
@@ -153,16 +179,18 @@ export async function initProjectDir({
   }
 
   const refsDir = `${projectDir}/references`
+  const workspaceRefsDir = resolveWorkspaceReferencesDir(projectDir)
+  const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(projectDir)
   if (!(await pathExists(refsDir))) {
     await invoke('create_dir', { path: refsDir })
-    await invoke('create_dir', { path: `${refsDir}/pdfs` })
-    await invoke('create_dir', { path: `${refsDir}/fulltext` })
-    await invoke('write_file', { path: `${refsDir}/library.json`, content: '[]' })
-  } else {
-    await invoke('create_dir', { path: `${refsDir}/pdfs` }).catch(() => {})
-    await invoke('create_dir', { path: `${refsDir}/fulltext` }).catch(() => {})
-    if (!(await pathExists(`${refsDir}/library.json`))) {
-      await invoke('write_file', { path: `${refsDir}/library.json`, content: '[]' })
+  }
+  if (workspaceRefsDir) {
+    await invoke('create_dir', { path: workspaceRefsDir }).catch(() => {})
+    if (!(await pathExists(workspaceCollectionPath))) {
+      await invoke('write_file', {
+        path: workspaceCollectionPath,
+        content: JSON.stringify(createEmptyWorkspaceReferenceCollection(), null, 2),
+      })
     }
   }
 

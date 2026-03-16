@@ -37,8 +37,9 @@ Altals is a local-first desktop workspace for research writing, references, codi
 
 ## References
 
-- Reference library lives in \`~/.altals/workspaces/<workspace-hash>/project/references/library.json\`.
-- PDFs and extracted full text live in \`~/.altals/workspaces/<workspace-hash>/project/references/pdfs/\` and \`~/.altals/workspaces/<workspace-hash>/project/references/fulltext/\`.
+- Global reference library lives in \`~/.altals/references/library.json\`.
+- Global PDFs and extracted full text live in \`~/.altals/references/pdfs/\` and \`~/.altals/references/fulltext/\`.
+- The current workspace collection lives in \`~/.altals/workspaces/<workspace-hash>/project/references/workspace-library.json\`.
 - Import paths include DOI, BibTeX, RIS, CSL-JSON, plain citation text, and PDF drop.
 - Citations are Pandoc-style, for example \`[@smith2024]\`.
 
@@ -100,7 +101,8 @@ Altals uses the user's own provider keys.
 | Path | Purpose |
 | --- | --- |
 | \`~/.altals/workspaces/<workspace-hash>/project/\` | Workspace project data managed by Altals |
-| \`~/.altals/workspaces/<workspace-hash>/project/references/\` | Reference library and PDF assets |
+| \`~/.altals/references/\` | Global reference library, PDFs, and full text |
+| \`~/.altals/workspaces/<workspace-hash>/project/references/\` | Current workspace reference collection |
 | \`~/.altals/workspaces/<workspace-hash>/project/skills/\` | Workspace skills |
 | \`~/.altals/workspaces/<workspace-hash>/\` | Private AI state for the workspace |
 | \`~/.altals/workspaces/<workspace-hash>/project/instructions.md\` | Default project instructions injected into AI requests |

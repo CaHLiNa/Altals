@@ -6,13 +6,15 @@ import { useCommentsStore } from '../stores/comments'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useReferencesStore } from '../stores/references'
+import { useToastStore } from '../stores/toast'
 import { nanoid } from '../stores/utils'
 import { lookupByDoi } from './crossref'
 import { appendUnresolvedCommentsToContent } from './documentComments'
 import { extractDocumentText, extractBlockList } from './docxContext'
 import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
-import { buildCitationText } from '../editor/citationSyntax'
+import { t } from '../i18n/index.js'
+import { insertCitationWithAssist } from './latexCitationAssist'
 
 // External tools that transmit data to third-party services
 export const EXTERNAL_TOOLS = ['web_search', 'search_papers', 'fetch_url', 'add_reference']
@@ -589,16 +591,19 @@ export function getAiTools(workspace) {
       }),
       execute: async ({ key }) => {
         const editorStore = useEditorStore()
+        const toastStore = useToastStore()
         const pane = editorStore.activePane
         if (!pane?.activeTab) return 'No active editor.'
         const view = editorStore.getEditorView(pane.id, pane.activeTab)
         if (!view) return 'No active text editor.'
-        const cite = buildCitationText(pane.activeTab, key)
-        const selection = view.state.selection.main
-        view.dispatch({
-          changes: { from: selection.from, to: selection.to, insert: cite },
-          selection: { anchor: selection.from + cite.length },
+        const cite = insertCitationWithAssist({
+          view,
+          filePath: pane.activeTab,
+          keys: key,
+          t,
+          toastStore,
         })
+        if (!cite) return 'Failed to insert citation.'
         return `Inserted ${cite} at cursor.`
       },
     }),

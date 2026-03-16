@@ -3,13 +3,16 @@ import { CITATION_GROUP_RE } from '../editor/citations'
 import { buildCitationText } from '../editor/citationSyntax'
 import { LATEX_CITE_RE } from '../editor/latexCitations'
 import {
+  maybePromptLatexBibliography,
+} from '../services/latexCitationAssist.js'
+import {
   parseCitationGroup,
   parseTypstCitationGroup,
   TYPST_CITATION_GROUP_RE,
 } from '../editor/textEditorInteractions'
 
 export function useTextEditorCitations(options) {
-  const { filePath, getView, isLatexFile, isTypstFile, t } = options
+  const { filePath, getView, isLatexFile, isTypstFile, t, toastStore } = options
 
   const citPalette = reactive({
     show: false,
@@ -66,6 +69,15 @@ export function useTextEditorCitations(options) {
       changes: { from: insertFrom, to: insertTo, insert: text },
       selection: { anchor: insertFrom + text.length },
     })
+
+    if (isLatexFile) {
+      maybePromptLatexBibliography({
+        view,
+        filePath,
+        t,
+        toastStore,
+      })
+    }
 
     if (stayOpen) {
       const cursor = view.state.selection.main.head

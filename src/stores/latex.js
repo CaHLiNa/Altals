@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ensureBibFile } from '../services/latexBib'
+import { useFilesStore } from './files'
 import { t } from '../i18n'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -211,6 +212,7 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async compile(texPath) {
+      const filesStore = useFilesStore()
       await ensureLatexStreamListener()
       this.cancelAutoCompile(texPath)
 
@@ -230,8 +232,12 @@ export const useLatexStore = defineStore('latex', {
       }
 
       try {
-        // Generate .bib file from reference library before compiling
-        try { await ensureBibFile(texPath) } catch {}
+        // Keep references.bib in sync only when this LaTeX file is actually using bibliography flow.
+        try {
+          await ensureBibFile(texPath, {
+            sourceContent: filesStore.fileContents?.[texPath],
+          })
+        } catch {}
 
         pushLatexStreamToTerminal({
           texPath,

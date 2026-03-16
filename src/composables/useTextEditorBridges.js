@@ -3,6 +3,7 @@ import { addComment, removeComment, updateComment, setActiveComment, commentFiel
 import { reconfigureMergeView, computeOriginalContent } from '../editor/diffOverlay'
 import { buildInsertText } from '../editor/textEditorInteractions'
 import { buildReferenceDropText } from '../editor/referenceDrop'
+import { insertCitationWithAssist } from '../services/latexCitationAssist'
 import { computeMinimalChange } from '../utils/textDiff'
 
 export function useTextEditorBridges(options) {
@@ -15,6 +16,8 @@ export function useTextEditorBridges(options) {
     commentsStore,
     isMarkdownFile,
     isLatexFile,
+    t,
+    toastStore,
   } = options
 
   let mergeViewActive = false
@@ -197,10 +200,21 @@ export function useTextEditorBridges(options) {
       })
     if (!text) return
 
-    view.dispatch({
-      changes: { from: pos, to: pos, insert: text },
-      selection: { anchor: pos + text.length },
-    })
+    if (draggedReferenceKeys.length > 0) {
+      insertCitationWithAssist({
+        view,
+        filePath,
+        keys: draggedReferenceKeys,
+        selection: { from: pos, to: pos },
+        t,
+        toastStore,
+      })
+    } else {
+      view.dispatch({
+        changes: { from: pos, to: pos, insert: text },
+        selection: { anchor: pos + text.length },
+      })
+    }
     view.focus()
   }
 

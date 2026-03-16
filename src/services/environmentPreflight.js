@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { t } from '../i18n'
+import { t } from '../i18n/index.js'
 import { useEnvironmentStore } from '../stores/environment'
 import { useLatexStore } from '../stores/latex'
 import { useToastStore } from '../stores/toast'

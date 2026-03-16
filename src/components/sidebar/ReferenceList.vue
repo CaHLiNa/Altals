@@ -541,9 +541,8 @@ function copyMultiCitation() {
 
 function openPdf(key) {
   contextMenu.show = false
-  const r = referencesStore.getByKey(key)
-  if (r?._pdfFile) {
-    const pdfPath = `${workspace.projectDir}/references/pdfs/${r._pdfFile}`
+  const pdfPath = referencesStore.pdfPathForKey(key)
+  if (pdfPath) {
     editorStore.openFile(pdfPath)
   }
 }
@@ -574,9 +573,9 @@ async function deleteRef(key) {
     ? [...referencesStore.selectedKeys]
     : [key]
   const msg = keys.length === 1
-    ? t('Delete reference @{key}?', { key: keys[0] })
-    : t('Delete {count} references?', { count: keys.length })
-  const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
+    ? t('Remove reference @{key} from this project?', { key: keys[0] })
+    : t('Remove {count} references from this project?', { count: keys.length })
+  const yes = await ask(msg, { title: t('Confirm Remove'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReferences(keys)
   }

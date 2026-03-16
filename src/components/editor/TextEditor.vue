@@ -151,6 +151,7 @@ const {
   isLatexFile: isTex,
   isTypstFile: isTyp,
   t,
+  toastStore,
 })
 
 const {
@@ -200,6 +201,8 @@ const {
   commentsStore,
   isMarkdownFile: isMd,
   isLatexFile: isTex,
+  t,
+  toastStore,
 })
 
 function isContextMenuMouseGesture(event) {

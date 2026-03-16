@@ -16,6 +16,14 @@ import {
   resolveWorkspaceDataDir,
 } from '../services/workspacePaths'
 import {
+  resolveGlobalReferenceFulltextDir,
+  resolveGlobalReferenceLibraryPath,
+  resolveGlobalReferencePdfsDir,
+  resolveGlobalReferencesDir,
+  resolveWorkspaceReferenceCollectionPath,
+  resolveWorkspaceReferencesDir,
+} from '../services/referenceLibraryPaths'
+import {
   initProjectDir as bootstrapProjectDir,
   initWorkspaceDataDir as bootstrapWorkspaceDataDir,
   installEditHooks as installWorkspaceEditHooks,
@@ -122,6 +130,16 @@ export const useWorkspaceStore = defineStore('workspace', {
     altalsDir: (state) => state.workspaceDataDir || null,
     shouldersDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null,
+    globalReferencesDir: (state) => resolveGlobalReferencesDir(state.globalConfigDir),
+    globalReferencesLibraryPath: (state) => resolveGlobalReferenceLibraryPath(state.globalConfigDir),
+    globalReferencesPdfsDir: (state) => resolveGlobalReferencePdfsDir(state.globalConfigDir),
+    globalReferencesFulltextDir: (state) => resolveGlobalReferenceFulltextDir(state.globalConfigDir),
+    workspaceReferencesDir() {
+      return resolveWorkspaceReferencesDir(this.projectDir)
+    },
+    workspaceReferenceCollectionPath() {
+      return resolveWorkspaceReferenceCollectionPath(this.projectDir)
+    },
     researchArtifactsPath: (state) => (
       state.workspaceDataDir ? `${state.workspaceDataDir}/project/research-artifacts.json` : null
     ),
