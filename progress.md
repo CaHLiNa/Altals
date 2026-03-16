@@ -16,6 +16,39 @@
 - 新增 `docs/plans/2026-03-16-research-core-roadmap-design.md`，把重排原因、架构选择、阶段目标、验收标准和风险控制正式落盘。
 - 新增 `docs/plans/2026-03-16-research-core-roadmap.md`，把 8 周路线拆成 9 个可执行任务，并标注目标文件、验证命令和建议提交边界。
 
+## Execution Session: Task 1 in worktree
+
+- **Worktree:** `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation`
+- **Branch:** `codex/research-input-foundation`
+- Actions taken:
+  - 按 `using-git-worktrees` 创建隔离 worktree，并把 roadmap 设计文档同步进去。
+  - 检查 `workspace.projectDir`、`workspaceBootstrap` 和 `App.vue` 的生命周期接入点。
+  - 新增 `src/stores/researchArtifacts.js`，提供 `annotations / notes` 的项目级持久化、load/save/cleanup 和基础 CRUD。
+  - 新增 `src/services/pdfAnchors.js`，定义第一版 PDF quote anchor contract 与 fingerprint helper。
+  - 在 `src/services/workspaceBootstrap.js` 中初始化 `project/research-artifacts.json`。
+  - 在 `src/stores/workspace.js` 中增加 `researchArtifactsPath` getter。
+  - 在 `src/App.vue` 中把 `researchArtifacts` 接入 workspace open 后的 background load 和 close / unmount cleanup。
+
+## Execution Session: Tasks 2-3 in worktree
+
+- **Worktree:** `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation`
+- **Branch:** `codex/research-input-foundation`
+- Actions taken:
+  - 在 `PdfViewer.vue` 中增加 PDF 选区捕获、保存 highlight 的 toolbar 入口，以及 `outline / pages / highlights` 三态 sidebar。
+  - 把 annotation 保存到 `researchArtifacts`，并在 PDF page 上用 overlay 重绘高亮；点击 annotation 可回跳原页与原句。
+  - 把 `ReferenceView.vue` 的 `referenceKey` 传给 `PdfViewer`，让 PDF highlight 从第一天起就能带上文献来源。
+  - 新增 `ResearchNoteCard.vue`，让 annotation 可以直接生成 note、编辑备注并尝试插入 manuscript。
+  - 扩展 `editorStore`，新增跨编辑器 manuscript insert：优先命中已打开的 `md / tex / typ / qmd / rmd / docx` 编辑器，向 CodeMirror / SuperDoc 插入摘录与来源标记。
+  - 扩展 `researchArtifacts` store，增加 `noteForAnnotation`、`setActiveNote` 等 note helper。
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 前端构建 | `npm run build` | 新增 research artifacts 底座后前端仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | 新增前端持久化接入后 Rust 仍可编译 | 通过 | 通过 |
+| 前端构建 | `npm run build` | PDF annotation capture 与回跳 UI 接入后仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | Task 2 期间未改 Rust，边界仍可编译 | 通过 | 通过 |
+| 前端构建 | `npm run build` | note card 与 manuscript insert 接入后仍可构建 | 通过 | 通过 |
 ## Files created/modified
 - `task_plan.md`
 - `findings.md`

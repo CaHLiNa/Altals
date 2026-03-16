@@ -30,6 +30,42 @@
   - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap-design.md`
   - `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-research-core-roadmap.md`
 
+## Task 1 Findings
+- `workspace.projectDir` 已经是项目级持久化的天然落点，适合放 `research-artifacts.json`，不需要新建额外目录层级。
+- `App.vue` 已经有标准的 workspace open 后延迟加载 store、close / unmount 时 cleanup 的模式，最适合把 `researchArtifacts` 接进来。
+- 第一版 `researchArtifacts` 采用单文件 schema：`{ version, annotations, notes }`，既满足 phase 1 持久化契约，也给后续扩展留出版本位。
+- `pdfAnchors.js` 先采用 `page + quote + prefix + suffix (+ selectionRect)` 的最小锚点策略，避免一开始就把实现绑死在脆弱的 viewport 坐标上。
+- Task 1 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/researchArtifacts.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/services/pdfAnchors.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/services/workspaceBootstrap.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/workspace.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/App.vue`
+
+## Task 2 Findings
+- `PdfViewer.vue` 现有 sidebar / toolbar 壳已经足够承载第一版 annotation workflow，没必要为了 highlights 单独拆新路由级面板。
+- PDF annotation 的第一版锚点可以同时持有两种信息：
+  - 文本匹配所需的 `quote + prefix + suffix`
+  - 回跳与重绘所需的 `selectionRect.rects + focusPoint`
+- 把 highlights 直接画成 page-level overlay，而不是改 PDF.js text layer，本轮风险明显更低，也更容易跟现有 `scrollToLocation()` 对接。
+- Task 2 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/PdfViewer.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/composables/usePdfViewerSession.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/ReferenceView.vue`
+
+## Task 3 Findings
+- note card 没必要先独立成大面板；直接挂在 annotation card 下，最符合“读 -> 摘 -> 写”的连续操作。
+- manuscript insert 不能简单用“任意文本编辑器”兜底，否则很容易把摘录落进代码文件；第一版应只命中更像手稿的已打开编辑器：`md/tex/typ/qmd/rmd/docx`。
+- `editorStore` 已经掌握可见 editor view / superdoc 实例，适合作为跨编辑器插入层，避免在 `PdfViewer` 里分支处理 CodeMirror 和 SuperDoc。
+- 第一版 `source_ref` 落地策略：
+  - notes 侧保存结构化 `sourceRef`
+  - text manuscript 插入时追加 HTML comment 形式的 `source_ref`
+  - docx manuscript 先插入可见来源行，保证来源不会静默丢失
+- Task 3 已完成的实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/ResearchNoteCard.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/PdfViewer.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/editor.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/researchArtifacts.js`
 # Findings & Decisions
 
 ## Requirements
