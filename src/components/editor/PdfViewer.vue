@@ -162,59 +162,63 @@
               <div class="pdfjs-toolbarHorizontalGroup">
                 <button
                   ref="findPreviousButtonRef"
-                  class="pdfjs-toolbarButton"
+                  class="pdfjs-toolbarButton pdfjs-findNavButton"
                   type="button"
                   :title="t('Previous match')"
+                  :aria-label="t('Previous match')"
                 >
-                  <span>{{ t('Previous match') }}</span>
+                  <IconChevronUp :size="13" :stroke-width="1.8" />
                 </button>
                 <div class="pdfjs-splitToolbarButtonSeparator"></div>
                 <button
                   ref="findNextButtonRef"
-                  class="pdfjs-toolbarButton"
+                  class="pdfjs-toolbarButton pdfjs-findNavButton"
                   type="button"
                   :title="t('Next match')"
+                  :aria-label="t('Next match')"
                 >
-                  <span>{{ t('Next match') }}</span>
+                  <IconChevronDown :size="13" :stroke-width="1.8" />
                 </button>
               </div>
             </div>
 
-            <div class="pdfjs-findbarOptionsOneContainer pdfjs-toolbarHorizontalGroup">
-              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
-                <input
-                  ref="findHighlightAllRef"
-                  :id="`pdfjs-findHighlightAll-${paneId}`"
-                  type="checkbox"
-                >
-                <label :for="`pdfjs-findHighlightAll-${paneId}`">{{ t('Highlight all matches') }}</label>
+            <div class="pdfjs-findbarOptionsRow">
+              <div class="pdfjs-findbarOptionsOneContainer pdfjs-toolbarHorizontalGroup">
+                <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                  <input
+                    ref="findHighlightAllRef"
+                    :id="`pdfjs-findHighlightAll-${paneId}`"
+                    type="checkbox"
+                  >
+                  <label :for="`pdfjs-findHighlightAll-${paneId}`">{{ t('Highlight all matches') }}</label>
+                </div>
+                <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                  <input
+                    ref="findMatchCaseRef"
+                    :id="`pdfjs-findMatchCase-${paneId}`"
+                    type="checkbox"
+                  >
+                  <label :for="`pdfjs-findMatchCase-${paneId}`">{{ t('Match case') }}</label>
+                </div>
               </div>
-              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
-                <input
-                  ref="findMatchCaseRef"
-                  :id="`pdfjs-findMatchCase-${paneId}`"
-                  type="checkbox"
-                >
-                <label :for="`pdfjs-findMatchCase-${paneId}`">{{ t('Match case') }}</label>
-              </div>
-            </div>
 
-            <div class="pdfjs-findbarOptionsTwoContainer pdfjs-toolbarHorizontalGroup">
-              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
-                <input
-                  ref="findMatchDiacriticsRef"
-                  :id="`pdfjs-findMatchDiacritics-${paneId}`"
-                  type="checkbox"
-                >
-                <label :for="`pdfjs-findMatchDiacritics-${paneId}`">{{ t('Match diacritics') }}</label>
-              </div>
-              <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
-                <input
-                  ref="findEntireWordRef"
-                  :id="`pdfjs-findEntireWord-${paneId}`"
-                  type="checkbox"
-                >
-                <label :for="`pdfjs-findEntireWord-${paneId}`">{{ t('Match whole words') }}</label>
+              <div class="pdfjs-findbarOptionsTwoContainer pdfjs-toolbarHorizontalGroup">
+                <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                  <input
+                    ref="findMatchDiacriticsRef"
+                    :id="`pdfjs-findMatchDiacritics-${paneId}`"
+                    type="checkbox"
+                  >
+                  <label :for="`pdfjs-findMatchDiacritics-${paneId}`">{{ t('Match diacritics') }}</label>
+                </div>
+                <div class="pdfjs-toggleButton pdfjs-toolbarLabel">
+                  <input
+                    ref="findEntireWordRef"
+                    :id="`pdfjs-findEntireWord-${paneId}`"
+                    type="checkbox"
+                  >
+                  <label :for="`pdfjs-findEntireWord-${paneId}`">{{ t('Match whole words') }}</label>
+                </div>
               </div>
             </div>
 
@@ -526,6 +530,7 @@ const {
   convertPageOffsetToSyncTexPoint,
   openFind,
   closeFind,
+  toggleFind,
 } = usePdfViewerSession({
   filePathRef,
   viewerContainerRef,
@@ -1043,23 +1048,15 @@ function handleViewerDoubleClick(event) {
   })
 }
 
-function openPdfFindBar() {
-  openFind()
-}
-
 function togglePdfFindBar() {
-  if (pdfFind.open) {
-    closeFind()
-    return
-  }
-  openPdfFindBar()
+  toggleFind()
 }
 
 function handleReaderKeydown(event) {
   if (event?.isComposing) return
   if ((event.metaKey || event.ctrlKey) && String(event.key || '').toLowerCase() === 'f') {
     event.preventDefault()
-    openPdfFindBar()
+    openFind()
     return
   }
 
@@ -1489,7 +1486,7 @@ defineExpose({
   --findbar-padding: 2px;
   position: absolute;
   top: 12px;
-  left: 12px;
+  left: 50%;
   z-index: 9;
   width: min(460px, calc(100% - 24px));
   max-width: calc(100% - 24px);
@@ -1498,13 +1495,18 @@ defineExpose({
   height: auto;
   padding: 0;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 66%, transparent);
   box-sizing: border-box;
   flex-wrap: wrap;
   justify-content: flex-start;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(16px) saturate(1.08);
+  transform: translateX(-50%);
+}
+
+.pdfjs-findbar.hidden {
+  display: none;
 }
 
 .pdfjs-findbar > * {
@@ -1573,6 +1575,12 @@ defineExpose({
   color: var(--fg-primary);
 }
 
+.pdfjs-findNavButton {
+  width: 26px;
+  padding: 0;
+  flex: none;
+}
+
 .pdfjs-toolbarButton:disabled {
   opacity: 0.45;
   cursor: default;
@@ -1585,11 +1593,20 @@ defineExpose({
   background: color-mix(in srgb, var(--border) 82%, transparent);
 }
 
+.pdfjs-findbarOptionsRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
 .pdfjs-findbarOptionsOneContainer,
 .pdfjs-findbarOptionsTwoContainer {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-start;
+  width: calc(50% - 4px);
 }
 
 .pdfjs-toggleButton {
@@ -1598,7 +1615,7 @@ defineExpose({
   gap: 6px;
   padding: 5px 8px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--bg-primary) 74%, var(--bg-secondary));
+  background: color-mix(in srgb, var(--bg-primary) 54%, transparent);
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
   white-space: nowrap;
@@ -1958,10 +1975,21 @@ defineExpose({
     left: 12px;
     right: 12px;
     width: auto;
+    min-width: 0;
+    transform: none;
   }
 
   .pdfjs-findbar .pdfjs-toolbarHorizontalGroup {
     flex-wrap: wrap;
+  }
+
+  .pdfjs-findbarOptionsRow {
+    flex-direction: column;
+  }
+
+  .pdfjs-findbarOptionsOneContainer,
+  .pdfjs-findbarOptionsTwoContainer {
+    width: 100%;
   }
 }
 </style>

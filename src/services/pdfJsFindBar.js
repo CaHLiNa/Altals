@@ -122,6 +122,13 @@ export class PdfJsFindBar {
     })
   }
 
+  get isOpen() {
+    if (!this.bar) {
+      return !!this.opened
+    }
+    return this.opened || !this.bar.classList.contains('hidden')
+  }
+
   destroy() {
     this.#resizeObserver.disconnect()
     this.#abortController.abort()
@@ -144,7 +151,7 @@ export class PdfJsFindBar {
     const query = this.findField?.value || ''
     this.#syncState({
       query,
-      open: this.opened,
+      open: this.isOpen,
       highlightAll: !!this.highlightAll?.checked,
       matchCase: !!this.caseSensitive?.checked,
       entireWord: !!this.entireWord?.checked,
@@ -220,23 +227,25 @@ export class PdfJsFindBar {
   }
 
   open() {
-    if (!this.opened) {
+    if (!this.isOpen) {
       this.#resizeObserver.observe(this.#mainContainer)
       this.#resizeObserver.observe(this.bar)
-      this.opened = true
-      toggleExpandedButton(this.toggleButton, true, this.bar)
-      this.#syncState({ open: true })
     }
+    this.opened = true
+    toggleExpandedButton(this.toggleButton, true, this.bar)
+    this.#syncState({ open: true })
     this.findField?.select?.()
     this.findField?.focus?.()
   }
 
   close() {
-    if (!this.opened) return
     this.#resizeObserver.disconnect()
+    const wasOpen = this.isOpen
     this.opened = false
     toggleExpandedButton(this.toggleButton, false, this.bar)
-    this.eventBus.dispatch('findbarclose', { source: this })
+    if (wasOpen) {
+      this.eventBus.dispatch('findbarclose', { source: this })
+    }
     this.#syncState({
       open: false,
       pending: false,
@@ -246,7 +255,7 @@ export class PdfJsFindBar {
   }
 
   toggle() {
-    if (this.opened) {
+    if (this.isOpen) {
       this.close()
     } else {
       this.open()

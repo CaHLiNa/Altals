@@ -269,6 +269,12 @@ export function usePdfViewerSession(options) {
     pdfSession.value?.findBar?.close()
   }
 
+  function toggleFind() {
+    const findBar = pdfSession.value?.findBar
+    if (!findBar) return
+    findBar.toggle()
+  }
+
   function updateFindQuery(query) {
     const session = pdfSession.value
     session?.findBar?.setQuery(query)
@@ -1092,6 +1098,7 @@ export function usePdfViewerSession(options) {
     pdfFind,
     openFind,
     closeFind,
+    toggleFind,
     updateFindQuery,
     findNext,
     findPrevious,
