@@ -5,13 +5,11 @@ import { bracketMatching, indentOnInput, foldGutter, foldKeymap, syntaxHighlight
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, SearchCursor } from '@codemirror/search'
 import { shouldersTheme, shouldersHighlighting } from './theme'
+import { buildEditorInputAttributes } from './contextMenuPolicy'
 import { shouldHighlightSelectionMatches } from './selectionHighlightPolicy'
 
 // Shared compartment for line wrapping - reconfigured when user toggles soft wrap
 export const wrapCompartment = new Compartment()
-
-// Shared compartment for spellcheck - reconfigured when user toggles spell check
-export const spellCheckCompartment = new Compartment()
 
 // Shared compartment for wrap column width - constrains content to N characters
 export const columnWidthCompartment = new Compartment()
@@ -141,7 +139,7 @@ function editorStatsExtension(onStats) {
  * Create the full set of CodeMirror extensions.
  * Pass a languageExtension for syntax highlighting (or null for plain text).
  */
-export function createEditorExtensions({ onSave, onCursorChange, onStats, softWrap = true, wrapColumn = 0, spellcheck = false, languageExtension = null, extraExtensions = [] }) {
+export function createEditorExtensions({ onSave, onCursorChange, onStats, softWrap = true, wrapColumn = 0, languageExtension = null, extraExtensions = [] }) {
   return [
     // Soft wrap (toggleable via compartment)
     wrapCompartment.of(softWrap ? EditorView.lineWrapping : []),
@@ -149,8 +147,8 @@ export function createEditorExtensions({ onSave, onCursorChange, onStats, softWr
     // Wrap column width (constrains content to N chars when > 0)
     columnWidthCompartment.of(columnWidthExtension(wrapColumn)),
 
-    // Spellcheck (toggleable via compartment)
-    spellCheckCompartment.of(spellcheck ? EditorView.contentAttributes.of({ spellcheck: 'true' }) : []),
+    // Keep browser-native spelling and text services off so the editor owns selection and context menu behavior.
+    EditorView.contentAttributes.of(buildEditorInputAttributes()),
 
     // Core
     lineNumbers(),

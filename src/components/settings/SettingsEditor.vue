@@ -79,7 +79,7 @@
           </button>
         </div>
         <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Underlines misspelled words. Right-click and choose "Spelling..." for corrections. Markdown files only.') }}
+          {{ t('Shows spelling suggestions in the custom right-click menu. Markdown files only.') }}
         </div>
       </div>
 

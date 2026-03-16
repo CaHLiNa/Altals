@@ -43,10 +43,11 @@ import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactiv
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
-import { createEditorExtensions, createEditorState, wrapCompartment, spellCheckCompartment, columnWidthCompartment, columnWidthExtension } from '../../editor/setup'
+import { createEditorExtensions, createEditorState, wrapCompartment, columnWidthCompartment, columnWidthExtension } from '../../editor/setup'
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
+import { captureContextMenuState, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
@@ -114,6 +115,7 @@ let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let cleanupTypstWindowListeners = null
 let editorRuntimeActive = false
+let pendingContextMenuState = null
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
@@ -123,6 +125,8 @@ const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
 const fileIsRunnable = isRunnable(props.filePath)
 const fileLanguage = getLanguage(props.filePath)
 const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
+const isMacPlatform = typeof navigator !== 'undefined'
+  && /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
 
 const ctxMenu = reactive({ show: false, x: 0, y: 0, hasSelection: false })
 
@@ -196,16 +200,53 @@ const {
   isLatexFile: isTex,
 })
 
+function isContextMenuMouseGesture(event) {
+  return event.button === 2 || (isMacPlatform && event.button === 0 && event.ctrlKey)
+}
+
+function handleContextMenuMouseDown(event) {
+  if (!view) {
+    pendingContextMenuState = null
+    return
+  }
+
+  if (!isContextMenuMouseGesture(event)) {
+    pendingContextMenuState = null
+    return
+  }
+
+  pendingContextMenuState = captureContextMenuState(
+    view.state,
+    view.posAtCoords({ x: event.clientX, y: event.clientY }),
+  )
+
+  // Block browser and CodeMirror mouse-selection handling for context-menu gestures.
+  // We restore the intended caret/selection from the captured snapshot in onContextMenu.
+  event.preventDefault()
+  event.stopPropagation()
+}
+
 function onContextMenu(e) {
   ctxMenu.x = e.clientX
   ctxMenu.y = e.clientY
-  ctxMenu.hasSelection = view ? view.state.selection.main.from !== view.state.selection.main.to : false
-  // Temporarily remove the native spellcheck attribute to prevent macOS from
-  // showing its native spell correction widget on top of our custom context menu.
-  // The attribute is restored when the menu closes (see watch below).
-  if (view && isMd && workspace.spellcheck) {
-    view.dispatch({ effects: spellCheckCompartment.reconfigure([]) })
+
+  if (view) {
+    view.focus()
+    const decision = resolveContextMenuSelection(
+      pendingContextMenuState || captureContextMenuState(
+        view.state,
+        view.posAtCoords({ x: e.clientX, y: e.clientY }),
+      ),
+    )
+    if (decision.nextSelection && !decision.nextSelection.eq(view.state.selection)) {
+      view.dispatch({ selection: decision.nextSelection })
+    }
+    ctxMenu.hasSelection = decision.hasSelection
+  } else {
+    ctxMenu.hasSelection = false
   }
+
+  pendingContextMenuState = null
   ctxMenu.show = true
 }
 
@@ -677,7 +718,6 @@ onMounted(async () => {
   const extensions = createEditorExtensions({
     softWrap: workspace.softWrap,
     wrapColumn: workspace.wrapColumn,
-    spellcheck: isMd && workspace.spellcheck,
     languageExtension: langExt,
     onSave: (content) => {
       files.saveFile(props.filePath, content)
@@ -725,6 +765,7 @@ function ensureLatexWindowHandlers() {
 }
 
 function attachEditorRuntimeListeners() {
+  editorContainer.value?.addEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
     editorContainer.value?.addEventListener('click', handleCitationClick)
@@ -753,6 +794,7 @@ function attachEditorRuntimeListeners() {
 }
 
 function detachEditorRuntimeListeners() {
+  editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
     editorContainer.value?.removeEventListener('click', handleCitationClick)
@@ -803,6 +845,7 @@ function deactivateEditorRuntime() {
   editorRuntimeActive = false
   ctxMenu.show = false
   citPalette.show = false
+  pendingContextMenuState = null
   detachEditorRuntimeListeners()
   editorStore.unregisterEditorView(props.paneId, props.filePath)
 }
@@ -914,33 +957,6 @@ watch(
   }
 )
 
-// Watch for spellcheck toggle (markdown files only)
-if (isMd) {
-  watch(
-    () => workspace.spellcheck,
-    (enabled) => {
-      if (!view) return
-      view.dispatch({
-        effects: spellCheckCompartment.reconfigure(enabled ? EditorView.contentAttributes.of({ spellcheck: 'true' }) : []),
-      })
-    }
-  )
-
-  // Restore native spellcheck attribute when the context menu closes.
-  // It was removed in onContextMenu to prevent macOS from showing its native
-  // spell correction widget on top of our custom menu.
-  watch(
-    () => ctxMenu.show,
-    (show) => {
-      if (!show && view && workspace.spellcheck) {
-        view.dispatch({
-          effects: spellCheckCompartment.reconfigure(EditorView.contentAttributes.of({ spellcheck: 'true' })),
-        })
-      }
-    }
-  )
-}
-
 // Watch for live preview toggle — nudge CM to rebuild decorations
 if (isMd) {
   watch(
@@ -967,6 +983,7 @@ onUnmounted(() => {
     view.destroy()
     view = null
   }
+  pendingContextMenuState = null
   backwardSyncHandler = null
   latexCursorRequestHandler = null
 })

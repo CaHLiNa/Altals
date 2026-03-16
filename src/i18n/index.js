@@ -29,6 +29,7 @@ const ZH_MESSAGES = {
   'Full width': '全宽',
   'Spell Check': '拼写检查',
   'Underlines misspelled words. Right-click and choose "Spelling..." for corrections. Markdown files only.': '为拼写错误的单词加下划线。可右键选择“拼写...”进行修正。仅支持 Markdown 文件。',
+  'Shows spelling suggestions in the custom right-click menu. Markdown files only.': '在自定义右键菜单中显示拼写建议。仅支持 Markdown 文件。',
   'Hide Markup': '隐藏标记',
   'Links show as underlined text, bold/italic render inline, heading marks dim. Markdown files only.': '链接显示为带下划线的文本，粗体/斜体直接内联渲染，标题标记会弱化显示。仅支持 Markdown 文件。',
   'Ghost Suggestions': '幽灵补全',
