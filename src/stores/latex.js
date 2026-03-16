@@ -8,6 +8,7 @@ const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const LATEX_AUTOCOMPILE_DEBOUNCE_MS = 1200
 
 let latexStreamUnlistenPromise = null
+let latexForwardSyncRequestId = 0
 
 const readStoredValue = (key, fallback) => {
   try {
@@ -138,6 +139,8 @@ export const useLatexStore = defineStore('latex', {
     _timers: {},
     // Recompile flags per file (set when compile is requested while one is running)
     _recompileNeeded: {},
+    // Pending forward SyncTeX requests keyed by TeX source path.
+    forwardSyncRequests: {},
     compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
     enginePreference: readStoredValue('latex.enginePreference', 'auto'),
     customSystemTexPath: readStoredValue('latex.customSystemTexPath', ''),
@@ -170,6 +173,10 @@ export const useLatexStore = defineStore('latex', {
 
     warningsForFile: (state) => (texPath) => {
       return state.compileState[texPath]?.warnings || []
+    },
+
+    forwardSyncRequestFor: (state) => (texPath) => {
+      return state.forwardSyncRequests[texPath] || null
     },
 
     hasAvailableCompiler: (state) => {
@@ -314,10 +321,40 @@ export const useLatexStore = defineStore('latex', {
       }
     },
 
+    requestForwardSync(texPath, line, column = 0) {
+      const lineNumber = Number(line)
+      const columnNumber = Number(column)
+      if (!texPath || !Number.isInteger(lineNumber) || lineNumber < 1) return null
+
+      const request = {
+        id: ++latexForwardSyncRequestId,
+        texPath,
+        line: lineNumber,
+        column: Number.isInteger(columnNumber) && columnNumber >= 0 ? columnNumber : 0,
+        requestedAt: Date.now(),
+      }
+
+      this.forwardSyncRequests = {
+        ...this.forwardSyncRequests,
+        [texPath]: request,
+      }
+      return request
+    },
+
+    clearForwardSync(texPath, requestId = null) {
+      if (!texPath || !this.forwardSyncRequests[texPath]) return
+      if (requestId != null && this.forwardSyncRequests[texPath]?.id !== requestId) return
+
+      const nextRequests = { ...this.forwardSyncRequests }
+      delete nextRequests[texPath]
+      this.forwardSyncRequests = nextRequests
+    },
+
     clearState(texPath) {
       delete this.compileState[texPath]
       this.cancelAutoCompile(texPath)
       delete this._recompileNeeded[texPath]
+      this.clearForwardSync(texPath)
     },
 
     openCompileLog(texPath) {
@@ -349,6 +386,7 @@ export const useLatexStore = defineStore('latex', {
       this._timers = {}
       this._recompileNeeded = {}
       this.compileState = {}
+      this.forwardSyncRequests = {}
     },
 
     async checkCompilers(force = false) {

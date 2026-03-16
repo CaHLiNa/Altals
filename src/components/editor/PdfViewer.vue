@@ -312,6 +312,7 @@ const {
   thumbnailPreviewStyle,
   scrollToPage,
   scrollToLocation,
+  convertPageOffsetToSyncTexPoint,
 } = usePdfViewerSession({
   filePathRef,
   viewerContainerRef,
@@ -366,11 +367,15 @@ function handleViewerDoubleClick(event) {
   const pageElement = event.target?.closest?.('.page[data-page-number]')
   if (!pageElement) return
 
+  const page = Number(pageElement.dataset.pageNumber || 0)
   const rect = pageElement.getBoundingClientRect()
+  const localX = event.clientX - rect.left
+  const localY = event.clientY - rect.top
+  const syncTexPoint = convertPageOffsetToSyncTexPoint(page, localX, localY)
   emit('dblclick-page', {
-    page: Number(pageElement.dataset.pageNumber || 0),
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    page,
+    x: syncTexPoint?.x ?? localX,
+    y: syncTexPoint?.y ?? localY,
   })
 }
 
@@ -780,7 +785,36 @@ defineExpose({
 }
 
 .pdf-stage :deep(.page) {
+  position: relative;
   box-shadow: none;
+}
+
+.pdf-stage :deep(.altals-pdf-sync-highlight) {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent),
+    0 10px 24px color-mix(in srgb, var(--accent) 20%, transparent);
+  opacity: 0;
+  transform: scaleX(0.985);
+  transform-origin: center;
+  animation: pdf-sync-highlight-fade 1.4s ease-out forwards;
+  z-index: 7;
+}
+
+.pdf-stage :deep(.altals-pdf-sync-highlight)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--sync-highlight-anchor-x, 50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 80%, white);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: translate(-50%, -50%);
 }
 
 @keyframes pdf-page-thumb-shimmer {
@@ -789,6 +823,24 @@ defineExpose({
   }
   100% {
     background-position: 180px 0, 0 0;
+  }
+}
+
+@keyframes pdf-sync-highlight-fade {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.97);
+  }
+  12% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  75% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.01);
   }
 }
 

@@ -33,9 +33,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useLatexStore } from '../../stores/latex'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useI18n } from '../../i18n'
 import PdfViewer from './PdfViewer.vue'
 
@@ -46,26 +47,36 @@ const props = defineProps({
 })
 
 const latexStore = useLatexStore()
+const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
-// Derive .tex path from .pdf path
-const texPath = computed(() => {
-  return props.filePath.replace(/\.pdf$/, '.tex')
-})
+function inferLatexSourcePath(pdfPath) {
+  return String(pdfPath || '').replace(/\.pdf$/i, '.tex')
+}
+
+function inferSyncTexPath(latexPath) {
+  return String(latexPath || '').replace(/\.(tex|latex)$/i, '.synctex.gz')
+}
+
+const texPath = computed(() => (
+  workflowStore.getSourcePathForPreview(props.filePath) || inferLatexSourcePath(props.filePath)
+))
 
 const state = computed(() => latexStore.stateForFile(texPath.value))
+const synctexPath = computed(() => state.value?.synctexPath || inferSyncTexPath(texPath.value))
+const forwardSyncRequest = computed(() => latexStore.forwardSyncRequestFor(texPath.value))
 const compileStatus = computed(() => state.value?.status || null)
 const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
 const hasPdf = ref(false)
 
 const pdfViewerRef = ref(null)
 const pdfReloadKey = ref(0)
+let activeForwardSyncRequestId = null
 
 function handleBackwardSync({ page, x, y }) {
-  const synctexPath = state.value?.synctexPath
-  if (!synctexPath || !page) return
+  if (!synctexPath.value || !page) return
 
-  invoke('synctex_backward', { synctexPath, page, x, y })
+  invoke('synctex_backward', { synctexPath: synctexPath.value, page, x, y })
     .then(result => {
       if (result?.line) {
         window.dispatchEvent(new CustomEvent('latex-backward-sync', {
@@ -79,7 +90,8 @@ function handleBackwardSync({ page, x, y }) {
 function handleCompileDone(e) {
   if (e.detail?.texPath === texPath.value) {
     pdfReloadKey.value++
-    checkPdfExists()
+    void checkPdfExists()
+    void maybeRunForwardSync()
   }
 }
 
@@ -91,31 +103,63 @@ async function checkPdfExists() {
   }
 }
 
-// Forward sync: listen for cursor-response and invoke synctex_forward
-function handleCursorResponse(e) {
-  const { texPath: tp, line } = e.detail || {}
-  if (tp !== texPath.value) return
-  const synctexPath = state.value?.synctexPath
-  if (!synctexPath) return
+async function maybeRunForwardSync() {
+  const request = forwardSyncRequest.value
+  if (!request?.id || request.texPath !== texPath.value) return
+  if (!synctexPath.value || !hasPdf.value) return
+  if (!pdfViewerRef.value?.scrollToLocation) return
+  if (activeForwardSyncRequestId === request.id) return
 
-  invoke('synctex_forward', { synctexPath, texPath: texPath.value, line })
-    .then(result => {
-      if (result?.page) {
-        pdfViewerRef.value?.scrollToLocation(result.page, result.x, result.y)
-      }
+  const syncTexExists = await invoke('path_exists', { path: synctexPath.value }).catch(() => false)
+  if (!syncTexExists) return
+
+  activeForwardSyncRequestId = request.id
+  try {
+    const result = await invoke('synctex_forward', {
+      synctexPath: synctexPath.value,
+      texPath: texPath.value,
+      line: request.line,
+      column: request.column ?? 0,
     })
-    .catch(() => {})
+    if (forwardSyncRequest.value?.id !== request.id) return
+    if (result?.page) {
+      pdfViewerRef.value?.scrollToLocation(result.page, result.x, result.y)
+    }
+    latexStore.clearForwardSync(texPath.value, request.id)
+  } catch {
+    if (forwardSyncRequest.value?.id === request.id) {
+      latexStore.clearForwardSync(texPath.value, request.id)
+    }
+  } finally {
+    if (activeForwardSyncRequestId === request.id) {
+      activeForwardSyncRequestId = null
+    }
+  }
 }
 
 onMounted(() => {
   latexStore.checkCompilers()
   window.addEventListener('latex-compile-done', handleCompileDone)
-  window.addEventListener('latex-cursor-response', handleCursorResponse)
-  checkPdfExists()
+  void checkPdfExists().then(() => maybeRunForwardSync())
 })
 
 onUnmounted(() => {
   window.removeEventListener('latex-compile-done', handleCompileDone)
-  window.removeEventListener('latex-cursor-response', handleCursorResponse)
 })
+
+watch(pdfPath, () => {
+  void checkPdfExists()
+})
+
+watch(pdfViewerRef, () => {
+  void maybeRunForwardSync()
+})
+
+watch(
+  () => [forwardSyncRequest.value?.id, synctexPath.value, hasPdf.value],
+  () => {
+    void maybeRunForwardSync()
+  },
+  { immediate: true },
+)
 </script>

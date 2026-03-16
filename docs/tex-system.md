@@ -86,7 +86,6 @@ When a `.tex` file is the active tab, the TabBar shows compile controls (same po
 - **Status indicator**: spinner + "Compiling…", green "● 2.1s" (success), red "✕ 2 errors" (failure)
 - **Compile button**: Triggers manual compile (also auto-compiles on save)
 - **Auto toggle**: Enables/disables auto-compile on save (green = on, muted = off). Manual compile always works regardless.
-- **Sync button**: Forward SyncTeX sync — jumps PDF to current cursor position
 
 ## PDF Viewer
 
@@ -154,18 +153,19 @@ SyncTeX provides bidirectional position synchronization between `.tex` source an
 
 ### Forward Sync (Editor → PDF)
 
-1. Click the Sync button in the `.tex` TabBar
-2. `EditorPane` dispatches `latex-request-cursor` event
-3. `TextEditor` responds with current line number via `latex-cursor-response`
-4. `LatexPdfViewer` receives response → Rust parses `.synctex.gz` → returns page + position
-5. PDF viewer scrolls to the corresponding page
+1. Double-click in the `.tex` editor
+2. `TextEditor` resolves the clicked line with CodeMirror and ensures the PDF preview exists
+3. The line number is queued in the LaTeX store as a pending forward-sync request
+4. `LatexPdfViewer` consumes the request → Rust parses `.synctex.gz` → returns page + position
+5. PDF viewer converts SyncTeX coordinates into PDF.js page coordinates and scrolls to the corresponding location
 
 ### Backward Sync (PDF → Editor)
 
 1. Double-click in the PDF
-2. Rust parses `.synctex.gz` → returns file + line
-3. `TextEditor` receives `latex-backward-sync` event
-4. Editor scrolls to the line and centers it in view
+2. PDF viewer converts the click from page pixels into SyncTeX page coordinates
+3. Rust parses `.synctex.gz` → returns file + line
+4. `TextEditor` receives `latex-backward-sync` event
+5. Editor scrolls to the line and centers it in view
 
 ### SyncTeX File Parsing
 

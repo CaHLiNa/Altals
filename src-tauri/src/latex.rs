@@ -210,6 +210,68 @@ fn find_system_tex(custom_path: Option<&str>) -> Option<String> {
     None
 }
 
+fn synctex_binary_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "synctex.exe"
+    } else {
+        "synctex"
+    }
+}
+
+fn find_synctex(custom_system_tex_path: Option<&str>) -> Option<String> {
+    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
+        if let Some(parent) = Path::new(system_tex_path).parent() {
+            let sibling = parent.join(synctex_binary_name());
+            if sibling.exists() {
+                return Some(sibling.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        let candidates = [
+            "/Library/TeX/texbin/synctex",
+            "/opt/homebrew/bin/synctex",
+            "/usr/local/bin/synctex",
+            "/usr/bin/synctex",
+        ];
+        for path in &candidates {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+
+        let output = background_command("/bin/bash")
+            .args(["-lc", "which synctex"])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let output = background_command("where").arg("synctex").output().ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
@@ -852,10 +914,25 @@ pub async fn synctex_forward(
     synctex_path: String,
     tex_path: String,
     line: u32,
+    column: Option<u32>,
 ) -> Result<serde_json::Value, String> {
     let synctex = Path::new(&synctex_path);
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
+    }
+
+    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
+        if let Some(binary) = find_synctex(None) {
+            if let Ok(result) = run_synctex_view_cli(
+                &binary,
+                &pdf_path,
+                &tex_path,
+                line,
+                column.unwrap_or(0),
+            ) {
+                return Ok(result);
+            }
+        }
     }
 
     let data = parse_synctex_gz(&synctex_path)?;
@@ -874,15 +951,26 @@ pub async fn synctex_backward(
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
+    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
+        if let Some(binary) = find_synctex(None) {
+            if let Ok(result) = run_synctex_edit_cli(&binary, &pdf_path, page, x, y) {
+                return Ok(result);
+            }
+        }
+    }
+
     let data = parse_synctex_gz(&synctex_path)?;
     backward_sync(&data, page, x, y)
 }
 
 // --- SyncTeX parser ---
 
+const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;
+
 #[derive(Debug)]
 #[allow(dead_code)]
 struct SyncNode {
+    kind: char,
     file: String,
     line: u32,
     page: u32,
@@ -890,6 +978,239 @@ struct SyncNode {
     y: f64,
     width: f64,
     height: f64,
+}
+
+fn synctex_scaled_to_big_point(value: f64) -> f64 {
+    value * SYNCTEX_SCALED_POINT_TO_BIG_POINT
+}
+
+fn derive_pdf_path_from_synctex_path(synctex_path: &str) -> Option<String> {
+    if let Some(path) = synctex_path.strip_suffix(".synctex.gz") {
+        return Some(format!("{path}.pdf"));
+    }
+    if let Some(path) = synctex_path.strip_suffix(".synctex") {
+        return Some(format!("{path}.pdf"));
+    }
+    None
+}
+
+fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> {
+    let mut page = None;
+    let mut x = None;
+    let mut y = None;
+
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some(value) = trimmed.strip_prefix("Page:") {
+            page = value.trim().parse::<u32>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("x:") {
+            x = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("y:") {
+            y = value.trim().parse::<f64>().ok();
+        }
+
+        if let (Some(page), Some(x), Some(y)) = (page, x, y) {
+            return Ok(serde_json::json!({
+                "page": page,
+                "x": x,
+                "y": y,
+            }));
+        }
+    }
+
+    Err("SyncTeX view output did not contain a complete result.".to_string())
+}
+
+fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> {
+    let mut input = None;
+    let mut line = None;
+
+    for raw_line in output.lines() {
+        let trimmed = raw_line.trim();
+        if let Some(value) = trimmed.strip_prefix("Input:") {
+            input = Some(value.trim().to_string());
+        } else if let Some(value) = trimmed.strip_prefix("Line:") {
+            line = value.trim().parse::<u32>().ok();
+        }
+
+        if let (Some(file), Some(line)) = (&input, line) {
+            return Ok(serde_json::json!({
+                "file": file,
+                "line": line,
+            }));
+        }
+    }
+
+    Err("SyncTeX edit output did not contain a complete result.".to_string())
+}
+
+fn run_synctex_view_cli(
+    synctex_binary: &str,
+    pdf_path: &str,
+    tex_path: &str,
+    line: u32,
+    column: u32,
+) -> Result<serde_json::Value, String> {
+    let input = build_synctex_view_input(tex_path, line, column);
+    let output = background_command(synctex_binary)
+        .args(["view", "-i", &input, "-o", pdf_path])
+        .output()
+        .map_err(|e| format!("Failed to run synctex view: {}", e))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    parse_synctex_view_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn build_synctex_view_input(tex_path: &str, line: u32, column: u32) -> String {
+    // The CLI format is line:column:input, with optional page hint inserted
+    // before the input path. Passing 0 here would be parsed as part of the
+    // file name and make column-based forward sync ineffective.
+    format!("{}:{}:{}", line.max(1), column, tex_path)
+}
+
+fn run_synctex_edit_cli(
+    synctex_binary: &str,
+    pdf_path: &str,
+    page: u32,
+    x: f64,
+    y: f64,
+) -> Result<serde_json::Value, String> {
+    let location = format!("{}:{:.6}:{:.6}:{}", page.max(1), x, y, pdf_path);
+    let output = background_command(synctex_binary)
+        .args(["edit", "-o", &location])
+        .output()
+        .map_err(|e| format!("Failed to run synctex edit: {}", e))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    parse_synctex_edit_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_synctex_content(content: &str) -> Vec<SyncNode> {
+    let mut nodes = Vec::new();
+    let mut inputs: HashMap<u32, String> = HashMap::new();
+    let mut current_page: u32 = 0;
+    let mut x_offset: f64 = 0.0;
+    let mut y_offset: f64 = 0.0;
+
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("Input:") {
+            if let Some(colon) = rest.find(':') {
+                if let Ok(id) = rest[..colon].parse::<u32>() {
+                    inputs.insert(id, rest[colon + 1..].to_string());
+                }
+            }
+            continue;
+        }
+
+        if let Some(value) = line.strip_prefix("X Offset:") {
+            x_offset = value.trim().parse::<f64>().unwrap_or(0.0);
+            continue;
+        }
+
+        if let Some(value) = line.strip_prefix("Y Offset:") {
+            y_offset = value.trim().parse::<f64>().unwrap_or(0.0);
+            continue;
+        }
+
+        if let Some(page_marker) = line.strip_prefix('{') {
+            if let Ok(page) = page_marker.trim().parse::<u32>() {
+                current_page = page;
+            }
+            continue;
+        }
+
+        let kind = match line.chars().next() {
+            Some('h' | 'v' | 'x') if line.len() > 1 => line.chars().next().unwrap(),
+            _ => continue,
+        };
+
+        let Some((head, tail)) = line[1..].split_once(':') else {
+            continue;
+        };
+        let Some((input_id_raw, line_raw)) = head.split_once(',') else {
+            continue;
+        };
+        let Ok(input_id) = input_id_raw.parse::<u32>() else {
+            continue;
+        };
+        let Ok(source_line) = line_raw.parse::<u32>() else {
+            continue;
+        };
+        let Some(file) = inputs.get(&input_id) else {
+            continue;
+        };
+
+        let (x, y, width, height) = if kind == 'x' {
+            let Some((x_raw, y_raw)) = tail.split_once(',') else {
+                continue;
+            };
+            let Ok(x_value) = x_raw.parse::<f64>() else {
+                continue;
+            };
+            let Ok(y_value) = y_raw.parse::<f64>() else {
+                continue;
+            };
+            (
+                synctex_scaled_to_big_point(x_offset + x_value),
+                synctex_scaled_to_big_point(y_offset + y_value),
+                0.0,
+                0.0,
+            )
+        } else {
+            let Some((position_part, size_part)) = tail.split_once(':') else {
+                continue;
+            };
+            let mut position_values = position_part.split(',');
+            let Some(x_raw) = position_values.next() else {
+                continue;
+            };
+            let Some(y_raw) = position_values.next() else {
+                continue;
+            };
+            let Ok(x_value) = x_raw.parse::<f64>() else {
+                continue;
+            };
+            let Ok(y_value) = y_raw.parse::<f64>() else {
+                continue;
+            };
+
+            let mut size_values = size_part.split(',');
+            let width_value = size_values
+                .next()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let height_value = size_values
+                .next()
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            (
+                synctex_scaled_to_big_point(x_offset + x_value),
+                synctex_scaled_to_big_point(y_offset + y_value),
+                synctex_scaled_to_big_point(width_value),
+                synctex_scaled_to_big_point(height_value),
+            )
+        };
+
+        nodes.push(SyncNode {
+            kind,
+            file: file.clone(),
+            line: source_line,
+            page: current_page,
+            x,
+            y,
+            width,
+            height,
+        });
+    }
+
+    nodes
 }
 
 fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
@@ -902,51 +1223,7 @@ fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
         .read_to_string(&mut content)
         .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
 
-    let mut nodes = Vec::new();
-    let mut inputs: HashMap<u32, String> = HashMap::new();
-    let mut current_page: u32 = 0;
-
-    for line in content.lines() {
-        if line.starts_with("Input:") {
-            // Input:1:/path/to/file.tex
-            let rest = &line[6..];
-            if let Some(colon) = rest.find(':') {
-                if let Ok(id) = rest[..colon].parse::<u32>() {
-                    inputs.insert(id, rest[colon + 1..].to_string());
-                }
-            }
-        } else if line.starts_with('{') {
-            // {page_num
-            if let Ok(p) = line[1..].trim().parse::<u32>() {
-                current_page = p;
-            }
-        } else if line.starts_with('h') || line.starts_with('v') || line.starts_with('x') {
-            // h/v/x records: type input_id:line:col:x:y:W:H:D
-            let parts: Vec<&str> = line[1..].split(':').collect();
-            if parts.len() >= 7 {
-                let input_id = parts[0].parse::<u32>().unwrap_or(0);
-                let ln = parts[1].parse::<u32>().unwrap_or(0);
-                let x = parts[3].parse::<f64>().unwrap_or(0.0);
-                let y = parts[4].parse::<f64>().unwrap_or(0.0);
-                let w = parts[5].parse::<f64>().unwrap_or(0.0);
-                let h = parts[6].parse::<f64>().unwrap_or(0.0);
-
-                if let Some(file) = inputs.get(&input_id) {
-                    nodes.push(SyncNode {
-                        file: file.clone(),
-                        line: ln,
-                        page: current_page,
-                        x,
-                        y,
-                        width: w,
-                        height: h,
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(nodes)
+    Ok(parse_synctex_content(&content))
 }
 
 fn forward_sync(
@@ -971,7 +1248,19 @@ fn forward_sync(
             } else {
                 line - node.line
             };
-            if dist < best_dist {
+            let should_replace = if dist < best_dist {
+                true
+            } else if dist == best_dist {
+                match best {
+                    Some(best_node) if node.kind == 'x' && best_node.kind != 'x' => true,
+                    Some(best_node) if node.kind == best_node.kind && node.x < best_node.x => true,
+                    None => true,
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            if should_replace {
                 best_dist = dist;
                 best = Some(node);
             }
@@ -1016,5 +1305,157 @@ fn backward_sync(
             "line": node.line,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        backward_sync, build_synctex_view_input, forward_sync, parse_synctex_content,
+        parse_synctex_edit_output, parse_synctex_view_output,
+    };
+
+    const SAMPLE_SYNCTEX: &str = r#"SyncTeX Version:1
+Input:1:/tmp/main.tex
+Output:pdf
+Magnification:1000
+Unit:1
+X Offset:0
+Y Offset:0
+Content:
+!782
+{1
+[1,7:4736286,49328947:30785865,44592661,0
+(1,5:4736286,5391646:30785865,455111,0
+h1,4:4736286,5391646:983040,0,0
+x1,4:7193889,5391646
+g1,4:7412342,5391646
+x1,4:7885658,5391646
+x1,4:9179997,5391646
+)
+(1,7:4736286,6178078:30785865,455111,0
+h1,6:4736286,6178078:983040,0,0
+x1,6:7721819,6178078
+)
+}1
+"#;
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 0.02,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn parses_scaled_sync_points_into_big_points() {
+        let nodes = parse_synctex_content(SAMPLE_SYNCTEX);
+        let main_nodes: Vec<_> = nodes.iter().filter(|node| node.file == "/tmp/main.tex").collect();
+
+        assert!(!main_nodes.is_empty());
+        let first_x = main_nodes
+            .iter()
+            .find(|node| node.kind == 'x' && node.line == 4)
+            .expect("expected an x record for line 4");
+
+        assert_close(first_x.x, 109.35993);
+        assert_close(first_x.y, 81.96262);
+    }
+
+    #[test]
+    fn forward_sync_prefers_precise_x_records() {
+        let nodes = parse_synctex_content(SAMPLE_SYNCTEX);
+        let result = forward_sync(&nodes, "/tmp/main.tex", 4).expect("forward sync should resolve");
+
+        assert_eq!(result["page"].as_u64(), Some(1));
+        assert_close(result["x"].as_f64().unwrap(), 109.35993);
+        assert_close(result["y"].as_f64().unwrap(), 81.96262);
+    }
+
+    #[test]
+    fn backward_sync_matches_the_nearest_line() {
+        let nodes = parse_synctex_content(SAMPLE_SYNCTEX);
+        let result =
+            backward_sync(&nodes, 1, 109.35993, 81.96262).expect("backward sync should resolve");
+
+        assert_eq!(result["file"].as_str(), Some("/tmp/main.tex"));
+        assert_eq!(result["line"].as_u64(), Some(4));
+    }
+
+    #[test]
+    fn parses_synctex_view_cli_output() {
+        let output = r#"This is SyncTeX command line utility, version 1.5
+SyncTeX result begin
+Output:/tmp/main.pdf
+Page:1
+x:109.359932
+y:81.962624
+h:71.999985
+v:81.962624
+W:468.000000
+H:6.918498
+before:
+offset:-1
+middle:
+after:
+SyncTeX result end
+"#;
+
+        let result = parse_synctex_view_output(output).expect("CLI output should parse");
+        assert_eq!(result["page"].as_u64(), Some(1));
+        assert_close(result["x"].as_f64().unwrap(), 109.35993);
+        assert_close(result["y"].as_f64().unwrap(), 81.96262);
+    }
+
+    #[test]
+    fn parses_first_synctex_view_record() {
+        let output = r#"This is SyncTeX command line utility, version 1.5
+SyncTeX result begin
+Output:/tmp/main.pdf
+Page:2
+x:210.000000
+y:320.000000
+h:200.000000
+v:320.000000
+W:20.000000
+H:6.000000
+Page:7
+x:900.000000
+y:910.000000
+h:880.000000
+v:910.000000
+W:10.000000
+H:6.000000
+SyncTeX result end
+"#;
+
+        let result = parse_synctex_view_output(output).expect("first view record should parse");
+        assert_eq!(result["page"].as_u64(), Some(2));
+        assert_close(result["x"].as_f64().unwrap(), 210.0);
+        assert_close(result["y"].as_f64().unwrap(), 320.0);
+    }
+
+    #[test]
+    fn builds_synctex_view_input_without_page_hint() {
+        let input = build_synctex_view_input("/tmp/main.tex", 12, 34);
+        assert_eq!(input, "12:34:/tmp/main.tex");
+    }
+
+    #[test]
+    fn parses_synctex_edit_cli_output() {
+        let output = r#"This is SyncTeX command line utility, version 1.5
+SyncTeX result begin
+Output:/tmp/main.pdf
+Input:/tmp/main.tex
+Line:4
+Column:-1
+Offset:0
+Context:
+SyncTeX result end
+"#;
+
+        let result = parse_synctex_edit_output(output).expect("CLI output should parse");
+        assert_eq!(result["file"].as_str(), Some("/tmp/main.tex"));
+        assert_eq!(result["line"].as_u64(), Some(4));
     }
 }

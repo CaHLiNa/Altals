@@ -25,6 +25,9 @@ const DEFAULT_PAGE_THUMB_ASPECT_RATIO = 1 / Math.SQRT2
 const PAGE_THUMBNAIL_TARGET_WIDTH = 132
 const PAGE_THUMBNAIL_CONCURRENCY = 2
 const PAGE_THUMBNAIL_NEARBY_RANGE = 1
+const PDF_SYNC_HIGHLIGHT_DURATION_MS = 1400
+const PDF_SYNC_HIGHLIGHT_HEIGHT_PX = 26
+const PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX = 16
 
 function normalizeOutlineTitle(title) {
   const normalized = String(title || '').replace(/\u0000/g, '').trim()
@@ -95,6 +98,9 @@ export function usePdfViewerSession(options) {
   let resizeObserver = null
   let thumbnailObserver = null
   let thumbnailQueue = []
+  let pendingScrollLocation = null
+  let activeSyncHighlightEl = null
+  let activeSyncHighlightTimer = null
   const thumbnailQueuedPages = new Set()
   const thumbnailRenderingPages = new Set()
   const thumbnailItemElements = new Map()
@@ -129,6 +135,39 @@ export function usePdfViewerSession(options) {
 
   function getPdfLinkService() {
     return pdfSession.value?.linkService || null
+  }
+
+  function getPageView(pageNumber) {
+    const viewer = getPdfViewer()
+    const targetPage = Number(pageNumber)
+    if (!viewer || !Number.isInteger(targetPage) || targetPage < 1) return null
+    return viewer._pages?.[targetPage - 1] || null
+  }
+
+  function getPageHeightInPdfPoints(pageView) {
+    const rawHeight = Number(pageView?.viewport?.rawDims?.pageHeight)
+    if (Number.isFinite(rawHeight) && rawHeight > 0) return rawHeight
+
+    const viewBox = pageView?.pdfPage?.view
+    if (Array.isArray(viewBox) && viewBox.length >= 4) {
+      const height = Number(viewBox[3]) - Number(viewBox[1])
+      if (Number.isFinite(height) && height > 0) return height
+    }
+
+    return null
+  }
+
+  function getPageWidthInPdfPoints(pageView) {
+    const rawWidth = Number(pageView?.viewport?.rawDims?.pageWidth)
+    if (Number.isFinite(rawWidth) && rawWidth > 0) return rawWidth
+
+    const viewBox = pageView?.pdfPage?.view
+    if (Array.isArray(viewBox) && viewBox.length >= 4) {
+      const width = Number(viewBox[2]) - Number(viewBox[0])
+      if (Number.isFinite(width) && width > 0) return width
+    }
+
+    return null
   }
 
   function localizeScaleLabel(value, numericScale = null) {
@@ -402,6 +441,93 @@ export function usePdfViewerSession(options) {
     })
   }
 
+  function applyPendingScrollLocation() {
+    if (!pendingScrollLocation) return
+    const viewer = getPdfViewer()
+    if (!viewer?.scrollPageIntoView) return
+
+    const nextLocation = pendingScrollLocation
+    pendingScrollLocation = null
+    scrollToLocation(nextLocation.pageNumber, nextLocation.x, nextLocation.y)
+  }
+
+  function convertSyncTexPointToPageOffset(pageNumber, x, y) {
+    const pageView = getPageView(pageNumber)
+    if (!pageView?.viewport?.convertToViewportPoint) return null
+
+    const syncX = Number(x)
+    const syncY = Number(y)
+    const pageHeight = getPageHeightInPdfPoints(pageView)
+    const pageWidth = getPageWidthInPdfPoints(pageView)
+    if (!Number.isFinite(syncX) || !Number.isFinite(syncY) || !Number.isFinite(pageHeight)) {
+      return null
+    }
+
+    const [viewportX, viewportY] = pageView.viewport.convertToViewportPoint(syncX, pageHeight - syncY)
+    if (!Number.isFinite(viewportX) || !Number.isFinite(viewportY)) return null
+
+    return {
+      pageView,
+      pageHeight,
+      pageWidth,
+      x: viewportX,
+      y: viewportY,
+    }
+  }
+
+  function clearSyncHighlight() {
+    if (activeSyncHighlightTimer) {
+      window.clearTimeout(activeSyncHighlightTimer)
+      activeSyncHighlightTimer = null
+    }
+    if (activeSyncHighlightEl?.parentNode) {
+      activeSyncHighlightEl.parentNode.removeChild(activeSyncHighlightEl)
+    }
+    activeSyncHighlightEl = null
+  }
+
+  function showSyncHighlight(pageNumber, x, y) {
+    clearSyncHighlight()
+
+    const pageOffset = convertSyncTexPointToPageOffset(pageNumber, x, y)
+    const pageElement = pageOffset?.pageView?.div
+    if (!pageOffset || !pageElement) return
+
+    const pageWidthPx = Math.max(0, Number(pageElement.clientWidth || 0))
+    const pageHeightPx = Math.max(0, Number(pageElement.clientHeight || 0))
+    if (pageWidthPx === 0 || pageHeightPx === 0) return
+
+    const width = Math.max(
+      0,
+      pageWidthPx - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX * 2,
+    )
+    const height = Math.min(PDF_SYNC_HIGHLIGHT_HEIGHT_PX, Math.max(12, pageHeightPx - 12))
+    const top = Math.min(
+      Math.max(6, pageOffset.y - height / 2),
+      Math.max(6, pageHeightPx - height - 6),
+    )
+
+    const highlight = document.createElement('div')
+    highlight.className = 'altals-pdf-sync-highlight'
+    highlight.style.left = `${PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX}px`
+    highlight.style.top = `${top}px`
+    highlight.style.width = `${width}px`
+    highlight.style.height = `${height}px`
+    const anchorX = Math.max(
+      0,
+      Math.min(width, pageOffset.x - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX),
+    )
+    highlight.style.setProperty('--sync-highlight-anchor-x', `${anchorX}px`)
+
+    pageElement.appendChild(highlight)
+    activeSyncHighlightEl = highlight
+    activeSyncHighlightTimer = window.setTimeout(() => {
+      if (activeSyncHighlightEl === highlight) {
+        clearSyncHighlight()
+      }
+    }, PDF_SYNC_HIGHLIGHT_DURATION_MS)
+  }
+
   function attachViewerListeners(session, requestId) {
     const { eventBus, pdfViewer } = session
 
@@ -409,17 +535,20 @@ export function usePdfViewerSession(options) {
       if (requestId !== loadRequestId) return
       pdfViewer.currentScaleValue = pdfUi.scaleValue || 'page-width'
       syncPdfUi()
+      applyPendingScrollLocation()
     })
 
     eventBus.on('pagerendered', () => {
       if (requestId !== loadRequestId) return
       loading.value = false
       syncPdfUi()
+      applyPendingScrollLocation()
     }, { once: true })
 
     eventBus.on('pagesloaded', () => {
       if (requestId !== loadRequestId) return
       syncPdfUi()
+      applyPendingScrollLocation()
     })
 
     eventBus.on('pagechanging', () => {
@@ -434,6 +563,7 @@ export function usePdfViewerSession(options) {
   }
 
   async function cleanupPdfSession() {
+    clearSyncHighlight()
     const session = pdfSession.value
     pdfSession.value = null
 
@@ -643,31 +773,74 @@ export function usePdfViewerSession(options) {
     syncPdfUi()
   }
 
+  function convertPageOffsetToSyncTexPoint(pageNumber, x, y) {
+    const pageView = getPageView(pageNumber)
+    if (!pageView?.getPagePoint) return null
+
+    const localX = Number(x)
+    const localY = Number(y)
+    if (!Number.isFinite(localX) || !Number.isFinite(localY)) return null
+
+    const [pdfX, pdfY] = pageView.getPagePoint(localX, localY)
+    const pageHeight = getPageHeightInPdfPoints(pageView)
+    if (!Number.isFinite(pdfX) || !Number.isFinite(pdfY) || !Number.isFinite(pageHeight)) {
+      return null
+    }
+
+    return {
+      x: pdfX,
+      y: pageHeight - pdfY,
+      pdfX,
+      pdfY,
+      pageHeight,
+    }
+  }
+
   function scrollToLocation(pageNumber, x, y) {
     const targetPage = Number(pageNumber)
     if (!Number.isInteger(targetPage) || targetPage < 1) return
 
     const viewer = getPdfViewer()
     if (!viewer?.scrollPageIntoView) {
+      pendingScrollLocation = { pageNumber: targetPage, x, y }
       scrollToPage(targetPage)
       return
     }
 
-    const xCoord = Number(x)
-    const yCoord = Number(y)
-    const destArray = [
-      null,
-      { name: 'XYZ' },
-      Number.isFinite(xCoord) ? xCoord : null,
-      Number.isFinite(yCoord) ? yCoord : null,
-      null,
-    ]
-    viewer.scrollPageIntoView({
-      pageNumber: targetPage,
-      destArray,
-      allowNegativeOffset: true,
-      ignoreDestinationZoom: true,
-    })
+    pendingScrollLocation = null
+    const container = viewerContainerRef.value
+    const pageOffset = convertSyncTexPointToPageOffset(targetPage, x, y)
+    if (container && pageOffset?.pageView?.div) {
+      const pageElement = pageOffset.pageView.div
+      const targetTop = pageElement.offsetTop + pageOffset.y - container.clientHeight / 2
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+      const clampedTop = Math.min(Math.max(0, targetTop), maxScrollTop)
+
+      container.scrollTo({
+        top: clampedTop,
+        behavior: 'auto',
+      })
+      showSyncHighlight(targetPage, x, y)
+    } else {
+      const pageView = getPageView(targetPage)
+      const pageHeight = getPageHeightInPdfPoints(pageView)
+      const xCoord = Number(x)
+      const yCoord = Number(y)
+      const destArray = [
+        null,
+        { name: 'XYZ' },
+        Number.isFinite(xCoord) ? xCoord : null,
+        Number.isFinite(yCoord) && Number.isFinite(pageHeight) ? pageHeight - yCoord : null,
+        null,
+      ]
+      viewer.scrollPageIntoView({
+        pageNumber: targetPage,
+        destArray,
+        allowNegativeOffset: true,
+        ignoreDestinationZoom: true,
+      })
+      showSyncHighlight(targetPage, x, y)
+    }
     syncPdfUi()
   }
 
@@ -703,6 +876,7 @@ export function usePdfViewerSession(options) {
     resizeObserver?.disconnect()
     resizeObserver = null
     disconnectThumbnailObserver()
+    clearSyncHighlight()
     window.removeEventListener('pdf-updated', handlePdfUpdated)
     await cleanupPdfSession()
   })
@@ -758,5 +932,6 @@ export function usePdfViewerSession(options) {
     thumbnailPreviewStyle,
     scrollToPage,
     scrollToLocation,
+    convertPageOffsetToSyncTexPoint,
   }
 }

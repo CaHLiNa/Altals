@@ -61,6 +61,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useReviewsStore } from '../../stores/reviews'
 import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { sendCode, runFile } from '../../services/codeRunner'
 import { requestTinymistFormatting } from '../../services/tinymist/session'
 import { applyTinymistTextEdits } from '../../services/tinymist/textEdits'
@@ -92,6 +93,7 @@ const editorContainer = ref(null)
 const files = useFilesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const workflowStore = useDocumentWorkflowStore()
 const reviews = useReviewsStore()
 const linksStore = useLinksStore()
 const referencesStore = useReferencesStore()
@@ -629,10 +631,9 @@ function ensureLatexWindowHandlers() {
     latexCursorRequestHandler = (event) => {
       if (!view || event.detail?.texPath !== props.filePath) return
       const pos = view.state.selection.main.head
-      const line = view.state.doc.lineAt(pos).number
-      window.dispatchEvent(new CustomEvent('latex-cursor-response', {
-        detail: { texPath: props.filePath, line },
-      }))
+      const location = getLatexSyncLocation(pos)
+      if (!location) return
+      latexStore.requestForwardSync(props.filePath, location.line, location.column)
     }
   }
 }
@@ -644,6 +645,7 @@ function attachEditorRuntimeListeners() {
   }
   if (isTex) {
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
+    editorContainer.value?.addEventListener('dblclick', handleLatexSourceDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
@@ -671,6 +673,7 @@ function detachEditorRuntimeListeners() {
   }
   if (isTex) {
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
+    editorContainer.value?.removeEventListener('dblclick', handleLatexSourceDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
@@ -771,6 +774,35 @@ function handleWikiLinkClick(event) {
       event.stopPropagation()
       return
     }
+  }
+}
+
+function handleLatexSourceDoubleClick(event) {
+  if (!isTex || !view || event.button !== 0) return
+
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (pos === null) return
+
+  const location = getLatexSyncLocation(pos)
+  if (!location) return
+
+  workflowStore.ensurePreviewForSource(props.filePath, {
+    previewKind: 'pdf',
+    activatePreview: false,
+    sourcePaneId: props.paneId,
+    trigger: 'latex-source-dblclick',
+  })
+  latexStore.requestForwardSync(props.filePath, location.line, location.column)
+}
+
+function getLatexSyncLocation(pos) {
+  if (!view || !Number.isInteger(pos)) return null
+  const line = view.state.doc.lineAt(pos)
+  if (!line?.number || line.number < 1) return null
+  return {
+    line: line.number,
+    // SyncTeX accepts 1-based columns; use 0 only when unavailable.
+    column: Math.max(1, pos - line.from + 1),
   }
 }
 
