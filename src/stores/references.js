@@ -7,6 +7,53 @@ import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
 
+function normalizeDoi(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^https?:\/\/doi\.org\//i, '')
+    .toLowerCase()
+}
+
+function normalizeTitle(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeAuthorToken(author = {}) {
+  return String(author?.family || author?.given || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+function issuedYear(ref = {}) {
+  return Number(ref?.issued?.['date-parts']?.[0]?.[0] || 0)
+}
+
+function hasValue(value) {
+  if (Array.isArray(value)) return value.length > 0
+  if (value && typeof value === 'object') return Object.keys(value).length > 0
+  if (typeof value === 'string') return value.trim().length > 0
+  return value !== null && value !== undefined && value !== ''
+}
+
+function cloneValue(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value))
+}
+
+function mergeableFieldNames(existing = {}, incoming = {}) {
+  return Array.from(new Set([
+    ...Object.keys(existing || {}),
+    ...Object.keys(incoming || {}),
+  ])).filter((field) => (
+    field &&
+    field !== 'id' &&
+    !field.startsWith('_')
+  ))
+}
+
 export const useReferencesStore = defineStore('references', {
   state: () => ({
     library: [],
@@ -292,9 +339,14 @@ export const useReferencesStore = defineStore('references', {
       cslJson.id = cslJson._key
 
       // Check duplicates
-      const existingKey = this.findDuplicate(cslJson)
-      if (existingKey) {
-        return { key: cslJson._key, status: 'duplicate', existingKey }
+      const duplicateAudit = this.auditImportCandidate(cslJson)
+      if (duplicateAudit.existingKey) {
+        return {
+          key: cslJson._key,
+          status: 'duplicate',
+          existingKey: duplicateAudit.existingKey,
+          matchType: duplicateAudit.matchType,
+        }
       }
 
       if (!cslJson._addedAt) {
@@ -315,7 +367,7 @@ export const useReferencesStore = defineStore('references', {
         try {
           const result = this.addReference({ ...csl })
           if (result.status === 'added') report.added.push(result.key)
-          else report.duplicates.push(result.key)
+          else report.duplicates.push(result.existingKey || result.key)
         } catch (e) {
           report.errors.push({ csl, error: e.message })
         }
@@ -337,6 +389,28 @@ export const useReferencesStore = defineStore('references', {
 
       this.saveLibrary()
       return true
+    },
+
+    mergeReference(existingKey, importedRef, fieldSelections = {}) {
+      const existingRef = this.getByKey(existingKey)
+      if (!existingRef || !importedRef) return { status: 'missing' }
+
+      const merged = {
+        ...cloneValue(existingRef),
+      }
+
+      for (const field of mergeableFieldNames(existingRef, importedRef)) {
+        if (fieldSelections[field] !== 'incoming') continue
+        if (!hasValue(importedRef[field])) continue
+        merged[field] = cloneValue(importedRef[field])
+      }
+
+      this.updateReference(existingKey, merged)
+      return {
+        status: 'merged',
+        key: existingKey,
+        ref: this.getByKey(existingKey),
+      }
     },
 
     removeReference(key) {
@@ -428,32 +502,50 @@ export const useReferencesStore = defineStore('references', {
     // --- Dedup ---
 
     findDuplicate(cslJson) {
-      // DOI exact match
-      if (cslJson.DOI) {
-        const normalDoi = cslJson.DOI.toLowerCase().trim()
-        const match = this.library.find(r =>
-          r.DOI && r.DOI.toLowerCase().trim() === normalDoi
-        )
-        if (match) return match._key
-      }
-
-      // Title Jaccard similarity > 0.85
-      if (cslJson.title) {
-        const newTokens = new Set(cslJson.title.toLowerCase().split(/\s+/))
-        for (const ref of this.library) {
-          if (!ref.title) continue
-          const refTokens = new Set(ref.title.toLowerCase().split(/\s+/))
-          const intersection = new Set([...newTokens].filter(t => refTokens.has(t)))
-          const union = new Set([...newTokens, ...refTokens])
-          if (union.size > 0 && intersection.size / union.size > 0.85) return ref._key
-        }
-      }
-
-      return null
+      return this.auditImportCandidate(cslJson).existingKey
     },
 
     isDuplicate(cslJson) {
       return this.findDuplicate(cslJson) !== null
+    },
+
+    auditImportCandidate(cslJson) {
+      const incomingDoi = normalizeDoi(cslJson?.DOI)
+      if (incomingDoi) {
+        const strong = this.library.find((ref) => normalizeDoi(ref?.DOI) === incomingDoi)
+        if (strong) {
+          return {
+            existingKey: strong._key,
+            matchType: 'strong',
+            reason: 'doi',
+          }
+        }
+      }
+
+      const incomingTitle = normalizeTitle(cslJson?.title)
+      const incomingAuthor = normalizeAuthorToken(cslJson?.author?.[0])
+      const incomingYear = issuedYear(cslJson)
+
+      if (incomingTitle && incomingAuthor && incomingYear) {
+        const possible = this.library.find((ref) => (
+          normalizeTitle(ref?.title) === incomingTitle &&
+          normalizeAuthorToken(ref?.author?.[0]) === incomingAuthor &&
+          issuedYear(ref) === incomingYear
+        ))
+        if (possible) {
+          return {
+            existingKey: possible._key,
+            matchType: 'possible',
+            reason: 'title-author-year',
+          }
+        }
+      }
+
+      return {
+        existingKey: null,
+        matchType: null,
+        reason: null,
+      }
     },
 
     // --- PDF storage ---

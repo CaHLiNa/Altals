@@ -5,6 +5,7 @@
 import { GutterMarker, gutter } from '@codemirror/view'
 import { StateField, RangeSet } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
+import { t } from '../i18n'
 
 const CHUNK_RE = /^```\{(r|python|julia)(?:[,\s].*?)?\}\s*$/i
 const FENCE_END_RE = /^```\s*$/
@@ -28,6 +29,7 @@ export function findCodeChunks(doc) {
         inChunk = true
         current = {
           language: match[1].toLowerCase(),
+          ordinal: chunks.length,
           headerLine: i,
           contentFrom: line.to + 1,
           contentTo: line.to + 1,
@@ -58,7 +60,7 @@ class ChunkPlayMarker extends GutterMarker {
   toDOM() {
     const btn = document.createElement('button')
     btn.className = 'chunk-run-btn'
-    btn.title = 'Run chunk'
+    btn.title = t('Run chunk')
     btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2l10 6-10 6V2z"/></svg>'
     btn.dataset.chunkIdx = this.chunkIdx
     return btn

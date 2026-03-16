@@ -73,9 +73,23 @@
 
           <!-- Jupyter info -->
           <div v-if="envStore.jupyter.found" class="nb-pop-section">
-            <div class="nb-pop-label">Jupyter</div>
+            <div class="nb-pop-label">{{ t('Jupyter') }}</div>
             <div class="nb-pop-value" style="font-size: var(--ui-font-micro); font-family: var(--font-mono); color: var(--fg-muted);">
               {{ envStore.jupyter.path }}
+            </div>
+          </div>
+
+          <div class="nb-pop-section">
+            <div class="nb-pop-label">{{ t('Environment Health') }}</div>
+            <div v-if="environmentHealthLoading" class="nb-health-empty">{{ t('Checking environment health...') }}</div>
+            <div v-else class="nb-health-list">
+              <div v-for="entry in environmentHealth" :key="entry.id" class="nb-health-row">
+                <div class="nb-health-main">
+                  <span class="nb-health-dot" :class="healthStatusClass(entry.status)"></span>
+                  <span>{{ entry.label }}</span>
+                </div>
+                <div class="nb-health-detail">{{ entry.detail }}</div>
+              </div>
             </div>
           </div>
 
@@ -168,6 +182,13 @@
           :pendingDelete="cell._pendingDelete"
           :pendingAdd="cell._pendingAdd"
           :editId="cell._editId"
+          :result-status="cell._resultState.status"
+          :result-status-text="cell._resultState.statusText"
+          :result-tone="cell._resultState.tone"
+          :result-hint="cell._resultState.hint"
+          :can-insert-result="cell._resultState.canInsert"
+          :result-producer-label="cell._resultState.producerLabel"
+          :result-generated-at-label="cell._resultState.generatedAtLabel"
           @focus="activeCell = idx"
           @run="runCell(idx)"
           @delete="deleteCell(idx)"
@@ -179,6 +200,7 @@
           @content-change="(src) => updateCellSource(idx, src)"
           @accept-edit="acceptPendingEdit"
           @reject-edit="rejectPendingEdit"
+          @insert-result="insertCellResult(cell.id)"
         />
 
         <!-- Add cell button -->
@@ -214,6 +236,8 @@ const {
   popoverX,
   popoverY,
   envStore,
+  environmentHealth,
+  environmentHealthLoading,
   displayCells,
   kernelspecs,
   notebookLanguage,
@@ -240,7 +264,14 @@ const {
   restartKernel,
   acceptPendingEdit,
   rejectPendingEdit,
+  insertCellResult,
 } = useNotebookEditor(props)
+
+function healthStatusClass(status) {
+  if (status === 'available') return 'good'
+  if (status === 'version-issue') return 'warn'
+  return 'bad'
+}
 </script>
 
 <style scoped>
@@ -424,6 +455,50 @@ const {
 .nb-pop-link:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+.nb-health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nb-health-row {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}
+
+.nb-health-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-font-caption);
+  color: var(--fg-primary);
+}
+
+.nb-health-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.nb-health-dot.good { background: var(--success, #50fa7b); }
+.nb-health-dot.warn { background: var(--warning, #e2b93d); }
+.nb-health-dot.bad { background: var(--error, #f7768e); }
+
+.nb-health-detail {
+  margin-top: 4px;
+  font-size: var(--ui-font-micro);
+  color: var(--fg-muted);
+  word-break: break-word;
+}
+
+.nb-health-empty {
+  font-size: var(--ui-font-micro);
+  color: var(--fg-muted);
 }
 
 /* Setup prompt */

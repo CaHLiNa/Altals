@@ -657,6 +657,12 @@ function handleVisibilityChange() {
   refreshWorkspaceStateAfterVisibility('visibility')
 }
 
+function handleOpenVersionHistoryEvent(event) {
+  const path = event.detail?.path
+  if (!path) return
+  openVersionHistory({ path })
+}
+
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('keydown', handleAltZ, true)
@@ -669,6 +675,7 @@ onMounted(() => {
   window.addEventListener('app:open-settings', handleOpenSettings)
   window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
   window.addEventListener('app:toggle-terminal', handleToggleTerminal)
+  window.addEventListener('open-version-history', handleOpenVersionHistoryEvent)
 })
 
 onUnmounted(() => {
@@ -686,6 +693,7 @@ onUnmounted(() => {
   window.removeEventListener('app:open-settings', handleOpenSettings)
   window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
   window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
+  window.removeEventListener('open-version-history', handleOpenVersionHistoryEvent)
   if (unlistenWindowFocusChange) {
     unlistenWindowFocusChange()
     unlistenWindowFocusChange = null

@@ -69,62 +69,6 @@
           </div>
         </div>
 
-        <!-- Results -->
-        <div v-if="results.length > 0" class="border-t" :style="{ borderColor: 'var(--border)' }">
-          <div class="px-4 py-1.5 ui-text-micro font-medium uppercase tracking-wider" :style="{ color: 'var(--fg-muted)' }">
-            {{ t('Results') }}
-          </div>
-          <div class="overflow-y-auto" style="max-height: 280px;">
-            <div
-              v-for="(r, idx) in results"
-              :key="idx"
-              class="px-4 py-2.5 hover:bg-[var(--bg-hover)]"
-              :style="{ borderBottom: idx < results.length - 1 ? '1px solid var(--border)' : 'none' }"
-            >
-              <div class="flex items-center gap-2 mb-1">
-                <span class="ui-text-micro px-1.5 py-0.5 rounded-full" :class="confidenceClass(r.confidence)">
-                  {{ confidenceLabel(r.confidence) }}
-                </span>
-                <span class="ref-key-badge">{{ r.csl._key || t('auto') }}</span>
-              </div>
-              <div class="text-xs mb-0.5" :style="{ color: 'var(--fg-primary)' }">{{ r.csl.title || t('Untitled') }}</div>
-              <div class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
-                {{ formatAuthors(r.csl) }}{{ r.csl.issued?.['date-parts']?.[0]?.[0] ? ' (' + r.csl.issued['date-parts'][0][0] + ')' : '' }}
-                <template v-if="r.csl['container-title']"> — {{ r.csl['container-title'] }}</template>
-              </div>
-              <div v-if="r.csl.DOI" class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">DOI: {{ r.csl.DOI }}</div>
-              <div class="flex items-center justify-end gap-2 mt-1.5">
-                <template v-if="r.existingKey && !r.added">
-                  <span class="ui-text-micro px-1.5 py-0.5 rounded-full" :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }">{{ t('Already in library') }}</span>
-                  <button
-                    class="ui-text-xs underline"
-                    :style="{ color: 'var(--accent)' }"
-                    @click="viewExisting(r.existingKey)"
-                  >{{ t('View') }}</button>
-                </template>
-                <button
-                  v-else-if="!r.added"
-                  class="px-2.5 py-0.5 ui-text-xs rounded"
-                  :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
-                  @click="addResult(r)"
-                >{{ t('Add') }}</button>
-                <span v-else class="ui-text-xs" :style="{ color: 'var(--success)' }">{{ t('Added') }}</span>
-              </div>
-            </div>
-          </div>
-          <div v-if="results.length > 1" class="px-4 py-2 border-t" :style="{ borderColor: 'var(--border)' }">
-            <button
-              v-if="newCount > 0"
-              class="w-full py-1.5 text-xs rounded"
-              :style="{ background: 'var(--accent)', color: 'var(--bg-primary)' }"
-              @click="addAll"
-            >{{ addAllLabel }}</button>
-            <div v-if="dupCount > 0" class="ui-text-micro mt-1 text-center" :style="{ color: 'var(--fg-muted)' }">
-              {{ t('{count} already in library', { count: dupCount }) }}
-            </div>
-          </div>
-        </div>
-
         <!-- Errors -->
         <div v-if="errors.length > 0" class="px-4 py-2">
           <div v-for="(err, idx) in errors" :key="idx" class="ui-text-xs" :style="{ color: 'var(--error)' }">{{ err }}</div>
@@ -132,6 +76,26 @@
       </div>
     </div>
   </Teleport>
+
+  <ReferenceImportPreviewDialog
+    v-if="previewOpen && previewItems.length > 0"
+    :items="previewItems"
+    @close="previewOpen = false"
+    @add-item="addPreviewItem"
+    @merge-item="openMergeDialog"
+    @keep-existing="keepExistingItem"
+    @view-existing="viewExisting"
+    @add-all-new="addAllNewItems"
+  />
+
+  <ReferenceMergeDialog
+    v-if="mergeItem"
+    :item="mergeItem"
+    :existing-ref="mergeExistingRef"
+    @close="closeMergeDialog"
+    @view-existing="viewExisting"
+    @confirm="confirmMerge"
+  />
 </template>
 
 <script setup>
@@ -143,6 +107,8 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText, importFromPdf } from '../../services/referenceImport'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
+import ReferenceImportPreviewDialog from './ReferenceImportPreviewDialog.vue'
+import ReferenceMergeDialog from './ReferenceMergeDialog.vue'
 
 const emit = defineEmits(['close'])
 
@@ -157,9 +123,46 @@ const inputFocused = ref(false)
 const loading = ref(false)
 const dropActive = ref(false)
 const statusText = ref(t('Press {shortcut} to look up', { shortcut: `${modKey}+Enter` }))
-const results = ref([])
 const errors = ref([])
-const addAllLabel = computed(() => t(newCount.value === 1 ? 'Add {count} reference' : 'Add {count} references', { count: newCount.value }))
+const previewItems = ref([])
+const previewOpen = ref(false)
+const mergeItemId = ref(null)
+let previewIdSeed = 0
+
+const mergeItem = computed(() => previewItems.value.find(item => item.id === mergeItemId.value) || null)
+const mergeExistingRef = computed(() => {
+  const key = mergeItem.value?.existingKey
+  return key ? referencesStore.getByKey(key) : null
+})
+
+function nextPreviewId() {
+  previewIdSeed += 1
+  return `ref-import-${Date.now()}-${previewIdSeed}`
+}
+
+function decorateImportResults(importResults, sourceLabel = '') {
+  return importResults.map((result) => {
+    const audit = referencesStore.auditImportCandidate(result.csl)
+    const existingRef = audit.existingKey ? referencesStore.getByKey(audit.existingKey) : null
+    return {
+      id: nextPreviewId(),
+      csl: result.csl,
+      confidence: result.confidence,
+      status: result.status,
+      sourceLabel,
+      existingKey: audit.existingKey,
+      existingTitle: existingRef?.title || '',
+      matchType: audit.matchType,
+      matchReason: audit.reason,
+      resolution: audit.existingKey ? 'pending-duplicate' : 'pending-add',
+    }
+  })
+}
+
+function openPreview(items) {
+  previewItems.value = items
+  previewOpen.value = items.length > 0
+}
 
 // --- PDF drop via custom events (routed by FileTree) ---
 
@@ -171,6 +174,9 @@ async function onRefFileDrop(event) {
   const TEXT_EXTS = ['.bib', '.ris', '.json', '.nbib', '.enw', '.txt']
   const pdfPaths = paths.filter(p => p.toLowerCase().endsWith('.pdf'))
   const textPaths = paths.filter(p => TEXT_EXTS.some(ext => p.toLowerCase().endsWith(ext)))
+  const collectedItems = []
+
+  errors.value = []
 
   // Handle text format files
   for (const filePath of textPaths) {
@@ -179,17 +185,19 @@ async function onRefFileDrop(event) {
     try {
       const content = await invoke('read_file', { path: filePath })
       const { results: importResults, errors: importErrors } = await importFromText(content, workspace)
-      for (const r of importResults) {
-        results.value.push({ ...r, added: false })
-      }
-      errors.value.push(...importErrors)
+      collectedItems.push(...decorateImportResults(importResults, filePath.split('/').pop()))
+      errors.value.push(...importErrors.map(translateImportError))
       if (importResults.length > 0) {
-        statusText.value = t(importResults.length === 1 ? 'Found {count} reference' : 'Found {count} references', { count: importResults.length })
+        statusText.value = t('Prepared {count} references for review', { count: importResults.length })
       }
     } catch (e) {
       errors.value.push(t('Failed: {name} - {error}', { name: filePath.split('/').pop(), error: e.message }))
     }
     loading.value = false
+  }
+
+  if (collectedItems.length > 0) {
+    openPreview(collectedItems)
   }
 
   if (pdfPaths.length === 0) return
@@ -200,13 +208,13 @@ async function onRefFileDrop(event) {
   for (const filePath of pdfPaths) {
     const result = await importFromPdf(filePath, workspace, referencesStore)
     if (result) {
-      results.value.push({
-        csl: result.csl,
-        confidence: result.confidence,
-        status: result.confidence,
-        added: true,
-      })
-      statusText.value = t('Imported: @{key}', { key: result.key })
+      if (result.status === 'duplicate' && result.pdfAttached) {
+        statusText.value = t('Attached PDF to @{key}', { key: result.key })
+      } else if (result.status === 'duplicate') {
+        statusText.value = t('PDF already linked to @{key}', { key: result.key })
+      } else {
+        statusText.value = t('Imported: @{key}', { key: result.key })
+      }
     }
   }
 
@@ -241,19 +249,19 @@ async function lookup() {
 
   loading.value = true
   statusText.value = t('Looking up...')
-  results.value = []
+  previewItems.value = []
+  previewOpen.value = false
+  mergeItemId.value = null
   errors.value = []
 
   try {
     const { results: importResults, errors: importErrors } = await importFromText(inputText.value, workspace)
-    results.value = importResults.map(r => {
-      const existingKey = referencesStore.findDuplicate(r.csl)
-      return { ...r, added: false, existingKey }
-    })
-    errors.value = importErrors
+    const nextItems = decorateImportResults(importResults)
+    openPreview(nextItems)
+    errors.value = importErrors.map(translateImportError)
 
     if (importResults.length > 0) {
-      statusText.value = t(importResults.length === 1 ? 'Found {count} reference' : 'Found {count} references', { count: importResults.length })
+      statusText.value = t('Prepared {count} references for review', { count: importResults.length })
     } else if (importErrors.length > 0) {
       statusText.value = t('Lookup failed')
     } else {
@@ -267,51 +275,85 @@ async function lookup() {
   loading.value = false
 }
 
-const newCount = computed(() => results.value.filter(r => !r.added && !r.existingKey).length)
-const dupCount = computed(() => results.value.filter(r => r.existingKey && !r.added).length)
-
 function viewExisting(existingKey) {
+  if (!existingKey) return
   emit('close')
   referencesStore.activeKey = existingKey
   editorStore.openFile(`ref:@${existingKey}`)
 }
 
-function addResult(r) {
-  const result = referencesStore.addReference({ ...r.csl, _addedAt: new Date().toISOString() })
-  r.added = true
-  r.csl._key = result.key
+function addPreviewItem(itemId) {
+  const item = previewItems.value.find(entry => entry.id === itemId)
+  if (!item || item.resolution !== 'pending-add') return
+
+  const result = referencesStore.addReference({
+    ...item.csl,
+    _addedAt: item.csl._addedAt || new Date().toISOString(),
+  })
+
+  if (result.status === 'duplicate') {
+    item.existingKey = result.existingKey
+    item.existingTitle = referencesStore.getByKey(result.existingKey)?.title || ''
+    item.matchType = result.matchType
+    item.resolution = 'pending-duplicate'
+    previewOpen.value = true
+    return
+  }
+
+  item.csl._key = result.key
+  item.resolution = 'added'
 }
 
-function addAll() {
-  for (const r of results.value) {
-    if (!r.added && !r.existingKey) addResult(r)
+function addAllNewItems() {
+  for (const item of previewItems.value) {
+    if (item.resolution === 'pending-add') {
+      addPreviewItem(item.id)
+    }
   }
 }
 
-function formatAuthors(csl) {
-  const authors = csl.author || []
-  if (authors.length === 0) return ''
-  const first = authors[0].family || authors[0].given || ''
-  if (authors.length === 1) return first
-  if (authors.length === 2) return `${first} & ${authors[1].family || ''}`
-  return `${first} et al.`
+function openMergeDialog(itemId) {
+  mergeItemId.value = itemId
 }
 
-function confidenceClass(confidence) {
-  return {
-    'ref-confidence-verified': confidence === 'verified',
-    'ref-confidence-matched': confidence === 'matched',
-    'ref-confidence-unverified': confidence === 'unverified',
-    'ref-confidence-failed': confidence === 'failed',
+function closeMergeDialog() {
+  mergeItemId.value = null
+}
+
+function keepExistingItem(itemId) {
+  const item = previewItems.value.find(entry => entry.id === itemId)
+  if (!item) return
+  item.resolution = 'kept'
+}
+
+function confirmMerge(fieldSelections) {
+  const item = mergeItem.value
+  if (!item?.existingKey) return
+  const result = referencesStore.mergeReference(item.existingKey, item.csl, fieldSelections || {})
+  if (result.status === 'merged') {
+    item.resolution = 'merged'
   }
+  closeMergeDialog()
 }
 
-function confidenceLabel(confidence) {
-  return {
-    verified: t('Verified via CrossRef'),
-    matched: t('Matched via CrossRef'),
-    unverified: t('Unverified'),
-    failed: t('Failed'),
-  }[confidence] || confidence
+function translateImportError(message) {
+  const text = String(message || '')
+  if (text === 'Empty input') return t('Please paste a DOI, BibTeX, RIS, or citation text first.')
+  if (text === 'No valid BibTeX entries found') return t('No valid BibTeX entries found')
+  if (text === 'No valid RIS entries found') return t('No valid RIS entries found')
+  if (text === 'No valid CSL-JSON entries found') return t('No valid CSL-JSON entries found')
+  if (text === 'Could not extract references from text') return t('Could not extract references from text')
+
+  const doiMatch = text.match(/^DOI not found: (.+)$/)
+  if (doiMatch) {
+    return t('DOI not found: {doi}', { doi: doiMatch[1] })
+  }
+
+  const failedMatch = text.match(/^Failed: (.+) - (.+)$/)
+  if (failedMatch) {
+    return t('Failed: {name} - {error}', { name: failedMatch[1], error: failedMatch[2] })
+  }
+
+  return text
 }
 </script>

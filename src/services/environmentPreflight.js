@@ -143,3 +143,59 @@ export async function ensureTypstCompileReady() {
 export async function ensureMarkdownPdfExportReady() {
   return ensureTypstCompileReady()
 }
+
+export async function getEnvironmentHealthSummary() {
+  const envStore = useEnvironmentStore()
+  const latexStore = useLatexStore()
+  const typstStore = useTypstStore()
+
+  if (!envStore.detected) {
+    await envStore.detect()
+  }
+
+  await Promise.allSettled([
+    latexStore.checkCompilers(),
+    typstStore.checkCompiler(),
+  ])
+
+  const pythonPath = envStore.selectedInterpreterPath('python') || envStore.languages?.python?.path || ''
+  const pythonVersion = envStore.languages?.python?.version || ''
+  const jupyterPath = envStore.jupyter?.path || ''
+  const jupyterVersion = envStore.jupyter?.version || ''
+  const latexDetail = latexStore.availableCompilerName || latexStore.compilerPreference || ''
+  const typstDetail = typstStore.path || ''
+  const gitAvailable = await resolveCommandAvailable('git')
+
+  return [
+    {
+      id: 'python',
+      label: t('Python interpreter'),
+      status: pythonPath ? 'available' : 'missing',
+      detail: pythonPath ? [pythonVersion, pythonPath].filter(Boolean).join(' • ') : t('Not found'),
+    },
+    {
+      id: 'jupyter',
+      label: t('Jupyter kernel'),
+      status: envStore.jupyter?.found ? 'available' : 'missing',
+      detail: envStore.jupyter?.found ? [jupyterVersion, jupyterPath].filter(Boolean).join(' • ') : t('Not found'),
+    },
+    {
+      id: 'latex',
+      label: t('LaTeX Compiler'),
+      status: latexStore.hasAvailableCompiler ? 'available' : 'missing',
+      detail: latexStore.hasAvailableCompiler ? latexDetail : t('Not found'),
+    },
+    {
+      id: 'typst',
+      label: t('Typst Compiler'),
+      status: typstStore.available ? 'available' : 'missing',
+      detail: typstStore.available ? typstDetail : t('Not found'),
+    },
+    {
+      id: 'git',
+      label: t('Git'),
+      status: gitAvailable ? 'available' : 'missing',
+      detail: gitAvailable ? t('Installed') : t('Not found'),
+    },
+  ]
+}

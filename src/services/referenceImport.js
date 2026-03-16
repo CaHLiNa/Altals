@@ -266,7 +266,7 @@ function aiResultToCsl(result) {
 /**
  * Import from a PDF file.
  *
- * @returns {{ csl, confidence, key } | null}
+ * @returns {{ csl, confidence, key, status, existingKey, pdfAttached } | null}
  */
 export async function importFromPdf(filePath, workspace, referencesStore) {
   try {
@@ -339,26 +339,44 @@ export async function importFromPdf(filePath, workspace, referencesStore) {
 
     // Generate key + add to library
     csl._addedAt = new Date().toISOString()
-    const { key } = referencesStore.addReference(csl)
+    const addResult = referencesStore.addReference(csl)
+    const targetKey = addResult.status === 'duplicate' ? addResult.existingKey : addResult.key
+    const existingRef = targetKey ? referencesStore.getByKey(targetKey) : null
+    let pdfAttached = false
 
-    // Store PDF + extract text
-    await referencesStore.storePdf(key, filePath)
+    // Store PDF + extract text when this is a new reference, or when a duplicate
+    // exists but has not been linked to a local PDF yet.
+    if (targetKey && (addResult.status !== 'duplicate' || !existingRef?._pdfFile)) {
+      await referencesStore.storePdf(targetKey, filePath)
+      pdfAttached = true
+    }
 
-    // Store full text for search
+    // Store full text for search only when we have attached a fresh PDF or when
+    // the existing reference does not have extracted text yet.
     const projectDir = workspace.projectDir
-    if (projectDir && text) {
+    const shouldWriteText = targetKey && text && (
+      addResult.status !== 'duplicate' || !existingRef?._textFile
+    )
+    if (projectDir && shouldWriteText) {
       try {
         await invoke('write_file', {
-          path: `${projectDir}/references/fulltext/${key}.txt`,
+          path: `${projectDir}/references/fulltext/${targetKey}.txt`,
           content: text,
         })
-        referencesStore.updateReference(key, { _textFile: `${key}.txt` })
+        referencesStore.updateReference(targetKey, { _textFile: `${targetKey}.txt` })
       } catch (e) {
         // Non-fatal
       }
     }
 
-    return { csl: referencesStore.getByKey(key), confidence, key }
+    return {
+      csl: referencesStore.getByKey(targetKey),
+      confidence,
+      key: targetKey,
+      status: addResult.status,
+      existingKey: addResult.existingKey || null,
+      pdfAttached,
+    }
   } catch (e) {
     console.error('PDF import failed:', e)
     return null

@@ -54,6 +54,27 @@
 - `findings.md`
 - `progress.md`
 
+## Execution Session: Tasks 4-9 in main workspace
+
+- **Workspace:** `/Users/math173sr/Documents/GitHub项目/Altals`
+- **Branch:** `main`
+- Actions taken:
+  - 在 `references` store、导入对话框和新增的 preview / merge dialog 中补完批量导入预览、强/弱重复检测和逐字段合并。
+  - 新增 `referenceAudit`，为 `ReferenceView` 暴露 bibliography / missing reference audit，并把 research note 插入的 citation syntax 改成按目标文稿格式生成。
+  - 为 notebook 增加 environment health 摘要、cell 结果状态模型、错误解释层和“插入结果到手稿”入口。
+  - 为 `.Rmd/.qmd` chunk 输出增加 provenance、stale 标记、错误解释和插入手稿入口。
+  - 新增 `ExecutionResultCard`、`resultProvenanceBadges` 和 `executionResultInsert`，把 manuscript 中的结果块做成可追踪的 provenance badge。
+  - 为 DOCX 审阅条增加 round-trip check、版本差异入口以及 clean / review 双导出。
+  - 为 `VersionHistory` 的 DOCX 路径增加 paragraph diff / preview 切换。
+  - 按用户要求补齐新增界面的语言包适配，并把“新增用户可见文案必须走 `t()`”回写到路线图文档。
+
+## Additional Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 前端构建 | `npm run build` | Task 4-9 接入后前端仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | 前端补 execution / DOCX 交付层后 Rust 仍可编译 | 通过 | 通过 |
+| i18n 冒烟 | Node 脚本检查新增 `t()` key 是否缺词条 | 修改过的组件/服务不出现缺失翻译键 | `NO_MISSING_KEYS` | 通过 |
+
 # Progress Log
 
 ## Session: 2026-03-15

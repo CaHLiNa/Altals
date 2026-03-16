@@ -31,6 +31,28 @@ const CITATION_GROUP_RE = /\[([^\[\]]*@[a-zA-Z][\w]*[^\[\]]*)\]/g
 // Matches individual @key inside a group
 const CITE_KEY_RE = /@([a-zA-Z][\w]*)/g
 
+export function extractMarkdownCitationKeys(text = '') {
+  const keys = []
+  const seen = new Set()
+  const source = String(text || '')
+
+  CITATION_GROUP_RE.lastIndex = 0
+  let match
+  while ((match = CITATION_GROUP_RE.exec(source)) !== null) {
+    CITE_KEY_RE.lastIndex = 0
+    let keyMatch
+    while ((keyMatch = CITE_KEY_RE.exec(match[1])) !== null) {
+      const key = keyMatch[1]
+      if (!seen.has(key)) {
+        seen.add(key)
+        keys.push(key)
+      }
+    }
+  }
+
+  return keys
+}
+
 /**
  * ViewPlugin that decorates citation groups in the viewport.
  */

@@ -1,10 +1,10 @@
 ## Active Task: 8 周主链路补完路线图落地
 
 ### Goal
-把用户给出的 8 周路线图落成一份贴着 Altals 当前代码结构的执行方案，重点确认四个阶段对应的现有基础、明显缺口、实现依赖与建议切入顺序；在设计确认前不直接进入功能开发。
+把用户给出的 8 周路线图落成一份贴着 Altals 当前代码结构的执行方案，并继续在主工作区把参考文献治理、执行复现、结果 provenance 和 DOCX 交付层补到可验证状态。
 
 ### Current Phase
-Task 4 Pending
+Task 9 Complete
 
 ### Planned Phases
 #### Phase A: Context Mapping
@@ -50,10 +50,33 @@ Task 4 Pending
 - **Status:** complete
 
 #### Phase G: Task 4 - Reference Governance
-- [ ] 为批量导入增加 preview / merge 入口
-- [ ] 扩展 duplicate audit 规则
-- [ ] 补 bibliography audit 与 reference coupling
-- **Status:** pending
+- [x] 为批量导入增加 preview / merge 入口
+- [x] 扩展 duplicate audit 规则
+- [x] 补 bibliography audit 与 reference coupling
+- **Status:** complete
+
+#### Phase H: Task 5-7 - Execution Provenance
+- [x] 为 notebook 增加 environment health 摘要
+- [x] 为 notebook cell 增加 `未运行 / 运行中 / 运行失败 / 结果过期` 状态
+- [x] 为 `.Rmd/.qmd` chunk 增加 stale 标记、错误解释与结果插入入口
+- [x] 新增 manuscript result provenance comment / badge 链路
+- [x] 运行 `npm run build`
+- [x] 运行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- **Status:** complete
+
+#### Phase I: Task 8 - DOCX Delivery Confidence
+- [x] 为 DOCX 审阅条增加 round-trip check 入口
+- [x] 为版本历史增加 paragraph diff / preview 切换
+- [x] 增加 clean / review 双导出
+- [x] 运行 `npm run build`
+- [x] 运行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- **Status:** complete
+
+#### Phase J: Task 9 - Final Verification & i18n
+- [x] 为新增用户可见文案补全语言包
+- [x] 复跑构建与 Rust 检查
+- [x] 更新 `task_plan.md` / `findings.md` / `progress.md`
+- **Status:** complete
 
 ### Key Questions
 1. 当前 references / PDF / notebook / DOCX-review 各自已经做到多深？
@@ -70,6 +93,8 @@ Task 4 Pending
 | Task 1 先只补项目级 research artifact 持久化，不提前做 annotation UI | 遵守最小实现边界，先把后续 PDF / note 工作流需要的底座立起来 |
 | Task 2 把 annotation capture、列表、回跳都留在现有 `PdfViewer` 壳内实现 | 避免过早拆新面板组件，优先打通最短研究输入链 |
 | Task 3 的 manuscript insert 只命中“已打开且像手稿的编辑器” | 降低把摘录误插进代码文件的风险，先支持 `md/tex/typ/qmd/rmd/docx` |
+| 用户明确要求不再创建隔离 worktree | Task 4 之后的实现全部直接在主工作区继续推进 |
+| 新增用户可见文案统一走 `t()` 并补中文词条 | 避免研究输入/执行复现/审阅交付新入口出现硬编码英文 |
 
 ### Errors Encountered
 | Error | Attempt | Resolution |

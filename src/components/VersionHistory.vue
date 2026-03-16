@@ -44,12 +44,18 @@
         <!-- Preview -->
         <div class="version-preview">
           <div v-if="selectedCommit" class="version-preview-header">
-            <span class="text-xs" style="color: var(--fg-muted);">
-              {{ formatDisplayDate(selectedCommit.date) }}
-              <span v-if="selectedCommit.message" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
-                {{ selectedCommit.message }}
+            <div class="version-preview-headline">
+              <span class="text-xs" style="color: var(--fg-muted);">
+                {{ formatDisplayDate(selectedCommit.date) }}
+                <span v-if="selectedCommit.message" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
+                  {{ selectedCommit.message }}
+                </span>
               </span>
-            </span>
+              <div v-if="isDocx" class="version-view-toggle">
+                <button class="version-toggle-btn" :class="{ active: docxViewMode === 'diff' }" @click="docxViewMode = 'diff'">{{ t('Diff') }}</button>
+                <button class="version-toggle-btn" :class="{ active: docxViewMode === 'preview' }" @click="docxViewMode = 'preview'">{{ t('Preview') }}</button>
+              </div>
+            </div>
           </div>
 
           <!-- Loading state -->
@@ -63,8 +69,45 @@
               {{ t('Click a commit on the left') }}
             </div>
           </div>
+          <div
+            v-if="selectedCommit && !previewLoading && isDocx && docxViewMode === 'diff'"
+            class="version-docx-diff"
+          >
+            <div v-if="docxDiffBlocks.length === 0" class="version-empty-state">
+              <div class="text-xs" style="color: var(--fg-muted);">{{ t('No paragraph-level differences found.') }}</div>
+            </div>
+            <div v-else class="version-docx-diff-list">
+              <div v-for="(block, index) in docxDiffBlocks" :key="`${block.type}:${index}`" class="version-docx-diff-block" :class="`version-docx-diff-${block.type}`">
+                <template v-if="block.type === 'insert'">
+                  <div class="version-docx-diff-label">{{ t('Added paragraph') }}</div>
+                  <div class="version-docx-diff-text">{{ block.after }}</div>
+                </template>
+                <template v-else-if="block.type === 'delete'">
+                  <div class="version-docx-diff-label">{{ t('Removed paragraph') }}</div>
+                  <div class="version-docx-diff-text">{{ block.before }}</div>
+                </template>
+                <template v-else>
+                  <div class="version-docx-diff-label">{{ t('Replaced paragraph') }}</div>
+                  <div class="version-docx-diff-compare">
+                    <div class="version-docx-diff-side">
+                      <span>{{ block.inline.beforePrefix }}</span><mark class="version-docx-mark-remove">{{ block.inline.beforeChanged }}</mark><span>{{ block.inline.beforeSuffix }}</span>
+                    </div>
+                    <div class="version-docx-diff-side">
+                      <span>{{ block.inline.afterPrefix }}</span><mark class="version-docx-mark-add">{{ block.inline.afterChanged }}</mark><span>{{ block.inline.afterSuffix }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
           <!-- Preview content -->
-          <div v-show="selectedCommit && !previewLoading" ref="previewContainer" class="flex-1 overflow-hidden" :class="{ 'version-docx-container': isDocx }"></div>
+          <div
+            v-show="selectedCommit && !previewLoading && (!isDocx || docxViewMode === 'preview')"
+            ref="previewContainer"
+            class="flex-1 overflow-hidden"
+            :class="{ 'version-docx-container': isDocx }"
+          ></div>
 
           <!-- Action footer -->
           <div class="version-preview-footer">
@@ -101,6 +144,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useToastStore } from '../stores/toast'
+import { buildDocxParagraphDiff, extractDocxParagraphs } from '../services/docxRoundTrip'
 import { gitLog, gitShow, gitShowBase64 } from '../services/git'
 import { getViewerType } from '../utils/fileTypes'
 import { base64ToFile } from '../utils/docxBridge'
@@ -129,6 +173,8 @@ const commits = ref([])
 const selectedIndex = ref(-1)
 const previewContent = ref('')
 const copyFeedback = ref(false)
+const docxViewMode = ref('diff')
+const docxDiffBlocks = ref([])
 
 let previewView = null // CodeMirror instance
 let superdocInstance = null // SuperDoc instance
@@ -177,7 +223,16 @@ watch(() => props.visible, async (v) => {
     commits.value = []
     selectedIndex.value = -1
     previewLoading.value = false
+    docxDiffBlocks.value = []
+    docxViewMode.value = 'diff'
     destroyPreview()
+  }
+})
+
+watch(docxViewMode, async (mode) => {
+  if (!isDocx.value || !selectedCommit.value) return
+  if (mode === 'preview' || mode === 'diff') {
+    await selectVersionDocx(selectedCommit.value)
   }
 })
 
@@ -215,6 +270,7 @@ async function selectVersion(idx) {
 
 async function selectVersionText(commit) {
   const content = await gitShow(workspace.path, commit.hash, props.filePath)
+  docxDiffBlocks.value = []
   previewContent.value = content
   previewLoading.value = false
 
@@ -233,8 +289,19 @@ async function selectVersionText(commit) {
 
 async function selectVersionDocx(commit) {
   const base64 = await gitShowBase64(workspace.path, commit.hash, props.filePath)
+  const currentBase64 = await invoke('read_file_base64', { path: props.filePath })
+  const [beforeParagraphs, afterParagraphs] = await Promise.all([
+    extractDocxParagraphs(base64),
+    extractDocxParagraphs(currentBase64),
+  ])
+  docxDiffBlocks.value = buildDocxParagraphDiff(beforeParagraphs, afterParagraphs)
   previewContent.value = '' // no text content for docx
   previewLoading.value = false
+
+  if (docxViewMode.value !== 'preview') {
+    destroyPreview()
+    return
+  }
 
   await nextTick()
   if (!previewContainer.value) return
@@ -331,3 +398,94 @@ onUnmounted(() => {
   clearTimeout(copyTimer)
 })
 </script>
+
+<style scoped>
+.version-preview-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.version-view-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.version-toggle-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--fg-muted);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: var(--ui-font-micro);
+  cursor: pointer;
+}
+
+.version-toggle-btn.active {
+  color: var(--fg-primary);
+  border-color: var(--accent);
+}
+
+.version-docx-diff {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+.version-docx-diff-list {
+  display: grid;
+  gap: 12px;
+}
+
+.version-docx-diff-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg-secondary);
+}
+
+.version-docx-diff-label {
+  margin-bottom: 8px;
+  font-size: var(--ui-font-micro);
+  font-weight: 700;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.version-docx-diff-text,
+.version-docx-diff-side {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--fg-primary);
+}
+
+.version-docx-diff-compare {
+  display: grid;
+  gap: 10px;
+}
+
+.version-docx-diff-insert {
+  border-color: rgba(80, 250, 123, 0.25);
+}
+
+.version-docx-diff-delete {
+  border-color: rgba(247, 118, 142, 0.25);
+}
+
+.version-docx-diff-replace {
+  border-color: rgba(226, 185, 61, 0.25);
+}
+
+.version-docx-mark-add {
+  background: rgba(80, 250, 123, 0.22);
+  color: inherit;
+}
+
+.version-docx-mark-remove {
+  background: rgba(247, 118, 142, 0.22);
+  color: inherit;
+}
+</style>

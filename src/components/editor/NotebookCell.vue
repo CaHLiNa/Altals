@@ -67,7 +67,17 @@
     ></div>
 
     <!-- Output area (code cells only) -->
-    <CellOutput v-if="cell.type === 'code' && !pendingAdd" :outputs="cell.outputs" />
+    <ExecutionResultCard
+      v-if="cell.type === 'code' && !pendingAdd && ((cell.outputs && cell.outputs.length > 0) || resultStatus !== 'idle')"
+      :outputs="cell.outputs"
+      :tone="resultTone"
+      :status-text="resultStatusText"
+      :hint="resultHint"
+      :producer-label="resultProducerLabel"
+      :generated-at-label="resultGeneratedAtLabel"
+      :show-insert="canInsertResult"
+      @insert="$emit('insert-result')"
+    />
 
     <!-- Review action bar (visible when any pending state) -->
     <div v-if="hasPendingState" class="cell-review-bar">
@@ -98,7 +108,7 @@ import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension, reconfigureMergeView } from '../../editor/diffOverlay'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
-import CellOutput from './CellOutput.vue'
+import ExecutionResultCard from './ExecutionResultCard.vue'
 import { computeMinimalChange } from '../../utils/textDiff'
 
 const props = defineProps({
@@ -111,12 +121,19 @@ const props = defineProps({
   pendingDelete: { type: Boolean, default: false },
   pendingAdd: { type: Boolean, default: false },
   editId: { type: String, default: null },
+  resultStatus: { type: String, default: 'idle' },
+  resultStatusText: { type: String, default: '' },
+  resultTone: { type: String, default: 'muted' },
+  resultHint: { type: String, default: '' },
+  canInsertResult: { type: Boolean, default: false },
+  resultProducerLabel: { type: String, default: '' },
+  resultGeneratedAtLabel: { type: String, default: '' },
 })
 
 const emit = defineEmits([
   'focus', 'run', 'delete', 'move-up', 'move-down',
   'toggle-type', 'add-above', 'add-below', 'content-change',
-  'accept-edit', 'reject-edit',
+  'accept-edit', 'reject-edit', 'insert-result',
 ])
 
 const hasPendingState = computed(() => !!props.pendingEdit || props.pendingDelete || props.pendingAdd)

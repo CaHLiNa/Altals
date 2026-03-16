@@ -52,6 +52,7 @@ import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
 import { citationsExtension } from '../../editor/citations'
 import { supportsCitationInsertion } from '../../editor/citationSyntax'
+import { resultProvenanceBadgesExtension } from '../../editor/resultProvenanceBadges'
 import CitationPalette from './CitationPalette.vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { useFilesStore } from '../../stores/files'
@@ -108,6 +109,7 @@ let view = null
 let rmdKernelBridge = null
 let chunkExecuteHandler = null
 let chunkExecuteAllHandler = null
+let syncChunkProvenance = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let cleanupTypstWindowListeners = null
@@ -284,6 +286,7 @@ onMounted(async () => {
 
   // Build extra extensions
   const extraExtensions = [
+    ...resultProvenanceBadgesExtension(),
     // Ghost suggestions (all file types)
     ghostSuggestionExtension(
       () => workspace,
@@ -308,6 +311,9 @@ onMounted(async () => {
         if (!tinymistNavUi.jumpInFlight) {
           handleNavigationSelectionChange()
         }
+      }
+      if (fileIsRmdOrQmd && update.docChanged) {
+        syncChunkProvenance?.(update.view)
       }
       if (isTyp && update.selectionSet && !typstUi.jumpInFlight && !tinymistNavUi.jumpInFlight) {
         handleEditorSelectionChange(update.state.selection.main.head)
@@ -334,8 +340,15 @@ onMounted(async () => {
     if (fileIsRmdOrQmd) {
       // .Rmd/.qmd: chunk-aware execution with inline outputs
       const { chunkField: cf, chunkAtPosition, extractAllChunkCode } = await import('../../editor/codeChunks')
-      const { chunkOutputsExtension, setChunkOutput, clearChunkOutput, chunkKey: getChunkKey } = await import('../../editor/chunkOutputs')
+      const { chunkOutputsExtension, setChunkOutput, chunkKey: getChunkKey, chunkOutputField } = await import('../../editor/chunkOutputs')
       const { ChunkKernelBridge } = await import('../../services/chunkKernelBridge')
+      const {
+        buildChunkProvenance,
+        buildSourceSignature,
+        classifyExecutionFailure,
+        markLiveProvenanceStatus,
+        registerLiveProvenance,
+      } = await import('../../services/resultProvenance')
 
       // Load inline output widgets
       extraExtensions.push(...chunkOutputsExtension())
@@ -343,6 +356,26 @@ onMounted(async () => {
       // Jupyter kernel bridge — no subprocess fallback
       const kernelBridge = new ChunkKernelBridge(workspace.path)
       rmdKernelBridge = kernelBridge
+
+      syncChunkProvenance = (editorView) => {
+        const chunks = editorView.state.field(cf)
+        const outputMap = editorView.state.field(chunkOutputField)
+        for (const chunk of chunks) {
+          const key = getChunkKey(chunk, editorView.state.doc)
+          const entry = outputMap.get(key)
+          if (!entry?.provenance || entry.status === 'running') continue
+          const source = editorView.state.sliceDoc(chunk.contentFrom, chunk.contentTo).trim()
+          const currentSignature = buildSourceSignature(source)
+          if (entry.sourceSignature && entry.sourceSignature !== currentSignature) {
+            markLiveProvenanceStatus(entry.provenance, 'stale')
+          } else {
+            registerLiveProvenance({
+              ...entry.provenance,
+              status: entry.status,
+            })
+          }
+        }
+      }
 
       /**
        * Execute a chunk inline via Jupyter kernel.
@@ -353,19 +386,48 @@ onMounted(async () => {
         if (!code) return
 
         const key = getChunkKey(chunk, editorView.state.doc)
+        const sourceSignature = buildSourceSignature(code)
 
         editorView.dispatch({
-          effects: setChunkOutput.of({ chunkKey: key, outputs: [], status: 'running' }),
+          effects: setChunkOutput.of({
+            chunkKey: key,
+            outputs: [],
+            status: 'running',
+            sourceSignature,
+          }),
         })
 
         const result = await kernelBridge.execute(code, chunk.language)
+        const failure = result.success === false
+          ? classifyExecutionFailure(
+            (result.outputs || [])
+              .filter((output) => output.output_type === 'error')
+              .map((output) => `${output.ename}: ${output.evalue}`)
+              .join('\n'),
+            result.outputs,
+          )
+          : null
+        const provenance = buildChunkProvenance({
+          filePath: props.filePath,
+          chunkKey: key,
+          language: chunk.language,
+          source: code,
+          outputs: result.outputs,
+          status: result.success ? 'fresh' : 'error',
+          errorHint: failure?.hintKey ? t(failure.hintKey) : '',
+        })
+        registerLiveProvenance(provenance)
         editorView.dispatch({
           effects: setChunkOutput.of({
             chunkKey: key,
             outputs: result.outputs,
-            status: result.success ? 'done' : 'error',
+            status: result.success ? 'fresh' : 'error',
+            sourceSignature,
+            provenance,
+            hint: failure?.hintKey ? t(failure.hintKey) : '',
           }),
         })
+        syncChunkProvenance?.(editorView)
       }
 
       extraExtensions.push(Prec.highest(keymap.of([
@@ -383,17 +445,41 @@ onMounted(async () => {
               const selCode = state.sliceDoc(sel.from, sel.to).trim()
               if (selCode) {
                 const key = getChunkKey(chunk, state.doc)
+                const sourceSignature = buildSourceSignature(selCode)
                 editorView.dispatch({
-                  effects: setChunkOutput.of({ chunkKey: key, outputs: [], status: 'running' }),
+                  effects: setChunkOutput.of({ chunkKey: key, outputs: [], status: 'running', sourceSignature }),
                 })
                 kernelBridge.execute(selCode, chunk.language).then(result => {
+                  const failure = result.success === false
+                    ? classifyExecutionFailure(
+                      (result.outputs || [])
+                        .filter((output) => output.output_type === 'error')
+                        .map((output) => `${output.ename}: ${output.evalue}`)
+                        .join('\n'),
+                      result.outputs,
+                    )
+                    : null
+                  const provenance = buildChunkProvenance({
+                    filePath: props.filePath,
+                    chunkKey: key,
+                    language: chunk.language,
+                    source: selCode,
+                    outputs: result.outputs,
+                    status: result.success ? 'fresh' : 'error',
+                    errorHint: failure?.hintKey ? t(failure.hintKey) : '',
+                  })
+                  registerLiveProvenance(provenance)
                   editorView.dispatch({
                     effects: setChunkOutput.of({
                       chunkKey: key,
                       outputs: result.outputs,
-                      status: result.success ? 'done' : 'error',
+                      status: result.success ? 'fresh' : 'error',
+                      sourceSignature,
+                      provenance,
+                      hint: failure?.hintKey ? t(failure.hintKey) : '',
                     }),
                   })
+                  syncChunkProvenance?.(editorView)
                 })
               }
               return true

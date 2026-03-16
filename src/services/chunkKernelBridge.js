@@ -4,6 +4,7 @@
 
 import { useKernelStore } from '../stores/kernel'
 import { useEnvironmentStore } from '../stores/environment'
+import { t } from '../i18n'
 
 const LANG_SPEC_PATTERNS = {
   r: ['ir', 'r'],
@@ -135,7 +136,10 @@ export class ChunkKernelBridge {
         outputs: [{
           output_type: 'error',
           ename: 'NoKernel',
-          evalue: `No ${langLabel} kernel found. Install one to get inline outputs:\n\n  ${hint}\n\nThen restart the app.`,
+          evalue: t('No {language} kernel found. Install one to get inline outputs:\n\n  {hint}\n\nThen restart the app.', {
+            language: langLabel,
+            hint,
+          }),
           traceback: [],
         }],
         success: false,

@@ -17,6 +17,28 @@ const LATEX_CITE_RE = new RegExp(`\\\\(${CITE_CMDS})\\{([^}]*)\\}`, 'g')
  */
 const KEY_RE = /([a-zA-Z][\w.-]*)/g
 
+export function extractLatexCitationKeys(text = '') {
+  const keys = []
+  const seen = new Set()
+  const source = String(text || '')
+
+  LATEX_CITE_RE.lastIndex = 0
+  let match
+  while ((match = LATEX_CITE_RE.exec(source)) !== null) {
+    KEY_RE.lastIndex = 0
+    let keyMatch
+    while ((keyMatch = KEY_RE.exec(match[2] || '')) !== null) {
+      const key = keyMatch[1]
+      if (!seen.has(key)) {
+        seen.add(key)
+        keys.push(key)
+      }
+    }
+  }
+
+  return keys
+}
+
 /**
  * ViewPlugin that decorates \cite{} commands in the viewport.
  */

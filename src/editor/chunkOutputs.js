@@ -6,7 +6,11 @@
 import { StateField, StateEffect } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType } from '@codemirror/view'
 import { createApp, h } from 'vue'
-import CellOutput from '../components/editor/CellOutput.vue'
+import { formatDate, t } from '../i18n'
+import ExecutionResultCard from '../components/editor/ExecutionResultCard.vue'
+import { useEditorStore } from '../stores/editor'
+import { useToastStore } from '../stores/toast'
+import { buildSourceSignature, getResultStatusLabelKey, getResultStatusTone } from '../services/resultProvenance'
 import { chunkField } from './codeChunks'
 
 // ── State Effects ────────────────────────────────────────────
@@ -17,10 +21,8 @@ export const clearAllOutputs = StateEffect.define()   // no value
 
 // ── Chunk Identity ───────────────────────────────────────────
 
-export function chunkKey(chunk, doc) {
-  const content = doc.sliceString(chunk.contentFrom, chunk.contentTo).trim()
-  const fingerprint = content.substring(0, 80)
-  return `${chunk.language}::${chunk.headerLine}::${fingerprint}`
+export function chunkKey(chunk) {
+  return `${chunk.language}::${chunk.ordinal ?? chunk.headerLine}`
 }
 
 // ── State Field (output data) ────────────────────────────────
@@ -41,6 +43,9 @@ export const chunkOutputField = StateField.define({
           outputs: effect.value.outputs,
           status: effect.value.status,
           timestamp: Date.now(),
+          sourceSignature: effect.value.sourceSignature || '',
+          provenance: effect.value.provenance || null,
+          hint: effect.value.hint || '',
         })
       } else if (effect.is(clearChunkOutput)) {
         if (map.has(effect.value)) {
@@ -55,6 +60,22 @@ export const chunkOutputField = StateField.define({
       }
     }
 
+    if (tr.docChanged && next.size > 0) {
+      const chunks = tr.state.field(chunkField)
+      for (const chunk of chunks) {
+        const key = chunkKey(chunk)
+        const entry = next.get(key)
+        if (!entry || !entry.sourceSignature || entry.status === 'running') continue
+        const source = tr.state.doc.sliceString(chunk.contentFrom, chunk.contentTo).trim()
+        if (buildSourceSignature(source) === entry.sourceSignature) continue
+        if (!changed) { next = new Map(next); changed = true }
+        next.set(key, {
+          ...entry,
+          status: 'stale',
+        })
+      }
+    }
+
     return next
   },
 })
@@ -62,56 +83,75 @@ export const chunkOutputField = StateField.define({
 // ── Widget ───────────────────────────────────────────────────
 
 class ChunkOutputWidget extends WidgetType {
-  constructor(chunkKey, outputs, status) {
+  constructor(chunkKey, entry) {
     super()
     this.chunkKey = chunkKey
-    this.outputs = outputs
-    this.status = status
+    this.entry = entry
     this._app = null
   }
 
   eq(other) {
     return this.chunkKey === other.chunkKey &&
-      this.status === other.status &&
-      this.outputs === other.outputs
+      JSON.stringify(this.entry) === JSON.stringify(other.entry)
   }
 
   toDOM(view) {
     const container = document.createElement('div')
     container.className = 'cm-chunk-output-widget'
-
-    if (this.status === 'running') {
-      const spinner = document.createElement('div')
-      spinner.className = 'cm-chunk-output-spinner'
-      spinner.innerHTML = '<div class="chunk-spinner-dot"></div><div class="chunk-spinner-dot"></div><div class="chunk-spinner-dot"></div>'
-      container.appendChild(spinner)
-      return container
-    }
-
-    if (!this.outputs || this.outputs.length === 0) {
-      container.style.display = 'none'
-      return container
-    }
-
-    // Close button
-    const closeBtn = document.createElement('button')
-    closeBtn.className = 'cm-chunk-output-close'
-    closeBtn.title = 'Dismiss output'
-    closeBtn.textContent = '\u00d7' // ×
-    const key = this.chunkKey
-    closeBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      view.dispatch({ effects: clearChunkOutput.of(key) })
-    })
-    container.appendChild(closeBtn)
-
-    // Mount CellOutput Vue component
     const mountPoint = document.createElement('div')
     container.appendChild(mountPoint)
 
+    const key = this.chunkKey
+    const entry = this.entry
+    const toastStore = useToastStore()
+    const editorStore = useEditorStore()
+    const generatedAtLabel = entry.provenance?.generatedAt
+      ? formatDate(entry.provenance.generatedAt, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      : ''
+
     this._app = createApp({
-      render: () => h(CellOutput, { outputs: this.outputs }),
+      render: () => h(ExecutionResultCard, {
+        outputs: entry.outputs,
+        tone: getResultStatusTone(entry.status),
+        statusText: t(getResultStatusLabelKey(entry.status)),
+        hint: entry.hint || (entry.status === 'stale' ? t('This result is stale. Rerun the source to refresh it.') : ''),
+        producerLabel: entry.provenance?.producerLabel || key,
+        generatedAtLabel,
+        showInsert: entry.status !== 'running' && entry.status !== 'error' && (entry.outputs || []).length > 0,
+        showDismiss: entry.status !== 'running',
+        insertLabel: t('Insert result'),
+        dismissLabel: t('Dismiss output'),
+        onDismiss: () => {
+          view.dispatch({ effects: clearChunkOutput.of(key) })
+        },
+        onInsert: async () => {
+          const result = await editorStore.insertExecutionResultIntoManuscript({
+            outputs: entry.outputs,
+            provenance: entry.provenance || {},
+          })
+          if (!result.ok) {
+            toastStore.showOnce(`chunk-insert:${key}`, result.reason === 'no-target'
+              ? t('Open a Markdown, LaTeX, or Typst manuscript to insert this result.')
+              : t('Could not insert this result into the current manuscript.'), {
+              type: 'warning',
+              duration: 4000,
+            })
+            return
+          }
+          toastStore.showOnce(`chunk-insert:${key}:success`, t('Inserted result into {file}', {
+            file: result.path.split('/').pop(),
+          }), {
+            type: 'success',
+            duration: 3000,
+          })
+        },
+      }),
     })
     this._app.mount(mountPoint)
 
@@ -137,14 +177,14 @@ function buildOutputDecorations(state) {
 
   for (const chunk of chunks) {
     if (!chunk.endLine) continue
-    const key = chunkKey(chunk, state.doc)
+    const key = chunkKey(chunk)
     const entry = outputMap.get(key)
     if (!entry) continue
 
     const endLine = state.doc.line(chunk.endLine)
     decorations.push(
       Decoration.widget({
-        widget: new ChunkOutputWidget(key, entry.outputs, entry.status),
+        widget: new ChunkOutputWidget(key, entry),
         block: true,
         side: 1,
       }).range(endLine.to)

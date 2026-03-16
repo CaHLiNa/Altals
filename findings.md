@@ -66,6 +66,20 @@
   - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/components/editor/PdfViewer.vue`
   - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/editor.js`
   - `/Users/math173sr/Documents/GitHub项目/Altals/.worktrees/research-input-foundation/src/stores/researchArtifacts.js`
+
+## Task 4-9 Findings
+- references 真正缺的不是“能否导入”，而是治理流：`preview -> duplicate audit -> field merge -> 入库`。这条链补完后，已有 references 基础才能承接真实项目。
+- bibliography audit 最适合先覆盖 `markdown/qmd/rmd`、`tex/latex` 和 `typ` 三类文本文稿，检查“缺引用条目”和“生成 bibliography 是否缺失/过期”这两个高价值问题。
+- notebook 与 `.Rmd/.qmd` chunk 原本各自维护运行状态，补 execution provenance 时最稳妥的做法是共享一套 `sourceSignature / status / generatedAt / errorHint` 元数据，而不是重做执行后端。
+- result provenance comment 需要按目标文稿格式落盘：Markdown 用 HTML comment，LaTeX 用 `% ...`，Typst 用 `// ...`，否则“插入结果到手稿”只会在单一格式里成立。
+- DOCX 交付层不需要推翻现有 `DocxToolbar / DocxReviewBar / VersionHistory`，只需要把 round-trip 风险显式化、把 paragraph diff 做出来、并提供 clean / review 双导出，就能显著提升“可交付安全感”。
+- 本轮新增的关键实现文件：
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/services/referenceAudit.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/services/resultProvenance.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/services/executionResultInsert.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/editor/resultProvenanceBadges.js`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/ExecutionResultCard.vue`
+  - `/Users/math173sr/Documents/GitHub项目/Altals/src/services/docxRoundTrip.js`
 # Findings & Decisions
 
 ## Requirements

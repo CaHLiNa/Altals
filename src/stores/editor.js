@@ -7,6 +7,8 @@ import { useChatStore } from './chat'
 import { isChatTab, getChatSessionId, isNewTab, getViewerType } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
+import { buildCitationText } from '../editor/citationSyntax'
+import { buildExecutionResultSnippet } from '../services/executionResultInsert'
 
 // Pane tree: either a leaf (has tabs) or a split (has children)
 // { type: 'leaf', id, tabs: [path, ...], activeTab: path }
@@ -29,7 +31,7 @@ function isResearchInsertableTextPath(path) {
   return ['md', 'markdown', 'txt', 'tex', 'latex', 'typ', 'rmd', 'qmd'].includes(fileExtension(path))
 }
 
-function buildResearchSourceLine(note = {}, annotation = null) {
+function buildResearchSourceLine(targetPath, note = {}, annotation = null) {
   const sourceRef = note?.sourceRef || annotation?.sourceRef || {}
   const parts = []
   const page = Number(annotation?.page || sourceRef?.page || 0)
@@ -38,7 +40,7 @@ function buildResearchSourceLine(note = {}, annotation = null) {
   }
   const referenceKey = annotation?.referenceKey || sourceRef?.referenceKey || null
   if (referenceKey) {
-    parts.push(`[@${referenceKey}]`)
+    parts.push(buildCitationText(targetPath, referenceKey))
   } else if (sourceRef?.pdfPath) {
     parts.push(fileBasename(sourceRef.pdfPath))
   }
@@ -49,10 +51,10 @@ function buildResearchSourceLine(note = {}, annotation = null) {
   return parts.join(' | ')
 }
 
-function buildTextResearchNoteSnippet(note = {}, annotation = null) {
+function buildTextResearchNoteSnippet(targetPath, note = {}, annotation = null) {
   const quote = String(note?.quote || annotation?.quote || '').trim()
   const comment = String(note?.comment || '').trim()
-  const sourceLine = buildResearchSourceLine(note, annotation)
+  const sourceLine = buildResearchSourceLine(targetPath, note, annotation)
   const sourceRefPayload = note?.sourceRef || null
 
   const segments = []
@@ -77,10 +79,10 @@ function buildTextResearchNoteSnippet(note = {}, annotation = null) {
   return `\n\n${segments.join('\n\n')}\n\n`
 }
 
-function buildDocxResearchNoteSnippet(note = {}, annotation = null) {
+function buildDocxResearchNoteSnippet(targetPath, note = {}, annotation = null) {
   const quote = String(note?.quote || annotation?.quote || '').trim()
   const comment = String(note?.comment || '').trim()
-  const sourceLine = buildResearchSourceLine(note, annotation)
+  const sourceLine = buildResearchSourceLine(targetPath, note, annotation)
   const segments = []
 
   if (quote) {
@@ -858,6 +860,36 @@ export const useEditorStore = defineStore('editor', {
       return candidates[0] || null
     },
 
+    findPreferredExecutionResultTarget() {
+      const activePath = this.activeTab
+      const activePaneId = this.activePaneId
+      const activeViewerType = activePath ? getViewerType(activePath) : null
+
+      if (activeViewerType === 'text' && isResearchInsertableTextPath(activePath) && this.getEditorView(activePaneId, activePath)) {
+        return { paneId: activePaneId, path: activePath, viewerType: activeViewerType }
+      }
+
+      const candidates = []
+      const walk = (node) => {
+        if (!node) return
+        if (node.type === 'leaf') {
+          const path = node.activeTab
+          if (!path) return
+          const viewerType = getViewerType(path)
+          if (viewerType === 'text' && isResearchInsertableTextPath(path) && this.getEditorView(node.id, path)) {
+            candidates.push({ paneId: node.id, path, viewerType })
+          }
+          return
+        }
+        if (node.type === 'split' && Array.isArray(node.children)) {
+          node.children.forEach(walk)
+        }
+      }
+
+      walk(this.paneTree)
+      return candidates[0] || null
+    },
+
     insertResearchNoteIntoManuscript(note, annotation = null) {
       const target = this.findPreferredResearchInsertTarget()
       if (!target) {
@@ -874,7 +906,7 @@ export const useEditorStore = defineStore('editor', {
         }
 
         const selection = view.state.selection.main
-        const snippet = buildTextResearchNoteSnippet(note, annotation)
+        const snippet = buildTextResearchNoteSnippet(target.path, note, annotation)
         view.dispatch({
           changes: { from: selection.from, to: selection.to, insert: snippet },
           selection: { anchor: selection.from + snippet.length },
@@ -894,7 +926,7 @@ export const useEditorStore = defineStore('editor', {
           return { ok: false, reason: 'missing-superdoc', ...target }
         }
 
-        const snippet = buildDocxResearchNoteSnippet(note, annotation)
+        const snippet = buildDocxResearchNoteSnippet(target.path, note, annotation)
         if (typeof editor.commands?.insertContent === 'function') {
           editor.commands.insertContent(snippet)
         } else if (editor.view?.dispatch && editor.state?.tr) {
@@ -913,6 +945,47 @@ export const useEditorStore = defineStore('editor', {
       return {
         ok: false,
         reason: 'unsupported-target',
+        ...target,
+      }
+    },
+
+    async insertExecutionResultIntoManuscript({ outputs = [], provenance = {} } = {}) {
+      const target = this.findPreferredExecutionResultTarget()
+      if (!target) {
+        return {
+          ok: false,
+          reason: 'no-target',
+        }
+      }
+
+      const view = this.getEditorView(target.paneId, target.path)
+      if (!view?.state) {
+        return {
+          ok: false,
+          reason: 'missing-editor-view',
+          ...target,
+        }
+      }
+
+      const snippetResult = await buildExecutionResultSnippet(target.path, outputs, provenance)
+      if (!snippetResult.ok) {
+        return {
+          ok: false,
+          reason: snippetResult.reason,
+          ...target,
+        }
+      }
+
+      const selection = view.state.selection.main
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: snippetResult.snippet },
+        selection: { anchor: selection.from + snippetResult.snippet.length },
+        scrollIntoView: true,
+      })
+      view.focus?.()
+
+      return {
+        ok: true,
         ...target,
       }
     },

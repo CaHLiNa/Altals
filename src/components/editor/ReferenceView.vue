@@ -256,6 +256,76 @@
               </span>
             </div>
           </div>
+
+          <div v-if="auditVisible" class="ref-audit-panel">
+            <div class="ref-audit-header">
+              <label class="ref-detail-label">{{ t('Reference Audit') }}</label>
+              <button
+                class="ui-text-micro hover:underline"
+                :style="{ color: 'var(--accent)' }"
+                @click="refreshAudit"
+              >
+                {{ auditLoading ? t('Checking...') : t('Refresh audit') }}
+              </button>
+            </div>
+
+            <div v-if="auditLoading" class="ui-text-xs" :style="{ color: 'var(--fg-muted)' }">
+              {{ t('Checking citations and bibliography state...') }}
+            </div>
+
+            <div v-else-if="auditError" class="ui-text-xs" :style="{ color: 'var(--error)' }">
+              {{ auditError }}
+            </div>
+
+            <template v-else>
+              <div class="ref-audit-summary">
+                <span class="ref-audit-chip">{{ t('{count} files checked', { count: auditSummary.checkedFileCount || 0 }) }}</span>
+                <span class="ref-audit-chip" :class="{ 'ref-audit-chip-warn': (auditSummary.missingReferenceCount || 0) > 0 }">
+                  {{ t('{count} missing citations', { count: auditSummary.missingReferenceCount || 0 }) }}
+                </span>
+                <span class="ref-audit-chip" :class="{ 'ref-audit-chip-warn': (auditSummary.bibliographyIssueCount || 0) > 0 }">
+                  {{ t('{count} bibliography issues', { count: auditSummary.bibliographyIssueCount || 0 }) }}
+                </span>
+              </div>
+
+              <div v-if="currentRefAuditIssues.length > 0" class="ref-audit-list">
+                <div class="ui-text-micro font-medium" :style="{ color: 'var(--fg-secondary)' }">
+                  {{ t('Files citing this reference that need attention') }}
+                </div>
+                <div
+                  v-for="issue in currentRefAuditIssues"
+                  :key="`${issue.type}:${issue.filePath}`"
+                  class="ref-audit-issue"
+                >
+                  <div class="ref-audit-issue-title">{{ issueLabel(issue) }}</div>
+                  <button
+                    type="button"
+                    class="ref-audit-issue-link"
+                    @click="editorStore.openFile(issue.filePath)"
+                  >
+                    {{ relativePath(issue.filePath) }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="auditSummary.missingKeys?.length > 0" class="ref-audit-list">
+                <div class="ui-text-micro font-medium" :style="{ color: 'var(--fg-secondary)' }">
+                  {{ t('Missing reference keys in this project') }}
+                </div>
+                <div class="ref-audit-key-list">
+                  <span v-for="key in auditSummary.missingKeys" :key="key" class="ref-key-badge">@{{ key }}</span>
+                </div>
+              </div>
+
+              <div
+                v-if="(auditSummary.missingReferenceCount || 0) === 0 && (auditSummary.bibliographyIssueCount || 0) === 0"
+                class="ui-text-xs"
+                :style="{ color: 'var(--success)' }"
+              >
+                {{ t('No bibliography issues found for the currently loaded files.') }}
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -297,11 +367,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useFilesStore } from '../../stores/files'
 import { formatReference } from '../../services/citationFormatter'
 import { getFormatter } from '../../services/citationStyleRegistry'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import PdfViewer from './PdfViewer.vue'
 import { useI18n } from '../../i18n'
+import { auditReferenceUsage } from '../../services/referenceAudit'
 
 const props = defineProps({
   refKey: { type: String, required: true },
@@ -311,6 +383,7 @@ const props = defineProps({
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
+const filesStore = useFilesStore()
 const { t } = useI18n()
 
 const detailsOpen = vRef(!referencesStore.getByKey(props.refKey)?._pdfFile)
@@ -321,6 +394,15 @@ const copyFormat = vRef(localStorage.getItem('refCopyFormat') || referencesStore
 const addingField = vRef(false)
 const newFieldKey = vRef('')
 const newFieldValue = vRef('')
+const auditSummary = vRef({
+  issues: [],
+  missingKeys: [],
+  missingReferenceCount: 0,
+  bibliographyIssueCount: 0,
+  checkedFileCount: 0,
+})
+const auditLoading = vRef(false)
+const auditError = vRef('')
 
 const ADDABLE_FIELDS = [
   { key: 'publisher', label: t('Publisher') },
@@ -404,9 +486,17 @@ const citedInFiles = computed(() => {
   return referencesStore.citedIn[ref.value._key] || []
 })
 
+const auditVisible = computed(() => citedInFiles.value.length > 0 || (auditSummary.value.missingKeys?.length || 0) > 0)
+const currentRefAuditIssues = computed(() => {
+  if (citedInFiles.value.length === 0) return []
+  const citedSet = new Set(citedInFiles.value)
+  return (auditSummary.value.issues || []).filter(issue => citedSet.has(issue.filePath))
+})
+
 // Sync activeKey
 onMounted(() => {
   referencesStore.activeKey = props.refKey
+  refreshAudit()
 })
 
 // Auto-close tab when reference is deleted
@@ -416,9 +506,40 @@ watch(ref, (val) => {
   }
 })
 
+watch(() => props.refKey, () => {
+  refreshAudit()
+})
+
+watch(() => filesStore.fileContents, () => {
+  refreshAudit()
+}, { deep: true })
+
+watch(() => referencesStore.library.length, () => {
+  refreshAudit()
+})
+
 function update(field, value) {
   if (!ref.value) return
   referencesStore.updateReference(ref.value._key, { [field]: value || undefined })
+}
+
+async function refreshAudit() {
+  auditLoading.value = true
+  auditError.value = ''
+  try {
+    auditSummary.value = await auditReferenceUsage(filesStore.fileContents, referencesStore)
+  } catch (error) {
+    auditError.value = error?.message || String(error)
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+function issueLabel(issue) {
+  if (issue.type === 'missing-bibliography') return t('Bibliography has not been generated for this file yet')
+  if (issue.type === 'stale-bibliography') return t('Generated bibliography is out of date')
+  if (issue.type === 'missing-reference') return t('This file cites keys that are missing from the library')
+  return issue.type
 }
 
 function updateAuthors(value) {
@@ -537,5 +658,75 @@ function relativePath(path) {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.ref-audit-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 86%, var(--bg-secondary));
+}
+
+.ref-audit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ref-audit-summary,
+.ref-audit-key-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ref-audit-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-primary));
+  color: var(--fg-secondary);
+  font-size: var(--ui-font-micro);
+}
+
+.ref-audit-chip-warn {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 26%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.ref-audit-list {
+  display: grid;
+  gap: 6px;
+}
+
+.ref-audit-issue {
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary));
+}
+
+.ref-audit-issue-title {
+  color: var(--fg-secondary);
+  font-size: var(--ui-font-caption);
+}
+
+.ref-audit-issue-link {
+  justify-self: start;
+  color: var(--hl-link);
+  font-size: var(--ui-font-caption);
+}
+
+.ref-audit-issue-link:hover {
+  text-decoration: underline;
 }
 </style>
