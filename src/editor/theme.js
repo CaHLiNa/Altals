@@ -38,18 +38,24 @@ export const shouldersTheme = EditorView.theme(
       backgroundColor: 'var(--bg-primary)',
       color: 'var(--fg-muted)',
       border: 'none',
-      paddingLeft: '8px',
     },
     '.cm-activeLineGutter': {
       backgroundColor: 'transparent',
       color: 'var(--fg-secondary)',
     },
     '.cm-lineNumbers .cm-gutterElement': {
-      padding: '0 8px 0 4px',
-      minWidth: '32px',
+      boxSizing: 'border-box',
+      minWidth: '28px',
+      padding: '0 4px 0 0',
+      textAlign: 'right',
+    },
+    '.cm-foldGutter': {
+      minWidth: '12px',
     },
     '.cm-foldGutter .cm-gutterElement': {
-      padding: '0 4px',
+      boxSizing: 'border-box',
+      width: '12px',
+      padding: '0 2px 0 0',
     },
     '.cm-matchingBracket': {
       backgroundColor: 'var(--editor-bracket-match)',
