@@ -47,7 +47,7 @@ import { createEditorExtensions, createEditorState, wrapCompartment, columnWidth
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
-import { captureContextMenuState, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
+import { captureContextMenuState, normalizeContextMenuClickPos, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
 import { livePreviewExtension } from '../../editor/livePreview'
@@ -116,6 +116,8 @@ let latexCursorRequestHandler = null
 let cleanupTypstWindowListeners = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
+let contextMenuRestoreFrame = null
+let contextMenuRestoreTimeout = null
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
@@ -204,6 +206,46 @@ function isContextMenuMouseGesture(event) {
   return event.button === 2 || (isMacPlatform && event.button === 0 && event.ctrlKey)
 }
 
+function clearContextMenuRestoreHandles() {
+  if (contextMenuRestoreFrame !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(contextMenuRestoreFrame)
+    contextMenuRestoreFrame = null
+  }
+  if (contextMenuRestoreTimeout !== null && typeof window !== 'undefined') {
+    window.clearTimeout(contextMenuRestoreTimeout)
+    contextMenuRestoreTimeout = null
+  }
+}
+
+function restoreContextMenuSelection(selection) {
+  if (!view || !selection || selection.eq(view.state.selection)) return
+  view.dispatch({ selection })
+}
+
+function scheduleContextMenuSelectionRestore(selection) {
+  clearContextMenuRestoreHandles()
+  if (!selection || typeof window === 'undefined') return
+
+  contextMenuRestoreFrame = window.requestAnimationFrame(() => {
+    contextMenuRestoreFrame = null
+    restoreContextMenuSelection(selection)
+    contextMenuRestoreTimeout = window.setTimeout(() => {
+      contextMenuRestoreTimeout = null
+      restoreContextMenuSelection(selection)
+    }, 0)
+  })
+}
+
+function resolveContextMenuClickPos(event) {
+  if (!view) return null
+
+  const approxPos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
+  if (approxPos === null) return null
+
+  const block = view.lineBlockAtHeight(event.clientY - view.documentTop)
+  return normalizeContextMenuClickPos(approxPos, block)
+}
+
 function handleContextMenuMouseDown(event) {
   if (!view) {
     pendingContextMenuState = null
@@ -217,7 +259,7 @@ function handleContextMenuMouseDown(event) {
 
   pendingContextMenuState = captureContextMenuState(
     view.state,
-    view.posAtCoords({ x: event.clientX, y: event.clientY }),
+    resolveContextMenuClickPos(event),
   )
 
   // Block browser and CodeMirror mouse-selection handling for context-menu gestures.
@@ -235,15 +277,17 @@ function onContextMenu(e) {
     const decision = resolveContextMenuSelection(
       pendingContextMenuState || captureContextMenuState(
         view.state,
-        view.posAtCoords({ x: e.clientX, y: e.clientY }),
+        resolveContextMenuClickPos(e),
       ),
     )
     if (decision.nextSelection && !decision.nextSelection.eq(view.state.selection)) {
       view.dispatch({ selection: decision.nextSelection })
     }
+    scheduleContextMenuSelectionRestore(decision.nextSelection)
     ctxMenu.hasSelection = decision.hasSelection
   } else {
     ctxMenu.hasSelection = false
+    clearContextMenuRestoreHandles()
   }
 
   pendingContextMenuState = null
@@ -846,6 +890,7 @@ function deactivateEditorRuntime() {
   ctxMenu.show = false
   citPalette.show = false
   pendingContextMenuState = null
+  clearContextMenuRestoreHandles()
   detachEditorRuntimeListeners()
   editorStore.unregisterEditorView(props.paneId, props.filePath)
 }
@@ -984,6 +1029,7 @@ onUnmounted(() => {
     view = null
   }
   pendingContextMenuState = null
+  clearContextMenuRestoreHandles()
   backwardSyncHandler = null
   latexCursorRequestHandler = null
 })

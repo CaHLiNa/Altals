@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[999]" @click="$emit('close')" @contextmenu.prevent="$emit('close')"></div>
-    <div v-if="visible" class="context-menu py-1 ui-text-md" :style="menuStyle">
+    <div v-if="visible" class="context-menu py-1 ui-text-md" :style="menuStyle" @mousedown.prevent>
       <!-- Spell suggestions (inline, at top) -->
       <template v-if="spellSuggestions.length > 0">
         <div
@@ -199,7 +199,27 @@ function copy() {
   emit('close')
 }
 
-function paste() {
+async function paste() {
+  if (props.view && navigator.clipboard?.readText) {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (typeof text === 'string') {
+        const selection = props.view.state.selection.main
+        const from = selection?.from ?? 0
+        const to = selection?.to ?? from
+        props.view.focus()
+        props.view.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from + text.length },
+        })
+        emit('close')
+        return
+      }
+    } catch {
+      // Fall back to execCommand when direct clipboard access is unavailable.
+    }
+  }
+
   document.execCommand('paste')
   emit('close')
 }

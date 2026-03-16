@@ -11,6 +11,16 @@ export function buildEditorInputAttributes() {
   return { ...EDITOR_INPUT_ATTRIBUTES }
 }
 
+export function normalizeContextMenuClickPos(clickPos, lineRange) {
+  if (typeof clickPos !== 'number') return null
+  const from = typeof lineRange?.from === 'number' ? lineRange.from : null
+  const to = typeof lineRange?.to === 'number' ? lineRange.to : null
+  if (from === null || to === null) return clickPos
+  if (clickPos < from) return from
+  if (clickPos > to) return to
+  return clickPos
+}
+
 function cloneSelection(selection) {
   return EditorSelection.create(
     selection.ranges.map((range) => EditorSelection.range(range.anchor, range.head)),
@@ -48,21 +58,14 @@ export function resolveContextMenuSelection(contextMenuState) {
   if (contextMenuState.clickedInsideSelection) {
     return {
       hasSelection,
-      nextSelection: hasSelection ? selection : null,
+      nextSelection: selection,
     }
   }
 
   if (clickPos === null) {
     return {
       hasSelection,
-      nextSelection: hasSelection ? selection : null,
-    }
-  }
-
-  if (selection.ranges.length === 1 && selection.main.from === clickPos && selection.main.to === clickPos) {
-    return {
-      hasSelection: false,
-      nextSelection: null,
+      nextSelection: selection,
     }
   }
 
