@@ -14,6 +14,16 @@
               >
                 <component :is="sidebarIcon" :size="14" :stroke-width="1.6" />
               </button>
+              <button
+                ref="findToggleButtonRef"
+                class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': pdfFind.open }"
+                :disabled="!pdfUi.ready"
+                :title="t('Find in PDF')"
+                @click="openPdfFindBar"
+              >
+                <IconSearch :size="13" :stroke-width="1.8" />
+              </button>
             </div>
 
             <div class="pdf-toolbar-separator"></div>
@@ -129,7 +139,95 @@
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
-      <div class="pdf-reader-shell">
+      <div class="pdf-reader-shell" @keydown.capture="handleReaderKeydown">
+        <div
+          ref="findBarRef"
+          class="pdf-findbar-shell hidden"
+          @mousedown.stop
+          @click.stop
+        >
+            <div class="pdf-findbar-row">
+              <span class="pdf-findbar-input-shell">
+                <IconSearch :size="13" :stroke-width="1.8" class="pdf-findbar-icon" />
+                <input
+                  ref="findInputRef"
+                  class="pdf-findbar-input"
+                  type="text"
+                  :placeholder="t('Search in PDF')"
+                  spellcheck="false"
+                >
+              </span>
+              <div class="pdf-findbar-actions">
+                <button
+                  ref="findPreviousButtonRef"
+                  class="pdf-findbar-nav"
+                  type="button"
+                  :disabled="!pdfFind.query.trim()"
+                  :title="t('Previous match')"
+                >
+                  <IconChevronUp :size="13" :stroke-width="1.8" />
+                </button>
+                <div class="pdf-findbar-separator"></div>
+                <button
+                  ref="findNextButtonRef"
+                  class="pdf-findbar-nav"
+                  type="button"
+                  :disabled="!pdfFind.query.trim()"
+                  :title="t('Next match')"
+                >
+                  <IconChevronDown :size="13" :stroke-width="1.8" />
+                </button>
+                <button
+                  type="button"
+                  class="pdf-findbar-close"
+                  :title="t('Close search')"
+                  @click="closePdfFindBar"
+                >
+                  <IconX :size="13" :stroke-width="1.8" />
+                </button>
+              </div>
+            </div>
+
+            <div class="pdf-findbar-options">
+              <label class="pdf-findbar-option">
+                <input
+                  ref="findHighlightAllRef"
+                  type="checkbox"
+                  :checked="pdfFind.highlightAll"
+                >
+                <span>{{ t('Highlight all matches') }}</span>
+              </label>
+              <label class="pdf-findbar-option">
+                <input
+                  ref="findMatchCaseRef"
+                  type="checkbox"
+                  :checked="pdfFind.matchCase"
+                >
+                <span>{{ t('Match case') }}</span>
+              </label>
+              <label class="pdf-findbar-option">
+                <input
+                  ref="findEntireWordRef"
+                  type="checkbox"
+                  :checked="pdfFind.entireWord"
+                >
+                <span>{{ t('Match whole words') }}</span>
+              </label>
+              <input
+                ref="findMatchDiacriticsRef"
+                class="pdf-findbar-hidden-toggle"
+                type="checkbox"
+                tabindex="-1"
+                aria-hidden="true"
+              >
+            </div>
+
+            <div class="pdf-findbar-meta" aria-live="polite">
+              <span ref="findResultsCountRef" class="pdf-findbar-count"></span>
+              <span ref="findMessageRef" class="pdf-findbar-status"></span>
+            </div>
+        </div>
+
         <div class="pdf-stage-shell">
           <div
             ref="viewerContainerRef"
@@ -163,7 +261,7 @@
                 :disabled="!pdfUi.pagesSupported"
                 @click="selectSidebarMode('pages')"
               >
-                {{ t('Page View') }}
+                {{ t('Thumbnails') }}
               </button>
               <button
                 type="button"
@@ -187,13 +285,14 @@
                 {{ t('Loading PDF...') }}
               </div>
               <div
-                v-else-if="outlineItems.length === 0"
+                v-else-if="flatOutlineItems.length === 0"
                 class="pdf-outline-empty"
               >
                 {{ t('No outline') }}
               </div>
               <button
-                v-for="item in outlineItems"
+                v-for="item in flatOutlineItems"
+                v-else
                 :key="item.id"
                 type="button"
                 class="pdf-outline-item"
@@ -234,7 +333,7 @@
                     class="pdf-page-thumb-image"
                     :src="thumbnail.imageSrc"
                     :alt="t('Page {page}', { page: thumbnail.pageNumber })"
-                  />
+                  >
                   <div
                     v-else-if="thumbnail.status === 'error'"
                     class="pdf-page-thumb-fallback"
@@ -356,6 +455,8 @@ import {
   IconChevronUp,
   IconMinus,
   IconPlus,
+  IconSearch,
+  IconX,
 } from '@tabler/icons-vue'
 import 'pdfjs-dist/legacy/web/pdf_viewer.css'
 import { useI18n } from '../../i18n'
@@ -389,6 +490,17 @@ const viewerContainerRef = ref(null)
 const viewerRef = ref(null)
 const sidebarScrollRef = ref(null)
 const pageInputRef = ref(null)
+const findBarRef = ref(null)
+const findToggleButtonRef = ref(null)
+const findInputRef = ref(null)
+const findHighlightAllRef = ref(null)
+const findMatchCaseRef = ref(null)
+const findMatchDiacriticsRef = ref(null)
+const findEntireWordRef = ref(null)
+const findMessageRef = ref(null)
+const findResultsCountRef = ref(null)
+const findPreviousButtonRef = ref(null)
+const findNextButtonRef = ref(null)
 
 const {
   pageInput,
@@ -398,6 +510,7 @@ const {
   outlineLoading,
   pageThumbnails,
   pdfUi,
+  pdfFind,
   sidebarIcon,
   sidebarAvailable,
   scaleOptions,
@@ -416,12 +529,27 @@ const {
   scrollToPage,
   scrollToLocation,
   convertPageOffsetToSyncTexPoint,
+  openFind,
+  closeFind,
+  findNext,
+  findPrevious,
 } = usePdfViewerSession({
   filePathRef,
   viewerContainerRef,
   viewerRef,
   sidebarScrollRef,
   pageInputRef,
+  findBarRef,
+  findToggleButtonRef,
+  findInputRef,
+  findHighlightAllRef,
+  findMatchCaseRef,
+  findMatchDiacriticsRef,
+  findEntireWordRef,
+  findMessageRef,
+  findResultsCountRef,
+  findPreviousButtonRef,
+  findNextButtonRef,
   workspace,
   t,
 })
@@ -455,9 +583,32 @@ const translateStatusColor = computed(() => {
   if (status === 'running') return 'var(--accent)'
   return 'var(--fg-muted)'
 })
+const flatOutlineItems = computed(() => flattenOutlineItems(outlineItems.value))
 
 let annotationRenderScheduled = false
 let annotationMutationObserver = null
+
+function flattenOutlineItems(items, depth = 0, path = '', acc = []) {
+  if (!Array.isArray(items)) return acc
+
+  items.forEach((item, index) => {
+    const id = path ? `${path}.${index}` : String(index)
+    acc.push({
+      id,
+      depth,
+      title: item?.title || '-',
+      dest: item?.dest ?? null,
+      url: item?.url ?? '',
+      bold: !!item?.bold,
+      italic: !!item?.italic,
+    })
+    if (Array.isArray(item?.items) && item.items.length > 0) {
+      flattenOutlineItems(item.items, depth + 1, id, acc)
+    }
+  })
+
+  return acc
+}
 
 function normalizeSelectionText(value) {
   return String(value || '')
@@ -899,6 +1050,44 @@ function handleViewerDoubleClick(event) {
   })
 }
 
+function openPdfFindBar() {
+  if (pdfFind.open) {
+    closeFind()
+    return
+  }
+  openFind()
+}
+
+function closePdfFindBar() {
+  closeFind()
+}
+
+function handleReaderKeydown(event) {
+  if (event?.isComposing) return
+  if ((event.metaKey || event.ctrlKey) && String(event.key || '').toLowerCase() === 'f') {
+    event.preventDefault()
+    openPdfFindBar()
+    return
+  }
+
+  if (!pdfFind.open) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closePdfFindBar()
+    return
+  }
+
+  if (event.key === 'Enter' && event.target !== findInputRef.value) {
+    event.preventDefault()
+    if (event.shiftKey) {
+      findPrevious()
+    } else {
+      findNext()
+    }
+  }
+}
+
 onMounted(() => {
   document.addEventListener('selectionchange', handleDocumentSelectionChange)
   if (typeof MutationObserver === 'function' && viewerRef.value) {
@@ -1213,6 +1402,8 @@ defineExpose({
 }
 
 .pdf-page-list {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
@@ -1303,6 +1494,140 @@ defineExpose({
   min-height: 0;
 }
 
+.pdf-findbar-shell {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 9;
+  width: min(520px, calc(100% - 24px));
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+.pdf-findbar-shell.hidden {
+  display: none;
+}
+
+.pdf-findbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-findbar-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 84%, var(--bg-secondary));
+}
+
+.pdf-findbar-icon {
+  flex: none;
+  color: var(--fg-muted);
+}
+
+.pdf-findbar-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  outline: none;
+}
+
+.pdf-findbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.pdf-findbar-separator {
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+.pdf-findbar-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pdf-findbar-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: var(--ui-font-caption);
+}
+
+.pdf-findbar-option input {
+  accent-color: var(--accent);
+}
+
+.pdf-findbar-hidden-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pdf-findbar-meta {
+  display: flex;
+  align-items: center;
+  min-height: 18px;
+  gap: 10px;
+}
+
+.pdf-findbar-count {
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+}
+
+.pdf-findbar-status {
+  color: var(--fg-muted);
+  font-size: var(--ui-font-micro);
+}
+
+.pdf-findbar-nav,
+.pdf-findbar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.pdf-findbar-nav:hover:not(:disabled),
+.pdf-findbar-close:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.pdf-findbar-nav:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .pdf-translate-status {
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
@@ -1376,6 +1701,20 @@ defineExpose({
 .pdf-stage :deep(.page) {
   position: relative;
   box-shadow: none;
+}
+
+.pdf-stage :deep(.textLayer .highlight) {
+  --highlight-bg-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  --highlight-selected-bg-color: color-mix(in srgb, var(--accent) 34%, #ffffff 8%);
+  --highlight-backdrop-filter: none;
+  --highlight-selected-backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.pdf-stage :deep(.textLayer .highlight.selected) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .pdf-stage :deep(.altals-pdf-annotation-highlight) {
@@ -1460,6 +1799,17 @@ defineExpose({
 .pdf-sidebar-overlay-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+.pdf-findbar-enter-active,
+.pdf-findbar-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.pdf-findbar-enter-from,
+.pdf-findbar-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .pdf-annotation-list {
@@ -1590,5 +1940,23 @@ defineExpose({
 
 .pdf-annotation-note-create:hover {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+@media (max-width: 880px) {
+  .pdf-findbar-shell {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .pdf-findbar-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pdf-findbar-meta {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
 }
 </style>

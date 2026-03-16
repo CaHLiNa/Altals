@@ -1,3 +1,90 @@
+## Active Task: PDF.js sidebar/search 收敛
+
+### Goal
+把 PDF viewer 里最像“自造查看器壳层”的两块进一步收回到 pdf.js 语义中：
+- 搜索条切到 pdf.js `findbar`
+- 侧边栏切到 pdf.js `views manager / thumbnails / treeView`
+
+同时继续保留 Altals 自己的研究高亮、笔记和 manuscript 插入链路。
+
+### Current Phase
+Complete
+
+### Planned Phases
+#### Phase A: Design & Feasibility
+- [x] 确认 `pdfjs-dist` 当前能直接复用哪些控制器
+- [x] 评估是“整套 viewer transplant”还是“混合式壳层收敛”
+- [x] 写设计与实现计划文档
+- **Status:** complete
+
+#### Phase B: Outline Tree Normalization
+- [x] 抽出 PDF outline tree normalize helper
+- [x] 新增递归 outline tree 组件
+- [x] 增加 outline tree 纯函数测试
+- **Status:** complete
+
+#### Phase C: Search Bar Convergence
+- [x] 把搜索条 DOM 结构改成 pdf.js `findbar` 语义
+- [x] 保持 `PDFFindController` 作为搜索状态真源
+- [x] 保留 Altals 的主题色与 i18n
+- **Status:** complete
+
+#### Phase D: Sidebar Convergence & Verification
+- [x] 把 sidebar 壳层改成 pdf.js `views manager` 语义
+- [x] 把 thumbnails 改成 pdf.js thumbnail markup
+- [x] 把 outline 改成 pdf.js treeView 风格
+- [x] 运行 `node --test tests/pdfFindState.test.mjs tests/pdfOutlineTree.test.mjs`
+- [x] 运行 `npm run build`
+- [x] 运行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- **Status:** complete
+
+### Plan Docs
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdfjs-sidebar-search-design.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdfjs-sidebar-search.md`
+
+## Active Task: PDF viewer 混合式壳层重构
+
+### Goal
+让 Altals 的 PDF viewer 更接近 LaTeX Workshop 那种“pdf.js 成熟查看器 + 产品自有主题”的路线，优先复用 pdf.js 自带的 viewer 控制器能力，同时保留 Altals 的研究高亮、笔记和回链工作流。
+
+### Current Phase
+Complete
+
+### Planned Phases
+#### Phase A: Shell Capability Audit
+- [x] 对比 Altals 现有 `PdfViewer` 与 LaTeX Workshop viewer 的分层方式
+- [x] 区分“viewer 壳层重复造轮子”和“研究工作流必须保留”的边界
+- [x] 形成混合式重构方案：壳层复用 pdf.js，研究层继续自管
+- **Status:** complete
+
+#### Phase B: pdf.js Find Controller Integration
+- [x] 在 `usePdfViewerSession` 中接入 `PDFFindController`
+- [x] 抽出 find state 映射 helper
+- [x] 增加纯函数测试覆盖 pending / not found / wrapped 状态
+- **Status:** complete
+
+#### Phase C: Altals 风格 Find Bar
+- [x] 在 `PdfViewer` 中新增 find bar 入口与浮层
+- [x] 让文案走 `t()` 并补齐中文语言包
+- [x] 保持现有 annotation / note UI 不被替换
+- **Status:** complete
+
+#### Phase D: Keyboard + Styling + Verification
+- [x] 补 `Cmd/Ctrl+F`、Enter、Shift+Enter、Escape` 这组交互
+- [x] 覆写 pdf.js 文本匹配高亮样式
+- [x] 运行 `npm run build` 与 `cargo check --manifest-path src-tauri/Cargo.toml`
+- **Status:** complete
+
+### Decisions Made
+| Decision | Rationale |
+|----------|-----------|
+| 不直接嵌 LaTeX Workshop 的 `viewer.html` | 当前 `pdfjs-dist` npm 包没有把完整 viewer shell 一起暴露出来，强行嵌外部页面会让 Altals 的研究层挂接变复杂 |
+| 先接 `PDFFindController`，不先切 pdf.js annotation editor | 搜索是成熟 viewer 的高价值基础能力，且不会破坏 Altals 现有 `quote anchor / note / manuscript insert` 模型 |
+| Find bar 保持 Altals 视觉语言而不是照搬 pdf.js 默认样式 | 用户明确要求 UI 样式仍然匹配当前产品 |
+
+### Plan Docs
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdf-viewer-hybrid-shell-refactor.md`
+
 ## Active Task: 8 周主链路补完路线图落地
 
 ### Goal

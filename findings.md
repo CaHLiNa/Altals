@@ -1,3 +1,54 @@
+# Active Findings: 2026-03-16 PDF.js sidebar/search 收敛
+
+## What Changed
+- 搜索条不再只是“pdf.js controller + Altals 自定义条”，现在连 DOM 语义也切到了 pdf.js `findbar` 路线。
+- 侧边栏从原先的自定义 overlay 收敛到了 pdf.js `views manager / thumbnails / treeView` 语义。
+- 研究工作流层没有切给 pdf.js annotation editor，依然由 Altals 自己管理。
+
+## Important Constraint
+- 当前 `pdfjs-dist` npm 包没有把完整 `viewer.html` 壳层和 sidebar controller 当成稳定导出直接给应用层用。
+- 所以这轮最现实的方案不是“1:1 整份 viewer transplant”，而是：
+  - 复用 pdf.js 已导出的 controller
+  - 采用 pdf.js 的 DOM 结构、切换语义和缩略图/tree markup
+  - 保留 Altals 的研究层能力
+
+## Implementation Notes
+- 新增 [pdfOutlineTree.js](/Users/math173sr/Documents/GitHub项目/Altals/src/services/pdfOutlineTree.js) 负责把 outline 归一化成嵌套树。
+- 新增 [PdfOutlineTree.vue](/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/PdfOutlineTree.vue) 用 pdf.js treeView 风格渲染目录。
+- [PdfViewer.vue](/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/PdfViewer.vue) 现在的 sidebar/search markup 已经更接近 LaTeX Workshop 那种“pdf.js viewer chrome + 产品层额外视图”。
+- `Highlights` 仍然是 Altals 自有视图，但外层切换栏已经对齐到了 pdf.js sidebar 语义。
+
+# Active Findings: 2026-03-16 PDF viewer 混合式壳层重构
+
+## Motivation
+- 当前 Altals 的 PDF 方案已经是 `pdf.js + Vue 外壳 + Tauri workspace protocol + 研究层 overlay`，但 `toolbar / sidebar / 页面控制` 这一层仍有较多自管逻辑。
+- 本地 VS Code 能打开 PDF，主要来自 LaTeX Workshop 的 custom editor；它的实现路径不是自写 viewer，而是“整套 pdf.js viewer shell + 自己的换肤与 SyncTeX 钩子”。
+- 对 Altals 来说，最值得先借的是成熟 viewer 控制器，不是直接把研究批注层交给 pdf.js annotation editor。
+
+## Refactor Boundary
+- 应复用 pdf.js 的部分：
+  - `PDFFindController`
+  - viewer event bus 状态流
+  - text layer search match 高亮
+- 应保留 Altals 自管的部分：
+  - `page + quote + prefix + suffix + selectionRect` 锚点
+  - `researchArtifacts` 中的 highlight / note 持久化
+  - PDF -> note -> manuscript 插入链路
+  - 跳回 PDF 原页/原句的研究工作流
+
+## Implementation Findings
+- `pdfjs-dist` 的 npm 包当前只直接暴露了 `PDFViewer / PDFLinkService / PDFFindController / PDFHistory` 等控制器，没有把 LaTeX Workshop 所用那种完整 `viewer.html` 壳层也一起带出来。
+- 因此这次最稳妥的实现是“半接管式重构”：继续保留 [PdfViewer.vue](/Users/math173sr/Documents/GitHub项目/Altals/src/components/editor/PdfViewer.vue) 的 Vue 外壳，但在 [usePdfViewerSession.js](/Users/math173sr/Documents/GitHub项目/Altals/src/composables/usePdfViewerSession.js) 中接入 `PDFFindController`。
+- 搜索状态最适合单独抽成纯函数 helper，而不是把 pdf.js 的事件 payload 直接铺在组件里。最终新增了：
+  - [pdfFindState.js](/Users/math173sr/Documents/GitHub项目/Altals/src/services/pdfFindState.js)
+  - [pdfFindState.test.mjs](/Users/math173sr/Documents/GitHub项目/Altals/tests/pdfFindState.test.mjs)
+- 这次 UI 收口的重点不是“更像 pdf.js 默认 viewer”，而是“行为像成熟 viewer，视觉仍然像 Altals”。
+
+## Current Outcome
+- `PdfViewer` 已有 Altals 风格 find bar，可通过工具栏按钮和 `Cmd/Ctrl+F` 打开。
+- 搜索本身由 pdf.js `PDFFindController` 驱动，不再是未来要单独自造的一套文本匹配逻辑。
+- pdf.js 文本匹配高亮与 Altals 研究高亮现在有明确视觉区分：搜索匹配更轻，研究高亮更重。
+
 # Active Findings: 2026-03-16 路线图贴仓库校准
 
 ## Initial Context

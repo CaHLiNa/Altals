@@ -1,3 +1,41 @@
+# Session: 2026-03-16 PDF.js sidebar/search 收敛
+
+## Status
+- **Status:** complete
+
+## Actions taken
+- 新增 `docs/plans/2026-03-16-pdfjs-sidebar-search-design.md` 与 `docs/plans/2026-03-16-pdfjs-sidebar-search.md`，明确这轮目标是把 search/sidebar 收敛到 pdf.js 语义，而不是替换研究层。
+- 新增 `src/services/pdfOutlineTree.js` 和 `tests/pdfOutlineTree.test.mjs`，把 outline 数据归一化成树结构并补上纯函数测试。
+- 新增 `src/components/editor/PdfOutlineTree.vue`，用递归组件渲染 pdf.js treeView 风格目录。
+- 将 `src/components/editor/PdfViewer.vue` 的搜索条 DOM 改成 pdf.js `findbar` 语义，并将 sidebar 改成 `views manager / thumbnails / treeView` 语义。
+- 保留 `Highlights` 作为 Altals 自有研究视图，但让它挂在新的 pdf.js 风格 sidebar shell 中。
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 纯函数测试 | `node --test tests/pdfFindState.test.mjs tests/pdfOutlineTree.test.mjs` | 搜索状态映射与 outline tree normalize 通过 | 6/6 通过 | 通过 |
+| 前端构建 | `npm run build` | search/sidebar 收敛后前端仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | 前端 PDF viewer 改造后 Rust 仍可编译 | 通过 | 通过 |
+
+# Session: 2026-03-16 PDF viewer 混合式壳层重构
+
+## Status
+- **Status:** complete
+
+## Actions taken
+- 对比 Altals 当前 `PdfViewer` 与本地 LaTeX Workshop viewer，确认最适合先复用的是 pdf.js 的 viewer 控制器，而不是直接迁移到 pdf.js annotation editor。
+- 新增 `docs/plans/2026-03-16-pdf-viewer-hybrid-shell-refactor.md`，把这轮重构拆成 `find controller -> Altals 风格 find bar -> 键盘与高亮样式 -> 验证与记录` 四步。
+- 新增 `src/services/pdfFindState.js` 和 `tests/pdfFindState.test.mjs`，把 pdf.js `updatefindcontrolstate` / `updatefindmatchescount` 事件映射成组件可用的轻量 UI 状态。
+- 在 `src/composables/usePdfViewerSession.js` 中接入 `PDFFindController`，并暴露 `openFind / closeFind / updateFindQuery / findNext / findPrevious / toggleFind*` API。
+- 在 `src/components/editor/PdfViewer.vue` 中新增 Altals 风格 find bar、工具栏入口、键盘快捷键和 pdf.js 搜索匹配高亮覆写。
+- 在 `src/i18n/index.js` 中补齐 PDF 搜索相关文案的中文词条。
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 纯函数测试 | `node --test tests/pdfFindState.test.mjs` | find 状态映射 helper 通过 | 5/5 通过 | 通过 |
+| 前端构建 | `npm run build` | PDF viewer 壳层重构后前端仍可构建 | 通过 | 通过 |
+
 # Session: 2026-03-16 路线图贴仓库校准
 
 ## Status

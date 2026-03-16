@@ -1,0 +1,261 @@
+import { FindState } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
+
+function toggleExpandedButton(button, expanded, view = null) {
+  button?.classList?.toggle('toggled', expanded)
+  if (button) {
+    button.setAttribute('aria-expanded', String(expanded))
+  }
+  view?.classList?.toggle?.('hidden', !expanded)
+}
+
+function normalizeMatchesCount(matchesCount = {}) {
+  const current = Number.parseInt(matchesCount.current ?? 0, 10)
+  const total = Number.parseInt(matchesCount.total ?? 0, 10)
+  return {
+    current: Number.isFinite(current) && current > 0 ? current : 0,
+    total: Number.isFinite(total) && total > 0 ? total : 0,
+  }
+}
+
+function mapState(state) {
+  switch (state) {
+    case FindState.PENDING:
+      return 'pending'
+    case FindState.NOT_FOUND:
+      return 'not_found'
+    case FindState.WRAPPED:
+      return 'wrapped'
+    case FindState.FOUND:
+      return 'found'
+    default:
+      return 'idle'
+  }
+}
+
+export class PdfFindBarBridge {
+  #mainContainer
+  #resizeObserver
+  #onStateChange
+  #onDispatch
+  #t
+  #abortController
+
+  constructor(options, mainContainer, eventBus, t, onStateChange = () => {}, onDispatch = null) {
+    this.opened = false
+    this.bar = options.bar
+    this.toggleButton = options.toggleButton
+    this.findField = options.findField
+    this.highlightAll = options.highlightAllCheckbox
+    this.caseSensitive = options.caseSensitiveCheckbox
+    this.matchDiacritics = options.matchDiacriticsCheckbox
+    this.entireWord = options.entireWordCheckbox
+    this.findMsg = options.findMsg
+    this.findResultsCount = options.findResultsCount
+    this.findPreviousButton = options.findPreviousButton
+    this.findNextButton = options.findNextButton
+    this.eventBus = eventBus
+    this.#mainContainer = mainContainer
+    this.#onStateChange = onStateChange
+    this.#onDispatch = typeof onDispatch === 'function' ? onDispatch : null
+    this.#t = t
+    this.#abortController = new AbortController()
+
+    this.#resizeObserver = new ResizeObserver(() => {
+      const bar = this.bar
+      if (!bar?.firstElementChild) return
+      bar.classList.remove('wrapContainers')
+      if (bar.clientHeight > bar.firstElementChild.clientHeight) {
+        bar.classList.add('wrapContainers')
+      }
+    })
+
+    const checkedInputs = new Map([
+      [this.highlightAll, 'highlightallchange'],
+      [this.caseSensitive, 'casesensitivitychange'],
+      [this.entireWord, 'entirewordchange'],
+      [this.matchDiacritics, 'diacriticmatchingchange'],
+    ])
+
+    toggleExpandedButton(this.toggleButton, false, this.bar)
+
+    this.findField?.addEventListener('input', () => {
+      this.dispatchEvent('')
+    }, { signal: this.#abortController.signal })
+
+    this.bar?.addEventListener('keydown', ({ key, shiftKey, target }) => {
+      if (key === 'Enter') {
+        if (target === this.findField) {
+          this.dispatchEvent('again', shiftKey)
+        } else if (checkedInputs.has(target)) {
+          target.checked = !target.checked
+          this.dispatchEvent(checkedInputs.get(target))
+        }
+      } else if (key === 'Escape') {
+        this.close()
+      }
+    }, { signal: this.#abortController.signal })
+
+    this.findPreviousButton?.addEventListener('click', () => {
+      this.dispatchEvent('again', true)
+    }, { signal: this.#abortController.signal })
+
+    this.findNextButton?.addEventListener('click', () => {
+      this.dispatchEvent('again', false)
+    }, { signal: this.#abortController.signal })
+
+    for (const [element, eventName] of checkedInputs) {
+      element?.addEventListener('click', () => {
+        this.dispatchEvent(eventName)
+      }, { signal: this.#abortController.signal })
+    }
+
+    this.#syncState({
+      open: false,
+      query: this.findField?.value || '',
+      highlightAll: !!this.highlightAll?.checked,
+      matchCase: !!this.caseSensitive?.checked,
+      entireWord: !!this.entireWord?.checked,
+      matchDiacritics: !!this.matchDiacritics?.checked,
+      pending: false,
+      status: 'idle',
+      matchesCount: { current: 0, total: 0 },
+      wrappedPrevious: false,
+    })
+  }
+
+  destroy() {
+    this.#resizeObserver.disconnect()
+    this.#abortController.abort()
+  }
+
+  setQuery(value) {
+    if (this.findField) {
+      this.findField.value = String(value || '')
+    }
+    this.#syncState({
+      query: this.findField?.value || '',
+    })
+  }
+
+  dispatchEvent(type = '', findPrevious = false) {
+    const query = this.findField?.value || ''
+    const patch = {
+      query,
+      open: this.opened,
+      highlightAll: !!this.highlightAll?.checked,
+      matchCase: !!this.caseSensitive?.checked,
+      entireWord: !!this.entireWord?.checked,
+      matchDiacritics: !!this.matchDiacritics?.checked,
+      pending: Boolean(query.trim()),
+      status: query.trim() ? 'pending' : 'idle',
+      wrappedPrevious: false,
+    }
+    this.#syncState(patch)
+
+    if (this.#onDispatch) {
+      this.#onDispatch({
+        source: this,
+        type,
+        query,
+        caseSensitive: !!this.caseSensitive?.checked,
+        entireWord: !!this.entireWord?.checked,
+        highlightAll: !!this.highlightAll?.checked,
+        findPrevious,
+        matchDiacritics: !!this.matchDiacritics?.checked,
+      })
+      return
+    }
+
+    this.eventBus.dispatch('find', {
+      source: this,
+      type,
+      query,
+      caseSensitive: !!this.caseSensitive?.checked,
+      entireWord: !!this.entireWord?.checked,
+      highlightAll: !!this.highlightAll?.checked,
+      findPrevious,
+      matchDiacritics: !!this.matchDiacritics?.checked,
+    })
+  }
+
+  updateResultsCount(matchesCount = {}) {
+    const normalized = normalizeMatchesCount(matchesCount)
+    if (this.findResultsCount) {
+      this.findResultsCount.textContent = normalized.total > 0
+        ? this.#t('{current} of {total}', normalized)
+        : ''
+    }
+    this.#syncState({ matchesCount: normalized })
+  }
+
+  updateUIState(state, previous = false, matchesCount = {}) {
+    const normalized = normalizeMatchesCount(matchesCount)
+    const mode = mapState(state)
+    let message = ''
+
+    if (state === FindState.PENDING) {
+      message = this.#t('Searching PDF...')
+    } else if (state === FindState.NOT_FOUND) {
+      message = this.#t('No matches found')
+    } else if (state === FindState.WRAPPED) {
+      message = previous
+        ? this.#t('Reached the beginning and continued from the end')
+        : this.#t('Reached the end and continued from the beginning')
+    }
+
+    if (this.findField) {
+      this.findField.dataset.status = state === FindState.PENDING ? 'pending' : state === FindState.NOT_FOUND ? 'notFound' : ''
+      this.findField.setAttribute('aria-invalid', String(state === FindState.NOT_FOUND))
+    }
+
+    if (this.findMsg) {
+      this.findMsg.dataset.status = state === FindState.PENDING ? 'pending' : state === FindState.NOT_FOUND ? 'notFound' : ''
+      this.findMsg.textContent = message
+    }
+
+    this.updateResultsCount(normalized)
+    this.#syncState({
+      pending: state === FindState.PENDING,
+      status: mode,
+      wrappedPrevious: mode === 'wrapped' ? !!previous : false,
+    })
+  }
+
+  open() {
+    if (!this.opened) {
+      this.#resizeObserver.observe(this.#mainContainer)
+      this.#resizeObserver.observe(this.bar)
+      this.opened = true
+      toggleExpandedButton(this.toggleButton, true, this.bar)
+      this.#syncState({ open: true })
+    }
+    this.findField?.select?.()
+    this.findField?.focus?.()
+  }
+
+  close() {
+    if (!this.opened) return
+    this.#resizeObserver.disconnect()
+    this.opened = false
+    toggleExpandedButton(this.toggleButton, false, this.bar)
+    this.eventBus.dispatch('findbarclose', { source: this })
+    this.#syncState({
+      open: false,
+      pending: false,
+      status: this.findField?.value?.trim?.() ? 'found' : 'idle',
+      wrappedPrevious: false,
+    })
+  }
+
+  toggle() {
+    if (this.opened) {
+      this.close()
+    } else {
+      this.open()
+    }
+  }
+
+  #syncState(patch = {}) {
+    this.#onStateChange(patch)
+  }
+}
