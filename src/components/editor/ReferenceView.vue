@@ -1,6 +1,6 @@
 <template>
-  <div v-if="ref" class="flex flex-col h-full">
-    <!-- Collapsible metadata header -->
+  <div v-if="ref" class="flex flex-col h-full min-h-0">
+    <!-- Metadata header -->
     <div class="shrink-0" style="border-bottom: 1px solid var(--border);">
       <!-- Needs review banner (always visible) -->
       <div
@@ -39,8 +39,15 @@
           {{ authorLine }}{{ year ? ` (${year})` : '' }}
         </span>
         <div class="flex-1" v-if="detailsOpen"></div>
-        <!-- Copy actions -->
+        <!-- Actions -->
         <div class="flex items-center gap-1 ml-auto" @click.stop>
+          <button
+            class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+            :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+            @click="pdfPath ? openPdf() : attachPdf()"
+          >
+            {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
+          </button>
           <button
             class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
             :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
@@ -71,9 +78,12 @@
         </button>
       </div>
 
-      <!-- Expandable details -->
-      <div v-if="detailsOpen" class="overflow-y-auto" style="max-height: 40vh;">
-        <div class="px-3 pb-3 space-y-2.5">
+    </div>
+
+    <!-- Details -->
+    <div class="flex-1 min-h-0 overflow-hidden">
+      <div v-if="detailsOpen" class="h-full overflow-y-auto">
+        <div class="px-3 py-3 space-y-2.5">
           <!-- Title -->
           <div>
             <label class="ref-detail-label">{{ t('Title') }}</label>
@@ -326,31 +336,17 @@
               </div>
             </template>
           </div>
+          <div
+            v-if="!pdfPath"
+            class="rounded-lg border px-3 py-2 ui-text-xs"
+            :style="{ borderColor: 'var(--border)', color: 'var(--fg-muted)', background: 'color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary))' }"
+          >
+            {{ t('No PDF attached') }}
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Bottom: PDF viewer or empty state -->
-    <div class="flex-1 overflow-hidden" style="min-height: 100px;">
-      <PdfViewer
-        v-if="pdfPath"
-        :key="pdfPath"
-        :filePath="pdfPath"
-        :paneId="paneId"
-        :referenceKey="refKey"
-      />
-      <div v-else class="flex flex-col items-center justify-center h-full gap-3" :style="{ color: 'var(--fg-muted)' }">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4;">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-        </svg>
-        <span class="ui-text-xs">{{ t('No PDF attached') }}</span>
-        <button
-          class="px-3 py-1 ui-text-xs rounded border hover:bg-[var(--bg-hover)]"
-          :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
-          @click="attachPdf"
-        >
-          {{ t('Attach PDF...') }}
-        </button>
+      <div v-else class="flex items-center justify-center h-full ui-text-xs" :style="{ color: 'var(--fg-muted)' }">
+        {{ t('Details') }}
       </div>
     </div>
   </div>
@@ -371,7 +367,6 @@ import { useFilesStore } from '../../stores/files'
 import { formatReference } from '../../services/citationFormatter'
 import { getFormatter } from '../../services/citationStyleRegistry'
 import { ask, open } from '@tauri-apps/plugin-dialog'
-import PdfViewer from './PdfViewer.vue'
 import { useI18n } from '../../i18n'
 import { auditReferenceUsage } from '../../services/referenceAudit'
 
@@ -386,7 +381,7 @@ const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
 
-const detailsOpen = vRef(!referencesStore.getByKey(props.refKey)?._pdfFile)
+const detailsOpen = vRef(true)
 const abstractExpanded = vRef(false)
 const copyFlash = vRef(false)
 let copyFlashTimer = null
@@ -600,6 +595,11 @@ function confirmAddField() {
   newFieldKey.value = ''
   newFieldValue.value = ''
   addingField.value = false
+}
+
+function openPdf() {
+  if (!pdfPath.value) return
+  editorStore.openFile(pdfPath.value)
 }
 
 async function deleteRef() {
