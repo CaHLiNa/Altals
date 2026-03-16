@@ -30,10 +30,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { computed, onMounted } from 'vue'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
+import { useCompiledPdfPreview } from '../../composables/useCompiledPdfPreview'
 import PdfViewer from './PdfViewer.vue'
 
 const props = defineProps({
@@ -49,30 +49,13 @@ const typPath = computed(() => props.filePath.replace(/\.pdf$/i, '.typ'))
 const state = computed(() => typstStore.stateForFile(typPath.value))
 const compileStatus = computed(() => state.value?.status || null)
 const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
-const hasPdf = ref(false)
-const pdfReloadKey = ref(0)
-
-async function checkPdfExists() {
-  try {
-    hasPdf.value = await invoke('path_exists', { path: pdfPath.value })
-  } catch {
-    hasPdf.value = false
-  }
-}
-
-function handleCompileDone(event) {
-  if (event.detail?.typPath !== typPath.value) return
-  pdfReloadKey.value += 1
-  checkPdfExists()
-}
+const { hasPdf, pdfReloadKey } = useCompiledPdfPreview({
+  pdfPathRef: pdfPath,
+  reloadEventName: 'typst-compile-done',
+  matchesReloadEvent: (event) => event.detail?.typPath === typPath.value,
+})
 
 onMounted(() => {
   typstStore.checkCompiler()
-  window.addEventListener('typst-compile-done', handleCompileDone)
-  checkPdfExists()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('typst-compile-done', handleCompileDone)
 })
 </script>

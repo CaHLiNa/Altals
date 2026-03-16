@@ -75,29 +75,8 @@
           @selection-change="onSelectionChange"
         />
       </KeepAlive>
-      <LatexPdfViewer
-        v-if="activeTab && viewerType === 'pdf' && pdfSourceReady && pdfSourceKind === 'latex'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-        :toolbar-target-selector="pdfToolbarTargetSelector"
-      />
-      <TypstPdfViewer
-        v-else-if="activeTab && viewerType === 'pdf' && pdfSourceReady && pdfSourceKind === 'typst'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-        :toolbar-target-selector="pdfToolbarTargetSelector"
-      />
-      <div
-        v-else-if="activeTab && viewerType === 'pdf' && !pdfSourceReady"
-        class="absolute inset-0 flex items-center justify-center text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary);"
-      >
-        {{ t('Detecting PDF source...') }}
-      </div>
-      <PdfViewer
-        v-else-if="activeTab && viewerType === 'pdf'"
+      <DocumentPdfViewer
+        v-if="activeTab && viewerType === 'pdf'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
@@ -196,7 +175,7 @@ import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import TabBar from './TabBar.vue'
 import ReviewBar from './ReviewBar.vue'
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
-const PdfViewer = defineAsyncComponent(() => import('./PdfViewer.vue'))
+const DocumentPdfViewer = defineAsyncComponent(() => import('./DocumentPdfViewer.vue'))
 const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
 const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
 const DocxEditor = defineAsyncComponent(() => import('./DocxEditor.vue'))
@@ -204,8 +183,6 @@ const DocxReviewBar = defineAsyncComponent(() => import('./DocxReviewBar.vue'))
 const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
 const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
-const LatexPdfViewer = defineAsyncComponent(() => import('./LatexPdfViewer.vue'))
-const TypstPdfViewer = defineAsyncComponent(() => import('./TypstPdfViewer.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
@@ -273,8 +250,6 @@ const {
   workflowCanViewLog,
   workflowStatusText,
   workflowStatusTone,
-  pdfSourceReady,
-  pdfSourceKind,
   handleRunCode,
   handleRunFile,
   handleRenderDocument,

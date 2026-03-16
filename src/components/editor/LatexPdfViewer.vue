@@ -33,11 +33,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useLatexStore } from '../../stores/latex'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useI18n } from '../../i18n'
+import { useCompiledPdfPreview } from '../../composables/useCompiledPdfPreview'
 import PdfViewer from './PdfViewer.vue'
 
 const props = defineProps({
@@ -67,11 +68,18 @@ const synctexPath = computed(() => state.value?.synctexPath || inferSyncTexPath(
 const forwardSyncRequest = computed(() => latexStore.forwardSyncRequestFor(texPath.value))
 const compileStatus = computed(() => state.value?.status || null)
 const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
-const hasPdf = ref(false)
 
 const pdfViewerRef = ref(null)
-const pdfReloadKey = ref(0)
 let activeForwardSyncRequestId = null
+
+const { hasPdf, pdfReloadKey, checkPdfExists } = useCompiledPdfPreview({
+  pdfPathRef: pdfPath,
+  reloadEventName: 'latex-compile-done',
+  matchesReloadEvent: (event) => event.detail?.texPath === texPath.value,
+  onReload: () => {
+    void maybeRunForwardSync()
+  },
+})
 
 function handleBackwardSync({ page, x, y }) {
   if (!synctexPath.value || !page) return
@@ -85,22 +93,6 @@ function handleBackwardSync({ page, x, y }) {
       }
     })
     .catch(() => {})
-}
-
-function handleCompileDone(e) {
-  if (e.detail?.texPath === texPath.value) {
-    pdfReloadKey.value++
-    void checkPdfExists()
-    void maybeRunForwardSync()
-  }
-}
-
-async function checkPdfExists() {
-  try {
-    hasPdf.value = await invoke('path_exists', { path: pdfPath.value })
-  } catch {
-    hasPdf.value = false
-  }
 }
 
 async function maybeRunForwardSync() {
@@ -139,16 +131,6 @@ async function maybeRunForwardSync() {
 
 onMounted(() => {
   latexStore.checkCompilers()
-  window.addEventListener('latex-compile-done', handleCompileDone)
-  void checkPdfExists().then(() => maybeRunForwardSync())
-})
-
-onUnmounted(() => {
-  window.removeEventListener('latex-compile-done', handleCompileDone)
-})
-
-watch(pdfPath, () => {
-  void checkPdfExists()
 })
 
 watch(pdfViewerRef, () => {

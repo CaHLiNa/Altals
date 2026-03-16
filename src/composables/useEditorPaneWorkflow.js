@@ -59,22 +59,6 @@ export function useEditorPaneWorkflow(options) {
     if (workflowUiState.value.phase === 'ready') return 'success'
     return 'muted'
   })
-  const previewSourcePath = computed(() => (
-    activeTabRef.value && viewerTypeRef.value === 'pdf'
-      ? workflowStore.getSourcePathForPreview(activeTabRef.value)
-      : ''
-  ))
-  const pdfSourceState = computed(() => (
-    activeTabRef.value && viewerTypeRef.value === 'pdf'
-      ? filesStore.getPdfSourceState(activeTabRef.value)
-      : null
-  ))
-  const pdfSourceReady = computed(() => (
-    viewerTypeRef.value !== 'pdf'
-      || !activeTabRef.value
-      || pdfSourceState.value?.status === 'ready'
-  ))
-  const pdfSourceKind = computed(() => pdfSourceState.value?.kind || 'plain')
 
   function buildAdapterContext(extra = {}) {
     return {
@@ -239,19 +223,6 @@ export function useEditorPaneWorkflow(options) {
     { immediate: true },
   )
 
-  watch(
-    [activeTabRef, viewerTypeRef, previewSourcePath],
-    async ([activeTab, type]) => {
-      if (!activeTab || type !== 'pdf') return
-      try {
-        await filesStore.ensurePdfSourceKind(activeTab, { force: true })
-      } catch (error) {
-        console.warn('[editor] failed to resolve PDF source kind:', error)
-      }
-    },
-    { immediate: true },
-  )
-
   return {
     pdfToolbarTargetId,
     pdfToolbarTargetSelector,
@@ -260,8 +231,6 @@ export function useEditorPaneWorkflow(options) {
     workflowCanViewLog,
     workflowStatusText,
     workflowStatusTone,
-    pdfSourceReady,
-    pdfSourceKind,
     handleRunCode,
     handleRunFile,
     handleRenderDocument,
