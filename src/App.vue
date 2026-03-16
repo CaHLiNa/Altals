@@ -61,22 +61,6 @@
           <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
         </div>
 
-        <!-- Right resize handle -->
-        <ResizeHandle
-          v-if="workspace.rightSidebarOpen"
-          direction="vertical"
-          @resize="onRightResize"
-          @dblclick="onRightResizeSnap"
-        />
-
-        <!-- Right sidebar: Terminal + Tasks (v-show to preserve running terminals) -->
-        <div
-          v-show="workspace.rightSidebarOpen"
-          class="shrink-0 overflow-hidden border-l"
-          :style="{ width: rightSidebarWidth + 'px', borderColor: 'var(--border)' }"
-        >
-          <RightPanel ref="rightPanelRef" />
-        </div>
       </div>
 
       <!-- Footer -->
@@ -144,7 +128,6 @@ import {
 } from './services/criticalWorkspaceState'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
-const RightPanel = defineAsyncComponent(() => import('./components/panel/RightPanel.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
 const VersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
@@ -169,7 +152,6 @@ const { t } = useI18n()
 const footerRef = ref(null)
 const headerRef = ref(null)
 const leftSidebarRef = ref(null)
-const rightPanelRef = ref(null)
 const bottomPanelRef = ref(null)
 const setupWizardVisible = ref(false)
 const versionHistoryVisible = ref(false)
@@ -181,12 +163,9 @@ let unlistenWindowFocusChange = null
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 const {
   leftSidebarWidth,
-  rightSidebarWidth,
   bottomPanelHeight,
   onLeftResize,
   onBottomResize,
-  onRightResize,
-  onRightResizeSnap,
   cleanupAppShellLayout,
 } = useAppShellLayout()
 

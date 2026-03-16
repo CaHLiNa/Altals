@@ -204,7 +204,6 @@
         </div>
         <div class="px-3 py-2 space-y-1.5 ui-text-sm" style="color: var(--fg-secondary);">
           <div class="flex justify-between"><span>{{ t('Toggle left sidebar') }}</span><kbd>{{ modKey }}+B</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Toggle right sidebar') }}</span><kbd>{{ modKey }}+J</kbd></div>
           <div class="flex justify-between"><span>{{ t('Quick open') }}</span><kbd>{{ modKey }}+P</kbd></div>
           <div class="flex justify-between"><span>{{ t('Save & commit') }}</span><kbd>{{ modKey }}+S</kbd></div>
           <div class="flex justify-between"><span>{{ t('Close tab') }}</span><kbd>{{ modKey }}+W</kbd></div>

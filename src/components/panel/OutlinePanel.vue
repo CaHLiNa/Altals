@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full pt-2" style="background: var(--bg-secondary);">
+  <div class="flex flex-col h-full" :class="embedded ? 'pt-0' : 'pt-2'" style="background: var(--bg-secondary);">
 
     <!-- Content -->
       
@@ -59,6 +59,7 @@ import { useI18n } from '../../i18n'
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
   overrideActiveFile: { type: String, default: null },
+  embedded: { type: Boolean, default: false },
 })
 defineEmits(['toggle-collapse'])
 

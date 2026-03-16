@@ -71,19 +71,6 @@
       </button>
       <button
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: workspace.rightSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
-        @click="workspace.toggleRightSidebar()"
-        :title="t('Toggle right panel ({shortcut})', { shortcut: `${modKey}+J` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
-      >
-        <component
-          :is="workspace.rightSidebarOpen ? IconLayoutSidebarRightFilled : IconLayoutSidebarRight"
-          :size="HEADER_ICON_SIZE" :stroke-width="1.5"
-        />
-      </button>
-      <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         :style="{ color: workspace.bottomPanelOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
         @click="workspace.toggleBottomPanel()"
         :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
@@ -114,7 +101,6 @@ import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconLayoutSidebarRight, IconLayoutSidebarRightFilled,
   IconSettings, IconSearch, IconTerminal2,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
