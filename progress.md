@@ -1,3 +1,20 @@
+# Session: 2026-03-16 PDF 计划收口与行为对齐
+
+## Status
+- **Status:** complete
+
+## Actions taken
+- 重新对照 `2026-03-16-pdf-preview-shell-refactor.md`、`2026-03-16-document-pdf-viewer.md`、`2026-03-16-latex-synctex-dblclick.md` 三份计划，确认共享 compiled preview shell、`DocumentPdfViewer` 单入口和 SyncTeX 双击链路都已经落在主线代码。
+- 核对 `docs/tex-system.md`，确认文档已经从旧的“按钮触发 SyncTeX”更新为“源文件双击 / PDF 双击”的当前行为。
+- 把最近这轮 pdf.js 搜索弹窗行为问题补记进计划记录：根因是 findbar DOM `hidden` 类和组件 `open` 状态分叉，不是第二套搜索算法并存。
+- 更新 `task_plan.md`、`findings.md`、`progress.md`，把这批 PDF 计划补收口，避免后续会话重复做已完成的结构性步骤。
+
+## Test Results
+| Test | Input | Expected | Actual | Status |
+|------|-------|----------|--------|--------|
+| 前端构建 | `npm run build` | 补记 PDF 计划并保留搜索弹窗修复后前端仍可构建 | 通过 | 通过 |
+| Rust 检查 | `cargo check --manifest-path src-tauri/Cargo.toml` | PDF 计划收口后桌面端边界仍可编译 | 通过 | 通过 |
+
 # Session: 2026-03-16 PDF.js sidebar/search 收敛
 
 ## Status

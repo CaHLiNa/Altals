@@ -1,3 +1,19 @@
+# Active Findings: 2026-03-16 PDF 计划收口与行为对齐
+
+## Plan Reconciliation
+- `src/composables/useCompiledPdfPreview.js` 已经把 `hasPdf / pdfReloadKey / compile-done reload / path_exists` 这层共享 preview shell 从 LaTeX / Typst wrapper 中抽出来了，对应 `2026-03-16-pdf-preview-shell-refactor.md` 的核心目标已经落地。
+- `src/components/editor/DocumentPdfViewer.vue` 与 `src/components/editor/EditorPane.vue` 已经完成单入口 PDF 路由，`EditorPane` 不再自己分支 LaTeX / Typst / plain PDF，对应 `2026-03-16-document-pdf-viewer.md` 的核心目标已经落地。
+- `src/stores/latex.js`、`src/components/editor/TextEditor.vue`、`src/components/editor/LatexPdfViewer.vue` 这三处已经形成 store-backed 的 forward sync / backward sync 双击链路，`docs/tex-system.md` 也已同步成“双击源文件、双击 PDF”的行为描述，对应 `2026-03-16-latex-synctex-dblclick.md` 已基本落地。
+
+## Runtime Finding
+- 最近这轮 pdf.js 搜索弹窗的问题，本质不是“又接了第二套搜索”，而是 **findbar 的 DOM 可见性和组件状态分叉**：
+  - 初始 DOM 有 `hidden` 类，但组件样式里没有真正把 `.hidden` 隐藏掉
+  - 工具栏按钮切换又只看 `findBar.opened`，没有把实际 DOM class 状态算进去
+- 这会导致用户看到“弹窗默认就是开的，点按钮只缩一下，不会关”。后续如果再动 PDF 搜索壳层，必须把 `hidden` 类和 `isOpen/open` 当作同一个真源处理。
+
+## Practical Conclusion
+- 截至目前，2026-03-16 这批 PDF 计划里真正还需要手工 smoke 的，主要只剩桌面态的最终交互确认；从代码结构上看，主线实现已经不再有明显未落地的计划步骤。
+
 # Active Findings: 2026-03-16 PDF.js sidebar/search 收敛
 
 ## What Changed

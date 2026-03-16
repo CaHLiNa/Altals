@@ -1,3 +1,37 @@
+## Active Task: PDF 计划收口与行为对齐
+
+### Goal
+把 2026-03-16 这批 PDF 相关计划文档和主线代码重新对齐，确认哪些步骤已经实际落地，并把最近修好的 pdf.js 搜索弹窗开关问题补记到项目计划记录里。
+
+### Current Phase
+Complete
+
+### Planned Phases
+#### Phase A: 计划对照审计
+- [x] 对照 `pdf-preview-shell-refactor`，确认共享 compiled preview shell 已经落在主线代码
+- [x] 对照 `document-pdf-viewer`，确认 `DocumentPdfViewer` 已接管 PDF wrapper 路由
+- [x] 对照 `latex-synctex-dblclick`，确认 store-backed forward sync / backward sync 双击链路已落地
+- **Status:** complete
+
+#### Phase B: 搜索弹窗行为回归
+- [x] 定位 pdf.js findbar 默认可见和按钮无法关闭的根因
+- [x] 统一 DOM `hidden` 类和组件 `open` 状态的可见性语义
+- [x] 保留 Altals 视觉样式，仅修复 pdf.js findbar 的开关行为
+- **Status:** complete
+
+#### Phase C: 记录与验收
+- [x] 更新 `task_plan.md` / `findings.md` / `progress.md`
+- [x] 复跑 `npm run build`
+- [x] 复跑 `cargo check --manifest-path src-tauri/Cargo.toml`
+- **Status:** complete
+
+### Plan Docs
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdf-preview-shell-refactor.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-document-pdf-viewer.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-latex-synctex-dblclick.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdf-viewer-hybrid-shell-refactor.md`
+- `/Users/math173sr/Documents/GitHub项目/Altals/docs/plans/2026-03-16-pdfjs-sidebar-search.md`
+
 ## Active Task: PDF.js sidebar/search 收敛
 
 ### Goal
