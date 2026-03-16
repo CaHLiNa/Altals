@@ -122,6 +122,7 @@ const ZH_MESSAGES = {
   'Choose which compiler Altals uses for .tex files.': '选择 Altals 编译 .tex 文件时使用的编译器。',
   'Typst Compiler': 'Typst 编译器',
   'Compile .typ files with the local Typst CLI.': '使用本地 Typst CLI 编译 .typ 文件。',
+  'Compilation and editor tooling for .typ files.': '用于 .typ 文件的编译与编辑器支持。',
   'Use the Typst CLI to compile .typ files directly to PDF.': '通过 Typst CLI 直接把 .typ 文件编译成 PDF。',
   'Typst compiles .typ files to PDF. A one-time download is required.': 'Typst 用于将 .typ 文件编译为 PDF，需要一次性下载。',
   'Compiler': '编译器',

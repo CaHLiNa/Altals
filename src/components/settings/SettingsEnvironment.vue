@@ -47,18 +47,6 @@
                 </template>
               </div>
 
-              <div class="env-inline-row env-inline-row-compact env-inline-row-offset">
-                <div class="env-input-shell env-input-shell-slim">
-                  <input
-                    v-model="customPythonPathDraft"
-                    class="env-path-input"
-                    :placeholder="t('Conda / venv Python path')"
-                  />
-                </div>
-                <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
-                  {{ t('Use Path') }}
-                </button>
-              </div>
             </div>
           </template>
           <div v-else class="env-lang-kernel-row">
@@ -78,21 +66,6 @@
         </div>
 
         <div v-else class="env-lang-hint">{{ envStore.installHint(lang.key) }}</div>
-        <template v-if="lang.key === 'python' && !lang.info.found">
-          <div class="env-inline-row env-inline-row-compact env-inline-row-missing">
-            <div class="env-input-shell env-input-shell-slim">
-              <input
-                v-model="customPythonPathDraft"
-                class="env-path-input"
-                :placeholder="t('Custom Python path')"
-              />
-            </div>
-            <button class="env-install-btn" type="button" @click="saveCustomPythonPath">
-              {{ t('Use Path') }}
-            </button>
-          </div>
-        </template>
-
         <div v-if="envStore.lastInstallLanguage === lang.key && envStore.installError" class="env-install-error">
           {{ envStore.installError }}
         </div>
@@ -185,18 +158,6 @@
       <div class="env-lang-hint env-hint-inline">
         {{ t('Use your MacTeX / TeX Live installation through latexmk.') }}
       </div>
-      <div class="env-action-row env-action-row-stack">
-        <div class="env-input-shell env-input-shell-slim env-input-shell-grow">
-          <input
-            v-model="customSystemTexPathDraft"
-            class="env-path-input"
-            :placeholder="t('Custom latexmk path')"
-          />
-        </div>
-        <button class="env-install-btn" type="button" @click="saveCustomSystemTexPath">
-          {{ t('Use Path') }}
-        </button>
-      </div>
     </div>
 
     <div class="env-lang-card">
@@ -248,8 +209,8 @@
       </div>
     </div>
 
-    <h3 class="settings-section-title env-section-offset">{{ t('Typst Compiler') }}</h3>
-    <p class="settings-hint">{{ t('Compile .typ files with the local Typst CLI.') }}</p>
+    <h3 class="settings-section-title env-section-offset">Typst</h3>
+    <p class="settings-hint">{{ t('Compilation and editor tooling for .typ files.') }}</p>
 
     <div class="env-lang-card">
       <template v-if="typstStore.available">
@@ -301,22 +262,7 @@
           {{ t('Retry') }}
         </button>
       </div>
-      <div class="env-action-row env-action-row-stack">
-        <div class="env-input-shell env-input-shell-slim env-input-shell-grow">
-          <input
-            v-model="customTypstPathDraft"
-            class="env-path-input"
-            :placeholder="t('Custom Typst path')"
-          />
-        </div>
-        <button class="env-install-btn" type="button" @click="saveCustomTypstPath">
-          {{ t('Use Path') }}
-        </button>
-      </div>
     </div>
-
-    <h3 class="settings-section-title env-section-offset">{{ t('Tinymist Editor Support') }}</h3>
-    <p class="settings-hint">{{ t('Optional Typst language service for diagnostics, outline, navigation, and completions.') }}</p>
 
     <div class="env-lang-card">
       <template v-if="tinymistStore.available">
@@ -374,7 +320,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useLatexStore } from '../../stores/latex'
 import { useTinymistStore } from '../../stores/tinymist'
@@ -386,9 +332,6 @@ const latexStore = useLatexStore()
 const tinymistStore = useTinymistStore()
 const typstStore = useTypstStore()
 const { t } = useI18n()
-const customPythonPathDraft = ref(envStore.customPythonPath || '')
-const customSystemTexPathDraft = ref(latexStore.customSystemTexPath || '')
-const customTypstPathDraft = ref(typstStore.customCompilerPath || '')
 
 const envLanguages = computed(() => [
   { key: 'python', label: 'Python', info: envStore.languages.python },
@@ -442,18 +385,6 @@ async function onPythonInterpreterChange(event) {
   await envStore.selectPythonInterpreter(event.target.value)
 }
 
-async function saveCustomPythonPath() {
-  await envStore.saveCustomPythonPath(customPythonPathDraft.value)
-}
-
-async function saveCustomSystemTexPath() {
-  await latexStore.setCustomSystemTexPath(customSystemTexPathDraft.value)
-}
-
-async function saveCustomTypstPath() {
-  await typstStore.setCustomCompilerPath(customTypstPathDraft.value)
-}
-
 function onCompilerPreferenceChange(event) {
   latexStore.setCompilerPreference(event.target.value)
 }
@@ -498,18 +429,6 @@ function warmSystemChecks() {
     tinymistStore.checkBinary(),
   ]))
 }
-
-watch(() => envStore.customPythonPath, (value) => {
-  customPythonPathDraft.value = value || ''
-})
-
-watch(() => latexStore.customSystemTexPath, (value) => {
-  customSystemTexPathDraft.value = value || ''
-})
-
-watch(() => typstStore.customCompilerPath, (value) => {
-  customTypstPathDraft.value = value || ''
-})
 
 onMounted(() => {
   warmSystemChecks()
