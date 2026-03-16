@@ -1,6 +1,16 @@
 function normalizePath(path = '') {
-  const value = String(path || '').replace(/\/+$/, '')
-  return value || '/'
+  const value = String(path || '').trim().replace(/\\/g, '/')
+  if (!value) return ''
+  if (value === '/') return '/'
+  if (/^[A-Za-z]:\/?$/.test(value)) return `${value.slice(0, 2)}/`
+  return value.replace(/\/+$/, '')
+}
+
+function isWithinRoot(path = '', root = '') {
+  if (!path || !root) return false
+  if (path === root) return true
+  const separator = root.endsWith('/') ? '' : '/'
+  return path.startsWith(`${root}${separator}`)
 }
 
 function encodeRelativePath(relativePath = '') {
@@ -20,10 +30,10 @@ export function toWorkspaceProtocolUrl(filePath, workspace, options = {}) {
   let scope = ''
   let relativePath = ''
 
-  if (workspaceRoot && (normalizedFilePath === workspaceRoot || normalizedFilePath.startsWith(`${workspaceRoot}/`))) {
+  if (isWithinRoot(normalizedFilePath, workspaceRoot)) {
     scope = 'workspace'
     relativePath = normalizedFilePath.slice(workspaceRoot.length).replace(/^\/+/, '')
-  } else if (dataRoot && (normalizedFilePath === dataRoot || normalizedFilePath.startsWith(`${dataRoot}/`))) {
+  } else if (isWithinRoot(normalizedFilePath, dataRoot)) {
     scope = 'data'
     relativePath = normalizedFilePath.slice(dataRoot.length).replace(/^\/+/, '')
   } else {
