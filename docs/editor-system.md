@@ -344,7 +344,7 @@ A second compartment (`columnWidthCompartment`) constrains `.cm-content` to a `m
 | Viewer | File Types / Path Prefix | Key Features |
 |---|---|---|
 | `TextEditor` | `.md`, `.js`, `.py`, `.rs`, etc. | CodeMirror 6, ghost suggestions (`.md` only), wiki links (`.md` only), merge view, comments |
-| `PdfViewer` | `.pdf` | Embeds the Firefox PDF.js viewer app via iframe (blob URL). Full-featured: thumbnails sidebar, page navigation, text selection, Cmd+F search, annotations, highlights, zoom. Theme follows app (dark/light). |
+| `PdfViewer` | `.pdf` | Embeds the Firefox PDF.js viewer app via same-origin iframe. Supports page navigation, text selection, Cmd+F search, sidebar, zoom, translation entry, and Altals research highlights/notes. |
 | `CsvEditor` | `.csv`, `.tsv` | Handsontable grid, auto-save on debounce |
 | `ImageViewer` | `.png`, `.jpg`, `.gif`, `.svg`, etc. | Opens at 1:1 (actual size), zoom/pan with mouse, Fit button and double-click reset to 1:1 |
 | `UnsupportedFilePane` | legacy `.docx` | Explicit unsupported state so removed formats do not fall back to the text editor |
@@ -353,23 +353,23 @@ A second compartment (`columnWidthCompartment`) constrains `.cm-content` to a `m
 
 ## PDF Viewer
 
-Embeds the official Firefox PDF.js viewer app (`public/pdfjs-viewer/web/viewer.html`) in a same-origin `<iframe>`. The PDF is read via `read_file_base64`, converted to a blob URL, and passed as the `file` query parameter.
+Embeds the official Firefox PDF.js viewer app (`public/pdfjs-viewer/web/viewer.html`) in a same-origin `<iframe>`. Altals loads the PDF bytes via Tauri `read_file_binary`, waits for `PDFViewerApplication.initializedPromise`, then calls `app.open({ data })`. The viewer core remains official PDF.js; Altals adds only the outer toolbar, translation entry, SyncTeX bridge, and research highlight/note workflow.
 
 ### Static Assets (`public/pdfjs-viewer/`)
 
-Downloaded from the PDF.js v5 GitHub release distribution (matches the `pdfjs-dist` npm package version):
+Tracked in-repo for the embedded viewer app:
 
 - **`build/pdf.mjs`** + **`pdf.worker.mjs`** — core library and worker thread
-- **`web/viewer.html`** + **`viewer.mjs`** + **`viewer.css`** — the viewer app
-- **`web/images/`** (78 SVGs) — toolbar icons
-- **`web/standard_fonts/`** — Liberation/Foxit fonts for PDFs without embedded fonts
-- **`web/cmaps/`** — character maps for CJK and complex scripts
-- **`web/wasm/`** — JBIG2, OpenJPEG, QCMS decoders for special image formats
-- **`web/locale/en-US/`**, **`en-GB/`**, **`en-CA/`** — UI strings (Fluent)
+- **`web/viewer.html`** + **`viewer.mjs`** + **`viewer.css`** — the viewer app shell
 
 ### Features
 
-The viewer app provides the full Firefox/Mozilla PDF.js feature set out of the box: thumbnail sidebar, page navigation, text selection, Cmd+F search, highlight/annotation tools, zoom, and print. No custom rendering code.
+The viewer app provides the reading core: thumbnail/outline sidebar, page navigation, text selection, Cmd+F search, and zoom. Altals layers on top:
+
+- translation status + trigger button
+- `dblclick-page` for LaTeX backward sync
+- `scrollToPage()` / `scrollToLocation()` for forward sync and manuscript integration
+- research highlight and note UI backed by `researchArtifactsStore`
 
 ### Theme Syncing
 
@@ -385,9 +385,10 @@ app.page          // current page
 app.pagesCount    // total pages
 app.eventBus.on('pagechanging', ...)
 iframeRef.value.contentWindow.getSelection().toString()  // selected text
-app.pdfDocument.annotationStorage.serializable           // all annotations/highlights
+app.pdfLinkService.goToPage(3)
+app.open({ data: uint8Array })
 ```
 
 ### Reload on Recompile
 
-`PdfViewer.vue` listens for the `pdf-updated` custom event. On receipt it revokes the old blob URL, re-reads the file via `read_file_base64`, creates a new blob URL, and updates `viewerSrc` — the iframe reloads with the new PDF.
+`PdfViewer.vue` listens for the `pdf-updated` custom event. On receipt it re-reads the PDF bytes, refreshes the iframe viewer instance, and reopens the document. LaTeX/Typst preview wrappers keep using the same event contract, so compile output refresh behavior does not change.
