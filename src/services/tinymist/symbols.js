@@ -23,8 +23,14 @@ function positionToOffset(lineOffsets, textLength, position = {}) {
 
 function mapOutlineKind(symbol = {}) {
   const name = String(symbol?.name || '').trim().toLowerCase()
+  if (!name) return 'heading'
   if (name.startsWith('figure') || name.startsWith('fig.')) return 'figure'
   if (name.startsWith('table')) return 'table'
+  if (name === 'bibliography' || name === 'references' || name === 'works cited') return 'bibliography'
+  if (name.startsWith('equation') || name.startsWith('formula')) return 'equation'
+  if (/^(eq|equation|formula|math)[:._-]/.test(name)) return 'equation'
+  if (/^(fig|tbl|tab)[:._-]/.test(name)) return 'label'
+  if (/^<[^>]+>$/.test(name)) return 'label'
   if (name.startsWith('label')) return 'label'
   return 'heading'
 }

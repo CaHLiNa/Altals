@@ -55,6 +55,7 @@ export function useEditorPaneWorkflow(options) {
     if (!workflowUiState.value) return 'muted'
     if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
     if (workflowUiState.value.phase === 'queued') return 'warning'
+    if (workflowUiState.value.phase === 'error') return 'error'
     if (workflowUiState.value.phase === 'ready') return 'success'
     return 'muted'
   })

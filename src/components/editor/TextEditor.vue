@@ -66,7 +66,7 @@ import { useReferencesStore } from '../../stores/references'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { sendCode, runFile } from '../../services/codeRunner'
 import { requestTinymistFormatting } from '../../services/tinymist/session'
-import { applyTinymistTextEdits } from '../../services/tinymist/textEdits'
+import { applyTinymistTextEdits, applyTinymistTextEditsToText } from '../../services/tinymist/textEdits'
 import { useTypstStore } from '../../stores/typst'
 import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd, isBibFile } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
@@ -121,6 +121,8 @@ let contextMenuRestoreFrame = null
 let contextMenuRestoreTimeout = null
 let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
+let typstNormalizedSaveContent = null
+let typstFormatOnSaveInFlight = false
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
@@ -360,6 +362,25 @@ async function handleFormatDocument() {
   }
 }
 
+async function requestFormattedTypstContent(content, options = {}) {
+  if (!typstUi.tinymistActive) {
+    if (options.notifyUnavailable) {
+      toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
+        type: 'error',
+        duration: 4000,
+      }, 5000)
+    }
+    return content
+  }
+
+  const edits = await requestTinymistFormatting(props.filePath, {
+    tabSize: 2,
+    insertSpaces: true,
+  })
+  if (!Array.isArray(edits) || edits.length === 0) return content
+  return applyTinymistTextEditsToText(content, edits)
+}
+
 async function persistEditorContent(content) {
   if (isTex) {
     if (latexNormalizedSaveContent != null && content === latexNormalizedSaveContent) {
@@ -404,6 +425,54 @@ async function persistEditorContent(content) {
 
     await files.saveFile(props.filePath, nextContent)
     void latexStore.scheduleAutoBuildForPath(props.filePath, {
+      sourceContent: nextContent,
+    })
+    return
+  }
+
+  if (isTyp) {
+    if (typstNormalizedSaveContent != null && content === typstNormalizedSaveContent) {
+      typstNormalizedSaveContent = null
+      return
+    }
+
+    let nextContent = content
+    if (typstStore.formatOnSave && !typstFormatOnSaveInFlight) {
+      try {
+        typstFormatOnSaveInFlight = true
+        const formatted = await requestFormattedTypstContent(content)
+        if (typeof formatted === 'string' && formatted !== content) {
+          nextContent = formatted
+          typstNormalizedSaveContent = formatted
+          if (view && view.state.doc.toString() !== formatted) {
+            const selection = view.state.selection.main
+            view.dispatch({
+              changes: {
+                from: 0,
+                to: view.state.doc.length,
+                insert: formatted,
+              },
+              selection: {
+                anchor: Math.min(selection.anchor, formatted.length),
+                head: Math.min(selection.head, formatted.length),
+              },
+            })
+          }
+        }
+      } catch (error) {
+        toastStore.showOnce('typst-format-on-save-failed', t('Typst format on save failed: {error}', {
+          error: error?.message || String(error || ''),
+        }), {
+          type: 'error',
+          duration: 5000,
+        }, 3000)
+      } finally {
+        typstFormatOnSaveInFlight = false
+      }
+    }
+
+    await files.saveFile(props.filePath, nextContent)
+    void typstStore.scheduleAutoBuildForPath(props.filePath, {
       sourceContent: nextContent,
     })
     return

@@ -144,6 +144,9 @@ export function useTypstDiagnostics(options) {
   function applyTinymistDiagnosticsState(rawDiagnostics = [], options = {}) {
     const normalized = normalizeTinymistDiagnostics(filePath, rawDiagnostics)
       .filter(diagnostic => !isTransientTinymistDiagnostic(diagnostic))
+    typstStore.setTinymistDiagnostics(filePath, rawDiagnostics, {
+      tinymistBacked: true,
+    })
     typstUi.diagnosticsProvider = 'tinymist'
     applyNormalizedDiagnostics(normalized, {
       ...options,
@@ -227,7 +230,11 @@ export function useTypstDiagnostics(options) {
   async function connectTinymistDocument(text) {
     if (cleanupTinymistStatus == null) {
       cleanupTinymistStatus = subscribeTinymistStatus((status) => {
+        typstStore.setTinymistAvailability(status.available === true)
         typstUi.tinymistActive = status.available === true
+        if (!status.available) {
+          typstStore.clearTinymistFileState(filePath)
+        }
         if (!status.available && typstUi.diagnosticsProvider === 'tinymist') {
           hydrateTypstDiagnostics()
         }
@@ -237,10 +244,15 @@ export function useTypstDiagnostics(options) {
     const connected = await ensureTinymistDocument(filePath, text, {
       workspacePath: getWorkspacePath?.() || null,
     })
-    if (!connected) return false
+    if (!connected) {
+      typstStore.setTinymistAvailability(false)
+      typstStore.clearTinymistFileState(filePath)
+      return false
+    }
 
     tinymistDocumentOpen = true
     typstUi.tinymistActive = true
+    typstStore.setTinymistAvailability(true)
     applyTinymistDiagnosticsState([], {
       allowAutoJump: false,
       status: 'success',
@@ -283,6 +295,7 @@ export function useTypstDiagnostics(options) {
       await closeTinymistDocument(filePath)
       tinymistDocumentOpen = false
     }
+    typstStore.clearTinymistFileState(filePath)
     typstUi.tinymistActive = false
   }
 

@@ -4,8 +4,17 @@ import { listen } from '@tauri-apps/api/event'
 import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
+import {
+  resolveTypstAffectedRootTargets,
+} from '../services/typst/projectGraph.js'
+import {
+  resolveCachedTypstPreviewPath,
+  resolveCachedTypstRootPath,
+  resolveTypstCompileTarget,
+} from '../services/typst/root.js'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
+const TYPST_AUTOCOMPILE_DEBOUNCE_MS = 350
 
 const readStoredValue = (key, fallback = '') => {
   try {
@@ -14,6 +23,11 @@ const readStoredValue = (key, fallback = '') => {
   } catch {
     return fallback
   }
+}
+
+const readStoredBoolean = (key, fallback = false) => {
+  const value = readStoredValue(key, fallback ? 'true' : 'false')
+  return value === 'true'
 }
 
 // Default PDF settings
@@ -74,6 +88,10 @@ function buildTypstTerminalOutput(filePath, result) {
   return `${lines.join('\n')}\n`
 }
 
+function buildPreviewPath(filePath = '') {
+  return String(filePath || '').replace(/\.typ$/i, '.pdf')
+}
+
 function pushTypstLogToTerminal(filePath, result) {
   if (typeof window === 'undefined') return
   const shouldOpenTerminal = !result.success
@@ -94,6 +112,8 @@ export const useTypstStore = defineStore('typst', {
     available: false,
     compilerPath: null,
     customCompilerPath: readStoredValue('typst.customCompilerPath', ''),
+    autoCompile: readStoredBoolean('typst.autoCompile', false),
+    formatOnSave: readStoredBoolean('typst.formatOnSave', false),
     checkingCompiler: false,
     lastCompilerCheckAt: 0,
     downloading: false,
@@ -102,14 +122,73 @@ export const useTypstStore = defineStore('typst', {
     exporting: {}, // { [path]: 'exporting' | 'done' | 'error' }
     compileState: {}, // { [typPath]: { status, errors, warnings, pdfPath, log, durationMs, lastCompiled } }
     pdfSettings: {}, // { [relativePath]: PdfSettings }
+    _timers: {},
+    _activeCompileTargets: {},
+    _recompileNeeded: {},
+    _latestSourceByTarget: {},
+    buildQueueState: {},
+    tinymistAvailable: false,
+    liveState: {}, // { [typPath]: { tinymistBacked, diagnostics, outlineItems, outlineLoaded } }
   }),
 
   getters: {
-    stateForFile: (state) => (filePath) => state.compileState[filePath] || null,
-    isCompiling: (state) => (filePath) => state.compileState[filePath]?.status === 'compiling',
+    stateForFile: (state) => (filePath) => {
+      return state.compileState[filePath]
+        || state.compileState[resolveCachedTypstRootPath(filePath)]
+        || null
+    },
+    isCompiling: (state) => (filePath) => {
+      const nextState = state.compileState[filePath] || state.compileState[resolveCachedTypstRootPath(filePath)]
+      return nextState?.status === 'compiling'
+    },
+    liveStateForFile: (state) => (filePath) => state.liveState[filePath] || null,
+    queueStateForFile: (state) => (filePath) => {
+      return state.buildQueueState[filePath]
+        || state.buildQueueState[resolveCachedTypstRootPath(filePath)]
+        || null
+    },
   },
 
   actions: {
+    setBuildQueueState(targetPath, patch = {}) {
+      if (!targetPath) return null
+      const current = this.buildQueueState[targetPath] || {}
+      const next = {
+        targetPath,
+        sourcePath: current.sourcePath || targetPath,
+        reason: current.reason || 'manual',
+        pendingCount: Number(current.pendingCount || 0),
+        updatedAt: Date.now(),
+        ...current,
+        ...patch,
+      }
+      this.buildQueueState = {
+        ...this.buildQueueState,
+        [targetPath]: next,
+      }
+      return next
+    },
+
+    clearBuildQueueState(targetPath) {
+      if (!targetPath || !this.buildQueueState[targetPath]) return
+      const next = { ...this.buildQueueState }
+      delete next[targetPath]
+      this.buildQueueState = next
+    },
+
+    async resolveCompileRequest(filePath, options = {}) {
+      const workspace = useWorkspaceStore()
+      const compileTargetPath = await resolveTypstCompileTarget(filePath, {
+        filesStore: options.filesStore,
+        workspacePath: workspace.path,
+        contentOverrides: options.contentOverrides,
+      }).catch(() => filePath)
+
+      return {
+        compileTargetPath: compileTargetPath || filePath,
+      }
+    },
+
     async checkAvailability(force = false) {
       await this.checkCompiler(force)
       return this.available
@@ -213,20 +292,50 @@ export const useTypstStore = defineStore('typst', {
       }
     },
 
-    async compile(filePath) {
+    async compile(filePath, options = {}) {
+      if (!filePath) return null
+
+      this.cancelAutoCompile(filePath)
+      const { compileTargetPath } = await this.resolveCompileRequest(filePath, options)
+      const targetKey = options.targetPath || compileTargetPath || filePath
+      const reason = options.reason || 'manual'
+      const queueState = this.buildQueueState[targetKey] || null
+      this._latestSourceByTarget[targetKey] = filePath
+
+      if (this._activeCompileTargets[targetKey]) {
+        this._recompileNeeded[targetKey] = true
+        this.setBuildQueueState(targetKey, {
+          phase: 'queued',
+          sourcePath: filePath,
+          reason,
+          pendingCount: Number(queueState?.pendingCount || 0) + 1,
+        })
+        return this.compileState[filePath] || null
+      }
+
+      this._activeCompileTargets[targetKey] = true
+      this.setBuildQueueState(targetKey, {
+        phase: 'running',
+        sourcePath: filePath,
+        reason,
+        pendingCount: Number(queueState?.pendingCount || 0),
+        startedAt: Date.now(),
+      })
+
       this.compileState[filePath] = {
         ...this.compileState[filePath],
         status: 'compiling',
         errors: [],
         warnings: [],
+        compileTargetPath: targetKey,
       }
 
       try {
         const result = await invoke('compile_typst_file', {
-          typPath: filePath,
+          typPath: targetKey,
           customTypstPath: this.customCompilerPath || null,
         })
-        this.compileState[filePath] = {
+        const nextState = {
           status: result.success ? 'success' : 'error',
           errors: result.errors,
           warnings: result.warnings,
@@ -234,10 +343,18 @@ export const useTypstStore = defineStore('typst', {
           log: result.log,
           durationMs: result.duration_ms,
           lastCompiled: Date.now(),
+          compileTargetPath: targetKey,
+          projectRootPath: targetKey,
+          previewPath: resolveCachedTypstPreviewPath(filePath) || buildPreviewPath(targetKey),
+        }
+        this.compileState[filePath] = nextState
+        this.compileState[targetKey] = {
+          ...nextState,
+          linkedSourcePath: filePath,
         }
 
         window.dispatchEvent(new CustomEvent('typst-compile-done', {
-          detail: { typPath: filePath, ...result },
+          detail: { typPath: filePath, compileTargetPath: targetKey, ...result },
         }))
         if (result.success && result.pdf_path) {
           window.dispatchEvent(new CustomEvent('pdf-updated', {
@@ -249,6 +366,20 @@ export const useTypstStore = defineStore('typst', {
         if (result.success) {
           events.exportPdf()
         }
+        if (this._recompileNeeded[targetKey]) {
+          delete this._recompileNeeded[targetKey]
+          const nextSourcePath = this._latestSourceByTarget[targetKey] || filePath
+          this.setBuildQueueState(targetKey, {
+            phase: 'queued',
+            sourcePath: nextSourcePath,
+            reason: 'rerun',
+            pendingCount: 0,
+          })
+          void this.compile(nextSourcePath, { reason: 'rerun', targetPath: targetKey })
+        } else {
+          this.clearBuildQueueState(targetKey)
+        }
+        return this.compileState[filePath]
       } catch (error) {
         const message = error?.message || String(error)
         const result = {
@@ -265,17 +396,28 @@ export const useTypstStore = defineStore('typst', {
           errors: result.errors,
           warnings: [],
           log: message,
+          compileTargetPath: targetKey,
+          projectRootPath: targetKey,
+          previewPath: resolveCachedTypstPreviewPath(filePath) || buildPreviewPath(targetKey),
+        }
+        this.compileState[targetKey] = {
+          ...this.compileState[filePath],
+          linkedSourcePath: filePath,
         }
         window.dispatchEvent(new CustomEvent('typst-compile-done', {
-          detail: { typPath: filePath, ...result },
+          detail: { typPath: filePath, compileTargetPath: targetKey, ...result },
         }))
         pushTypstLogToTerminal(filePath, result)
+        this.clearBuildQueueState(targetKey)
+        return this.compileState[filePath]
+      } finally {
+        delete this._activeCompileTargets[targetKey]
       }
     },
 
     openCompileLog(filePath) {
       if (typeof window === 'undefined') return
-      const state = this.compileState[filePath]
+      const state = this.stateForFile(filePath)
       if (!state) return
 
       window.dispatchEvent(new CustomEvent('terminal-log', {
@@ -297,6 +439,45 @@ export const useTypstStore = defineStore('typst', {
 
     clearState(filePath) {
       delete this.compileState[filePath]
+      delete this.compileState[resolveCachedTypstRootPath(filePath)]
+      delete this.liveState[filePath]
+      delete this._recompileNeeded[filePath]
+      delete this._latestSourceByTarget[filePath]
+      this.cancelAutoCompile(filePath)
+      this.clearBuildQueueState(filePath)
+      this.clearBuildQueueState(resolveCachedTypstRootPath(filePath))
+    },
+
+    setTinymistAvailability(available) {
+      this.tinymistAvailable = available === true
+    },
+
+    setTinymistDiagnostics(filePath, diagnostics = [], options = {}) {
+      if (!filePath) return
+      const previous = this.liveState[filePath] || {}
+      this.liveState[filePath] = {
+        ...previous,
+        tinymistBacked: options.tinymistBacked !== false,
+        diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
+      }
+    },
+
+    setTinymistOutlineItems(filePath, outlineItems = [], options = {}) {
+      if (!filePath) return
+      const previous = this.liveState[filePath] || {}
+      this.liveState[filePath] = {
+        ...previous,
+        tinymistBacked: options.tinymistBacked !== false,
+        outlineItems: Array.isArray(outlineItems) ? outlineItems : [],
+        outlineLoaded: options.loaded === true,
+      }
+    },
+
+    clearTinymistFileState(filePath) {
+      if (!filePath || !this.liveState[filePath]) return
+      const next = { ...this.liveState }
+      delete next[filePath]
+      this.liveState = next
     },
 
     async setCustomCompilerPath(path) {
@@ -312,9 +493,88 @@ export const useTypstStore = defineStore('typst', {
       await this.checkCompiler(true)
     },
 
+    setAutoCompile(enabled) {
+      this.autoCompile = enabled === true
+      try {
+        localStorage.setItem('typst.autoCompile', this.autoCompile ? 'true' : 'false')
+      } catch {}
+    },
+
+    setFormatOnSave(enabled) {
+      this.formatOnSave = enabled === true
+      try {
+        localStorage.setItem('typst.formatOnSave', this.formatOnSave ? 'true' : 'false')
+      } catch {}
+    },
+
+    cancelAutoCompile(filePath) {
+      if (!filePath) return
+      for (const targetPath of [filePath, resolveCachedTypstRootPath(filePath)].filter(Boolean)) {
+        if (this._timers[targetPath]) {
+          clearTimeout(this._timers[targetPath])
+          delete this._timers[targetPath]
+        }
+        if (this.buildQueueState[targetPath]?.phase === 'scheduled') {
+          this.clearBuildQueueState(targetPath)
+        }
+      }
+    },
+
+    async scheduleAutoCompile(filePath, options = {}) {
+      if (!filePath || !this.autoCompile) return
+      const reason = options.reason || 'save'
+      const targetPath = options.targetPath || filePath
+      this._latestSourceByTarget[targetPath] = filePath
+      this.setBuildQueueState(targetPath, {
+        phase: 'scheduled',
+        sourcePath: filePath,
+        reason,
+        pendingCount: 0,
+        scheduledAt: Date.now(),
+      })
+
+      if (this._timers[targetPath]) {
+        clearTimeout(this._timers[targetPath])
+      }
+
+      this._timers[targetPath] = setTimeout(() => {
+        delete this._timers[targetPath]
+        void this.compile(filePath, { reason, targetPath })
+      }, TYPST_AUTOCOMPILE_DEBOUNCE_MS)
+    },
+
+    async scheduleAutoBuildForPath(filePath, options = {}) {
+      if (!filePath || !String(filePath).toLowerCase().endsWith('.typ')) return
+      const workspace = useWorkspaceStore()
+      const affectedRoots = await resolveTypstAffectedRootTargets(filePath, {
+        filesStore: options.filesStore,
+        workspacePath: workspace.path,
+        contentOverrides: options.contentOverrides,
+      }).catch(() => [])
+
+      const targets = affectedRoots.length > 0
+        ? affectedRoots
+        : [{ sourcePath: filePath, rootPath: filePath }]
+
+      for (const target of targets) {
+        await this.scheduleAutoCompile(filePath, {
+          ...options,
+          targetPath: target.rootPath || target.sourcePath || filePath,
+        })
+      }
+    },
+
     cleanup() {
+      Object.values(this._timers).forEach((timerId) => clearTimeout(timerId))
       this.compileState = {}
       this.exporting = {}
+      this.buildQueueState = {}
+      this._timers = {}
+      this._activeCompileTargets = {}
+      this._recompileNeeded = {}
+      this._latestSourceByTarget = {}
+      this.liveState = {}
+      this.tinymistAvailable = false
     },
   },
 })

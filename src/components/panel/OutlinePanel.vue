@@ -12,30 +12,42 @@
       </div>
 
 
-      <div v-else-if="outlineItems.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
+      <div v-else-if="groupedOutlineSections.length === 0" class="px-3 py-3 ui-text-xs" style="color: var(--fg-muted);">
         {{ t('No headings') }}
       </div>
       <div v-else class="flex-1 overflow-y-auto py-1">
         <div
-          v-for="(item, i) in outlineItems"
-          :key="i"
-          class="flex items-center py-0.5 px-2 cursor-pointer select-none rounded-sm hover:bg-[var(--bg-hover)]"
-          :class="{ 'bg-[var(--bg-hover)]': i === activeOutlineIndex }"
-          :style="{
-            paddingLeft: (item.level - 1) * 12 + 8 + 'px',
-            color: i === activeOutlineIndex ? 'var(--fg-primary)' : 'var(--fg-secondary)',
-            fontSize: 'var(--ui-font-size)',
-          }"
-          @click="navigateToOutlineItem(item)"
+          v-for="section in groupedOutlineSections"
+          :key="section.key"
+          class="mb-2 last:mb-0"
         >
-          <span
-            v-if="item.kind && item.kind !== 'heading'"
-            class="shrink-0 mr-2 uppercase tracking-wide"
+          <div
+            class="px-2 pt-1 pb-1 uppercase tracking-wide"
             style="color: var(--fg-muted); font-size: 11px; font-weight: 600;"
           >
-            {{ getOutlineKindLabel(item.kind) }}
-          </span>
-          <span class="truncate">{{ item.text }}</span>
+            {{ section.title }}
+          </div>
+          <div
+            v-for="item in section.items"
+            :key="outlineItemKey(item)"
+            class="flex items-center py-0.5 px-2 cursor-pointer select-none rounded-sm hover:bg-[var(--bg-hover)]"
+            :class="{ 'bg-[var(--bg-hover)]': outlineItemKey(item) === activeOutlineItemKey }"
+            :style="{
+              paddingLeft: getOutlineItemPadding(section.key, item) + 'px',
+              color: outlineItemKey(item) === activeOutlineItemKey ? 'var(--fg-primary)' : 'var(--fg-secondary)',
+              fontSize: 'var(--ui-font-size)',
+            }"
+            @click="navigateToOutlineItem(item)"
+          >
+            <span
+              v-if="getOutlineKindLabel(item.kind)"
+              class="shrink-0 mr-2 uppercase tracking-wide"
+              style="color: var(--fg-muted); font-size: 11px; font-weight: 600;"
+            >
+              {{ getOutlineKindLabel(item.kind) }}
+            </span>
+            <span class="truncate">{{ item.text }}</span>
+          </div>
         </div>
       </div>
     
@@ -43,18 +55,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
+import { useTypstStore } from '../../stores/typst'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
-import { parseTypstOutlineItems } from '../../editor/typstDocument.js'
 import {
   subscribeTinymistDocumentSymbols,
-  subscribeTinymistStatus,
 } from '../../services/tinymist/session'
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
+import { buildTypstOutlineItems } from '../../services/typst/outline'
 import { buildLatexOutlineItems } from '../../services/latex/outline'
 import { useI18n } from '../../i18n'
 
@@ -66,26 +79,24 @@ const props = defineProps({
 defineEmits(['toggle-collapse'])
 
 const editorStore = useEditorStore()
+const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
+const typstStore = useTypstStore()
 const workspaceStore = useWorkspaceStore()
 const linksStore = useLinksStore()
 const { t } = useI18n()
-const tinymistAvailable = ref(false)
-const tinymistOutlineItems = ref([])
-const tinymistOutlineLoaded = ref(false)
 const latexOutlineItems = ref([])
 const latexOutlineLoaded = ref(false)
+const OUTLINE_SECTION_KEYS = [
+  { key: 'contents', titleKey: 'Contents' },
+  { key: 'figures', titleKey: 'Figures and tables' },
+  { key: 'bibliography', titleKey: 'Bibliography' },
+]
 
-let cleanupTinymistStatus = null
 let cleanupTinymistSymbols = null
 let latexOutlineRequestId = 0
 
-// Determine if active file supports outline
-// Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
-const activeFile = computed(() => props.overrideActiveFile || editorStore.activeTab)
-
-const fileType = computed(() => {
-  const path = activeFile.value
+function outlineTypeForPath(path) {
   if (!path) return null
   const vt = getViewerType(path)
   if (vt === 'text' && isMarkdown(path)) return 'markdown'
@@ -93,6 +104,26 @@ const fileType = computed(() => {
   if (vt === 'text' && isTypst(path)) return 'typst'
   if (vt === 'notebook') return 'notebook'
   return null
+}
+
+function resolveOutlinePath(path) {
+  if (!path) return null
+  if (outlineTypeForPath(path)) return path
+
+  const sourcePath = workflowStore.getSourcePathForPreview(path)
+  if (outlineTypeForPath(sourcePath)) {
+    return sourcePath
+  }
+
+  return path
+}
+
+// Determine if active file supports outline
+// Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
+const activeFile = computed(() => resolveOutlinePath(props.overrideActiveFile || editorStore.activeTab))
+
+const fileType = computed(() => {
+  return outlineTypeForPath(activeFile.value)
 })
 
 const hasOutlineSupport = computed(() => fileType.value !== null)
@@ -105,23 +136,20 @@ function currentDocumentText(path) {
   return filesStore.fileContents[path] || ''
 }
 
-function resetTinymistOutline() {
-  tinymistOutlineLoaded.value = false
-  tinymistOutlineItems.value = []
-}
-
 function bindTinymistOutline(path) {
   if (cleanupTinymistSymbols) {
     cleanupTinymistSymbols()
     cleanupTinymistSymbols = null
   }
 
-  resetTinymistOutline()
   if (!path) return
 
   cleanupTinymistSymbols = subscribeTinymistDocumentSymbols(path, (symbols) => {
-    tinymistOutlineItems.value = normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols)
-    tinymistOutlineLoaded.value = true
+    typstStore.setTinymistOutlineItems(
+      path,
+      normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols),
+      { loaded: true, tinymistBacked: true },
+    )
   })
 }
 
@@ -183,12 +211,11 @@ const outlineItems = computed(() => {
   }
 
   if (ft === 'typst') {
-    if (tinymistAvailable.value && tinymistOutlineLoaded.value) {
-      return tinymistOutlineItems.value
-    }
     const content = currentDocumentText(path)
     if (!content) return []
-    return parseTypstOutlineItems(content)
+    return buildTypstOutlineItems(content, {
+      liveState: typstStore.liveStateForFile(path),
+    })
   }
 
   if (ft === 'notebook') {
@@ -200,30 +227,52 @@ const outlineItems = computed(() => {
   return []
 })
 
-// Current heading highlight (for CM6 files)
-const activeOutlineIndex = computed(() => {
-  const ft = fileType.value
-  if (!ft) return -1
-  const offset = editorStore.cursorOffset
-  if (offset == null) return -1
+function outlineSectionKeyForItem(item = {}) {
+  if (item.kind === 'heading' || item.kind === 'appendix') return 'contents'
+  if (item.kind === 'figure' || item.kind === 'table') return 'figures'
+  if (item.kind === 'bibliography') return 'bibliography'
+  return null
+}
 
-  let lastIdx = -1
-  for (let i = 0; i < outlineItems.value.length; i++) {
-    const itemPath = outlineItems.value[i].filePath || activeFile.value
+const groupedOutlineSections = computed(() => {
+  return OUTLINE_SECTION_KEYS
+    .map(section => {
+      const items = outlineItems.value.filter(item => outlineSectionKeyForItem(item) === section.key)
+      return {
+        ...section,
+        title: t(section.titleKey),
+        items,
+      }
+    })
+    .filter(section => section.items.length > 0)
+})
+
+const visibleOutlineItems = computed(() => outlineItems.value.filter(item => outlineSectionKeyForItem(item)))
+
+// Current heading highlight (for CM6 files)
+const activeOutlineItemKey = computed(() => {
+  const ft = fileType.value
+  if (!ft) return ''
+  const offset = editorStore.cursorOffset
+  if (offset == null) return ''
+
+  let activeItem = null
+  for (let i = 0; i < visibleOutlineItems.value.length; i++) {
+    const itemPath = visibleOutlineItems.value[i].filePath || activeFile.value
     if (itemPath !== activeFile.value) continue
-    if (outlineItems.value[i].offset <= offset) {
-      lastIdx = i
+    if (visibleOutlineItems.value[i].offset <= offset) {
+      activeItem = visibleOutlineItems.value[i]
     } else {
       break
     }
   }
-  return lastIdx
+  return activeItem ? outlineItemKey(activeItem) : ''
 })
 
 // --- Heading parsers ---
 
 const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph)\{([^}]*)\}/gm
-const LATEX_LEVELS = { part: 0, chapter: 1, section: 2, subsection: 3, subsubsection: 4, paragraph: 5 }
+const LATEX_LEVELS = { part: 1, chapter: 2, section: 3, subsection: 4, subsubsection: 5, paragraph: 6 }
 
 function parseLatexHeadings(content) {
   const result = []
@@ -232,11 +281,20 @@ function parseLatexHeadings(content) {
   while ((m = LATEX_SECTION_RE.exec(content)) !== null) {
     result.push({
       text: m[2].trim(),
-      level: (LATEX_LEVELS[m[1]] || 2) + 1, // normalize to 1-based
+      rawLevel: LATEX_LEVELS[m[1]] || 3,
       offset: m.index,
     })
   }
-  return result
+  const baseLevel = result.length > 0
+    ? Math.min(...result.map(item => item.rawLevel))
+    : 1
+
+  return result.map(item => ({
+    text: item.text,
+    level: Math.max(1, item.rawLevel - baseLevel + 1),
+    displayLevel: Math.max(1, item.rawLevel - baseLevel + 1),
+    offset: item.offset,
+  }))
 }
 
 function parseNotebookHeadings(content) {
@@ -294,7 +352,8 @@ function navigateToOutlineItem(item) {
   const targetPath = item.filePath || path
 
   if (ft === 'markdown' || ft === 'latex' || ft === 'typst') {
-    editorStore.openFileInPane(targetPath, editorStore.activePaneId, { activatePane: true })
+    const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
+    editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
     focusTextOffset(targetPath, item.offset)
   }
 
@@ -311,18 +370,23 @@ function getOutlineKindLabel(kind) {
   if (kind === 'figure') return 'Fig'
   if (kind === 'table') return 'Tbl'
   if (kind === 'appendix') return 'Appx'
-  if (kind === 'label') return 'Lbl'
   return ''
 }
 
-onMounted(() => {
-  cleanupTinymistStatus = subscribeTinymistStatus((status) => {
-    tinymistAvailable.value = status.available === true
-    if (!tinymistAvailable.value) {
-      resetTinymistOutline()
-    }
-  })
-})
+function getOutlineItemPadding(sectionKey, item = {}) {
+  if (sectionKey !== 'contents') return 8
+  const displayLevel = Math.max(1, Number(item.displayLevel || item.level) || 1)
+  return (displayLevel - 1) * 12 + 8
+}
+
+function outlineItemKey(item = {}) {
+  return [
+    item.filePath || activeFile.value || '',
+    item.offset || 0,
+    item.kind || 'heading',
+    item.text || '',
+  ].join('::')
+}
 
 watch(
   () => [activeFile.value, fileType.value, filesStore.fileContents[activeFile.value || ''] || '', workspaceStore.path],
@@ -338,7 +402,6 @@ watch(
         cleanupTinymistSymbols()
         cleanupTinymistSymbols = null
       }
-      resetTinymistOutline()
       void loadLatexOutline(path)
       return
     }
@@ -347,17 +410,12 @@ watch(
       cleanupTinymistSymbols()
       cleanupTinymistSymbols = null
     }
-    resetTinymistOutline()
     resetLatexOutline()
   },
   { immediate: true },
 )
 
 onUnmounted(() => {
-  if (cleanupTinymistStatus) {
-    cleanupTinymistStatus()
-    cleanupTinymistStatus = null
-  }
   if (cleanupTinymistSymbols) {
     cleanupTinymistSymbols()
     cleanupTinymistSymbols = null

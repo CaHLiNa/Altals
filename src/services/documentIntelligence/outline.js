@@ -1,10 +1,12 @@
 import { sortByOffset, uniqueBy } from './workspaceGraph.js'
 
 export function normalizeOutlineItem(item = {}) {
+  const normalizedLevel = Math.max(1, Number(item.level) || 1)
   return {
     kind: item.kind || 'heading',
     text: String(item.text || '').trim(),
-    level: Math.max(1, Number(item.level) || 1),
+    level: normalizedLevel,
+    displayLevel: Math.max(1, Number(item.displayLevel) || normalizedLevel),
     offset: Math.max(0, Number(item.offset) || 0),
     order: Number.isInteger(item.order) ? item.order : null,
     filePath: item.filePath || '',

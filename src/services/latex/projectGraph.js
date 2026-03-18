@@ -34,6 +34,7 @@ const INCLUDE_RE = /\\(input|include|subfile|InputIfFileExists|loadglsentries|ma
 const IMPORT_RE = /\\(import|inputfrom|includefrom|subimport|subinputfrom|subincludefrom)\{([^}]+)\}\{([^}]+)\}/g
 const ADD_BIB_RESOURCE_RE = /\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}/g
 const BIBLIOGRAPHY_RE = /\\bibliography\{([^}]+)\}/g
+const THEBIBLIOGRAPHY_RE = /\\begin\{thebibliography\}(?:\[[^\]]*\])?\{[^}]*\}/g
 const MAGIC_ROOT_RE = /^[ \t]*%\s*!TEX\s+root\s*=\s*(.+)$/im
 const APPENDIX_RE = /\\appendix\b/g
 const FLOAT_ENV_RE = /\\begin\{(figure|table)\*?\}([\s\S]*?)\\end\{\1\*?\}/g
@@ -248,6 +249,24 @@ function parseBibliographyFiles(content = '', filePath = '', availablePaths = ne
   return uniqueBy(files.filter(Boolean))
 }
 
+function parseBibliographyOutlineItems(content = '', filePath = '') {
+  const items = []
+  const lineOffsets = buildLineOffsets(content)
+
+  THEBIBLIOGRAPHY_RE.lastIndex = 0
+  let match
+  while ((match = THEBIBLIOGRAPHY_RE.exec(content)) !== null) {
+    items.push({
+      filePath,
+      text: 'Bibliography',
+      offset: match.index,
+      line: offsetToLine(lineOffsets, match.index),
+    })
+  }
+
+  return items
+}
+
 function parseAppendices(content = '', filePath = '') {
   const appendices = []
   const lineOffsets = buildLineOffsets(content)
@@ -340,6 +359,7 @@ async function parseFileRecord(filePath, options = {}, availablePaths = new Set(
     sections: parseSections(content, normalized),
     appendices: parseAppendices(content, normalized),
     floats: parseFloats(content, normalized),
+    bibliographyOutlineItems: parseBibliographyOutlineItems(content, normalized),
     labels: parseLabels(content, normalized),
     citations: parseCitations(content, normalized),
     includes: parseIncludes(content, normalized, availablePaths),
@@ -437,6 +457,12 @@ function buildOutlineItems(rootPath, projectPaths = new Set(), records = new Map
   const stack = new Set()
   const visited = new Set()
   let order = 0
+  const headingBaseLevel = Math.min(
+    ...Array.from(projectPaths)
+      .flatMap(path => (records.get(path)?.sections || []).map(section => section.level))
+      .filter(level => Number.isFinite(level) && level > 0),
+  )
+  const normalizedHeadingBaseLevel = Number.isFinite(headingBaseLevel) ? headingBaseLevel : 1
 
   const walk = (filePath) => {
     const normalized = normalizeFsPath(filePath)
@@ -449,28 +475,28 @@ function buildOutlineItems(rootPath, projectPaths = new Set(), records = new Map
       ...(record.appendices || []).map(appendix => ({ type: 'appendix', ...appendix })),
       ...record.sections.map(section => ({ type: 'section', ...section })),
       ...(record.floats || []).map(float => ({ type: 'float', ...float })),
+      ...(record.bibliographyOutlineItems || []).map(item => ({ type: 'bibliography', ...item })),
       ...record.includes.map(include => ({ type: 'include', ...include })),
     ].sort((left, right) => (left.offset || 0) - (right.offset || 0))
-    let currentSectionLevel = 1
 
     for (const node of nodes) {
       if (node.type === 'appendix') {
-        currentSectionLevel = 1
         items.push({
           kind: 'appendix',
           text: node.text,
           level: 1,
+          displayLevel: 1,
           offset: node.offset,
           order: order++,
           filePath: normalized,
           line: node.line,
         })
       } else if (node.type === 'section') {
-        currentSectionLevel = node.level
         items.push({
           kind: 'heading',
           text: node.text,
           level: node.level,
+          displayLevel: Math.max(1, node.level - normalizedHeadingBaseLevel + 1),
           offset: node.offset,
           order: order++,
           filePath: normalized,
@@ -479,8 +505,20 @@ function buildOutlineItems(rootPath, projectPaths = new Set(), records = new Map
       } else if (node.type === 'float') {
         items.push({
           kind: node.kind,
-          text: node.label ? `${node.caption} (${node.label})` : node.caption,
-          level: Math.max(2, currentSectionLevel + 1),
+          text: node.label || node.caption,
+          level: 1,
+          displayLevel: 1,
+          offset: node.offset,
+          order: order++,
+          filePath: normalized,
+          line: node.line,
+        })
+      } else if (node.type === 'bibliography') {
+        items.push({
+          kind: 'bibliography',
+          text: node.text || 'Bibliography',
+          level: 1,
+          displayLevel: 1,
           offset: node.offset,
           order: order++,
           filePath: normalized,

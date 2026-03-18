@@ -91,6 +91,38 @@
         </div>
       </div>
 
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="typstStore.autoCompile ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Typst compile on save') }}</span>
+          <span class="env-lang-version">{{ typstStore.autoCompile ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: typstStore.autoCompile }"
+            @click="typstStore.setAutoCompile(!typstStore.autoCompile)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="typstStore.formatOnSave ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Typst format on save') }}</span>
+          <span class="env-lang-version">{{ typstStore.formatOnSave ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: typstStore.formatOnSave }"
+            @click="typstStore.setFormatOnSave(!typstStore.formatOnSave)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
       <!-- Ghost Suggestions -->
       <div class="env-lang-card">
         <div class="env-lang-header">
@@ -145,10 +177,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useTypstStore } from '../../stores/typst'
 import { GHOST_MODELS } from '../../services/apiClient'
 import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const typstStore = useTypstStore()
 const { t } = useI18n()
 
 const proseFonts = [

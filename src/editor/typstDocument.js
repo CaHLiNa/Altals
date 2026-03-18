@@ -1,6 +1,7 @@
 const LABEL_RE = /<([A-Za-z][\w:-]*)>/g
 const HEADING_RE = /^(={1,6})\s+(.+)$/gm
 const STRUCTURE_RE = /#(figure|table)\s*\(/g
+const BIBLIOGRAPHY_RE = /#bibliography\s*\(/g
 
 export function extractTypstLabels(text = '') {
   const labels = []
@@ -116,6 +117,29 @@ function extractCaptionText(text = '') {
   return normalizeOutlineText(text.slice(index + 1, closeIndex))
 }
 
+function extractNamedBracketText(text = '', name = '') {
+  const pattern = new RegExp(`\\b${name}\\s*:`)
+  const match = pattern.exec(text)
+  if (!match) return ''
+
+  let index = match.index + match[0].length
+  while (index < text.length && /\s/.test(text[index])) index += 1
+
+  if (text[index] === '[') {
+    const closeIndex = findMatchingDelimiter(text, index, '[', ']')
+    if (closeIndex === -1) return ''
+    return normalizeOutlineText(text.slice(index + 1, closeIndex))
+  }
+
+  if (text[index] === '"') {
+    const closeIndex = skipTypstString(text, index)
+    if (closeIndex <= index) return ''
+    return normalizeOutlineText(text.slice(index + 1, closeIndex))
+  }
+
+  return ''
+}
+
 function detectFigureContentKind(text = '') {
   let index = 0
 
@@ -147,10 +171,17 @@ function getTypstOutlineLevel(headings, offset) {
 }
 
 function buildStructureText(kind, body, label) {
+  if (label) return label
   const caption = extractCaptionText(body)
   if (caption) return caption
-  if (label) return label
   return kind === 'table' ? 'Table' : 'Figure'
+}
+
+function buildBibliographyText(body, label) {
+  const title = extractNamedBracketText(body, 'title')
+  if (title) return title
+  if (label) return label
+  return 'Bibliography'
 }
 
 function isInsideConsumedLabel(index, consumedRanges) {
@@ -195,6 +226,27 @@ export function parseTypstOutlineItems(text = '') {
     })
 
     STRUCTURE_RE.lastIndex = closeParenIndex + 1
+  }
+
+  BIBLIOGRAPHY_RE.lastIndex = 0
+  while ((match = BIBLIOGRAPHY_RE.exec(source)) !== null) {
+    const openParenIndex = match.index + match[0].length - 1
+    const closeParenIndex = findMatchingDelimiter(source, openParenIndex, '(', ')')
+    if (closeParenIndex === -1) continue
+
+    const body = source.slice(openParenIndex + 1, closeParenIndex)
+    const trailingLabel = extractTrailingLabel(source, closeParenIndex + 1)
+    if (trailingLabel) consumedLabelRanges.push({ from: trailingLabel.from, to: trailingLabel.to })
+
+    structureItems.push({
+      kind: 'bibliography',
+      text: buildBibliographyText(body, trailingLabel?.label || ''),
+      level: 1,
+      offset: match.index,
+      label: trailingLabel?.label || '',
+    })
+
+    BIBLIOGRAPHY_RE.lastIndex = closeParenIndex + 1
   }
 
   LABEL_RE.lastIndex = 0
