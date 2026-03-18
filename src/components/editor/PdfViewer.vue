@@ -36,8 +36,9 @@
                 class="pdf-toolbar-btn"
                 :class="{ 'pdf-toolbar-btn-active': pdfTranslationBusy }"
                 :title="pdfTranslationBusy ? t('Translating...') : t('Translate this PDF')"
-                :disabled="!pdfUi.ready || pdfTranslationBusy"
+                :disabled="!pdfUi.ready"
                 @click="translateCurrentPdf"
+                @contextmenu.prevent.stop="openPdfTranslationMenu"
               >
                 <IconLanguage :size="13" :stroke-width="1.8" />
               </button>
@@ -217,15 +218,6 @@
 
         <div v-if="searchOpen" class="pdf-search-popover">
           <div class="pdf-search-popover-row pdf-search-popover-row-main">
-            <input
-              ref="searchInputRef"
-              v-model="searchDraft"
-              type="text"
-              class="pdf-toolbar-input pdf-toolbar-search"
-              :placeholder="t('Search in PDF')"
-              @focus="markPaneActive"
-              @keydown.enter.prevent="runSearch(false)"
-            />
             <button
               type="button"
               class="pdf-toolbar-btn pdf-toolbar-btn-sm"
@@ -235,6 +227,15 @@
             >
               <IconChevronUp :size="12" :stroke-width="1.8" />
             </button>
+            <input
+              ref="searchInputRef"
+              v-model="searchDraft"
+              type="text"
+              class="pdf-toolbar-input pdf-toolbar-search"
+              :placeholder="t('Search in PDF')"
+              @focus="markPaneActive"
+              @keydown.enter.prevent="runSearch(false)"
+            />
             <button
               type="button"
               class="pdf-toolbar-btn pdf-toolbar-btn-sm"
@@ -469,6 +470,35 @@
 
       <Teleport to="body">
         <div
+          v-if="pdfTranslationMenu.show"
+          class="fixed inset-0 z-[999]"
+          @click="closePdfTranslationMenu"
+          @contextmenu.prevent="closePdfTranslationMenu"
+        ></div>
+        <div
+          v-if="pdfTranslationMenu.show"
+          class="context-menu py-1 ui-text-md pdf-context-menu pdf-translate-context-menu"
+          :style="pdfTranslationMenuStyle"
+          @mousedown.prevent
+        >
+          <div class="pdf-translate-menu-block">
+            <div class="pdf-translate-menu-label">{{ translationMenuStatusLabel }}</div>
+            <div v-if="translationMenuStatusDetail" class="pdf-translate-menu-detail">{{ translationMenuStatusDetail }}</div>
+          </div>
+          <div v-if="canCancelPdfTranslation" class="context-menu-separator"></div>
+          <button
+            v-if="canCancelPdfTranslation"
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="cancelCurrentPdfTranslation"
+          >
+            {{ t('Cancel translation') }}
+          </button>
+        </div>
+      </Teleport>
+
+      <Teleport to="body">
+        <div
           v-if="pdfContextMenu.show"
           class="fixed inset-0 z-[999]"
           @click="closePdfContextMenu"
@@ -674,6 +704,11 @@ const pdfContextMenu = reactive({
   selectedText: '',
   hasPendingSelection: false,
 })
+const pdfTranslationMenu = reactive({
+  show: false,
+  x: 0,
+  y: 0,
+})
 
 const pdfContextMenuStyle = computed(() => {
   const menuWidth = 220
@@ -692,6 +727,13 @@ const pdfContextMenuStyle = computed(() => {
   const menuHeight = Math.min(360, 12 + itemCount * 30 + separatorCount * 9)
   const x = Math.min(pdfContextMenu.x, window.innerWidth - menuWidth - 8)
   const y = Math.min(pdfContextMenu.y, window.innerHeight - menuHeight - 8)
+  return { left: `${Math.max(8, x)}px`, top: `${Math.max(8, y)}px` }
+})
+const pdfTranslationMenuStyle = computed(() => {
+  const menuWidth = 240
+  const menuHeight = canCancelPdfTranslation.value ? 92 : 68
+  const x = Math.min(pdfTranslationMenu.x, window.innerWidth - menuWidth - 8)
+  const y = Math.min(pdfTranslationMenu.y, window.innerHeight - menuHeight - 8)
   return { left: `${Math.max(8, x)}px`, top: `${Math.max(8, y)}px` }
 })
 
@@ -794,7 +836,27 @@ const pdfTranslationBusy = computed(() => {
     || pdfTranslateStore.setupInProgress
     || pdfTranslateStore.warmupInProgress
 })
-
+const canCancelPdfTranslation = computed(() => {
+  const status = String(currentPdfTranslationTask.value?.status || '')
+  return !!currentPdfTranslationTask.value?.id && ['pending', 'queued', 'running'].includes(status)
+})
+const translationMenuStatusLabel = computed(() => {
+  const task = currentPdfTranslationTask.value
+  const status = String(task?.status || '')
+  if (['pending', 'queued', 'running'].includes(status)) {
+    const progress = Number.isFinite(task?.progress) ? Math.round(task.progress) : 0
+    return `${Math.max(0, progress)}%`
+  }
+  if (status === 'completed') return t('Translation completed')
+  if (status === 'failed') return t('Failed')
+  if (status === 'canceled') return t('Canceled')
+  return t('No active translation')
+})
+const translationMenuStatusDetail = computed(() => {
+  const status = String(currentPdfTranslationTask.value?.status || '')
+  if (['pending', 'queued', 'running'].includes(status)) return ''
+  return ''
+})
 function localizeScaleLabel(label) {
   const normalized = String(label || '').trim()
   if (!normalized) return normalized
@@ -807,6 +869,10 @@ function localizeScaleLabel(label) {
 
 function fileNameFromPath(path = '') {
   return String(path || '').split(/[\\/]/).pop() || path
+}
+
+function closePdfTranslationMenu() {
+  pdfTranslationMenu.show = false
 }
 
 function getPdfViewerLocaleParam() {
@@ -927,6 +993,7 @@ function resetPdfUi() {
   searchOpen.value = false
   activeToolbarPanel.value = ''
   closePdfContextMenu()
+  closePdfTranslationMenu()
   annotationsSidebarTarget.value = null
   sidebarViewOverride = ''
   Object.keys(toolbarButtons).forEach((id) => {
@@ -2505,6 +2572,7 @@ function toggleSearchOption(key) {
 }
 
 async function translateCurrentPdf() {
+  closePdfTranslationMenu()
   if (!filePathRef.value || pdfTranslationBusy.value) return
   try {
     await pdfTranslateStore.startTranslation(filePathRef.value)
@@ -2519,6 +2587,35 @@ async function translateCurrentPdf() {
       translateError?.message || String(translateError),
       { type: 'error', duration: 4200 },
     )
+  }
+}
+
+function openPdfTranslationMenu(event) {
+  closePdfContextMenu()
+  closeSearch()
+  activeToolbarPanel.value = ''
+  editorToolsExpanded.value = false
+  pdfTranslationMenu.x = Number(event?.clientX || 0)
+  pdfTranslationMenu.y = Number(event?.clientY || 0)
+  pdfTranslationMenu.show = true
+}
+
+async function cancelCurrentPdfTranslation() {
+  const taskId = currentPdfTranslationTask.value?.id
+  if (!taskId) return
+  try {
+    await pdfTranslateStore.cancelTask(taskId)
+    toastStore.show(t('Canceled'), {
+      type: 'success',
+      duration: 2200,
+    })
+  } catch (cancelError) {
+    toastStore.show(
+      cancelError?.message || String(cancelError),
+      { type: 'error', duration: 4200 },
+    )
+  } finally {
+    closePdfTranslationMenu()
   }
 }
 
@@ -2562,6 +2659,7 @@ function runToolMenuCommand(id) {
 
 function handleIframePointerDown() {
   closePdfContextMenu()
+  closePdfTranslationMenu()
   closeSearch()
   activeToolbarPanel.value = ''
   editorToolsExpanded.value = false
@@ -2572,6 +2670,12 @@ function handleGlobalPointerDown(event) {
     const target = event.target
     if (!(target instanceof Element) || !target.closest('.pdf-context-menu')) {
       closePdfContextMenu()
+    }
+  }
+  if (pdfTranslationMenu.show) {
+    const target = event.target
+    if (!(target instanceof Element) || !target.closest('.pdf-translate-context-menu')) {
+      closePdfTranslationMenu()
     }
   }
   const toolbarShell = toolbarShellRef.value
@@ -2832,6 +2936,7 @@ function handleViewerContextMenu(event) {
     event.stopPropagation()
   } catch {}
 
+  closePdfTranslationMenu()
   capturePendingSelection(false)
   const iframeRect = iframeRef.value?.getBoundingClientRect?.()
   if (!iframeRect) return
@@ -3298,6 +3403,12 @@ async function onIframeLoad() {
           return
         }
 
+        if (event.key === 'Escape' && pdfTranslationMenu.show) {
+          event.preventDefault()
+          closePdfTranslationMenu()
+          return
+        }
+
         if (event.key === 'Escape' && activeToolbarPanel.value) {
           event.preventDefault()
           activeToolbarPanel.value = ''
@@ -3601,7 +3712,7 @@ defineExpose({
 }
 
 .pdf-toolbar-search {
-  width: 120px;
+  width: 220px;
 }
 
 .pdf-toolbar-select {
@@ -3649,26 +3760,52 @@ defineExpose({
 .pdf-search-popover {
   position: absolute;
   top: calc(var(--document-header-row-height, 24px) + 6px);
-  left: 6px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 24;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  width: max-content;
-  max-width: calc(100% - 12px);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: fit-content;
+  min-width: 460px;
+  max-width: min(560px, calc(100% - 12px));
   box-sizing: border-box;
-  padding: 6px;
-  min-height: 32px;
+  padding: 5px 6px;
+  min-height: 0;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-  overflow-x: auto;
-  scrollbar-width: none;
+  background: color-mix(in srgb, var(--bg-secondary) 76%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
 }
 
-.pdf-search-popover::-webkit-scrollbar {
-  display: none;
+.pdf-search-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pdf-search-popover-row-main {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  align-items: center;
+  column-gap: 6px;
+  width: 100%;
+}
+
+.pdf-search-popover-row-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.pdf-search-popover-row-main .pdf-toolbar-search {
+  width: 100%;
+  min-width: 0;
 }
 
 .pdf-toolbar-popover {
@@ -3813,7 +3950,9 @@ defineExpose({
   align-items: center;
   justify-content: center;
   height: 22px;
-  padding: 0 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
@@ -3835,6 +3974,15 @@ defineExpose({
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-search-result-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .pdf-annotation-btn,
@@ -3878,6 +4026,31 @@ defineExpose({
 .pdf-context-menu-item:disabled:hover {
   background: transparent !important;
   color: var(--fg-muted) !important;
+}
+
+.pdf-translate-context-menu {
+  min-width: 240px;
+}
+
+.pdf-translate-menu-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 5px;
+}
+
+.pdf-translate-menu-label {
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pdf-translate-menu-detail {
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .pdf-annotation-sidebar-shell {
@@ -4037,8 +4210,20 @@ defineExpose({
   }
 
   .pdf-search-popover {
+    left: 6px;
     right: 6px;
+    transform: none;
+    min-width: 0;
     width: auto;
+    max-width: none;
+  }
+
+  .pdf-search-popover-row-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pdf-search-result-hint {
+    grid-column: 1 / -1;
   }
 
   .pdf-annotation-sidebar-shell {
