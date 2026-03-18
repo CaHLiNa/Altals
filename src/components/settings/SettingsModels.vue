@@ -1,7 +1,6 @@
 <template>
-  <div>
+  <div class="models-page models-page-compact">
     <h3 class="settings-section-title">{{ t('API Keys') }}</h3>
-    <p class="settings-hint">{{ t('You only need a key for the provider you want to use. Keys are shared across all workspaces.') }}</p>
 
     <div v-if="configuredProviderDefs.length > 0" class="provider-group">
       <div class="provider-group-label">{{ t('Configured') }}</div>
@@ -45,7 +44,6 @@
       <div class="provider-detail-head">
         <div class="provider-detail-copy">
           <div class="provider-detail-title">{{ activeProviderSpec.label }}</div>
-          <div class="provider-detail-meta">{{ activeProviderSpec.apiKeyEnv }}</div>
         </div>
         <span class="provider-card-status" :class="{ 'is-good': isProviderConfigured(activeProviderSpec) }">
           {{ isProviderConfigured(activeProviderSpec) ? t('Configured') : t('Not configured') }}
@@ -53,11 +51,7 @@
       </div>
 
       <div class="key-field">
-        <label class="key-label">
-          <span class="key-provider">{{ t('API Key') }}</span>
-          <span class="key-env">{{ activeProviderSpec.apiKeyEnv }}</span>
-        </label>
-        <div class="key-input-row">
+        <div class="key-input-row models-key-row">
           <input
             :type="visibilityByEnv[activeProviderSpec.apiKeyEnv] ? 'text' : 'password'"
             :value="editKeys[activeProviderSpec.apiKeyEnv]"
@@ -102,21 +96,18 @@
       </div>
 
       <div v-if="showAdvanced" class="advanced-section">
-        <p class="settings-hint">{{ t('Custom API endpoints for enterprise/private deployments') }}</p>
         <div class="key-field">
-          <label class="key-label">
-            <span class="key-provider">{{ t('API URL') }}</span>
-          </label>
-          <input
-            type="text"
-            :value="editUrls[activeProviderSpec.id]"
-            @input="editUrls[activeProviderSpec.id] = $event.target.value"
-            class="key-input"
-            :placeholder="getProviderPlaceholder(activeProviderSpec.id)"
-            spellcheck="false"
-          />
+          <div class="key-input-row models-key-row">
+            <input
+              type="text"
+              :value="editUrls[activeProviderSpec.id]"
+              @input="editUrls[activeProviderSpec.id] = $event.target.value"
+              class="key-input"
+              :placeholder="getProviderPlaceholder(activeProviderSpec.id)"
+              spellcheck="false"
+            />
+          </div>
         </div>
-        <p class="settings-hint">{{ t('Default URL: {url}', { url: getProviderDefaultUrl(activeProviderSpec.id) }) }}</p>
         <div class="keys-actions">
           <button class="key-save-btn" :class="{ saved: urlSaved }" @click="saveUrls">
             {{ urlSaved ? t('Saved') : t('Save URLs') }}
@@ -128,7 +119,6 @@
     <!-- Monthly Budget (conditional on having direct keys) -->
     <template v-if="hasDirectKeys && (usageStore.showCostEstimates || usageStore.monthlyLimit > 0)">
       <h3 class="settings-section-title" style="margin-top: 24px;">{{ t('Monthly Budget') }}</h3>
-      <p class="settings-hint">{{ t('Soft limit on estimated API key spending for your locally configured provider keys.') }}</p>
       <div class="usage-limit-row">
         <span class="usage-limit-dollar">$</span>
         <input
@@ -405,8 +395,8 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .advanced-toggle {
-  margin-top: 20px;
-  padding: 6px 0;
+  margin-top: 12px;
+  padding: 4px 0;
   font-size: var(--ui-font-label);
   color: var(--fg-muted);
   cursor: pointer;
@@ -429,20 +419,16 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .advanced-section {
-  margin-top: 12px;
-}
-
-.advanced-section .settings-hint {
-  margin: 0 0 12px;
+  margin-top: 8px;
 }
 
 .provider-group {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .provider-group-label {
-  margin-bottom: 8px;
-  font-size: var(--ui-font-caption);
+  margin-bottom: 6px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -451,17 +437,17 @@ async function syncModels({ auto = false } = {}) {
 
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
 }
 
 .provider-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--fg-primary);
@@ -481,7 +467,7 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .provider-card-name {
-  font-size: var(--ui-font-body);
+  font-size: var(--ui-font-label);
   font-weight: 600;
 }
 
@@ -501,32 +487,25 @@ async function syncModels({ auto = false } = {}) {
 }
 
 .provider-detail-card {
-  margin-top: 14px;
-  padding: 14px;
+  margin-top: 10px;
+  padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
 }
 
 .provider-detail-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .provider-detail-title {
-  font-size: var(--ui-font-display);
+  font-size: var(--ui-font-body);
   font-weight: 600;
   color: var(--fg-primary);
-}
-
-.provider-detail-meta {
-  margin-top: 2px;
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
 }
 
 .key-secondary-btn {
@@ -535,5 +514,34 @@ async function syncModels({ auto = false } = {}) {
 
 .key-error-hint {
   color: var(--error);
+}
+
+.models-key-row {
+  margin-top: 0;
+}
+
+.provider-detail-card .keys-actions {
+  margin-top: 10px;
+}
+
+.models-page-compact .settings-section-title {
+  margin-bottom: 12px;
+}
+
+.models-page-compact .settings-hint {
+  margin: 6px 0 0;
+}
+
+.models-page-compact .key-field {
+  gap: 0;
+}
+
+.models-page-compact .key-save-btn {
+  padding: 5px 12px;
+}
+
+.models-page-compact .key-input {
+  padding: 5px 8px;
+  font-size: var(--ui-font-caption);
 }
 </style>

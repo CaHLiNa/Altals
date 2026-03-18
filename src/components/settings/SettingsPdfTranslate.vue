@@ -1,5 +1,5 @@
 <template>
-  <div class="pdft-shell">
+  <div class="pdft-shell pdft-shell-compact">
     <div>
       <h3 class="settings-section-title">{{ t('PDF Translation') }}</h3>
     </div>
@@ -134,17 +134,11 @@
           <label class="pdft-field">
             <span class="pdft-label">{{ t('Worker pool') }}</span>
             <input v-model.number="draft.poolMaxWorkers" type="number" min="0" max="1000" class="pdft-input" />
-            <span class="pdft-field-hint">{{ t('0 uses auto-mapping or upstream default') }}</span>
           </label>
         </div>
 
         <div class="pdft-inline-setting pdft-section-pad">
-          <div>
-            <div class="pdft-inline-label">{{ t('Auto-map worker pool from QPS') }}</div>
-            <div class="pdft-inline-copy">
-              {{ t('When enabled, the runtime uses qps * 10 (capped at 1000) unless you set a worker pool explicitly.') }}
-            </div>
-          </div>
+          <div class="pdft-inline-label">{{ t('Auto-map worker pool from QPS') }}</div>
           <button
             class="tool-toggle-switch"
             :class="{ on: draft.autoMapPoolMaxWorkers }"
@@ -254,11 +248,6 @@
           >
             {{ pdfTranslateStore.runtimeRefreshing ? t('Checking...') : t('Refresh') }}
           </button>
-        </div>
-
-        <div class="pdft-runtime-block pdft-section-pad">
-          <div class="pdft-inline-label">{{ t('Python interpreter') }}</div>
-          <div class="pdft-runtime-path">{{ selectedPythonPath }}</div>
         </div>
 
         <div class="pdft-runtime-actions pdft-section-pad">
@@ -373,10 +362,6 @@ const selectedProviderModels = computed(() => selectedProviderGroup.value?.model
 const selectedProviderLabel = computed(() => selectedProviderGroup.value?.label || t('Not configured'))
 const selectedModelLabel = computed(() => (
   selectedProviderModels.value.find(model => model.id === draft.modelId)?.name || t('Not configured')
-))
-
-const selectedPythonPath = computed(() => (
-  envStore.selectedInterpreterPath('python') || t('No Python selected in System settings')
 ))
 
 const runtimeDotClass = computed(() => {
@@ -553,20 +538,20 @@ onMounted(async () => {
 .pdft-shell {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .pdft-stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .pdft-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pdft-card-header-row {
@@ -583,20 +568,20 @@ onMounted(async () => {
 }
 
 .pdft-section-pad {
-  padding-left: 16px;
+  padding-left: 14px;
 }
 
 .pdft-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .pdft-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -606,8 +591,6 @@ onMounted(async () => {
   color: var(--fg-secondary);
 }
 
-.pdft-field-hint,
-.pdft-inline-copy,
 .pdft-progress-meta,
 .pdft-save-hint {
   font-size: var(--ui-font-micro);
@@ -625,18 +608,18 @@ onMounted(async () => {
   -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
   line-height: 1.2;
-  padding: 8px 34px 8px 10px;
+  padding: 7px 30px 7px 9px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .pdft-input {
-  padding-right: 10px;
+  padding-right: 9px;
 }
 
 .pdft-select:hover,
@@ -665,8 +648,8 @@ onMounted(async () => {
 .pdft-summary-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 7px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: color-mix(in srgb, var(--bg-secondary) 88%, white 12%);
@@ -696,16 +679,16 @@ onMounted(async () => {
 }
 
 .pdft-choice-grid {
-  margin-top: 10px;
+  margin-top: 8px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .pdft-choice-btn {
-  min-height: 38px;
-  padding: 8px 10px;
-  border-radius: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
@@ -735,40 +718,30 @@ onMounted(async () => {
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-.pdft-inline-setting,
-.pdft-runtime-block {
-  margin-top: 10px;
+.pdft-inline-setting {
+  margin-top: 8px;
 }
 
 .pdft-inline-setting {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pdft-inline-warning {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   font-size: var(--ui-font-micro);
   line-height: 1.45;
   color: var(--warning, #e0af68);
 }
 
-.pdft-runtime-path {
-  margin-top: 6px;
-  font-family: var(--font-mono);
-  font-size: var(--ui-font-micro);
-  line-height: 1.5;
-  color: var(--fg-muted);
-  word-break: break-all;
-}
-
 .pdft-runtime-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 10px;
-  max-width: 360px;
+  gap: 6px;
+  margin-top: 8px;
+  max-width: 320px;
 }
 
 .pdft-action-btn {
@@ -776,19 +749,19 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 28px;
-  padding: 5px 10px;
+  min-height: 26px;
+  padding: 4px 9px;
   font-size: var(--ui-font-caption);
   white-space: nowrap;
 }
 
 .pdft-action-btn--primary {
-  min-height: 32px;
+  min-height: 28px;
   font-weight: 600;
 }
 
 .pdft-action-btn--secondary {
-  border-radius: 5px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
@@ -814,9 +787,9 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: 5px 10px;
-  border-radius: 5px;
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: var(--bg-primary);
   color: var(--fg-secondary);
@@ -844,7 +817,7 @@ onMounted(async () => {
 }
 
 .pdft-progress-track {
-  margin: 10px 16px 0;
+  margin: 8px 14px 0;
   height: 4px;
   border-radius: 999px;
   background: var(--bg-tertiary);
@@ -858,25 +831,25 @@ onMounted(async () => {
 }
 
 .pdft-runtime-error {
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--error);
   font-size: var(--ui-font-micro);
   line-height: 1.45;
 }
 
 .pdft-log-shell {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
 .pdft-log {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   max-height: 180px;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-secondary);
-  padding: 10px;
+  padding: 8px 10px;
   font-family: var(--font-mono);
   font-size: var(--ui-font-micro);
   line-height: 1.5;
@@ -886,10 +859,34 @@ onMounted(async () => {
 .pdft-save-row {
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
 }
 
 .env-lang-dot.bad {
   background: var(--error);
+}
+
+.pdft-shell-compact :deep(.settings-section-title) {
+  margin-bottom: 10px;
+}
+
+.pdft-shell-compact :deep(.env-lang-card) {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.pdft-shell-compact :deep(.env-lang-header) {
+  gap: 6px;
+  min-height: 20px;
+}
+
+.pdft-shell-compact :deep(.env-lang-name) {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+}
+
+.pdft-shell-compact :deep(.env-lang-version) {
+  font-size: var(--ui-font-micro);
 }
 
 @media (max-width: 640px) {

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="theme-page theme-page-compact">
     <h3 class="settings-section-title">{{ t('Theme') }}</h3>
     <div class="theme-grid">
       <button
@@ -35,7 +35,6 @@
     </div>
 
     <h3 class="settings-section-title theme-subsection-title">{{ t('PDF viewer') }}</h3>
-    <p class="settings-hint">{{ t('Display options for PDF reading.') }}</p>
 
     <div class="env-lang-card theme-option-card">
       <div class="env-lang-header">
@@ -51,9 +50,6 @@
         >
           <span class="tool-toggle-knob"></span>
         </button>
-      </div>
-      <div class="theme-option-hint">
-        {{ t('Use app theme colors for PDF pages and thumbnails. This changes rendered PDF colors and may shift images or charts.') }}
       </div>
     </div>
   </div>
@@ -180,18 +176,18 @@ const themes = [
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 
 .theme-subsection-title {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .theme-card {
   background: var(--bg-primary);
   border: 2px solid var(--border);
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px;
   cursor: pointer;
   transition: border-color 0.15s;
   text-align: left;
@@ -206,11 +202,11 @@ const themes = [
 }
 
 .theme-preview {
-  height: 62px;
+  height: 50px;
   border-radius: 4px;
   display: flex;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .theme-preview-sidebar {
@@ -219,15 +215,15 @@ const themes = [
 
 .theme-preview-editor {
   flex: 1;
-  padding: 6px 8px;
+  padding: 5px 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   justify-content: center;
 }
 
 .theme-preview-line {
-  height: 3px;
+  height: 2px;
   border-radius: 1px;
   opacity: 0.7;
 }
@@ -236,7 +232,7 @@ const themes = [
   font-size: var(--ui-font-label);
   font-weight: 500;
   color: var(--fg-primary);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .theme-dots {
@@ -245,8 +241,8 @@ const themes = [
 }
 
 .theme-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
@@ -263,11 +259,30 @@ const themes = [
   opacity: 0.8;
 }
 
-.theme-option-hint {
-  margin-top: 6px;
-  padding-left: 16px;
-  color: var(--fg-muted);
+.theme-page-compact .settings-section-title {
+  margin-bottom: 10px;
+}
+
+.theme-page-compact .theme-option-card {
+  margin-top: 0;
+}
+
+.theme-page-compact :deep(.env-lang-card) {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.theme-page-compact :deep(.env-lang-header) {
+  gap: 6px;
+  min-height: 20px;
+}
+
+.theme-page-compact :deep(.env-lang-name) {
   font-size: var(--ui-font-caption);
-  line-height: 1.45;
+  font-weight: 600;
+}
+
+.theme-page-compact :deep(.env-lang-version) {
+  font-size: var(--ui-font-micro);
 }
 </style>

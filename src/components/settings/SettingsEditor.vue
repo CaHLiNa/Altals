@@ -1,7 +1,6 @@
 <template>
-  <div>
+  <div class="editor-page editor-page-compact">
     <h3 class="settings-section-title">{{ t('Editor') }}</h3>
-    <p class="settings-hint">{{ t('Behavior and display preferences for the text editor.') }}</p>
 
     <div class="editor-toggles">
       <!-- Writing Font -->
@@ -11,10 +10,7 @@
           <span class="env-lang-name">{{ t('Writing font') }}</span>
           <span class="env-lang-version">{{ currentFontLabel }}</span>
         </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Font for Markdown files. Other files use monospace editor font.') }}
-        </div>
-        <div class="wrap-column-row" style="margin-top: 8px; padding-left: 16px;">
+        <div class="wrap-column-row editor-card-offset">
           <label class="ghost-model-label">{{ t('Prose font:') }}</label>
           <div class="wrap-preset-group">
             <button
@@ -45,10 +41,7 @@
             <span class="tool-toggle-knob"></span>
           </button>
         </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Wrap long lines to fit the editor width. Also available via the footer toggle.') }}
-        </div>
-        <div v-if="workspace.softWrap" class="wrap-column-row" style="margin-top: 8px; padding-left: 16px;">
+        <div v-if="workspace.softWrap" class="wrap-column-row editor-card-offset">
           <label class="ghost-model-label">{{ t('Line width:') }}</label>
           <div class="wrap-preset-group">
             <button
@@ -78,9 +71,6 @@
             <span class="tool-toggle-knob"></span>
           </button>
         </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Shows spelling suggestions in the custom right-click menu. Markdown files only.') }}
-        </div>
       </div>
 
       <!-- Hide Markup -->
@@ -98,9 +88,6 @@
           >
             <span class="tool-toggle-knob"></span>
           </button>
-        </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Links show as underlined text, bold/italic render inline, heading marks dim. Markdown files only.') }}
         </div>
       </div>
 
@@ -120,11 +107,7 @@
             <span class="tool-toggle-knob"></span>
           </button>
         </div>
-        <div class="env-lang-hint" style="margin-top: 4px; padding-left: 16px;">
-          {{ t('Type') }} <code>++</code> {{ t('in any editor to get AI completions.') }}
-          {{ t('Uses {model}.', { model: ghostModelLabel }) }}
-        </div>
-        <div v-if="workspace.ghostEnabled && availableGhostModels.length > 1" class="ghost-model-picker" style="margin-top: 8px; padding-left: 16px;">
+        <div v-if="workspace.ghostEnabled && availableGhostModels.length > 1" class="ghost-model-picker editor-card-offset">
           <label class="ghost-model-label">{{ t('Ghost model:') }}</label>
           <div class="ghost-dropdown-wrap">
             <button
@@ -239,7 +222,12 @@ function selectGhostModel(model) {
 .editor-toggles {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.editor-card-offset {
+  margin-top: 8px;
+  padding-left: 14px;
 }
 
 .ghost-model-picker {
@@ -261,7 +249,7 @@ function selectGhostModel(model) {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--bg-primary);
@@ -290,8 +278,8 @@ function selectGhostModel(model) {
 .ghost-dropdown-item {
   display: flex;
   align-items: center;
-  padding: 5px 10px;
-  font-size: var(--ui-font-label);
+  padding: 4px 9px;
+  font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
   cursor: pointer;
 }
@@ -322,7 +310,7 @@ function selectGhostModel(model) {
 }
 
 .wrap-preset-btn {
-  padding: 2px 10px;
+  padding: 2px 9px;
   font-size: var(--ui-font-caption);
   font-family: inherit;
   color: var(--fg-secondary);
@@ -350,5 +338,29 @@ function selectGhostModel(model) {
   width: 52px;
   text-align: center;
   padding: 2px 0;
+}
+
+.editor-page-compact .settings-section-title {
+  margin-bottom: 10px;
+}
+
+.editor-page-compact :deep(.env-lang-card) {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.editor-page-compact :deep(.env-lang-header) {
+  gap: 6px;
+  min-height: 20px;
+}
+
+.editor-page-compact :deep(.env-lang-name) {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+}
+
+.editor-page-compact :deep(.env-lang-version),
+.editor-page-compact :deep(.env-lang-missing) {
+  font-size: var(--ui-font-micro);
 }
 </style>
