@@ -73,24 +73,6 @@
         </div>
       </div>
 
-      <!-- Hide Markup -->
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="workspace.livePreviewEnabled ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Hide Markup') }}</span>
-          <span v-if="workspace.livePreviewEnabled" class="env-lang-version">{{ t('Enabled') }}</span>
-          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
-          <div style="flex: 1;"></div>
-          <button
-            class="tool-toggle-switch"
-            :class="{ on: workspace.livePreviewEnabled }"
-            @click="workspace.toggleLivePreview()"
-          >
-            <span class="tool-toggle-knob"></span>
-          </button>
-        </div>
-      </div>
-
       <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="typstStore.autoCompile ? 'good' : 'warn'"></span>

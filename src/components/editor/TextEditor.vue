@@ -56,7 +56,6 @@ import { commentsExtension } from '../../editor/comments'
 import { captureContextMenuState, normalizeContextMenuClickPos, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
-import { livePreviewExtension } from '../../editor/livePreview'
 import { citationsExtension } from '../../editor/citations'
 import { createMarkdownDraftEditorExtensions } from '../../editor/markdownDraftAssist'
 import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
@@ -1025,8 +1024,6 @@ onMounted(async () => {
     const { markdownShortcuts } = await import('../../editor/markdownShortcuts')
     extraExtensions.push(markdownShortcuts())
 
-    // Live preview (hide markdown syntax when cursor is elsewhere)
-    extraExtensions.push(...livePreviewExtension(() => workspace.livePreviewEnabled, () => props.filePath))
     extraExtensions.push(...createMarkdownDraftEditorExtensions({
       referencesStore,
       t,
@@ -1472,19 +1469,6 @@ watch(
     })
   }
 )
-
-// Watch for live preview toggle — nudge CM to rebuild decorations
-if (isMd) {
-  watch(
-    () => workspace.livePreviewEnabled,
-    () => {
-      if (!view) return
-      // Move selection to same position to trigger selectionSet → decoration rebuild
-      const pos = view.state.selection.main.head
-      view.dispatch({ selection: { anchor: pos } })
-    }
-  )
-}
 
 onUnmounted(() => {
   deactivateEditorRuntime()
