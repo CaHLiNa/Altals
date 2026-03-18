@@ -1468,7 +1468,8 @@ async function triggerTypstForwardSyncAtPos(pos, trigger = 'typst-source-dblclic
 
 function scheduleTypstSelectionPreviewSync(selection) {
   if (!isTyp || !view) return
-  if (!workflowStore.hasPreviewForSource(props.filePath, 'native')) return
+  const previewPath = workflowStore.getOpenPreviewPathForSource(props.filePath, 'native')
+  if (!previewPath || !editorStore.findPaneWithTab(previewPath)?.id) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
   if (typstPreviewSyncTimer != null) {
