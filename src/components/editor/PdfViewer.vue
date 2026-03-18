@@ -407,6 +407,61 @@
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
+      <div
+        v-if="pdfUi.sidebarOpen"
+        class="pdf-sidebar-shell"
+        @mousedown="markPaneActive"
+      >
+        <div class="pdf-sidebar-shell-bar">
+          <div class="pdf-sidebar-tabs" role="tablist" :aria-label="t('Views')">
+            <button
+              type="button"
+              class="pdf-sidebar-tab pdf-sidebar-tab-outline"
+              :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarView === 'outlines' }"
+              :disabled="sidebarTabs.outlines.disabled"
+              role="tab"
+              :aria-selected="pdfUi.sidebarView === 'outlines'"
+              :title="t('Outline')"
+              :aria-label="t('Outline')"
+              @click="activateSidebarView('outlines')"
+            ></button>
+            <button
+              type="button"
+              class="pdf-sidebar-tab pdf-sidebar-tab-thumbnails"
+              :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarView === 'thumbnails' }"
+              :disabled="sidebarTabs.thumbnails.disabled"
+              role="tab"
+              :aria-selected="pdfUi.sidebarView === 'thumbnails'"
+              :title="t('Thumbnails')"
+              :aria-label="t('Thumbnails')"
+              @click="activateSidebarView('thumbnails')"
+            ></button>
+            <button
+              type="button"
+              class="pdf-sidebar-tab pdf-sidebar-tab-attachments"
+              :class="{ 'pdf-sidebar-tab-active': pdfUi.sidebarView === 'attachments' }"
+              :disabled="sidebarTabs.attachments.disabled"
+              role="tab"
+              :aria-selected="pdfUi.sidebarView === 'attachments'"
+              :title="t('Attachments')"
+              :aria-label="t('Attachments')"
+              @click="activateSidebarView('attachments')"
+            ></button>
+          </div>
+
+          <button
+            v-if="pdfUi.sidebarView === 'outlines'"
+            type="button"
+            class="pdf-sidebar-action"
+            :title="t('Find Current Outline Item')"
+            :disabled="!pdfUi.sidebarCanFocusCurrentOutline"
+            @click="focusCurrentOutlineItem"
+          >
+            <IconSearch :size="13" :stroke-width="1.8" />
+          </button>
+        </div>
+      </div>
+
       <iframe
         v-if="viewerSrc"
         ref="iframeRef"
@@ -611,6 +666,15 @@ const pdfUi = reactive({
   searchCaseSensitive: false,
   searchMatchDiacritics: false,
   searchEntireWord: false,
+  sidebarView: 'thumbnails',
+  sidebarCanFocusCurrentOutline: false,
+})
+
+const sidebarTabs = reactive({
+  thumbnails: { disabled: false },
+  outlines: { disabled: false },
+  attachments: { disabled: false },
+  layers: { disabled: false },
 })
 
 const usingExternalToolbar = computed(() => !!props.toolbarTargetSelector)
@@ -704,6 +768,20 @@ const PDF_VIEWS_MANAGER_LABELS = {
   layers: 'Layers',
 }
 
+const PDF_SIDEBAR_VIEW_BUTTON_IDS = {
+  thumbnails: 'thumbnailsViewMenu',
+  outlines: 'outlinesViewMenu',
+  attachments: 'attachmentsViewMenu',
+  layers: 'layersViewMenu',
+}
+
+const PDF_SIDEBAR_VIEW_CODE_TO_KEY = {
+  1: 'thumbnails',
+  2: 'outlines',
+  3: 'attachments',
+  4: 'layers',
+}
+
 function createToolbarButtonState() {
   return {
     visible: false,
@@ -764,6 +842,8 @@ function resetPdfUi() {
   pdfUi.searchCaseSensitive = false
   pdfUi.searchMatchDiacritics = false
   pdfUi.searchEntireWord = false
+  pdfUi.sidebarView = 'thumbnails'
+  pdfUi.sidebarCanFocusCurrentOutline = false
   pageInputValue.value = '1'
   scaleOptions.value = []
   searchDraft.value = ''
@@ -775,6 +855,9 @@ function resetPdfUi() {
   })
   Object.keys(toolMenuItems).forEach((id) => {
     Object.assign(toolMenuItems[id], createLabeledMenuItemState())
+  })
+  Object.values(sidebarTabs).forEach((state) => {
+    state.disabled = false
   })
 }
 
@@ -940,6 +1023,35 @@ function syncExternalControlState() {
   }))
 }
 
+function resolveSidebarView(viewsManager) {
+  const active = Number(viewsManager?.active || 0)
+  if (PDF_SIDEBAR_VIEW_CODE_TO_KEY[active]) {
+    return PDF_SIDEBAR_VIEW_CODE_TO_KEY[active]
+  }
+
+  const thumbnailsView = getPdfElement('thumbnailsView')
+  const outlinesView = getPdfElement('outlinesView')
+  const attachmentsView = getPdfElement('attachmentsView')
+  const layersView = getPdfElement('layersView')
+
+  if (outlinesView && !outlinesView.classList.contains('hidden')) return 'outlines'
+  if (attachmentsView && !attachmentsView.classList.contains('hidden')) return 'attachments'
+  if (layersView && !layersView.classList.contains('hidden')) return 'layers'
+  if (thumbnailsView && !thumbnailsView.classList.contains('hidden')) return 'thumbnails'
+  return 'thumbnails'
+}
+
+function syncSidebarTabState(viewKey) {
+  const buttonId = PDF_SIDEBAR_VIEW_BUTTON_IDS[viewKey]
+  const element = getPdfElement(buttonId)
+  if (!sidebarTabs[viewKey]) return
+  sidebarTabs[viewKey].disabled = !element
+    || !!element.hidden
+    || !!element.closest?.('[hidden]')
+    || !!element.disabled
+    || element.getAttribute?.('aria-disabled') === 'true'
+}
+
 function setPdfElementText(id, label) {
   const element = getPdfElement(id)
   if (element) {
@@ -999,6 +1111,22 @@ function clickPdfElement(...ids) {
   element.click()
   syncPdfUi()
   return true
+}
+
+function activateSidebarView(viewKey) {
+  markPaneActive()
+  const buttonId = PDF_SIDEBAR_VIEW_BUTTON_IDS[viewKey]
+  if (!buttonId || sidebarTabs[viewKey]?.disabled) return
+  if (!pdfUi.sidebarOpen) {
+    clickPdfElement('viewsManagerToggleButton')
+  }
+  clickPdfElement(buttonId)
+}
+
+function focusCurrentOutlineItem() {
+  markPaneActive()
+  if (!pdfUi.sidebarCanFocusCurrentOutline) return
+  clickPdfElement('viewsManagerCurrentOutlineButton')
 }
 
 function normalizeScaleOptions(select) {
@@ -1166,6 +1294,7 @@ function createToolbarStyleText() {
       #outerContainer {
         --altals-views-manager-width: 300px !important;
         --altals-views-manager-effective-width: min(var(--altals-views-manager-width), calc(100vw - 16px)) !important;
+        --altals-views-manager-header-height: 24px !important;
         --viewsManager-width: var(--altals-views-manager-width) !important;
       }
 
@@ -1256,6 +1385,27 @@ function createToolbarStyleText() {
 
       #loadingBar {
         top: 0 !important;
+      }
+
+      #viewsManager #viewsManagerHeader,
+      #viewsManager #viewsManagerSelector,
+      #viewsManager #viewsManagerCurrentOutlineButton,
+      #viewsManager #viewsManagerAddFileButton,
+      #viewsManager #viewsManagerStatus {
+        display: none !important;
+      }
+
+      #viewsManager #viewsManagerContent {
+        padding-top: var(--altals-views-manager-header-height) !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+      }
+
+      #viewsManager #thumbnailsView,
+      #viewsManager #outlinesView,
+      #viewsManager #attachmentsView,
+      #viewsManager #layersView {
+        inset: 0 !important;
       }
     `
     : `
@@ -1531,6 +1681,7 @@ function syncPdfUi() {
   const findEntireWord = doc.getElementById('findEntireWord')
   const toggleButton = doc.getElementById('viewsManagerToggleButton')
   const viewsManager = app.viewsManager
+  const currentOutlineButton = doc.getElementById('viewsManagerCurrentOutlineButton')
 
   pdfUi.ready = true
   pdfUi.pageNumber = Number(app.page || 1)
@@ -1542,6 +1693,8 @@ function syncPdfUi() {
   pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
     ? viewsManager.isOpen
     : toggleButton?.getAttribute('aria-expanded') === 'true'
+  pdfUi.sidebarView = resolveSidebarView(viewsManager)
+  pdfUi.sidebarCanFocusCurrentOutline = !!currentOutlineButton && !currentOutlineButton.hidden && !currentOutlineButton.disabled
   if (!usingExternalToolbar.value) {
     pdfUi.searchOpen = !!findbar && !findbar.classList.contains('hidden')
     pdfUi.searchQuery = findInput?.value || ''
@@ -1593,6 +1746,10 @@ function syncPdfUi() {
   syncMenuItemState('spreadOdd')
   syncMenuItemState('spreadEven')
   syncMenuItemState('documentProperties')
+  syncSidebarTabState('thumbnails')
+  syncSidebarTabState('outlines')
+  syncSidebarTabState('attachments')
+  syncSidebarTabState('layers')
   syncExternalControlState()
   syncPdfViewerLocalizedLabels()
 
@@ -2883,6 +3040,111 @@ defineExpose({
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-sidebar-shell {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 10;
+  width: min(300px, calc(100% - 16px));
+  pointer-events: none;
+}
+
+.pdf-sidebar-shell-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 96%, var(--bg-primary));
+  pointer-events: auto;
+}
+
+.pdf-sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.pdf-sidebar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-sidebar-tab,
+.pdf-sidebar-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg-muted);
+  line-height: 1;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.pdf-sidebar-action {
+  margin-left: auto;
+}
+
+.pdf-sidebar-tab::before {
+  content: '';
+  display: block;
+  width: 13px;
+  height: 13px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.pdf-sidebar-tab-outline::before {
+  -webkit-mask-image: url('/pdfjs-viewer/web/images/toolbarButton-viewOutline.svg');
+  mask-image: url('/pdfjs-viewer/web/images/toolbarButton-viewOutline.svg');
+}
+
+.pdf-sidebar-tab-thumbnails::before {
+  -webkit-mask-image: url('/pdfjs-viewer/web/images/pages_viewButton.svg');
+  mask-image: url('/pdfjs-viewer/web/images/pages_viewButton.svg');
+}
+
+.pdf-sidebar-tab-attachments::before {
+  -webkit-mask-image: url('/pdfjs-viewer/web/images/toolbarButton-viewAttachments.svg');
+  mask-image: url('/pdfjs-viewer/web/images/toolbarButton-viewAttachments.svg');
+}
+
+.pdf-sidebar-tab:hover:not(:disabled),
+.pdf-sidebar-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.pdf-sidebar-tab-active {
+  color: var(--fg-primary);
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+}
+
+.pdf-sidebar-tab:disabled,
+.pdf-sidebar-action:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .pdf-translate-status {
