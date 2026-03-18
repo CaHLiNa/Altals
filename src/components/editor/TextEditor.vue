@@ -1205,6 +1205,7 @@ function attachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
     editorContainer.value?.addEventListener('click', handleCitationClick)
+    editorContainer.value?.addEventListener('dblclick', handleMarkdownSourceDoubleClick)
   }
   if (isTex) {
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
@@ -1243,6 +1244,7 @@ function detachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
     editorContainer.value?.removeEventListener('click', handleCitationClick)
+    editorContainer.value?.removeEventListener('dblclick', handleMarkdownSourceDoubleClick)
   }
   if (isTex) {
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
@@ -1375,6 +1377,36 @@ function handleLatexSourceDoubleClick(event) {
     trigger: 'latex-source-dblclick',
   })
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
+}
+
+function handleMarkdownSourceDoubleClick(event) {
+  if (!isMd || !view || event.button !== 0) return
+
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (pos === null) return
+
+  const location = getMarkdownSyncLocation(pos)
+  if (!location) return
+
+  rememberPendingMarkdownForwardSync({
+    sourcePath: props.filePath,
+    line: location.line,
+    offset: location.offset,
+  })
+
+  workflowStore.revealPreview(props.filePath, {
+    previewKind: 'html',
+    sourcePaneId: props.paneId,
+    trigger: 'markdown-source-dblclick',
+  })
+
+  window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
+    detail: {
+      sourcePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+    },
+  }))
 }
 
 function handleTypstSourceDoubleClick(event) {
