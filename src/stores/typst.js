@@ -116,6 +116,7 @@ export const useTypstStore = defineStore('typst', {
     customCompilerPath: readStoredValue('typst.customCompilerPath', ''),
     autoCompile: readStoredBoolean('typst.autoCompile', false),
     formatOnSave: readStoredBoolean('typst.formatOnSave', false),
+    inlayHints: readStoredBoolean('typst.inlayHints', false),
     checkingCompiler: false,
     lastCompilerCheckAt: 0,
     downloading: false,
@@ -546,6 +547,17 @@ export const useTypstStore = defineStore('typst', {
       try {
         localStorage.setItem('typst.formatOnSave', this.formatOnSave ? 'true' : 'false')
       } catch {}
+    },
+
+    setInlayHintsEnabled(enabled) {
+      this.inlayHints = enabled === true
+      try {
+        localStorage.setItem('typst.inlayHints', this.inlayHints ? 'true' : 'false')
+      } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('typst-inlay-hints-changed'))
+      }
     },
 
     cancelAutoCompile(filePath) {

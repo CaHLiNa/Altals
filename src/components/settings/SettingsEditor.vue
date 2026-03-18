@@ -123,6 +123,22 @@
         </div>
       </div>
 
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="typstStore.inlayHints ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Typst inlay hints') }}</span>
+          <span class="env-lang-version">{{ typstStore.inlayHints ? t('Enabled') : t('Disabled') }}</span>
+          <div style="flex: 1;"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: typstStore.inlayHints }"
+            @click="typstStore.setInlayHintsEnabled(!typstStore.inlayHints)"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
       <!-- Ghost Suggestions -->
       <div class="env-lang-card">
         <div class="env-lang-header">

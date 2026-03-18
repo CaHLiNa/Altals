@@ -6,6 +6,7 @@ import { createTinymistTypstHighlightExtension } from './highlight.js'
 import { createTinymistTypstHoverExtension } from './hover.js'
 import { createTinymistTypstDocumentLinksExtension } from './documentLinks.js'
 import { createTinymistTypstFoldingExtension } from './folding.js'
+import { createTinymistTypstInlayHintsExtension } from './inlayHints.js'
 import { createTinymistTypstSignatureHelpExtension } from './signatureHelp.js'
 
 export function supportsTinymistTypstEditor(filePath) {
@@ -28,6 +29,7 @@ export function createTinymistTypstEditorExtensions(options = {}) {
     ...createTinymistTypstHoverExtension(options),
     ...createTinymistTypstDocumentLinksExtension(options),
     ...createTinymistTypstFoldingExtension(options),
+    ...createTinymistTypstInlayHintsExtension(options),
     ...createTinymistTypstSignatureHelpExtension(options),
     autocompletion({
       override: [completionSource],

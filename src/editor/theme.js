@@ -163,6 +163,21 @@ export const shouldersTheme = EditorView.theme(
       textDecoration: 'underline dotted',
       textUnderlineOffset: '2px',
     },
+    '.cm-typst-inlay-hint': {
+      color: 'color-mix(in srgb, var(--fg-muted) 90%, var(--accent) 10%)',
+      fontSize: 'var(--ui-font-micro)',
+      fontStyle: 'italic',
+      opacity: '0.88',
+      pointerEvents: 'none',
+      userSelect: 'none',
+      whiteSpace: 'nowrap',
+    },
+    '.cm-typst-inlay-hint-pad-left': {
+      marginLeft: '0.35em',
+    },
+    '.cm-typst-inlay-hint-pad-right': {
+      marginRight: '0.35em',
+    },
     '.cm-tinymist-hover__body p': {
       margin: '0 0 8px 0',
     },

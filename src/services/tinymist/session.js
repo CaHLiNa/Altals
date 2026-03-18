@@ -83,6 +83,18 @@ function workspaceNameFromPath(workspacePath = '') {
   return parts[parts.length - 1] || 'workspace'
 }
 
+const CODE_ACTION_KIND_VALUE_SET = [
+  '',
+  'quickfix',
+  'refactor',
+  'refactor.extract',
+  'refactor.inline',
+  'refactor.rewrite',
+  'refactor.move',
+  'source',
+  'source.organizeImports',
+]
+
 function buildInitializeParams(workspacePath) {
   const rootUri = workspacePath ? filePathToTinymistUri(workspacePath) : null
   return {
@@ -98,6 +110,12 @@ function buildInitializeParams(workspacePath) {
     capabilities: {
       workspace: {
         workspaceFolders: true,
+        workspaceEdit: {
+          documentChanges: true,
+          changeAnnotationSupport: {
+            groupsOnLabel: false,
+          },
+        },
         symbol: {
           dynamicRegistration: false,
         },
@@ -127,6 +145,20 @@ function buildInitializeParams(workspacePath) {
         },
         foldingRange: {
           lineFoldingOnly: false,
+        },
+        inlayHint: {
+          dynamicRegistration: false,
+        },
+        codeAction: {
+          dynamicRegistration: false,
+          isPreferredSupport: true,
+          disabledSupport: true,
+          dataSupport: true,
+          codeActionLiteralSupport: {
+            codeActionKind: {
+              valueSet: CODE_ACTION_KIND_VALUE_SET,
+            },
+          },
         },
       },
       general: {
@@ -631,6 +663,43 @@ class TinymistSession {
     }
   }
 
+  async requestCodeActions(filePath, range, context = {}) {
+    if (!this.started || !this.child) return []
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return []
+
+    try {
+      const result = await this.request('textDocument/codeAction', {
+        textDocument: { uri },
+        range,
+        context: {
+          diagnostics: Array.isArray(context?.diagnostics) ? context.diagnostics : [],
+          only: Array.isArray(context?.only) && context.only.length > 0 ? context.only : undefined,
+          triggerKind: context?.triggerKind ?? undefined,
+        },
+      })
+      return Array.isArray(result) ? result : []
+    } catch {
+      return []
+    }
+  }
+
+  async requestInlayHints(filePath, range) {
+    if (!this.started || !this.child) return []
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return []
+
+    try {
+      const result = await this.request('textDocument/inlayHint', {
+        textDocument: { uri },
+        range,
+      })
+      return Array.isArray(result) ? result : []
+    } catch {
+      return []
+    }
+  }
+
   async requestWorkspaceSymbols(query, options = {}) {
     const ready = await this.ensureStarted({
       workspacePath: options.workspacePath || null,
@@ -857,6 +926,14 @@ export function requestTinymistSignatureHelp(filePath, position, context = null)
 
 export function requestTinymistFoldingRanges(filePath) {
   return sharedSession.requestFoldingRanges(filePath)
+}
+
+export function requestTinymistCodeActions(filePath, range, context = {}) {
+  return sharedSession.requestCodeActions(filePath, range, context)
+}
+
+export function requestTinymistInlayHints(filePath, range) {
+  return sharedSession.requestInlayHints(filePath, range)
 }
 
 export function requestTinymistWorkspaceSymbols(query, options = {}) {

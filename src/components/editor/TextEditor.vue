@@ -21,7 +21,9 @@
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
     :show-format-document="isTex || (isTyp && typstUi.tinymistActive)"
-    @close="ctxMenu.show = false"
+    :typst-code-actions="ctxMenu.typstCodeActions"
+    @close="closeContextMenu"
+    @apply-typst-code-action="handleApplyTypstCodeAction"
     @format-document="handleFormatDocument"
   />
   <CitationPalette
@@ -65,8 +67,14 @@ import { useLinksStore } from '../../stores/links'
 import { useReferencesStore } from '../../stores/references'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { sendCode, runFile } from '../../services/codeRunner'
-import { requestTinymistFormatting } from '../../services/tinymist/session'
+import { requestTinymistCodeActions, requestTinymistFormatting } from '../../services/tinymist/session'
 import { applyTinymistTextEdits, applyTinymistTextEditsToText } from '../../services/tinymist/textEdits'
+import { applyTinymistWorkspaceEdit } from '../../services/tinymist/workspaceEdit'
+import {
+  buildTinymistCodeActionContext,
+  buildTinymistCodeActionRange,
+  normalizeTinymistCodeActions,
+} from '../../services/tinymist/codeActions'
 import { useTypstStore } from '../../stores/typst'
 import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd, isBibFile } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
@@ -136,7 +144,14 @@ const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
 const isMacPlatform = typeof navigator !== 'undefined'
   && /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
 
-const ctxMenu = reactive({ show: false, x: 0, y: 0, hasSelection: false })
+const ctxMenu = reactive({
+  show: false,
+  x: 0,
+  y: 0,
+  hasSelection: false,
+  typstCodeActions: [],
+  requestId: 0,
+})
 
 const getView = () => view
 
@@ -304,6 +319,101 @@ function onContextMenu(e) {
 
   pendingContextMenuState = null
   ctxMenu.show = true
+  ctxMenu.typstCodeActions = []
+  ctxMenu.requestId += 1
+  void loadTypstContextMenuCodeActions()
+}
+
+function closeContextMenu() {
+  ctxMenu.show = false
+  ctxMenu.typstCodeActions = []
+  ctxMenu.requestId += 1
+}
+
+function buildTypstCodeActionRequest() {
+  if (!isTyp || !view || !typstUi.tinymistActive) return null
+
+  const range = buildTinymistCodeActionRange(view.state, view.state.selection.main)
+  if (!range) return null
+
+  const rawDiagnostics = typstStore.liveStateForFile(props.filePath)?.diagnostics || []
+  const context = buildTinymistCodeActionContext(rawDiagnostics, range)
+  return { range, context }
+}
+
+async function loadTypstContextMenuCodeActions() {
+  const request = buildTypstCodeActionRequest()
+  if (!ctxMenu.show || !request) {
+    ctxMenu.typstCodeActions = []
+    return
+  }
+
+  const requestId = ctxMenu.requestId
+
+  try {
+    const result = await requestTinymistCodeActions(props.filePath, request.range, request.context)
+    if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
+
+    ctxMenu.typstCodeActions = normalizeTinymistCodeActions(result)
+      .slice(0, 5)
+  } catch {
+    if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
+    ctxMenu.typstCodeActions = []
+  }
+}
+
+async function handleApplyTypstCodeAction(action) {
+  if (!action?.edit) {
+    toastStore.show(
+      t('No code actions could be applied at the current cursor location.'),
+      { type: 'warning', duration: 3200 },
+    )
+    return
+  }
+
+  try {
+    const applied = await applyTinymistWorkspaceEdit(action.edit, {
+      filesStore: files,
+      editorStore,
+    })
+
+    if (applied.totalFiles === 0) {
+      toastStore.show(
+        t('No code actions could be applied at the current cursor location.'),
+        { type: 'warning', duration: 3200 },
+      )
+      return
+    }
+
+    if (view && applied.appliedFiles.includes(props.filePath)) {
+      scheduleTinymistSync(view.state.doc.toString())
+    }
+
+    if (applied.skippedFiles.length > 0) {
+      toastStore.show(
+        t('Applied code action to {count} file(s), but skipped {skipped}.', {
+          count: applied.appliedFiles.length,
+          skipped: applied.skippedFiles.map((value) => value.split('/').pop() || value).join(', '),
+        }),
+        { type: 'warning', duration: 5000 },
+      )
+      return
+    }
+
+    toastStore.show(
+      t('Applied code action to {count} file(s).', {
+        count: applied.appliedFiles.length,
+      }),
+      { type: 'success', duration: 2600 },
+    )
+  } catch (error) {
+    toastStore.showOnce('tinymist-code-action-failed', t('Typst code action failed: {error}', {
+      error: error?.message || String(error || ''),
+    }), {
+      type: 'error',
+      duration: 5000,
+    }, 3000)
+  }
 }
 
 async function handleFormatDocument() {
@@ -937,6 +1047,7 @@ onMounted(async () => {
       filePath: props.filePath,
       filesStore: files,
       getReferenceByKey: (key) => referencesStore.getByKey(key),
+      isEnabled: () => typstStore.inlayHints,
       openFile: (path) => editorStore.openFile(path),
       referencesStore,
       toastStore,

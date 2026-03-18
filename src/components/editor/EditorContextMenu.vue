@@ -1,7 +1,13 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[999]" @click="$emit('close')" @contextmenu.prevent="$emit('close')"></div>
-    <div v-if="visible" class="context-menu py-1 ui-text-md" :style="menuStyle" @mousedown.prevent>
+    <div
+      v-if="visible"
+      ref="menuRef"
+      class="context-menu py-1 ui-text-md"
+      :style="menuStyle"
+      @mousedown.prevent
+    >
       <!-- Spell suggestions (inline, at top) -->
       <template v-if="spellSuggestions.length > 0">
         <div
@@ -10,6 +16,17 @@
           class="context-menu-item spell-suggestion"
           @click="applySuggestion(s)"
         >{{ s }}</div>
+        <div class="context-menu-separator"></div>
+      </template>
+
+      <template v-if="typstCodeActions.length > 0">
+        <div class="context-menu-section">{{ t('Quick Fixes') }}</div>
+        <div
+          v-for="action in typstCodeActions"
+          :key="action.id"
+          class="context-menu-item"
+          @click="applyTypstCodeAction(action)"
+        >{{ typstCodeActionLabel(action) }}</div>
         <div class="context-menu-separator"></div>
       </template>
 
@@ -51,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useCommentsStore } from '../../stores/comments'
@@ -66,19 +83,39 @@ const props = defineProps({
   view: { type: Object, default: null },
   spellcheckEnabled: { type: Boolean, default: false },
   showFormatDocument: { type: Boolean, default: false },
+  typstCodeActions: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'format-document'])
+const emit = defineEmits(['close', 'format-document', 'apply-typst-code-action'])
 const editorStore = useEditorStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
 
+const menuRef = ref(null)
 const spellSuggestions = ref([])
 // Word range in the document for replacement
 let wordFrom = 0
 let wordTo = 0
 
 const menuStyle = ref({})
+
+async function repositionMenu() {
+  if (!props.visible || typeof window === 'undefined') return
+  await nextTick()
+
+  const menuWidth = menuRef.value?.offsetWidth || 200
+  const maxHeight = Math.max(120, window.innerHeight - 16)
+  const measuredHeight = menuRef.value?.offsetHeight || 160
+  const menuHeight = Math.min(measuredHeight, maxHeight)
+  const x = Math.max(8, Math.min(props.x, window.innerWidth - menuWidth - 8))
+  const y = Math.max(8, Math.min(props.y, window.innerHeight - menuHeight - 8))
+  menuStyle.value = {
+    left: `${x}px`,
+    top: `${y}px`,
+    maxHeight: `${maxHeight}px`,
+    overflowY: 'auto',
+  }
+}
 
 // When menu opens, compute position + fetch spell suggestions
 watch(() => props.visible, async (show) => {
@@ -87,14 +124,7 @@ watch(() => props.visible, async (show) => {
     return
   }
 
-  // Position
-  const menuW = 200
-  const menuH = props.hasSelection
-    ? (props.showFormatDocument ? 320 : 280)
-    : (props.showFormatDocument ? 120 : 80)
-  const x = Math.min(props.x, window.innerWidth - menuW - 8)
-  const y = Math.min(props.y, window.innerHeight - menuH - 8)
-  menuStyle.value = { left: x + 'px', top: y + 'px' }
+  await repositionMenu()
 
   // Spell check: get word at click position
   if (props.spellcheckEnabled && props.view) {
@@ -115,6 +145,20 @@ watch(() => props.visible, async (show) => {
     }
   }
 })
+
+watch(
+  () => [
+    props.visible,
+    spellSuggestions.value.length,
+    props.typstCodeActions.length,
+    props.hasSelection,
+    props.showFormatDocument,
+  ],
+  async ([show]) => {
+    if (!show) return
+    await repositionMenu()
+  },
+)
 
 function getWordAt(state, pos) {
   const line = state.doc.lineAt(pos)
@@ -236,6 +280,25 @@ function selectAll() {
 function formatDocument() {
   emit('format-document')
   emit('close')
+}
+
+function applyTypstCodeAction(action) {
+  emit('apply-typst-code-action', action)
+  emit('close')
+}
+
+function typstCodeActionLabel(action) {
+  const title = String(action?.title || '').trim()
+  if (!title) return ''
+
+  const createMissingFileMatch = /^Create missing file at `(.+)`$/.exec(title)
+  if (createMissingFileMatch) {
+    return t('Create missing file at `{path}`', {
+      path: createMissingFileMatch[1],
+    })
+  }
+
+  return t(title)
 }
 </script>
 
