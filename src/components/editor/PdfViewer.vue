@@ -34,6 +34,17 @@
               <button
                 type="button"
                 class="pdf-toolbar-btn"
+                :class="{ 'pdf-toolbar-btn-active': pdfTranslationBusy }"
+                :title="pdfTranslationBusy ? t('Translating...') : t('Translate this PDF')"
+                :disabled="!pdfUi.ready || pdfTranslationBusy"
+                @click="translateCurrentPdf"
+              >
+                <IconLanguage :size="13" :stroke-width="1.8" />
+              </button>
+              <div class="pdf-toolbar-separator"></div>
+              <button
+                type="button"
+                class="pdf-toolbar-btn"
                 :title="t('Previous page')"
                 :disabled="!pdfUi.canGoPrevious"
                 @click="goToPreviousPage"
@@ -49,27 +60,25 @@
               >
                 <IconChevronRight :size="13" :stroke-width="1.8" />
               </button>
+              <div class="pdf-toolbar-separator"></div>
+              <div class="pdf-toolbar-group pdf-page-indicator">
+                <input
+                  ref="pageInputRef"
+                  v-model="pageInputValue"
+                  type="text"
+                  inputmode="numeric"
+                  class="pdf-toolbar-input pdf-page-input"
+                  :disabled="!pdfUi.ready"
+                  @focus="markPaneActive"
+                  @keydown.enter.prevent="submitPageNumber"
+                  @blur="submitPageNumber"
+                />
+                <span class="pdf-toolbar-label">{{ t('of {count}', { count: pdfUi.pagesCount || 0 }) }}</span>
+              </div>
             </div>
           </div>
 
           <div class="pdf-toolbar-center">
-            <div class="pdf-toolbar-group pdf-page-indicator">
-              <input
-                ref="pageInputRef"
-                v-model="pageInputValue"
-                type="text"
-                inputmode="numeric"
-                class="pdf-toolbar-input pdf-page-input"
-                :disabled="!pdfUi.ready"
-                @focus="markPaneActive"
-                @keydown.enter.prevent="submitPageNumber"
-                @blur="submitPageNumber"
-              />
-              <span class="pdf-toolbar-label">{{ t('of {count}', { count: pdfUi.pagesCount || 0 }) }}</span>
-            </div>
-
-            <div class="pdf-toolbar-separator"></div>
-
             <div class="pdf-toolbar-group">
               <button
                 type="button"
@@ -112,41 +121,59 @@
 
           <div class="pdf-toolbar-right">
             <div class="pdf-toolbar-group">
-              <button
-                v-if="toolbarButtons.editorFreeTextButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorFreeTextButton.active || activeToolbarPanel === 'freetext' }"
-                :title="t('Text')"
-                :disabled="toolbarButtons.editorFreeTextButton.disabled"
-                @click="activateEditorTool('editorFreeTextButton', 'freetext')"
-              >
-                <IconLetterT :size="13" :stroke-width="1.8" />
-              </button>
-              <button
-                v-if="toolbarButtons.editorInkButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorInkButton.active || activeToolbarPanel === 'ink' }"
-                :title="t('Ink')"
-                :disabled="toolbarButtons.editorInkButton.disabled"
-                @click="activateEditorTool('editorInkButton', 'ink')"
-              >
-                <IconPencil :size="13" :stroke-width="1.8" />
-              </button>
-              <button
-                v-if="toolbarButtons.editorStampButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorStampButton.active || activeToolbarPanel === 'stamp' }"
-                :title="t('Stamp')"
-                :disabled="toolbarButtons.editorStampButton.disabled"
-                @click="activateEditorTool('editorStampButton', 'stamp')"
-              >
-                <IconPhoto :size="13" :stroke-width="1.8" />
-              </button>
               <div
-                v-if="toolbarButtons.editorFreeTextButton.visible || toolbarButtons.editorInkButton.visible || toolbarButtons.editorStampButton.visible"
+                v-if="hasEditorTools"
+                class="pdf-toolbar-group pdf-toolbar-group-collapsible"
+                :class="{ 'pdf-toolbar-group-collapsible-open': editorToolsExpanded }"
+              >
+                <div class="pdf-toolbar-collapsible-tools">
+                  <button
+                    v-if="toolbarButtons.editorFreeTextButton.visible"
+                    type="button"
+                    class="pdf-toolbar-btn"
+                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorFreeTextButton.active || activeToolbarPanel === 'freetext' }"
+                    :title="t('Text')"
+                    :disabled="toolbarButtons.editorFreeTextButton.disabled"
+                    @click="activateEditorTool('editorFreeTextButton', 'freetext')"
+                  >
+                    <IconLetterT :size="13" :stroke-width="1.8" />
+                  </button>
+                  <button
+                    v-if="toolbarButtons.editorInkButton.visible"
+                    type="button"
+                    class="pdf-toolbar-btn"
+                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorInkButton.active || activeToolbarPanel === 'ink' }"
+                    :title="t('Ink')"
+                    :disabled="toolbarButtons.editorInkButton.disabled"
+                    @click="activateEditorTool('editorInkButton', 'ink')"
+                  >
+                    <IconPencil :size="13" :stroke-width="1.8" />
+                  </button>
+                  <button
+                    v-if="toolbarButtons.editorStampButton.visible"
+                    type="button"
+                    class="pdf-toolbar-btn"
+                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorStampButton.active || activeToolbarPanel === 'stamp' }"
+                    :title="t('Stamp')"
+                    :disabled="toolbarButtons.editorStampButton.disabled"
+                    @click="activateEditorTool('editorStampButton', 'stamp')"
+                  >
+                    <IconPhoto :size="13" :stroke-width="1.8" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="pdf-toolbar-btn"
+                  :class="{ 'pdf-toolbar-btn-active': editorToolGroupActive }"
+                  :title="editorToolsToggleTitle"
+                  @click="toggleEditorToolsExpanded"
+                >
+                  <IconChevronRight v-if="editorToolsExpanded" :size="13" :stroke-width="1.8" />
+                  <IconChevronLeft v-else :size="13" :stroke-width="1.8" />
+                </button>
+              </div>
+              <div
+                v-if="hasEditorTools"
                 class="pdf-toolbar-separator"
               ></div>
               <button
@@ -189,66 +216,70 @@
         </div>
 
         <div v-if="searchOpen" class="pdf-search-popover">
-          <input
-            ref="searchInputRef"
-            v-model="searchDraft"
-            type="text"
-            class="pdf-toolbar-input pdf-toolbar-search"
-            :placeholder="t('Search in PDF')"
-            @focus="markPaneActive"
-            @keydown.enter.prevent="runSearch(false)"
-          />
-          <button
-            type="button"
-            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-            :disabled="!searchDraft.trim()"
-            :title="t('Previous match')"
-            @click="runSearch(true)"
-          >
-            <IconChevronUp :size="12" :stroke-width="1.8" />
-          </button>
-          <button
-            type="button"
-            class="pdf-toolbar-btn pdf-toolbar-btn-sm"
-            :disabled="!searchDraft.trim()"
-            :title="t('Next match')"
-            @click="runSearch(false)"
-          >
-            <IconChevronDown :size="12" :stroke-width="1.8" />
-          </button>
-          <button
-            type="button"
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
-            @click="toggleSearchOption('searchHighlightAll')"
-          >
-            {{ t('Highlight all') }}
-          </button>
-          <button
-            type="button"
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
-            @click="toggleSearchOption('searchCaseSensitive')"
-          >
-            {{ t('Match case') }}
-          </button>
-          <button
-            type="button"
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
-            @click="toggleSearchOption('searchMatchDiacritics')"
-          >
-            {{ t('Match diacritics') }}
-          </button>
-          <button
-            type="button"
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
-            @click="toggleSearchOption('searchEntireWord')"
-          >
-            {{ t('Whole words') }}
-          </button>
-          <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
+          <div class="pdf-search-popover-row pdf-search-popover-row-main">
+            <input
+              ref="searchInputRef"
+              v-model="searchDraft"
+              type="text"
+              class="pdf-toolbar-input pdf-toolbar-search"
+              :placeholder="t('Search in PDF')"
+              @focus="markPaneActive"
+              @keydown.enter.prevent="runSearch(false)"
+            />
+            <button
+              type="button"
+              class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+              :disabled="!searchDraft.trim()"
+              :title="t('Previous match')"
+              @click="runSearch(true)"
+            >
+              <IconChevronUp :size="12" :stroke-width="1.8" />
+            </button>
+            <button
+              type="button"
+              class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+              :disabled="!searchDraft.trim()"
+              :title="t('Next match')"
+              @click="runSearch(false)"
+            >
+              <IconChevronDown :size="12" :stroke-width="1.8" />
+            </button>
+          </div>
+          <div class="pdf-search-popover-row pdf-search-popover-row-options">
+            <button
+              type="button"
+              class="pdf-search-toggle"
+              :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
+              @click="toggleSearchOption('searchHighlightAll')"
+            >
+              {{ t('Highlight all') }}
+            </button>
+            <button
+              type="button"
+              class="pdf-search-toggle"
+              :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
+              @click="toggleSearchOption('searchCaseSensitive')"
+            >
+              {{ t('Match case') }}
+            </button>
+            <button
+              type="button"
+              class="pdf-search-toggle"
+              :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
+              @click="toggleSearchOption('searchMatchDiacritics')"
+            >
+              {{ t('Match diacritics') }}
+            </button>
+            <button
+              type="button"
+              class="pdf-search-toggle"
+              :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
+              @click="toggleSearchOption('searchEntireWord')"
+            >
+              {{ t('Whole words') }}
+            </button>
+            <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint pdf-search-result-hint">{{ pdfUi.searchResultText }}</span>
+          </div>
         </div>
 
         <div v-if="activeToolbarPanel === 'freetext'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
@@ -578,6 +609,7 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconDownload,
+  IconLanguage,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconLetterT,
@@ -592,6 +624,7 @@ import {
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
+import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -613,6 +646,7 @@ const PDF_EMBEDDED_ANNOTATIONS_VIEW_ID = 'altalsAnnotationsView'
 
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
+const pdfTranslateStore = usePdfTranslateStore()
 const researchArtifactsStore = useResearchArtifactsStore()
 const editorStore = useEditorStore()
 const { t, locale } = useI18n()
@@ -632,6 +666,7 @@ const searchDraft = ref('')
 const pageInputValue = ref('1')
 const scaleOptions = ref([])
 const activeToolbarPanel = ref('')
+const editorToolsExpanded = ref(false)
 const pdfContextMenu = reactive({
   show: false,
   x: 0,
@@ -694,6 +729,19 @@ const usingExternalToolbar = computed(() => !!props.toolbarTargetSelector)
 const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
 ))
+const hasEditorTools = computed(() => (
+  toolbarButtons.editorFreeTextButton.visible
+  || toolbarButtons.editorInkButton.visible
+  || toolbarButtons.editorStampButton.visible
+))
+const editorToolGroupActive = computed(() => (
+  editorToolsExpanded.value
+  || toolbarButtons.editorFreeTextButton.active
+  || toolbarButtons.editorInkButton.active
+  || toolbarButtons.editorStampButton.active
+  || ['freetext', 'ink', 'stamp'].includes(activeToolbarPanel.value)
+))
+const editorToolsToggleTitle = computed(() => `${t('Text')} / ${t('Ink')} / ${t('Stamp')}`)
 const toolbarButtons = reactive({
   editorFreeTextButton: createToolbarButtonState(),
   editorInkButton: createToolbarButtonState(),
@@ -737,6 +785,15 @@ const currentPdfAnnotations = computed(() => (
 ))
 const activeAnnotationId = computed(() => researchArtifactsStore.activeAnnotationId || null)
 const activeNoteId = computed(() => researchArtifactsStore.activeNoteId || null)
+const currentPdfTranslationTask = computed(() => (
+  filePathRef.value ? pdfTranslateStore.latestTaskForInput(filePathRef.value) : null
+))
+const pdfTranslationBusy = computed(() => {
+  const status = String(currentPdfTranslationTask.value?.status || '')
+  return ['pending', 'queued', 'running'].includes(status)
+    || pdfTranslateStore.setupInProgress
+    || pdfTranslateStore.warmupInProgress
+})
 
 function localizeScaleLabel(label) {
   const normalized = String(label || '').trim()
@@ -746,6 +803,10 @@ function localizeScaleLabel(label) {
   if (normalized === 'Page Fit') return t('Page Fit')
   if (normalized === 'Page Width') return t('Page Width')
   return normalized
+}
+
+function fileNameFromPath(path = '') {
+  return String(path || '').split(/[\\/]/).pop() || path
 }
 
 function getPdfViewerLocaleParam() {
@@ -2324,6 +2385,7 @@ function dispatchPdfEvent(type, detail = {}) {
 }
 
 function openSearch() {
+  editorToolsExpanded.value = false
   activeToolbarPanel.value = ''
   if (!usingExternalToolbar.value) {
     const doc = getPdfDocument()
@@ -2442,6 +2504,24 @@ function toggleSearchOption(key) {
   dispatchExternalSearch()
 }
 
+async function translateCurrentPdf() {
+  if (!filePathRef.value || pdfTranslationBusy.value) return
+  try {
+    await pdfTranslateStore.startTranslation(filePathRef.value)
+    toastStore.show(t('Started translating {name}', {
+      name: fileNameFromPath(filePathRef.value),
+    }), {
+      type: 'success',
+      duration: 2400,
+    })
+  } catch (translateError) {
+    toastStore.show(
+      translateError?.message || String(translateError),
+      { type: 'error', duration: 4200 },
+    )
+  }
+}
+
 function proxyPdfButton(id) {
   clickPdfElement(id)
 }
@@ -2451,10 +2531,18 @@ function activateEditorTool(buttonId, panel) {
   if (!state?.active) {
     proxyPdfButton(buttonId)
   }
+  editorToolsExpanded.value = false
   toggleToolbarPanel(panel)
 }
 
+function toggleEditorToolsExpanded() {
+  closeSearch()
+  activeToolbarPanel.value = ''
+  editorToolsExpanded.value = !editorToolsExpanded.value
+}
+
 function toggleToolsMenu() {
+  editorToolsExpanded.value = false
   toggleToolbarPanel('tools')
 }
 
@@ -2476,6 +2564,7 @@ function handleIframePointerDown() {
   closePdfContextMenu()
   closeSearch()
   activeToolbarPanel.value = ''
+  editorToolsExpanded.value = false
 }
 
 function handleGlobalPointerDown(event) {
@@ -2490,6 +2579,7 @@ function handleGlobalPointerDown(event) {
   if (toolbarShell.contains(event.target)) return
   closeSearch()
   activeToolbarPanel.value = ''
+  editorToolsExpanded.value = false
 }
 
 function roundRectValue(value) {
@@ -3214,6 +3304,12 @@ async function onIframeLoad() {
           return
         }
 
+        if (event.key === 'Escape' && editorToolsExpanded.value) {
+          event.preventDefault()
+          editorToolsExpanded.value = false
+          return
+        }
+
         if (event.key === 'Escape' && (searchOpen.value || pdfUi.searchOpen)) {
           event.preventDefault()
           closeSearch()
@@ -3283,6 +3379,9 @@ onMounted(() => {
   clearIframePointerGuards()
   window.addEventListener('pdf-updated', handlePdfUpdated)
   document.addEventListener('pointerdown', handleGlobalPointerDown, true)
+  void pdfTranslateStore.ensureListeners().catch(() => {})
+  void pdfTranslateStore.loadSettings().catch(() => {})
+  void pdfTranslateStore.loadTasks().catch(() => {})
   loadPdf()
 })
 
@@ -3418,6 +3517,29 @@ defineExpose({
   align-items: center;
   gap: 4px;
   flex: none;
+}
+
+.pdf-toolbar-group-collapsible {
+  gap: 4px;
+}
+
+.pdf-toolbar-collapsible-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+  transition: max-width 0.18s ease, opacity 0.14s ease, transform 0.18s ease;
+}
+
+.pdf-toolbar-group-collapsible-open .pdf-toolbar-collapsible-tools {
+  max-width: 84px;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .pdf-toolbar-separator {
@@ -3713,35 +3835,6 @@ defineExpose({
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.pdf-translate-status {
-  color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
-  white-space: nowrap;
-}
-
-.pdf-translate-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 20px;
-  padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  font-size: var(--ui-font-caption);
-  color: var(--accent);
-}
-
-.pdf-translate-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-
-.pdf-translate-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 
 .pdf-annotation-btn,
