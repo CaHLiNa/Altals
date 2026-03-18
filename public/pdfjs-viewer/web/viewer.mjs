@@ -16554,7 +16554,6 @@ class Toolbar {
     }) => {
       switch (mode) {
         case AnnotationEditorType.HIGHLIGHT:
-          editorHighlightButton.click();
           break;
       }
     });
@@ -17392,7 +17391,7 @@ const PDFViewerApplication = {
       annotationMode: AppOptions.get("annotationMode"),
       annotationEditorMode,
       annotationEditorHighlightColors: AppOptions.get("highlightEditorColors"),
-      enableHighlightFloatingButton: AppOptions.get("enableHighlightFloatingButton"),
+      enableHighlightFloatingButton: false,
       enableUpdatedAddImage: AppOptions.get("enableUpdatedAddImage"),
       enableNewAltTextWhenAddingImage: AppOptions.get("enableNewAltTextWhenAddingImage"),
       imageResourcesPath: AppOptions.get("imageResourcesPath"),

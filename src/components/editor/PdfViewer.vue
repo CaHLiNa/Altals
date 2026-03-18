@@ -113,17 +113,6 @@
           <div class="pdf-toolbar-right">
             <div class="pdf-toolbar-group">
               <button
-                v-if="toolbarButtons.editorHighlightButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorHighlightButton.active || activeToolbarPanel === 'highlight' }"
-                :title="t('Highlight')"
-                :disabled="toolbarButtons.editorHighlightButton.disabled"
-                @click="activateEditorTool('editorHighlightButton', 'highlight')"
-              >
-                <IconHighlight :size="13" :stroke-width="1.8" />
-              </button>
-              <button
                 v-if="toolbarButtons.editorFreeTextButton.visible"
                 type="button"
                 class="pdf-toolbar-btn"
@@ -157,7 +146,7 @@
                 <IconPhoto :size="13" :stroke-width="1.8" />
               </button>
               <div
-                v-if="toolbarButtons.editorHighlightButton.visible || toolbarButtons.editorFreeTextButton.visible || toolbarButtons.editorInkButton.visible || toolbarButtons.editorStampButton.visible"
+                v-if="toolbarButtons.editorFreeTextButton.visible || toolbarButtons.editorInkButton.visible || toolbarButtons.editorStampButton.visible"
                 class="pdf-toolbar-separator"
               ></div>
               <button
@@ -260,42 +249,6 @@
             {{ t('Whole words') }}
           </button>
           <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint">{{ pdfUi.searchResultText }}</span>
-        </div>
-
-        <div v-if="activeToolbarPanel === 'highlight'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
-          <div class="pdf-toolbar-popover-title">{{ t('Highlight') }}</div>
-          <div v-if="highlightColorOptions.length" class="pdf-color-grid">
-            <button
-              v-for="option in highlightColorOptions"
-              :key="option.value"
-              type="button"
-              class="pdf-color-swatch-btn"
-              :class="{ 'pdf-color-swatch-btn-active': option.selected }"
-              :title="option.label || option.value"
-              @click="setHighlightColor(option.value)"
-            >
-              <span class="pdf-color-swatch" :style="{ backgroundColor: option.value }"></span>
-            </button>
-          </div>
-          <label class="pdf-toolbar-field">
-            <span class="pdf-toolbar-hint">{{ t('Thickness') }}</span>
-            <input
-              type="range"
-              min="8"
-              max="24"
-              step="1"
-              :value="editorParams.highlightThickness"
-              @input="setPdfInputValue('editorFreeHighlightThickness', $event.target.value)"
-            >
-          </label>
-          <button
-            type="button"
-            class="pdf-search-toggle"
-            :class="{ 'pdf-search-toggle-active': editorParams.highlightShowAll }"
-            @click="toggleHighlightShowAll"
-          >
-            {{ t('Show all') }}
-          </button>
         </div>
 
         <div v-if="activeToolbarPanel === 'freetext'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
@@ -407,34 +360,8 @@
     </Teleport>
 
     <div class="relative flex-1 overflow-hidden">
-      <iframe
-        v-if="viewerSrc"
-        ref="iframeRef"
-        :src="viewerSrc"
-        class="w-full h-full border-0"
-        tabindex="0"
-        style="display: block;"
-        @focus="markPaneActive"
-        @load="onIframeLoad"
-      />
-
-      <Transition name="pdf-annotation-overlay">
-        <aside
-          v-if="annotationsOpen"
-          class="pdf-annotation-sidebar-shell"
-        >
-          <div class="pdf-annotation-sidebar-header">
-            <div class="pdf-annotation-sidebar-title">{{ t('Highlights') }}</div>
-            <button
-              type="button"
-              class="pdf-toolbar-btn"
-              :title="t('Close')"
-              @click="annotationsOpen = false"
-            >
-              <IconChevronRight :size="13" :stroke-width="1.8" />
-            </button>
-          </div>
-
+      <Teleport v-if="annotationsSidebarTarget" :to="annotationsSidebarTarget">
+        <section class="pdf-annotation-sidebar-shell" @mousedown="markPaneActive">
           <div class="pdf-annotation-list">
             <div v-if="pendingSelection" class="pdf-annotation-pending">
               <div class="pdf-annotation-pending-label">{{ t('Selection ready') }}</div>
@@ -506,8 +433,121 @@
               </div>
             </div>
           </div>
-        </aside>
-      </Transition>
+        </section>
+      </Teleport>
+
+      <Teleport to="body">
+        <div
+          v-if="pdfContextMenu.show"
+          class="fixed inset-0 z-[999]"
+          @click="closePdfContextMenu"
+          @contextmenu.prevent="closePdfContextMenu"
+        ></div>
+        <div
+          v-if="pdfContextMenu.show"
+          class="context-menu py-1 ui-text-md pdf-context-menu"
+          :style="pdfContextMenuStyle"
+          @mousedown.prevent
+        >
+          <button
+            v-if="pdfContextMenu.hasPendingSelection"
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="createAnnotationFromContextMenu"
+          >
+            {{ t('Add highlight') }}
+          </button>
+          <button
+            v-if="pdfContextMenu.selectedText"
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="copyPdfSelection"
+          >
+            {{ t('Copy') }}
+          </button>
+          <button
+            v-if="pdfContextMenu.hasPendingSelection"
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="searchSelectedTextInPdf"
+          >
+            {{ t('Search selected text in PDF') }}
+          </button>
+          <div
+            v-if="pdfContextMenu.hasPendingSelection || pdfContextMenu.selectedText"
+            class="context-menu-separator"
+          ></div>
+
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="openAnnotationsPanelFromMenu"
+          >
+            {{ t('Highlights') }}
+          </button>
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="openSearchFromContextMenu"
+          >
+            {{ t('Search in PDF') }}
+          </button>
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            @click="toggleSidebarFromContextMenu"
+          >
+            {{ pdfUi.sidebarOpen ? t('Hide sidebar') : t('Show sidebar') }}
+          </button>
+          <div class="context-menu-separator"></div>
+
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            :disabled="!pdfUi.canGoPrevious"
+            @click="runPdfContextCommand(goToPreviousPage)"
+          >
+            {{ t('Previous page') }}
+          </button>
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            :disabled="!pdfUi.canGoNext"
+            @click="runPdfContextCommand(goToNextPage)"
+          >
+            {{ t('Next page') }}
+          </button>
+          <div class="context-menu-separator"></div>
+
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            :disabled="!pdfUi.canZoomOut"
+            @click="runPdfContextCommand(zoomOut)"
+          >
+            {{ t('Zoom out') }}
+          </button>
+          <button
+            type="button"
+            class="context-menu-item pdf-context-menu-item"
+            :disabled="!pdfUi.canZoomIn"
+            @click="runPdfContextCommand(zoomIn)"
+          >
+            {{ t('Zoom in') }}
+          </button>
+        </div>
+      </Teleport>
+
+      <iframe
+        v-if="viewerSrc"
+        ref="iframeRef"
+        :src="viewerSrc"
+        class="w-full h-full border-0"
+        tabindex="0"
+        style="display: block;"
+        @focus="markPaneActive"
+        @load="onIframeLoad"
+      />
 
       <div
         v-if="loading"
@@ -538,7 +578,6 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconDownload,
-  IconHighlight,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconLetterT,
@@ -570,6 +609,7 @@ const props = defineProps({
 
 const PDF_VIEWER_THEME_STYLE_ID = 'altals-pdf-viewer-theme'
 const PDF_EMBEDDED_SIDEBAR_SHELL_ID = 'altalsViewsManagerShell'
+const PDF_EMBEDDED_ANNOTATIONS_VIEW_ID = 'altalsAnnotationsView'
 
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
@@ -582,17 +622,43 @@ const iframeRef = ref(null)
 const searchInputRef = ref(null)
 const pageInputRef = ref(null)
 const toolbarShellRef = ref(null)
+const annotationsSidebarTarget = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
 const error = ref(null)
-const annotationsOpen = ref(false)
 const pendingSelection = ref(null)
 const searchOpen = ref(false)
 const searchDraft = ref('')
 const pageInputValue = ref('1')
 const scaleOptions = ref([])
 const activeToolbarPanel = ref('')
-const highlightColorOptions = ref([])
+const pdfContextMenu = reactive({
+  show: false,
+  x: 0,
+  y: 0,
+  selectedText: '',
+  hasPendingSelection: false,
+})
+
+const pdfContextMenuStyle = computed(() => {
+  const menuWidth = 220
+  const itemCount = [
+    pdfContextMenu.hasPendingSelection ? 1 : 0,
+    pdfContextMenu.selectedText ? 1 : 0,
+    pdfContextMenu.hasPendingSelection ? 1 : 0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+  ].reduce((sum, value) => sum + value, 0)
+  const separatorCount = 3 + ((pdfContextMenu.hasPendingSelection || pdfContextMenu.selectedText) ? 1 : 0)
+  const menuHeight = Math.min(360, 12 + itemCount * 30 + separatorCount * 9)
+  const x = Math.min(pdfContextMenu.x, window.innerWidth - menuWidth - 8)
+  const y = Math.min(pdfContextMenu.y, window.innerHeight - menuHeight - 8)
+  return { left: `${Math.max(8, x)}px`, top: `${Math.max(8, y)}px` }
+})
 
 const pdfUi = reactive({
   ready: false,
@@ -620,6 +686,7 @@ const sidebarTabs = reactive({
   thumbnails: { disabled: false },
   outlines: { disabled: false },
   attachments: { disabled: false },
+  annotations: { disabled: false },
   layers: { disabled: false },
 })
 
@@ -628,7 +695,6 @@ const sidebarIcon = computed(() => (
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
 ))
 const toolbarButtons = reactive({
-  editorHighlightButton: createToolbarButtonState(),
   editorFreeTextButton: createToolbarButtonState(),
   editorInkButton: createToolbarButtonState(),
   editorStampButton: createToolbarButtonState(),
@@ -638,8 +704,6 @@ const toolbarButtons = reactive({
 })
 const toolMenuItems = reactive(createToolMenuState())
 const editorParams = reactive({
-  highlightThickness: 12,
-  highlightShowAll: true,
   freeTextColor: '#000000',
   freeTextFontSize: 10,
   inkColor: '#000000',
@@ -662,6 +726,7 @@ let pendingScrollLocation = null
 let sidebarStateObserver = null
 let sidebarInitialViewResolved = false
 let sidebarEverOpened = false
+let sidebarViewOverride = ''
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
@@ -800,7 +865,9 @@ function resetPdfUi() {
   searchDraft.value = ''
   searchOpen.value = false
   activeToolbarPanel.value = ''
-  highlightColorOptions.value = []
+  closePdfContextMenu()
+  annotationsSidebarTarget.value = null
+  sidebarViewOverride = ''
   Object.keys(toolbarButtons).forEach((id) => {
     Object.assign(toolbarButtons[id], createToolbarButtonState())
   })
@@ -825,6 +892,12 @@ function clearSyncHighlight() {
   }
   activeSyncHighlightEl?.remove()
   activeSyncHighlightEl = null
+}
+
+function closePdfContextMenu() {
+  pdfContextMenu.show = false
+  pdfContextMenu.selectedText = ''
+  pdfContextMenu.hasPendingSelection = false
 }
 
 function createEmbeddedSidebarButton(doc, viewKey, labelKey) {
@@ -859,7 +932,10 @@ function ensureEmbeddedSidebarShell() {
   const doc = getPdfDocument()
   const viewsManager = getPdfElement('viewsManager')
   const content = getPdfElement('viewsManagerContent')
-  if (!doc || !viewsManager || !content) return null
+  if (!doc || !viewsManager || !content) {
+    annotationsSidebarTarget.value = null
+    return null
+  }
 
   let shell = doc.getElementById(PDF_EMBEDDED_SIDEBAR_SHELL_ID)
   if (!shell) {
@@ -875,6 +951,7 @@ function ensureEmbeddedSidebarShell() {
       createEmbeddedSidebarButton(doc, 'outlines', 'Outline'),
       createEmbeddedSidebarButton(doc, 'thumbnails', 'Thumbnails'),
       createEmbeddedSidebarButton(doc, 'attachments', 'Attachments'),
+      createEmbeddedSidebarButton(doc, 'annotations', 'Highlights'),
     )
 
     const action = createEmbeddedSidebarActionButton(doc)
@@ -884,6 +961,15 @@ function ensureEmbeddedSidebarShell() {
     })
     viewsManager.insertBefore(shell, content)
   }
+
+  let annotationsView = doc.getElementById(PDF_EMBEDDED_ANNOTATIONS_VIEW_ID)
+  if (!annotationsView) {
+    annotationsView = doc.createElement('div')
+    annotationsView.id = PDF_EMBEDDED_ANNOTATIONS_VIEW_ID
+    annotationsView.className = 'altals-pdf-sidebar-panel altals-pdf-sidebar-panel-annotations'
+    viewsManager.insertBefore(annotationsView, content)
+  }
+  annotationsSidebarTarget.value = annotationsView
 
   syncEmbeddedSidebarShell()
   return shell
@@ -901,6 +987,7 @@ function syncEmbeddedSidebarShell() {
       outlines: 'Outline',
       thumbnails: 'Thumbnails',
       attachments: 'Attachments',
+      annotations: 'Highlights',
     }
     const label = t(labelMap[viewKey] || 'Views')
     button.setAttribute('title', label)
@@ -918,6 +1005,23 @@ function syncEmbeddedSidebarShell() {
     action.setAttribute('aria-label', label)
     action.hidden = pdfUi.sidebarView !== 'outlines'
     action.disabled = !pdfUi.sidebarCanFocusCurrentOutline
+  }
+
+  syncEmbeddedSidebarView()
+}
+
+function syncEmbeddedSidebarView() {
+  const annotationsView = getPdfDocument()?.getElementById(PDF_EMBEDDED_ANNOTATIONS_VIEW_ID)
+  const content = getPdfElement('viewsManagerContent')
+  const showAnnotations = pdfUi.sidebarView === 'annotations'
+
+  if (annotationsView) {
+    annotationsView.hidden = !showAnnotations
+    annotationsView.setAttribute('aria-hidden', showAnnotations ? 'false' : 'true')
+  }
+  if (content) {
+    content.hidden = showAnnotations
+    content.setAttribute('aria-hidden', showAnnotations ? 'true' : 'false')
   }
 }
 
@@ -1064,29 +1168,19 @@ function syncMenuItemState(id) {
 }
 
 function syncExternalControlState() {
-  const highlightThickness = getPdfElement('editorFreeHighlightThickness')
-  const highlightShowAll = getPdfElement('editorHighlightShowAll')
   const freeTextColor = getPdfElement('editorFreeTextColor')
   const freeTextFontSize = getPdfElement('editorFreeTextFontSize')
   const inkColor = getPdfElement('editorInkColor')
   const inkThickness = getPdfElement('editorInkThickness')
   const inkOpacity = getPdfElement('editorInkOpacity')
   const stampAddImage = getPdfElement('editorStampAddImage')
-  const colorButtons = Array.from(getPdfDocument()?.querySelectorAll?.('#editorHighlightColorPicker .dropdown > button') || [])
 
-  editorParams.highlightThickness = Number(highlightThickness?.valueAsNumber || highlightThickness?.value || 12)
-  editorParams.highlightShowAll = highlightShowAll?.getAttribute?.('aria-pressed') === 'true'
   editorParams.freeTextColor = freeTextColor?.value || editorParams.freeTextColor
   editorParams.freeTextFontSize = Number(freeTextFontSize?.valueAsNumber || freeTextFontSize?.value || 10)
   editorParams.inkColor = inkColor?.value || editorParams.inkColor
   editorParams.inkThickness = Number(inkThickness?.valueAsNumber || inkThickness?.value || 1)
   editorParams.inkOpacity = Number(inkOpacity?.valueAsNumber || inkOpacity?.value || 1)
   editorParams.stampAddLabel = stampAddImage?.textContent?.trim?.() || editorParams.stampAddLabel || t('Add image')
-  highlightColorOptions.value = colorButtons.map(button => ({
-    value: String(button.getAttribute('data-color') || '').toUpperCase(),
-    label: button.getAttribute('title') || button.textContent?.trim() || '',
-    selected: button.getAttribute('aria-selected') === 'true',
-  }))
 }
 
 function resolveSidebarView(viewsManager) {
@@ -1108,6 +1202,10 @@ function resolveSidebarView(viewsManager) {
 }
 
 function syncSidebarTabState(viewKey) {
+  if (viewKey === 'annotations') {
+    sidebarTabs.annotations.disabled = false
+    return
+  }
   const buttonId = PDF_SIDEBAR_VIEW_BUTTON_IDS[viewKey]
   const element = getPdfElement(buttonId)
   if (!sidebarTabs[viewKey]) return
@@ -1211,6 +1309,17 @@ function clickPdfElement(...ids) {
 
 function activateSidebarView(viewKey) {
   markPaneActive()
+  if (viewKey === 'annotations') {
+    sidebarViewOverride = 'annotations'
+    pdfUi.sidebarView = 'annotations'
+    if (!pdfUi.sidebarOpen) {
+      clickPdfElement('viewsManagerToggleButton')
+    }
+    syncEmbeddedSidebarShell()
+    return
+  }
+
+  sidebarViewOverride = ''
   const buttonId = PDF_SIDEBAR_VIEW_BUTTON_IDS[viewKey]
   if (!buttonId || sidebarTabs[viewKey]?.disabled) return
   if (!pdfUi.sidebarOpen) {
@@ -1263,8 +1372,10 @@ function createToolbarStyleText() {
   const fgSecondary = readAppCssVar('--fg-secondary', isDark.value ? '#c7d0dc' : '#4b5563')
   const fgMuted = readAppCssVar('--fg-muted', isDark.value ? '#8b98ab' : '#6b7280')
   const accent = readAppCssVar('--accent', '#60a5fa')
+  const errorColor = readAppCssVar('--error', '#ef4444')
   const uiFontSize = readAppCssVar('--ui-font-size', '12px')
   const uiFontCaption = readAppCssVar('--ui-font-caption', '11px')
+  const uiFontMicro = readAppCssVar('--ui-font-micro', '10px')
   const shadow = isDark.value
     ? '0 10px 26px rgba(15, 23, 42, 0.32)'
     : '0 10px 26px rgba(15, 23, 42, 0.10)'
@@ -1491,6 +1602,12 @@ function createToolbarStyleText() {
         display: none !important;
       }
 
+      #editorHighlight,
+      #editorHighlightButton,
+      #editorHighlightParamsToolbar {
+        display: none !important;
+      }
+
       #viewsManager #viewsManagerContent {
         flex: 1 1 auto !important;
         min-height: 0 !important;
@@ -1572,6 +1689,11 @@ function createToolbarStyleText() {
         mask-image: url('/pdfjs-viewer/web/images/toolbarButton-viewAttachments.svg') !important;
       }
 
+      #${PDF_EMBEDDED_SIDEBAR_SHELL_ID} .altals-pdf-sidebar-tab-annotations::before {
+        -webkit-mask-image: url('/pdfjs-viewer/web/images/toolbarButton-editorHighlight.svg') !important;
+        mask-image: url('/pdfjs-viewer/web/images/toolbarButton-editorHighlight.svg') !important;
+      }
+
       #${PDF_EMBEDDED_SIDEBAR_SHELL_ID} .altals-pdf-sidebar-action::before {
         -webkit-mask-image: url('/pdfjs-viewer/web/images/toolbarButton-currentOutlineItem.svg') !important;
         mask-image: url('/pdfjs-viewer/web/images/toolbarButton-currentOutlineItem.svg') !important;
@@ -1593,6 +1715,219 @@ function createToolbarStyleText() {
       #${PDF_EMBEDDED_SIDEBAR_SHELL_ID} .altals-pdf-sidebar-action:disabled {
         opacity: 0.45 !important;
         cursor: default !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-sidebar-shell {
+        display: flex !important;
+        flex-direction: column !important;
+        position: static !important;
+        inset: auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 100% !important;
+        border-left: 0 !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        background: transparent !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-sidebar-header {
+        display: flex !important;
+        align-items: center !important;
+        min-height: 28px !important;
+        padding: 0 10px !important;
+        border-bottom: 1px solid color-mix(in srgb, ${border} 88%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-sidebar-title {
+        color: ${fgPrimary} !important;
+        font-size: ${uiFontSize} !important;
+        font-weight: 600 !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-list {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        overflow: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        padding: 10px !important;
+        box-sizing: border-box !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-empty,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-pending,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-item {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        padding: 10px !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-empty {
+        border: 1px dashed color-mix(in srgb, ${border} 85%, transparent) !important;
+        color: ${fgMuted} !important;
+        font-size: ${uiFontSize} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-empty-hint {
+        line-height: 1.4 !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-pending {
+        border: 1px solid color-mix(in srgb, ${accent} 24%, transparent) !important;
+        background: color-mix(in srgb, ${accent} 8%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-pending-label,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-page,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-open {
+        color: ${accent} !important;
+        font-size: ${uiFontCaption} !important;
+        font-weight: 600 !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-pending-quote,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-quote {
+        color: ${fgPrimary} !important;
+        font-size: ${uiFontSize} !important;
+        line-height: 1.5 !important;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-item {
+        border: 1px solid color-mix(in srgb, ${border} 84%, transparent) !important;
+        background: color-mix(in srgb, ${bgPrimary} 82%, ${bgSecondary}) !important;
+        outline: none !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-item:hover {
+        border-color: color-mix(in srgb, ${accent} 18%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-item-active {
+        border-color: color-mix(in srgb, ${accent} 36%, transparent) !important;
+        box-shadow: 0 0 0 1px color-mix(in srgb, ${accent} 14%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-item-header,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-actions,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-header,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-actions {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-date,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-meta,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-status {
+        color: ${fgMuted} !important;
+        font-size: ${uiFontMicro} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-delete {
+        padding-inline: 8px !important;
+        color: ${fgMuted} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-delete:hover,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-secondary:hover {
+        color: ${errorColor} !important;
+        background: color-mix(in srgb, ${errorColor} 8%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-note-shell {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-primary,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-note-create,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-primary,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-secondary {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 24px !important;
+        padding: 0 10px !important;
+        border-radius: 6px !important;
+        font-size: ${uiFontCaption} !important;
+        transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-primary,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-primary {
+        border: 1px solid color-mix(in srgb, ${accent} 28%, transparent) !important;
+        background: color-mix(in srgb, ${accent} 10%, transparent) !important;
+        color: ${accent} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-primary:hover,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-primary:hover,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-note-create:hover {
+        background: color-mix(in srgb, ${accent} 16%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .pdf-annotation-note-create,
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-secondary {
+        border: 1px solid color-mix(in srgb, ${border} 88%, transparent) !important;
+        background: transparent !important;
+        color: ${fgMuted} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card {
+        display: grid !important;
+        gap: 8px !important;
+        padding: 10px !important;
+        border-radius: 10px !important;
+        border: 1px solid color-mix(in srgb, ${border} 88%, transparent) !important;
+        background: color-mix(in srgb, ${bgPrimary} 86%, ${bgSecondary}) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-active {
+        border-color: color-mix(in srgb, ${accent} 24%, transparent) !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-title {
+        font-size: ${uiFontCaption} !important;
+        font-weight: 700 !important;
+        color: ${fgPrimary} !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-quote {
+        color: ${fgSecondary} !important;
+        font-size: ${uiFontCaption} !important;
+        line-height: 1.45 !important;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+      }
+
+      #${PDF_EMBEDDED_ANNOTATIONS_VIEW_ID} .research-note-card-textarea {
+        width: 100% !important;
+        min-height: 64px !important;
+        resize: vertical !important;
+        border-radius: 8px !important;
+        border: 1px solid ${border} !important;
+        background: color-mix(in srgb, ${bgPrimary} 92%, ${bgSecondary}) !important;
+        color: ${fgPrimary} !important;
+        padding: 8px 9px !important;
+        font-size: ${uiFontCaption} !important;
+        line-height: 1.45 !important;
+        box-sizing: border-box !important;
       }
 
       #viewsManager #thumbnailsView,
@@ -1913,7 +2248,8 @@ function syncPdfUi() {
   if (pdfUi.sidebarOpen) {
     sidebarEverOpened = true
   }
-  pdfUi.sidebarView = resolveSidebarView(viewsManager)
+  const resolvedSidebarView = resolveSidebarView(viewsManager)
+  pdfUi.sidebarView = sidebarViewOverride || resolvedSidebarView
   pdfUi.sidebarCanFocusCurrentOutline = !!currentOutlineButton && !currentOutlineButton.hidden && !currentOutlineButton.disabled
   if (!usingExternalToolbar.value) {
     pdfUi.searchOpen = !!findbar && !findbar.classList.contains('hidden')
@@ -1940,7 +2276,6 @@ function syncPdfUi() {
     scaleOptions.value = []
   }
 
-  syncToolbarButtonState('editorHighlightButton')
   syncToolbarButtonState('editorFreeTextButton')
   syncToolbarButtonState('editorInkButton')
   syncToolbarButtonState('editorStampButton')
@@ -1969,6 +2304,7 @@ function syncPdfUi() {
   syncSidebarTabState('thumbnails')
   syncSidebarTabState('outlines')
   syncSidebarTabState('attachments')
+  syncSidebarTabState('annotations')
   syncSidebarTabState('layers')
   maybeResolveInitialSidebarViewPreference()
   syncExternalControlState()
@@ -2130,18 +2466,6 @@ function setPdfInputValue(id, value, eventName = 'input') {
   syncPdfUi()
 }
 
-function setHighlightColor(color) {
-  const targetColor = String(color || '').toUpperCase()
-  const button = getPdfDocument()?.querySelector?.(`#editorHighlightColorPicker .dropdown > button[data-color="${targetColor}"]`)
-  button?.click?.()
-  syncPdfUi()
-}
-
-function toggleHighlightShowAll() {
-  getPdfElement('editorHighlightShowAll')?.click?.()
-  syncPdfUi()
-}
-
 function runToolMenuCommand(id) {
   getPdfElement(id)?.click?.()
   syncPdfUi()
@@ -2149,11 +2473,18 @@ function runToolMenuCommand(id) {
 }
 
 function handleIframePointerDown() {
+  closePdfContextMenu()
   closeSearch()
   activeToolbarPanel.value = ''
 }
 
 function handleGlobalPointerDown(event) {
+  if (pdfContextMenu.show) {
+    const target = event.target
+    if (!(target instanceof Element) || !target.closest('.pdf-context-menu')) {
+      closePdfContextMenu()
+    }
+  }
   const toolbarShell = toolbarShellRef.value
   if (!toolbarShell) return
   if (toolbarShell.contains(event.target)) return
@@ -2401,8 +2732,103 @@ function handleViewerMouseUp() {
   })
 }
 
+function getViewerSelectedText() {
+  return normalizeSelectionText(getViewerSelection()?.toString?.() || '')
+}
+
+function handleViewerContextMenu(event) {
+  try {
+    event.preventDefault()
+    event.stopPropagation()
+  } catch {}
+
+  capturePendingSelection(false)
+  const iframeRect = iframeRef.value?.getBoundingClientRect?.()
+  if (!iframeRect) return
+
+  pdfContextMenu.x = iframeRect.left + Number(event.clientX || 0)
+  pdfContextMenu.y = iframeRect.top + Number(event.clientY || 0)
+  pdfContextMenu.selectedText = getViewerSelectedText()
+  pdfContextMenu.hasPendingSelection = !!pendingSelection.value
+  pdfContextMenu.show = true
+}
+
 function openAnnotationsPanel() {
-  annotationsOpen.value = true
+  activateSidebarView('annotations')
+}
+
+function openAnnotationsPanelFromMenu() {
+  closePdfContextMenu()
+  openAnnotationsPanel()
+}
+
+function runPdfContextCommand(action) {
+  closePdfContextMenu()
+  action?.()
+}
+
+function toggleSidebarFromContextMenu() {
+  runPdfContextCommand(toggleSidebar)
+}
+
+function openSearchFromContextMenu() {
+  closePdfContextMenu()
+  openSearch()
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text || '').trim()
+  if (!value) return
+
+  try {
+    await navigator.clipboard.writeText(value)
+    return
+  } catch {}
+
+  if (typeof document === 'undefined') return
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    document.execCommand('copy')
+  } finally {
+    textarea.remove()
+  }
+}
+
+async function copyPdfSelection() {
+  const text = pdfContextMenu.selectedText || getViewerSelectedText()
+  closePdfContextMenu()
+  await copyTextToClipboard(text)
+}
+
+function searchPdfQuery(query) {
+  const text = String(query || '').trim()
+  if (!text) return
+  closePdfContextMenu()
+  searchDraft.value = text
+  pdfUi.searchQuery = text
+  openSearch()
+  nextTick(() => {
+    dispatchExternalSearch()
+  })
+}
+
+function searchSelectedTextInPdf() {
+  searchPdfQuery(pendingSelection.value?.quote || pdfContextMenu.selectedText)
+}
+
+async function createAnnotationFromContextMenu() {
+  closePdfContextMenu()
+  if (!pendingSelection.value) {
+    capturePendingSelection(false)
+  }
+  await createAnnotationFromSelection()
 }
 
 function showSyncHighlight(pageNumber, x, y) {
@@ -2747,6 +3173,7 @@ async function onIframeLoad() {
       doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
       doc.addEventListener('selectionchange', handleViewerSelectionChange)
+      doc.addEventListener('contextmenu', handleViewerContextMenu)
       app.eventBus?._on?.('outlineloaded', () => {
         maybeResolveInitialSidebarViewPreference()
       })
@@ -2772,6 +3199,12 @@ async function onIframeLoad() {
         if ((event.metaKey || event.ctrlKey) && String(event.key || '').toLowerCase() === 'f') {
           event.preventDefault()
           openSearch()
+          return
+        }
+
+        if (event.key === 'Escape' && pdfContextMenu.show) {
+          event.preventDefault()
+          closePdfContextMenu()
           return
         }
 
@@ -2855,6 +3288,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   loadRequestId += 1
+  annotationsSidebarTarget.value = null
+  sidebarViewOverride = ''
   window.removeEventListener('pdf-updated', handlePdfUpdated)
   document.removeEventListener('pointerdown', handleGlobalPointerDown, true)
   clearSyncTimer()
@@ -3140,6 +3575,8 @@ defineExpose({
 .pdf-toolbar-popover-menu {
   width: max-content;
   min-width: 220px;
+  gap: 2px;
+  padding: 6px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   scrollbar-width: none;
@@ -3215,13 +3652,14 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   width: 100%;
-  min-height: 26px;
-  padding: 0 10px;
+  min-height: 22px;
+  padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--fg-primary);
   font-size: var(--ui-font-caption);
+  line-height: 1.15;
   text-align: left;
   white-space: nowrap;
 }
@@ -3244,6 +3682,7 @@ defineExpose({
 .pdf-toolbar-menu-separator {
   width: 100%;
   height: 1px;
+  margin: 4px 0;
   background: color-mix(in srgb, var(--border) 88%, transparent);
 }
 
@@ -3331,6 +3770,23 @@ defineExpose({
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.pdf-context-menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.pdf-context-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pdf-context-menu-item:disabled:hover {
+  background: transparent !important;
+  color: var(--fg-muted) !important;
+}
+
 .pdf-annotation-sidebar-shell {
   display: flex;
   flex-direction: column;
@@ -3344,22 +3800,6 @@ defineExpose({
   box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
   z-index: 12;
   backdrop-filter: blur(10px);
-}
-
-.pdf-annotation-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.pdf-annotation-sidebar-title {
-  color: var(--fg-primary);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .pdf-annotation-list {
@@ -3482,17 +3922,6 @@ defineExpose({
 
 .pdf-annotation-note-create:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.pdf-annotation-overlay-enter-active,
-.pdf-annotation-overlay-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-
-.pdf-annotation-overlay-enter-from,
-.pdf-annotation-overlay-leave-to {
-  opacity: 0;
-  transform: translateX(10px);
 }
 
 @media (max-width: 880px) {
