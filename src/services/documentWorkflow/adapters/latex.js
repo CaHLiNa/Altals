@@ -1,5 +1,7 @@
 import { isLatex } from '../../../utils/fileTypes.js'
 import { ensureLatexCompileReady } from '../../environmentPreflight.js'
+import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
+import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
 function formatCompileDuration(state = {}, t = (value) => value) {
   if (state?.status === 'compiling') return t('Compiling...')
@@ -16,8 +18,8 @@ export function buildLatexWorkflowProblems(sourcePath, state = {}) {
 
   return [
     ...errors.map((problem, index) => ({
-      id: `latex:error:${sourcePath}:${index}`,
-      sourcePath,
+      id: `latex:error:${problem.file || sourcePath}:${index}`,
+      sourcePath: problem.file || sourcePath,
       line: problem.line ?? null,
       column: problem.column ?? null,
       severity: 'error',
@@ -27,8 +29,8 @@ export function buildLatexWorkflowProblems(sourcePath, state = {}) {
       raw: problem.raw || problem.message || '',
     })),
     ...warnings.map((problem, index) => ({
-      id: `latex:warning:${sourcePath}:${index}`,
-      sourcePath,
+      id: `latex:warning:${problem.file || sourcePath}:${index}`,
+      sourcePath: problem.file || sourcePath,
       line: problem.line ?? null,
       column: problem.column ?? null,
       severity: 'warning',
@@ -70,7 +72,7 @@ const latexPreviewAdapter = {
 
   createPath(sourcePath, previewKind) {
     if (!sourcePath || previewKind !== 'pdf') return null
-    return sourcePath.replace(/\.(tex|latex)$/i, '.pdf')
+    return resolveCachedLatexPreviewPath(sourcePath)
   },
 
   inferKind(sourcePath, previewPath) {
@@ -157,13 +159,26 @@ export const latexDocumentAdapter = {
   compile: latexCompileAdapter,
 
   getProblems(filePath, context = {}) {
-    return latexCompileAdapter.getDiagnostics(filePath, context)
+    const lintDiagnostics = context.latexStore?.lintDiagnosticsForFile(filePath) || []
+    return [
+      ...latexCompileAdapter.getDiagnostics(filePath, context),
+      ...buildLatexProjectProblemsSync(filePath),
+      ...buildLatexLintProblems(filePath, lintDiagnostics),
+    ]
   },
 
   getUiState(filePath, context = {}) {
-    return buildLatexWorkflowUiState(
-      latexCompileAdapter.stateForFile(filePath, context) || {},
-      { previewAvailable: !!context.previewAvailable },
-    )
+    const problems = this.getProblems(filePath, context)
+    const errorCount = problems.filter(problem => problem.severity === 'error').length
+    const warningCount = problems.filter(problem => problem.severity === 'warning').length
+    return {
+      ...buildLatexWorkflowUiState(
+        latexCompileAdapter.stateForFile(filePath, context) || {},
+        { previewAvailable: !!context.previewAvailable },
+      ),
+      errorCount,
+      warningCount,
+      canShowProblems: errorCount > 0 || warningCount > 0,
+    }
   },
 }

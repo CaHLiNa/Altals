@@ -46,6 +46,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useLinksStore, parseHeadings } from '../../stores/links'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
 import { parseTypstOutlineItems } from '../../editor/typstDocument.js'
@@ -54,6 +55,7 @@ import {
   subscribeTinymistStatus,
 } from '../../services/tinymist/session'
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
+import { buildLatexOutlineItems } from '../../services/latex/outline'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -65,14 +67,18 @@ defineEmits(['toggle-collapse'])
 
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
+const workspaceStore = useWorkspaceStore()
 const linksStore = useLinksStore()
 const { t } = useI18n()
 const tinymistAvailable = ref(false)
 const tinymistOutlineItems = ref([])
 const tinymistOutlineLoaded = ref(false)
+const latexOutlineItems = ref([])
+const latexOutlineLoaded = ref(false)
 
 let cleanupTinymistStatus = null
 let cleanupTinymistSymbols = null
+let latexOutlineRequestId = 0
 
 // Determine if active file supports outline
 // Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
@@ -119,6 +125,37 @@ function bindTinymistOutline(path) {
   })
 }
 
+function resetLatexOutline() {
+  latexOutlineLoaded.value = false
+  latexOutlineItems.value = []
+}
+
+async function loadLatexOutline(path) {
+  const requestId = ++latexOutlineRequestId
+  resetLatexOutline()
+  if (!path) return
+
+  try {
+    const items = await buildLatexOutlineItems(path, {
+      filesStore,
+      workspacePath: workspaceStore.path,
+      contentOverrides: {
+        [path]: currentDocumentText(path),
+      },
+    })
+    if (latexOutlineRequestId !== requestId) return
+    latexOutlineItems.value = items
+  } catch (error) {
+    if (latexOutlineRequestId !== requestId) return
+    console.warn('[outline] failed to build LaTeX outline:', error)
+    latexOutlineItems.value = []
+  } finally {
+    if (latexOutlineRequestId === requestId) {
+      latexOutlineLoaded.value = true
+    }
+  }
+}
+
 // Extract headings based on file type
 const outlineItems = computed(() => {
   const path = activeFile.value
@@ -137,6 +174,9 @@ const outlineItems = computed(() => {
   }
 
   if (ft === 'latex') {
+    if (latexOutlineLoaded.value) {
+      return latexOutlineItems.value
+    }
     const content = filesStore.fileContents[path]
     if (!content) return []
     return parseLatexHeadings(content)
@@ -169,6 +209,8 @@ const activeOutlineIndex = computed(() => {
 
   let lastIdx = -1
   for (let i = 0; i < outlineItems.value.length; i++) {
+    const itemPath = outlineItems.value[i].filePath || activeFile.value
+    if (itemPath !== activeFile.value) continue
     if (outlineItems.value[i].offset <= offset) {
       lastIdx = i
     } else {
@@ -227,26 +269,33 @@ function parseNotebookHeadings(content) {
 
 // --- Navigation ---
 
+function focusTextOffset(path, offset, attempts = 0) {
+  const targetView = editorStore.getAnyEditorView(path)
+  if (!targetView) {
+    if (attempts < 20) {
+      window.setTimeout(() => focusTextOffset(path, offset, attempts + 1), 40)
+    }
+    return
+  }
+
+  const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
+  targetView.dispatch({
+    selection: { anchor: pos },
+    scrollIntoView: true,
+  })
+  targetView.focus()
+}
+
 function navigateToOutlineItem(item) {
   const path = activeFile.value
   if (!path) return
 
   const ft = fileType.value
+  const targetPath = item.filePath || path
 
   if (ft === 'markdown' || ft === 'latex' || ft === 'typst') {
-    // Find CM6 editor view for the active pane
-    const view = editorStore.getEditorView(editorStore.activePaneId, path)
-    if (!view) return
-    const pos = Math.min(item.offset, view.state.doc.length)
-    view.dispatch({
-      selection: { anchor: pos },
-      effects: [
-        // Scroll the heading into view
-        ...(view.scrollIntoView ? [] : []),
-      ],
-      scrollIntoView: true,
-    })
-    view.focus()
+    editorStore.openFileInPane(targetPath, editorStore.activePaneId, { activatePane: true })
+    focusTextOffset(targetPath, item.offset)
   }
 
   if (ft === 'notebook') {
@@ -261,6 +310,7 @@ function navigateToOutlineItem(item) {
 function getOutlineKindLabel(kind) {
   if (kind === 'figure') return 'Fig'
   if (kind === 'table') return 'Tbl'
+  if (kind === 'appendix') return 'Appx'
   if (kind === 'label') return 'Lbl'
   return ''
 }
@@ -275,10 +325,21 @@ onMounted(() => {
 })
 
 watch(
-  () => [activeFile.value, fileType.value],
+  () => [activeFile.value, fileType.value, filesStore.fileContents[activeFile.value || ''] || '', workspaceStore.path],
   ([path, ft]) => {
     if (ft === 'typst') {
       bindTinymistOutline(path)
+      resetLatexOutline()
+      return
+    }
+
+    if (ft === 'latex') {
+      if (cleanupTinymistSymbols) {
+        cleanupTinymistSymbols()
+        cleanupTinymistSymbols = null
+      }
+      resetTinymistOutline()
+      void loadLatexOutline(path)
       return
     }
 
@@ -287,6 +348,7 @@ watch(
       cleanupTinymistSymbols = null
     }
     resetTinymistOutline()
+    resetLatexOutline()
   },
   { immediate: true },
 )

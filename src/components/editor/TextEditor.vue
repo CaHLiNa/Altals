@@ -20,7 +20,7 @@
     :file-path="props.filePath"
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
-    :show-format-document="isTyp && typstUi.tinymistActive"
+    :show-format-document="isTex || (isTyp && typstUi.tinymistActive)"
     @close="ctxMenu.show = false"
     @format-document="handleFormatDocument"
   />
@@ -71,7 +71,8 @@ import { useTypstStore } from '../../stores/typst'
 import { isMarkdown, isLatex, isTypst, isRunnable, getLanguage, isRmdOrQmd } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { latexCitationsExtension } from '../../editor/latexCitations'
-import { latexCommandCompletionSource } from '../../editor/latexAutocomplete'
+import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
+import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
 import {
   supportsTinymistTypstEditor as supportsTypstEditorSupport,
   createTinymistTypstEditorExtensions as createTypstEditorSupport,
@@ -298,10 +299,38 @@ function onContextMenu(e) {
 }
 
 async function handleFormatDocument() {
-  if (!isTyp || !view) return
+  if (!view || (!isTyp && !isTex)) return
 
-  if (!typstUi.tinymistActive) {
-    toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
+  if (isTyp) {
+    if (!typstUi.tinymistActive) {
+      toastStore.showOnce('tinymist-format-unavailable', t('Tinymist is not available for formatting.'), {
+        type: 'error',
+        duration: 4000,
+      }, 5000)
+      return
+    }
+
+    try {
+      const edits = await requestTinymistFormatting(props.filePath, {
+        tabSize: 2,
+        insertSpaces: true,
+      })
+      if (!Array.isArray(edits) || edits.length === 0) return
+      applyTinymistTextEdits(view, edits)
+    } catch (error) {
+      toastStore.showOnce('tinymist-format-failed', t('Typst formatting failed: {error}', {
+        error: error?.message || String(error || ''),
+      }), {
+        type: 'error',
+        duration: 5000,
+      }, 3000)
+    }
+    return
+  }
+
+  if (!latexStore.hasLatexFormatter) {
+    void latexStore.checkTools().catch(() => {})
+    toastStore.showOnce('latex-format-unavailable', t('LaTeX formatter is not available.'), {
       type: 'error',
       duration: 4000,
     }, 5000)
@@ -309,14 +338,17 @@ async function handleFormatDocument() {
   }
 
   try {
-    const edits = await requestTinymistFormatting(props.filePath, {
-      tabSize: 2,
-      insertSpaces: true,
+    const formatted = await latexStore.formatDocument(props.filePath, view.state.doc.toString())
+    if (typeof formatted !== 'string' || formatted === view.state.doc.toString()) return
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: formatted,
+      },
     })
-    if (!Array.isArray(edits) || edits.length === 0) return
-    applyTinymistTextEdits(view, edits)
   } catch (error) {
-    toastStore.showOnce('tinymist-format-failed', t('Typst formatting failed: {error}', {
+    toastStore.showOnce('latex-format-failed', t('LaTeX formatting failed: {error}', {
       error: error?.message || String(error || ''),
     }), {
       type: 'error',
@@ -368,6 +400,17 @@ onMounted(async () => {
     return
   }
   if (content === null) content = ''
+  if (isTex) {
+    void latexStore.checkTools().catch(() => {})
+    void latexStore.refreshLint(props.filePath, {
+      sourceContent: content,
+    }).catch(() => {})
+    void resolveLatexProjectGraph(props.filePath, {
+      filesStore: files,
+      referencesStore,
+      workspacePath: workspace.path,
+    })
+  }
 
   // Load language
   const langExt = await loadLanguageExtension()
@@ -725,8 +768,12 @@ onMounted(async () => {
     })
     extraExtensions.push(...latexCitations.extensions)
 
-    // LaTeX command autocomplete (citations now use palette)
-    completionSources.push(latexCommandCompletionSource)
+    completionSources.push(createLatexCompletionSource({
+      filePath: props.filePath,
+      filesStore: files,
+      referencesStore,
+      workspacePath: workspace.path,
+    }))
 
     extraExtensions.push(autocompletion({
       override: completionSources,
@@ -734,6 +781,23 @@ onMounted(async () => {
       activateOnTypingDelay: 0,
       defaultKeymap: true,
     }))
+
+    extraExtensions.push(Prec.highest(keymap.of([
+      {
+        key: 'Mod-Shift-f',
+        run: () => {
+          void handleFormatDocument()
+          return true
+        },
+      },
+      {
+        key: 'Shift-Alt-f',
+        run: () => {
+          void handleFormatDocument()
+          return true
+        },
+      },
+    ])))
   }
 
   // Typst-only extensions
@@ -767,8 +831,12 @@ onMounted(async () => {
     wrapColumn: workspace.wrapColumn,
     languageExtension: langExt,
     onSave: (content) => {
-      files.saveFile(props.filePath, content)
-      if (isTex) latexStore.scheduleAutoCompile(props.filePath)
+      void files.saveFile(props.filePath, content)
+      if (isTex) {
+        void latexStore.scheduleAutoCompile(props.filePath, {
+          sourceContent: content,
+        })
+      }
     },
     onCursorChange: (pos) => {
       emit('cursor-change', pos)

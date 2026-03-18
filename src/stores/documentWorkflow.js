@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { useEditorStore } from './editor.js'
 import { useLatexStore } from './latex.js'
 import { useTypstStore } from './typst.js'
+import { useFilesStore } from './files.js'
+import { useReferencesStore } from './references.js'
+import { useWorkspaceStore } from './workspace.js'
 import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
@@ -45,12 +48,20 @@ function readPrefs() {
 
 function buildAdapterContext(workflowStore, filePath) {
   const adapter = getDocumentAdapterForWorkflow(filePath)
+  const filesStore = useFilesStore()
+  const referencesStore = useReferencesStore()
+  const workspace = useWorkspaceStore()
+  const editorStore = useEditorStore()
   if (!adapter) {
     return {
       adapter: null,
       workflowStore,
       latexStore: null,
       typstStore: null,
+      editorStore,
+      filesStore,
+      referencesStore,
+      workspace,
       previewKind: null,
       previewAvailable: false,
     }
@@ -65,6 +76,10 @@ function buildAdapterContext(workflowStore, filePath) {
     workflowStore,
     latexStore: useLatexStore(),
     typstStore: useTypstStore(),
+    editorStore,
+    filesStore,
+    referencesStore,
+    workspace,
     previewKind,
     previewAvailable: workflowStore.hasPreviewForSource(filePath, previewKind),
   }

@@ -147,6 +147,24 @@
 
     <div class="env-lang-card">
       <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexStore.autoCompile ? 'good' : 'warn'"></span>
+        <span class="env-lang-name">{{ t('Compile on save') }}</span>
+        <span class="env-lang-version">{{ latexStore.autoCompile ? t('Enabled') : t('Disabled') }}</span>
+      </div>
+      <div class="env-action-row env-action-row-between">
+        <span class="env-toggle-copy">{{ t('Automatically compile the resolved root document after saving a LaTeX file.') }}</span>
+        <button
+          class="tool-toggle-switch"
+          :class="{ on: latexStore.autoCompile }"
+          @click="latexStore.setAutoCompile(!latexStore.autoCompile)"
+        >
+          <span class="tool-toggle-knob"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
         <span class="env-lang-dot" :class="latexStore.systemTexInstalled ? 'good' : 'none'"></span>
         <span class="env-lang-name">{{ t('System TeX') }}</span>
         <span v-if="latexStore.systemTexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
@@ -206,6 +224,39 @@
         <button class="env-install-btn env-install-btn-inline" @click="latexStore.downloadTectonic()">
           {{ t('Retry') }}
         </button>
+      </div>
+    </div>
+
+    <h3 class="settings-section-title env-section-offset">{{ t('LaTeX Tools') }}</h3>
+    <p class="settings-hint">{{ t('Optional LaTeX utilities for linting and formatting.') }}</p>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexStore.chktexInstalled ? 'good' : 'none'"></span>
+        <span class="env-lang-name">ChkTeX</span>
+        <span v-if="latexStore.chktexInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+      </div>
+      <div v-if="latexStore.chktexInstalled" class="env-lang-details">
+        <div class="env-lang-path">{{ latexStore.chktexPath }}</div>
+      </div>
+      <div class="env-lang-hint env-hint-inline">
+        {{ t('Lint your LaTeX files for common mistakes and style issues.') }}
+      </div>
+    </div>
+
+    <div class="env-lang-card">
+      <div class="env-lang-header">
+        <span class="env-lang-dot" :class="latexStore.latexindentInstalled ? 'good' : 'none'"></span>
+        <span class="env-lang-name">latexindent</span>
+        <span v-if="latexStore.latexindentInstalled" class="env-lang-version">{{ t('Installed') }}</span>
+        <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
+      </div>
+      <div v-if="latexStore.latexindentInstalled" class="env-lang-details">
+        <div class="env-lang-path">{{ latexStore.latexindentPath }}</div>
+      </div>
+      <div class="env-lang-hint env-hint-inline">
+        {{ t('Format LaTeX documents with the standard latexindent tool.') }}
       </div>
     </div>
 
@@ -397,6 +448,7 @@ async function redetectSystem() {
   await Promise.all([
     envStore.detect(true),
     latexStore.checkCompilers(true),
+    latexStore.checkTools(true),
     typstStore.checkCompiler(true),
     tinymistStore.checkBinary(true),
   ])
@@ -425,6 +477,7 @@ function warmSystemChecks() {
   scheduleAfterFirstPaint(() => Promise.all([
     envStore.detect(),
     latexStore.checkCompilers(),
+    latexStore.checkTools(),
     typstStore.checkCompiler(),
     tinymistStore.checkBinary(),
   ]))
@@ -735,12 +788,22 @@ onMounted(() => {
   margin-top: 10px;
 }
 
+.env-action-row-between {
+  justify-content: space-between;
+}
+
 .env-action-row-stack {
   align-items: stretch;
 }
 
 .env-input-shell-grow {
   flex: 1;
+}
+
+.env-toggle-copy {
+  font-size: var(--ui-font-caption);
+  color: var(--fg-secondary);
+  line-height: 1.5;
 }
 
 .tectonic-progress-bar {

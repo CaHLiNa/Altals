@@ -1,4 +1,5 @@
 use futures_util::StreamExt;
+use regex_lite::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
@@ -6,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::app_dirs;
 use crate::process_utils::{background_command, background_tokio_command};
@@ -27,9 +28,12 @@ impl Default for LatexState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LatexError {
+    pub file: Option<String>,
     pub line: Option<u32>,
+    pub column: Option<u32>,
     pub message: String,
     pub severity: String, // "error" or "warning"
+    pub raw: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +81,13 @@ pub struct BinaryStatus {
 pub struct LatexCompilerStatus {
     pub tectonic: BinaryStatus,
     pub system_tex: BinaryStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexToolStatus {
+    pub chktex: BinaryStatus,
+    pub latexindent: BinaryStatus,
 }
 
 fn altals_bin_dir() -> Option<PathBuf> {
@@ -210,6 +221,130 @@ fn find_system_tex(custom_path: Option<&str>) -> Option<String> {
     None
 }
 
+fn find_chktex(custom_system_tex_path: Option<&str>) -> Option<String> {
+    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
+        if let Some(parent) = Path::new(system_tex_path).parent() {
+            for binary_name in ["chktex", "chktex.exe"] {
+                let sibling = parent.join(binary_name);
+                if sibling.exists() {
+                    return Some(sibling.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        let candidates = [
+            "/Library/TeX/texbin/chktex",
+            "/opt/homebrew/bin/chktex",
+            "/usr/local/bin/chktex",
+            "/usr/bin/chktex",
+        ];
+        for path in &candidates {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+
+        let output = background_command("/bin/bash")
+            .args(["-lc", "which chktex"])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let output = background_command("where").arg("chktex").output().ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+fn find_latexindent(custom_system_tex_path: Option<&str>) -> Option<String> {
+    if let Some(system_tex_path) = custom_system_tex_path.filter(|value| !value.trim().is_empty()) {
+        if let Some(parent) = Path::new(system_tex_path).parent() {
+            for binary_name in [
+                "latexindent",
+                "latexindent.pl",
+                "latexindent.exe",
+                "latexindent.cmd",
+            ] {
+                let sibling = parent.join(binary_name);
+                if sibling.exists() {
+                    return Some(sibling.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        let candidates = [
+            "/Library/TeX/texbin/latexindent",
+            "/Library/TeX/texbin/latexindent.pl",
+            "/opt/homebrew/bin/latexindent",
+            "/opt/homebrew/bin/latexindent.pl",
+            "/usr/local/bin/latexindent",
+            "/usr/local/bin/latexindent.pl",
+            "/usr/bin/latexindent",
+            "/usr/bin/latexindent.pl",
+        ];
+        for path in &candidates {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+
+        let output = background_command("/bin/bash")
+            .args(["-lc", "which latexindent || which latexindent.pl"])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let output = background_command("where")
+            .args(["latexindent", "latexindent.pl", "latexindent.exe", "latexindent.cmd"])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 fn synctex_binary_name() -> &'static str {
     if cfg!(target_os = "windows") {
         "synctex.exe"
@@ -275,36 +410,53 @@ fn find_synctex(custom_system_tex_path: Option<&str>) -> Option<String> {
 fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
+    let undefined_ref_re =
+        Regex::new(r#"^LaTeX Warning: (Reference|Citation) `([^']+)' .* input line (\d+)\.$"#).ok();
+    let package_warning_re =
+        Regex::new(r#"^(Package|Class) .+ Warning: .+ on input line (\d+)\.?$"#).ok();
+    let generic_line_re = Regex::new(r"\bline (\d+)\b").ok();
 
     for line in output.lines() {
         let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
 
         // Tectonic error format: "error: ..." or specific TeX errors
         if trimmed.starts_with("error:") {
             let msg = trimmed.strip_prefix("error:").unwrap_or(trimmed).trim();
             let (line_num, message) = extract_line_number(msg);
-            errors.push(LatexError {
-                line: line_num,
-                message: message.to_string(),
-                severity: "error".to_string(),
-            });
+            errors.push(make_latex_issue(
+                None,
+                line_num,
+                None,
+                message,
+                "error",
+                Some(trimmed.to_string()),
+            ));
         } else if trimmed.starts_with("warning:") {
             let msg = trimmed.strip_prefix("warning:").unwrap_or(trimmed).trim();
             let (line_num, message) = extract_line_number(msg);
-            warnings.push(LatexError {
-                line: line_num,
-                message: message.to_string(),
-                severity: "warning".to_string(),
-            });
+            warnings.push(make_latex_issue(
+                None,
+                line_num,
+                None,
+                message,
+                "warning",
+                Some(trimmed.to_string()),
+            ));
         }
         // TeX error format: "! Undefined control sequence." or "! Missing $ inserted."
         else if trimmed.starts_with('!') {
             let msg = trimmed.strip_prefix('!').unwrap_or(trimmed).trim();
-            errors.push(LatexError {
-                line: None,
-                message: msg.to_string(),
-                severity: "error".to_string(),
-            });
+            errors.push(make_latex_issue(
+                None,
+                None,
+                None,
+                msg,
+                "error",
+                Some(trimmed.to_string()),
+            ));
         }
         // Line number format: "l.42 ..."
         else if trimmed.starts_with("l.") {
@@ -316,17 +468,34 @@ fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
                         if last.line.is_none() {
                             last.line = Some(line_num);
                         }
+                        if last.raw.is_none() {
+                            last.raw = Some(trimmed.to_string());
+                        }
                     }
                 }
             }
         }
+        // file-line-column-error format: ./main.tex:42:13: Undefined control sequence.
+        else if let Some((file, line_num, column, message)) = extract_file_line_col_error(trimmed) {
+            errors.push(make_latex_issue(
+                Some(file),
+                Some(line_num),
+                Some(column),
+                message,
+                "error",
+                Some(trimmed.to_string()),
+            ));
+        }
         // latexmk/file-line-error format: ./main.tex:42: Undefined control sequence.
-        else if let Some((line_num, message)) = extract_file_line_error(trimmed) {
-            errors.push(LatexError {
-                line: Some(line_num),
-                message: message.to_string(),
-                severity: "error".to_string(),
-            });
+        else if let Some((file, line_num, message)) = extract_file_line_error(trimmed) {
+            errors.push(make_latex_issue(
+                Some(file),
+                Some(line_num),
+                None,
+                message,
+                "error",
+                Some(trimmed.to_string()),
+            ));
         } else if trimmed.contains("LaTeX Warning:")
             || (trimmed.starts_with("Package ") && trimmed.contains(" Warning:"))
             || (trimmed.starts_with("Class ") && trimmed.contains(" Warning:"))
@@ -335,24 +504,74 @@ fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexError>) {
             || trimmed.contains("undefined references")
             || trimmed.contains("Label(s) may have changed")
         {
-            warnings.push(LatexError {
-                line: None,
-                message: trimmed.to_string(),
-                severity: "warning".to_string(),
-            });
+            let mut line_num = extract_line_number_from_warning(trimmed, generic_line_re.as_ref());
+            if line_num.is_none() {
+                if let Some(re) = undefined_ref_re.as_ref() {
+                    line_num = re
+                        .captures(trimmed)
+                        .and_then(|captures| captures.get(3))
+                        .and_then(|value| value.as_str().parse::<u32>().ok());
+                }
+            }
+            if line_num.is_none() {
+                if let Some(re) = package_warning_re.as_ref() {
+                    line_num = re
+                        .captures(trimmed)
+                        .and_then(|captures| captures.get(2))
+                        .and_then(|value| value.as_str().parse::<u32>().ok());
+                }
+            }
+            warnings.push(make_latex_issue(
+                None,
+                line_num,
+                None,
+                trimmed,
+                "warning",
+                Some(trimmed.to_string()),
+            ));
         }
     }
 
     (errors, warnings)
 }
 
-fn extract_file_line_error(line: &str) -> Option<(u32, &str)> {
+fn make_latex_issue(
+    file: Option<String>,
+    line: Option<u32>,
+    column: Option<u32>,
+    message: impl Into<String>,
+    severity: &str,
+    raw: Option<String>,
+) -> LatexError {
+    LatexError {
+        file,
+        line,
+        column,
+        message: message.into(),
+        severity: severity.to_string(),
+        raw,
+    }
+}
+
+fn extract_file_line_col_error(line: &str) -> Option<(String, u32, u32, &str)> {
+    let parts: Vec<&str> = line.splitn(4, ':').collect();
+    if parts.len() < 4 {
+        return None;
+    }
+    let file = parts[0].trim();
+    let line_num = parts[1].trim().parse::<u32>().ok()?;
+    let column = parts[2].trim().parse::<u32>().ok()?;
+    Some((file.to_string(), line_num, column, parts[3].trim()))
+}
+
+fn extract_file_line_error(line: &str) -> Option<(String, u32, &str)> {
     let parts: Vec<&str> = line.splitn(3, ':').collect();
     if parts.len() < 3 {
         return None;
     }
+    let file = parts[0].trim();
     let line_num = parts[1].trim().parse::<u32>().ok()?;
-    Some((line_num, parts[2].trim()))
+    Some((file.to_string(), line_num, parts[2].trim()))
 }
 
 fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
@@ -365,6 +584,149 @@ fn extract_line_number(msg: &str) -> (Option<u32>, &str) {
         }
     }
     (None, msg)
+}
+
+fn extract_line_number_from_warning(msg: &str, generic_line_re: Option<&Regex>) -> Option<u32> {
+    if let Some((line, _)) = extract_overfull_underfull_range(msg) {
+        return Some(line);
+    }
+    if let Some(re) = generic_line_re {
+        if let Some(captures) = re.captures(msg) {
+            return captures
+                .get(1)
+                .and_then(|value| value.as_str().parse::<u32>().ok());
+        }
+    }
+    None
+}
+
+fn extract_overfull_underfull_range(msg: &str) -> Option<(u32, u32)> {
+    if let Some(index) = msg.find("lines ") {
+        let after = &msg[index + 6..];
+        let parts: Vec<&str> = after.split("--").collect();
+        if parts.len() >= 2 {
+            let start = parts[0].trim().parse::<u32>().ok()?;
+            let end_digits: String = parts[1]
+                .chars()
+                .take_while(|ch| ch.is_ascii_digit())
+                .collect();
+            let end = end_digits.parse::<u32>().ok()?;
+            return Some((start, end));
+        }
+    }
+    if let Some(index) = msg.find("line ") {
+        let after = &msg[index + 5..];
+        let digits: String = after
+            .chars()
+            .take_while(|ch| ch.is_ascii_digit())
+            .collect();
+        if let Ok(line_num) = digits.parse::<u32>() {
+            return Some((line_num, line_num));
+        }
+    }
+    None
+}
+
+fn parse_chktex_output(output: &str) -> Vec<LatexError> {
+    let mut diagnostics = Vec::new();
+
+    for raw_line in output.lines() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = trimmed.split('\u{1f}').collect();
+        if parts.len() < 6 {
+            continue;
+        }
+
+        let file = parts[0].trim();
+        let line = parts[1].trim().parse::<u32>().ok();
+        let column = parts[2].trim().parse::<u32>().ok();
+        let kind = parts[3].trim();
+        let code = parts[4].trim();
+        let message = parts[5].trim();
+
+        let severity = if kind.eq_ignore_ascii_case("error") {
+            "error"
+        } else {
+            "warning"
+        };
+
+        let formatted_message = if code.is_empty() {
+            format!("ChkTeX: {}", message)
+        } else {
+            format!("ChkTeX {}: {}", code, message)
+        };
+
+        diagnostics.push(make_latex_issue(
+            if file.is_empty() {
+                None
+            } else {
+                Some(file.to_string())
+            },
+            line,
+            column,
+            formatted_message,
+            severity,
+            Some(trimmed.to_string()),
+        ));
+    }
+
+    diagnostics
+}
+
+async fn read_or_use_source_content(
+    tex_path: &str,
+    content: Option<String>,
+) -> Result<String, String> {
+    if let Some(content) = content {
+        return Ok(content);
+    }
+    tokio::fs::read_to_string(tex_path)
+        .await
+        .map_err(|e| format!("Failed to read LaTeX source: {}", e))
+}
+
+fn latexindent_null_path() -> &'static str {
+    if cfg!(windows) {
+        "NUL"
+    } else {
+        "/dev/null"
+    }
+}
+
+async fn run_command_with_stdin(
+    mut command: tokio::process::Command,
+    stdin_content: String,
+) -> Result<(std::process::ExitStatus, String, String), String> {
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Failed to start command: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(stdin_content.as_bytes())
+            .await
+            .map_err(|e| format!("Failed to write command stdin: {}", e))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| format!("Failed waiting for command: {}", e))?;
+
+    Ok((
+        output.status,
+        String::from_utf8_lossy(&output.stdout).to_string(),
+        String::from_utf8_lossy(&output.stderr).to_string(),
+    ))
 }
 
 fn read_requested_program(tex_path: &str) -> Option<String> {
@@ -413,9 +775,12 @@ fn build_compile_result_from_logs(
             .trim()
             .to_string();
         errors.push(LatexError {
+            file: None,
             line: None,
+            column: None,
             message,
             severity: "error".to_string(),
+            raw: Some(full_log.clone()),
         });
     }
 
@@ -735,6 +1100,98 @@ pub async fn check_latex_compilers(
             path: find_system_tex(custom_system_tex_path.as_deref()),
         },
     })
+}
+
+#[tauri::command]
+pub async fn check_latex_tools(
+    custom_system_tex_path: Option<String>,
+) -> Result<LatexToolStatus, String> {
+    Ok(LatexToolStatus {
+        chktex: BinaryStatus {
+            installed: find_chktex(custom_system_tex_path.as_deref()).is_some(),
+            path: find_chktex(custom_system_tex_path.as_deref()),
+        },
+        latexindent: BinaryStatus {
+            installed: find_latexindent(custom_system_tex_path.as_deref()).is_some(),
+            path: find_latexindent(custom_system_tex_path.as_deref()),
+        },
+    })
+}
+
+#[tauri::command]
+pub async fn run_chktex(
+    tex_path: String,
+    content: Option<String>,
+    custom_system_tex_path: Option<String>,
+) -> Result<Vec<LatexError>, String> {
+    let chktex = match find_chktex(custom_system_tex_path.as_deref()) {
+        Some(path) => path,
+        None => return Ok(Vec::new()),
+    };
+
+    let tex = Path::new(&tex_path);
+    let dir = tex.parent().ok_or("Invalid tex path")?;
+    let source_content = read_or_use_source_content(&tex_path, content).await?;
+
+    let mut command = background_tokio_command(&chktex);
+    command.current_dir(dir);
+    command.args([
+        "-q",
+        "-I0",
+        "-p",
+        &tex_path,
+        "-f%f\x1f%l\x1f%c\x1f%k\x1f%n\x1f%m\n",
+    ]);
+
+    let (status, stdout, stderr) = run_command_with_stdin(command, source_content).await?;
+    let diagnostics = parse_chktex_output(&stdout);
+
+    if !diagnostics.is_empty() || status.success() {
+        return Ok(diagnostics);
+    }
+
+    let message = stderr
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .or_else(|| stdout.lines().rev().find(|line| !line.trim().is_empty()))
+        .unwrap_or("ChkTeX failed without diagnostics.")
+        .trim()
+        .to_string();
+    Err(message)
+}
+
+#[tauri::command]
+pub async fn format_latex_document(
+    tex_path: String,
+    content: String,
+    custom_system_tex_path: Option<String>,
+) -> Result<String, String> {
+    let latexindent = find_latexindent(custom_system_tex_path.as_deref())
+        .ok_or_else(|| "latexindent not found. Install it with your TeX distribution.".to_string())?;
+
+    let tex = Path::new(&tex_path);
+    let dir = tex.parent().ok_or("Invalid tex path")?;
+
+    let mut command = background_tokio_command(&latexindent);
+    command.current_dir(dir);
+    command.arg(format!("-g={}", latexindent_null_path()));
+    command.arg("-");
+
+    let (status, stdout, stderr) = run_command_with_stdin(command, content).await?;
+    if status.success() {
+        return Ok(stdout);
+    }
+
+    let message = stderr
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .or_else(|| stdout.lines().rev().find(|line| !line.trim().is_empty()))
+        .unwrap_or("latexindent failed.")
+        .trim()
+        .to_string();
+    Err(message)
 }
 
 const TECTONIC_VERSION: &str = "0.15.0";
@@ -1311,8 +1768,8 @@ fn backward_sync(
 #[cfg(test)]
 mod tests {
     use super::{
-        backward_sync, build_synctex_view_input, forward_sync, parse_synctex_content,
-        parse_synctex_edit_output, parse_synctex_view_output,
+        backward_sync, build_synctex_view_input, forward_sync, parse_chktex_output,
+        parse_synctex_content, parse_synctex_edit_output, parse_synctex_view_output,
     };
 
     const SAMPLE_SYNCTEX: &str = r#"SyncTeX Version:1
@@ -1457,5 +1914,27 @@ SyncTeX result end
         let result = parse_synctex_edit_output(output).expect("CLI output should parse");
         assert_eq!(result["file"].as_str(), Some("/tmp/main.tex"));
         assert_eq!(result["line"].as_u64(), Some(4));
+    }
+
+    #[test]
+    fn parses_chktex_machine_output_lines() {
+        let output = "/tmp/main.tex\x1f12\x1f4\x1fWarning\x1f8\x1fCommand terminated with space.\n";
+        let diagnostics = parse_chktex_output(output);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].file.as_deref(), Some("/tmp/main.tex"));
+        assert_eq!(diagnostics[0].line, Some(12));
+        assert_eq!(diagnostics[0].column, Some(4));
+        assert_eq!(diagnostics[0].severity, "warning");
+        assert_eq!(diagnostics[0].message, "ChkTeX 8: Command terminated with space.");
+    }
+
+    #[test]
+    fn maps_chktex_error_kind_to_error_severity() {
+        let output = "/tmp/main.tex\x1f8\x1f2\x1fError\x1f36\x1fYou should put a space after `,'.\n";
+        let diagnostics = parse_chktex_output(output);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, "error");
     }
 }

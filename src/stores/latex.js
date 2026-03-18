@@ -3,9 +3,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ensureBibFile } from '../services/latexBib'
 import { useFilesStore } from './files'
+import { useReferencesStore } from './references'
+import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
+import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
+import { resolveLatexProjectGraph } from '../services/latex/projectGraph'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
+const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
 const LATEX_AUTOCOMPILE_DEBOUNCE_MS = 1200
 
 let latexStreamUnlistenPromise = null
@@ -18,6 +23,12 @@ const readStoredValue = (key, fallback) => {
   } catch {
     return fallback
   }
+}
+
+const readStoredBoolean = (key, fallback = false) => {
+  const fallbackValue = fallback ? 'true' : 'false'
+  const value = String(readStoredValue(key, fallbackValue)).trim().toLowerCase()
+  return value === 'true' || value === '1' || value === 'yes' || value === 'on'
 }
 
 const clearLegacyLatexSettings = () => {
@@ -135,11 +146,16 @@ export const useLatexStore = defineStore('latex', {
     // Per-file compile state: { [texPath]: { status, errors, warnings, pdfPath, synctexPath, log, durationMs, lastCompiled } }
     compileState: {},
     // Whether auto-compile on save is enabled
-    autoCompile: false,
-    // Debounce timers per file
+    autoCompile: readStoredBoolean('latex.autoCompile', false),
+    // Debounce timers keyed by compile target
     _timers: {},
-    // Recompile flags per file (set when compile is requested while one is running)
+    // Recompile flags keyed by compile target
     _recompileNeeded: {},
+    // Latest source file that requested work for a given compile target
+    _latestSourceByTarget: {},
+    // Active compile targets to avoid duplicate root compiles
+    _activeCompileTargets: {},
+    lintState: {},
     // Pending forward SyncTeX requests keyed by TeX source path.
     forwardSyncRequests: {},
     compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
@@ -152,6 +168,12 @@ export const useLatexStore = defineStore('latex', {
     systemTexPath: null,
     checkingCompilers: false,
     lastCompilerCheckAt: 0,
+    chktexInstalled: false,
+    chktexPath: null,
+    latexindentInstalled: false,
+    latexindentPath: null,
+    checkingTools: false,
+    lastToolCheckAt: 0,
     downloading: false,
     downloadProgress: 0,
     downloadError: null,
@@ -160,20 +182,30 @@ export const useLatexStore = defineStore('latex', {
 
   getters: {
     stateForFile: (state) => (texPath) => {
-      return state.compileState[texPath] || null
+      return state.compileState[texPath]
+        || state.compileState[resolveCachedLatexRootPath(texPath)]
+        || null
     },
 
     isCompiling: (state) => (texPath) => {
-      const s = state.compileState[texPath]
+      const s = state.compileState[texPath] || state.compileState[resolveCachedLatexRootPath(texPath)]
       return s?.status === 'compiling'
     },
 
     errorsForFile: (state) => (texPath) => {
-      return state.compileState[texPath]?.errors || []
+      return state.compileState[texPath]?.errors
+        || state.compileState[resolveCachedLatexRootPath(texPath)]?.errors
+        || []
     },
 
     warningsForFile: (state) => (texPath) => {
-      return state.compileState[texPath]?.warnings || []
+      return state.compileState[texPath]?.warnings
+        || state.compileState[resolveCachedLatexRootPath(texPath)]?.warnings
+        || []
+    },
+
+    lintDiagnosticsForFile: (state) => (texPath) => {
+      return state.lintState[texPath]?.diagnostics || []
     },
 
     forwardSyncRequestFor: (state) => (texPath) => {
@@ -193,68 +225,124 @@ export const useLatexStore = defineStore('latex', {
       if (state.tectonicInstalled) return 'Tectonic'
       return null
     },
+
+    hasLatexFormatter: (state) => state.latexindentInstalled,
   },
 
   actions: {
-    scheduleAutoCompile(texPath) {
+    async resolveCompileRequest(texPath, options = {}) {
+      const filesStore = useFilesStore()
+      const referencesStore = useReferencesStore()
+      const workspaceStore = useWorkspaceStore()
+      const contentOverrides = options.sourceContent === undefined
+        ? options.contentOverrides
+        : {
+            ...(options.contentOverrides || {}),
+            [texPath]: options.sourceContent,
+          }
+
+      const project = await resolveLatexProjectGraph(texPath, {
+        filesStore,
+        referencesStore,
+        workspacePath: workspaceStore.path,
+        contentOverrides,
+      }).catch(() => null)
+      const compileTargetPath = await resolveLatexCompileTarget(texPath, {
+        filesStore,
+        referencesStore,
+        workspacePath: workspaceStore.path,
+        contentOverrides,
+      }).catch(() => texPath)
+
+      return {
+        filesStore,
+        referencesStore,
+        workspaceStore,
+        project,
+        compileTargetPath: compileTargetPath || texPath,
+      }
+    },
+
+    async scheduleAutoCompile(texPath, options = {}) {
+      if (!texPath) return
+
+      void this.refreshLint(texPath, options).catch(() => {})
       if (!this.autoCompile) return
 
-      // Clear existing timer for this file
-      if (this._timers[texPath]) {
-        clearTimeout(this._timers[texPath])
+      const { compileTargetPath } = await this.resolveCompileRequest(texPath, options)
+      const timerKey = compileTargetPath || texPath
+      this._latestSourceByTarget[timerKey] = texPath
+
+      if (this._timers[timerKey]) {
+        clearTimeout(this._timers[timerKey])
       }
 
       // Auto-save is 1s, so this keeps the total delay much closer to VS Code.
-      this._timers[texPath] = setTimeout(() => {
-        delete this._timers[texPath]
-        this.compile(texPath)
+      this._timers[timerKey] = setTimeout(() => {
+        const nextSourcePath = this._latestSourceByTarget[timerKey] || texPath
+        delete this._timers[timerKey]
+        void this.compile(nextSourcePath)
       }, LATEX_AUTOCOMPILE_DEBOUNCE_MS)
     },
 
     async compile(texPath) {
-      const filesStore = useFilesStore()
       await ensureLatexStreamListener()
       this.cancelAutoCompile(texPath)
 
-      // If already compiling, set recompile flag and return
-      const current = this.compileState[texPath]
-      if (current?.status === 'compiling') {
-        this._recompileNeeded[texPath] = true
-        return
-      }
-
-      // Set compiling state
-      this.compileState[texPath] = {
-        ...this.compileState[texPath],
-        status: 'compiling',
-        errors: [],
-        warnings: [],
-      }
-
       try {
+        const { filesStore, project, compileTargetPath } = await this.resolveCompileRequest(texPath)
+        const targetKey = compileTargetPath || texPath
+        this._latestSourceByTarget[targetKey] = texPath
+
+        // If the resolved root target is already compiling, only queue one more run.
+        if (this._activeCompileTargets[targetKey]) {
+          this._recompileNeeded[targetKey] = true
+          return
+        }
+
+        this._activeCompileTargets[targetKey] = true
+
+        // Set compiling state for both the source file and its root target.
+        const compilingState = {
+          ...this.compileState[texPath],
+          status: 'compiling',
+          errors: [],
+          warnings: [],
+        }
+        this.compileState[texPath] = compilingState
+        if (targetKey !== texPath) {
+          this.compileState[targetKey] = {
+            ...this.compileState[targetKey],
+            status: 'compiling',
+            errors: [],
+            warnings: [],
+            linkedSourcePath: texPath,
+          }
+        }
+
         // Keep references.bib in sync only when this LaTeX file is actually using bibliography flow.
         try {
-          await ensureBibFile(texPath, {
-            sourceContent: filesStore.fileContents?.[texPath],
+          await ensureBibFile(compileTargetPath, {
+            sourceContent: filesStore.fileContents?.[compileTargetPath],
           })
         } catch {}
 
         pushLatexStreamToTerminal({
           texPath,
-          line: t('Starting LaTeX compile for {file}', { file: fileNameForLog(texPath) }),
+          line: t('Starting LaTeX compile for {file}', { file: fileNameForLog(compileTargetPath) }),
           header: true,
           open: false,
         })
 
         const result = await invoke('compile_latex', {
-          texPath,
+          texPath: compileTargetPath,
           compilerPreference: this.compilerPreference,
           enginePreference: this.enginePreference,
           customSystemTexPath: this.customSystemTexPath || null,
           customTectonicPath: null,
         })
 
-        this.compileState[texPath] = {
+        const nextState = {
           status: result.success ? 'success' : 'error',
           errors: result.errors,
           warnings: result.warnings,
@@ -263,18 +351,27 @@ export const useLatexStore = defineStore('latex', {
           log: result.log,
           durationMs: result.duration_ms,
           lastCompiled: Date.now(),
+          compileTargetPath,
+          projectRootPath: project?.rootPath || compileTargetPath,
+          previewPath: project?.previewPath || result.pdf_path || null,
+        }
+        this.compileState[texPath] = nextState
+        this.compileState[targetKey] = {
+            ...nextState,
+            linkedSourcePath: texPath,
         }
 
         // Dispatch event for PDF viewer to refresh
         window.dispatchEvent(new CustomEvent('latex-compile-done', {
-          detail: { texPath, ...result },
+          detail: { texPath, compileTargetPath, ...result },
         }))
         pushLatexLogToTerminal(texPath, result)
 
         // If recompile was requested during compilation, compile again
-        if (this._recompileNeeded[texPath]) {
-          delete this._recompileNeeded[texPath]
-          this.compile(texPath)
+        if (this._recompileNeeded[targetKey]) {
+          delete this._recompileNeeded[targetKey]
+          const nextSourcePath = this._latestSourceByTarget[targetKey] || texPath
+          void this.compile(nextSourcePath)
         }
       } catch (err) {
         this.compileState[texPath] = {
@@ -290,6 +387,9 @@ export const useLatexStore = defineStore('latex', {
           warnings: [],
           log: String(err || ''),
         })
+      } finally {
+        const targetKey = this.compileState[texPath]?.compileTargetPath || resolveCachedLatexRootPath(texPath) || texPath
+        delete this._activeCompileTargets[targetKey]
       }
     },
 
@@ -307,6 +407,13 @@ export const useLatexStore = defineStore('latex', {
       } catch {}
     },
 
+    setAutoCompile(enabled) {
+      this.autoCompile = enabled === true
+      try {
+        localStorage.setItem('latex.autoCompile', this.autoCompile ? 'true' : 'false')
+      } catch {}
+    },
+
     async setCustomSystemTexPath(path) {
       this.customSystemTexPath = String(path || '').trim()
       try {
@@ -318,12 +425,17 @@ export const useLatexStore = defineStore('latex', {
       } catch {}
       this.lastCompilerCheckAt = 0
       await this.checkCompilers(true)
+      this.lastToolCheckAt = 0
+      await this.checkTools(true)
     },
 
     cancelAutoCompile(texPath) {
-      if (this._timers[texPath]) {
-        clearTimeout(this._timers[texPath])
-        delete this._timers[texPath]
+      const rootPath = resolveCachedLatexRootPath(texPath)
+      for (const key of [texPath, rootPath].filter(Boolean)) {
+        if (this._timers[key]) {
+          clearTimeout(this._timers[key])
+          delete this._timers[key]
+        }
       }
     },
 
@@ -358,6 +470,7 @@ export const useLatexStore = defineStore('latex', {
 
     clearState(texPath) {
       delete this.compileState[texPath]
+      delete this.lintState[texPath]
       this.cancelAutoCompile(texPath)
       delete this._recompileNeeded[texPath]
       this.clearForwardSync(texPath)
@@ -391,7 +504,10 @@ export const useLatexStore = defineStore('latex', {
       }
       this._timers = {}
       this._recompileNeeded = {}
+      this._latestSourceByTarget = {}
+      this._activeCompileTargets = {}
       this.compileState = {}
+      this.lintState = {}
       this.forwardSyncRequests = {}
     },
 
@@ -417,6 +533,76 @@ export const useLatexStore = defineStore('latex', {
         this.lastCompilerCheckAt = Date.now()
         this.checkingCompilers = false
       }
+    },
+
+    async checkTools(force = false) {
+      if (this.checkingTools) return
+      if (!force && this.lastToolCheckAt && Date.now() - this.lastToolCheckAt < TOOL_CHECK_CACHE_MS) return
+      this.checkingTools = true
+      try {
+        const result = await invoke('check_latex_tools', {
+          customSystemTexPath: this.customSystemTexPath || null,
+        })
+        this.chktexInstalled = result.chktex?.installed === true
+        this.chktexPath = result.chktex?.path || null
+        this.latexindentInstalled = result.latexindent?.installed === true
+        this.latexindentPath = result.latexindent?.path || null
+      } catch {
+        this.chktexInstalled = false
+        this.chktexPath = null
+        this.latexindentInstalled = false
+        this.latexindentPath = null
+      } finally {
+        this.lastToolCheckAt = Date.now()
+        this.checkingTools = false
+      }
+    },
+
+    async refreshLint(texPath, options = {}) {
+      if (!texPath) return []
+      if (this.lastToolCheckAt && !this.chktexInstalled) {
+        this.lintState[texPath] = {
+          status: 'unavailable',
+          diagnostics: [],
+          error: null,
+          updatedAt: Date.now(),
+        }
+        return []
+      }
+
+      const sourceContent = options.sourceContent ?? useFilesStore().fileContents?.[texPath] ?? null
+
+      try {
+        const diagnostics = await invoke('run_chktex', {
+          texPath,
+          content: sourceContent,
+          customSystemTexPath: this.customSystemTexPath || null,
+        })
+        this.lintState[texPath] = {
+          status: 'ready',
+          diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
+          error: null,
+          updatedAt: Date.now(),
+        }
+      } catch (error) {
+        console.warn('[latex] chktex failed:', error)
+        this.lintState[texPath] = {
+          status: 'error',
+          diagnostics: [],
+          error: error?.message || String(error || ''),
+          updatedAt: Date.now(),
+        }
+      }
+
+      return this.lintState[texPath]?.diagnostics || []
+    },
+
+    async formatDocument(texPath, content) {
+      return await invoke('format_latex_document', {
+        texPath,
+        content,
+        customSystemTexPath: this.customSystemTexPath || null,
+      })
     },
 
     async checkTectonic() {
