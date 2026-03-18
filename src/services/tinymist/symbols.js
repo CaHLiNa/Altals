@@ -1,3 +1,5 @@
+import { tinymistUriToFilePath } from './session.js'
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
 }
@@ -49,6 +51,61 @@ function flattenDocumentSymbols(symbols = [], visitor, depth = 0) {
       flattenDocumentSymbols(symbol.children, visitor, depth + 1)
     }
   }
+}
+
+const WORKSPACE_SYMBOL_KIND_LABELS = {
+  3: 'func',
+  4: 'ctor',
+  5: 'field',
+  6: 'var',
+  7: 'class',
+  8: 'iface',
+  10: 'prop',
+  11: 'unit',
+  12: 'val',
+  13: 'enum',
+  14: 'key',
+  17: 'file',
+  18: 'ref',
+  20: 'key',
+  21: 'const',
+  22: 'struct',
+  23: 'event',
+  24: 'op',
+  25: 'type',
+  26: 'param',
+}
+
+function normalizeWorkspaceSymbolRange(symbol = {}) {
+  return symbol?.location?.range || symbol?.range || null
+}
+
+export function normalizeTinymistWorkspaceSymbols(result = [], workspacePath = '') {
+  const basePath = String(workspacePath || '')
+  return (Array.isArray(result) ? result : [])
+    .map((symbol) => {
+      const filePath = tinymistUriToFilePath(
+        symbol?.location?.uri || symbol?.uri || '',
+      )
+      const range = normalizeWorkspaceSymbolRange(symbol)
+      const line = Number.isInteger(range?.start?.line) ? range.start.line + 1 : null
+      const relativePath = basePath && filePath.startsWith(basePath)
+        ? filePath.slice(basePath.length + 1)
+        : filePath
+
+      if (!filePath || !range?.start) return null
+
+      return {
+        name: String(symbol?.name || '').trim(),
+        kind: Number(symbol?.kind) || null,
+        kindLabel: WORKSPACE_SYMBOL_KIND_LABELS[symbol?.kind] || '',
+        filePath,
+        relativePath,
+        range,
+        line,
+      }
+    })
+    .filter(symbol => symbol?.name && symbol?.filePath)
 }
 
 export function normalizeTinymistDocumentSymbols(documentText = '', symbols = []) {

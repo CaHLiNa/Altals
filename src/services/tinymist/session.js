@@ -98,6 +98,9 @@ function buildInitializeParams(workspacePath) {
     capabilities: {
       workspace: {
         workspaceFolders: true,
+        symbol: {
+          dynamicRegistration: false,
+        },
       },
       textDocument: {
         publishDiagnostics: {
@@ -108,6 +111,22 @@ function buildInitializeParams(workspacePath) {
           didSave: false,
           willSave: false,
           willSaveWaitUntil: false,
+        },
+        hover: {
+          contentFormat: ['markdown', 'plaintext'],
+        },
+        documentLink: {
+          tooltipSupport: true,
+        },
+        signatureHelp: {
+          dynamicRegistration: false,
+          contextSupport: true,
+          signatureInformation: {
+            documentationFormat: ['markdown', 'plaintext'],
+          },
+        },
+        foldingRange: {
+          lineFoldingOnly: false,
         },
       },
       general: {
@@ -566,6 +585,68 @@ class TinymistSession {
     }
   }
 
+  async requestDocumentLinks(filePath) {
+    if (!this.started || !this.child) return []
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return []
+
+    try {
+      const result = await this.request('textDocument/documentLink', {
+        textDocument: { uri },
+      })
+      return Array.isArray(result) ? result : []
+    } catch {
+      return []
+    }
+  }
+
+  async requestSignatureHelp(filePath, position, context = null) {
+    if (!this.started || !this.child) return null
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return null
+
+    try {
+      return await this.request('textDocument/signatureHelp', {
+        textDocument: { uri },
+        position,
+        context: context || undefined,
+      })
+    } catch {
+      return null
+    }
+  }
+
+  async requestFoldingRanges(filePath) {
+    if (!this.started || !this.child) return []
+    const uri = filePathToTinymistUri(filePath)
+    if (!this.documents.has(uri)) return []
+
+    try {
+      const result = await this.request('textDocument/foldingRange', {
+        textDocument: { uri },
+      })
+      return Array.isArray(result) ? result : []
+    } catch {
+      return []
+    }
+  }
+
+  async requestWorkspaceSymbols(query, options = {}) {
+    const ready = await this.ensureStarted({
+      workspacePath: options.workspacePath || null,
+    })
+    if (!ready || !this.started || !this.child) return []
+
+    try {
+      const result = await this.request('workspace/symbol', {
+        query: String(query || ''),
+      })
+      return Array.isArray(result) ? result : []
+    } catch {
+      return []
+    }
+  }
+
   async requestFormatting(filePath, options = {}) {
     if (!this.started || !this.child) return null
     const uri = filePathToTinymistUri(filePath)
@@ -764,6 +845,22 @@ export function requestTinymistRename(filePath, position, newName) {
 
 export function requestTinymistHover(filePath, position) {
   return sharedSession.requestHover(filePath, position)
+}
+
+export function requestTinymistDocumentLinks(filePath) {
+  return sharedSession.requestDocumentLinks(filePath)
+}
+
+export function requestTinymistSignatureHelp(filePath, position, context = null) {
+  return sharedSession.requestSignatureHelp(filePath, position, context)
+}
+
+export function requestTinymistFoldingRanges(filePath) {
+  return sharedSession.requestFoldingRanges(filePath)
+}
+
+export function requestTinymistWorkspaceSymbols(query, options = {}) {
+  return sharedSession.requestWorkspaceSymbols(query, options)
 }
 
 export function requestTinymistFormatting(filePath, options = {}) {

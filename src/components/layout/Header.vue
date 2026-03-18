@@ -50,6 +50,7 @@
         @select-file="onSelectFile"
         @select-citation="onSelectCitation"
         @select-chat="onSelectChat"
+        @select-typst-symbol="onSelectTypstSymbol"
         @mousedown.prevent
       />
     </div>
@@ -106,6 +107,7 @@ import {
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
+import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -127,6 +129,7 @@ const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
 const DEFAULT_HEADER_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
+const EDITOR_WAIT_TIMEOUT_MS = 1500
 
 function toPx(value) {
   return `${Math.round(value * 100) / 100}px`
@@ -226,6 +229,42 @@ function onSelectCitation(key) {
 
 function onSelectChat(sessionId) {
   editorStore.openChat({ sessionId })
+  query.value = ''
+  searchInputRef.value?.blur()
+}
+
+async function waitForEditorView(targetPath) {
+  const startedAt = Date.now()
+  let targetView = editorStore.getAnyEditorView(targetPath)
+
+  while (!targetView && Date.now() - startedAt < EDITOR_WAIT_TIMEOUT_MS) {
+    await new Promise((resolve) => window.setTimeout(resolve, 16))
+    targetView = editorStore.getAnyEditorView(targetPath)
+  }
+
+  return targetView
+}
+
+async function onSelectTypstSymbol(symbol) {
+  const filePath = String(symbol?.filePath || '')
+  if (!filePath) return
+
+  editorStore.openFile(filePath)
+  const targetView = await waitForEditorView(filePath)
+  if (targetView) {
+    const offsets = tinymistRangeToOffsets(targetView.state, symbol?.range)
+    if (offsets) {
+      targetView.dispatch({
+        selection: {
+          anchor: offsets.from,
+          head: offsets.to,
+        },
+        scrollIntoView: true,
+      })
+      targetView.focus()
+    }
+  }
+
   query.value = ''
   searchInputRef.value?.blur()
 }

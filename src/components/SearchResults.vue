@@ -36,6 +36,26 @@
         </div>
       </template>
 
+      <!-- Typst workspace symbols -->
+      <template v-if="typstSymbolMatches.length > 0">
+        <div class="quick-open-section">{{ t('Typst') }}</div>
+        <div
+          v-for="(symbol, idx) in typstSymbolMatches"
+          :key="'ts-' + symbol.filePath + ':' + symbol.line + ':' + symbol.name"
+          class="quick-open-item"
+          :class="{ active: titleMatches.length + contentMatches.length + idx === selectedIndex }"
+          @mousedown.prevent="$emit('select-typst-symbol', symbol)"
+          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + idx"
+        >
+          <span class="truncate">{{ symbol.name }}</span>
+          <span class="path">
+            <span v-if="symbol.kindLabel" class="uppercase">{{ symbol.kindLabel }}</span>
+            <span v-if="symbol.kindLabel"> · </span>
+            {{ symbol.relativePath }}<span v-if="symbol.line">:{{ symbol.line }}</span>
+          </span>
+        </div>
+      </template>
+
       <!-- Reference matches -->
       <template v-if="refMatches.length > 0">
         <div class="quick-open-section">{{ t('References') }}</div>
@@ -43,9 +63,9 @@
           v-for="(ref, idx) in refMatches"
           :key="'r-' + ref._key"
           class="quick-open-item"
-          :class="{ active: titleMatches.length + contentMatches.length + idx === selectedIndex }"
+          :class="{ active: titleMatches.length + contentMatches.length + typstSymbolMatches.length + idx === selectedIndex }"
           @mousedown.prevent="$emit('select-citation', ref._key)"
-          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + idx"
+          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + typstSymbolMatches.length + idx"
         >
           <span class="ref-key-badge mr-1.5">@{{ ref._key }}</span>
           <span>{{ refAuthorLine(ref) }}</span>
@@ -60,9 +80,9 @@
           v-for="(chat, idx) in chatMatches"
           :key="'ch-' + chat.id"
           class="quick-open-item"
-          :class="{ active: titleMatches.length + contentMatches.length + refMatches.length + idx === selectedIndex }"
+          :class="{ active: titleMatches.length + contentMatches.length + typstSymbolMatches.length + refMatches.length + idx === selectedIndex }"
           @mousedown.prevent="$emit('select-chat', chat.id)"
-          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + refMatches.length + idx"
+          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + typstSymbolMatches.length + refMatches.length + idx"
         >
           <svg class="shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
             <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
@@ -75,7 +95,7 @@
         </div>
       </template>
 
-      <div v-if="titleMatches.length === 0 && contentMatches.length === 0 && refMatches.length === 0 && chatMatches.length === 0 && query"
+      <div v-if="titleMatches.length === 0 && contentMatches.length === 0 && typstSymbolMatches.length === 0 && refMatches.length === 0 && chatMatches.length === 0 && query"
         class="quick-open-item" style="color: var(--fg-muted);">
         {{ searching ? t('Searching...') : t('No results found') }}
       </div>
@@ -91,12 +111,14 @@ import { useWorkspaceStore } from '../stores/workspace'
 import { useReferencesStore } from '../stores/references'
 import { useChatStore } from '../stores/chat'
 import { formatRelativeFromNow, useI18n } from '../i18n'
+import { requestTinymistWorkspaceSymbols } from '../services/tinymist/session'
+import { normalizeTinymistWorkspaceSymbols } from '../services/tinymist/symbols'
 
 const props = defineProps({
   query: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-file', 'select-citation', 'select-chat'])
+const emit = defineEmits(['select-file', 'select-citation', 'select-chat', 'select-typst-symbol'])
 
 const files = useFilesStore()
 const workspace = useWorkspaceStore()
@@ -106,9 +128,12 @@ const { t } = useI18n()
 
 const selectedIndex = ref(0)
 const contentMatches = ref([])
+const typstSymbolMatches = ref([])
 const searching = ref(false)
 
 let searchTimer = null
+let typstSymbolTimer = null
+let typstSymbolRequestId = 0
 
 // Ensure chat session metadata is loaded
 onMounted(() => {
@@ -167,15 +192,22 @@ const chatMatches = computed(() => {
 })
 
 const totalItems = computed(() =>
-  titleMatches.value.length + contentMatches.value.length + refMatches.value.length + chatMatches.value.length
+  titleMatches.value.length
+  + contentMatches.value.length
+  + typstSymbolMatches.value.length
+  + refMatches.value.length
+  + chatMatches.value.length
 )
 
 // Debounced content search
 watch(() => props.query, (q) => {
+  typstSymbolRequestId += 1
   selectedIndex.value = 0
   contentMatches.value = []
+  typstSymbolMatches.value = []
 
   clearTimeout(searchTimer)
+  clearTimeout(typstSymbolTimer)
   if (q.length >= 2 && workspace.path) {
     searching.value = true
     searchTimer = setTimeout(async () => {
@@ -192,8 +224,24 @@ watch(() => props.query, (q) => {
       }
       searching.value = false
     }, 200)
+
+    const requestId = typstSymbolRequestId
+    typstSymbolTimer = setTimeout(async () => {
+      try {
+        const results = await requestTinymistWorkspaceSymbols(q, {
+          workspacePath: workspace.path,
+        })
+        if (requestId !== typstSymbolRequestId) return
+        typstSymbolMatches.value = normalizeTinymistWorkspaceSymbols(results, workspace.path).slice(0, 8)
+      } catch (error) {
+        console.warn('[search-results] typst workspace symbol search failed:', error)
+        if (requestId !== typstSymbolRequestId) return
+        typstSymbolMatches.value = []
+      }
+    }, 180)
   } else {
     searching.value = false
+    typstSymbolMatches.value = []
   }
 })
 
@@ -222,7 +270,8 @@ function confirmSelection() {
   if (totalItems.value === 0) return
   const fileEnd = titleMatches.value.length
   const contentEnd = fileEnd + contentMatches.value.length
-  const refEnd = contentEnd + refMatches.value.length
+  const typstEnd = contentEnd + typstSymbolMatches.value.length
+  const refEnd = typstEnd + refMatches.value.length
 
   if (selectedIndex.value < fileEnd) {
     const file = titleMatches.value[selectedIndex.value]
@@ -231,8 +280,12 @@ function confirmSelection() {
     const idx = selectedIndex.value - fileEnd
     const match = contentMatches.value[idx]
     if (match) emit('select-file', match.path)
-  } else if (selectedIndex.value < refEnd) {
+  } else if (selectedIndex.value < typstEnd) {
     const idx = selectedIndex.value - contentEnd
+    const symbol = typstSymbolMatches.value[idx]
+    if (symbol) emit('select-typst-symbol', symbol)
+  } else if (selectedIndex.value < refEnd) {
+    const idx = selectedIndex.value - typstEnd
     const r = refMatches.value[idx]
     if (r) emit('select-citation', r._key)
   } else {

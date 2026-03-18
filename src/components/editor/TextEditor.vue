@@ -937,7 +937,10 @@ onMounted(async () => {
       filePath: props.filePath,
       filesStore: files,
       getReferenceByKey: (key) => referencesStore.getByKey(key),
+      openFile: (path) => editorStore.openFile(path),
       referencesStore,
+      toastStore,
+      t,
       workspacePath: workspace.path,
     }))
     extraExtensions.push(Prec.highest(keymap.of([
