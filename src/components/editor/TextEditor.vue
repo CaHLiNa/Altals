@@ -141,6 +141,7 @@ let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
 let typstCursorRequestHandler = null
+let markdownPreviewSyncTimer = null
 let typstPreviewSyncTimer = null
 let cleanupTypstWindowListeners = null
 let editorRuntimeActive = false
@@ -726,6 +727,9 @@ onMounted(async () => {
         handleNavigationSelectionChange()
         scheduleTypstSelectionPreviewSync(update.state.selection.main)
       }
+      if (isMd && update.selectionSet) {
+        scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
+      }
     }),
   ]
 
@@ -1205,7 +1209,6 @@ function attachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
     editorContainer.value?.addEventListener('click', handleCitationClick)
-    editorContainer.value?.addEventListener('dblclick', handleMarkdownSourceDoubleClick)
   }
   if (isTex) {
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
@@ -1243,7 +1246,6 @@ function detachEditorRuntimeListeners() {
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
     editorContainer.value?.removeEventListener('click', handleCitationClick)
-    editorContainer.value?.removeEventListener('dblclick', handleMarkdownSourceDoubleClick)
   }
   if (isTex) {
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
@@ -1376,34 +1378,38 @@ function handleLatexSourceDoubleClick(event) {
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 
-function handleMarkdownSourceDoubleClick(event) {
-  if (!isMd || !view || event.button !== 0) return
+function scheduleMarkdownSelectionPreviewSync(selection) {
+  if (!isMd || !view) return
+  if (!workflowStore.hasPreviewForSource(props.filePath, 'html')) return
+  if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
+  if (markdownPreviewSyncTimer != null) {
+    window.clearTimeout(markdownPreviewSyncTimer)
+    markdownPreviewSyncTimer = null
+  }
 
-  const location = getMarkdownSyncLocation(pos)
-  if (!location) return
+  const pos = Number(selection?.head ?? -1)
+  if (!Number.isInteger(pos) || pos < 0) return
 
-  rememberPendingMarkdownForwardSync({
-    sourcePath: props.filePath,
-    line: location.line,
-    offset: location.offset,
-  })
+  markdownPreviewSyncTimer = window.setTimeout(() => {
+    markdownPreviewSyncTimer = null
+    const location = getMarkdownSyncLocation(pos)
+    if (!location) return
 
-  workflowStore.revealPreview(props.filePath, {
-    previewKind: 'html',
-    sourcePaneId: props.paneId,
-    trigger: 'markdown-source-dblclick',
-  })
-
-  window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
-    detail: {
+    rememberPendingMarkdownForwardSync({
       sourcePath: props.filePath,
       line: location.line,
       offset: location.offset,
-    },
-  }))
+    })
+
+    window.dispatchEvent(new CustomEvent('markdown-forward-sync-location', {
+      detail: {
+        sourcePath: props.filePath,
+        line: location.line,
+        offset: location.offset,
+      },
+    }))
+  }, 90)
 }
 
 async function resolveTypstForwardRootPath() {
@@ -1544,6 +1550,10 @@ watch(
 
 onUnmounted(() => {
   deactivateEditorRuntime()
+  if (markdownPreviewSyncTimer != null) {
+    window.clearTimeout(markdownPreviewSyncTimer)
+    markdownPreviewSyncTimer = null
+  }
   if (typstPreviewSyncTimer != null) {
     window.clearTimeout(typstPreviewSyncTimer)
     typstPreviewSyncTimer = null

@@ -61,6 +61,7 @@ export function useEditorPaneWorkflow(options) {
     if (workflowUiState.value.phase === 'ready') return 'success'
     return 'muted'
   })
+  const typstPdfToggleState = new Map()
 
   function buildAdapterContext(extra = {}) {
     return {
@@ -211,10 +212,49 @@ export function useEditorPaneWorkflow(options) {
   function handleWorkflowRevealPdf() {
     if (!workflowUiState.value || workflowUiState.value.kind !== 'typst' || !activeTabRef.value) return
 
+    const sourcePath = activeTabRef.value
     const artifactPath = activeCompileAdapter.value?.getArtifactPath?.(activeTabRef.value, buildAdapterContext())
     if (!artifactPath) return
+    const previewPath = workflowStore.getPreviewPathForSource(sourcePath, 'native')
+    const existingBinding = workflowStore.findPreviewBindingForSource(sourcePath, 'native')
+    const existingPreviewPaneId = (
+      existingBinding?.paneId
+      || editorStore.findPaneWithTab(previewPath)?.id
+      || (
+        workflowStore.session.previewSourcePath === sourcePath
+        && workflowStore.session.previewKind === 'native'
+          ? workflowStore.session.previewPaneId
+          : null
+      )
+      || ''
+    )
 
-    const previewResult = workflowStore.ensurePreviewForSource(activeTabRef.value, {
+    if (existingPreviewPaneId) {
+      const targetPane = editorStore.findPane(editorStore.paneTree, existingPreviewPaneId)
+      if (targetPane?.activeTab === artifactPath) {
+        const openedOverExistingPreview = typstPdfToggleState.get(sourcePath) === 'overlay'
+        if (openedOverExistingPreview) {
+          editorStore.closeTab(existingPreviewPaneId, artifactPath)
+        } else {
+          if (previewPath) {
+            workflowStore.closePreviewForSource(sourcePath, {
+              previewKind: 'native',
+              trigger: 'typst-pdf-toggle-close',
+              reconcile: false,
+            })
+          }
+          editorStore.closeFileFromAllPanes(artifactPath)
+          workflowStore.reconcile({ trigger: 'typst-pdf-toggle-close' })
+        }
+        typstPdfToggleState.delete(sourcePath)
+        return
+      }
+      typstPdfToggleState.set(sourcePath, 'overlay')
+      editorStore.openFileInPane(artifactPath, existingPreviewPaneId, { activatePane: true })
+      return
+    }
+
+    const previewResult = workflowStore.ensurePreviewForSource(sourcePath, {
       previewKind: 'native',
       activatePreview: false,
       sourcePaneId: paneIdRef.value,
@@ -223,14 +263,15 @@ export function useEditorPaneWorkflow(options) {
 
     const targetPaneId = previewResult?.previewPaneId || workflowStore.session.previewPaneId || ''
     if (targetPaneId) {
+      typstPdfToggleState.set(sourcePath, 'owned')
       editorStore.openFileInPane(artifactPath, targetPaneId, { activatePane: true })
       return
     }
 
-    const existingPane = editorStore.findPaneWithTab(artifactPath)
-    if (existingPane?.id) {
-      editorStore.openFileInPane(artifactPath, existingPane.id, { activatePane: true })
-      return
+    const existingPdfPane = editorStore.findPaneWithTab(artifactPath)
+    if (existingPdfPane?.id) {
+      typstPdfToggleState.set(sourcePath, 'owned')
+      editorStore.openFileInPane(artifactPath, existingPdfPane.id, { activatePane: true })
     }
   }
 
