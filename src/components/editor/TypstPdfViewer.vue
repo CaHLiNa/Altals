@@ -42,10 +42,11 @@ import { useCompiledPdfPreview } from '../../composables/useCompiledPdfPreview'
 import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
 import {
   clearPendingTypstForwardSync,
+  ensureTypstPreviewTaskStarted,
+  peekPendingTypstForwardSync,
   requestTypstPreviewBackwardSync,
   requestTypstPreviewForwardSync,
   sourceBelongsToTypstPreviewRoot,
-  takePendingTypstForwardSync,
 } from '../../services/typst/previewSync.js'
 import { revealTypstSourceLocation } from '../../services/typst/reveal.js'
 import PdfViewer from './PdfViewer.vue'
@@ -100,7 +101,6 @@ function handleForwardSyncRequest(event) {
   if (!sourcePath || !hasPdf.value) return
   if (!sourceBelongsToTypstPreviewRoot(sourcePath, rootPath.value, detail.rootPath)) return
   if (!Number.isInteger(detail.line) || !Number.isInteger(detail.character)) return
-  clearPendingTypstForwardSync(detail)
   void runForwardSync(detail)
 }
 
@@ -117,22 +117,25 @@ async function runForwardSync(detail) {
     })
     if (requestId !== forwardSyncInFlight) return
     if (result?.page) {
-      pdfViewerRef.value?.scrollToLocation?.(result.page, result.x, result.y)
+      pdfViewerRef.value?.scrollToLocation?.(result.page, result.x, result.y, {
+        coordinateSpace: 'page',
+      })
+      clearPendingTypstForwardSync(detail)
     }
   } catch {
     // Ignore preview sync failures and keep the PDF viewer interactive.
   }
 }
 
-async function handleBackwardSync({ page, x, y }) {
+async function handleBackwardSync({ page, pageX, pageY, x, y }) {
   const requestId = ++backwardSyncInFlight
   try {
     const location = await requestTypstPreviewBackwardSync({
       rootPath: rootPath.value,
       workspacePath: workspace.path,
       page,
-      x,
-      y,
+      x: pageX ?? x,
+      y: pageY ?? y,
     })
     if (requestId !== backwardSyncInFlight || !location) return
     await revealTypstSourceLocation(editorStore, location, {
@@ -146,14 +149,23 @@ async function handleBackwardSync({ page, x, y }) {
 
 function flushPendingForwardSync() {
   if (!hasPdf.value) return
-  const detail = takePendingTypstForwardSync(rootPath.value)
+  const detail = peekPendingTypstForwardSync(rootPath.value)
   if (!detail) return
   void runForwardSync(detail)
+}
+
+function prewarmPreviewTask() {
+  if (!hasPdf.value || !rootPath.value) return
+  void ensureTypstPreviewTaskStarted({
+    rootPath: rootPath.value,
+    workspacePath: workspace.path,
+  })
 }
 
 onMounted(() => {
   typstStore.checkCompiler()
   window.addEventListener('typst-forward-sync-location', handleForwardSyncRequest)
+  prewarmPreviewTask()
   flushPendingForwardSync()
 })
 
@@ -162,6 +174,7 @@ onUnmounted(() => {
 })
 
 watch([hasPdf, rootPath], () => {
+  prewarmPreviewTask()
   flushPendingForwardSync()
 })
 </script>

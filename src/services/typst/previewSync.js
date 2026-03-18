@@ -8,6 +8,8 @@ import { resolveCachedTypstRootPath } from './root.js'
 
 const TYPST_PREVIEW_TASK_ID = 'altals-typst-preview-sync'
 const DEFAULT_TIMEOUT_MS = 2500
+const PREVIEW_RETRY_DELAY_MS = 180
+const PREVIEW_RETRY_ATTEMPTS = 6
 
 const previewTaskState = {
   taskId: null,
@@ -15,9 +17,10 @@ const previewTaskState = {
   workspacePath: null,
   dataPlanePort: null,
   startToken: 0,
+  startPromise: null,
 }
 
-let pendingForwardSync = null
+const pendingForwardSyncByRoot = new Map()
 
 function toNotificationJumpLocation(payload = {}) {
   const filePath = String(payload?.filepath || '')
@@ -66,11 +69,9 @@ function belongsToRootProject(sourcePath = '', rootPath = '', sourceRootPath = '
   const normalizedSource = normalizeFsPath(sourcePath)
   const normalizedRoot = normalizeFsPath(rootPath)
   const normalizedSourceRoot = normalizeFsPath(sourceRootPath)
-  if (!normalizedSource || !normalizedRoot) return false
-  if (normalizedSourceRoot) {
-    return normalizedSourceRoot === normalizedRoot
-  }
-  return resolveCachedTypstRootPath(normalizedSource) === normalizedRoot
+  if (!normalizedRoot) return false
+  if (normalizedSource && normalizedSource === normalizedRoot) return true
+  return !!normalizedSourceRoot && normalizedSourceRoot === normalizedRoot
 }
 
 async function killPreviewTask(workspacePath = null) {
@@ -78,6 +79,7 @@ async function killPreviewTask(workspacePath = null) {
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
     previewTaskState.dataPlanePort = null
+    previewTaskState.startPromise = null
     return
   }
 
@@ -92,10 +94,11 @@ async function killPreviewTask(workspacePath = null) {
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
     previewTaskState.dataPlanePort = null
+    previewTaskState.startPromise = null
   }
 }
 
-async function ensurePreviewTask(rootPath, options = {}) {
+async function startPreviewTask(rootPath, options = {}) {
   const normalizedRoot = normalizeFsPath(rootPath)
   const workspacePath = normalizeFsPath(options.workspacePath || '')
   if (!normalizedRoot) {
@@ -155,6 +158,65 @@ async function ensurePreviewTask(rootPath, options = {}) {
   }
 }
 
+async function ensurePreviewTask(rootPath, options = {}) {
+  const normalizedRoot = normalizeFsPath(rootPath)
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
+  if (!normalizedRoot) {
+    throw new Error('Missing Typst preview root')
+  }
+
+  if (
+    previewTaskState.taskId === TYPST_PREVIEW_TASK_ID
+    && previewTaskState.rootPath === normalizedRoot
+    && previewTaskState.dataPlanePort
+    && previewTaskState.workspacePath === workspacePath
+  ) {
+    return {
+      taskId: previewTaskState.taskId,
+      rootPath: previewTaskState.rootPath,
+      workspacePath: previewTaskState.workspacePath,
+      dataPlanePort: previewTaskState.dataPlanePort,
+    }
+  }
+
+  if (
+    previewTaskState.startPromise
+    && previewTaskState.rootPath === normalizedRoot
+    && previewTaskState.workspacePath === workspacePath
+  ) {
+    return previewTaskState.startPromise
+  }
+
+  previewTaskState.rootPath = normalizedRoot
+  previewTaskState.workspacePath = workspacePath
+  previewTaskState.startPromise = startPreviewTask(normalizedRoot, { workspacePath })
+    .finally(() => {
+      previewTaskState.startPromise = null
+    })
+  return previewTaskState.startPromise
+}
+
+function shouldRetryPreviewSync(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  return message.includes('not ready yet') || message.includes('timed out waiting')
+}
+
+async function retryPreviewSync(operation) {
+  let lastError = null
+  for (let attempt = 0; attempt < PREVIEW_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error
+      if (!shouldRetryPreviewSync(error) || attempt >= PREVIEW_RETRY_ATTEMPTS - 1) {
+        throw error
+      }
+      await new Promise(resolve => window.setTimeout(resolve, PREVIEW_RETRY_DELAY_MS))
+    }
+  }
+  throw lastError || new Error('Typst preview sync failed')
+}
+
 function waitForScrollSource(timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -177,7 +239,15 @@ subscribeTinymistNotification('tinymist/preview/dispose', (payload) => {
   previewTaskState.taskId = null
   previewTaskState.rootPath = null
   previewTaskState.dataPlanePort = null
+  previewTaskState.startPromise = null
 })
+
+export async function ensureTypstPreviewTaskStarted(options = {}) {
+  const rootPath = normalizeFsPath(options.rootPath || '')
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
+  if (!rootPath) return null
+  return ensurePreviewTask(rootPath, { workspacePath })
+}
 
 export async function requestTypstPreviewForwardSync(options = {}) {
   const sourcePath = normalizeFsPath(options.sourcePath || '')
@@ -189,28 +259,30 @@ export async function requestTypstPreviewForwardSync(options = {}) {
 
   if (!sourcePath || !rootPath) return null
 
-  const task = await ensurePreviewTask(rootPath, { workspacePath })
-  const jumpPromise = invoke('typst_preview_wait_for_jump', {
-    port: task.dataPlanePort,
-    timeoutMs: Number(options.timeoutMs || DEFAULT_TIMEOUT_MS),
+  return retryPreviewSync(async () => {
+    const task = await ensurePreviewTask(rootPath, { workspacePath })
+    const jumpPromise = invoke('typst_preview_wait_for_jump', {
+      port: task.dataPlanePort,
+      timeoutMs: Number(options.timeoutMs || DEFAULT_TIMEOUT_MS),
+    })
+
+    await requestTinymistExecuteCommand(
+      'tinymist.scrollPreview',
+      [
+        task.taskId,
+        {
+          event: 'panelScrollTo',
+          filepath: sourcePath,
+          line,
+          character,
+        },
+      ],
+      { workspacePath },
+    )
+
+    const positions = await jumpPromise
+    return chooseNearestJumpPosition(positions, currentPage)
   })
-
-  await requestTinymistExecuteCommand(
-    'tinymist.scrollPreview',
-    [
-      task.taskId,
-      {
-        event: 'panelScrollTo',
-        filepath: sourcePath,
-        line,
-        character,
-      },
-    ],
-    { workspacePath },
-  )
-
-  const positions = await jumpPromise
-  return chooseNearestJumpPosition(positions, currentPage)
 }
 
 export async function requestTypstPreviewBackwardSync(options = {}) {
@@ -222,17 +294,19 @@ export async function requestTypstPreviewBackwardSync(options = {}) {
 
   if (!rootPath || !Number.isFinite(page) || page < 1) return null
 
-  const task = await ensurePreviewTask(rootPath, { workspacePath })
-  const waitPromise = waitForScrollSource(Number(options.timeoutMs || DEFAULT_TIMEOUT_MS))
+  return retryPreviewSync(async () => {
+    const task = await ensurePreviewTask(rootPath, { workspacePath })
+    const waitPromise = waitForScrollSource(Number(options.timeoutMs || DEFAULT_TIMEOUT_MS))
 
-  await invoke('typst_preview_send_src_point', {
-    port: task.dataPlanePort,
-    page,
-    x,
-    y,
+    await invoke('typst_preview_send_src_point', {
+      port: task.dataPlanePort,
+      page,
+      x,
+      y,
+    })
+
+    return waitPromise
   })
-
-  return waitPromise
 }
 
 export function rememberPendingTypstForwardSync(detail = {}) {
@@ -240,47 +314,50 @@ export function rememberPendingTypstForwardSync(detail = {}) {
   const rootPath = normalizeFsPath(detail.rootPath || '')
   const line = Number(detail.line ?? -1)
   const character = Number(detail.character ?? -1)
-  if (!sourcePath || !Number.isInteger(line) || line < 0 || !Number.isInteger(character) || character < 0) {
+  if (!sourcePath || !rootPath || !Number.isInteger(line) || line < 0 || !Number.isInteger(character) || character < 0) {
     return null
   }
 
-  pendingForwardSync = {
+  const nextDetail = {
     sourcePath,
     rootPath,
     line,
     character,
   }
+  pendingForwardSyncByRoot.set(rootPath, nextDetail)
 
-  return pendingForwardSync
+  return nextDetail
 }
 
-export function clearPendingTypstForwardSync(detail = null) {
-  if (!pendingForwardSync) return
-  if (!detail) {
-    pendingForwardSync = null
+export function clearPendingTypstForwardSync(detail = null, rootPath = '') {
+  if (!detail && !rootPath) {
+    pendingForwardSyncByRoot.clear()
     return
   }
 
-  const sourcePath = normalizeFsPath(detail.sourcePath || '')
-  const rootPath = normalizeFsPath(detail.rootPath || '')
-  const line = Number(detail.line ?? -1)
-  const character = Number(detail.character ?? -1)
+  const normalizedRoot = normalizeFsPath(rootPath || detail?.rootPath || '')
+  if (!normalizedRoot) return
+  if (!detail) {
+    pendingForwardSyncByRoot.delete(normalizedRoot)
+    return
+  }
+
+  const current = pendingForwardSyncByRoot.get(normalizedRoot)
+  if (!current) return
   if (
-    pendingForwardSync.sourcePath === sourcePath
-    && pendingForwardSync.rootPath === rootPath
-    && pendingForwardSync.line === line
-    && pendingForwardSync.character === character
+    current.sourcePath === normalizeFsPath(detail.sourcePath || '')
+    && current.rootPath === normalizedRoot
+    && current.line === Number(detail.line ?? -1)
+    && current.character === Number(detail.character ?? -1)
   ) {
-    pendingForwardSync = null
+    pendingForwardSyncByRoot.delete(normalizedRoot)
   }
 }
 
-export function takePendingTypstForwardSync(rootPath = '') {
-  if (!pendingForwardSync) return null
-  if (!belongsToRootProject(pendingForwardSync.sourcePath, rootPath, pendingForwardSync.rootPath)) return null
-  const detail = pendingForwardSync
-  pendingForwardSync = null
-  return detail
+export function peekPendingTypstForwardSync(rootPath = '') {
+  const normalizedRoot = normalizeFsPath(rootPath)
+  if (!normalizedRoot) return null
+  return pendingForwardSyncByRoot.get(normalizedRoot) || null
 }
 
 export function sourceBelongsToTypstPreviewRoot(sourcePath = '', rootPath = '', sourceRootPath = '') {

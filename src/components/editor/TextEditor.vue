@@ -101,7 +101,7 @@ import {
 } from '../../services/tinymist/editor'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { rememberPendingTypstForwardSync } from '../../services/typst/previewSync.js'
-import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
+import { resolveCachedTypstRootPath, resolveTypstCompileTarget } from '../../services/typst/root.js'
 import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
@@ -1190,24 +1190,10 @@ function ensureTypstWindowHandlers() {
       const pos = view.state.selection.main.head
       const location = getTypstSyncLocation(pos)
       if (!location) return
-      const rootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
-        || typstStore.stateForFile(props.filePath)?.compileTargetPath
-        || resolveCachedTypstRootPath(props.filePath)
-        || props.filePath
-      rememberPendingTypstForwardSync({
-        sourcePath: props.filePath,
-        rootPath,
-        line: location.line,
-        character: location.character,
+      void dispatchTypstForwardSyncFromLocation(location, {
+        revealPreview: false,
+        trigger: 'typst-request-cursor',
       })
-      window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
-        detail: {
-          sourcePath: props.filePath,
-          rootPath,
-          line: location.line,
-          character: location.character,
-        },
-      }))
     }
   }
 }
@@ -1226,7 +1212,7 @@ function attachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
     editorContainer.value?.addEventListener('click', handleTypstCitationClick)
-    editorContainer.value?.addEventListener('dblclick', handleTypstSourceDoubleClick)
+    editorContainer.value?.addEventListener('mousedown', handleTypstSourceDoubleMouseDown, true)
   }
   editorContainer.value?.addEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1265,7 +1251,7 @@ function detachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
     editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
-    editorContainer.value?.removeEventListener('dblclick', handleTypstSourceDoubleClick)
+    editorContainer.value?.removeEventListener('mousedown', handleTypstSourceDoubleMouseDown, true)
   }
   editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1420,39 +1406,69 @@ function handleMarkdownSourceDoubleClick(event) {
   }))
 }
 
-function handleTypstSourceDoubleClick(event) {
-  if (!isTyp || !view || event.button !== 0) return
+function handleTypstSourceDoubleMouseDown(event) {
+  if (!isTyp || !view || event.button !== 0 || event.detail !== 2) return
 
   const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
 
-  const location = getTypstSyncLocation(pos)
-  if (!location) return
-  const rootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
+  event.preventDefault()
+  event.stopPropagation()
+  void triggerTypstForwardSyncAtPos(pos, 'typst-source-dblclick')
+}
+
+async function resolveTypstForwardRootPath() {
+  const fallbackRootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
     || typstStore.stateForFile(props.filePath)?.compileTargetPath
     || resolveCachedTypstRootPath(props.filePath)
     || props.filePath
 
-  workflowStore.revealPreview(props.filePath, {
-    previewKind: 'pdf',
-    sourcePaneId: props.paneId,
-    trigger: 'typst-source-dblclick',
-  })
+  if (!view) return fallbackRootPath
 
-  rememberPendingTypstForwardSync({
+  try {
+    const rootPath = await resolveTypstCompileTarget(props.filePath, {
+      filesStore: files,
+      workspacePath: workspace.path,
+      contentOverrides: {
+        [props.filePath]: view.state.doc.toString(),
+      },
+    })
+    return rootPath || fallbackRootPath
+  } catch {
+    return fallbackRootPath
+  }
+}
+
+function dispatchTypstForwardSync(detail) {
+  window.dispatchEvent(new CustomEvent('typst-forward-sync-location', { detail }))
+}
+
+async function dispatchTypstForwardSyncFromLocation(location, options = {}) {
+  if (!location) return
+  const rootPath = await resolveTypstForwardRootPath()
+  const detail = {
     sourcePath: props.filePath,
     rootPath,
     line: location.line,
     character: location.character,
-  })
-  window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
-    detail: {
-      sourcePath: props.filePath,
-      rootPath,
-      line: location.line,
-      character: location.character,
-    },
-  }))
+  }
+  rememberPendingTypstForwardSync(detail)
+
+  if (options.revealPreview !== false) {
+    workflowStore.revealPreview(props.filePath, {
+      previewKind: 'pdf',
+      sourcePaneId: props.paneId,
+      trigger: options.trigger || 'typst-source-dblclick',
+    })
+  }
+
+  dispatchTypstForwardSync(detail)
+}
+
+async function triggerTypstForwardSyncAtPos(pos, trigger = 'typst-source-dblclick') {
+  const location = getTypstSyncLocation(pos)
+  if (!location) return
+  await dispatchTypstForwardSyncFromLocation(location, { trigger })
 }
 
 function getLatexSyncLocation(pos) {

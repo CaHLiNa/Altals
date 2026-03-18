@@ -2802,6 +2802,23 @@ function convertSyncTexPointToPageOffset(pageNumber, x, y) {
   }
 }
 
+function convertPagePointToPageOffset(pageNumber, x, y) {
+  const pageView = getPageView(pageNumber)
+  const pageElement = pageView?.div
+  if (!pageView || !pageElement) return null
+
+  const localX = Number(x)
+  const localY = Number(y)
+  if (!Number.isFinite(localX) || !Number.isFinite(localY)) return null
+
+  return {
+    pageView,
+    pageElement,
+    x: localX,
+    y: localY,
+  }
+}
+
 function buildSelectionRect(range, pageElement, pageNumber) {
   const pageRect = pageElement?.getBoundingClientRect?.()
   if (!pageRect) return null
@@ -3064,10 +3081,13 @@ async function createAnnotationFromContextMenu() {
   await createAnnotationFromSelection()
 }
 
-function showSyncHighlight(pageNumber, x, y) {
+function showSyncHighlight(pageNumber, x, y, options = {}) {
   clearSyncHighlight()
 
-  const pageOffset = convertSyncTexPointToPageOffset(pageNumber, x, y)
+  const coordinateSpace = options.coordinateSpace === 'page' ? 'page' : 'synctex'
+  const pageOffset = coordinateSpace === 'page'
+    ? convertPagePointToPageOffset(pageNumber, x, y)
+    : convertSyncTexPointToPageOffset(pageNumber, x, y)
   const pageElement = pageOffset?.pageElement
   if (!pageElement) return false
 
@@ -3118,7 +3138,9 @@ function shouldQueueSyncHighlight(x, y) {
 function applyPendingSyncHighlight() {
   if (!pendingSyncHighlight) return
   const nextHighlight = pendingSyncHighlight
-  if (showSyncHighlight(nextHighlight.pageNumber, nextHighlight.x, nextHighlight.y)) {
+  if (showSyncHighlight(nextHighlight.pageNumber, nextHighlight.x, nextHighlight.y, {
+    coordinateSpace: nextHighlight.coordinateSpace,
+  })) {
     pendingSyncHighlight = null
   }
 }
@@ -3360,6 +3382,8 @@ function handleIframeDoubleClick(event) {
     page,
     x: syncTexPoint?.x ?? localX,
     y: syncTexPoint?.y ?? localY,
+    pageX: localX,
+    pageY: localY,
   })
 }
 
@@ -3369,7 +3393,7 @@ function scrollToPage(pageNumber) {
 
   const app = getPdfApp()
   if (!app?.pdfLinkService?.goToPage) {
-    pendingScrollLocation = { pageNumber: targetPage, x: null, y: null }
+    pendingScrollLocation = { pageNumber: targetPage, x: null, y: null, coordinateSpace: 'synctex' }
     return
   }
 
@@ -3380,23 +3404,28 @@ function applyPendingScrollLocation() {
   if (!pendingScrollLocation) return
   const nextLocation = pendingScrollLocation
   pendingScrollLocation = null
-  scrollToLocation(nextLocation.pageNumber, nextLocation.x, nextLocation.y)
+  scrollToLocation(nextLocation.pageNumber, nextLocation.x, nextLocation.y, {
+    coordinateSpace: nextLocation.coordinateSpace,
+  })
 }
 
-function scrollToLocation(pageNumber, x, y) {
+function scrollToLocation(pageNumber, x, y, options = {}) {
   const targetPage = Number(pageNumber)
   if (!Number.isInteger(targetPage) || targetPage < 1) return
+  const coordinateSpace = options.coordinateSpace === 'page' ? 'page' : 'synctex'
 
   const app = getPdfApp()
   const container = getPdfElement('viewerContainer')
   if (!app?.pdfViewer || !container) {
-    pendingScrollLocation = { pageNumber: targetPage, x, y }
+    pendingScrollLocation = { pageNumber: targetPage, x, y, coordinateSpace }
     scrollToPage(targetPage)
     return
   }
 
   pendingScrollLocation = null
-  const pageOffset = convertSyncTexPointToPageOffset(targetPage, x, y)
+  const pageOffset = coordinateSpace === 'page'
+    ? convertPagePointToPageOffset(targetPage, x, y)
+    : convertSyncTexPointToPageOffset(targetPage, x, y)
   if (pageOffset?.pageElement) {
     const targetTop = pageOffset.pageElement.offsetTop + pageOffset.y - container.clientHeight / 2
     const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
@@ -3407,10 +3436,10 @@ function scrollToLocation(pageNumber, x, y) {
       behavior: 'auto',
     })
     pendingSyncHighlight = null
-    showSyncHighlight(targetPage, x, y)
+    showSyncHighlight(targetPage, x, y, { coordinateSpace })
   } else if (typeof app.pdfLinkService?.goToPage === 'function') {
     pendingSyncHighlight = shouldQueueSyncHighlight(x, y)
-      ? { pageNumber: targetPage, x, y }
+      ? { pageNumber: targetPage, x, y, coordinateSpace }
       : null
     app.pdfLinkService.goToPage(targetPage)
   }
