@@ -18,35 +18,54 @@
       <template v-if="uiState.kind === 'markdown'">
         <button
           class="workflow-primary-btn"
+          type="button"
+          :title="t('Preview')"
+          :aria-label="t('Preview')"
           @click="$emit('primary-action')"
         >
-          {{ t('Preview') }}
+          <IconEye :size="14" :stroke-width="1.8" />
         </button>
       </template>
 
-      <button v-else class="workflow-primary-btn" @click="$emit('primary-action')">
-        {{ primaryLabel }}
+      <button
+        v-else
+        class="workflow-primary-btn"
+        type="button"
+        :title="primaryLabel"
+        :aria-label="primaryLabel"
+        @click="$emit('primary-action')"
+      >
+        <component :is="primaryIcon" :size="14" :stroke-width="1.8" />
       </button>
       <button
         v-if="uiState.kind !== 'markdown' && showPreviewButton"
         class="workflow-secondary-btn"
+        type="button"
+        :title="previewButtonLabel"
+        :aria-label="previewButtonLabel"
         @click="$emit('reveal-preview')"
       >
-        {{ previewButtonLabel }}
+        <IconEye :size="14" :stroke-width="1.8" />
       </button>
       <button
         v-if="showPdfButton"
         class="workflow-secondary-btn"
+        type="button"
+        title="PDF"
+        aria-label="PDF"
         @click="$emit('reveal-pdf')"
       >
-        PDF
+        <IconFileTypePdf :size="14" :stroke-width="1.8" />
       </button>
       <button
         v-if="canViewLog"
         class="workflow-secondary-btn workflow-secondary-btn-accent"
+        type="button"
+        :title="t('View log')"
+        :aria-label="t('View log')"
         @click="$emit('view-log')"
       >
-        {{ t('View log') }}
+        <IconFileText :size="14" :stroke-width="1.8" />
       </button>
 
       <slot />
@@ -56,6 +75,12 @@
 
 <script setup>
 import { computed } from 'vue'
+import {
+  IconEye,
+  IconFileText,
+  IconFileTypePdf,
+  IconPlayerPlay,
+} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -101,6 +126,13 @@ const primaryLabel = computed(() => {
     return t('Compile')
   }
   return t('Preview')
+})
+
+const primaryIcon = computed(() => {
+  if (props.uiState.kind === 'latex' || props.uiState.kind === 'typst') {
+    return IconPlayerPlay
+  }
+  return IconEye
 })
 
 const showPreviewButton = computed(() => (
@@ -202,9 +234,13 @@ const statusClass = computed(() => ({
 
 .workflow-primary-btn,
 .workflow-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   height: 22px;
-  padding: 0 8px;
+  width: 24px;
+  padding: 0;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
