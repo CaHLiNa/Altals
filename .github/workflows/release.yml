@@ -62,6 +62,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Verify release tag is available
+        shell: bash
+        run: |
+          TAG="${{ steps.bump.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Release tag ${TAG} already exists in the checkout."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Release tag ${TAG} already exists on origin."
+            exit 1
+          fi
+
       - name: Commit and push release version
         shell: bash
         run: |

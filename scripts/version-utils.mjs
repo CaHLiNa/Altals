@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -71,15 +72,62 @@ export function assertVersionsMatch() {
   return unique[0]
 }
 
+export function parseSemver(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version || '').trim())
+  if (!match) return null
+  return [Number(match[1]), Number(match[2]), Number(match[3])]
+}
+
+export function compareSemver(left, right) {
+  const a = parseSemver(left)
+  const b = parseSemver(right)
+  if (!a || !b) {
+    throw new Error(`Unsupported version comparison: ${left} vs ${right}`)
+  }
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] > b[index]) return 1
+    if (a[index] < b[index]) return -1
+  }
+  return 0
+}
+
+export function maxSemver(...versions) {
+  const candidates = versions.filter(Boolean)
+  if (candidates.length === 0) return null
+  return candidates.reduce((highest, version) => (
+    !highest || compareSemver(version, highest) > 0 ? version : highest
+  ), null)
+}
+
+export function getLatestSemverTagVersion() {
+  let output = ''
+  try {
+    output = execFileSync('git', ['tag', '--list', 'v*'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch {
+    return null
+  }
+
+  const versions = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((tag) => tag.replace(/^refs\/tags\//, '').replace(/^v/, ''))
+    .filter((version) => parseSemver(version))
+
+  return maxSemver(...versions)
+}
+
 export function bumpSemver(version, level) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version)
-  if (!match) {
+  const parsed = parseSemver(version)
+  if (!parsed) {
     throw new Error(`Unsupported version format: ${version}`)
   }
 
-  const major = Number(match[1])
-  const minor = Number(match[2])
-  const patch = Number(match[3])
+  const [major, minor, patch] = parsed
 
   if (level === 'major') return `${major + 1}.0.0`
   if (level === 'minor') return `${major}.${minor + 1}.0`

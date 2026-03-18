@@ -1,5 +1,11 @@
 import process from 'node:process'
-import { assertVersionsMatch, bumpSemver, updateVersions } from './version-utils.mjs'
+import {
+  assertVersionsMatch,
+  bumpSemver,
+  getLatestSemverTagVersion,
+  maxSemver,
+  updateVersions,
+} from './version-utils.mjs'
 
 function run() {
   const args = process.argv.slice(2)
@@ -11,7 +17,9 @@ function run() {
   }
 
   const currentVersion = assertVersionsMatch()
-  const nextVersion = bumpSemver(currentVersion, level)
+  const latestTagVersion = getLatestSemverTagVersion()
+  const baseVersion = maxSemver(currentVersion, latestTagVersion)
+  const nextVersion = bumpSemver(baseVersion, level)
 
   if (!dryRun) {
     updateVersions(nextVersion)
