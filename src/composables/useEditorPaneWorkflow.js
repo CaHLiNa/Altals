@@ -316,6 +316,49 @@ export function useEditorPaneWorkflow(options) {
       handlePreviewMarkdown()
       return
     }
+    if (workflowUiState.value.kind === 'typst') {
+      const sourcePath = activeTabRef.value
+      const previewPath = workflowStore.getPreviewPathForSource(sourcePath, 'native')
+      const artifactPath = activeCompileAdapter.value?.getArtifactPath?.(sourcePath, buildAdapterContext()) || ''
+      const shared = getTypstSharedPaneInfo(sourcePath, previewPath, artifactPath)
+      const activeTab = shared.pane?.activeTab || ''
+
+      if (shared.paneId && activeTab === previewPath) {
+        closeTypstSharedPane(sourcePath, previewPath, artifactPath, shared.paneId, 'typst-preview-toggle-close')
+        return
+      }
+
+      if (shared.paneId && activeTab === artifactPath) {
+        const result = workflowStore.ensurePreviewForSource(sourcePath, {
+          previewKind: 'native',
+          activatePreview: false,
+          sourcePaneId: paneIdRef.value,
+          trigger: 'typst-preview-toggle-switch',
+        })
+        const targetPaneId = result?.previewPaneId || shared.paneId
+        if (previewPath && targetPaneId) {
+          editorStore.openFileInPane(previewPath, targetPaneId, { activatePane: true })
+          if (shared.pdfMode === 'owned') {
+            const targetPane = editorStore.findPane(editorStore.paneTree, targetPaneId)
+            if (targetPane?.tabs.includes(artifactPath)) {
+              editorStore.closeTab(targetPaneId, artifactPath)
+            }
+          }
+        }
+        typstPdfPaneState.delete(sourcePath)
+        return
+      }
+
+      await workflowStore.togglePreviewForSource(sourcePath, {
+        previewKind: 'native',
+        activatePreview: true,
+        jump: true,
+        sourcePaneId: paneIdRef.value,
+        trigger: 'workflow-toggle-preview',
+      })
+      typstPdfPaneState.delete(sourcePath)
+      return
+    }
     await workflowStore.togglePreviewForSource(activeTabRef.value, {
       previewKind: workflowUiState.value.previewKind,
       activatePreview: true,
@@ -332,47 +375,35 @@ export function useEditorPaneWorkflow(options) {
     const artifactPath = activeCompileAdapter.value?.getArtifactPath?.(activeTabRef.value, buildAdapterContext())
     if (!artifactPath) return
     const previewPath = workflowStore.getPreviewPathForSource(sourcePath, 'native')
-    const existingBinding = workflowStore.findPreviewBindingForSource(sourcePath, 'native')
-    const existingPreviewPaneId = (
-      existingBinding?.paneId
-      || editorStore.findPaneWithTab(previewPath)?.id
-      || (
-        workflowStore.session.previewSourcePath === sourcePath
-        && workflowStore.session.previewKind === 'native'
-          ? workflowStore.session.previewPaneId
-          : null
-      )
-      || ''
-    )
+    const shared = getTypstSharedPaneInfo(sourcePath, previewPath, artifactPath)
+    const activeTab = shared.pane?.activeTab || ''
 
-    if (existingPreviewPaneId) {
-      const targetPane = editorStore.findPane(editorStore.paneTree, existingPreviewPaneId)
-      if (targetPane?.activeTab === artifactPath) {
-        editorStore.closeTab(existingPreviewPaneId, artifactPath)
-        return
+    if (shared.paneId && activeTab === artifactPath) {
+      if (shared.pdfMode === 'overlay' && previewPath) {
+        editorStore.openFileInPane(previewPath, shared.paneId, { activatePane: true })
+      } else {
+        const pane = editorStore.findPane(editorStore.paneTree, shared.paneId)
+        if (pane?.tabs.includes(artifactPath)) {
+          editorStore.closeTab(shared.paneId, artifactPath)
+        }
       }
-      editorStore.openFileInPane(artifactPath, existingPreviewPaneId, { activatePane: true })
+      typstPdfPaneState.delete(sourcePath)
       return
     }
 
-    const existingPdfPane = editorStore.findPaneWithTab(artifactPath)
-    if (existingPdfPane?.id) {
-      if (existingPdfPane.activeTab === artifactPath) {
-        editorStore.closeTab(existingPdfPane.id, artifactPath)
-        return
-      }
-      editorStore.openFileInPane(artifactPath, existingPdfPane.id, { activatePane: true })
+    if (shared.paneId && activeTab === previewPath) {
+      openTypstPdfInPane(sourcePath, artifactPath, shared.paneId, 'overlay')
       return
     }
 
-    const neighborPane = editorStore.findRightNeighborLeaf?.(paneIdRef.value)
-    if (neighborPane?.id && isPreviewHostPane(neighborPane.id)) {
-      editorStore.openFileInPane(artifactPath, neighborPane.id, { activatePane: true })
+    if (shared.paneId) {
+      openTypstPdfInPane(sourcePath, artifactPath, shared.paneId, shared.hasPreview ? 'overlay' : 'owned')
       return
     }
 
     const newPaneId = editorStore.splitPaneWith(paneIdRef.value, 'vertical', artifactPath)
     if (newPaneId) {
+      typstPdfPaneState.set(sourcePath, { paneId: newPaneId, mode: 'owned' })
       editorStore.setActivePane(newPaneId)
     }
   }

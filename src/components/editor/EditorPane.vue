@@ -334,12 +334,11 @@ defineExpose({ startComment })
   z-index: 4;
   width: 100%;
   box-sizing: border-box;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
 }
 
 .document-header-stack-subbar-only {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
 }
 
 .document-header-subbar {
