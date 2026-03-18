@@ -1,6 +1,5 @@
 import { isTypst } from '../../../utils/fileTypes.js'
 import { ensureTypstCompileReady } from '../../environmentPreflight.js'
-import { resolveCachedTypstPreviewPath } from '../../typst/root.js'
 import {
   buildTypstCompileProblems,
   buildTypstWorkflowStatusText,
@@ -9,29 +8,29 @@ import {
 } from '../../typst/diagnostics.js'
 
 const typstPreviewAdapter = {
-  defaultKind: 'pdf',
-  supportedKinds: ['pdf'],
+  defaultKind: 'native',
+  supportedKinds: ['native'],
 
   createPath(sourcePath, previewKind) {
-    if (!sourcePath || previewKind !== 'pdf') return null
-    return resolveCachedTypstPreviewPath(sourcePath) || sourcePath.replace(/\.typ$/i, '.pdf')
+    if (!sourcePath || previewKind !== 'native') return null
+    return `typst-preview:${sourcePath}`
   },
 
   inferKind(sourcePath, previewPath) {
-    return previewPath === this.createPath(sourcePath, 'pdf') ? 'pdf' : null
+    return previewPath === this.createPath(sourcePath, 'native') ? 'native' : null
   },
 
   ensure(sourcePath, context, options = {}) {
     return context.workflowStore?.ensurePreviewForSource(sourcePath, {
       ...options,
-      previewKind: 'pdf',
+      previewKind: 'native',
     }) || null
   },
 
   reveal(sourcePath, context, options = {}) {
     return context.workflowStore?.revealPreview(sourcePath, {
       ...options,
-      previewKind: 'pdf',
+      previewKind: 'native',
     }) || null
   },
 }
@@ -75,7 +74,7 @@ const typstCompileAdapter = {
   },
 
   getArtifactPath(filePath, context) {
-    return this.stateForFile(filePath, context)?.pdfPath || typstPreviewAdapter.createPath(filePath, 'pdf')
+    return this.stateForFile(filePath, context)?.pdfPath || filePath.replace(/\.typ$/i, '.pdf')
   },
 
   getStatusText(filePath, context) {
@@ -118,6 +117,7 @@ export const typstDocumentAdapter = {
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
       referencesStore: context.referencesStore || null,
       previewAvailable: !!context.previewAvailable,
+      previewKind: context.previewKind || typstPreviewAdapter.defaultKind,
     })
   },
 }

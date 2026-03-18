@@ -6,7 +6,7 @@
     :toolbar-target-selector="toolbarTargetSelector"
   />
   <TypstPdfViewer
-    v-else-if="pdfSourceReady && pdfSourceKind === 'typst'"
+    v-else-if="pdfSourceReady && canUseTypstWorkflowPdfViewer"
     :filePath="filePath"
     :paneId="paneId"
     :toolbar-target-selector="toolbarTargetSelector"
@@ -31,6 +31,7 @@ import { computed, watch } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useI18n } from '../../i18n'
+import { isLatex, isTypst } from '../../utils/fileTypes'
 import PdfViewer from './PdfViewer.vue'
 import LatexPdfViewer from './LatexPdfViewer.vue'
 import TypstPdfViewer from './TypstPdfViewer.vue'
@@ -45,10 +46,20 @@ const filesStore = useFilesStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
+const previewBinding = computed(() => workflowStore.getPreviewBinding(props.filePath))
 const previewSourcePath = computed(() => workflowStore.getSourcePathForPreview(props.filePath) || '')
 const pdfSourceState = computed(() => filesStore.getPdfSourceState(props.filePath))
-const pdfSourceReady = computed(() => pdfSourceState.value?.status === 'ready')
-const pdfSourceKind = computed(() => pdfSourceState.value?.kind || 'plain')
+const boundSourceKind = computed(() => {
+  if (isLatex(previewSourcePath.value)) return 'latex'
+  if (isTypst(previewSourcePath.value)) return 'typst'
+  return null
+})
+const canUseTypstWorkflowPdfViewer = computed(() => (
+  previewBinding.value?.previewKind === 'pdf'
+  && (isTypst(previewBinding.value?.sourcePath || '') || boundSourceKind.value === 'typst')
+))
+const pdfSourceReady = computed(() => !!boundSourceKind.value || pdfSourceState.value?.status === 'ready')
+const pdfSourceKind = computed(() => boundSourceKind.value || pdfSourceState.value?.kind || 'plain')
 
 async function ensurePdfSourceKind(force = false) {
   if (!props.filePath?.toLowerCase().endsWith('.pdf')) return

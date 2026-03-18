@@ -16,6 +16,8 @@ const previewTaskState = {
   rootPath: null,
   workspacePath: null,
   dataPlanePort: null,
+  staticServerPort: null,
+  previewUrl: '',
   startToken: 0,
   startPromise: null,
 }
@@ -79,6 +81,8 @@ async function killPreviewTask(workspacePath = null) {
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
     previewTaskState.dataPlanePort = null
+    previewTaskState.staticServerPort = null
+    previewTaskState.previewUrl = ''
     previewTaskState.startPromise = null
     return
   }
@@ -94,8 +98,16 @@ async function killPreviewTask(workspacePath = null) {
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
     previewTaskState.dataPlanePort = null
+    previewTaskState.staticServerPort = null
+    previewTaskState.previewUrl = ''
     previewTaskState.startPromise = null
   }
+}
+
+function buildPreviewUrl(staticServerPort) {
+  const port = Number(staticServerPort || 0)
+  if (!Number.isInteger(port) || port <= 0) return ''
+  return `http://127.0.0.1:${port}`
 }
 
 async function startPreviewTask(rootPath, options = {}) {
@@ -109,6 +121,7 @@ async function startPreviewTask(rootPath, options = {}) {
     previewTaskState.taskId === TYPST_PREVIEW_TASK_ID
     && previewTaskState.rootPath === normalizedRoot
     && previewTaskState.dataPlanePort
+    && previewTaskState.staticServerPort
     && previewTaskState.workspacePath === workspacePath
   ) {
     return {
@@ -116,6 +129,8 @@ async function startPreviewTask(rootPath, options = {}) {
       rootPath: previewTaskState.rootPath,
       workspacePath: previewTaskState.workspacePath,
       dataPlanePort: previewTaskState.dataPlanePort,
+      staticServerPort: previewTaskState.staticServerPort,
+      previewUrl: previewTaskState.previewUrl,
     }
   }
 
@@ -144,17 +159,25 @@ async function startPreviewTask(rootPath, options = {}) {
   if (!Number.isInteger(dataPlanePort) || dataPlanePort <= 0) {
     throw new Error('Tinymist preview did not expose a valid data plane port')
   }
+  const staticServerPort = Number(result?.staticServerPort || 0)
+  if (!Number.isInteger(staticServerPort) || staticServerPort <= 0) {
+    throw new Error('Tinymist preview did not expose a valid static server port')
+  }
 
   previewTaskState.taskId = TYPST_PREVIEW_TASK_ID
   previewTaskState.rootPath = normalizedRoot
   previewTaskState.workspacePath = workspacePath
   previewTaskState.dataPlanePort = dataPlanePort
+  previewTaskState.staticServerPort = staticServerPort
+  previewTaskState.previewUrl = buildPreviewUrl(staticServerPort)
 
   return {
     taskId: previewTaskState.taskId,
     rootPath: previewTaskState.rootPath,
     workspacePath: previewTaskState.workspacePath,
     dataPlanePort: previewTaskState.dataPlanePort,
+    staticServerPort: previewTaskState.staticServerPort,
+    previewUrl: previewTaskState.previewUrl,
   }
 }
 
@@ -169,6 +192,7 @@ async function ensurePreviewTask(rootPath, options = {}) {
     previewTaskState.taskId === TYPST_PREVIEW_TASK_ID
     && previewTaskState.rootPath === normalizedRoot
     && previewTaskState.dataPlanePort
+    && previewTaskState.staticServerPort
     && previewTaskState.workspacePath === workspacePath
   ) {
     return {
@@ -176,6 +200,8 @@ async function ensurePreviewTask(rootPath, options = {}) {
       rootPath: previewTaskState.rootPath,
       workspacePath: previewTaskState.workspacePath,
       dataPlanePort: previewTaskState.dataPlanePort,
+      staticServerPort: previewTaskState.staticServerPort,
+      previewUrl: previewTaskState.previewUrl,
     }
   }
 
@@ -239,6 +265,8 @@ subscribeTinymistNotification('tinymist/preview/dispose', (payload) => {
   previewTaskState.taskId = null
   previewTaskState.rootPath = null
   previewTaskState.dataPlanePort = null
+  previewTaskState.staticServerPort = null
+  previewTaskState.previewUrl = ''
   previewTaskState.startPromise = null
 })
 
@@ -247,6 +275,59 @@ export async function ensureTypstPreviewTaskStarted(options = {}) {
   const workspacePath = normalizeFsPath(options.workspacePath || '')
   if (!rootPath) return null
   return ensurePreviewTask(rootPath, { workspacePath })
+}
+
+export async function ensureTypstNativePreviewSession(options = {}) {
+  return ensureTypstPreviewTaskStarted(options)
+}
+
+export function getActiveTypstPreviewSession() {
+  if (!previewTaskState.taskId || !previewTaskState.rootPath) return null
+  return {
+    taskId: previewTaskState.taskId,
+    rootPath: previewTaskState.rootPath,
+    workspacePath: previewTaskState.workspacePath,
+    dataPlanePort: previewTaskState.dataPlanePort,
+    staticServerPort: previewTaskState.staticServerPort,
+    previewUrl: previewTaskState.previewUrl,
+  }
+}
+
+export function subscribeTypstPreviewScrollSource(listener) {
+  if (typeof listener !== 'function') return () => {}
+  return subscribeTinymistNotification('tinymist/preview/scrollSource', (payload) => {
+    const location = toNotificationJumpLocation(payload)
+    if (!location) return
+    listener(location, payload)
+  })
+}
+
+export async function requestTypstNativePreviewForwardSync(options = {}) {
+  const sourcePath = normalizeFsPath(options.sourcePath || '')
+  const rootPath = normalizeFsPath(options.rootPath || resolveCachedTypstRootPath(sourcePath))
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
+  const line = Number(options.line ?? 0)
+  const character = Number(options.character ?? 0)
+
+  if (!sourcePath || !rootPath) return false
+
+  return retryPreviewSync(async () => {
+    await ensurePreviewTask(rootPath, { workspacePath })
+    await requestTinymistExecuteCommand(
+      'tinymist.scrollPreview',
+      [
+        TYPST_PREVIEW_TASK_ID,
+        {
+          event: 'panelScrollTo',
+          filepath: sourcePath,
+          line,
+          character,
+        },
+      ],
+      { workspacePath },
+    )
+    return true
+  })
 }
 
 export async function requestTypstPreviewForwardSync(options = {}) {

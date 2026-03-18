@@ -35,6 +35,13 @@
         {{ previewButtonLabel }}
       </button>
       <button
+        v-if="showPdfButton"
+        class="workflow-secondary-btn"
+        @click="$emit('reveal-pdf')"
+      >
+        PDF
+      </button>
+      <button
         v-if="canViewLog"
         class="workflow-secondary-btn workflow-secondary-btn-accent"
         @click="$emit('view-log')"
@@ -61,6 +68,7 @@ const props = defineProps({
 defineEmits([
   'primary-action',
   'reveal-preview',
+  'reveal-pdf',
   'view-log',
 ])
 
@@ -75,6 +83,7 @@ const kindLabel = computed(() => {
 
 const previewLabel = computed(() => {
   if (props.uiState.kind === 'markdown') return t('Preview')
+  if (props.uiState.previewKind === 'native') return t('Preview')
   return props.uiState.previewKind === 'pdf' ? 'PDF' : 'HTML'
 })
 
@@ -102,6 +111,10 @@ const showPreviewButton = computed(() => (
 
 const previewButtonLabel = computed(() => (
   t('Preview')
+))
+
+const showPdfButton = computed(() => (
+  props.uiState.kind === 'typst'
 ))
 
 const statusClass = computed(() => ({

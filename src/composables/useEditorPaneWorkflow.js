@@ -208,6 +208,32 @@ export function useEditorPaneWorkflow(options) {
     })
   }
 
+  function handleWorkflowRevealPdf() {
+    if (!workflowUiState.value || workflowUiState.value.kind !== 'typst' || !activeTabRef.value) return
+
+    const artifactPath = activeCompileAdapter.value?.getArtifactPath?.(activeTabRef.value, buildAdapterContext())
+    if (!artifactPath) return
+
+    const previewResult = workflowStore.ensurePreviewForSource(activeTabRef.value, {
+      previewKind: 'native',
+      activatePreview: false,
+      sourcePaneId: paneIdRef.value,
+      trigger: 'typst-pdf-button',
+    })
+
+    const targetPaneId = previewResult?.previewPaneId || workflowStore.session.previewPaneId || ''
+    if (targetPaneId) {
+      editorStore.openFileInPane(artifactPath, targetPaneId, { activatePane: true })
+      return
+    }
+
+    const existingPane = editorStore.findPaneWithTab(artifactPath)
+    if (existingPane?.id) {
+      editorStore.openFileInPane(artifactPath, existingPane.id, { activatePane: true })
+      return
+    }
+  }
+
   function handleWorkflowViewLog() {
     if (!activeTabRef.value) return
     activeCompileAdapter.value?.openLog?.(activeTabRef.value, buildAdapterContext())
@@ -238,6 +264,7 @@ export function useEditorPaneWorkflow(options) {
     handlePreviewMarkdown,
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
+    handleWorkflowRevealPdf,
     handleWorkflowViewLog,
   }
 }

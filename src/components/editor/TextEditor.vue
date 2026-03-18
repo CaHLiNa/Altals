@@ -141,6 +141,7 @@ let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
 let typstCursorRequestHandler = null
+let typstPreviewSyncTimer = null
 let cleanupTypstWindowListeners = null
 let editorRuntimeActive = false
 let pendingContextMenuState = null
@@ -723,6 +724,7 @@ onMounted(async () => {
       if (isTyp && update.selectionSet && !typstUi.jumpInFlight && !tinymistNavUi.jumpInFlight) {
         handleEditorSelectionChange(update.state.selection.main.head)
         handleNavigationSelectionChange()
+        scheduleTypstSelectionPreviewSync(update.state.selection.main)
       }
     }),
   ]
@@ -1212,7 +1214,6 @@ function attachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
     editorContainer.value?.addEventListener('click', handleTypstCitationClick)
-    editorContainer.value?.addEventListener('mousedown', handleTypstSourceDoubleMouseDown, true)
   }
   editorContainer.value?.addEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1251,7 +1252,6 @@ function detachEditorRuntimeListeners() {
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
     editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
-    editorContainer.value?.removeEventListener('mousedown', handleTypstSourceDoubleMouseDown, true)
   }
   editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
   if (chunkExecuteHandler) {
@@ -1406,17 +1406,6 @@ function handleMarkdownSourceDoubleClick(event) {
   }))
 }
 
-function handleTypstSourceDoubleMouseDown(event) {
-  if (!isTyp || !view || event.button !== 0 || event.detail !== 2) return
-
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
-
-  event.preventDefault()
-  event.stopPropagation()
-  void triggerTypstForwardSyncAtPos(pos, 'typst-source-dblclick')
-}
-
 async function resolveTypstForwardRootPath() {
   const fallbackRootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
     || typstStore.stateForFile(props.filePath)?.compileTargetPath
@@ -1456,7 +1445,7 @@ async function dispatchTypstForwardSyncFromLocation(location, options = {}) {
 
   if (options.revealPreview !== false) {
     workflowStore.revealPreview(props.filePath, {
-      previewKind: 'pdf',
+      previewKind: 'native',
       sourcePaneId: props.paneId,
       trigger: options.trigger || 'typst-source-dblclick',
     })
@@ -1469,6 +1458,25 @@ async function triggerTypstForwardSyncAtPos(pos, trigger = 'typst-source-dblclic
   const location = getTypstSyncLocation(pos)
   if (!location) return
   await dispatchTypstForwardSyncFromLocation(location, { trigger })
+}
+
+function scheduleTypstSelectionPreviewSync(selection) {
+  if (!isTyp || !view) return
+  if (!workflowStore.hasPreviewForSource(props.filePath, 'native')) return
+  if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
+
+  if (typstPreviewSyncTimer != null) {
+    window.clearTimeout(typstPreviewSyncTimer)
+    typstPreviewSyncTimer = null
+  }
+
+  const pos = Number(selection?.head ?? -1)
+  if (!Number.isInteger(pos) || pos < 0) return
+
+  typstPreviewSyncTimer = window.setTimeout(() => {
+    typstPreviewSyncTimer = null
+    void triggerTypstForwardSyncAtPos(pos, 'typst-source-selection')
+  }, 90)
 }
 
 function getLatexSyncLocation(pos) {
@@ -1536,6 +1544,10 @@ watch(
 
 onUnmounted(() => {
   deactivateEditorRuntime()
+  if (typstPreviewSyncTimer != null) {
+    window.clearTimeout(typstPreviewSyncTimer)
+    typstPreviewSyncTimer = null
+  }
   if (isTyp) {
     void disconnectTinymistDocument()
   }

@@ -38,12 +38,27 @@ export function referenceKeyFromPath(path) {
 }
 
 export function isPreviewPath(path) {
-  return path.startsWith('preview:')
+  return isMarkdownPreviewPath(path) || isTypstPreviewPath(path)
+}
+
+export function isMarkdownPreviewPath(path) {
+  return typeof path === 'string' && path.startsWith('preview:')
+}
+
+export function isTypstPreviewPath(path) {
+  return typeof path === 'string' && path.startsWith('typst-preview:')
+}
+
+export function previewSourcePathFromPath(path) {
+  if (isMarkdownPreviewPath(path)) return path.slice('preview:'.length)
+  if (isTypstPreviewPath(path)) return path.slice('typst-preview:'.length)
+  return ''
 }
 
 export function getViewerType(path) {
   if (isNewTab(path)) return 'newtab'
-  if (isPreviewPath(path)) return 'markdown-preview'
+  if (isMarkdownPreviewPath(path)) return 'markdown-preview'
+  if (isTypstPreviewPath(path)) return 'typst-native-preview'
   if (isReferencePath(path)) return 'reference'
   if (isChatTab(path)) return 'chat'
   const ext = getExt(path)

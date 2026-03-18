@@ -5,6 +5,7 @@ import { useTypstStore } from './typst.js'
 import { useFilesStore } from './files.js'
 import { useReferencesStore } from './references.js'
 import { useWorkspaceStore } from './workspace.js'
+import { previewSourcePathFromPath } from '../utils/fileTypes.js'
 import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
@@ -203,7 +204,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     getSourcePathForPreview(previewPath) {
       const binding = this.getPreviewBinding(previewPath)
-      return binding?.sourcePath || null
+      return binding?.sourcePath || previewSourcePathFromPath(previewPath) || null
     },
 
     findPreviewBindingForSource(sourcePath, previewKind = null) {

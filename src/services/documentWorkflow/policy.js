@@ -3,10 +3,12 @@ import {
   getDocumentAdapterForWorkflow,
 } from './adapters/index.js'
 
+import { isPreviewPath } from '../../utils/fileTypes.js'
+
 export function getDocumentWorkflowKind(path) {
   if (!path || typeof path !== 'string') return null
   if (
-    path.startsWith('preview:')
+    isPreviewPath(path)
     || path.startsWith('chat:')
     || path.startsWith('newtab:')
     || path.startsWith('ref:@')

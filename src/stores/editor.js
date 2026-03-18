@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isChatTab, getChatSessionId, isNewTab, getViewerType } from '../utils/fileTypes'
+import { isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 import { buildCitationText } from '../editor/citationSyntax'
@@ -913,7 +913,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     recordFileOpen(path) {
-      if (path.startsWith('ref:@') || path.startsWith('preview:') || isChatTab(path) || isNewTab(path)) return
+      if (path.startsWith('ref:@') || isPreviewPath(path) || isChatTab(path) || isNewTab(path)) return
       events.fileOpen(path.split('.').pop())
       this.recentFiles = this.recentFiles.filter(e => e.path !== path)
       this.recentFiles.unshift({ path, openedAt: Date.now() })

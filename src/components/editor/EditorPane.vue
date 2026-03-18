@@ -45,6 +45,7 @@
         :status-tone="workflowStatusTone"
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
+        @reveal-pdf="handleWorkflowRevealPdf"
         @view-log="handleWorkflowViewLog"
       />
       <div
@@ -104,6 +105,12 @@
       />
       <MarkdownPreview
         v-else-if="activeTab && viewerType === 'markdown-preview'"
+        :key="activeTab"
+        :filePath="activeTab"
+        :paneId="paneId"
+      />
+      <TypstNativePreview
+        v-else-if="activeTab && viewerType === 'typst-native-preview'"
         :key="activeTab"
         :filePath="activeTab"
         :paneId="paneId"
@@ -177,6 +184,7 @@ const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
 const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
+const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
@@ -252,6 +260,7 @@ const {
   handlePreviewMarkdown,
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
+  handleWorkflowRevealPdf,
   handleWorkflowViewLog,
 } = useEditorPaneWorkflow({
   paneIdRef,

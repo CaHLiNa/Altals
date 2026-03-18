@@ -191,6 +191,7 @@ export function buildTypstWorkflowUiState(options = {}) {
   const liveState = options.liveState || {}
   const queueState = options.queueState || {}
   const previewAvailable = options.previewAvailable === true
+  const previewKind = options.previewKind || 'native'
   const tinymistBacked = liveState?.tinymistBacked === true
   const liveDiagnostics = Array.isArray(liveState?.diagnostics) ? liveState.diagnostics : []
   const liveStatus = getTinymistDiagnosticsStatus(liveDiagnostics)
@@ -207,7 +208,7 @@ export function buildTypstWorkflowUiState(options = {}) {
 
   return {
     kind: 'typst',
-    previewKind: 'pdf',
+    previewKind,
     phase,
     errorCount,
     warningCount,

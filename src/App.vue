@@ -106,7 +106,7 @@ import { useToastStore } from './stores/toast'
 import { useUxStatusStore } from './stores/uxStatus'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
 import { isMod } from './platform'
-import { isChatTab, isNewTab, getViewerType } from './utils/fileTypes'
+import { isChatTab, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
 import {
   activateWorkspaceBookmark,
   captureWorkspaceBookmark,
@@ -719,7 +719,7 @@ async function forceSaveAndCommit() {
     const openFiles = editorStore.allOpenFiles
     for (const filePath of openFiles) {
       // Skip virtual paths (reference tabs, chat tabs, preview tabs, new tabs)
-      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || filePath.startsWith('preview:') || filePath.startsWith('newtab:')) continue
+      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:')) continue
       const content = filesStore.fileContents[filePath]
       if (content !== undefined) {
         await filesStore.saveFile(filePath, content)

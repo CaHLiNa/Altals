@@ -179,7 +179,18 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
-import { isReferencePath, referenceKeyFromPath, isRunnable, isRmdOrQmd, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../../utils/fileTypes'
+import {
+  isReferencePath,
+  referenceKeyFromPath,
+  isRunnable,
+  isRmdOrQmd,
+  isChatTab,
+  getChatSessionId,
+  isNewTab,
+  getViewerType,
+  isPreviewPath,
+  previewSourcePathFromPath,
+} from '../../utils/fileTypes'
 import { useCommentsStore } from '../../stores/comments'
 import { useChatStore } from '../../stores/chat'
 import { modKey } from '../../platform'
@@ -273,7 +284,7 @@ function fileName(path) {
     return `@${key}`
   }
   if (isPreviewPath(path)) {
-    const name = path.replace(/^preview:/, '').split('/').pop()
+    const name = previewSourcePathFromPath(path).split('/').pop()
     return `${name} (Preview)`
   }
   return path.split('/').pop()

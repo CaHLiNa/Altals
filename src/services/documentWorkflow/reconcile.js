@@ -58,7 +58,7 @@ function isPreviewCapableLeaf(leaf) {
   if (!leaf) return false
   if (!leaf.activeTab) return true
   const viewerType = getViewerType(leaf.activeTab)
-  return viewerType === 'markdown-preview' || viewerType === 'pdf'
+  return viewerType === 'markdown-preview' || viewerType === 'typst-native-preview' || viewerType === 'pdf'
 }
 
 function matchesPreviewBinding(tabPath, sourcePath, preferredPreview, workflowStore) {

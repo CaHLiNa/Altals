@@ -6,7 +6,15 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../stores/references'
-import { isChatTab, getChatSessionId, isReferencePath, referenceKeyFromPath, isPreviewPath, isNewTab } from '../utils/fileTypes'
+import {
+  isChatTab,
+  getChatSessionId,
+  isReferencePath,
+  referenceKeyFromPath,
+  isPreviewPath,
+  isNewTab,
+  previewSourcePathFromPath,
+} from '../utils/fileTypes'
 
 const STATE_FILE = 'editor-state.json'
 const STATE_VERSION = 1
@@ -130,7 +138,7 @@ async function isTabValid(tab, shouldersDir) {
 
   // Preview tabs: validate the underlying file path
   if (isPreviewPath(tab)) {
-    const underlyingPath = tab.slice(8) // strip 'preview:'
+    const underlyingPath = previewSourcePathFromPath(tab)
     if (!underlyingPath) return false
     try {
       return await invoke('path_exists', { path: underlyingPath })

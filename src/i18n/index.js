@@ -173,6 +173,8 @@ const ZH_MESSAGES = {
   'Insert Table': '插入表格',
   'Draft': '预览',
   'Preview failed': '预览失败',
+  'Starting Typst preview…': '正在启动 Typst 预览…',
+  'Tinymist preview failed to start.': 'Tinymist 预览启动失败。',
   'Quick Fixes': '快速修复',
   'Citation': '引用',
   'Footnote': '脚注',
