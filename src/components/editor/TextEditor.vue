@@ -174,6 +174,8 @@ const {
   getView,
   typstStore,
   editorStore,
+  filesStore: files,
+  referencesStore,
   getWorkspacePath: () => workspace.path,
   t,
 })
@@ -188,6 +190,7 @@ const {
   getView,
   editorStore,
   filesStore: files,
+  workspacePath: workspace.path,
   toastStore,
   isTinymistAvailable: () => typstUi.tinymistActive,
   t,
@@ -932,8 +935,10 @@ onMounted(async () => {
   if (supportsTypstSupport) {
     extraExtensions.push(...createTypstEditorSupport({
       filePath: props.filePath,
+      filesStore: files,
       getReferenceByKey: (key) => referencesStore.getByKey(key),
       referencesStore,
+      workspacePath: workspace.path,
     }))
     extraExtensions.push(Prec.highest(keymap.of([
       ...buildDefinitionKeymap(),

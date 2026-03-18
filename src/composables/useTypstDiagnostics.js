@@ -24,9 +24,18 @@ import {
 } from '../services/tinymist/diagnostics'
 
 const TINYMIST_SYNC_DEBOUNCE_MS = 180
+const TYPST_PROJECT_DIAGNOSTICS_DEBOUNCE_MS = 220
 
 export function useTypstDiagnostics(options) {
-  const { filePath, getView, typstStore, editorStore, getWorkspacePath } = options
+  const {
+    filePath,
+    getView,
+    typstStore,
+    editorStore,
+    getWorkspacePath,
+    filesStore,
+    referencesStore,
+  } = options
 
   const typstUi = reactive({
     diagnostics: [],
@@ -41,9 +50,28 @@ export function useTypstDiagnostics(options) {
   })
 
   let tinymistSyncTimer = null
+  let projectDiagnosticsTimer = null
   let cleanupTinymistDiagnostics = null
   let cleanupTinymistStatus = null
   let tinymistDocumentOpen = false
+
+  function refreshProjectDiagnostics(text) {
+    return typstStore.refreshProjectProblems(filePath, {
+      filesStore,
+      referencesStore,
+      workspacePath: getWorkspacePath?.() || null,
+      contentOverrides: {
+        [filePath]: text,
+      },
+    }).catch(() => [])
+  }
+
+  function scheduleProjectDiagnosticsRefresh(text) {
+    clearTimeout(projectDiagnosticsTimer)
+    projectDiagnosticsTimer = setTimeout(() => {
+      void refreshProjectDiagnostics(text)
+    }, TYPST_PROJECT_DIAGNOSTICS_DEBOUNCE_MS)
+  }
 
   function getDocumentLineText(lineNumber) {
     if (!Number.isInteger(lineNumber) || lineNumber <= 0) return ''
@@ -228,6 +256,8 @@ export function useTypstDiagnostics(options) {
   }
 
   async function connectTinymistDocument(text) {
+    void refreshProjectDiagnostics(text)
+
     if (cleanupTinymistStatus == null) {
       cleanupTinymistStatus = subscribeTinymistStatus((status) => {
         typstStore.setTinymistAvailability(status.available === true)
@@ -272,6 +302,7 @@ export function useTypstDiagnostics(options) {
   }
 
   function scheduleTinymistSync(text) {
+    scheduleProjectDiagnosticsRefresh(text)
     if (!typstUi.tinymistActive || !tinymistDocumentOpen) return
     clearTimeout(tinymistSyncTimer)
     tinymistSyncTimer = setTimeout(() => {
@@ -282,6 +313,8 @@ export function useTypstDiagnostics(options) {
   async function disconnectTinymistDocument() {
     clearTimeout(tinymistSyncTimer)
     tinymistSyncTimer = null
+    clearTimeout(projectDiagnosticsTimer)
+    projectDiagnosticsTimer = null
 
     if (cleanupTinymistDiagnostics) {
       cleanupTinymistDiagnostics()

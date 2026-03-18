@@ -67,7 +67,7 @@ import {
   subscribeTinymistDocumentSymbols,
 } from '../../services/tinymist/session'
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
-import { buildTypstOutlineItems } from '../../services/typst/outline'
+import { buildTypstOutlineItems, buildTypstProjectOutlineItems } from '../../services/typst/outline'
 import { buildLatexOutlineItems } from '../../services/latex/outline'
 import { useI18n } from '../../i18n'
 
@@ -85,6 +85,8 @@ const typstStore = useTypstStore()
 const workspaceStore = useWorkspaceStore()
 const linksStore = useLinksStore()
 const { t } = useI18n()
+const typstOutlineItems = ref([])
+const typstOutlineLoaded = ref(false)
 const latexOutlineItems = ref([])
 const latexOutlineLoaded = ref(false)
 const OUTLINE_SECTION_KEYS = [
@@ -94,6 +96,7 @@ const OUTLINE_SECTION_KEYS = [
 ]
 
 let cleanupTinymistSymbols = null
+let typstOutlineRequestId = 0
 let latexOutlineRequestId = 0
 
 function outlineTypeForPath(path) {
@@ -150,7 +153,43 @@ function bindTinymistOutline(path) {
       normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols),
       { loaded: true, tinymistBacked: true },
     )
+    if (activeFile.value === path && fileType.value === 'typst') {
+      void loadTypstOutline(path)
+    }
   })
+}
+
+function resetTypstOutline() {
+  typstOutlineLoaded.value = false
+  typstOutlineItems.value = []
+}
+
+async function loadTypstOutline(path) {
+  const requestId = ++typstOutlineRequestId
+  resetTypstOutline()
+  if (!path) return
+
+  try {
+    const items = await buildTypstProjectOutlineItems(path, {
+      filesStore,
+      workspacePath: workspaceStore.path,
+      documentText: currentDocumentText(path),
+      liveState: typstStore.liveStateForFile(path),
+      contentOverrides: {
+        [path]: currentDocumentText(path),
+      },
+    })
+    if (typstOutlineRequestId !== requestId) return
+    typstOutlineItems.value = items
+  } catch (error) {
+    if (typstOutlineRequestId !== requestId) return
+    console.warn('[outline] failed to build Typst outline:', error)
+    typstOutlineItems.value = []
+  } finally {
+    if (typstOutlineRequestId === requestId) {
+      typstOutlineLoaded.value = true
+    }
+  }
 }
 
 function resetLatexOutline() {
@@ -211,6 +250,9 @@ const outlineItems = computed(() => {
   }
 
   if (ft === 'typst') {
+    if (typstOutlineLoaded.value) {
+      return typstOutlineItems.value
+    }
     const content = currentDocumentText(path)
     if (!content) return []
     return buildTypstOutlineItems(content, {
@@ -393,6 +435,7 @@ watch(
   ([path, ft]) => {
     if (ft === 'typst') {
       bindTinymistOutline(path)
+      void loadTypstOutline(path)
       resetLatexOutline()
       return
     }
@@ -402,6 +445,7 @@ watch(
         cleanupTinymistSymbols()
         cleanupTinymistSymbols = null
       }
+      resetTypstOutline()
       void loadLatexOutline(path)
       return
     }
@@ -410,6 +454,7 @@ watch(
       cleanupTinymistSymbols()
       cleanupTinymistSymbols = null
     }
+    resetTypstOutline()
     resetLatexOutline()
   },
   { immediate: true },

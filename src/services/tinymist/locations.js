@@ -37,6 +37,8 @@ export function formatTinymistLocationLabel(location = {}) {
     ? location.targetSelectionRange.start.line + 1
     : Number.isInteger(location?.range?.start?.line)
       ? location.range.start.line + 1
+      : Number.isInteger(location?.line)
+        ? location.line
       : null
   return line ? `${fileName}:${line}` : fileName
 }

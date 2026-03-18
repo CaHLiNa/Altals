@@ -23,7 +23,7 @@ function positionToOffset(lineOffsets, textLength, position = {}) {
 
 function mapOutlineKind(symbol = {}) {
   const name = String(symbol?.name || '').trim().toLowerCase()
-  if (!name) return 'heading'
+  if (!name) return null
   if (name.startsWith('figure') || name.startsWith('fig.')) return 'figure'
   if (name.startsWith('table')) return 'table'
   if (name === 'bibliography' || name === 'references' || name === 'works cited') return 'bibliography'
@@ -32,7 +32,7 @@ function mapOutlineKind(symbol = {}) {
   if (/^(fig|tbl|tab)[:._-]/.test(name)) return 'label'
   if (/^<[^>]+>$/.test(name)) return 'label'
   if (name.startsWith('label')) return 'label'
-  return 'heading'
+  return null
 }
 
 function normalizeSymbolRange(symbol = {}) {
@@ -60,10 +60,12 @@ export function normalizeTinymistDocumentSymbols(documentText = '', symbols = []
   flattenDocumentSymbols(symbols, (symbol, depth) => {
     const name = String(symbol?.name || '').trim()
     if (!name) return
+    const kind = mapOutlineKind(symbol)
+    if (!kind) return
 
     const start = normalizeSymbolRange(symbol)
     items.push({
-      kind: mapOutlineKind(symbol),
+      kind,
       text: name,
       level: Math.max(1, depth + 1),
       offset: positionToOffset(lineOffsets, textLength, start),

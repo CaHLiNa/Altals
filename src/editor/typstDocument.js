@@ -2,15 +2,32 @@ const LABEL_RE = /<([A-Za-z][\w:-]*)>/g
 const HEADING_RE = /^(={1,6})\s+(.+)$/gm
 const STRUCTURE_RE = /#(figure|table)\s*\(/g
 const BIBLIOGRAPHY_RE = /#bibliography\s*\(/g
+const REFERENCE_RE = /(^|[^\w])@([A-Za-z][\w:-]*)/gm
+
+function buildLineOffsets(text = '') {
+  const offsets = [0]
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '\n') offsets.push(index + 1)
+  }
+  return offsets
+}
+
+function offsetToLine(lineOffsets = [], offset = 0) {
+  let low = 0
+  let high = lineOffsets.length - 1
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (lineOffsets[mid] <= offset) low = mid + 1
+    else high = mid - 1
+  }
+  return Math.max(1, high + 1)
+}
 
 export function extractTypstLabels(text = '') {
   const labels = []
   const seen = new Set()
-  let match
-
-  LABEL_RE.lastIndex = 0
-  while ((match = LABEL_RE.exec(String(text))) !== null) {
-    const label = match[1]
+  for (const entry of extractTypstLabelEntries(text)) {
+    const label = entry?.key
     if (!label || seen.has(label)) continue
     seen.add(label)
     labels.push(label)
@@ -21,6 +38,101 @@ export function extractTypstLabels(text = '') {
 
 export function buildTypstLabelSet(text = '') {
   return new Set(extractTypstLabels(text))
+}
+
+export function extractTypstLabelEntries(text = '') {
+  const labels = []
+  const source = String(text || '')
+  const lineOffsets = buildLineOffsets(source)
+  let match
+
+  LABEL_RE.lastIndex = 0
+  while ((match = LABEL_RE.exec(source)) !== null) {
+    const key = match[1]
+    if (!key) continue
+    labels.push({
+      key,
+      offset: match.index,
+      line: offsetToLine(lineOffsets, match.index),
+      from: match.index,
+      to: match.index + String(match[0] || '').length,
+    })
+  }
+
+  return labels
+}
+
+export function extractTypstReferenceKeys(text = '') {
+  const references = []
+  const seen = new Set()
+
+  for (const entry of extractTypstReferenceEntries(text)) {
+    if (!entry?.key || seen.has(entry.key)) continue
+    seen.add(entry.key)
+    references.push(entry.key)
+  }
+
+  return references
+}
+
+export function extractTypstReferenceEntries(text = '') {
+  const references = []
+  const source = String(text || '')
+  const lineOffsets = buildLineOffsets(source)
+  let match
+
+  REFERENCE_RE.lastIndex = 0
+  while ((match = REFERENCE_RE.exec(source)) !== null) {
+    const key = match[2]
+    if (!key) continue
+    references.push({
+      key,
+      offset: match.index + String(match[1] || '').length,
+      line: offsetToLine(lineOffsets, match.index),
+    })
+  }
+
+  return references
+}
+
+export function findTypstLabelTokenAtOffset(text = '', offset = -1) {
+  const source = String(text || '')
+  if (!Number.isInteger(offset) || offset < 0 || offset > source.length) return null
+
+  let match
+  REFERENCE_RE.lastIndex = 0
+  while ((match = REFERENCE_RE.exec(source)) !== null) {
+    const key = match[2]
+    if (!key) continue
+    const from = match.index + String(match[1] || '').length
+    const to = from + 1 + key.length
+    if (offset >= from && offset <= to) {
+      return {
+        kind: 'reference',
+        key,
+        from,
+        to,
+      }
+    }
+  }
+
+  LABEL_RE.lastIndex = 0
+  while ((match = LABEL_RE.exec(source)) !== null) {
+    const key = match[1]
+    if (!key) continue
+    const from = match.index
+    const to = from + String(match[0] || '').length
+    if (offset >= from && offset <= to) {
+      return {
+        kind: 'label',
+        key,
+        from,
+        to,
+      }
+    }
+  }
+
+  return null
 }
 
 function skipTypstString(text, start) {
@@ -274,17 +386,28 @@ function formatReferenceDetail(ref = {}) {
   return [left, title].filter(Boolean).join(' · ') || 'Library reference'
 }
 
-export function collectTypstReferenceOptions({ referencesStore, documentText = '', query = '', limit = 12 } = {}) {
+export function collectTypstReferenceOptions({
+  referencesStore,
+  documentText = '',
+  projectLabels = [],
+  query = '',
+  limit = 12,
+} = {}) {
   const normalizedQuery = String(query || '').trim().toLowerCase()
   const options = []
   const seen = new Set()
+  const labelEntries = Array.isArray(projectLabels) && projectLabels.length > 0
+    ? projectLabels
+    : extractTypstLabels(documentText).map(label => ({ key: label }))
 
-  for (const label of extractTypstLabels(documentText)) {
+  for (const entry of labelEntries) {
+    const label = typeof entry === 'string' ? entry : entry?.key
+    if (!label) continue
     if (normalizedQuery && !label.toLowerCase().includes(normalizedQuery)) continue
     const insertText = `@${label}`
     options.push({
       label: insertText,
-      detail: 'Document label',
+      detail: entry?.filePath ? 'Project label' : 'Document label',
       type: 'variable',
       apply: insertText,
     })

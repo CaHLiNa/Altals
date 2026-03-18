@@ -9,6 +9,8 @@ import {
   formatTinymistLocationLabel,
   normalizeTinymistLocations,
 } from '../services/tinymist/locations'
+import { findTypstLabelTokenAtOffset } from '../editor/typstDocument.js'
+import { resolveTypstProjectGraph } from '../services/typst/projectGraph.js'
 import {
   offsetToTinymistPosition,
   tinymistRangeToOffsets,
@@ -33,8 +35,10 @@ function getRenameCandidate(state, pos) {
 }
 
 function locationContainsOffset(state, location, offset) {
-  const range = location?.targetSelectionRange || location?.range
-  const offsets = tinymistRangeToOffsets(state, range)
+  const offsets = location?.offsets || (() => {
+    const range = location?.targetSelectionRange || location?.range
+    return tinymistRangeToOffsets(state, range)
+  })()
   if (!offsets) return false
   return offset >= offsets.from && offset <= offsets.to
 }
@@ -45,6 +49,7 @@ export function useTypstEditorNavigation(options) {
     getView,
     editorStore,
     filesStore,
+    workspacePath,
     toastStore,
     isTinymistAvailable,
     t,
@@ -83,8 +88,10 @@ export function useTypstEditorNavigation(options) {
   }
 
   function focusTinymistRange(targetView, location, options = {}) {
-    const range = location?.targetSelectionRange || location?.range
-    const offsets = tinymistRangeToOffsets(targetView.state, range)
+    const offsets = location?.offsets || (() => {
+      const range = location?.targetSelectionRange || location?.range
+      return tinymistRangeToOffsets(targetView.state, range)
+    })()
     if (!offsets) return false
 
     tinymistNavUi.jumpInFlight = true
@@ -126,6 +133,56 @@ export function useTypstEditorNavigation(options) {
     return focusTinymistRange(targetView, location, options)
   }
 
+  async function resolveProjectGraphForCurrentView(view) {
+    return resolveTypstProjectGraph(filePath, {
+      filesStore,
+      workspacePath,
+      contentOverrides: {
+        [filePath]: view.state.doc.toString(),
+      },
+    }).catch(() => null)
+  }
+
+  function buildProjectLabelDefinitionLocations(graph, key) {
+    return (graph?.labels || [])
+      .filter(entry => entry?.key === key && entry?.filePath)
+      .map((entry) => ({
+        filePath: entry.filePath,
+        line: entry.line ?? null,
+        offsets: {
+          from: Number(entry.from ?? entry.offset ?? 0),
+          to: Number(entry.to ?? ((entry.offset ?? 0) + key.length + 2)),
+        },
+      }))
+  }
+
+  function buildProjectLabelReferenceLocations(graph, key) {
+    return (graph?.references || [])
+      .filter(entry => entry?.key === key && entry?.filePath)
+      .map((entry) => ({
+        filePath: entry.filePath,
+        line: entry.line ?? null,
+        offsets: {
+          from: Number(entry.offset ?? 0),
+          to: Number((entry.offset ?? 0) + key.length + 1),
+        },
+      }))
+  }
+
+  async function fallbackDefinitionLocations(view, offset) {
+    const token = findTypstLabelTokenAtOffset(view.state.doc.toString(), offset)
+    if (!token || token.kind !== 'reference') return []
+    const graph = await resolveProjectGraphForCurrentView(view)
+    return buildProjectLabelDefinitionLocations(graph, token.key)
+  }
+
+  async function fallbackReferenceLocations(view) {
+    const token = findTypstLabelTokenAtOffset(view.state.doc.toString(), view.state.selection.main.head)
+    if (!token) return []
+    const graph = await resolveProjectGraphForCurrentView(view)
+    return buildProjectLabelReferenceLocations(graph, token.key)
+  }
+
   async function goToDefinitionAtOffset(offset) {
     const view = getView()
     if (!view || !ensureTinymistReady()) return false
@@ -134,7 +191,10 @@ export function useTypstEditorNavigation(options) {
       filePath,
       offsetToTinymistPosition(view.state, offset),
     )
-    const locations = normalizeTinymistLocations(result)
+    let locations = normalizeTinymistLocations(result)
+    if (locations.length === 0) {
+      locations = await fallbackDefinitionLocations(view, offset)
+    }
     if (locations.length === 0) {
       toastStore.show(t('No definition found.'), { type: 'info', duration: 2500 })
       return false
@@ -218,7 +278,10 @@ export function useTypstEditorNavigation(options) {
       offsetToTinymistPosition(view.state, view.state.selection.main.head),
       { includeDeclaration: false },
     )
-    const locations = normalizeTinymistLocations(result)
+    let locations = normalizeTinymistLocations(result)
+    if (locations.length === 0) {
+      locations = await fallbackReferenceLocations(view)
+    }
     if (locations.length === 0) {
       clearReferenceCycle()
       toastStore.show(t('No references found.'), { type: 'info', duration: 2500 })

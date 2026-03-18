@@ -70,6 +70,7 @@ const typstCompileAdapter = {
       compileState: this.stateForFile(filePath, context) || {},
       queueState: context.typstStore?.queueStateForFile(filePath) || null,
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
+      referencesStore: context.referencesStore || null,
     })
   },
 
@@ -111,9 +112,11 @@ export const typstDocumentAdapter = {
 
   getUiState(filePath, context = {}) {
     return buildTypstWorkflowUiState({
+      sourcePath: filePath,
       compileState: typstCompileAdapter.stateForFile(filePath, context) || {},
       queueState: context.typstStore?.queueStateForFile(filePath) || null,
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
+      referencesStore: context.referencesStore || null,
       previewAvailable: !!context.previewAvailable,
     })
   },

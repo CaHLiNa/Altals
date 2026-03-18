@@ -1,6 +1,7 @@
 import { snippetCompletion } from '@codemirror/autocomplete'
 import { createTypstSnippetCompletions } from '../../../editor/typstSnippets.js'
 import { collectTypstReferenceOptions } from '../../../editor/typstDocument.js'
+import { resolveTypstProjectGraph } from '../../typst/projectGraph.js'
 import { requestTinymistCompletion } from '../session.js'
 import {
   getTinymistCompletionPosition,
@@ -207,6 +208,41 @@ export function createTinymistTypstCompletionSource(options = {}) {
   return async (context) => {
     const line = context.state.doc.lineAt(context.pos)
     const textBefore = line.text.slice(0, context.pos - line.from)
+    const atMatch = textBefore.match(/(?:^|[^\w])@([\w:-]*)$/)
+
+    if (atMatch) {
+      const query = atMatch[1] || ''
+      const from = context.pos - query.length - 1
+      let projectLabels = []
+
+      if (options.filePath) {
+        const graph = await resolveTypstProjectGraph(options.filePath, {
+          filesStore: options.filesStore,
+          workspacePath: options.workspacePath,
+          contentOverrides: {
+            [options.filePath]: context.state.doc.toString(),
+          },
+        }).catch(() => null)
+        projectLabels = Array.isArray(graph?.labels) ? graph.labels : []
+      }
+
+      const referenceOptions = collectTypstReferenceOptions({
+        referencesStore: options.referencesStore,
+        documentText: context.state.doc.toString(),
+        projectLabels,
+        query,
+      })
+
+      if (referenceOptions.length > 0) {
+        return {
+          from,
+          options: referenceOptions,
+          validFor: /@[\w:-]*/,
+          filter: false,
+        }
+      }
+    }
+
     const localResult = localCompletionSource(context)
     if (localResult?.filter === false) {
       return localResult

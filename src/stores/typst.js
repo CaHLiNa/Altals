@@ -4,8 +4,10 @@ import { listen } from '@tauri-apps/api/event'
 import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
+import { buildTypstProjectProblems } from '../services/typst/diagnostics.js'
 import {
   resolveTypstAffectedRootTargets,
+  resolveTypstProjectGraph,
 } from '../services/typst/projectGraph.js'
 import {
   resolveCachedTypstPreviewPath,
@@ -128,7 +130,7 @@ export const useTypstStore = defineStore('typst', {
     _latestSourceByTarget: {},
     buildQueueState: {},
     tinymistAvailable: false,
-    liveState: {}, // { [typPath]: { tinymistBacked, diagnostics, outlineItems, outlineLoaded } }
+    liveState: {}, // { [typPath]: { tinymistBacked, diagnostics, outlineItems, outlineLoaded, projectProblems } }
   }),
 
   getters: {
@@ -462,6 +464,16 @@ export const useTypstStore = defineStore('typst', {
       }
     },
 
+    setProjectProblems(filePath, problems = []) {
+      if (!filePath) return
+      const previous = this.liveState[filePath] || {}
+      this.liveState[filePath] = {
+        ...previous,
+        projectProblems: Array.isArray(problems) ? problems : [],
+        projectDiagnosticsLoaded: true,
+      }
+    },
+
     setTinymistOutlineItems(filePath, outlineItems = [], options = {}) {
       if (!filePath) return
       const previous = this.liveState[filePath] || {}
@@ -475,9 +487,38 @@ export const useTypstStore = defineStore('typst', {
 
     clearTinymistFileState(filePath) {
       if (!filePath || !this.liveState[filePath]) return
-      const next = { ...this.liveState }
-      delete next[filePath]
-      this.liveState = next
+      const current = this.liveState[filePath] || {}
+      const preserved = {
+        projectProblems: Array.isArray(current.projectProblems) ? current.projectProblems : [],
+        projectDiagnosticsLoaded: current.projectDiagnosticsLoaded === true,
+      }
+      if (preserved.projectProblems.length === 0 && !preserved.projectDiagnosticsLoaded) {
+        const next = { ...this.liveState }
+        delete next[filePath]
+        this.liveState = next
+        return
+      }
+
+      this.liveState = {
+        ...this.liveState,
+        [filePath]: preserved,
+      }
+    },
+
+    async refreshProjectProblems(filePath, options = {}) {
+      if (!filePath) return []
+      const project = await resolveTypstProjectGraph(filePath, {
+        filesStore: options.filesStore,
+        workspacePath: options.workspacePath,
+        contentOverrides: options.contentOverrides,
+      }).catch(() => null)
+
+      const problems = buildTypstProjectProblems(filePath, {
+        project,
+        referencesStore: options.referencesStore,
+      })
+      this.setProjectProblems(filePath, problems)
+      return problems
     },
 
     async setCustomCompilerPath(path) {

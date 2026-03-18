@@ -1,7 +1,11 @@
+import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
 import {
   getTinymistDiagnosticsStatus,
   normalizeTinymistDiagnostics,
 } from '../tinymist/diagnostics.js'
+import { getCachedTypstProjectGraph } from './projectGraph.js'
+
+const PROJECT_LABEL_KEY_RE = /^[A-Za-z][\w-]*:[\w:-]+$/
 
 function normalizeSeverity(value) {
   return value === 'error' ? 'error' : 'warning'
@@ -51,16 +55,85 @@ export function buildTypstTinymistProblems(sourcePath, diagnostics = []) {
   }))
 }
 
+function isTypstProjectLabelKey(key = '') {
+  return PROJECT_LABEL_KEY_RE.test(String(key || '').trim())
+}
+
+function deriveTypstProjectWarnings(project = null, referencesStore = null) {
+  if (!project) return { unresolvedRefs: [], unresolvedCitations: [] }
+
+  const labelKeys = new Set((project.labels || []).map(label => label.key))
+  const unresolvedRefs = []
+  const unresolvedCitations = []
+
+  for (const reference of project.references || []) {
+    const key = String(reference?.key || '').trim()
+    if (!key || labelKeys.has(key)) continue
+
+    if (isTypstProjectLabelKey(key)) {
+      unresolvedRefs.push(reference)
+      continue
+    }
+
+    if (!referencesStore?.getByKey?.(key)) {
+      unresolvedCitations.push(reference)
+    }
+  }
+
+  return { unresolvedRefs, unresolvedCitations }
+}
+
+function buildProjectWarnings(sourcePath, project = null, referencesStore = null) {
+  if (!project) return []
+  const { unresolvedRefs, unresolvedCitations } = deriveTypstProjectWarnings(project, referencesStore)
+
+  const refWarnings = unresolvedRefs.map((entry, index) => ({
+    id: `typst:project:ref:${entry.filePath || sourcePath}:${entry.key}:${entry.line ?? 0}:${index}`,
+    sourcePath: entry.filePath || sourcePath,
+    line: entry.line ?? null,
+    column: null,
+    severity: 'warning',
+    origin: 'project',
+    actionable: true,
+    message: `Unknown project label: ${entry.key}`,
+    raw: entry.key,
+  }))
+
+  const citationWarnings = unresolvedCitations.map((entry, index) => ({
+    id: `typst:project:cite:${entry.filePath || sourcePath}:${entry.key}:${entry.line ?? 0}:${index}`,
+    sourcePath: entry.filePath || sourcePath,
+    line: entry.line ?? null,
+    column: null,
+    severity: 'warning',
+    origin: 'project',
+    actionable: true,
+    message: `Unknown reference key: ${entry.key}`,
+    raw: entry.key,
+  }))
+
+  return [...refWarnings, ...citationWarnings]
+}
+
+export function buildTypstProjectProblems(sourcePath, options = {}) {
+  const project = options.project || getCachedTypstProjectGraph(sourcePath)
+  return normalizeProblems(buildProjectWarnings(sourcePath, project, options.referencesStore))
+}
+
 export function buildTypstWorkflowProblems(sourcePath, options = {}) {
   const compileState = options.compileState || {}
   const liveState = options.liveState || {}
   const tinymistBacked = liveState?.tinymistBacked === true
+  const projectProblems = Array.isArray(liveState?.projectProblems)
+    ? liveState.projectProblems
+    : buildTypstProjectProblems(sourcePath, options)
+  const baseProblems = tinymistBacked
+    ? buildTypstTinymistProblems(sourcePath, liveState.diagnostics || [])
+    : buildTypstCompileProblems(sourcePath, compileState)
 
-  if (tinymistBacked) {
-    return buildTypstTinymistProblems(sourcePath, liveState.diagnostics || [])
-  }
-
-  return buildTypstCompileProblems(sourcePath, compileState)
+  return normalizeProblems([
+    ...baseProblems,
+    ...projectProblems,
+  ])
 }
 
 function formatCompileDuration(state = {}, t = (value) => value) {
@@ -106,13 +179,14 @@ export function buildTypstWorkflowStatusText(options = {}, t = (value) => value)
     const warningCount = problems.filter(problem => problem.severity === 'warning').length
     if (errorCount > 0) return t('{count} errors', { count: errorCount })
     if (warningCount > 0) return t('{count} warnings', { count: warningCount })
-    return 'Tinymist'
+    return ''
   }
 
   return ''
 }
 
 export function buildTypstWorkflowUiState(options = {}) {
+  const sourcePath = options.sourcePath || ''
   const compileState = options.compileState || {}
   const liveState = options.liveState || {}
   const queueState = options.queueState || {}
@@ -120,7 +194,7 @@ export function buildTypstWorkflowUiState(options = {}) {
   const tinymistBacked = liveState?.tinymistBacked === true
   const liveDiagnostics = Array.isArray(liveState?.diagnostics) ? liveState.diagnostics : []
   const liveStatus = getTinymistDiagnosticsStatus(liveDiagnostics)
-  const problems = buildTypstWorkflowProblems('', options)
+  const problems = buildTypstWorkflowProblems(sourcePath, options)
   const errorCount = problems.filter(problem => problem.severity === 'error').length
   const warningCount = problems.filter(problem => problem.severity === 'warning').length
 
