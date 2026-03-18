@@ -675,6 +675,35 @@ function getPdfViewerLocaleParam() {
   return normalized || 'en-us'
 }
 
+const PDF_TOOL_MENU_LABEL_KEYS = {
+  secondaryOpenFile: 'Open',
+  secondaryPrint: 'Print',
+  secondaryDownload: 'Download',
+  presentationMode: 'Presentation mode',
+  viewBookmark: 'Bookmark',
+  firstPage: 'Go to First Page',
+  lastPage: 'Go to Last Page',
+  pageRotateCw: 'Rotate Clockwise',
+  pageRotateCcw: 'Rotate Counterclockwise',
+  cursorSelectTool: 'Text Selection Tool',
+  cursorHandTool: 'Hand Tool',
+  scrollPage: 'Page Scrolling',
+  scrollVertical: 'Vertical Scrolling',
+  scrollHorizontal: 'Horizontal Scrolling',
+  scrollWrapped: 'Wrapped Scrolling',
+  spreadNone: 'No Spreads',
+  spreadOdd: 'Odd Spreads',
+  spreadEven: 'Even Spreads',
+  documentProperties: 'Document Properties…',
+}
+
+const PDF_VIEWS_MANAGER_LABELS = {
+  thumbnails: 'Thumbnails',
+  outlines: 'Document outline',
+  attachments: 'Attachments',
+  layers: 'Layers',
+}
+
 function createToolbarButtonState() {
   return {
     visible: false,
@@ -879,7 +908,10 @@ function syncMenuItemState(id) {
   state.visible = isPdfResponsiveVisible(element)
   state.disabled = !element || element.getAttribute?.('aria-disabled') === 'true' || !!element.disabled || element.getAttribute?.('href') === '#'
   state.active = !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-checked') === 'true' || element?.getAttribute?.('aria-pressed') === 'true'
-  state.label = element?.textContent?.trim?.() || state.label || id
+  const translatedLabelKey = PDF_TOOL_MENU_LABEL_KEYS[id]
+  state.label = translatedLabelKey
+    ? t(translatedLabelKey)
+    : (element?.textContent?.trim?.() || state.label || id)
 }
 
 function syncExternalControlState() {
@@ -906,6 +938,46 @@ function syncExternalControlState() {
     label: button.getAttribute('title') || button.textContent?.trim() || '',
     selected: button.getAttribute('aria-selected') === 'true',
   }))
+}
+
+function setPdfElementText(id, label) {
+  const element = getPdfElement(id)
+  if (element) {
+    element.textContent = label
+  }
+}
+
+function setPdfElementTitle(id, label) {
+  const element = getPdfElement(id)
+  if (element) {
+    element.setAttribute('title', label)
+    element.setAttribute('aria-label', label)
+  }
+}
+
+function getViewsManagerActiveLabel() {
+  const thumbnailsView = getPdfElement('thumbnailsView')
+  const outlinesView = getPdfElement('outlinesView')
+  const attachmentsView = getPdfElement('attachmentsView')
+  const layersView = getPdfElement('layersView')
+
+  if (thumbnailsView && !thumbnailsView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.thumbnails)
+  if (outlinesView && !outlinesView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.outlines)
+  if (attachmentsView && !attachmentsView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.attachments)
+  if (layersView && !layersView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.layers)
+  return t(PDF_VIEWS_MANAGER_LABELS.outlines)
+}
+
+function syncPdfViewerLocalizedLabels() {
+  setPdfElementTitle('viewsManagerToggleButton', t('Toggle Sidebar'))
+  setPdfElementTitle('viewsManagerSelectorButton', t('Views'))
+  setPdfElementTitle('viewsManagerCurrentOutlineButton', t('Find Current Outline Item'))
+
+  setPdfElementText('viewsManagerHeaderLabel', getViewsManagerActiveLabel())
+  setPdfElementText('thumbnailsViewMenu', t('Thumbnails'))
+  setPdfElementText('outlinesViewMenu', t('Document outline'))
+  setPdfElementText('attachmentsViewMenu', t('Attachments'))
+  setPdfElementText('layersViewMenu', t('Layers'))
 }
 
 function getPageHeightInPdfPoints(pageView) {
@@ -1522,6 +1594,7 @@ function syncPdfUi() {
   syncMenuItemState('spreadEven')
   syncMenuItemState('documentProperties')
   syncExternalControlState()
+  syncPdfViewerLocalizedLabels()
 
   if (pageInputRef.value !== document.activeElement) {
     pageInputValue.value = String(pdfUi.pageNumber || 1)
