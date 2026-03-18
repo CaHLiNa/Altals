@@ -1189,6 +1189,15 @@ function getViewerRoot() {
   return getPdfElement('viewer') || getPdfDocument()?.querySelector('.pdfViewer') || null
 }
 
+function enableTightEmbeddedPageLayout() {
+  const app = getPdfApp()
+  const viewer = app?.pdfViewer
+  if (viewer) {
+    viewer.removePageBorders = true
+  }
+  getViewerRoot()?.classList?.add('removePageBorders')
+}
+
 function getViewerSelection() {
   try {
     return getPdfWindow()?.getSelection?.() || null
@@ -1503,6 +1512,37 @@ function createToolbarStyleText() {
   const shadow = isDark.value
     ? '0 10px 26px rgba(15, 23, 42, 0.32)'
     : '0 10px 26px rgba(15, 23, 42, 0.10)'
+  const pageLayoutCss = `
+      :root {
+        --page-margin: 0 auto 0 !important;
+        --page-border: 0 solid transparent !important;
+        --spreadHorizontalWrapped-margin-LR: 0px !important;
+      }
+
+      #viewerContainer,
+      #viewer,
+      .pdfViewer {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .pdfViewer.removePageBorders,
+      .pdfViewer:is(.scrollHorizontal, .scrollWrapped),
+      .spread {
+        margin-inline: 0 !important;
+      }
+
+      .pdfViewer .page,
+      .pdfViewer.removePageBorders .page,
+      .spread .page,
+      .pdfViewer:is(.scrollHorizontal, .scrollWrapped) .page,
+      .pdfViewer.removePageBorders .spread .page,
+      .pdfViewer.removePageBorders:is(.scrollHorizontal, .scrollWrapped) .page {
+        margin: 0 auto 0 !important;
+        margin-inline: 0 !important;
+        border: 0 !important;
+      }
+    `
 
   const pageThemeCss = workspace.pdfThemedPages
     ? (isDark.value
@@ -2313,6 +2353,7 @@ function createToolbarStyleText() {
 
   return `
     ${viewerChromeCss}
+    ${pageLayoutCss}
     ${pageThemeCss}
   `
 }
@@ -3463,6 +3504,7 @@ async function onIframeLoad() {
     return
   }
 
+  enableTightEmbeddedPageLayout()
   applyTheme()
   syncViewerAppZoom()
   clearIframePointerGuards()
@@ -3597,6 +3639,7 @@ async function loadPdf() {
       await app.close().catch(() => {})
       return
     }
+    enableTightEmbeddedPageLayout()
     syncPdfUi()
     attachAnnotationMutationObserver()
     scheduleRenderAnnotationHighlights()
