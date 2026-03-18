@@ -1127,6 +1127,16 @@ watch(
   }
 )
 
+watch(
+  () => workspace.appZoomPercent,
+  () => {
+    if (!view) return
+    requestAnimationFrame(() => {
+      view?.requestMeasure?.()
+    })
+  }
+)
+
 // Watch for live preview toggle — nudge CM to rebuild decorations
 if (isMd) {
   watch(

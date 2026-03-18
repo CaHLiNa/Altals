@@ -71,6 +71,7 @@ Older notes may refer to `docs/MAP.md` as a central registry. That file is curre
 - When a Rust command expects a struct like `request: MyStruct`, the JS side must pass `{ request: { ... } }`, not flattened args.
 - Avoid full-document editor swaps when position tracking matters; use minimal diff logic where the editor system expects it.
 - Right-panel popovers can be clipped by layout overflow; use `Teleport` and fixed positioning when necessary.
+- On macOS/iOS WebKit Tauri webviews, do not switch app zoom to native `webview.setZoom()` for the main document. It breaks PDF.js text selection/hit testing inside the iframe viewer. Keep app zoom on CSS `document.documentElement.style.zoom` there, and only use native zoom on non-Apple platforms.
 - Do not assume all old documentation comments are current; verify against code.
 
 ## Common Commands
