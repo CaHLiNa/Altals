@@ -21,6 +21,12 @@ export const shouldersTheme = EditorView.theme(
     '.cm-activeLine': {
       backgroundColor: 'var(--editor-active-line)',
     },
+    '.cm-reveal-target-line': {
+      backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+      boxShadow: 'inset 3px 0 0 color-mix(in srgb, var(--accent) 78%, white 22%)',
+      outline: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
+      outlineOffset: '-1px',
+    },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
       backgroundColor: 'var(--editor-selection) !important',
     },

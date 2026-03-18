@@ -53,6 +53,10 @@ import { createEditorExtensions, createEditorState, wrapCompartment, columnWidth
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
+import {
+  createRevealHighlightExtension,
+  focusEditorLineWithHighlight,
+} from '../../editor/revealHighlight'
 import { captureContextMenuState, normalizeContextMenuClickPos, resolveContextMenuSelection } from '../../editor/contextMenuPolicy'
 import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
@@ -97,6 +101,7 @@ import {
 } from '../../services/tinymist/editor'
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { rememberPendingTypstForwardSync } from '../../services/typst/previewSync.js'
+import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
 import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
@@ -686,6 +691,7 @@ onMounted(async () => {
   // Build extra extensions
   const extraExtensions = [
     ...resultProvenanceBadgesExtension(),
+    ...createRevealHighlightExtension(),
     // Ghost suggestions (all file types)
     ghostSuggestionExtension(
       () => workspace,
@@ -1137,7 +1143,7 @@ function ensureLatexWindowHandlers() {
       const { file, line } = event.detail || {}
       if (file && !props.filePath.endsWith(file.split('/').pop())) return
       if (line && line > 0) {
-        focusEditorLine(line, { center: true })
+        focusEditorLineWithHighlight(view, line, { center: true })
       }
     }
   }
@@ -1184,14 +1190,20 @@ function ensureTypstWindowHandlers() {
       const pos = view.state.selection.main.head
       const location = getTypstSyncLocation(pos)
       if (!location) return
+      const rootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
+        || typstStore.stateForFile(props.filePath)?.compileTargetPath
+        || resolveCachedTypstRootPath(props.filePath)
+        || props.filePath
       rememberPendingTypstForwardSync({
         sourcePath: props.filePath,
+        rootPath,
         line: location.line,
         character: location.character,
       })
       window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
         detail: {
           sourcePath: props.filePath,
+          rootPath,
           line: location.line,
           character: location.character,
         },
@@ -1370,9 +1382,8 @@ function handleLatexSourceDoubleClick(event) {
   const location = getLatexSyncLocation(pos)
   if (!location) return
 
-  workflowStore.ensurePreviewForSource(props.filePath, {
+  workflowStore.revealPreview(props.filePath, {
     previewKind: 'pdf',
-    activatePreview: false,
     sourcePaneId: props.paneId,
     trigger: 'latex-source-dblclick',
   })
@@ -1417,22 +1428,27 @@ function handleTypstSourceDoubleClick(event) {
 
   const location = getTypstSyncLocation(pos)
   if (!location) return
+  const rootPath = typstStore.stateForFile(props.filePath)?.projectRootPath
+    || typstStore.stateForFile(props.filePath)?.compileTargetPath
+    || resolveCachedTypstRootPath(props.filePath)
+    || props.filePath
 
-  workflowStore.ensurePreviewForSource(props.filePath, {
+  workflowStore.revealPreview(props.filePath, {
     previewKind: 'pdf',
-    activatePreview: false,
     sourcePaneId: props.paneId,
     trigger: 'typst-source-dblclick',
   })
 
   rememberPendingTypstForwardSync({
     sourcePath: props.filePath,
+    rootPath,
     line: location.line,
     character: location.character,
   })
   window.dispatchEvent(new CustomEvent('typst-forward-sync-location', {
     detail: {
       sourcePath: props.filePath,
+      rootPath,
       line: location.line,
       character: location.character,
     },

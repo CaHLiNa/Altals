@@ -62,10 +62,14 @@ function chooseNearestJumpPosition(positions = [], currentPage = 1) {
   })[0] || valid[0]
 }
 
-function belongsToRootProject(sourcePath = '', rootPath = '') {
+function belongsToRootProject(sourcePath = '', rootPath = '', sourceRootPath = '') {
   const normalizedSource = normalizeFsPath(sourcePath)
   const normalizedRoot = normalizeFsPath(rootPath)
+  const normalizedSourceRoot = normalizeFsPath(sourceRootPath)
   if (!normalizedSource || !normalizedRoot) return false
+  if (normalizedSourceRoot) {
+    return normalizedSourceRoot === normalizedRoot
+  }
   return resolveCachedTypstRootPath(normalizedSource) === normalizedRoot
 }
 
@@ -233,6 +237,7 @@ export async function requestTypstPreviewBackwardSync(options = {}) {
 
 export function rememberPendingTypstForwardSync(detail = {}) {
   const sourcePath = normalizeFsPath(detail.sourcePath || '')
+  const rootPath = normalizeFsPath(detail.rootPath || '')
   const line = Number(detail.line ?? -1)
   const character = Number(detail.character ?? -1)
   if (!sourcePath || !Number.isInteger(line) || line < 0 || !Number.isInteger(character) || character < 0) {
@@ -241,6 +246,7 @@ export function rememberPendingTypstForwardSync(detail = {}) {
 
   pendingForwardSync = {
     sourcePath,
+    rootPath,
     line,
     character,
   }
@@ -256,10 +262,12 @@ export function clearPendingTypstForwardSync(detail = null) {
   }
 
   const sourcePath = normalizeFsPath(detail.sourcePath || '')
+  const rootPath = normalizeFsPath(detail.rootPath || '')
   const line = Number(detail.line ?? -1)
   const character = Number(detail.character ?? -1)
   if (
     pendingForwardSync.sourcePath === sourcePath
+    && pendingForwardSync.rootPath === rootPath
     && pendingForwardSync.line === line
     && pendingForwardSync.character === character
   ) {
@@ -269,14 +277,14 @@ export function clearPendingTypstForwardSync(detail = null) {
 
 export function takePendingTypstForwardSync(rootPath = '') {
   if (!pendingForwardSync) return null
-  if (!belongsToRootProject(pendingForwardSync.sourcePath, rootPath)) return null
+  if (!belongsToRootProject(pendingForwardSync.sourcePath, rootPath, pendingForwardSync.rootPath)) return null
   const detail = pendingForwardSync
   pendingForwardSync = null
   return detail
 }
 
-export function sourceBelongsToTypstPreviewRoot(sourcePath = '', rootPath = '') {
-  return belongsToRootProject(sourcePath, rootPath)
+export function sourceBelongsToTypstPreviewRoot(sourcePath = '', rootPath = '', sourceRootPath = '') {
+  return belongsToRootProject(sourcePath, rootPath, sourceRootPath)
 }
 
 export async function resetTypstPreviewSync(workspacePath = null) {

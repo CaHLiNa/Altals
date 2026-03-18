@@ -202,6 +202,7 @@ export function useEditorPaneWorkflow(options) {
     await workflowStore.togglePreviewForSource(activeTabRef.value, {
       previewKind: workflowUiState.value.previewKind,
       activatePreview: true,
+      jump: true,
       sourcePaneId: paneIdRef.value,
       trigger: 'workflow-toggle-preview',
     })

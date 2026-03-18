@@ -67,8 +67,19 @@ const typPath = computed(() => (
   workflowStore.getSourcePathForPreview(props.filePath)
   || props.filePath.replace(/\.pdf$/i, '.typ')
 ))
-const rootPath = computed(() => resolveCachedTypstRootPath(typPath.value) || typPath.value)
-const state = computed(() => typstStore.stateForFile(typPath.value) || typstStore.stateForFile(rootPath.value))
+const resolvedRootPath = computed(() => resolveCachedTypstRootPath(typPath.value) || typPath.value)
+const state = computed(() => typstStore.stateForFile(typPath.value) || typstStore.stateForFile(resolvedRootPath.value))
+const rootPath = computed(() => (
+  state.value?.projectRootPath
+  || state.value?.compileTargetPath
+  || resolvedRootPath.value
+))
+const preferredSourcePaneId = computed(() => (
+  editorStore.findPaneWithTab(typPath.value)?.id
+  || (workflowStore.session.previewSourcePath === typPath.value ? workflowStore.session.sourcePaneId : null)
+  || (workflowStore.session.previewSourcePath === rootPath.value ? workflowStore.session.sourcePaneId : null)
+  || null
+))
 const compileStatus = computed(() => state.value?.status || null)
 const pdfPath = computed(() => state.value?.pdfPath || props.filePath)
 const { hasPdf, pdfReloadKey } = useCompiledPdfPreview({
@@ -87,7 +98,7 @@ function handleForwardSyncRequest(event) {
   const detail = event.detail || {}
   const sourcePath = String(detail.sourcePath || '')
   if (!sourcePath || !hasPdf.value) return
-  if (!sourceBelongsToTypstPreviewRoot(sourcePath, rootPath.value)) return
+  if (!sourceBelongsToTypstPreviewRoot(sourcePath, rootPath.value, detail.rootPath)) return
   if (!Number.isInteger(detail.line) || !Number.isInteger(detail.character)) return
   clearPendingTypstForwardSync(detail)
   void runForwardSync(detail)
@@ -124,7 +135,10 @@ async function handleBackwardSync({ page, x, y }) {
       y,
     })
     if (requestId !== backwardSyncInFlight || !location) return
-    await revealTypstSourceLocation(editorStore, location, { center: true })
+    await revealTypstSourceLocation(editorStore, location, {
+      center: true,
+      paneId: preferredSourcePaneId.value,
+    })
   } catch {
     // Ignore reverse sync failures and leave the PDF viewer untouched.
   }

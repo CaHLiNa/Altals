@@ -1,5 +1,4 @@
 import { reactive } from 'vue'
-import { EditorView } from '@codemirror/view'
 import {
   normalizeTypstDiagnostics,
   buildTypstDiagnosticSignature,
@@ -7,6 +6,7 @@ import {
   getTypstStatusTransition,
   shouldAutoJumpTypstDiagnostic,
 } from '../editor/typstDiagnostics'
+import { focusEditorLineWithHighlight } from '../editor/revealHighlight'
 import {
   updateTypstDiagnostics,
   focusTypstDiagnostic,
@@ -197,14 +197,7 @@ export function useTypstDiagnostics(options) {
   function focusEditorLine(lineNumber, options = {}) {
     const view = getView()
     if (!view || !lineNumber) return
-
-    const safeLine = Math.max(1, Math.min(lineNumber, view.state.doc.lines))
-    const line = view.state.doc.line(safeLine)
-    view.dispatch({
-      selection: { anchor: line.from },
-      effects: EditorView.scrollIntoView(line.from, { y: options.center ? 'center' : 'nearest', yMargin: 80 }),
-    })
-    view.focus()
+    focusEditorLineWithHighlight(view, lineNumber, options)
   }
 
   function handleEditorSelectionChange(head) {

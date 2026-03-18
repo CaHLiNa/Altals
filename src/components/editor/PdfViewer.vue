@@ -648,6 +648,9 @@ const props = defineProps({
 const PDF_VIEWER_THEME_STYLE_ID = 'altals-pdf-viewer-theme'
 const PDF_EMBEDDED_SIDEBAR_SHELL_ID = 'altalsViewsManagerShell'
 const PDF_EMBEDDED_ANNOTATIONS_VIEW_ID = 'altalsAnnotationsView'
+const PDF_SYNC_HIGHLIGHT_DURATION_MS = 1400
+const PDF_SYNC_HIGHLIGHT_HEIGHT_PX = 26
+const PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX = 16
 const EDITOR_TOOL_BUTTON_TO_PANEL = Object.freeze({
   editorFreeTextButton: 'freetext',
   editorInkButton: 'ink',
@@ -793,6 +796,7 @@ let viewerReadyPromise = null
 let annotationRenderScheduled = false
 let annotationMutationObserver = null
 let pendingScrollLocation = null
+let pendingSyncHighlight = null
 let sidebarStateObserver = null
 let sidebarInitialViewResolved = false
 let sidebarEverOpened = false
@@ -3064,18 +3068,59 @@ function showSyncHighlight(pageNumber, x, y) {
   clearSyncHighlight()
 
   const pageOffset = convertSyncTexPointToPageOffset(pageNumber, x, y)
-  if (!pageOffset?.pageElement) return
+  const pageElement = pageOffset?.pageElement
+  if (!pageElement) return false
+
+  const pageWidthPx = Math.max(0, Number(pageElement.clientWidth || 0))
+  const pageHeightPx = Math.max(0, Number(pageElement.clientHeight || 0))
+  if (pageWidthPx === 0 || pageHeightPx === 0) return false
+
+  const width = Math.max(
+    0,
+    pageWidthPx - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX * 2,
+  )
+  const height = Math.min(PDF_SYNC_HIGHLIGHT_HEIGHT_PX, Math.max(12, pageHeightPx - 12))
+  const top = Math.min(
+    Math.max(6, pageOffset.y - height / 2),
+    Math.max(6, pageHeightPx - height - 6),
+  )
+  const anchorX = Math.max(
+    0,
+    Math.min(width, pageOffset.x - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX),
+  )
 
   const highlight = getPdfDocument()?.createElement('div')
-  if (!highlight) return
+  if (!highlight) return false
   highlight.className = 'altals-pdf-sync-highlight'
-  highlight.style.left = `${pageOffset.x}px`
-  highlight.style.top = `${pageOffset.y}px`
-  pageOffset.pageElement.appendChild(highlight)
+  highlight.style.position = 'absolute'
+  highlight.style.pointerEvents = 'none'
+  highlight.style.left = `${PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX}px`
+  highlight.style.top = `${top}px`
+  highlight.style.width = `${width}px`
+  highlight.style.height = `${height}px`
+  highlight.style.borderRadius = '999px'
+  highlight.style.background = 'linear-gradient(90deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.26) 22%, rgba(251, 191, 36, 0.38) 50%, rgba(251, 191, 36, 0.18) 78%, rgba(251, 191, 36, 0.06) 100%)'
+  highlight.style.boxShadow = '0 0 0 1px rgba(251, 191, 36, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.16)'
+  highlight.style.zIndex = '30'
+  highlight.style.setProperty('--sync-highlight-anchor-x', `${anchorX}px`)
+  pageElement.appendChild(highlight)
   activeSyncHighlightEl = highlight
   syncHighlightTimer = window.setTimeout(() => {
     clearSyncHighlight()
-  }, 1450)
+  }, PDF_SYNC_HIGHLIGHT_DURATION_MS)
+  return true
+}
+
+function shouldQueueSyncHighlight(x, y) {
+  return Number.isFinite(Number(x)) && Number.isFinite(Number(y))
+}
+
+function applyPendingSyncHighlight() {
+  if (!pendingSyncHighlight) return
+  const nextHighlight = pendingSyncHighlight
+  if (showSyncHighlight(nextHighlight.pageNumber, nextHighlight.x, nextHighlight.y)) {
+    pendingSyncHighlight = null
+  }
 }
 
 function focusAnnotation(annotation) {
@@ -3361,8 +3406,12 @@ function scrollToLocation(pageNumber, x, y) {
       top: clampedTop,
       behavior: 'auto',
     })
+    pendingSyncHighlight = null
     showSyncHighlight(targetPage, x, y)
   } else if (typeof app.pdfLinkService?.goToPage === 'function') {
+    pendingSyncHighlight = shouldQueueSyncHighlight(x, y)
+      ? { pageNumber: targetPage, x, y }
+      : null
     app.pdfLinkService.goToPage(targetPage)
   }
   syncPdfUi()
@@ -3398,20 +3447,28 @@ async function onIframeLoad() {
   if (!iframeListenersAttached) {
     try {
       const doc = win.document
+      const bindPdfEvent = app.eventBus?.on?.bind(app.eventBus)
+        || app.eventBus?._on?.bind(app.eventBus)
       doc.addEventListener('click', handleViewerExternalLinkClick)
       doc.addEventListener('dblclick', handleIframeDoubleClick)
       doc.addEventListener('pointerdown', handleIframePointerDown, true)
       doc.addEventListener('mouseup', handleViewerMouseUp)
       doc.addEventListener('selectionchange', handleViewerSelectionChange)
       doc.addEventListener('contextmenu', handleViewerContextMenu)
-      app.eventBus?._on?.('outlineloaded', () => {
+      bindPdfEvent?.('outlineloaded', () => {
         maybeResolveInitialSidebarViewPreference()
       })
-      app.eventBus?._on?.('attachmentsloaded', () => {
+      bindPdfEvent?.('attachmentsloaded', () => {
         maybeResolveInitialSidebarViewPreference()
       })
-      app.eventBus?._on?.('annotationeditormodechanged', () => {
+      bindPdfEvent?.('annotationeditormodechanged', () => {
         syncPdfUi()
+      })
+      bindPdfEvent?.('pagerendered', () => {
+        applyPendingSyncHighlight()
+      })
+      bindPdfEvent?.('pagesloaded', () => {
+        applyPendingSyncHighlight()
       })
       doc.addEventListener('keydown', (event) => {
         handleViewerExternalLinkKeydown(event)
@@ -3484,6 +3541,7 @@ async function loadPdf() {
   error.value = null
   clearSyncTimer()
   clearSyncHighlight()
+  pendingSyncHighlight = null
   sidebarStateObserver?.disconnect()
   sidebarStateObserver = null
   resetPdfUi()
