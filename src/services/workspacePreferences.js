@@ -200,6 +200,14 @@ export function setWorkspaceZoomPercent(percent) {
   return nextValue
 }
 
+function isAppleWebKitPlatform() {
+  if (typeof navigator === 'undefined') return false
+  const platform = String(navigator.platform || '').toLowerCase()
+  const userAgent = String(navigator.userAgent || '').toLowerCase()
+  return /(mac|iphone|ipad|ipod)/.test(platform)
+    || /(mac os x|iphone|ipad|ipod)/.test(userAgent)
+}
+
 export async function applyWorkspaceAppZoom(percent) {
   const nextValue = normalizeAppZoomPercent(percent)
   writeValue(APP_ZOOM_KEY, nextValue)
@@ -209,7 +217,7 @@ export async function applyWorkspaceAppZoom(percent) {
   const root = document.documentElement
   root.style.removeProperty('zoom')
 
-  const isMacWebKit = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
+  const isMacWebKit = isAppleWebKitPlatform()
   const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
   if (isTauriWebview && !isMacWebKit) {
     try {

@@ -178,30 +178,6 @@
                 class="pdf-toolbar-separator"
               ></div>
               <button
-                v-if="toolbarButtons.printButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :title="t('Print')"
-                :disabled="toolbarButtons.printButton.disabled"
-                @click="proxyPdfButton('printButton')"
-              >
-                <IconPrinter :size="13" :stroke-width="1.8" />
-              </button>
-              <button
-                v-if="toolbarButtons.downloadButton.visible"
-                type="button"
-                class="pdf-toolbar-btn"
-                :title="t('Download')"
-                :disabled="toolbarButtons.downloadButton.disabled"
-                @click="proxyPdfButton('downloadButton')"
-              >
-                <IconDownload :size="13" :stroke-width="1.8" />
-              </button>
-              <div
-                v-if="toolbarButtons.printButton.visible || toolbarButtons.downloadButton.visible"
-                class="pdf-toolbar-separator"
-              ></div>
-              <button
                 v-if="toolbarButtons.secondaryToolbarToggleButton.visible"
                 type="button"
                 class="pdf-toolbar-btn"
@@ -638,7 +614,6 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconChevronUp,
-  IconDownload,
   IconLanguage,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -647,7 +622,6 @@ import {
   IconPencil,
   IconPhoto,
   IconPlus,
-  IconPrinter,
   IconSearch,
   IconTool,
 } from '@tabler/icons-vue'
