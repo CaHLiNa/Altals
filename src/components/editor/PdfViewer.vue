@@ -794,8 +794,6 @@ let sidebarViewOverride = ''
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
-const disableCanvasFilters = typeof navigator !== 'undefined'
-  && /mac|iphone|ipad/i.test(`${navigator.platform || ''} ${navigator.userAgent || ''}`)
 const currentPdfAnnotations = computed(() => (
   filePathRef.value ? researchArtifactsStore.annotationsForPdf(filePathRef.value) : []
 ))
@@ -1485,24 +1483,38 @@ function createToolbarStyleText() {
   const pageThemeCss = workspace.pdfThemedPages
     ? (isDark.value
       ? `
-      .page {
-        background: color-mix(in srgb, #111827 82%, #343b47) !important;
-        box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.24), 0 12px 28px rgba(15, 23, 42, 0.26) !important;
+      #viewerContainer {
+        background: color-mix(in srgb, #0f172a 76%, #111827) !important;
+        filter: invert(0.86) hue-rotate(180deg) brightness(0.98) contrast(0.88) saturate(0.78) !important;
       }
-      .page canvas {
-        filter: ${disableCanvasFilters ? 'none' : 'invert(0.86) hue-rotate(180deg) brightness(0.98) contrast(0.88) saturate(0.78)'} !important;
+      #thumbnailView,
+      #thumbnailsView {
+        filter: invert(0.86) hue-rotate(180deg) brightness(0.98) contrast(0.88) saturate(0.78) !important;
+      }
+      .page {
+        box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.24), 0 12px 28px rgba(15, 23, 42, 0.26) !important;
       }
     `
       : `
+      #viewerContainer {
+        background: color-mix(in srgb, #eef2f7 90%, #f8fafc) !important;
+        filter: brightness(0.96) contrast(0.92) sepia(0.1) saturate(0.86) !important;
+      }
+      #thumbnailView,
+      #thumbnailsView {
+        filter: brightness(0.96) contrast(0.92) sepia(0.1) saturate(0.86) !important;
+      }
       .page {
-        background: color-mix(in srgb, #f8fafc 80%, #efe6d8) !important;
         box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.24), 0 8px 18px rgba(15, 23, 42, 0.06) !important;
       }
-      .page canvas {
-        filter: ${disableCanvasFilters ? 'none' : 'brightness(0.96) contrast(0.92) sepia(0.1) saturate(0.86)'} !important;
-      }
     `)
-    : ''
+    : `
+      #viewerContainer,
+      #thumbnailView,
+      #thumbnailsView {
+        filter: none !important;
+      }
+    `
 
   const viewerChromeCss = usingExternalToolbar.value
     ? `
