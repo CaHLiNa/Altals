@@ -1,20 +1,105 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use git2::{
-    Cred, DiffOptions, FetchOptions, IndexAddOption, Oid, PushOptions, RemoteCallbacks, Repository,
-    Signature, Sort, StatusOptions,
+    Cred, DiffOptions, FetchOptions, Oid, PushOptions, RemoteCallbacks, Repository, Signature,
 };
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn normalize_repo_pathbuf(repo_path: &str) -> Result<PathBuf, String> {
+    let trimmed = repo_path.trim();
+    if trimmed.is_empty() {
+        return Err("missing repository path".to_string());
+    }
+
+    let normalized = trimmed.trim_end_matches(['/', '\\']);
+    let candidate = if normalized.is_empty() { "/" } else { normalized };
+    let path = PathBuf::from(candidate);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(path))
+            .map_err(|e| e.to_string())
+    }
+}
+
+fn normalize_repo_path(repo_path: &str) -> Result<String, String> {
+    Ok(normalize_repo_pathbuf(repo_path)?
+        .to_string_lossy()
+        .to_string())
+}
+
+fn repo_relative_path(repo_root: &Path, file_path: &str) -> String {
+    let trimmed = file_path.trim().trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let candidate = Path::new(trimmed);
+    if candidate.is_absolute() {
+        if let Ok(stripped) = candidate.strip_prefix(repo_root) {
+            return stripped.to_string_lossy().replace('\\', "/");
+        }
+    }
+
+    let normalized = trimmed.replace('\\', "/");
+    if let Some(root_name) = repo_root.file_name().and_then(|value| value.to_str()) {
+        let prefix = format!("{root_name}/");
+        if let Some(stripped) = normalized.strip_prefix(&prefix) {
+            return stripped.to_string();
+        }
+    }
+
+    normalized
+}
+
+fn run_git_text(repo_path: &str, args: &[String]) -> Result<String, String> {
+    let normalized = normalize_repo_path(repo_path)?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(&normalized)
+        .args(args)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
+
+fn run_git_init(repo_path: &str) -> Result<(), String> {
+    let normalized = normalize_repo_path(repo_path)?;
+    let output = Command::new("git")
+        .arg("init")
+        .arg(&normalized)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
 
 fn open_repo(repo_path: &str) -> Result<Repository, String> {
-    Repository::open(repo_path).map_err(|e| e.message().to_string())
+    let normalized = normalize_repo_path(repo_path)?;
+    Repository::open(normalized).map_err(|e| e.message().to_string())
 }
 
 #[tauri::command]
 pub async fn git_init(repo_path: String) -> Result<(), String> {
-    Repository::init(&repo_path)
+    let normalized = normalize_repo_path(&repo_path)?;
+    Repository::init(&normalized)
         .map(|_| ())
-        .map_err(|e| e.message().to_string())
+        .or_else(|_| run_git_init(&normalized))
 }
 
 #[tauri::command]
@@ -40,104 +125,54 @@ pub async fn git_clone(url: String, target_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn git_add_all(repo_path: String) -> Result<(), String> {
-    let repo = open_repo(&repo_path)?;
-    let mut index = repo.index().map_err(|e| e.message().to_string())?;
-    index
-        .add_all(["*"].iter(), IndexAddOption::DEFAULT, None)
-        .map_err(|e| e.message().to_string())?;
-    // Also remove deleted files from the index
-    index
-        .update_all(["*"].iter(), None)
-        .map_err(|e| e.message().to_string())?;
-    index.write().map_err(|e| e.message().to_string())?;
-    Ok(())
+    run_git_text(&repo_path, &[String::from("add"), String::from("-A")]).map(|_| ())
 }
 
 #[tauri::command]
 pub async fn git_commit(repo_path: String, message: String) -> Result<String, String> {
-    let repo = open_repo(&repo_path)?;
-    let sig = Signature::now("Altals", "altals@local").map_err(|e| e.message().to_string())?;
+    let _ = run_git_text(
+        &repo_path,
+        &[
+            String::from("config"),
+            String::from("user.name"),
+            String::from("Altals"),
+        ],
+    );
+    let _ = run_git_text(
+        &repo_path,
+        &[
+            String::from("config"),
+            String::from("user.email"),
+            String::from("altals@local"),
+        ],
+    );
 
-    let mut index = repo.index().map_err(|e| e.message().to_string())?;
-    let tree_oid = index.write_tree().map_err(|e| e.message().to_string())?;
-    let tree = repo
-        .find_tree(tree_oid)
-        .map_err(|e| e.message().to_string())?;
+    run_git_text(
+        &repo_path,
+        &[
+            String::from("commit"),
+            String::from("-m"),
+            message,
+        ],
+    )?;
 
-    let parent_commit = match repo.head() {
-        Ok(head) => {
-            let commit = head.peel_to_commit().map_err(|e| e.message().to_string())?;
-            Some(commit)
-        }
-        Err(_) => None, // Initial commit — no parent
-    };
-
-    let parents: Vec<&git2::Commit> = parent_commit.iter().collect();
-
-    let oid = repo
-        .commit(Some("HEAD"), &sig, &sig, &message, &tree, &parents)
-        .map_err(|e| e.message().to_string())?;
-
-    Ok(oid.to_string())
+    let head = run_git_text(
+        &repo_path,
+        &[String::from("rev-parse"), String::from("HEAD")],
+    )?;
+    Ok(head.trim().to_string())
 }
 
 #[tauri::command]
 pub async fn git_status(repo_path: String) -> Result<String, String> {
-    let repo = open_repo(&repo_path)?;
-    let mut opts = StatusOptions::new();
-    opts.include_untracked(true).recurse_untracked_dirs(true);
-
-    let statuses = repo
-        .statuses(Some(&mut opts))
-        .map_err(|e| e.message().to_string())?;
-
-    let mut lines = Vec::new();
-    for entry in statuses.iter() {
-        let path = entry.path().unwrap_or("");
-        let status = entry.status();
-        let code = status_to_porcelain(status);
-        if !code.is_empty() {
-            lines.push(format!("{} {}", code, path));
-        }
-    }
-
-    Ok(lines.join("\n"))
-}
-
-fn status_to_porcelain(status: git2::Status) -> String {
-    let index_char = if status.contains(git2::Status::INDEX_NEW) {
-        'A'
-    } else if status.contains(git2::Status::INDEX_MODIFIED) {
-        'M'
-    } else if status.contains(git2::Status::INDEX_DELETED) {
-        'D'
-    } else if status.contains(git2::Status::INDEX_RENAMED) {
-        'R'
-    } else {
-        ' '
-    };
-
-    let wt_char = if status.contains(git2::Status::WT_NEW) {
-        '?'
-    } else if status.contains(git2::Status::WT_MODIFIED) {
-        'M'
-    } else if status.contains(git2::Status::WT_DELETED) {
-        'D'
-    } else {
-        ' '
-    };
-
-    // Untracked files: "?? path"
-    if status.contains(git2::Status::WT_NEW) && !status.contains(git2::Status::INDEX_NEW) {
-        return "??".to_string();
-    }
-
-    let code = format!("{}{}", index_char, wt_char);
-    if code.trim().is_empty() {
-        String::new()
-    } else {
-        code
-    }
+    run_git_text(
+        &repo_path,
+        &[
+            String::from("status"),
+            String::from("--porcelain=v1"),
+            String::from("-uall"),
+        ],
+    )
 }
 
 #[tauri::command]
@@ -163,68 +198,48 @@ pub async fn git_log(
     file_path: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<LogEntry>, String> {
-    let repo = open_repo(&repo_path)?;
     let limit = limit.unwrap_or(50);
+    let normalized_repo = normalize_repo_pathbuf(&repo_path)?;
+    let mut args = vec![
+        String::from("rev-parse"),
+        String::from("--verify"),
+        String::from("HEAD"),
+    ];
+    if run_git_text(&repo_path, &args).is_err() {
+        return Ok(Vec::new());
+    }
 
-    let mut revwalk = repo.revwalk().map_err(|e| e.message().to_string())?;
-    revwalk.push_head().map_err(|e| e.message().to_string())?;
-    revwalk
-        .set_sorting(Sort::TIME)
-        .map_err(|e| e.message().to_string())?;
+    args = vec![
+        String::from("log"),
+        format!("-n{limit}"),
+        String::from("--date=iso-strict"),
+        String::from("--pretty=format:%H%x1f%aI%x1f%s%x1e"),
+    ];
 
-    let rel_path = file_path.as_ref().map(|fp| {
-        if fp.starts_with(&repo_path) {
-            fp[repo_path.len()..].trim_start_matches('/').to_string()
-        } else {
-            fp.clone()
+    if let Some(file_path) = file_path.as_ref() {
+        let rel_path = repo_relative_path(&normalized_repo, file_path);
+        if rel_path.is_empty() {
+            return Ok(Vec::new());
         }
-    });
+        args.push(String::from("--"));
+        args.push(rel_path);
+    }
 
+    let raw = run_git_text(&repo_path, &args)?;
     let mut entries = Vec::new();
-    let mut prev_blob_id: Option<Oid> = None;
-
-    for oid_result in revwalk {
-        if entries.len() >= limit {
-            break;
+    for record in raw.split('\u{1e}') {
+        let trimmed = record.trim();
+        if trimmed.is_empty() {
+            continue;
         }
-
-        let oid = oid_result.map_err(|e| e.message().to_string())?;
-        let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
-
-        // If filtering by file, check if this commit changed the file
-        if let Some(ref rel) = rel_path {
-            let tree = commit.tree().map_err(|e| e.message().to_string())?;
-            let current_blob_id = tree.get_path(Path::new(rel)).ok().map(|entry| entry.id());
-
-            // On first commit, just record the blob id and include it
-            if prev_blob_id.is_none() && entries.is_empty() {
-                // Fall through to record and include
-            } else if current_blob_id == prev_blob_id {
-                // File unchanged in this commit — skip
-                continue;
-            }
-            prev_blob_id = current_blob_id;
-
-            // Skip if file doesn't exist at this commit at all
-            if current_blob_id.is_none() {
-                continue;
-            }
-        }
-
-        let time = commit.time();
-        let secs = time.seconds();
-        let offset_mins = time.offset_minutes();
-        let dt = chrono::DateTime::from_timestamp(secs, 0)
-            .unwrap_or_default()
-            .with_timezone(
-                &chrono::FixedOffset::east_opt(offset_mins * 60)
-                    .unwrap_or(chrono::FixedOffset::east_opt(0).unwrap()),
-            );
-
+        let mut parts = trimmed.split('\u{1f}');
+        let Some(hash) = parts.next() else { continue };
+        let Some(date) = parts.next() else { continue };
+        let message = parts.next().unwrap_or_default();
         entries.push(LogEntry {
-            hash: oid.to_string(),
-            date: dt.to_rfc3339(),
-            message: commit.summary().unwrap_or("").to_string(),
+            hash: hash.to_string(),
+            date: date.to_string(),
+            message: message.to_string(),
         });
     }
 
@@ -237,27 +252,16 @@ pub async fn git_show_file(
     commit_hash: String,
     file_path: String,
 ) -> Result<String, String> {
-    let repo = open_repo(&repo_path)?;
+    let normalized_repo = normalize_repo_pathbuf(&repo_path)?;
+    let rel_path = repo_relative_path(&normalized_repo, &file_path);
+    if rel_path.is_empty() {
+        return Err("missing file path".to_string());
+    }
 
-    let rel_path = if file_path.starts_with(&repo_path) {
-        file_path[repo_path.len()..]
-            .trim_start_matches('/')
-            .to_string()
-    } else {
-        file_path.clone()
-    };
-
-    let oid = Oid::from_str(&commit_hash).map_err(|e| e.message().to_string())?;
-    let commit = repo.find_commit(oid).map_err(|e| e.message().to_string())?;
-    let tree = commit.tree().map_err(|e| e.message().to_string())?;
-    let entry = tree
-        .get_path(Path::new(&rel_path))
-        .map_err(|e| e.message().to_string())?;
-    let blob = repo
-        .find_blob(entry.id())
-        .map_err(|e| e.message().to_string())?;
-
-    String::from_utf8(blob.content().to_vec()).map_err(|_| "File is not valid UTF-8".to_string())
+    run_git_text(
+        &repo_path,
+        &[String::from("show"), format!("{commit_hash}:{rel_path}")],
+    )
 }
 
 #[tauri::command]

@@ -35,9 +35,9 @@ export function mapWorkspaceSyncState(syncState = {}, currentRemoteUrl = '') {
   }
 }
 
-export async function loadWorkspaceGitHubSession(path = '') {
+export async function loadWorkspaceGitHubSession(path = '', options = {}) {
   const { loadGitHubToken, getGitHubUser } = await import('./githubSync')
-  const stored = await loadGitHubToken()
+  const stored = await loadGitHubToken(options)
   if (!stored?.token) return null
 
   let user
@@ -68,10 +68,11 @@ export async function runWorkspaceAutoSync(path = '', token = '') {
   if (!remoteUrl) return null
 
   const { syncNow, syncState } = await import('./githubSync')
-  await syncNow(path, token)
+  const result = await syncNow(path, token, { quietNetworkErrors: true })
   return {
     remoteUrl,
     syncState,
+    result,
   }
 }
 
@@ -92,8 +93,8 @@ export async function fetchWorkspaceRemoteChanges(path = '', token = '') {
 export async function runWorkspaceSyncNow(path = '', token = '') {
   if (!path || !token) return null
   const { syncNow, syncState } = await import('./githubSync')
-  await syncNow(path, token)
-  return { syncState }
+  const result = await syncNow(path, token, { quietNetworkErrors: false })
+  return { syncState, result }
 }
 
 export async function connectWorkspaceGitHub({ tokenData, path = '' }) {

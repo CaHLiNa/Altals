@@ -1,4 +1,4 @@
-import { gitAdd, gitCommit, gitInit, gitStatus } from './git'
+import { gitAdd, gitCommit, gitInit, gitLog, gitStatus } from './git'
 import { pathExists } from './workspaceBootstrap'
 import { getHomeDirCached, normalizePathValue } from './workspacePaths'
 
@@ -12,7 +12,11 @@ export async function canAutoCommitWorkspace(path = '') {
   return pathExists(`${normalizedPath}/.git`)
 }
 
-export async function ensureWorkspaceHistoryRepo(path = '') {
+export async function ensureWorkspaceHistoryRepo(path = '', options = {}) {
+  const {
+    seedInitialCommit = false,
+    seedMessage = 'Initial snapshot',
+  } = options
   if (!path) return { ok: false, reason: 'missing' }
 
   const normalizedPath = normalizePathValue(path)
@@ -22,12 +26,31 @@ export async function ensureWorkspaceHistoryRepo(path = '') {
   }
 
   const hasRepo = await pathExists(`${normalizedPath}/.git`)
+  let initialized = false
   if (hasRepo) {
-    return { ok: true, initialized: false }
+    initialized = false
+  } else {
+    await gitInit(normalizedPath)
+    initialized = true
   }
 
-  await gitInit(normalizedPath)
-  return { ok: true, initialized: true }
+  if (!seedInitialCommit) {
+    return { ok: true, initialized, seeded: false }
+  }
+
+  const commits = await gitLog(normalizedPath, null, 1)
+  if (commits.length > 0) {
+    return { ok: true, initialized, seeded: false }
+  }
+
+  await gitAdd(normalizedPath)
+  const status = await gitStatus(normalizedPath)
+  if (!status.trim()) {
+    return { ok: true, initialized, seeded: false, empty: true }
+  }
+
+  await gitCommit(normalizedPath, seedMessage)
+  return { ok: true, initialized, seeded: true }
 }
 
 export async function runWorkspaceAutoCommit(path = '') {

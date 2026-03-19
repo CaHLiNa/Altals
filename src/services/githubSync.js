@@ -38,27 +38,44 @@ function classifyError(msg) {
 
 // ── GitHub token keychain helpers ──
 
+function loadGitHubTokenFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('githubToken')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function storeGitHubTokenInLocalStorage(data) {
+  try {
+    localStorage.setItem('githubToken', JSON.stringify(data))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 export async function storeGitHubToken(data) {
+  storeGitHubTokenInLocalStorage(data)
   try {
     await invoke('keychain_set', { key: GITHUB_KEYCHAIN_KEY, value: JSON.stringify(data) })
   } catch {
     console.warn('[security] OS keychain unavailable — GitHub token stored in plaintext localStorage')
-    localStorage.setItem('githubToken', JSON.stringify(data))
   }
 }
 
-export async function loadGitHubToken() {
+export async function loadGitHubToken(options = {}) {
+  const localOnly = options?.localOnly === true
+  const cached = loadGitHubTokenFromLocalStorage()
+  if (cached) return cached
+  if (localOnly) return null
+
   try {
     const raw = await invoke('keychain_get', { key: GITHUB_KEYCHAIN_KEY })
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  try {
-    const raw = localStorage.getItem('githubToken')
     if (raw) {
-      const data = JSON.parse(raw)
-      await storeGitHubToken(data)
-      localStorage.removeItem('githubToken')
-      return data
+      const parsed = JSON.parse(raw)
+      storeGitHubTokenInLocalStorage(parsed)
+      return parsed
     }
   } catch {}
   return null
@@ -249,21 +266,23 @@ async function handleConflict(repoPath, branch, token) {
 
 // ── Full sync cycle (called after auto-commit and on Cmd+S) ──
 
-export async function syncNow(repoPath, token) {
-  if (!repoPath || !token) return
+export async function syncNow(repoPath, token, options = {}) {
+  const quietNetworkErrors = options?.quietNetworkErrors === true
+  if (!repoPath || !token) return { ok: false, reason: 'missing' }
   const remote = await gitRemoteGetUrl(repoPath)
   if (!remote) {
     syncState.status = 'disconnected'
-    return
+    return { ok: false, reason: 'disconnected' }
   }
 
   syncState.remoteUrl = remote
 
   const branch = await gitBranch(repoPath)
-  if (!branch) return
+  if (!branch) return { ok: false, reason: 'branch' }
 
   syncState.status = 'syncing'
   syncState.error = null
+  syncState.errorType = null
 
   // Step 1: Fetch remote state
   try {
@@ -272,13 +291,12 @@ export async function syncNow(repoPath, token) {
     const msg = String(e)
     const type = classifyError(msg)
     console.warn('[sync] Fetch failed:', e)
-    if (type === 'auth') {
+    if (type === 'auth' || !quietNetworkErrors) {
       syncState.status = 'error'
       syncState.error = msg
-      syncState.errorType = 'auth'
+      syncState.errorType = type
     }
-    // Network errors: stay quiet, keep previous status
-    return
+    return { ok: false, error: msg, errorType: type }
   }
 
   // Step 2: Check divergence
@@ -290,12 +308,13 @@ export async function syncNow(repoPath, token) {
     try {
       await gitPush(repoPath, 'origin', branch, token)
       markSynced()
+      return { ok: true, pushed: true, initial: true }
     } catch (pushErr) {
       syncState.status = 'error'
       syncState.error = String(pushErr)
       syncState.errorType = classifyError(String(pushErr))
+      return { ok: false, error: String(pushErr), errorType: syncState.errorType }
     }
-    return
   }
 
   // Step 3: Pull if behind
@@ -308,7 +327,7 @@ export async function syncNow(repoPath, token) {
         syncState.status = 'error'
         syncState.error = String(e)
         syncState.errorType = classifyError(String(e))
-        return
+        return { ok: false, error: String(e), errorType: syncState.errorType }
       }
     } else {
       // Both ahead and behind — try auto-merge
@@ -319,12 +338,13 @@ export async function syncNow(repoPath, token) {
         const msg = String(e)
         if (msg.includes('CONFLICT')) {
           await handleConflict(repoPath, branch, token)
+          return { ok: false, conflict: true, errorType: 'conflict' }
         } else {
           syncState.status = 'error'
           syncState.error = msg
           syncState.errorType = classifyError(msg)
         }
-        return
+        return { ok: false, error: msg, errorType: syncState.errorType }
       }
     }
   }
@@ -338,16 +358,18 @@ export async function syncNow(repoPath, token) {
       const msg = String(e)
       if (msg.includes('CONFLICT')) {
         await handleConflict(repoPath, branch, token)
+        return { ok: false, conflict: true, errorType: 'conflict' }
       } else {
         syncState.status = 'error'
         syncState.error = msg
         syncState.errorType = classifyError(msg)
       }
-      return
+      return { ok: false, error: msg, errorType: syncState.errorType }
     }
   }
 
   markSynced()
+  return { ok: true }
 }
 
 function markSynced() {

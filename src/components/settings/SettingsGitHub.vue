@@ -143,9 +143,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useUxStatusStore } from '../../stores/uxStatus'
 import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
+const uxStatusStore = useUxStatusStore()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -163,7 +165,7 @@ onMounted(async () => {
   clearLegacyGitHubAuthOrigin()
   loading.value = true
   try {
-    await workspace.ensureGitHubInitialized()
+    await workspace.ensureGitHubInitialized({ localOnly: true })
   } catch (e) {
     console.warn('[github] Deferred init failed:', e)
   } finally {
@@ -261,9 +263,13 @@ async function handleConnect() {
   let deepLinkWaiter = null
   let loopbackWaiter = null
   try {
+    const existing = await workspace.ensureGitHubInitialized()
+    if (existing?.token || workspace.githubToken?.token) {
+      return
+    }
+
     if (!githubAuthOrigin.value) {
       error.value = t('GitHub sign-in is not configured in this build yet. Please use a release with a configured auth service, or connect with a Personal Access Token.')
-      loading.value = false
       return
     }
 
@@ -306,8 +312,9 @@ async function handleConnect() {
     loopbackWaiter?.cancel?.()
     console.error('[github] Connect failed:', e)
     error.value = String(e.message || e)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 async function pollForGitHubToken(state) {
@@ -404,10 +411,45 @@ async function handleUnlink() {
 }
 
 async function handleSyncNow() {
+  error.value = ''
   loading.value = true
-  await workspace.ensureGitHubInitialized()
-  await workspace.syncNow()
-  loading.value = false
+  const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {
+    type: 'info',
+    duration: 0,
+  })
+  try {
+    await workspace.ensureGitHubInitialized()
+    const result = await workspace.syncNow()
+    if (result?.ok) {
+      uxStatusStore.update(statusId, t('Synced with GitHub'), {
+        type: 'success',
+        duration: 3000,
+      })
+    } else if (workspace.syncStatus === 'conflict') {
+      uxStatusStore.update(statusId, t('Sync conflict needs attention'), {
+        type: 'warning',
+        duration: 5000,
+      })
+    } else if (workspace.syncStatus === 'error') {
+      uxStatusStore.update(statusId, workspace.syncError || t('Sync failed. Click for details.'), {
+        type: 'error',
+        duration: 5000,
+      })
+    } else {
+      uxStatusStore.update(statusId, t('GitHub sync finished'), {
+        type: 'success',
+        duration: 3000,
+      })
+    }
+  } catch (e) {
+    error.value = String(e?.message || e || '')
+    uxStatusStore.update(statusId, error.value || t('Sync failed. Click for details.'), {
+      type: 'error',
+      duration: 5000,
+    })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

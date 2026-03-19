@@ -850,7 +850,10 @@ function onEditorStats(stats) {
 // Version history
 function openVersionHistory(entry) {
   if (!workspace.path) return
-  ensureWorkspaceHistoryRepo(workspace.path)
+  ensureWorkspaceHistoryRepo(workspace.path, {
+    seedInitialCommit: true,
+    seedMessage: t('Initial snapshot'),
+  })
     .then((result) => {
       if (!result.ok) {
         toastStore.show(t('Version History is not available for the home folder.'), {
@@ -859,7 +862,7 @@ function openVersionHistory(entry) {
         })
         return
       }
-      if (result.initialized) {
+      if (result.initialized || result.seeded) {
         void workspace.startAutoCommit()
       }
       versionHistoryFile.value = entry.path

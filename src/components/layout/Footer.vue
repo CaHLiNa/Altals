@@ -382,7 +382,39 @@ function toggleSyncPopover() {
 
 async function handleSyncNow() {
   showSyncPopover.value = false
-  await workspace.syncNow()
+  const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {
+    type: 'info',
+    duration: 0,
+  })
+  try {
+    const result = await workspace.syncNow()
+    if (result?.ok) {
+      uxStatusStore.update(statusId, t('Synced with GitHub'), {
+        type: 'success',
+        duration: 3000,
+      })
+    } else if (workspace.syncStatus === 'conflict') {
+      uxStatusStore.update(statusId, t('Sync conflict needs attention'), {
+        type: 'warning',
+        duration: 5000,
+      })
+    } else if (workspace.syncStatus === 'error') {
+      uxStatusStore.update(statusId, workspace.syncError || t('Sync failed. Click for details.'), {
+        type: 'error',
+        duration: 5000,
+      })
+    } else {
+      uxStatusStore.update(statusId, t('GitHub sync finished'), {
+        type: 'success',
+        duration: 3000,
+      })
+    }
+  } catch (e) {
+    uxStatusStore.update(statusId, String(e?.message || e || t('Sync failed. Click for details.')), {
+      type: 'error',
+      duration: 5000,
+    })
+  }
 }
 
 async function handleSyncRefresh() {

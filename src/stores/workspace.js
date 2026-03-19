@@ -626,7 +626,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         }
 
         try {
-          const session = await loadWorkspaceGitHubSession(this.path)
+          const session = await loadWorkspaceGitHubSession(this.path, options)
           if (!session) {
             this.githubToken = null
             this.githubUser = null
@@ -646,7 +646,8 @@ export const useWorkspaceStore = defineStore('workspace', {
           console.warn('[github] Init failed:', e)
           return null
         } finally {
-          this.githubInitialized = true
+          const localOnly = options?.localOnly === true
+          this.githubInitialized = localOnly ? !!this.githubToken : true
           this._githubInitPromise = null
         }
       })()
@@ -712,6 +713,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       const result = await runWorkspaceSyncNow(this.path, this.githubToken.token)
       if (!result) return
       this._applySyncState(result.syncState)
+      return result.result || null
     },
 
     _applySyncState(syncState) {
