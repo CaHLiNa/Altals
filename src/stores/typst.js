@@ -17,6 +17,7 @@ import {
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TYPST_AUTOCOMPILE_DEBOUNCE_MS = 350
+let typstStreamUnlistenPromise = null
 
 const readStoredValue = (key, fallback = '') => {
   try {
@@ -92,10 +93,48 @@ function pushTypstLogToTerminal(filePath, result) {
       key: 'typst-log',
       label: 'Typst',
       text: buildTypstTerminalOutput(filePath, result),
-      clear: true,
+      clear: false,
       open: shouldOpenTerminal,
+      status: result.success ? 'success' : 'error',
     },
   }))
+}
+
+function pushTypstStreamToTerminal({ filePath, line, clear = false, header = false, open = false, status = null } = {}) {
+  if (typeof window === 'undefined' || !line) return
+  window.dispatchEvent(new CustomEvent('terminal-stream', {
+    detail: {
+      key: 'typst-log',
+      label: 'Typst',
+      sourcePath: filePath,
+      text: line.endsWith('\n') ? line : `${line}\n`,
+      clear,
+      header,
+      open,
+      status,
+    },
+  }))
+}
+
+async function ensureTypstStreamListener() {
+  if (typstStreamUnlistenPromise) {
+    await typstStreamUnlistenPromise
+    return
+  }
+
+  typstStreamUnlistenPromise = listen('typst-compile-stream', (event) => {
+    const payload = event.payload || {}
+    pushTypstStreamToTerminal({
+      filePath: payload.typPath,
+      line: payload.line,
+      clear: payload.clear === true,
+      header: payload.header === true,
+      open: payload.open === true,
+      status: payload.status || null,
+    })
+  })
+
+  await typstStreamUnlistenPromise
 }
 
 export const useTypstStore = defineStore('typst', {
@@ -228,6 +267,7 @@ export const useTypstStore = defineStore('typst', {
     async compile(filePath, options = {}) {
       if (!filePath) return null
 
+      await ensureTypstStreamListener()
       this.cancelAutoCompile(filePath)
       const { compileTargetPath } = await this.resolveCompileRequest(filePath, options)
       const targetKey = options.targetPath || compileTargetPath || filePath
@@ -366,6 +406,7 @@ export const useTypstStore = defineStore('typst', {
           }),
           clear: true,
           open: true,
+          status: state.status === 'success' ? 'success' : 'error',
         },
       }))
     },

@@ -126,11 +126,12 @@ function pushLatexLogToTerminal(texPath, result) {
       text: buildLatexTerminalOutput(texPath, result, { includeRawLog: false }),
       clear: false,
       open: shouldOpenTerminal,
+      status: result.success ? 'success' : 'error',
     },
   }))
 }
 
-function pushLatexStreamToTerminal({ texPath, line, clear = false, header = false, open = false } = {}) {
+function pushLatexStreamToTerminal({ texPath, line, clear = false, header = false, open = false, status = null } = {}) {
   if (typeof window === 'undefined' || !line) return
   window.dispatchEvent(new CustomEvent('terminal-stream', {
     detail: {
@@ -141,6 +142,7 @@ function pushLatexStreamToTerminal({ texPath, line, clear = false, header = fals
       clear,
       header,
       open,
+      status,
     },
   }))
 }
@@ -159,6 +161,7 @@ async function ensureLatexStreamListener() {
       clear: payload.clear === true,
       header: payload.header === true,
       open: payload.open === true,
+      status: payload.status || null,
     })
   })
 
@@ -437,13 +440,6 @@ export const useLatexStore = defineStore('latex', {
           })
         } catch {}
 
-        pushLatexStreamToTerminal({
-          texPath,
-          line: t('Starting LaTeX compile for {file}', { file: fileNameForLog(compileTargetPath) }),
-          header: true,
-          open: false,
-        })
-
         const result = await invoke('compile_latex', {
           texPath: compileTargetPath,
           compilerPreference: this.compilerPreference,
@@ -685,6 +681,7 @@ export const useLatexStore = defineStore('latex', {
           }, { includeRawLog: true }),
           clear: true,
           open: true,
+          status: state.status === 'success' ? 'success' : 'error',
         },
       }))
     },

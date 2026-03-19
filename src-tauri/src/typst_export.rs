@@ -2,11 +2,16 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use uuid::Uuid;
 
 use crate::app_dirs;
-use crate::process_utils::background_command;
+use crate::process_utils::{background_command, background_tokio_command};
+
+const TYPST_COMPILE_STREAM_EVENT: &str = "typst-compile-stream";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportError {
@@ -29,6 +34,17 @@ pub struct TypstCompileResult {
 pub struct TypstCompilerStatus {
     pub installed: bool,
     pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TypstCompileStreamPayload {
+    typ_path: String,
+    line: String,
+    clear: bool,
+    header: bool,
+    open: bool,
+    status: Option<String>,
 }
 
 fn altals_bin_dir() -> Option<PathBuf> {
@@ -409,12 +425,12 @@ fn parse_typst_output(stderr: &str) -> (Vec<ExportError>, Vec<ExportError>) {
 }
 
 fn build_typst_result(
-    output: std::process::Output,
+    success: bool,
+    stdout: String,
+    stderr: String,
     pdf_path: &Path,
     duration_ms: u64,
 ) -> TypstCompileResult {
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     let mut combined_log = String::new();
     if !stdout.trim().is_empty() {
         combined_log.push_str(stdout.trim_end());
@@ -427,7 +443,7 @@ fn build_typst_result(
     }
     let (errors, warnings) = parse_typst_output(&stderr);
 
-    if output.status.success() {
+    if success {
         TypstCompileResult {
             success: true,
             pdf_path: Some(pdf_path.to_string_lossy().to_string()),
@@ -460,27 +476,151 @@ fn build_typst_result(
     }
 }
 
-fn run_typst_compile(
+async fn run_typst_compile(
     typst_bin: &str,
     source_path: &Path,
     pdf_path: &Path,
     app: &tauri::AppHandle,
 ) -> Result<TypstCompileResult, String> {
     let start = std::time::Instant::now();
-    let mut cmd = background_command(typst_bin);
-    cmd.arg("compile");
-    if let Some(font_dir) = find_font_dir(app) {
-        cmd.args(["--font-path", &font_dir]);
+    let typ_path = source_path.to_string_lossy().to_string();
+    let file_label = source_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&typ_path)
+        .to_string();
+    let stdout_log = Arc::new(Mutex::new(String::new()));
+    let stderr_log = Arc::new(Mutex::new(String::new()));
+
+    let font_dir = find_font_dir(app);
+    let mut command = background_tokio_command(typst_bin);
+    command.arg("compile");
+    if let Some(font_dir) = &font_dir {
+        command.args(["--font-path", font_dir]);
     }
-    cmd.arg(source_path);
-    cmd.arg(pdf_path);
-    cmd.current_dir(source_path.parent().unwrap_or(Path::new(".")));
-    let output = cmd
-        .output()
+    command.arg(source_path);
+    command.arg(pdf_path);
+    command.current_dir(source_path.parent().unwrap_or(Path::new(".")));
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let command_preview = {
+        let mut parts = vec![
+            typst_bin.to_string(),
+            "compile".to_string(),
+        ];
+        if let Some(font_dir) = &font_dir {
+            parts.push("--font-path".to_string());
+            parts.push(font_dir.clone());
+        }
+        parts.push(source_path.to_string_lossy().to_string());
+        parts.push(pdf_path.to_string_lossy().to_string());
+        parts.join(" ")
+    };
+
+    let mut child = command
+        .spawn()
         .map_err(|e| format!("Failed to run typst: {}", e))?;
 
+    let intro = vec![
+        format!("Starting Typst compile for {}", file_label),
+        "Compiler backend: Typst CLI".to_string(),
+        format!("Command: {}", command_preview),
+    ]
+    .join("\n");
+
+    let _ = app.emit(
+        TYPST_COMPILE_STREAM_EVENT,
+        TypstCompileStreamPayload {
+            typ_path: typ_path.clone(),
+            line: intro,
+            clear: true,
+            header: true,
+            open: true,
+            status: Some("running".to_string()),
+        },
+    );
+
+    let stdout_task = if let Some(stdout) = child.stdout.take() {
+        let app = app.clone();
+        let typ_path = typ_path.clone();
+        let stdout_log = stdout_log.clone();
+        Some(tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Ok(mut buffer) = stdout_log.lock() {
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+                let _ = app.emit(
+                    TYPST_COMPILE_STREAM_EVENT,
+                    TypstCompileStreamPayload {
+                        typ_path: typ_path.clone(),
+                        line,
+                        clear: false,
+                        header: false,
+                        open: false,
+                        status: None,
+                    },
+                );
+            }
+        }))
+    } else {
+        None
+    };
+
+    let stderr_task = if let Some(stderr) = child.stderr.take() {
+        let app = app.clone();
+        let typ_path = typ_path.clone();
+        let stderr_log = stderr_log.clone();
+        Some(tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Ok(mut buffer) = stderr_log.lock() {
+                    buffer.push_str(&line);
+                    buffer.push('\n');
+                }
+                let _ = app.emit(
+                    TYPST_COMPILE_STREAM_EVENT,
+                    TypstCompileStreamPayload {
+                        typ_path: typ_path.clone(),
+                        line,
+                        clear: false,
+                        header: false,
+                        open: false,
+                        status: None,
+                    },
+                );
+            }
+        }))
+    } else {
+        None
+    };
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for typst: {}", e))?;
+
+    if let Some(task) = stdout_task {
+        let _ = task.await;
+    }
+    if let Some(task) = stderr_task {
+        let _ = task.await;
+    }
+
+    let stdout = stdout_log
+        .lock()
+        .map(|buffer| buffer.clone())
+        .unwrap_or_default();
+    let stderr = stderr_log
+        .lock()
+        .map(|buffer| buffer.clone())
+        .unwrap_or_default();
+
     Ok(build_typst_result(
-        output,
+        status.success(),
+        stdout,
+        stderr,
         pdf_path,
         start.elapsed().as_millis() as u64,
     ))
@@ -526,5 +666,5 @@ pub async fn compile_typst_file(
         return Err(format!("Typst file not found: {}", typ_path));
     }
     let pdf_path = typ_pathbuf.with_extension("pdf");
-    run_typst_compile(&typst_bin, &typ_pathbuf, &pdf_path, &app)
+    run_typst_compile(&typst_bin, &typ_pathbuf, &pdf_path, &app).await
 }

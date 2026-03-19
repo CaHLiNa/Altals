@@ -59,6 +59,7 @@ struct LatexCompileStreamPayload {
     clear: bool,
     header: bool,
     open: bool,
+    status: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1032,6 +1033,11 @@ async fn run_latex_command_with_streaming(
     meta: LatexCompileMeta,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
+    let file_label = tex
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(tex_path)
+        .to_string();
     let stdout_log = Arc::new(Mutex::new(String::new()));
     let stderr_log = Arc::new(Mutex::new(String::new()));
 
@@ -1041,6 +1047,7 @@ async fn run_latex_command_with_streaming(
         .map_err(|e| format!("Failed to start LaTeX compiler: {}", e))?;
 
     let mut intro = vec![
+        format!("Starting LaTeX compile for {}", file_label),
         format!("Compiler backend: {}", meta.compiler_backend),
         format!("Command: {}", meta.command_preview),
     ];
@@ -1060,9 +1067,10 @@ async fn run_latex_command_with_streaming(
         LatexCompileStreamPayload {
             tex_path: tex_path.to_string(),
             line: intro.join("\n"),
-            clear: false,
+            clear: true,
             header: true,
-            open: false,
+            open: true,
+            status: Some("running".to_string()),
         },
     );
 
@@ -1085,6 +1093,7 @@ async fn run_latex_command_with_streaming(
                         clear: false,
                         header: false,
                         open: false,
+                        status: None,
                     },
                 );
             }
@@ -1112,6 +1121,7 @@ async fn run_latex_command_with_streaming(
                         clear: false,
                         header: false,
                         open: false,
+                        status: None,
                     },
                 );
             }

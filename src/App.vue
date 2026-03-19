@@ -540,6 +540,13 @@ function handleKeydown(e) {
     return
   }
 
+  // Cmd/Ctrl+`: toggle bottom terminal panel
+  if (isMod(e) && e.code === 'Backquote') {
+    e.preventDefault()
+    handleToggleTerminal()
+    return
+  }
+
   // Cmd+F: Route to file tree filter when sidebar is focused
   if (isMod(e) && e.key === 'f') {
     const sidebarEl = document.querySelector('[data-sidebar="left"]')
@@ -605,7 +612,15 @@ function handleToggleLeftSidebar() {
 }
 function handleToggleTerminal() {
   if (!workspace.isOpen) return
-  workspace.toggleBottomPanel()
+  if (workspace.bottomPanelOpen) {
+    workspace.toggleBottomPanel()
+    return
+  }
+  if (bottomPanelRef.value?.focusTerminal) {
+    bottomPanelRef.value.focusTerminal()
+    return
+  }
+  workspace.openBottomPanel()
 }
 
 // Refresh file tree when window regains focus (catches files added via Finder etc.)

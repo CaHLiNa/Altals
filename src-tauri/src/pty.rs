@@ -52,14 +52,9 @@ pub async fn pty_spawn(
     }
     cmd_builder.cwd(&cwd);
 
-    // Set environment variables
+    // Match xterm defaults and expose a lightweight app marker without mutating prompts.
     cmd_builder.env("TERM", "xterm-256color");
-    // Shorter prompt (Unix shells only)
-    #[cfg(unix)]
-    {
-        cmd_builder.env("PROMPT", "%1~ %# ");
-        cmd_builder.env("PS1", "\\W \\$ ");
-    }
+    cmd_builder.env("ALTALS_TERMINAL", "1");
 
     let mut child = pair
         .slave
