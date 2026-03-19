@@ -1,6 +1,6 @@
 import { StateField, StateEffect, Annotation, Prec } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType } from '@codemirror/view'
-import { getGhostSuggestions } from '../services/ai'
+import { getGhostSuggestions } from '../services/ai/ghostSuggestions'
 import { events } from '../services/telemetry'
 import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { useToastStore } from '../stores/toast'

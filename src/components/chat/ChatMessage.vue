@@ -89,6 +89,11 @@
             :options="getProposalData(part).options"
             @select="(title) => $emit('proposal-select', title)"
           />
+          <ArtifactCard
+            v-else-if="getArtifactData(part)"
+            :artifact="getArtifactData(part)"
+            compact
+          />
           <ToolCallLine v-else :part="part" :key="part.toolCallId + '-' + part.state" />
         </template>
       </template>
@@ -120,10 +125,12 @@
 import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
 import ProposalCard from './ProposalCard.vue'
 import ToolCallLine from './ToolCallLine.vue'
+import ArtifactCard from '../ai/ArtifactCard.vue'
 import { renderMarkdown } from '../../utils/chatMarkdown'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useI18n } from '../../i18n'
+import { normalizeArtifactPayload } from '../../services/ai/artifacts'
 const editorStore = useEditorStore()
 const chatStore = useChatStore()
 const { t } = useI18n()
@@ -289,6 +296,10 @@ function _getChatInstance() {
   return chatStore.getChatInstance(props.sessionId || props.message._sessionId)
 }
 
+const sessionAi = computed(() => (
+  chatStore.sessions.find(s => s.id === (props.sessionId || props.message._sessionId))?._ai || null
+))
+
 const isWaitingForContent = computed(() => {
   // Only the last assistant message can be actively streaming
   if (!props.isLastAssistant) return false
@@ -344,6 +355,18 @@ function getProposalData(part) {
     if (data?._type === 'proposal' && data.options) return data
   } catch {}
   return null
+}
+
+function getArtifactData(part) {
+  if (getToolName(part) === 'create_proposal') return null
+  return normalizeArtifactPayload(part.output, {
+    role: sessionAi.value?.role || 'general',
+    label: sessionAi.value?.label || '',
+    artifactIntent: sessionAi.value?.artifactIntent || null,
+    filePath: sessionAi.value?.filePath || null,
+    sourceFile: sessionAi.value?.filePath || null,
+    createdAt: props.message?.createdAt || null,
+  })
 }
 
 function formatTime(ts) {

@@ -155,7 +155,7 @@ const latexCompileAdapter = {
     if (!context.latexStore) return null
     if (!(await this.ensureReady(filePath, context, options))) return null
 
-    await context.latexStore.compile(filePath)
+    await context.latexStore.compile(filePath, options)
     return this.stateForFile(filePath, context)
   },
 

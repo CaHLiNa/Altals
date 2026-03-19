@@ -127,6 +127,7 @@ import {
   resetCriticalWorkspaceState,
 } from './services/criticalWorkspaceState'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from './services/externalLinks'
+import { releaseOpencodeWorkspaceInstance, shutdownOpencodeSidecar } from './services/ai/opencodeSidecar'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
@@ -374,6 +375,7 @@ async function closeWorkspace() {
   workspaceLoadGeneration += 1
   cancelWorkspaceBackgroundTasks()
   const closingWorkspacePath = workspace.path
+  const closingRuntimeEndpoint = workspace.aiRuntime?.opencode?.endpoint || null
 
   // Save editor state before cleanup resets the pane tree
   await editorStore.saveEditorStateImmediate()
@@ -390,6 +392,10 @@ async function closeWorkspace() {
   })
   latexStore.cleanup()
   typstStore.cleanup()
+  await releaseOpencodeWorkspaceInstance(closingWorkspacePath, {
+    immediate: true,
+    endpoint: closingRuntimeEndpoint,
+  })
   await workspace.closeWorkspace()
   resetCriticalWorkspaceState(closingWorkspacePath)
   await invoke('workspace_clear_allowed_roots').catch((error) => {
@@ -706,6 +712,7 @@ onUnmounted(() => {
   commentsStore.cleanup()
   referencesStore.cleanup()
   researchArtifactsStore.cleanup()
+  void shutdownOpencodeSidecar()
 })
 
 // Force save + commit

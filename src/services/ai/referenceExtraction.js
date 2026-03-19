@@ -1,15 +1,5 @@
-/**
- * Multi-provider AI service for reference parsing.
- *
- * Uses resolveApiAccess({ strategy: 'cheapest' }) for model selection.
- */
-
-import { generateText } from 'ai'
-import { resolveApiAccess } from './apiClient'
-import { createModel, convertSdkUsage } from './aiSdk'
-import { createTauriFetch } from './tauriFetch'
-import { calculateCost } from './tokenUsage'
-import { isUsageBudgetExceeded, recordUsageEntry } from './usageAccess'
+import { isUsageBudgetExceeded } from '../usageAccess'
+import { generateWorkspaceText } from './textGeneration'
 
 const PARSE_SYSTEM = `You are an expert citation parser. Extract bibliographic references from text.
 
@@ -57,47 +47,18 @@ const EXTRACT_SCHEMA = `{
   "pages": "string"
 }`
 
-/**
- * Helper: call generateText with tauriFetch and record usage.
- */
-async function _generate(access, system, userContent, feature) {
-  const tauriFetch = createTauriFetch()
-  const model = createModel(access, tauriFetch)
-  const provider = access.providerHint || access.provider
-
-  const result = await generateText({
-    model,
-    system,
-    messages: [{ role: 'user', content: userContent }],
-  })
-
-  // Record usage
-  if (result.usage) {
-    const usage = convertSdkUsage(result.usage, result.providerMetadata, provider)
-    usage.cost = calculateCost(usage, access.model, access.provider)
-    void recordUsageEntry({ usage, feature, provider: access.provider, modelId: access.model })
-  }
-
-  return result.text || null
-}
-
-/**
- * Parse text into structured references via AI.
- */
 export async function aiParseReferences(text, workspace) {
   if (isUsageBudgetExceeded()) return null
 
-  const access = await resolveApiAccess({ strategy: 'cheapest' }, workspace)
-  if (!access) return null
-
   const truncated = text.slice(0, 8000)
   try {
-    const responseText = await _generate(
-      access,
-      PARSE_SYSTEM,
-      `Extract all bibliographic references from this text:\n\n${truncated}`,
-      'references',
-    )
+    const { text: responseText } = await generateWorkspaceText({
+      workspace,
+      strategy: 'cheapest',
+      system: PARSE_SYSTEM,
+      messages: [{ role: 'user', content: `Extract all bibliographic references from this text:\n\n${truncated}` }],
+      feature: 'references',
+    })
     if (!responseText) return null
 
     const arrMatch = responseText.match(/\[[\s\S]*\]/)
@@ -115,23 +76,21 @@ export async function aiParseReferences(text, workspace) {
   return null
 }
 
-/**
- * Extract metadata from paper text (for PDF import).
- */
 export async function aiExtractPdfMetadata(text, workspace) {
   if (isUsageBudgetExceeded()) return null
 
-  const access = await resolveApiAccess({ strategy: 'cheapest' }, workspace)
-  if (!access) return null
-
   const truncated = text.slice(0, 3000)
   try {
-    const responseText = await _generate(
-      access,
-      EXTRACT_SYSTEM,
-      `Extract metadata from this document and return JSON matching this schema:\n${EXTRACT_SCHEMA}\n\nDocument text:\n${truncated}`,
-      'references',
-    )
+    const { text: responseText } = await generateWorkspaceText({
+      workspace,
+      strategy: 'cheapest',
+      system: EXTRACT_SYSTEM,
+      messages: [{
+        role: 'user',
+        content: `Extract metadata from this document and return JSON matching this schema:\n${EXTRACT_SCHEMA}\n\nDocument text:\n${truncated}`,
+      }],
+      feature: 'references',
+    })
     if (!responseText) return null
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/)

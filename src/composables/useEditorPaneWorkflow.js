@@ -5,6 +5,8 @@ import {
   ensureLanguageExecutionReady,
 } from '../services/environmentPreflight'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
+import { launchAiTask } from '../services/ai/launch'
+import { createTexTypFixTask } from '../services/ai/taskCatalog'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -307,6 +309,21 @@ export function useEditorPaneWorkflow(options) {
     await handlePreviewMarkdown()
   }
 
+  async function handleWorkflowFixWithAi() {
+    if (!activeTabRef.value || (!isLatex(activeTabRef.value) && !isTypst(activeTabRef.value))) return
+    await launchAiTask({
+      editorStore,
+      chatStore,
+      paneId: paneIdRef.value,
+      beside: true,
+      task: createTexTypFixTask({
+        filePath: activeTabRef.value,
+        source: 'document-workflow',
+        entryContext: 'document-workflow',
+      }),
+    })
+  }
+
   async function handleWorkflowRevealPreview() {
     if (!workflowUiState.value || !activeTabRef.value) return
     if (workflowUiState.value.kind === 'markdown') {
@@ -430,5 +447,6 @@ export function useEditorPaneWorkflow(options) {
     handleWorkflowPrimaryAction,
     handleWorkflowRevealPreview,
     handleWorkflowRevealPdf,
+    handleWorkflowFixWithAi,
   }
 }

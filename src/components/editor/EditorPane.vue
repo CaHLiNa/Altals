@@ -45,6 +45,7 @@
         @primary-action="handleWorkflowPrimaryAction"
         @reveal-preview="handleWorkflowRevealPreview"
         @reveal-pdf="handleWorkflowRevealPdf"
+        @fix-with-ai="handleWorkflowFixWithAi"
       />
       <div
         v-if="pdfToolbarTargetSelector"
@@ -258,6 +259,7 @@ const {
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,
+  handleWorkflowFixWithAi,
 } = useEditorPaneWorkflow({
   paneIdRef,
   tabsRef,

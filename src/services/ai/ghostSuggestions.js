@@ -1,9 +1,6 @@
-import { generateText, tool } from 'ai'
+import { tool } from 'ai'
 import { z } from 'zod'
-import { resolveApiAccess } from './apiClient'
-import { createModel, convertSdkUsage } from './aiSdk'
-import { createTauriFetch } from './tauriFetch'
-import { calculateCost } from './tokenUsage'
+import { generateWorkspaceText, resolveTextAccess } from './textGeneration'
 
 const GHOST_TIMEOUT_MS = 15000
 
@@ -19,11 +16,6 @@ async function withTimeout(promise, ms) {
   }
 }
 
-/**
- * Truncate text at a word boundary, adding a marker if truncated.
- * For 'start' mode: trims from the beginning (keeps the end).
- * For 'end' mode: trims from the end (keeps the beginning).
- */
 function smartTruncate(text, maxLen, mode) {
   if (text.length <= maxLen) return text
 
@@ -34,28 +26,18 @@ function smartTruncate(text, maxLen, mode) {
       trimmed = trimmed.slice(firstSpace + 1)
     }
     return '[…] ' + trimmed
-  } else {
-    let trimmed = text.slice(0, maxLen)
-    const lastSpace = trimmed.lastIndexOf(' ')
-    if (lastSpace > maxLen - 100 && lastSpace > 0) {
-      trimmed = trimmed.slice(0, lastSpace)
-    }
-    return trimmed + ' […]'
   }
+
+  let trimmed = text.slice(0, maxLen)
+  const lastSpace = trimmed.lastIndexOf(' ')
+  if (lastSpace > maxLen - 100 && lastSpace > 0) {
+    trimmed = trimmed.slice(0, lastSpace)
+  }
+  return trimmed + ' […]'
 }
 
-/**
- * Get ghost text suggestions from AI.
- *
- * @param {string} before - Text before cursor (up to 5000 chars)
- * @param {string} after - Text after cursor (up to 1000 chars)
- * @param {string} systemPrompt - System prompt from external Altals workspace metadata
- * @param {object} workspace - Workspace store instance
- * @param {string} [instructions] - User instructions from _instructions.md
- * @returns {Promise<{suggestions: string[], usage: object|null}>}
- */
 export async function getGhostSuggestions(before, after, systemPrompt, workspace, instructions) {
-  const access = await resolveApiAccess({ strategy: 'ghost' }, workspace)
+  const access = await resolveTextAccess({ workspace, strategy: 'ghost' })
   if (access?._networkError) {
     return { suggestions: [], usage: null, networkError: true }
   }
@@ -85,14 +67,14 @@ Rules:
 
 Call suggest_completions with prefix_end, suffix_start, and your predictions.${systemPrompt ? '\n\n' + systemPrompt : ''}${instructions ? '\n\nUser instructions:\n<_instructions.md>\n' + instructions + '\n</_instructions.md>' : ''}`
 
-  const tauriFetch = createTauriFetch()
-  const model = createModel(access, tauriFetch)
-  const provider = access.providerHint || access.provider
-
   let result
+  let generationUsage = null
+  let provider = access.providerHint || access.provider
   try {
-    result = await withTimeout(generateText({
-      model,
+    const generated = await withTimeout(generateWorkspaceText({
+      workspace,
+      access,
+      feature: null,
       system,
       messages: [{ role: 'user', content: userMessage }],
       tools: {
@@ -108,22 +90,22 @@ Call suggest_completions with prefix_end, suffix_start, and your predictions.${s
       toolChoice: { type: 'tool', toolName: 'suggest_completions' },
       maxOutputTokens: 4096,
     }), GHOST_TIMEOUT_MS)
-    console.log('[ghost] generateText result:', { text: result.text, finishReason: result.finishReason, toolCalls: result.toolCalls, usage: result.usage })
+    generationUsage = generated?.usage || null
+    provider = generated?.provider || provider
+    result = generated?.result
+    console.log('[ghost] generateText result:', { text: result?.text, finishReason: result?.finishReason, toolCalls: result?.toolCalls, usage: result?.usage })
   } catch (callErr) {
     console.error('[ghost] generateText error:', callErr)
     throw callErr
   }
 
-  // Compute usage
-  let usage = null
-  if (result.usage) {
-    usage = convertSdkUsage(result.usage, result.providerMetadata, provider)
-    usage.cost = calculateCost(usage, access.model, access.provider)
+  const meta = {
+    usage: generationUsage,
+    provider,
+    billingProvider: access.provider,
+    modelId: access.model,
   }
 
-  const meta = { usage, provider, billingProvider: access.provider, modelId: access.model }
-
-  // Extract suggestions from tool calls (AI SDK v6: .input, not .args)
   const toolCall = result.toolCalls?.find(tc => tc.toolName === 'suggest_completions')
   const toolArgs = toolCall?.input ?? toolCall?.args
   if (toolArgs?.suggestions) {

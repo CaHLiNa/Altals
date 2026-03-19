@@ -236,6 +236,6 @@ export async function extractFromPdf(filePath) {
   return { text: fullText, firstText, metadata }
 }
 
-// aiExtractMetadata has been moved to src/services/refAi.js (multi-provider support).
+// aiExtractMetadata has been moved to src/services/ai/referenceExtraction.js (multi-provider support).
 // The old Anthropic-only chat_stream approach is replaced by non-streaming proxy_api_call
 // with automatic provider fallback: Gemini > Anthropic > OpenAI.

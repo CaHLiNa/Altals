@@ -85,8 +85,10 @@
 import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
+import { useChatStore } from '../../stores/chat'
 import { useCommentsStore } from '../../stores/comments'
 import { useI18n } from '../../i18n'
+import { launchSelectionAsk } from '../../services/ai/launch'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -110,6 +112,7 @@ const emit = defineEmits([
   'apply-typst-code-action',
 ])
 const editorStore = useEditorStore()
+const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
 
@@ -227,32 +230,18 @@ function addComment() {
   emit('close')
 }
 
-function askAI() {
-  const selection = props.view?.state?.selection?.main
-  if (!props.view || !selection || selection.from === selection.to) {
+async function askAI() {
+  const launched = await launchSelectionAsk({
+    editorStore,
+    chatStore,
+    filePath: props.filePath,
+    view: props.view,
+  })
+
+  if (!launched) {
     emit('close')
     return
   }
-
-  const doc = props.view.state.doc
-  const text = doc.sliceString(selection.from, selection.to, '\n')
-  const beforeStart = Math.max(0, selection.from - 200)
-  const afterEnd = Math.min(doc.length, selection.to + 200)
-  const contextBefore = selection.from > 0
-    ? doc.sliceString(beforeStart, selection.from, '\n')
-    : ''
-  const contextAfter = selection.to < doc.length
-    ? doc.sliceString(selection.to, afterEnd, '\n')
-    : ''
-
-  editorStore.openChatBeside({
-    selection: {
-      file: props.filePath,
-      text,
-      contextBefore,
-      contextAfter,
-    },
-  })
 
   emit('close')
 }

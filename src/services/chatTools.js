@@ -14,86 +14,14 @@ import { parseBibtex } from '../utils/bibtexParser'
 import { isMultimodalImage, isPdf, getMimeType } from '../utils/fileTypes'
 import { t } from '../i18n/index.js'
 import { insertCitationWithAssist } from './latexCitationAssist'
+import { EXTERNAL_TOOLS, TOOL_CATEGORIES } from './ai/toolRegistry'
+import {
+  buildCompileDocumentToolResult,
+  collectTexTypFixerDiagnosis,
+  isTexTypFixablePath,
+} from './ai/texTypFixer'
 
-// External tools that transmit data to third-party services
-export const EXTERNAL_TOOLS = ['web_search', 'search_papers', 'fetch_url', 'add_reference']
-
-export const TOOL_CATEGORIES = [
-  {
-    id: 'workspace',
-    label: 'Workspace',
-    defaultCollapsed: true,
-    subgroups: [
-      {
-        label: 'Read & Browse',
-        tools: [
-          { name: 'read_file', description: 'Read file contents' },
-          { name: 'list_files', description: 'List files and directories' },
-          { name: 'search_content', description: 'Search text across files' },
-        ],
-      },
-      {
-        label: 'Create & Edit',
-        tools: [
-          { name: 'write_file', description: 'Create or overwrite a file' },
-          { name: 'edit_file', description: 'Edit an existing file' },
-          { name: 'rename_file', description: 'Rename a file or directory' },
-          { name: 'move_file', description: 'Move a file to another directory' },
-          { name: 'duplicate_file', description: 'Duplicate a file' },
-          { name: 'delete_file', description: 'Delete a file' },
-        ],
-      },
-      {
-        label: 'System',
-        tools: [
-          { name: 'run_command', description: 'Execute a safe workspace command' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'references',
-    label: 'References',
-    tools: [
-      { name: 'search_references', description: 'Search local library' },
-      { name: 'get_reference', description: 'Get reference metadata' },
-      { name: 'add_reference', description: 'Add by DOI or BibTeX', external: 'CrossRef' },
-      { name: 'cite_reference', description: 'Insert citation at cursor' },
-      { name: 'edit_reference', description: 'Edit reference metadata' },
-    ],
-  },
-  {
-    id: 'feedback',
-    label: 'Feedback',
-    tools: [
-      { name: 'add_comment', description: 'Add comment to text' },
-      { name: 'reply_to_comment', description: 'Reply to a comment' },
-      { name: 'resolve_comment', description: 'Resolve a comment' },
-      { name: 'create_proposal', description: 'Present choice cards' },
-    ],
-  },
-  {
-    id: 'notebook',
-    label: 'Notebooks',
-    tools: [
-      { name: 'read_notebook', description: 'Read notebook cells & outputs' },
-      { name: 'edit_cell', description: 'Edit a notebook cell' },
-      { name: 'run_cell', description: 'Execute a notebook cell' },
-      { name: 'run_all_cells', description: 'Execute all cells' },
-      { name: 'add_cell', description: 'Insert a new cell' },
-      { name: 'delete_cell', description: 'Remove a cell' },
-    ],
-  },
-  {
-    id: 'web',
-    label: 'Web Research',
-    tools: [
-      { name: 'web_search', description: 'Search the web', external: 'Exa' },
-      { name: 'search_papers', description: 'Search academic papers', external: 'OpenAlex + Exa' },
-      { name: 'fetch_url', description: 'Fetch web page content', external: 'Exa' },
-    ],
-  },
-]
+export { EXTERNAL_TOOLS, TOOL_CATEGORIES } from './ai/toolRegistry'
 
 // ─── Typographic Fuzzy Match ─────────────────────────────────────────
 //
@@ -163,6 +91,32 @@ function _isWithinRoot(path, root) {
 
 const PATH_ERROR = 'Error: path is outside the workspace. Only files within the project folder can be accessed.'
 
+function _basename(path = '') {
+  return String(path || '').split('/').pop() || path
+}
+
+function _truncateText(value = '', max = 180) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1).trim()}...`
+}
+
+function _buildPatchArtifact({ title, path, summary, body = '', changes = [] }) {
+  return {
+    _type: 'patch',
+    title,
+    sourceFile: path,
+    summary,
+    body,
+    changes: changes.length > 0
+      ? changes
+      : [{
+          filePath: path,
+          summary,
+        }],
+  }
+}
+
 // ─── Search Helpers ──────────────────────────────────────────────────
 
 async function _resolveSearchAccess(workspace) {
@@ -213,10 +167,15 @@ async function _callOpenAlex(query, numResults, workspace) {
  * Returns an object of { toolName: tool({ ... }) } that AI SDK can consume directly.
  *
  * @param {object} workspace - Workspace store instance
+ * @param {object} [options]
+ * @param {string[]} [options.allowedTools] - Optional allowlist for the current session
  * @returns {object} Named tools for AI SDK
  */
-export function getAiTools(workspace) {
-  const disabled = workspace?.disabledTools || []
+export function getAiTools(workspace, options = {}) {
+  const disabled = new Set(workspace?.disabledTools || [])
+  const allowedTools = Array.isArray(options.allowedTools) && options.allowedTools.length > 0
+    ? new Set(options.allowedTools)
+    : null
 
   const allTools = {
 
@@ -360,7 +319,12 @@ export function getAiTools(workspace) {
           await reviews.savePendingEdits()
         }
 
-        return `File written: ${resolved}`
+        return _buildPatchArtifact({
+          title: t('Write file'),
+          path: resolved,
+          summary: `${t('Created or overwrote')} ${_basename(resolved)}`,
+          body: `${t('File written')}: ${resolved}`,
+        })
       },
     }),
 
@@ -415,7 +379,38 @@ export function getAiTools(workspace) {
           await reviews.savePendingEdits()
         }
 
-        return `File edited: ${resolved}`
+        return _buildPatchArtifact({
+          title: t('Edit file'),
+          path: resolved,
+          summary: `${t('Updated')} ${_basename(resolved)}`,
+          body: `${t('File edited')}: ${resolved}`,
+          changes: [{
+            filePath: resolved,
+            summary: `${t('Replaced text')}: ${_truncateText(old_string)} -> ${_truncateText(new_string)}`,
+          }],
+        })
+      },
+    }),
+
+    compile_document: tool({
+      description: 'Compile a .tex or .typ source file and return structured diagnostics. Use this after edits to verify TeX / Typst fixes.',
+      inputSchema: z.object({
+        path: z.string().describe('File path relative to workspace for a .tex or .typ source file'),
+      }),
+      execute: async ({ path }) => {
+        const resolved = _resolvePath(path, workspace)
+        if (!resolved) return PATH_ERROR
+        if (!isTexTypFixablePath(resolved)) {
+          return 'Error: compile_document only supports .tex and .typ files.'
+        }
+
+        const diagnosis = await collectTexTypFixerDiagnosis(resolved, {
+          compile: true,
+          reason: 'ai-compile-document',
+          trigger: 'ai-compile-document',
+        })
+
+        return buildCompileDocumentToolResult(resolved, diagnosis)
       },
     }),
 
@@ -1182,14 +1177,12 @@ export function getAiTools(workspace) {
 
   }
 
-  // Filter out disabled tools
-  if (disabled.length > 0) {
-    const filtered = {}
-    for (const [name, t] of Object.entries(allTools)) {
-      if (!disabled.includes(name)) filtered[name] = t
-    }
-    return filtered
+  const filtered = {}
+  for (const [name, t] of Object.entries(allTools)) {
+    if (allowedTools && !allowedTools.has(name)) continue
+    if (disabled.has(name)) continue
+    filtered[name] = t
   }
 
-  return allTools
+  return filtered
 }

@@ -88,11 +88,13 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { isMarkdown } from '../../utils/fileTypes'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
+import { getAiLauncherItems } from '../../services/ai/taskCatalog'
+import { launchAiTask, startAiConversation } from '../../services/ai/launch'
 import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
@@ -100,6 +102,7 @@ const props = defineProps({
 })
 
 const editorStore = useEditorStore()
+const aiWorkbench = useAiWorkbenchStore()
 const filesStore  = useFilesStore()
 const chatStore   = useChatStore()
 const workspace   = useWorkspaceStore()
@@ -110,7 +113,7 @@ const { t } = useI18n()
 const chatInputRef    = ref(null)
 const itemListRef     = ref(null)
 const selectedModelId = ref(workspace.selectedModelId || null)
-const activeTabId     = ref('quick')
+const activeTabId     = ref(aiWorkbench.launcherTab || 'ai')
 const selectedIdx     = ref(0)
 const chatsLimit      = ref(10)
 const recentFiles     = ref([])
@@ -120,11 +123,10 @@ let recentFilesGeneration = 0
 // ─── Tab definitions ───────────────────────────────────────────────
 
 const TABS = [
-  { id: 'quick',     label: t('Start') },
+  { id: 'ai',        label: t('AI') },
   { id: 'recent',    label: t('Files') },
   { id: 'new',       label: t('Create') },
   { id: 'chats',     label: t('Chats') },
-  { id: 'suggested', label: t('Suggested') },
 ]
 
 const fileTypes = [
@@ -145,94 +147,31 @@ const allChats = computed(() =>
   [...chatStore.allSessionsMeta].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
 )
 
-const quickActions = computed(() => {
-  const file = allRecentFiles.value[0]
-  if (!file) return []
-  const name = fileName(file.path)
-  const path = file.path
-
-  if (isMarkdown(path) || path.endsWith('.tex') || path.endsWith('.typ')) {
-    return [
-      { label: t('Proofread {name}', { name }),              prompt: t('Proofread this document for clarity, grammar, and academic tone.'),                                  file: path },
-      { label: t('Find argument gaps in {name}', { name }),  prompt: t('Identify logical gaps, unsupported claims, or missing evidence in this document.'),                  file: path },
-      { label: t('Summarise {name}', { name }),              prompt: t('Summarise the key arguments and contributions in this document.'),                                   file: path },
-      { label: t('Peer review {name}', { name }),            prompt: t('Conduct a thorough peer review: assess originality, methodology, clarity, and impact.'),             file: path },
-      { label: t('Check citation coverage'),                 prompt: t('Are all major claims backed by citations? Identify where references are missing or weak.'),          file: path },
-      { label: t('Improve transitions in {name}', { name }), prompt: t('Strengthen the flow between sections and improve paragraph coherence throughout the document.'),     file: path },
-      { label: t('Shorten and tighten {name}', { name }),    prompt: t('Trim redundancy and tighten prose while preserving the meaning and academic register.'),             file: path },
-    ]
-  }
-  if (path.endsWith('.ipynb') || path.endsWith('.py') || path.endsWith('.r') || path.endsWith('.R') || path.endsWith('.jl')) {
-    return [
-      { label: t('Explain {name}', { name }),                prompt: t('Explain what this code does and why — for someone new to this project.'),                           file: path },
-      { label: t('Debug {name}', { name }),                  prompt: t('Help me debug this code. Identify errors and suggest fixes.'),                                      file: path },
-      { label: t('Document {name}', { name }),               prompt: t('Add clear docstrings and inline comments explaining functions, parameters, and key logic.'),         file: path },
-      { label: t('Review code quality in {name}', { name }), prompt: t('Review code quality: clarity, style, error handling, and maintainability.'),                        file: path },
-      { label: t('Check reproducibility'),                   prompt: t('Is this notebook reproducible? Identify missing data, dependencies, or unclear instructions.'),      file: path },
-      { label: t('Optimise {name}', { name }),               prompt: t('Suggest concrete ways to make this code faster or more memory-efficient.'),                         file: path },
-      { label: t('Interpret results'),                       prompt: t('What do the outputs and plots show? Suggest visualisations or next steps.'),                         file: path },
-    ]
-  }
-  if (path.endsWith('.csv') || path.endsWith('.tsv')) {
-    return [
-      { label: t('Describe {name}', { name }),               prompt: t('Describe this dataset: variables, types, missing values, and sample size.'),                         file: path },
-      { label: t('Find patterns in {name}', { name }),       prompt: t('What are the key patterns, correlations, or outliers in this data?'),                               file: path },
-      { label: t('Data quality check'),                      prompt: t('Are there missing values, duplicates, or data type issues I should fix?'),                          file: path },
-      { label: t('Suggest visualisations'),                  prompt: t('What charts or plots would best communicate the key findings in this data?'),                        file: path },
-      { label: t('Statistical summary'),                     prompt: t('Compute and interpret descriptive statistics for each column in this dataset.'),                     file: path },
-    ]
-  }
-  return []
-})
-
 // ─── Tab visibility ────────────────────────────────────────────────
 
-const visibleTabs = computed(() =>
-  TABS.filter(t => t.id !== 'suggested' || quickActions.value.length > 0)
-)
+const visibleTabs = computed(() => TABS)
 
-// ─── QUICK tab items (curated, max 7) ─────────────────────────────
+// ─── AI tab items ──────────────────────────────────────────────────
 
-const quickItems = computed(() => {
-  const items = []
-  const recentFiles = allRecentFiles.value.slice(0, 3)
-  for (let i = 0; i < recentFiles.length; i++) {
-    const f = recentFiles[i]
-    items.push({
-      label: fileName(f.path),
-      meta: relativeTime(f.openedAt),
-      group: 'recent',
-      groupHeader: i === 0 ? t('Recent files') : null,
-      action: () => openFile(f.path),
-    })
-  }
-  items.push({
-    label: t('Markdown'),
-    meta: '.md',
-    group: 'new',
-    groupHeader: t('Create'),
-    action: () => createNewFile('.md'),
-  })
-  const suggestions = quickActions.value.slice(0, 2)
-  for (let i = 0; i < suggestions.length; i++) {
-    const a = suggestions[i]
-    items.push({
-      label: a.label,
-      group: 'suggested',
-      groupHeader: i === 0 ? t('Suggested') : null,
-      muted: true,
-      action: () => sendQuickAction(a),
-    })
-  }
-  return items
+const aiItems = computed(() => {
+  return getAiLauncherItems({
+    recentFiles: allRecentFiles.value,
+    t,
+  }).map((item) => ({
+    label: item.label,
+    meta: item.meta,
+    groupHeader: item.groupHeader,
+    muted: item.muted,
+    action: () => runAiTask(item.task, item.label),
+  }))
 })
 
 // ─── Current tab items ─────────────────────────────────────────────
 
 const currentItems = computed(() => {
   switch (activeTabId.value) {
-    case 'quick':
-      return quickItems.value
+    case 'ai':
+      return aiItems.value
     case 'recent':
       return allRecentFiles.value.map(e => ({
         label: fileName(e.path),
@@ -261,12 +200,6 @@ const currentItems = computed(() => {
       }
       return items
     }
-    case 'suggested':
-      return quickActions.value.map(a => ({
-        label: a.label,
-        muted: true,
-        action: () => sendQuickAction(a),
-      }))
     default:
       return []
   }
@@ -277,7 +210,7 @@ const currentItems = computed(() => {
 // Fall back to quick if active tab is hidden (e.g. suggested empties)
 watch(visibleTabs, (tabs) => {
   if (!tabs.find(t => t.id === activeTabId.value)) {
-    activeTabId.value = 'quick'
+    activeTabId.value = 'ai'
     selectedIdx.value = 0
   }
 })
@@ -303,6 +236,7 @@ watch(
 
 function setTab(id) {
   activeTabId.value = id
+  aiWorkbench.launcherTab = id
 }
 
 function switchTab(delta) {
@@ -413,29 +347,27 @@ function openChat(sessionId) {
 
 async function sendChat({ text, fileRefs, context }) {
   if (!text && !fileRefs?.length) return
-  editorStore.setActivePane(props.paneId)
-  const sessionId = chatStore.createSession()
-  const session = chatStore.sessions.find(s => s.id === sessionId)
-  if (session && selectedModelId.value) session.modelId = selectedModelId.value
-  editorStore.openChat({ sessionId, paneId: props.paneId })
-  await nextTick()
-  chatStore.sendMessage(sessionId, { text, fileRefs, context })
+  await startAiConversation({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    modelId: selectedModelId.value,
+    text,
+    fileRefs,
+    context,
+  })
 }
 
-async function sendQuickAction(action) {
-  editorStore.setActivePane(props.paneId)
-  const sessionId = chatStore.createSession()
-  const session = chatStore.sessions.find(s => s.id === sessionId)
-  if (session && selectedModelId.value) session.modelId = selectedModelId.value
-  editorStore.openChat({ sessionId, paneId: props.paneId })
-  await nextTick()
-
-  let content = null
-  try { content = await invoke('read_file', { path: action.file }) } catch {}
-
-  chatStore.sendMessage(sessionId, {
-    text: action.prompt,
-    fileRefs: [{ path: action.file, content }],
+async function runAiTask(task, label) {
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    modelId: selectedModelId.value,
+    task: {
+      ...task,
+      label,
+    },
   })
 }
 

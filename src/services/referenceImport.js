@@ -2,7 +2,7 @@ import { lookupByDoi, searchByMetadata } from './crossref'
 import { parseBibtex } from '../utils/bibtexParser'
 import { parseRis } from '../utils/risParser'
 import { extractFromPdf } from '../utils/pdfMetadata'
-import { aiParseReferences, aiExtractPdfMetadata } from './refAi'
+import { aiParseReferences, aiExtractPdfMetadata } from './ai/referenceExtraction'
 import { invoke } from '@tauri-apps/api/core'
 
 function toImportErrorMessage(error, fallback = 'Import failed') {

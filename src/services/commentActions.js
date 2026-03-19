@@ -5,6 +5,9 @@ import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useWorkspaceStore } from '../stores/workspace'
 import { appendUnresolvedCommentsToContent } from './documentComments'
+import { launchAiTask } from './ai/launch'
+import { createCommentReviewTask } from './ai/taskCatalog'
+import { t } from '../i18n'
 
 function getEditStatusKey(commentId, replyId = null) {
   return replyId ? `${commentId}:${replyId}` : `${commentId}:`
@@ -104,16 +107,20 @@ export async function submitCommentsToChat(filePath) {
   }
 
   const count = unresolved.length
-  const userText = `Please review and address the ${count === 1 ? 'comment' : `${count} comments`} on ${relativePath}.`
+  const task = createCommentReviewTask({
+    filePath,
+    relativePath,
+    count,
+    label: t('Comment review'),
+  })
 
-  editorStore.openChatBeside()
-  await new Promise((resolve) => setTimeout(resolve, 200))
-
-  const sessionId = chatStore.activeSessionId
-  if (sessionId) {
-    chatStore.sendMessage(sessionId, {
-      text: userText,
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    beside: true,
+    task: {
+      ...task,
       fileRefs: [fileRef],
-    })
-  }
+    },
+  })
 }

@@ -150,7 +150,14 @@
 import { ref, reactive, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { TOOL_CATEGORIES, EXTERNAL_TOOLS } from '../../services/chatTools'
+import {
+  TOOL_CATEGORIES,
+  EXTERNAL_TOOLS,
+  getCategoryTools,
+  categoryToolCount,
+  categoryHasExternal,
+  categoryAllLocal,
+} from '../../services/ai/toolRegistry'
 import { useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
@@ -184,27 +191,9 @@ function toggleTool(name) {
   workspace.toggleTool(name)
 }
 
-function _getCategoryTools(cat) {
-  if (cat.tools) return cat.tools
-  if (cat.subgroups) return cat.subgroups.flatMap(sg => sg.tools)
-  return []
-}
-
-function categoryToolCount(cat) {
-  return _getCategoryTools(cat).length
-}
-
 function categoryEnabledCount(cat) {
-  const tools = _getCategoryTools(cat)
+  const tools = getCategoryTools(cat)
   return tools.filter(t => !isToolDisabled(t.name)).length
-}
-
-function categoryAllLocal(cat) {
-  return _getCategoryTools(cat).every(t => !t.external)
-}
-
-function categoryHasExternal(cat) {
-  return _getCategoryTools(cat).some(t => t.external)
 }
 
 const allExternalDisabled = computed(() => {

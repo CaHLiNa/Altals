@@ -33,6 +33,57 @@ function serializeEnvContent(keys = {}) {
     .join('\n')
 }
 
+const DEFAULT_AI_RUNTIME_CONFIG = Object.freeze({
+  version: 1,
+  defaultRuntime: 'legacy',
+  profileRuntimes: {
+    code_assistant: 'opencode',
+  },
+  opencode: {
+    endpoint: '',
+    launchProfile: 'auto',
+    devRepoPath: '',
+    idleDisposeMs: 2 * 60 * 1000,
+    strict: false,
+  },
+})
+
+function cloneDefaultAiRuntimeConfig() {
+  return JSON.parse(JSON.stringify(DEFAULT_AI_RUNTIME_CONFIG))
+}
+
+function normalizeProfileRuntimes(value = {}) {
+  const result = {}
+  for (const [key, runtime] of Object.entries(value || {})) {
+    if (!key || !runtime) continue
+    result[String(key)] = String(runtime)
+  }
+  return result
+}
+
+function mergeAiRuntimeConfig(value = {}) {
+  const defaults = cloneDefaultAiRuntimeConfig()
+  return {
+    ...defaults,
+    ...(value || {}),
+    profileRuntimes: {
+      ...defaults.profileRuntimes,
+      ...normalizeProfileRuntimes(value?.profileRuntimes),
+    },
+    opencode: {
+      ...defaults.opencode,
+      ...(value?.opencode || {}),
+      endpoint: String(value?.opencode?.endpoint || defaults.opencode.endpoint || ''),
+      launchProfile: String(value?.opencode?.launchProfile || defaults.opencode.launchProfile || 'auto'),
+      devRepoPath: String(value?.opencode?.devRepoPath || defaults.opencode.devRepoPath || ''),
+      idleDisposeMs: Number(value?.opencode?.idleDisposeMs) > 0
+        ? Number(value.opencode.idleDisposeMs)
+        : defaults.opencode.idleDisposeMs,
+      strict: value?.opencode?.strict === true,
+    },
+  }
+}
+
 export function resolveModelsPath(globalConfigDir = '', shouldersDir = '') {
   if (globalConfigDir) return `${globalConfigDir}/models.json`
   if (shouldersDir) return `${shouldersDir}/models.json`
@@ -78,6 +129,20 @@ export async function loadGlobalKeys(globalConfigDir = '') {
   } catch (error) {
     console.warn('Failed to load global keys:', error)
     return {}
+  }
+}
+
+export async function loadAiRuntimeConfig(globalConfigDir = '') {
+  if (!globalConfigDir) return cloneDefaultAiRuntimeConfig()
+  const configPath = `${globalConfigDir}/ai-runtime.json`
+  try {
+    const exists = await pathExists(configPath)
+    if (!exists) return cloneDefaultAiRuntimeConfig()
+    const content = await invoke('read_file', { path: configPath })
+    return mergeAiRuntimeConfig(JSON.parse(content))
+  } catch (error) {
+    console.warn('Failed to load AI runtime config:', error)
+    return cloneDefaultAiRuntimeConfig()
   }
 }
 

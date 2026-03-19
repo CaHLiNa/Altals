@@ -13,17 +13,17 @@
             class="proposal-btn proposal-btn-open"
             @click="openUrl(opt.url || `https://doi.org/${opt.doi}`)"
           >
-            Open
+            {{ t('Open') }}
           </button>
           <button
             v-if="!selectedIndices.has(i)"
             class="proposal-btn proposal-btn-select"
             @click="selectOption(opt, i)"
           >
-            Select
+            {{ t('Select') }}
           </button>
           <span v-else class="proposal-selected">
-            Selected ✓
+            {{ t('Selected') }} ✓
           </span>
         </div>
       </div>
@@ -33,9 +33,9 @@
 
 <script setup>
 import { reactive } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { lookupByDoi } from '../../services/crossref'
 import { useReferencesStore } from '../../stores/references'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   prompt: { type: String, required: true },
@@ -45,6 +45,7 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 
 const selectedIndices = reactive(new Set())
+const { t } = useI18n()
 
 async function openUrl(url) {
   const { open } = await import('@tauri-apps/plugin-shell')

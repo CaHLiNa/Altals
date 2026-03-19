@@ -2,6 +2,34 @@
   <div class="flex flex-col h-full">
     <!-- Messages area -->
     <div ref="messagesRef" class="flex-1 overflow-y-auto pt-4 pb-8 flex flex-col" @scroll="onScroll">
+      <div v-if="sessionMeta" class="max-w-[80ch] mx-auto w-full px-3 pb-3">
+        <div
+          class="inline-flex items-center gap-2 rounded-full border px-2.5 py-1"
+          style="background: var(--bg-secondary); border-color: var(--border);"
+        >
+          <span
+            class="rounded-sm px-1.5 py-0.5 ui-text-tiny uppercase"
+            style="background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);"
+          >
+            {{ sessionMeta.roleBadge }}
+          </span>
+          <span class="ui-text-label" style="color: var(--fg-primary);">{{ sessionMeta.label }}</span>
+          <span class="ui-text-label" style="color: var(--fg-muted);">{{ sessionMeta.roleTitle }}</span>
+          <span class="ui-text-label" style="color: var(--fg-subtle);">{{ sessionMeta.runtimeTitle }}</span>
+        </div>
+      </div>
+
+      <div v-if="artifacts.length" class="max-w-[80ch] mx-auto w-full px-3 pb-4">
+        <div class="chat-artifact-header ui-text-label">{{ t('Artifacts') }}</div>
+        <div class="chat-artifact-list">
+          <ArtifactCard
+            v-for="artifact in artifacts"
+            :key="artifact.id"
+            :artifact="artifact"
+            compact
+          />
+        </div>
+      </div>
 
       <!-- Empty state: suggestion chips -->
       <div v-if="messages.length === 0" class="flex-1">
@@ -86,21 +114,27 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
+import ArtifactCard from '../ai/ArtifactCard.vue'
 import { useChatStore } from '../../stores/chat'
+import { useAiArtifactsStore } from '../../stores/aiArtifacts'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { getContextWindow } from '../../services/chatModels'
 import { isMarkdown } from '../../utils/fileTypes'
 import { formatChatApiError } from '../../utils/errorMessages'
 import { renderMarkdown } from '../../utils/chatMarkdown'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   session: { type: Object, required: true },
+  sessionMeta: { type: Object, default: null },
 })
 
 const workspace   = useWorkspaceStore()
 const editorStore = useEditorStore()
 const chatStore   = useChatStore()
+const aiArtifacts = useAiArtifactsStore()
+const { t } = useI18n()
 
 // ─── Chat instance reactive state ─────────────────────────────────
 
@@ -112,6 +146,8 @@ const messages = computed(() => {
   }
   return (props.session.messages || []).filter(m => !m._isToolResult)
 })
+
+const artifacts = computed(() => aiArtifacts.artifactsForSession(props.session.id))
 
 const lastAssistantId = computed(() => {
   for (let i = messages.value.length - 1; i >= 0; i--) {
@@ -262,6 +298,17 @@ defineExpose({ focus })
 </script>
 
 <style scoped>
+.chat-artifact-header {
+  margin-bottom: 8px;
+  color: var(--fg-muted);
+}
+
+.chat-artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .chip-row {
   display: flex;
   align-items: center;

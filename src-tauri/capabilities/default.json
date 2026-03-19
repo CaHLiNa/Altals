@@ -41,6 +41,16 @@
           "name": "tinymist-lsp-legacy-win",
           "cmd": "$HOME/.shoulders/bin/tinymist.exe",
           "args": ["lsp"]
+        },
+        {
+          "name": "opencode-cli",
+          "cmd": "opencode",
+          "args": true
+        },
+        {
+          "name": "bun-opencode-dev",
+          "cmd": "bun",
+          "args": true
         }
       ]
     },

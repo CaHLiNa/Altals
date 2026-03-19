@@ -35,6 +35,7 @@ import {
   resolveInstructionsFileToOpen,
 } from '../services/workspaceInstructions'
 import {
+  loadAiRuntimeConfig,
   loadGlobalKeys as loadWorkspaceGlobalKeys,
   loadModelsConfig as loadWorkspaceModelsConfig,
   loadSystemPrompt,
@@ -95,6 +96,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     apiKey: '',
     apiKeys: {},
     modelsConfig: null,
+    aiRuntime: null,
     gitAutoCommitInterval: 5 * 60 * 1000, // 5 minutes
     gitAutoCommitTimer: null,
     settingsOpen: false,
@@ -274,6 +276,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.apiKey = ''
       this.apiKeys = {}
       this.modelsConfig = null
+      this.aiRuntime = null
       this.skillsManifest = null
       this.workspaceId = ''
       this.workspaceDataDir = ''
@@ -346,6 +349,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         globalConfigDir: this.globalConfigDir,
         shouldersDir,
       })
+      this.aiRuntime = await loadAiRuntimeConfig(this.globalConfigDir)
       await this.loadToolPermissions()
       await this.loadSkillsManifest()
     },

@@ -5,6 +5,7 @@
       ref="chatSessionRef"
       :key="sessionId"
       :session="session"
+      :sessionMeta="sessionMeta"
     />
     <div v-else class="flex items-center justify-center h-full ui-text-base" style="color: var(--fg-muted);">
       Loading chat session...
@@ -14,6 +15,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useChatStore } from '../../stores/chat'
 import { useEditorStore } from '../../stores/editor'
 import { getChatSessionId } from '../../utils/fileTypes'
@@ -25,6 +27,7 @@ const props = defineProps({
 })
 
 const chatStore   = useChatStore()
+const aiWorkbench = useAiWorkbenchStore()
 const editorStore = useEditorStore()
 
 const chatSessionRef = ref(null)
@@ -33,6 +36,10 @@ const sessionId = computed(() => getChatSessionId(props.filePath))
 
 const session = computed(() =>
   chatStore.sessions.find(s => s.id === sessionId.value) || null
+)
+
+const sessionMeta = computed(() =>
+  session.value ? aiWorkbench.describeSession(session.value) : null
 )
 
 onMounted(async () => {

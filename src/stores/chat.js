@@ -5,24 +5,22 @@ import { Chat } from '@ai-sdk/vue'
 import { lastAssistantMessageIsCompleteWithToolCalls } from 'ai'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
-import { resolveApiAccess } from '../services/apiClient'
-import { createModel } from '../services/aiSdk'
-import { generateText } from 'ai'
-import { getContextWindow, getThinkingConfig } from '../services/chatModels'
-import { buildBaseSystemPrompt } from '../services/systemPrompt'
+import { getContextWindow } from '../services/chatModels'
 import { events } from '../services/telemetry'
-import { createTauriFetch } from '../services/tauriFetch'
 import { calculateCost } from '../services/tokenUsage'
 import { cleanPartsForStorage } from '../services/aiSdk'
 import { createChatTransport } from '../services/chatTransport'
-import { buildWorkspaceMeta } from '../services/workspaceMeta'
 import { appendUnresolvedCommentsToContent } from '../services/documentComments'
 import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
+import { useAiArtifactsStore } from './aiArtifacts'
+import { generateWorkspaceText } from '../services/ai/textGeneration'
+import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
 
 // Chat instances live OUTSIDE Pinia (non-reactive container).
 // Each Chat's internal messages/status use Vue ref() — reactive when accessed.
 const chatInstances = new Map() // sessionId → Chat
+const artifactSyncStops = new Map() // sessionId → stop()
 
 // ─── Title Helpers ──────────────────────────────────────────────────
 
@@ -75,6 +73,13 @@ export const useChatStore = defineStore('chat', () => {
   const pendingSelection = ref(null)
   // Reactive map of messageId → richHtml (stored separately from AI SDK-owned message objects)
   const _richHtmlMap = ref(Object.create(null))
+
+  function _stopArtifactSync(sessionId) {
+    const stop = artifactSyncStops.get(sessionId)
+    if (!stop) return
+    try { stop() } catch {}
+    artifactSyncStops.delete(sessionId)
+  }
 
   // ─── Getters ──────────────────────────────────────────────────────
   const activeSession = computed(() =>
@@ -190,6 +195,19 @@ export const useChatStore = defineStore('chat', () => {
     chatInstances.set(session.id, chat)
     _chatVersion.value++ // Trigger reactivity for getChatInstance consumers
 
+    const aiArtifacts = useAiArtifactsStore()
+    _stopArtifactSync(session.id)
+    artifactSyncStops.set(
+      session.id,
+      watch(
+        () => [chat.state.messagesRef.value, session._ai],
+        () => {
+          aiArtifacts.syncSessionArtifacts(session, chat.state.messagesRef.value)
+        },
+        { deep: true, immediate: true },
+      ),
+    )
+
     // Watch for status transitions to save on completion
     watch(
       () => chat.state.statusRef.value,
@@ -219,24 +237,25 @@ export const useChatStore = defineStore('chat', () => {
 
   async function _buildConfig(session) {
     const workspace = useWorkspaceStore()
-    const access = await resolveApiAccess({ modelId: session.modelId }, workspace)
-
-    if (!access) throw new Error(noApiKeyMessage(session.modelId))
-
-    const provider = access.providerHint || access.provider
-    const modelEntry = workspace.modelsConfig?.models?.find(m => m.id === session.modelId)
-    const thinkingConfig = getThinkingConfig(access.model, provider, modelEntry?.thinking)
-
-    // Build system prompt (includes workspace meta for context)
-    let systemPrompt = buildBaseSystemPrompt(workspace)
-    if (workspace.systemPrompt) systemPrompt += '\n\n' + workspace.systemPrompt
-    if (workspace.instructions) systemPrompt += '\n\n' + workspace.instructions
-
-    // Add workspace meta to system prompt (not user message — keeps UI clean)
-    try {
-      const meta = await buildWorkspaceMeta(workspace.path)
-      if (meta) systemPrompt += '\n\n' + meta
-    } catch {}
+    const runtime = await buildChatRuntimeConfig({ session, workspace })
+    if (!runtime?.access && runtime?.runtimeId !== 'opencode') {
+      throw new Error(noApiKeyMessage(session.modelId))
+    }
+    const {
+      access,
+      provider,
+      thinkingConfig,
+      systemPrompt,
+      toolRole,
+      toolProfile,
+      allowedTools,
+      runtimeId,
+      strictRuntime,
+      runtimeSessionId,
+      opencodeEndpoint,
+      opencodeIdleDisposeMs,
+      sessionLabel,
+    } = runtime
 
     return {
       access,
@@ -244,8 +263,38 @@ export const useChatStore = defineStore('chat', () => {
       systemPrompt,
       thinkingConfig,
       provider,
+      runtimeId,
+      strictRuntime,
+      runtimeSessionId,
+      opencodeEndpoint,
+      opencodeIdleDisposeMs,
+      sessionLabel,
+      toolRole,
+      toolProfile,
+      allowedTools,
+      onRuntimeMeta: (updates = {}) => {
+        const liveSession = sessions.value.find((item) => item.id === session.id)
+        if (!liveSession) return
+        if (!liveSession._ai) {
+          liveSession._ai = {
+            role: 'general',
+            source: 'chat',
+            label: liveSession.label,
+          }
+        }
+        liveSession._ai = {
+          ...liveSession._ai,
+          runtimeId: updates.runtimeId || liveSession._ai.runtimeId || runtimeId || null,
+          strictRuntime: updates.strictRuntime ?? liveSession._ai.strictRuntime ?? strictRuntime ?? false,
+          runtimeSessionId: updates.runtimeSessionId || liveSession._ai.runtimeSessionId || runtimeSessionId || null,
+        }
+      },
       onUsage: (normalized, modelId) => {
-        normalized.cost = calculateCost(normalized, modelId, access.provider)
+        if (access?.provider) {
+          normalized.cost = calculateCost(normalized, modelId, access.provider)
+        } else {
+          normalized.cost = normalized.cost || 0
+        }
         // Store real provider-reported input tokens for the context window donut.
         // input_total covers system prompt + all messages + tool definitions.
         // Must write via sessions.value.find() (reactive proxy), NOT the closure's raw session
@@ -259,7 +308,7 @@ export const useChatStore = defineStore('chat', () => {
         void recordUsageEntry({
           usage: normalized,
           feature: 'chat',
-          provider: access.provider,
+          provider: access?.provider || provider || 'opencode',
           modelId,
           sessionId: session.id,
         })
@@ -282,6 +331,7 @@ export const useChatStore = defineStore('chat', () => {
       status: 'idle',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      _ai: null,
     }
     sessions.value.push(session)
     activeSessionId.value = id
@@ -292,9 +342,39 @@ export const useChatStore = defineStore('chat', () => {
     return id
   }
 
+  function setSessionAiMeta(id, ai = null) {
+    const session = sessions.value.find(s => s.id === id)
+    if (!session) return null
+    session._ai = ai ? {
+      role: ai.role || 'general',
+      taskId: ai.taskId || null,
+      source: ai.source || 'chat',
+      label: ai.label || session.label,
+      runtimeId: ai.runtimeId || null,
+      strictRuntime: !!ai.strictRuntime,
+      runtimeSessionId: ai.runtimeSessionId || null,
+      toolProfile: ai.toolProfile || null,
+      allowedTools: Array.isArray(ai.allowedTools) && ai.allowedTools.length > 0 ? [...ai.allowedTools] : null,
+      artifactIntent: ai.artifactIntent || null,
+      entryContext: ai.entryContext || null,
+      filePath: ai.filePath || null,
+      seedArtifacts: Array.isArray(ai.seedArtifacts) ? ai.seedArtifacts.map((artifact) => ({ ...artifact })) : null,
+    } : null
+
+    const chat = chatInstances.get(id)
+    if (chat) {
+      useAiArtifactsStore().syncSessionArtifacts(session, chat.state.messagesRef.value)
+    }
+
+    return session
+  }
+
   function deleteSession(id) {
     const session = sessions.value.find(s => s.id === id)
     if (!session) return
+
+    _stopArtifactSync(id)
+    useAiArtifactsStore().clearSession(id)
 
     // Stop Chat instance
     const chat = chatInstances.get(id)
@@ -348,6 +428,7 @@ export const useChatStore = defineStore('chat', () => {
         status: 'idle',
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
+        _ai: data._ai || null,
         _savedMessages: messages, // Passed to Chat constructor
       }
 
@@ -385,6 +466,7 @@ export const useChatStore = defineStore('chat', () => {
             messageCount: data.messages?.length || 0,
             _aiTitle: data._aiTitle || false,
             _keywords: data._keywords || [],
+            _ai: data._ai || null,
           })
         } catch {}
       }
@@ -438,6 +520,9 @@ export const useChatStore = defineStore('chat', () => {
   function _removeFromSessions(id) {
     const session = sessions.value.find(s => s.id === id)
     if (!session) return
+
+    _stopArtifactSync(id)
+    useAiArtifactsStore().clearSession(id)
 
     const chat = chatInstances.get(id)
     if (chat) {
@@ -559,10 +644,12 @@ export const useChatStore = defineStore('chat', () => {
   async function loadSessions() {
     const workspace = useWorkspaceStore()
     if (!workspace.shouldersDir) return
+    const aiArtifacts = useAiArtifactsStore()
 
     // Cleanup existing Chat instances
     for (const [id, chat] of chatInstances) {
       try { chat.stop() } catch {}
+      _stopArtifactSync(id)
     }
     chatInstances.clear()
     _chatVersion.value++
@@ -570,6 +657,7 @@ export const useChatStore = defineStore('chat', () => {
     sessions.value = []
     activeSessionId.value = null
     allSessionsMeta.value = []
+    aiArtifacts.clearAll()
 
     const chatsDir = `${workspace.shouldersDir}/chats`
     const exists = await invoke('path_exists', { path: chatsDir })
@@ -608,6 +696,7 @@ export const useChatStore = defineStore('chat', () => {
       label: session.label,
       _aiTitle: session._aiTitle || false,
       _keywords: session._keywords || [],
+      _ai: session._ai || null,
       modelId: session.modelId,
       messages,
       status: 'idle',
@@ -629,6 +718,7 @@ export const useChatStore = defineStore('chat', () => {
         messageCount: messages.length,
         _aiTitle: session._aiTitle || false,
         _keywords: session._keywords || [],
+        _ai: session._ai || null,
       }
       if (existingIdx >= 0) {
         allSessionsMeta.value[existingIdx] = meta
@@ -641,8 +731,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function cleanup() {
+    const aiArtifacts = useAiArtifactsStore()
     for (const [, chat] of chatInstances) {
       try { chat.stop() } catch {}
+    }
+    for (const sessionId of artifactSyncStops.keys()) {
+      _stopArtifactSync(sessionId)
     }
     chatInstances.clear()
     _chatVersion.value++
@@ -652,6 +746,7 @@ export const useChatStore = defineStore('chat', () => {
     pendingPrefill.value = null
     pendingSelection.value = null
     _richHtmlMap.value = Object.create(null)
+    aiArtifacts.clearAll()
   }
 
   // ─── Title Generation ──────────────────────────────────────────
@@ -676,8 +771,6 @@ export const useChatStore = defineStore('chat', () => {
 
   async function _generateTitle(session) {
     const workspace = useWorkspaceStore()
-    const access = await resolveApiAccess({ strategy: 'ghost' }, workspace)
-    if (!access) return
 
     const chat = chatInstances.get(session.id)
     if (!chat) return
@@ -692,25 +785,24 @@ export const useChatStore = defineStore('chat', () => {
     if (!userText) return
 
     try {
-      const model = createModel(access, createTauriFetch())
-
-      const result = await generateText({
-        model,
+      const { text } = await generateWorkspaceText({
+        workspace,
+        strategy: 'ghost',
         system: 'Generate a concise title (3-8 words) and 3-5 search keywords for this conversation. Return as JSON: {"title": "...", "keywords": ["...", "..."]}. No quotes or punctuation at the end of the title.',
         prompt: `User: ${userText}\n\nAssistant: ${assistantText}`,
+        feature: null,
         maxTokens: 256,
       })
-
-      if (!result.text) return
+      if (!text) return
 
       let title = null
       let keywords = []
       try {
-        const parsed = JSON.parse(result.text.trim())
+        const parsed = JSON.parse(text.trim())
         title = parsed.title?.trim()
         keywords = Array.isArray(parsed.keywords) ? parsed.keywords : []
       } catch {
-        title = result.text.trim()
+        title = text.trim()
       }
 
       if (!title) return
@@ -749,6 +841,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // Session management
     createSession,
+    setSessionAiMeta,
     deleteSession,
     reopenSession,
     loadAllSessionsMeta,

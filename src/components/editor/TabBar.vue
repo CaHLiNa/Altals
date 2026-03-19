@@ -11,6 +11,7 @@
         :ref="el => tabEls[idx] = el"
         data-tab-el
         class="flex items-center h-full px-3 text-xs cursor-pointer shrink-0 border-r group"
+        :title="tabTitle(tab)"
         :style="{
           borderColor: 'var(--border)',
           background: tab === activeTab ? 'var(--bg-primary)' : 'transparent',
@@ -33,6 +34,13 @@
           <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
         </svg>
         <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
+        <span
+          v-if="isChatTab(tab) && chatSessionMeta(tab)"
+          class="ml-1 rounded-sm px-1 ui-text-tiny uppercase shrink-0"
+          style="background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);"
+        >
+          {{ chatSessionMeta(tab).roleBadge }}
+        </span>
 
         <!-- Chat streaming indicator -->
         <span v-if="isChatTab(tab) && isChatStreaming(tab)" class="ml-1.5 w-2 h-2 rounded-full shrink-0 chat-streaming-dot"></span>
@@ -177,6 +185,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import {
@@ -204,6 +213,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'run-code', 'run-file', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'new-tab'])
 
+const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
@@ -288,6 +298,21 @@ function fileName(path) {
     return `${name} (Preview)`
   }
   return path.split('/').pop()
+}
+
+function chatSessionMeta(path) {
+  if (!isChatTab(path)) return null
+  const sid = getChatSessionId(path)
+  const session = chatStore.sessions.find((item) => item.id === sid)
+    || chatStore.allSessionsMeta.find((item) => item.id === sid)
+  return session ? aiWorkbench.describeSession(session) : null
+}
+
+function tabTitle(path) {
+  const base = fileName(path)
+  const meta = chatSessionMeta(path)
+  if (!meta) return base
+  return `${base} · ${meta.roleTitle} · ${meta.runtimeTitle}`
 }
 
 // Mouse-based drag reorder with ghost tab + cross-pane support

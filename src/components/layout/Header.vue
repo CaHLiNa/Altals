@@ -73,6 +73,16 @@
       <button
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         style="color: var(--fg-muted);"
+        @click="handleOpenAi"
+        :title="t('Open AI')"
+        @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--accent)'"
+        @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
+      >
+        <IconSparkles :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
+      </button>
+      <button
+        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
+        style="color: var(--fg-muted);"
         @click="$emit('open-settings')"
         :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
         @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
@@ -92,12 +102,13 @@ import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconSettings, IconSearch,
+  IconSettings, IconSearch, IconSparkles,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
+import { openAiLauncher } from '../../services/ai/launch'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -221,6 +232,13 @@ function onSelectChat(sessionId) {
   editorStore.openChat({ sessionId })
   query.value = ''
   searchInputRef.value?.blur()
+}
+
+function handleOpenAi() {
+  openAiLauncher({
+    editorStore,
+    beside: true,
+  })
 }
 
 async function waitForEditorView(targetPath) {

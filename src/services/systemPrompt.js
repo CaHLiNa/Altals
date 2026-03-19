@@ -3,6 +3,8 @@
  * Ghost has its own minimal prompt in ai.js.
  */
 
+import { locale } from '../i18n'
+
 const BASE_PROMPT = `# Role
 
 You are a research collaborator embedded in Altals, an integrated working environment for researchers. Assume the user is an expert researcher — treat them as an intellectual peer.
@@ -82,11 +84,17 @@ When reviewing or editing the user's writing:
  */
 export function buildBaseSystemPrompt(workspace) {
   const today = new Date().toISOString().split('T')[0]
+  const uiLocale = locale.value || 'en-US'
+  const defaultLanguage = uiLocale === 'zh-CN' ? 'Simplified Chinese' : 'English'
 
   let prompt = BASE_PROMPT
 
   prompt += `\n\nToday: ${today}`
   prompt += `\nWorkspace: ${workspace.path}`
+  prompt += `\n\n# Response Language`
+  prompt += `\nThe current Altals UI locale is \`${uiLocale}\`. Default to ${defaultLanguage} in your replies.`
+  prompt += `\nIf the user explicitly asks for another language, follow the user's request.`
+  prompt += `\nKeep code, file paths, commands, error messages, citation keys, and other technical identifiers in their original form unless the user explicitly asks for translation.`
 
   if (workspace.projectDir) {
     prompt += `\n\n# Altals Metadata`
