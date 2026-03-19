@@ -11,6 +11,7 @@ export function getDocumentWorkflowKind(path) {
     isPreviewPath(path)
     || path.startsWith('chat:')
     || path.startsWith('newtab:')
+    || path.startsWith('ai-launcher:')
     || path.startsWith('ref:@')
   ) {
     return null

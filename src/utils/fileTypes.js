@@ -21,6 +21,10 @@ export function isNewTab(path) {
   return path?.startsWith('newtab:')
 }
 
+export function isAiLauncher(path) {
+  return path?.startsWith('ai-launcher:')
+}
+
 export function isChatTab(path) {
   return path && path.startsWith('chat:')
 }
@@ -56,6 +60,7 @@ export function previewSourcePathFromPath(path) {
 }
 
 export function getViewerType(path) {
+  if (isAiLauncher(path)) return 'ai-launcher'
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   if (isTypstPreviewPath(path)) return 'typst-native-preview'
@@ -118,6 +123,7 @@ export function relativePath(fromFile, toFile) {
 }
 
 export function isBinaryFile(path) {
+  if (isAiLauncher(path)) return false
   if (isNewTab(path)) return false
   if (isReferencePath(path)) return false
   if (isChatTab(path)) return false

@@ -72,11 +72,11 @@
       </button>
       <button
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        style="color: var(--fg-muted);"
+        :style="{ color: aiLauncherOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
         @click="handleOpenAi"
-        :title="t('Open AI')"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--accent)'"
-        @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
+        :title="aiButtonTitle"
+        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
+        @mouseout="$event.currentTarget.style.background='transparent'"
       >
         <IconSparkles :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
       </button>
@@ -108,7 +108,7 @@ import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
-import { openAiLauncher } from '../../services/ai/launch'
+import { hasAiLauncherOpen, toggleAiLauncher } from '../../services/ai/launch'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -163,6 +163,8 @@ const query = ref('')
 const searchFocused = ref(false)
 
 const showResults = computed(() => searchFocused.value || query.value.length > 0)
+const aiLauncherOpen = computed(() => hasAiLauncherOpen(editorStore))
+const aiButtonTitle = computed(() => (aiLauncherOpen.value ? t('Close AI') : t('Open AI')))
 
 const searchPlaceholder = computed(() => t('Go to file...'))
 
@@ -235,7 +237,7 @@ function onSelectChat(sessionId) {
 }
 
 function handleOpenAi() {
-  openAiLauncher({
+  toggleAiLauncher({
     editorStore,
     beside: true,
   })

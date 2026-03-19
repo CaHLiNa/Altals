@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { isNewTab } from '../../utils/fileTypes.js'
+import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog'
 import { prepareTexTypFixTask } from './texTypFixer'
 
@@ -39,7 +39,7 @@ function dispatchPrefill(message) {
 
 export function openAiLauncher({ editorStore, beside = true, paneId } = {}) {
   const existing = typeof editorStore?._findLeaf === 'function'
-    ? editorStore._findLeaf((node) => node.activeTab && isNewTab(node.activeTab))
+    ? editorStore._findLeaf((node) => node.activeTab && isAiLauncher(node.activeTab))
     : null
 
   if (existing) {
@@ -48,11 +48,44 @@ export function openAiLauncher({ editorStore, beside = true, paneId } = {}) {
   }
 
   if (beside) {
-    editorStore.openNewTabBeside()
+    editorStore.openAiLauncherBeside()
     return
   }
 
-  editorStore.openNewTab(paneId)
+  editorStore.openAiLauncher(paneId)
+}
+
+function collectAiLauncherTabs(node, result = []) {
+  if (!node) return result
+  if (node.type === 'leaf') {
+    for (const tab of node.tabs || []) {
+      if (isAiLauncher(tab)) {
+        result.push({ paneId: node.id, tab })
+      }
+    }
+    return result
+  }
+  for (const child of node.children || []) {
+    collectAiLauncherTabs(child, result)
+  }
+  return result
+}
+
+export function hasAiLauncherOpen(editorStore) {
+  if (!editorStore?.paneTree) return false
+  return collectAiLauncherTabs(editorStore.paneTree).length > 0
+}
+
+export function toggleAiLauncher({ editorStore, beside = true, paneId } = {}) {
+  const tabs = collectAiLauncherTabs(editorStore?.paneTree)
+  if (tabs.length === 0) {
+    openAiLauncher({ editorStore, beside, paneId })
+    return
+  }
+
+  for (const entry of tabs.reverse()) {
+    editorStore.closeTab(entry.paneId, entry.tab)
+  }
 }
 
 export async function startAiConversation({

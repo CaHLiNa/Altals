@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../utils/fileTypes'
+import { isAiLauncher, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 import { buildCitationText } from '../editor/citationSyntax'
@@ -16,6 +16,10 @@ import { buildExecutionResultSnippet } from '../services/executionResultInsert'
 
 // Debounce timer for editor state persistence
 let _saveStateTimer = null
+
+function isLauncherTab(path) {
+  return isNewTab(path) || isAiLauncher(path)
+}
 
 function fileBasename(path) {
   return String(path || '').split('/').pop() || ''
@@ -225,7 +229,7 @@ export const useEditorStore = defineStore('editor', {
         // Find a non-chat pane to host the file
         const altPane = this._findNonChatPane()
         if (altPane && altPane.id !== pane.id) {
-          const newtabIdx = altPane.activeTab && isNewTab(altPane.activeTab)
+          const newtabIdx = altPane.activeTab && isLauncherTab(altPane.activeTab)
             ? altPane.tabs.indexOf(altPane.activeTab)
             : -1
           if (newtabIdx !== -1) {
@@ -250,7 +254,7 @@ export const useEditorStore = defineStore('editor', {
 
       // Normal flow: open in active pane
       // Replace newtab if it's the active tab (like Chrome replacing blank tab)
-      const newtabIdx = pane.activeTab && isNewTab(pane.activeTab)
+      const newtabIdx = pane.activeTab && isLauncherTab(pane.activeTab)
         ? pane.tabs.indexOf(pane.activeTab)
         : -1
       if (newtabIdx !== -1) {
@@ -265,7 +269,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     _revealInTree(path) {
-      if (isChatTab(path) || isNewTab(path)) return
+      if (isChatTab(path) || isLauncherTab(path)) return
       const workspace = useWorkspaceStore()
       const files = useFilesStore()
       if (!workspace.path || !path.startsWith(workspace.path)) return
@@ -303,7 +307,7 @@ export const useEditorStore = defineStore('editor', {
       if (targetPane) {
         if (!targetPane.tabs.includes(tabPath)) {
           // Replace newtab if it's the active tab
-          const newtabIdx = targetPane.activeTab && isNewTab(targetPane.activeTab)
+          const newtabIdx = targetPane.activeTab && isLauncherTab(targetPane.activeTab)
             ? targetPane.tabs.indexOf(targetPane.activeTab)
             : -1
           if (newtabIdx !== -1) {
@@ -333,17 +337,17 @@ export const useEditorStore = defineStore('editor', {
     openChatBeside(options = {}) {
       // 1. Last chat pane the user looked at — if still showing a chat or newtab
       const lastPane = this.lastChatPaneId && this.findPane(this.paneTree, this.lastChatPaneId)
-      if (lastPane?.activeTab && (isChatTab(lastPane.activeTab) || isNewTab(lastPane.activeTab))) {
+      if (lastPane?.activeTab && (isChatTab(lastPane.activeTab) || isLauncherTab(lastPane.activeTab))) {
         if (isChatTab(lastPane.activeTab)) {
           const sid = getChatSessionId(lastPane.activeTab)
           return this.openChat({ ...options, sessionId: sid, paneId: lastPane.id })
         }
-        // NewTab — openChat will replace it
+        // Launcher tab — openChat will replace it
         return this.openChat({ ...options, paneId: lastPane.id })
       }
 
-      // 2. Any pane currently showing a chat or newtab
-      const visible = this._findLeaf(n => n.activeTab && (isChatTab(n.activeTab) || isNewTab(n.activeTab)))
+      // 2. Any pane currently showing a chat or launcher tab
+      const visible = this._findLeaf(n => n.activeTab && (isChatTab(n.activeTab) || isLauncherTab(n.activeTab)))
       if (visible) {
         if (isChatTab(visible.activeTab)) {
           const sid = getChatSessionId(visible.activeTab)
@@ -381,6 +385,19 @@ export const useEditorStore = defineStore('editor', {
       this.saveEditorState()
     },
 
+    openAiLauncher(paneId) {
+      const targetPane = paneId
+        ? this.findPane(this.paneTree, paneId)
+        : this.findPane(this.paneTree, this.activePaneId)
+      if (!targetPane) return
+
+      const tabPath = `ai-launcher:${nanoid()}`
+      targetPane.tabs.push(tabPath)
+      targetPane.activeTab = tabPath
+      this.lastChatPaneId = targetPane.id
+      this.saveEditorState()
+    },
+
     /**
      * Split the active pane vertically and open a NewTab in the new pane.
      * Used by Cmd+J — "I want a side pane, let me decide what to do there."
@@ -388,6 +405,12 @@ export const useEditorStore = defineStore('editor', {
     openNewTabBeside() {
       const tabPath = `newtab:${nanoid()}`
       this.splitPaneWith(this.activePaneId, 'vertical', tabPath)
+    },
+
+    openAiLauncherBeside() {
+      const tabPath = `ai-launcher:${nanoid()}`
+      const newPaneId = this.splitPaneWith(this.activePaneId, 'vertical', tabPath)
+      if (newPaneId) this.lastChatPaneId = newPaneId
     },
 
     /**
@@ -635,7 +658,7 @@ export const useEditorStore = defineStore('editor', {
       } else {
         const shouldReplaceNewTab = options.replaceNewTab !== false
           && pane.activeTab
-          && isNewTab(pane.activeTab)
+          && isLauncherTab(pane.activeTab)
         if (shouldReplaceNewTab) {
           const idx = pane.tabs.indexOf(pane.activeTab)
           if (idx !== -1) {
@@ -661,7 +684,7 @@ export const useEditorStore = defineStore('editor', {
       this.activePaneId = paneId
       const pane = this.findPane(this.paneTree, paneId)
       if (pane?.activeTab) {
-        if (isChatTab(pane.activeTab) || isNewTab(pane.activeTab)) {
+        if (isChatTab(pane.activeTab) || isLauncherTab(pane.activeTab)) {
           this.lastChatPaneId = paneId
         }
         if (isChatTab(pane.activeTab)) {
@@ -676,7 +699,7 @@ export const useEditorStore = defineStore('editor', {
       const pane = this.findPane(this.paneTree, paneId)
       if (!pane) return
       pane.activeTab = path
-      if (isChatTab(path) || isNewTab(path)) {
+      if (isChatTab(path) || isLauncherTab(path)) {
         this.lastChatPaneId = paneId
       }
       if (isChatTab(path)) {
@@ -913,7 +936,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     recordFileOpen(path) {
-      if (path.startsWith('ref:@') || isPreviewPath(path) || isChatTab(path) || isNewTab(path)) return
+      if (path.startsWith('ref:@') || isPreviewPath(path) || isChatTab(path) || isLauncherTab(path)) return
       events.fileOpen(path.split('.').pop())
       this.recentFiles = this.recentFiles.filter(e => e.path !== path)
       this.recentFiles.unshift({ path, openedAt: Date.now() })

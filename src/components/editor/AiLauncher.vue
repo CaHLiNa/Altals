@@ -60,6 +60,19 @@
         </template>
       </div>
     </div>
+
+    <div class="shrink-0 flex justify-center">
+      <div class="w-full max-w-[80ch]">
+        <ChatInput
+          ref="chatInputRef"
+          :isStreaming="false"
+          :modelId="selectedModelId"
+          :estimatedTokens="null"
+          @send="sendChat"
+          @update-model="selectModel"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -67,80 +80,91 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
-import { useFilesStore } from '../../stores/files'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
+import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
+import { getAiLauncherItems } from '../../services/ai/taskCatalog'
+import { launchAiTask, startAiConversation } from '../../services/ai/launch'
+import ChatInput from '../chat/ChatInput.vue'
 
 const props = defineProps({
   paneId: { type: String, required: true },
 })
 
 const editorStore = useEditorStore()
-const filesStore = useFilesStore()
+const aiWorkbench = useAiWorkbenchStore()
+const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
+const chatInputRef = ref(null)
 const itemListRef = ref(null)
-const activeTabId = ref('recent')
+const selectedModelId = ref(workspace.selectedModelId || null)
+const activeTabId = ref(aiWorkbench.launcherTab || 'ai')
 const selectedIdx = ref(0)
+const chatsLimit = ref(10)
 const recentFiles = ref([])
 
 let recentFilesGeneration = 0
 
 const TABS = [
-  { id: 'recent', label: t('Files') },
-  { id: 'new', label: t('Create') },
-]
-
-const fileTypes = [
-  { ext: '.md', label: t('Markdown') },
-  { ext: '.tex', label: 'LaTeX' },
-  { ext: '.typ', label: 'Typst' },
-  { ext: '.ipynb', label: t('Jupyter notebook') },
-  { ext: '.py', label: 'Python' },
+  { id: 'ai', label: t('AI') },
+  { id: 'chats', label: t('Chats') },
 ]
 
 const visibleTabs = computed(() => TABS)
 
-const recentItems = computed(() => {
-  if (recentFiles.value.length > 0) {
-    return recentFiles.value.map((entry) => ({
-      label: fileName(entry.path),
-      meta: relativeTime(entry.openedAt),
-      muted: false,
-      action: () => openFile(entry.path),
-    }))
-  }
+const allRecentFiles = computed(() => recentFiles.value)
 
-  return [{
-    label: t('No recent files'),
-    meta: null,
-    muted: true,
-    action: () => {},
-  }]
+const allChats = computed(() =>
+  [...chatStore.allSessionsMeta].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+)
+
+const aiItems = computed(() => {
+  return getAiLauncherItems({
+    recentFiles: allRecentFiles.value,
+    t,
+  }).map((item) => ({
+    label: item.label,
+    meta: item.meta,
+    groupHeader: item.groupHeader,
+    muted: item.muted,
+    action: () => runAiTask(item.task, item.label),
+  }))
 })
 
 const currentItems = computed(() => {
-  if (activeTabId.value === 'new') {
-    return fileTypes.map((fileType) => ({
-      label: fileType.label,
-      meta: fileType.ext,
-      muted: false,
-      action: () => createNewFile(fileType.ext),
+  if (activeTabId.value === 'chats') {
+    const visible = allChats.value.slice(0, chatsLimit.value)
+    const items = visible.map((session) => ({
+      label: session.label,
+      meta: relativeTime(session.updatedAt),
+      action: () => openChat(session.id),
     }))
+    if (allChats.value.length > chatsLimit.value) {
+      items.push({
+        label: t('Show more'),
+        muted: true,
+        action: () => { chatsLimit.value += 10 },
+      })
+    }
+    return items
   }
-  return recentItems.value
+  return aiItems.value
 })
 
 watch(activeTabId, () => {
   selectedIdx.value = 0
+  chatsLimit.value = 10
+  aiWorkbench.launcherTab = activeTabId.value
 })
 
 watch(
   () => editorStore.recentFiles.map((entry) => `${entry.path}:${entry.openedAt}`).join('|'),
   () => {
     refreshRecentFiles().catch((error) => {
-      console.warn('[newtab] refreshRecentFiles failed:', error)
+      console.warn('[ai-launcher] refreshRecentFiles failed:', error)
       recentFiles.value = []
     })
   },
@@ -182,35 +206,23 @@ function handleKeydown(e) {
   if (editorStore.activePaneId !== props.paneId) return
   const active = document.activeElement
   if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+  const richInput = chatInputRef.value?.$el?.querySelector('[contenteditable]')
 
   switch (e.key) {
-    case 'ArrowLeft':
-      e.preventDefault()
-      switchTab(-1)
-      break
-    case 'ArrowRight':
-      e.preventDefault()
-      switchTab(1)
-      break
-    case 'ArrowUp':
-      e.preventDefault()
-      moveSelection(-1)
-      break
-    case 'ArrowDown':
-      e.preventDefault()
-      moveSelection(1)
-      break
-    case 'Enter':
-      e.preventDefault()
-      activateSelected()
-      break
+    case 'ArrowLeft': e.preventDefault(); switchTab(-1); break
+    case 'ArrowRight': e.preventDefault(); switchTab(1); break
+    case 'ArrowUp': e.preventDefault(); moveSelection(-1); break
+    case 'ArrowDown': e.preventDefault(); moveSelection(1); break
+    case 'Enter': e.preventDefault(); activateSelected(); break
     default:
-      break
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        if (richInput) {
+          richInput.focus()
+          document.execCommand('insertText', false, e.key)
+        }
+      }
   }
-}
-
-function fileName(path) {
-  return path.split('/').pop() || path
 }
 
 function relativeTime(ts) {
@@ -220,7 +232,6 @@ function relativeTime(ts) {
 async function refreshRecentFiles() {
   const generation = ++recentFilesGeneration
   const entries = [...editorStore.recentFiles]
-
   if (entries.length === 0) {
     recentFiles.value = []
     return
@@ -241,34 +252,43 @@ async function refreshRecentFiles() {
   recentFiles.value = results.filter(Boolean)
 }
 
-function openFile(path) {
+function openChat(sessionId) {
   editorStore.setActivePane(props.paneId)
-  editorStore.openFile(path)
+  chatStore.reopenSession(sessionId, { skipArchive: true })
+  nextTick(() => {
+    editorStore.openChat({ sessionId, paneId: props.paneId })
+  })
 }
 
-async function createNewFile(ext) {
-  if (!workspace.path) return
-  const baseName = 'untitled'
-  let name = `${baseName}${ext}`
-  let counter = 2
+async function sendChat({ text, fileRefs, context }) {
+  if (!text && !fileRefs?.length) return
+  await startAiConversation({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    modelId: selectedModelId.value,
+    text,
+    fileRefs,
+    context,
+  })
+}
 
-  while (true) {
-    const fullPath = `${workspace.path}/${name}`
-    try {
-      const exists = await invoke('path_exists', { path: fullPath })
-      if (!exists) break
-    } catch {
-      break
-    }
-    name = `${baseName}-${counter}${ext}`
-    counter++
-  }
+async function runAiTask(task, label) {
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: props.paneId,
+    modelId: selectedModelId.value,
+    task: {
+      ...task,
+      label,
+    },
+  })
+}
 
-  const created = await filesStore.createFile(workspace.path, name)
-  if (created) {
-    editorStore.setActivePane(props.paneId)
-    editorStore.openFile(created)
-  }
+function selectModel(modelId) {
+  selectedModelId.value = modelId
+  workspace.setSelectedModelId(modelId)
 }
 
 onMounted(() => {

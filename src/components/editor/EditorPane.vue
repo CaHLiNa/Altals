@@ -127,6 +127,7 @@
           :paneId="paneId"
         />
       </div>
+      <AiLauncher v-else-if="activeTab && viewerType === 'ai-launcher'" :key="activeTab" :paneId="paneId" />
       <NewTab v-else-if="activeTab && viewerType === 'newtab'" :key="activeTab" :paneId="paneId" />
       <EmptyPane v-else-if="!activeTab" :paneId="paneId" />
 
@@ -188,6 +189,7 @@ const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflo
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
+const AiLauncher = defineAsyncComponent(() => import('./AiLauncher.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
 

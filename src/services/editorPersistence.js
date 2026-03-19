@@ -13,6 +13,7 @@ import {
   referenceKeyFromPath,
   isPreviewPath,
   isNewTab,
+  isAiLauncher,
   previewSourcePathFromPath,
 } from '../utils/fileTypes'
 
@@ -116,7 +117,7 @@ async function isTabValid(tab, shouldersDir) {
   if (!tab || typeof tab !== 'string') return false
 
   // NewTab tabs are always valid (virtual, ephemeral)
-  if (isNewTab(tab)) return true
+  if (isNewTab(tab) || isAiLauncher(tab)) return true
 
   // Chat tabs: check if session file exists on disk
   if (isChatTab(tab)) {

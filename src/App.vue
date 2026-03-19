@@ -106,7 +106,7 @@ import { useToastStore } from './stores/toast'
 import { useUxStatusStore } from './stores/uxStatus'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
 import { isMod } from './platform'
-import { isChatTab, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
+import { isAiLauncher, isChatTab, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
 import {
   activateWorkspaceBookmark,
   captureWorkspaceBookmark,
@@ -428,14 +428,14 @@ function handleKeydown(e) {
     if (tab && isChatTab(tab)) {
       // In a chat → new chat
       editorStore.openChat({ paneId: editorStore.activePaneId })
-    } else if (tab && !isNewTab(tab)) {
+    } else if (tab && !isNewTab(tab) && !isAiLauncher(tab)) {
       // In a file → new file of same type
       const dot = tab.lastIndexOf('.')
       const ext = dot > 0 ? tab.substring(dot) : '.md'
       const nextExt = ext.toLowerCase() === '.docx' ? '.md' : ext
       leftSidebarRef.value?.createNewFile(nextExt)
     } else {
-      // NewTab or no tab → new markdown
+      // NewTab, AI launcher, or no tab → new markdown
       leftSidebarRef.value?.createNewFile('.md')
     }
     return
@@ -724,7 +724,7 @@ async function forceSaveAndCommit() {
     const openFiles = editorStore.allOpenFiles
     for (const filePath of openFiles) {
       // Skip virtual paths (reference tabs, chat tabs, preview tabs, new tabs)
-      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:')) continue
+      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:') || isAiLauncher(filePath)) continue
       const content = filesStore.fileContents[filePath]
       if (content !== undefined) {
         await filesStore.saveFile(filePath, content)

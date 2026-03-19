@@ -195,6 +195,7 @@ import {
   isRmdOrQmd,
   isChatTab,
   getChatSessionId,
+  isAiLauncher,
   isNewTab,
   getViewerType,
   isPreviewPath,
@@ -271,6 +272,7 @@ const ghostLabel = ref('')
 
 function fileName(path) {
   if (isNewTab(path)) return t('New Tab')
+  if (isAiLauncher(path)) return t('AI')
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
     const session = chatStore.sessions.find(s => s.id === sid)
