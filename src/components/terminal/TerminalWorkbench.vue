@@ -64,6 +64,7 @@
 
 <script setup>
 import { nextTick, reactive } from 'vue'
+import { useI18n } from '../../i18n'
 import { useTerminalStore } from '../../stores/terminal'
 import { useWorkspaceStore } from '../../stores/workspace'
 import TerminalContextMenu from './TerminalContextMenu.vue'
@@ -73,6 +74,7 @@ import TerminalTabs from './TerminalTabs.vue'
 
 const workspace = useWorkspaceStore()
 const terminalStore = useTerminalStore()
+const { t } = useI18n()
 const groupRefs = new Map()
 const contextMenu = reactive({
   visible: false,
@@ -205,20 +207,20 @@ function openContextMenu(event, scope, instanceId) {
   contextMenu.instanceId = instanceId
   contextMenu.items = scope === 'tab'
     ? [
-        { key: 'rename', label: 'Rename' },
-        { key: 'split', label: 'Split' },
-        { key: 'close', label: 'Close' },
+        { key: 'rename', label: t('Rename') },
+        { key: 'split', label: t('Split') },
+        { key: 'close', label: t('Close') },
       ]
     : [
-        { key: 'copy', label: 'Copy' },
-        { key: 'paste', label: 'Paste', disabled: isLog },
-        { key: 'select-all', label: 'Select All' },
-        { key: 'find', label: 'Find' },
-        { key: 'command-previous', label: 'Previous Command' },
-        { key: 'command-next', label: 'Next Command' },
-        { key: 'clear', label: 'Clear' },
-        { key: 'split', label: 'Split' },
-        { key: 'close', label: 'Close' },
+        { key: 'copy', label: t('Copy') },
+        { key: 'paste', label: t('Paste'), disabled: isLog },
+        { key: 'select-all', label: t('Select All') },
+        { key: 'find', label: t('Find') },
+        { key: 'command-previous', label: t('Previous Command') },
+        { key: 'command-next', label: t('Next Command') },
+        { key: 'clear', label: t('Clear') },
+        { key: 'split', label: t('Split') },
+        { key: 'close', label: t('Close') },
       ]
 }
 
@@ -237,7 +239,7 @@ async function handleContextMenuSelect(key) {
 
   if (key === 'rename' && instanceId) {
     const instance = terminalStore.instances.find((item) => item.id === instanceId)
-    const nextLabel = window.prompt('Rename terminal', instance?.label || '')
+    const nextLabel = window.prompt(t('Rename terminal'), instance?.label || '')
     if (nextLabel) terminalStore.renameInstance(instanceId, nextLabel)
     return
   }

@@ -8,6 +8,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from '../../i18n'
 import { resizeTerminalSession, subscribeTerminalSession } from '../../services/terminal/terminalSessions'
 import { parseShellIntegrationPayload, TERMINAL_SHELL_OSC } from '../../services/terminal/terminalShellIntegration'
 import { useTerminalStore } from '../../stores/terminal'
@@ -25,6 +26,7 @@ const emit = defineEmits(['contextmenu'])
 
 const terminalStore = useTerminalStore()
 const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const terminalContainer = ref(null)
 const instance = computed(() => terminalStore.instances.find((item) => item.id === props.instanceId) || null)
 
@@ -113,7 +115,7 @@ async function bindSession(sessionId) {
     onExit: (payload) => {
       terminalStore.markSessionExited(props.instanceId, payload)
       if (terminal) {
-        terminal.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n')
+        terminal.write(`\r\n\x1b[90m[${t('Process exited')}]\x1b[0m\r\n`)
       }
     },
   })

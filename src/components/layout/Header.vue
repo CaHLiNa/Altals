@@ -72,16 +72,6 @@
       </button>
       <button
         class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: workspace.bottomPanelOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
-        @click="workspace.toggleBottomPanel()"
-        :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
-      >
-        <IconTerminal2 :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
-      </button>
-      <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
         style="color: var(--fg-muted);"
         @click="$emit('open-settings')"
         :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
@@ -102,7 +92,7 @@ import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconSettings, IconSearch, IconTerminal2,
+  IconSettings, IconSearch,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'

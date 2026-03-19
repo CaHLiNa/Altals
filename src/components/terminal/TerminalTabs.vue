@@ -290,7 +290,7 @@ function onMouseEnter(index) {
 
 <style scoped>
 .terminal-tabs {
-  min-height: 34px;
+  min-height: 28px;
   background:
     linear-gradient(
       180deg,
@@ -311,11 +311,11 @@ function onMouseEnter(index) {
 .terminal-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 118px;
+  gap: 5px;
+  min-width: 108px;
   max-width: 240px;
-  height: 34px;
-  padding: 0 10px 0 12px;
+  height: 28px;
+  padding: 0 7px 0 9px;
   color: var(--fg-muted);
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
@@ -354,10 +354,10 @@ function onMouseEnter(index) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 4px;
+  min-width: 25px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--bg-tertiary, var(--bg-secondary)) 82%, transparent);
   font-size: 10px;
@@ -444,9 +444,9 @@ function onMouseEnter(index) {
 }
 
 .terminal-tab-close {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
   opacity: 0;
   transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
@@ -464,20 +464,20 @@ function onMouseEnter(index) {
 }
 
 .terminal-inline-action {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
 }
 
 .terminal-actions {
   gap: 2px;
-  padding: 0 6px;
+  padding: 0 4px;
   border-left: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
 }
 
 .terminal-action-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
   transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
@@ -491,8 +491,8 @@ function onMouseEnter(index) {
 
 .terminal-tab-drop {
   position: absolute;
-  top: 5px;
-  bottom: 5px;
+  top: 4px;
+  bottom: 4px;
   width: 2px;
   background: var(--accent);
   border-radius: 999px;

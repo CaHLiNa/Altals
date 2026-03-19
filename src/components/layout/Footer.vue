@@ -110,6 +110,14 @@
       <!-- Tools -->
       <button
         class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        :style="{ color: workspace.bottomPanelOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
+        @click="toggleTerminalPanel"
+        :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
+      >
+        <IconTerminal2 width="14" height="14" :stroke-width="1.5" />
+      </button>
+      <button
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
         style="color: var(--fg-muted);"
         @click="showShortcuts = !showShortcuts"
         :title="t('Keyboard shortcuts')"
@@ -260,6 +268,7 @@ import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
 import SnapshotDialog from './SnapshotDialog.vue'
 import GitHubConflictDialog from '../GitHubConflictDialog.vue'
+import { IconTerminal2 } from '@tabler/icons-vue'
 import { IconCheck } from '@tabler/icons-vue'
 
 const emit = defineEmits(['open-settings'])
@@ -428,6 +437,10 @@ function togglePendingPopover() {
       }
     })
   }
+}
+
+function toggleTerminalPanel() {
+  window.dispatchEvent(new CustomEvent('app:toggle-terminal'))
 }
 
 function openPendingFile(file) {

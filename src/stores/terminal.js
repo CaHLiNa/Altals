@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { t } from '../i18n'
 import { defaultShell } from '../platform'
 import { getLanguageConfig } from '../services/codeRunner'
 import { useWorkspaceStore } from './workspace'
@@ -21,12 +22,12 @@ const SHARED_LOG_KEY = 'shared-build-terminal'
 const TOOL_LOG_TERMINALS = Object.freeze({
   'latex-log': {
     terminalKey: 'tool-latex-terminal',
-    label: 'LaTeX',
+    labelKey: 'LaTeX',
     preserveText: true,
   },
   'typst-log': {
     terminalKey: 'tool-typst-terminal',
-    label: 'Typst',
+    labelKey: 'Typst',
     preserveText: true,
   },
 })
@@ -44,12 +45,54 @@ function clampIndex(value, length) {
 
 function nextLabelNumber(instances) {
   const numbers = instances
+    .filter((instance) => instance.kind === 'shell' && !instance.key && !instance.language && !instance.customLabel)
     .map((instance) => {
-      const match = /^Terminal\s+(\d+)$/i.exec(instance.label || '')
+      const match = /(\d+)\s*$/.exec(instance.label || '')
       return match ? Number(match[1]) : 0
     })
     .filter(Boolean)
   return numbers.length ? Math.max(...numbers) + 1 : 1
+}
+
+function buildLabel() {
+  return t('Build')
+}
+
+function shellLabel() {
+  return t('Shell')
+}
+
+function terminalLabel(number = null) {
+  return number ? t('Terminal {number}', { number }) : t('Terminal')
+}
+
+function translateLabel(label, fallback = '') {
+  return t(label || fallback)
+}
+
+function defaultLabelForInstance(instance) {
+  if (instance.key === SHARED_SHELL_KEY) return shellLabel()
+  if (instance.key === SHARED_LOG_KEY) return buildLabel()
+
+  const toolDefinition = Object.values(TOOL_LOG_TERMINALS)
+    .find((definition) => definition.terminalKey === instance.key)
+  if (toolDefinition) return t(toolDefinition.labelKey)
+
+  if (instance.kind === 'repl' && instance.language) {
+    return translateLabel(getLanguageConfig(instance.language)?.label, instance.label || terminalLabel())
+  }
+
+  if (instance.kind === 'shell' && !instance.key) {
+    const numericSuffix = /(\d+)\s*$/.exec(instance.label || '')
+    const number = numericSuffix ? Number(numericSuffix[1]) : null
+    return terminalLabel(number)
+  }
+
+  if (instance.kind === 'log') {
+    return translateLabel(instance.label, 'Build')
+  }
+
+  return translateLabel(instance.label, 'Terminal')
 }
 
 function createEmptyFindState() {
@@ -88,12 +131,17 @@ function createGroup(id) {
   }
 }
 
-function resolveLogTerminalDefinition(logKey, fallbackLabel = 'Build') {
+function resolveLogTerminalDefinition(logKey, fallbackLabel = buildLabel()) {
   const toolDefinition = TOOL_LOG_TERMINALS[logKey]
-  if (toolDefinition) return toolDefinition
+  if (toolDefinition) {
+    return {
+      ...toolDefinition,
+      label: t(toolDefinition.labelKey),
+    }
+  }
   return {
     terminalKey: SHARED_LOG_KEY,
-    label: 'Build',
+    label: translateLabel(fallbackLabel, 'Build'),
     preserveText: false,
   }
 }
@@ -112,7 +160,7 @@ function normalizeSerializedInstance(instance) {
     groupId: Number(instance?.groupId) || null,
     kind: instance?.kind || 'shell',
     mode: instance?.mode || (instance?.kind === 'log' ? 'log' : 'shell'),
-    label: instance?.label || 'Terminal',
+    label: instance?.label || terminalLabel(),
     customLabel: instance?.customLabel || null,
     title: instance?.title || '',
     language: instance?.language || null,
@@ -170,8 +218,15 @@ export const useTerminalStore = defineStore('terminal', {
       return useWorkspaceStore()
     },
 
+    _refreshLocalizedLabels() {
+      for (const instance of this.instances) {
+        if (instance.customLabel) continue
+        instance.label = defaultLabelForInstance(instance)
+      }
+    },
+
     _defaultTerminalLabel() {
-      return `Terminal ${nextLabelNumber(this.instances)}`
+      return terminalLabel(nextLabelNumber(this.instances))
     },
 
     _ensureBaseGroup() {
@@ -307,6 +362,7 @@ export const useTerminalStore = defineStore('terminal', {
         }
       }
 
+      this._refreshLocalizedLabels()
       this.hydratedWorkspacePath = workspacePath
     },
 
@@ -652,7 +708,7 @@ export const useTerminalStore = defineStore('terminal', {
       this.hydrateForWorkspace()
       const existing = this.instances.find((instance) => instance.key === key)
       if (existing) {
-        existing.label = label
+        existing.label = translateLabel(label, 'Build')
         if (activate) this.activateInstance(existing.id)
         return existing.id
       }
@@ -660,7 +716,7 @@ export const useTerminalStore = defineStore('terminal', {
         key,
         kind: 'log',
         mode: 'log',
-        label,
+        label: translateLabel(label, 'Build'),
       }, { activate })
     },
 
@@ -668,7 +724,7 @@ export const useTerminalStore = defineStore('terminal', {
       this.hydrateForWorkspace()
       const existing = this.instances.find((instance) => instance.key === SHARED_SHELL_KEY)
       if (existing) {
-        existing.label = 'Shell'
+        existing.label = shellLabel()
         if (activate) this.activateInstance(existing.id)
         return existing.id
       }
@@ -676,7 +732,7 @@ export const useTerminalStore = defineStore('terminal', {
         key: SHARED_SHELL_KEY,
         kind: 'shell',
         mode: 'shell',
-        label: 'Shell',
+        label: shellLabel(),
       }, { activate })
     },
 
@@ -694,7 +750,7 @@ export const useTerminalStore = defineStore('terminal', {
       return this._createInstance({
         kind: 'repl',
         mode: 'shell',
-        label: config.label,
+        label: translateLabel(config.label, config.label),
         language,
         spawnCmd: config.cmd,
         spawnArgs: config.args,
