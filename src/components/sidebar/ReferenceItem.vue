@@ -10,7 +10,7 @@
   >
     <!-- Line 1: Title + indicators -->
     <div class="flex items-center gap-1">
-      <div class="flex-1 min-w-0 ui-text-base truncate" :style="{ color: 'var(--fg-secondary)' }">
+      <div class="flex-1 min-w-0 ui-text-xs truncate" :style="{ color: 'var(--fg-secondary)', lineHeight: 1.25 }">
         {{ reference.title || t('Untitled') }}
       </div>
       <!-- Copy citation button (hover) -->
@@ -35,7 +35,7 @@
       <span v-if="reference._needsReview" class="ref-needs-review shrink-0"></span>
     </div>
     <!-- Line 2: Author (year) -->
-    <div class="ui-text-sm mt-0.5 truncate" :style="{ color: 'var(--fg-muted)' }">
+    <div class="ui-text-micro mt-0.5 truncate" :style="{ color: 'var(--fg-muted)', lineHeight: 1.2 }">
       {{ authorLine }}{{ yearStr ? ` (${yearStr})` : '' }}
     </div>
   </div>

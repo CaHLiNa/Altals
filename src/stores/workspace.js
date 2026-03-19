@@ -744,6 +744,9 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (!result) return
       this.remoteUrl = result.remoteUrl
       this.syncStatus = result.syncStatus
+      if (result.historyRepo?.initialized || result.historyRepo?.seeded) {
+        void this.startAutoCommit()
+      }
       this.startSyncTimer()
 
       // Initial push

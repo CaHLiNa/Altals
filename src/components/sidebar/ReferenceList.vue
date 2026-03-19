@@ -100,7 +100,7 @@
           <IconSearch :size="12" :stroke-width="1.5" style="color: var(--fg-muted); flex-shrink: 0;" />
           <input
             v-model="searchQuery"
-            class="flex-1 px-1 py-0.5 ui-text-md outline-none bg-transparent"
+            class="flex-1 px-1 py-0.5 ui-text-micro outline-none bg-transparent"
             style="color: var(--fg-primary);"
             :placeholder="t('Search references...')"
             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -124,7 +124,7 @@
               <input
                 ref="styleSearchEl"
                 v-model="styleSearchQuery"
-                class="w-full px-1.5 py-0.5 ui-text-md rounded border outline-none"
+                class="w-full px-1.5 py-0.5 ui-text-micro rounded border outline-none"
                 :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-primary)', borderColor: 'var(--border)' }"
                 :placeholder="t('Search styles...')"
                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -139,10 +139,10 @@
               :style="{ color: referencesStore.citationStyle === style.id ? 'var(--accent)' : undefined, fontWeight: referencesStore.citationStyle === style.id ? '500' : undefined }"
               @click="selectStyle(style.id)"
             >
-              <span class="flex-1 ui-text-sm">{{ style.name }}</span>
-              <span v-if="style.category" class="ui-text-xs ml-2 opacity-50">{{ style.category }}</span>
+              <span class="flex-1 ui-text-micro">{{ style.name }}</span>
+              <span v-if="style.category" class="ui-text-micro ml-2 opacity-50">{{ style.category }}</span>
             </div>
-            <div v-if="filteredStyles.length === 0" class="px-3 py-2 ui-text-md" style="color: var(--fg-muted);">
+            <div v-if="filteredStyles.length === 0" class="px-3 py-2 ui-text-micro" style="color: var(--fg-muted);">
               {{ t('No matching styles') }}
             </div>
             <!-- Add custom style -->
@@ -154,7 +154,7 @@
               <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink: 0;">
                 <path d="M8 3v10M3 8h10"/>
               </svg>
-              <span class="ml-1 ui-text-md">{{ t('Add custom style (.csl)...') }}</span>
+              <span class="ml-1 ui-text-micro">{{ t('Add custom style (.csl)...') }}</span>
             </div>
           </div>
         </template>
@@ -176,7 +176,7 @@
         <!-- Filter dropdown -->
         <button
           ref="filterBtnEl"
-          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-sm hover:opacity-80"
+          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-micro hover:opacity-80"
           :style="{ color: citedFilter !== 'all' ? 'var(--accent)' : 'var(--fg-muted)' }"
           :title="t('Filter references')"
           @click.stop="toggleFilterMenu"
@@ -189,7 +189,7 @@
 
         <button
           v-if="canCompareSelected"
-          class="h-5 px-1.5 flex items-center gap-1 rounded shrink-0 ui-text-sm hover:opacity-80"
+          class="h-5 px-1.5 flex items-center gap-1 rounded shrink-0 ui-text-micro hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
           :title="t('Compare selected')"
           @click.stop="compareSelectedReferences"
@@ -221,7 +221,7 @@
         <!-- Citation style (separate concern, right-aligned) -->
         <button
           ref="styleBtnEl"
-          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-sm hover:opacity-80"
+          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-micro hover:opacity-80"
           :style="{ color: 'var(--fg-muted)' }"
           :title="t('Citation style')"
           @click.stop="toggleStyleMenu"
@@ -264,7 +264,7 @@
       <!-- Import status toast -->
       <div
         v-if="importToast"
-        class="flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-md shrink-0"
+        class="flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-micro shrink-0"
         :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-secondary)' }"
       >
         <svg v-if="importToast.hasAdded" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--success)" stroke-width="2">
@@ -282,12 +282,12 @@
           class="py-1.5 px-2"
         >
           <div class="flex items-center gap-1">
-            <div class="flex-1 min-w-0 ui-text-base truncate" :style="{ color: 'var(--fg-muted)' }">
+            <div class="flex-1 min-w-0 ui-text-xs truncate" :style="{ color: 'var(--fg-muted)', lineHeight: 1.25 }">
               {{ imp.name }}
             </div>
             <div class="ref-import-spinner shrink-0"></div>
           </div>
-          <div class="ui-text-sm mt-0.5" :style="{ color: 'var(--fg-muted)' }">{{ t('Importing...') }}</div>
+          <div class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">{{ t('Importing...') }}</div>
         </div>
 
         <ReferenceItem
@@ -304,7 +304,7 @@
         <!-- Empty state -->
         <div
           v-if="filteredRefs.length === 0 && importing.length === 0"
-          class="px-3 py-4 text-center ui-text-md"
+          class="px-3 py-4 text-center ui-text-micro"
           :style="{ color: 'var(--fg-muted)' }"
         >
           <template v-if="searchQuery">{{ t('No matching references') }}</template>
@@ -319,7 +319,7 @@
           class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
           :style="{ background: 'rgba(122, 162, 247, 0.1)', border: '2px dashed var(--accent)' }"
         >
-          <span class="ui-text-base" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
+          <span class="ui-text-xs" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
         </div>
       </div>
     </template>

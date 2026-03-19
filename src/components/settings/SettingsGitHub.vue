@@ -378,6 +378,10 @@ async function handleCreate() {
   if (!newRepoName.value.trim()) return
   loading.value = true
   error.value = ''
+  const statusId = uxStatusStore.show(t('Linking repository...'), {
+    type: 'info',
+    duration: 0,
+  })
   try {
     await workspace.ensureGitHubInitialized()
     const { createGitHubRepo } = await import('../../services/githubSync')
@@ -385,23 +389,49 @@ async function handleCreate() {
     await workspace.linkRepo(repo.cloneUrl)
     showCreate.value = false
     newRepoName.value = ''
+    uxStatusStore.update(statusId, t('Repository linked'), {
+      type: 'success',
+      duration: 3000,
+    })
   } catch (e) {
-    error.value = String(e.message || e)
+    const message = String(e?.message || e || t('Failed to link repository'))
+    const translated = t(message)
+    error.value = translated === message ? message : translated
     console.error('[github] Create repo failed:', e)
+    uxStatusStore.update(statusId, error.value, {
+      type: 'error',
+      duration: 5000,
+    })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 async function handleLink(repo) {
   loading.value = true
   error.value = ''
+  const statusId = uxStatusStore.show(t('Linking repository...'), {
+    type: 'info',
+    duration: 0,
+  })
   try {
     await workspace.linkRepo(repo.cloneUrl)
     showLink.value = false
+    uxStatusStore.update(statusId, t('Repository linked'), {
+      type: 'success',
+      duration: 3000,
+    })
   } catch (e) {
-    error.value = e.message || t('Failed to link repository')
+    const message = String(e?.message || e || t('Failed to link repository'))
+    const translated = t(message)
+    error.value = translated === message ? message : translated
+    uxStatusStore.update(statusId, error.value, {
+      type: 'error',
+      duration: 5000,
+    })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 async function handleUnlink() {

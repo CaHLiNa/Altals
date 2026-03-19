@@ -5,9 +5,9 @@
       
       <!-- Empty state -->
       <div v-if="!hasOutlineSupport" class="flex-1 flex items-center justify-center px-4">
-        <div class="text-center ui-text-xl" style="color: var(--fg-muted);">
-          <div class="mb-2">{{ t('No outline') }}</div>
-          <div style="opacity: 0.6;">{{ t('Add headings to your document to create an outline.') }}</div>
+        <div class="text-center ui-text-xs" style="color: var(--fg-muted);">
+          <div class="mb-1">{{ t('No outline') }}</div>
+          <div class="ui-text-micro" style="opacity: 0.6;">{{ t('Add headings to your document to create an outline.') }}</div>
         </div>
       </div>
 
@@ -35,7 +35,8 @@
             :style="{
               paddingLeft: getOutlineItemPadding(section.key, item) + 'px',
               color: outlineItemKey(item) === activeOutlineItemKey ? 'var(--fg-primary)' : 'var(--fg-secondary)',
-              fontSize: 'var(--ui-font-size)',
+              fontSize: 'var(--ui-font-caption)',
+              lineHeight: '1.25',
             }"
             @click="navigateToOutlineItem(item)"
           >

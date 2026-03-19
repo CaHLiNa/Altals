@@ -37,7 +37,7 @@
           ref="renameInputEl"
           :value="newItemValue"
           class="flex-1 px-1 py-0 rounded border outline-none"
-          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-size);"
+          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           @input="$emit('rename-input-change', $event.target.value)"
           @keydown.enter.stop="$emit('rename-input-submit')"
@@ -46,7 +46,7 @@
         />
       </template>
       <template v-else>
-        <span class="truncate" :style="{ color: isActive ? 'var(--fg-primary)' : 'var(--fg-secondary)', fontSize: 'var(--ui-font-size)' }">
+        <span class="truncate" :style="{ color: isActive ? 'var(--fg-primary)' : 'var(--fg-secondary)', fontSize: 'var(--ui-font-caption)', lineHeight: '1.25' }">
           <template v-if="filterQuery && nameSegments.length > 1">
             <template v-for="(seg, i) in nameSegments" :key="i">
               <span v-if="seg.match" style="color: var(--accent);">{{ seg.text }}</span>
@@ -69,7 +69,7 @@
         ref="newItemInput"
         :value="newItemValue"
         class="w-full px-1 py-0.5 rounded border outline-none"
-        style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-size);"
+        style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
         :placeholder="newItemIsDir ? t('folder name') : t('document name')"
         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
         @input="$emit('rename-input-change', $event.target.value)"

@@ -57,7 +57,7 @@
         <input
           ref="filterInputEl"
           v-model="filterQuery"
-          class="flex-1 px-1 py-0.5 text-xs outline-none bg-transparent"
+          class="flex-1 px-1 py-0.5 ui-text-xs outline-none bg-transparent"
           style="color: var(--fg-primary);"
           :placeholder="t('Filter files...')"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -91,7 +91,7 @@
           ref="renameInput"
           v-model="renaming.value"
           class="w-full px-1 py-0.5 rounded border outline-none"
-          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-size);"
+          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           @keydown.enter.stop="finishRename"
           @keydown.escape.stop="cancelRename"
@@ -132,15 +132,15 @@
       </div>
 
       <!-- External drop zone indicator (root level) -->
-      <div v-if="externalDragOver" class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center text-xs"
+      <div v-if="externalDragOver" class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
         style="border-color: var(--accent); color: var(--accent); opacity: 0.6;">
         {{ t('Drop files here') }}
       </div>
 
-      <div v-if="filterActive && filterQuery && filterMatches.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+      <div v-if="filterActive && filterQuery && filterMatches.length === 0" class="px-3 py-4 ui-text-xs" style="color: var(--fg-muted);">
         {{ t('No matches') }}
       </div>
-      <div v-else-if="visibleRows.length === 0 && !renaming.active" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+      <div v-else-if="visibleRows.length === 0 && !renaming.active" class="px-3 py-4 ui-text-xs" style="color: var(--fg-muted);">
         {{ t('No files yet') }}
       </div>
     </div>

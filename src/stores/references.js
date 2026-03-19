@@ -43,6 +43,14 @@ function normalizeAuthorToken(author = {}) {
     .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
+const EDITABLE_REFERENCE_KEY_RE = /^[A-Za-z][A-Za-z0-9:_.-]*$/
+
+function normalizeEditableReferenceKey(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^@+/, '')
+}
+
 function issuedYear(ref = {}) {
   return Number(ref?.issued?.['date-parts']?.[0]?.[0] || 0)
 }
@@ -675,6 +683,49 @@ export const useReferencesStore = defineStore('references', {
       this._syncWorkspaceView()
       this.saveLibrary()
       return true
+    },
+
+    renameReferenceKey(oldKey, nextKeyRaw) {
+      const idx = this.globalKeyMap[oldKey]
+      if (idx === undefined) {
+        return { ok: false, error: 'Reference not found' }
+      }
+
+      const nextKey = normalizeEditableReferenceKey(nextKeyRaw)
+      if (!nextKey) {
+        return { ok: false, error: 'Citation key is required.' }
+      }
+      if (!EDITABLE_REFERENCE_KEY_RE.test(nextKey)) {
+        return { ok: false, error: 'Citation key can only use letters, numbers, _, -, :, and .' }
+      }
+      if (nextKey === oldKey) {
+        return { ok: true, key: oldKey, changed: false }
+      }
+
+      const duplicate = this.globalLibrary.some((ref, refIdx) => (
+        refIdx !== idx && referenceKey(ref) === nextKey
+      ))
+      if (duplicate) {
+        return { ok: false, error: 'Citation key already exists.' }
+      }
+
+      this.globalLibrary[idx]._key = nextKey
+      this.globalLibrary[idx].id = nextKey
+      this.workspaceKeys = this.workspaceKeys.map((item) => (item === oldKey ? nextKey : item))
+
+      if (this.activeKey === oldKey) {
+        this.activeKey = nextKey
+      }
+      if (this.selectedKeys.has(oldKey)) {
+        const nextSelected = new Set(this.selectedKeys)
+        nextSelected.delete(oldKey)
+        nextSelected.add(nextKey)
+        this.selectedKeys = nextSelected
+      }
+
+      this._syncWorkspaceView()
+      this.saveLibrary()
+      return { ok: true, key: nextKey, oldKey, changed: true }
     },
 
     mergeReference(existingKey, importedRef, fieldSelections = {}) {

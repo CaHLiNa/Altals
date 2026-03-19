@@ -107,6 +107,16 @@
             />
           </div>
 
+          <div>
+            <label class="ref-detail-label">{{ t('Citation Key') }}</label>
+            <input
+              :value="ref._key"
+              class="ref-detail-input ref-detail-input-mono"
+              :placeholder="t('Example: Wang2019')"
+              @change="updateCitationKey($event.target.value)"
+            />
+          </div>
+
           <!-- Authors + Year row -->
           <div class="flex gap-2">
             <div class="flex-1">
@@ -371,13 +381,14 @@
 </template>
 
 <script setup>
-import { ref as vRef, computed, watch, onMounted } from 'vue'
+import { ref as vRef, computed, watch, onMounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
+import { useToastStore } from '../../stores/toast'
 import { formatReference } from '../../services/citationFormatter'
 import { getFormatter } from '../../services/citationStyleRegistry'
 import { launchAiTask } from '../../services/ai/launch'
@@ -396,6 +407,7 @@ const editorStore = useEditorStore()
 const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 
 const detailsOpen = vRef(true)
@@ -415,6 +427,7 @@ const auditSummary = vRef({
 })
 const auditLoading = vRef(false)
 const auditError = vRef('')
+const suppressMissingClose = vRef(false)
 
 const ADDABLE_FIELDS = [
   { key: 'publisher', label: t('Publisher') },
@@ -512,12 +525,13 @@ onMounted(() => {
 
 // Auto-close tab when reference is deleted
 watch(ref, (val) => {
-  if (!val) {
+  if (!val && !suppressMissingClose.value) {
     editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
   }
 })
 
-watch(() => props.refKey, () => {
+watch(() => props.refKey, (nextKey) => {
+  referencesStore.activeKey = nextKey
   refreshAudit()
 })
 
@@ -532,6 +546,29 @@ watch(() => referencesStore.library.length, () => {
 function update(field, value) {
   if (!ref.value) return
   referencesStore.updateReference(ref.value._key, { [field]: value || undefined })
+}
+
+function updateCitationKey(value) {
+  if (!ref.value) return
+
+  const oldKey = ref.value._key
+  const result = referencesStore.renameReferenceKey(oldKey, value)
+
+  if (!result?.ok) {
+    toastStore.show(t(result?.error || 'Failed to update citation key.'), {
+      type: 'error',
+      duration: 4000,
+    })
+    return
+  }
+
+  if (!result.changed) return
+
+  suppressMissingClose.value = true
+  editorStore.updateFilePath(`ref:@${oldKey}`, `ref:@${result.key}`)
+  nextTick(() => {
+    suppressMissingClose.value = false
+  })
 }
 
 async function refreshAudit() {
@@ -771,5 +808,9 @@ function relativePath(path) {
 
 .ref-audit-issue-link:hover {
   text-decoration: underline;
+}
+
+.ref-detail-input-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 </style>

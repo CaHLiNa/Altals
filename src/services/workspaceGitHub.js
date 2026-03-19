@@ -1,4 +1,8 @@
 import { gitRemoteGetUrl } from './git'
+import {
+  ensureWorkspaceHistoryRepo,
+  runWorkspaceAutoCommit as performWorkspaceAutoCommit,
+} from './workspaceAutoCommit'
 
 function normalizeGitHubUser(user = {}) {
   return {
@@ -127,11 +131,21 @@ export async function disconnectWorkspaceGitHub() {
 export async function linkWorkspaceRepo(path = '', cloneUrl = '') {
   if (!path) return null
   const { setupRemote, ensureGitignore } = await import('./githubSync')
+  const historyRepo = await ensureWorkspaceHistoryRepo(path, {
+    seedInitialCommit: true,
+    seedMessage: 'Initial snapshot',
+  })
+  if (!historyRepo?.ok) {
+    throw new Error('Failed to initialize a local Git repository for this workspace.')
+  }
+
   await setupRemote(path, cloneUrl)
   await ensureGitignore(path)
+  await performWorkspaceAutoCommit(path).catch(() => {})
   return {
     remoteUrl: cloneUrl,
     syncStatus: 'idle',
+    historyRepo,
   }
 }
 
