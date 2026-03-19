@@ -1,5 +1,6 @@
 import { StateField, StateEffect, RangeSet } from '@codemirror/state'
 import { EditorView, Decoration, gutter, GutterMarker } from '@codemirror/view'
+import { getZoomCompensatedClientPoint } from './zoomCompensation'
 
 // ── Effects ──────────────────────────────────────────────────────
 export const addComment = StateEffect.define()
@@ -145,7 +146,7 @@ const commentHighlights = EditorView.decorations.compute(
 // ── Click handler for highlighted ranges in the content area ─────
 const commentRangeClick = EditorView.domEventHandlers({
   click(event, view) {
-    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+    const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
     if (pos === null) return false
 
     const { comments } = view.state.field(commentField)

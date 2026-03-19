@@ -50,6 +50,7 @@ import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
 import { createEditorExtensions, createEditorState, wrapCompartment, columnWidthCompartment, columnWidthExtension } from '../../editor/setup'
+import { getCssRootZoomScale, getZoomCompensatedClientPoint, zoomAwareMouseSelectionExtension } from '../../editor/zoomCompensation'
 import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
 import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
@@ -288,10 +289,11 @@ function scheduleContextMenuSelectionRestore(selection) {
 function resolveContextMenuClickPos(event) {
   if (!view) return null
 
-  const approxPos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
+  const coords = getZoomCompensatedClientPoint(event)
+  const approxPos = view.posAtCoords(coords, false)
   if (approxPos === null) return null
 
-  const block = view.lineBlockAtHeight(event.clientY - view.documentTop)
+  const block = view.lineBlockAtHeight(coords.y - view.documentTop)
   return normalizeContextMenuClickPos(approxPos, block)
 }
 
@@ -696,6 +698,7 @@ onMounted(async () => {
 
   // Build extra extensions
   const extraExtensions = [
+    Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
     ...resultProvenanceBadgesExtension(),
     ...createRevealHighlightExtension(),
     // Ghost suggestions (all file types)
@@ -1321,7 +1324,7 @@ onDeactivated(() => {
 function handleWikiLinkClick(event) {
   if (!view) return
 
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
   if (pos === null) return
 
   const line = view.state.doc.lineAt(pos)
@@ -1368,7 +1371,7 @@ function handleWikiLinkClick(event) {
 function handleLatexSourceDoubleClick(event) {
   if (!isTex || !view || event.button !== 0) return
 
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
   if (pos === null) return
 
   const location = getLatexSyncLocation(pos)
