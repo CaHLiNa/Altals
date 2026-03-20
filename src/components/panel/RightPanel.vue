@@ -38,6 +38,7 @@
 import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { useLinksStore } from '../../stores/links'
 import { useEditorStore } from '../../stores/editor'
+import { isLibraryPath } from '../../utils/fileTypes'
 
 const Backlinks = defineAsyncComponent(() => import('./Backlinks.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('./OutlinePanel.vue'))
@@ -50,7 +51,7 @@ const lastDocumentTab = ref(null)
 
 const documentTab = computed(() => {
   const active = editorStore.activeTab
-  if (active && !active.startsWith('chat:')) return active
+  if (active && !active.startsWith('chat:') && !isLibraryPath(active)) return active
   // When a chat tab is focused, keep showing the last document's context
   return lastDocumentTab.value
 })
@@ -58,7 +59,7 @@ const documentTab = computed(() => {
 // Update lastDocumentTab whenever a non-chat tab is focused
 // flush:'post' prevents mid-patch state mutations that can cause Vue __vnode errors
 watch(() => editorStore.activeTab, (tab) => {
-  if (tab && !tab.startsWith('chat:')) {
+  if (tab && !tab.startsWith('chat:') && !isLibraryPath(tab)) {
     lastDocumentTab.value = tab
   }
 }, { flush: 'post' })

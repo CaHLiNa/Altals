@@ -248,7 +248,7 @@ import { getBillingRoute } from '../../services/apiClient'
 import { useI18n } from '../../i18n'
 import { findModelById, groupModelsByProvider } from '../../services/modelCatalog'
 import { extractTextFromPdf } from '../../utils/pdfMetadata'
-import { getViewerType, isAiLauncher, isChatTab, isNewTab, isPreviewPath, isReferencePath, previewSourcePathFromPath } from '../../utils/fileTypes'
+import { getViewerType, isAiLauncher, isChatTab, isLibraryPath, isNewTab, isPreviewPath, isReferencePath, previewSourcePathFromPath } from '../../utils/fileTypes'
 import RichTextInput from '../shared/RichTextInput.vue'
 
 const props = defineProps({
@@ -295,7 +295,7 @@ const canSend = computed(() => hasContent.value && !isOverBudget.value)
 const hasWorkspaceContext = computed(() => !!workspace.path)
 const activeContextPath = computed(() => {
   const activeTab = editorStore.activePane?.activeTab || ''
-  if (activeTab && !isAiLauncher(activeTab) && !isNewTab(activeTab) && !isChatTab(activeTab) && !isReferencePath(activeTab)) {
+  if (activeTab && !isAiLauncher(activeTab) && !isNewTab(activeTab) && !isChatTab(activeTab) && !isReferencePath(activeTab) && !isLibraryPath(activeTab)) {
     return isPreviewPath(activeTab) ? previewSourcePathFromPath(activeTab) : activeTab
   }
   return editorStore.preferredContextPath || ''

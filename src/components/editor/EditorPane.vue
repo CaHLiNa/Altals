@@ -128,6 +128,12 @@
         :refKey="refKey"
         :paneId="paneId"
       />
+      <GlobalLibraryWorkbench
+        v-else-if="activeTab && viewerType === 'library'"
+        :key="activeTab"
+        :filePath="activeTab"
+        :paneId="paneId"
+      />
       <div v-else-if="activeTab && viewerType === 'chat'" class="h-full" :data-chat-panel="paneId">
         <ChatPanel
           :key="activeTab"
@@ -190,6 +196,7 @@ const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
 const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
+const GlobalLibraryWorkbench = defineAsyncComponent(() => import('../library/GlobalLibraryWorkbench.vue'))
 const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))

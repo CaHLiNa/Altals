@@ -399,8 +399,10 @@ import { auditReferenceUsage } from '../../services/referenceAudit'
 
 const props = defineProps({
   refKey: { type: String, required: true },
-  paneId: { type: String, required: true },
+  paneId: { type: String, default: '' },
+  embedded: { type: Boolean, default: false },
 })
+const emit = defineEmits(['close-embedded'])
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
@@ -526,7 +528,11 @@ onMounted(() => {
 // Auto-close tab when reference is deleted
 watch(ref, (val) => {
   if (!val && !suppressMissingClose.value) {
-    editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+    if (props.embedded) {
+      emit('close-embedded')
+    } else {
+      editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+    }
   }
 })
 
@@ -564,11 +570,13 @@ function updateCitationKey(value) {
 
   if (!result.changed) return
 
-  suppressMissingClose.value = true
-  editorStore.updateFilePath(`ref:@${oldKey}`, `ref:@${result.key}`)
-  nextTick(() => {
-    suppressMissingClose.value = false
-  })
+  if (!props.embedded) {
+    suppressMissingClose.value = true
+    editorStore.updateFilePath(`ref:@${oldKey}`, `ref:@${result.key}`)
+    nextTick(() => {
+      suppressMissingClose.value = false
+    })
+  }
 }
 
 async function refreshAudit() {
@@ -655,7 +663,7 @@ async function askAiAboutReference() {
   await launchAiTask({
     editorStore,
     chatStore,
-    paneId: props.paneId,
+    paneId: props.embedded ? (editorStore.activePaneId || null) : props.paneId,
     beside: true,
     task: createReferenceAuditTask({
       refKey: ref.value._key,
@@ -668,6 +676,9 @@ async function askAiAboutReference() {
 function openPdf() {
   if (!pdfPath.value) return
   editorStore.openFile(pdfPath.value)
+  if (props.embedded) {
+    workspace.showEditorSurface()
+  }
 }
 
 async function deleteRef() {
@@ -676,7 +687,11 @@ async function deleteRef() {
   if (yes) {
     const removed = referencesStore.removeReference(ref.value._key)
     if (removed) {
-      editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+      if (props.embedded) {
+        emit('close-embedded')
+      } else {
+        editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+      }
     }
   }
 }
@@ -692,7 +707,11 @@ async function deleteRefGlobally() {
 
   const removed = await referencesStore.removeReferenceFromGlobal(key)
   if (removed) {
-    editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+    if (props.embedded) {
+      emit('close-embedded')
+    } else {
+      editorStore.closeTab(props.paneId, `ref:@${props.refKey}`)
+    }
   }
 }
 

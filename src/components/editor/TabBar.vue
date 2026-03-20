@@ -29,6 +29,10 @@
           <line x1="8" y1="3" x2="8" y2="13"/>
           <line x1="3" y1="8" x2="13" y2="8"/>
         </svg> -->
+        <svg v-if="isLibraryPath(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent);">
+          <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v8a.5.5 0 0 1-.8.4L8 9.75l-4.2 3.15a.5.5 0 0 1-.8-.4z"/>
+          <path d="M5.5 6.25h5M5.5 8h3.5"/>
+        </svg>
         <!-- Chat tab sparkle icon -->
         <svg v-if="isChatTab(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
           <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
@@ -149,6 +153,7 @@ import { useReferencesStore } from '../../stores/references'
 import {
   isReferencePath,
   referenceKeyFromPath,
+  isLibraryPath,
   isRmdOrQmd,
   isChatTab,
   getChatSessionId,
@@ -215,6 +220,7 @@ const ghostLabel = ref('')
 function fileName(path) {
   if (isNewTab(path)) return t('New Tab')
   if (isAiLauncher(path)) return t('AI')
+  if (isLibraryPath(path)) return t('Library')
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
     const session = chatStore.sessions.find(s => s.id === sid)

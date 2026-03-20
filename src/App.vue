@@ -49,6 +49,13 @@
               @editor-stats="onEditorStats"
             />
             <div
+              v-show="workspace.globalLibraryOpen"
+              class="absolute inset-0 z-10"
+              :style="{ background: 'var(--bg-primary)' }"
+            >
+              <GlobalLibraryWorkbench class="h-full" />
+            </div>
+            <div
               v-if="workspace.rightSidebarOpen"
               class="absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
             >
@@ -127,7 +134,7 @@ import { useToastStore } from './stores/toast'
 import { useUxStatusStore } from './stores/uxStatus'
 import { gitAdd, gitCommit, gitStatus } from './services/git'
 import { isMod } from './platform'
-import { isAiLauncher, isChatTab, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
+import { isAiLauncher, isChatTab, isLibraryPath, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
 import {
   activateWorkspaceBookmark,
   captureWorkspaceBookmark,
@@ -159,6 +166,7 @@ const Settings = defineAsyncComponent(() => import('./components/settings/Settin
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
 const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
+const GlobalLibraryWorkbench = defineAsyncComponent(() => import('./components/library/GlobalLibraryWorkbench.vue'))
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -345,6 +353,8 @@ async function openWorkspace(path, options = {}) {
     scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
       const restored = await editorStore.restoreEditorState()
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+      const { activeLibraryTab } = editorStore.extractLibraryTabs()
+      workspace.toggleGlobalLibrary(activeLibraryTab)
       if (!restored && editorStore.allOpenFiles.size === 0) {
         editorStore.openNewTab()
       }
@@ -428,7 +438,7 @@ async function closeWorkspace(options = {}) {
   linksStore.cleanup()
   chatStore.cleanup()
   commentsStore.cleanup()
-  referencesStore.cleanup()
+  referencesStore.cleanup({ preserveGlobalLibrary: true })
   researchArtifactsStore.cleanup()
   void kernelStore.shutdownAll().catch((error) => {
     console.warn('[workspace] kernel shutdown failed:', error)
@@ -472,7 +482,7 @@ async function handleKeydown(e) {
     if (tab && isChatTab(tab)) {
       // In a chat → new chat
       editorStore.openChat({ paneId: editorStore.activePaneId })
-    } else if (tab && !isNewTab(tab) && !isAiLauncher(tab)) {
+    } else if (tab && !isNewTab(tab) && !isAiLauncher(tab) && !isLibraryPath(tab)) {
       // In a file → new file of same type
       const dot = tab.lastIndexOf('.')
       const ext = dot > 0 ? tab.substring(dot) : '.md'
@@ -794,7 +804,7 @@ async function forceSaveAndCommit() {
     const openFiles = editorStore.allOpenFiles
     for (const filePath of openFiles) {
       // Skip virtual paths (reference tabs, chat tabs, preview tabs, new tabs)
-      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:') || isAiLauncher(filePath)) continue
+      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:') || isAiLauncher(filePath) || isLibraryPath(filePath)) continue
       const content = filesStore.fileContents[filePath]
       if (content !== undefined) {
         const saved = await filesStore.saveFile(filePath, content)

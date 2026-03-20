@@ -547,12 +547,10 @@ function handleItemClick({ key, event }) {
     referencesStore.activeKey = key
     lastClickedIndex.value = clickedIndex
   } else {
-    // Single click: select + open reference view in editor
+    // Single click: select + inspect in Library
     referencesStore.selectedKeys.clear()
     referencesStore.selectedKeys.add(key)
-    referencesStore.activeKey = key
-    referencesStore.addKeyToWorkspace(key)
-    editorStore.openFile(`ref:@${key}`)
+    referencesStore.focusReferenceInLibrary(key, { mode: 'browse', addToWorkspace: true })
     lastClickedIndex.value = clickedIndex
   }
 }
@@ -596,9 +594,7 @@ function openPdf(key) {
 
 function viewDetails(key) {
   contextMenu.show = false
-  referencesStore.activeKey = key
-  referencesStore.addKeyToWorkspace(key)
-  editorStore.openFile(`ref:@${key}`)
+  referencesStore.focusReferenceInLibrary(key, { mode: 'edit', addToWorkspace: true })
 }
 
 async function exportSelected(format = 'bib') {

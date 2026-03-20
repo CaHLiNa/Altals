@@ -339,8 +339,7 @@ function handleClick(e) {
   if (citation) {
     const keys = citation.dataset.keys?.split(',')
     if (keys?.[0]) {
-      referencesStore.activeKey = keys[0]
-      editorStore.openFile(`ref:@${keys[0]}`)
+      referencesStore.focusReferenceInLibrary(keys[0], { mode: 'browse' })
     }
     e.preventDefault()
     return

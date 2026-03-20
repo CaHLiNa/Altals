@@ -102,7 +102,6 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
-import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { importFromText, importFromPdf } from '../../services/referenceImport'
 import { useI18n } from '../../i18n'
@@ -112,7 +111,6 @@ import ReferenceMergeDialog from './ReferenceMergeDialog.vue'
 const emit = defineEmits(['close'])
 
 const referencesStore = useReferencesStore()
-const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
@@ -280,8 +278,7 @@ async function lookup() {
 function viewExisting(existingKey) {
   if (!existingKey) return
   emit('close')
-  referencesStore.activeKey = existingKey
-  editorStore.openFile(`ref:@${existingKey}`)
+  referencesStore.focusReferenceInLibrary(existingKey, { mode: 'edit' })
 }
 
 function addPreviewItem(itemId) {

@@ -9,6 +9,7 @@ import { useReferencesStore } from '../stores/references'
 import {
   isChatTab,
   getChatSessionId,
+  isLibraryPath,
   isReferencePath,
   referenceKeyFromPath,
   isPreviewPath,
@@ -118,6 +119,7 @@ async function isTabValid(tab, shouldersDir) {
 
   // NewTab tabs are always valid (virtual, ephemeral)
   if (isNewTab(tab) || isAiLauncher(tab)) return true
+  if (isLibraryPath(tab)) return true
 
   // Chat tabs: check if session file exists on disk
   if (isChatTab(tab)) {

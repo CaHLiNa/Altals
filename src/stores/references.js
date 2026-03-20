@@ -52,6 +52,15 @@ function normalizeEditableReferenceKey(value) {
     .replace(/^@+/, '')
 }
 
+function normalizeReferenceTags(tags = []) {
+  const raw = Array.isArray(tags) ? tags : String(tags || '').split(',')
+  return Array.from(new Set(
+    raw
+      .map((tag) => String(tag || '').trim())
+      .filter(Boolean)
+  ))
+}
+
 function issuedYear(ref = {}) {
   return Number(ref?.issued?.['date-parts']?.[0]?.[0] || 0)
 }
@@ -207,6 +216,7 @@ export const useReferencesStore = defineStore('references', {
     initialized: false,
     loading: false,
     activeKey: null,
+    libraryDetailMode: 'browse',
     selectedKeys: new Set(),
     sortBy: 'addedAt',  // field name: 'addedAt' | 'author' | 'year' | 'title'
     sortDir: 'desc',    // 'asc' | 'desc'
@@ -361,6 +371,10 @@ export const useReferencesStore = defineStore('references', {
           this.library = workspaceView.library
           this.workspaceKeys = workspaceView.keys
           this.keyMap = buildKeyMapFromList(workspaceView.library)
+          if (this.activeKey && this.globalKeyMap[this.activeKey] === undefined) {
+            this.activeKey = null
+            this.libraryDetailMode = 'browse'
+          }
 
           if (migration.didChange) {
             await this._writeLibraries(context)
@@ -371,9 +385,13 @@ export const useReferencesStore = defineStore('references', {
           console.warn('Failed to load reference library:', e)
           this.library = []
           this.keyMap = {}
-          this.globalLibrary = []
-          this.globalKeyMap = {}
           this.workspaceKeys = []
+          if (!Array.isArray(this.globalLibrary) || this.globalLibrary.length === 0) {
+            this.globalLibrary = []
+            this.globalKeyMap = {}
+          } else {
+            this.globalKeyMap = buildKeyMapFromList(this.globalLibrary)
+          }
         }
 
         if (this._isLoadStale(context)) return
@@ -503,20 +521,24 @@ export const useReferencesStore = defineStore('references', {
       if (this._unlisten) { this._unlisten(); this._unlisten = null }
     },
 
-    cleanup() {
+    cleanup(options = {}) {
+      const { preserveGlobalLibrary = false } = options
       clearTimeout(this._saveTimer)
       this._saveTimer = null
       this.stopWatching()
       this._loadGeneration += 1
       this.library = []
       this.keyMap = {}
-      this.globalLibrary = []
-      this.globalKeyMap = {}
+      if (!preserveGlobalLibrary) {
+        this.globalLibrary = []
+        this.globalKeyMap = {}
+      }
       this.workspaceKeys = []
       this._selfWriteCounts = {}
       this.initialized = false
       this.loading = false
       this.activeKey = null
+      this.libraryDetailMode = 'browse'
       this.selectedKeys = new Set()
       this.citationStyle = 'apa'
     },
@@ -554,6 +576,10 @@ export const useReferencesStore = defineStore('references', {
       this.library = workspaceView.library
       this.workspaceKeys = workspaceView.keys
       this.keyMap = buildKeyMapFromList(workspaceView.library)
+      if (this.activeKey && this.globalKeyMap[this.activeKey] === undefined) {
+        this.activeKey = null
+        this.libraryDetailMode = 'browse'
+      }
     },
 
     async _deleteReferenceAsset(path) {
@@ -742,6 +768,68 @@ export const useReferencesStore = defineStore('references', {
       return true
     },
 
+    _commitGlobalReferenceMutations(changed = false) {
+      if (!changed) return 0
+      this._syncWorkspaceView()
+      this.saveLibrary()
+      return 1
+    },
+
+    addTagsToReferences(keys = [], tags = []) {
+      const normalizedTags = normalizeReferenceTags(tags)
+      if (normalizedTags.length === 0) return 0
+
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const currentTags = normalizeReferenceTags(this.globalLibrary[idx]._tags || [])
+        const nextTags = normalizeReferenceTags([...currentTags, ...normalizedTags])
+        if (nextTags.join('\u0000') === currentTags.join('\u0000')) continue
+        this.globalLibrary[idx]._tags = nextTags
+        changed = true
+      }
+
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    replaceTagsForReferences(keys = [], tags = []) {
+      const normalizedTags = normalizeReferenceTags(tags)
+      let changed = false
+
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const currentTags = normalizeReferenceTags(this.globalLibrary[idx]._tags || [])
+        if (normalizedTags.join('\u0000') === currentTags.join('\u0000')) continue
+        if (normalizedTags.length > 0) this.globalLibrary[idx]._tags = normalizedTags
+        else delete this.globalLibrary[idx]._tags
+        changed = true
+      }
+
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    removeTagsFromReferences(keys = [], tags = []) {
+      const removeTags = new Set(normalizeReferenceTags(tags))
+      if (removeTags.size === 0) return 0
+
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const currentTags = normalizeReferenceTags(this.globalLibrary[idx]._tags || [])
+        if (currentTags.length === 0) continue
+        const nextTags = currentTags.filter((tag) => !removeTags.has(tag))
+        if (nextTags.length === currentTags.length) continue
+        if (nextTags.length > 0) this.globalLibrary[idx]._tags = nextTags
+        else delete this.globalLibrary[idx]._tags
+        changed = true
+      }
+
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
     renameReferenceKey(oldKey, nextKeyRaw) {
       const idx = this.globalKeyMap[oldKey]
       if (idx === undefined) {
@@ -815,6 +903,23 @@ export const useReferencesStore = defineStore('references', {
       return true
     },
 
+    focusReferenceInLibrary(key, options = {}) {
+      if (!key) return false
+      const { mode = 'browse', addToWorkspace = false } = options || {}
+      if (addToWorkspace) {
+        this.addKeyToWorkspace(key)
+      }
+      this.activeKey = key
+      this.libraryDetailMode = mode === 'edit' ? 'edit' : 'browse'
+      const workspace = useWorkspaceStore()
+      workspace.openGlobalLibrary?.()
+      return true
+    },
+
+    closeLibraryDetailMode() {
+      this.libraryDetailMode = 'browse'
+    },
+
     hasKeyInWorkspace(key) {
       return !!key && this.workspaceKeys.includes(key)
     },
@@ -824,7 +929,10 @@ export const useReferencesStore = defineStore('references', {
       this.workspaceKeys = this.workspaceKeys.filter((item) => item !== key)
       this._syncWorkspaceView()
 
-      if (this.activeKey === key) this.activeKey = null
+      if (this.activeKey === key) {
+        this.activeKey = null
+        this.libraryDetailMode = 'browse'
+      }
       this.selectedKeys.delete(key)
 
       this.saveLibrary()
@@ -867,9 +975,9 @@ export const useReferencesStore = defineStore('references', {
 
       this.globalLibrary = this.globalLibrary.filter((ref) => !removeSet.has(referenceKey(ref)))
       this.workspaceKeys = this.workspaceKeys.filter((key) => !removeSet.has(key))
-
       if (this.activeKey && removeSet.has(this.activeKey)) {
         this.activeKey = null
+        this.libraryDetailMode = 'browse'
       }
       for (const key of removeSet) {
         this.selectedKeys.delete(key)

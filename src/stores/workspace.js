@@ -112,6 +112,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     githubUser: null,
     githubInitialized: false,
     _githubInitPromise: null,
+    globalLibraryOpen: false,
     syncStatus: 'disconnected', // idle | syncing | synced | error | conflict | disconnected
     syncError: null,
     syncErrorType: null, // auth | network | conflict | generic
@@ -156,6 +157,7 @@ export const useWorkspaceStore = defineStore('workspace', {
   actions: {
     async openWorkspace(path) {
       this.path = path
+      this.globalLibraryOpen = false
 
       // Resolve Altals global storage (~/.altals/)
       try { this.globalConfigDir = await invoke('get_global_config_dir') }
@@ -277,6 +279,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this._workspaceBootstrapPromise = null
       await this.cleanup()
       this.path = null
+      this.globalLibraryOpen = false
       this.systemPrompt = ''
       this.instructions = ''
       this.apiKey = ''
@@ -460,6 +463,26 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     toggleLeftSidebar() {
       this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
+    },
+
+    openGlobalLibrary() {
+      this.globalLibraryOpen = true
+    },
+
+    closeGlobalLibrary() {
+      this.globalLibraryOpen = false
+    },
+
+    toggleGlobalLibrary(force = null) {
+      if (typeof force === 'boolean') {
+        this.globalLibraryOpen = force
+        return
+      }
+      this.globalLibraryOpen = !this.globalLibraryOpen
+    },
+
+    showEditorSurface() {
+      this.globalLibraryOpen = false
     },
 
     toggleRightSidebar() {

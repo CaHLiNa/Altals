@@ -1,4 +1,4 @@
-import { isAiLauncher, isChatTab, isNewTab, isPreviewPath, isReferencePath } from '../../../utils/fileTypes.js'
+import { isAiLauncher, isChatTab, isLibraryPath, isNewTab, isPreviewPath, isReferencePath } from '../../../utils/fileTypes.js'
 import { markdownDocumentAdapter } from './markdown.js'
 import { latexDocumentAdapter } from './latex.js'
 import { typstDocumentAdapter } from './typst.js'
@@ -30,6 +30,7 @@ export function getDocumentAdapterForWorkflow(filePath) {
   if (!filePath) return null
   if (
     isPreviewPath(filePath)
+    || isLibraryPath(filePath)
     || isChatTab(filePath)
     || isNewTab(filePath)
     || isAiLauncher(filePath)

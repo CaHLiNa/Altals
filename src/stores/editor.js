@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isAiLauncher, isChatTab, getChatSessionId, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
+import { isAiLauncher, isChatTab, getChatSessionId, isLibraryPath, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 import { buildCitationText } from '../editor/citationSyntax'
@@ -24,6 +24,7 @@ function isLauncherTab(path) {
 function isContextCandidatePath(path) {
   return !!path
     && !isChatTab(path)
+    && !isLibraryPath(path)
     && !isLauncherTab(path)
     && !isPreviewPath(path)
     && !isReferencePath(path)
@@ -242,7 +243,7 @@ export const useEditorStore = defineStore('editor', {
       if (pane.tabs.includes(path)) {
         pane.activeTab = path
         this._rememberContextPath(path)
-        if (!isChatTab(path)) this.recordFileOpen(path)
+        if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
         this.saveEditorState()
         return
       }
@@ -256,7 +257,7 @@ export const useEditorStore = defineStore('editor', {
           existingPane.activeTab = path
           this.activePaneId = existingPane.id
           this._rememberContextPath(path)
-          if (!isChatTab(path)) this.recordFileOpen(path)
+          if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
         }
@@ -275,7 +276,7 @@ export const useEditorStore = defineStore('editor', {
           altPane.activeTab = path
           this.activePaneId = altPane.id
           this._rememberContextPath(path)
-          if (!isChatTab(path)) this.recordFileOpen(path)
+          if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
         }
@@ -285,7 +286,7 @@ export const useEditorStore = defineStore('editor', {
         // Move focus to the new file pane
         if (newPaneId) this.activePaneId = newPaneId
         this._rememberContextPath(path)
-        if (!isChatTab(path)) this.recordFileOpen(path)
+        if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
         return
       }
 
@@ -301,13 +302,13 @@ export const useEditorStore = defineStore('editor', {
       }
       pane.activeTab = path
       this._rememberContextPath(path)
-      if (!isChatTab(path)) this.recordFileOpen(path)
+      if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
       this._revealInTree(path)
       this.saveEditorState()
     },
 
     _revealInTree(path) {
-      if (isChatTab(path) || isLauncherTab(path)) return
+      if (isChatTab(path) || isLibraryPath(path) || isLauncherTab(path)) return
       const workspace = useWorkspaceStore()
       const files = useFilesStore()
       if (!workspace.path || !path.startsWith(workspace.path)) return
@@ -799,6 +800,20 @@ export const useEditorStore = defineStore('editor', {
         this.closeTab(pane.id, path)
       }
       this.clearFileDirty(path)
+    },
+
+    extractLibraryTabs() {
+      const libraryTabs = [...this.allOpenFiles].filter(isLibraryPath)
+      if (libraryTabs.length === 0) {
+        return { hadLibraryTabs: false, activeLibraryTab: false }
+      }
+
+      const activeLibraryTab = isLibraryPath(this.activeTab)
+      for (const path of libraryTabs) {
+        this.closeFileFromAllPanes(path)
+      }
+
+      return { hadLibraryTabs: true, activeLibraryTab }
     },
 
     switchTab(delta) {

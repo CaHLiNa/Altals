@@ -3,7 +3,23 @@
     data-tauri-drag-region
     :style="headerStyle"
   >
-    <div data-tauri-drag-region></div>
+    <div class="flex items-center gap-2" data-tauri-drag-region>
+      <button
+        v-if="workspace.isOpen"
+        type="button"
+        class="h-6 px-2.5 rounded-md border flex items-center gap-1.5 transition-colors"
+        :style="{
+          background: libraryPaneOpen ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'var(--bg-primary)',
+          borderColor: libraryPaneOpen ? 'color-mix(in srgb, var(--accent) 50%, var(--border))' : 'var(--border)',
+          color: libraryPaneOpen ? 'var(--accent)' : 'var(--fg-secondary)',
+        }"
+        :title="t('Open global library')"
+        @click="openLibrary"
+      >
+        <IconBook2 :size="12" :stroke-width="1.7" />
+        <span class="ui-text-xs font-medium tracking-wide">{{ t('Library') }}</span>
+      </button>
+    </div>
 
     <!-- Center: search input -->
     <div class="relative">
@@ -103,7 +119,7 @@ import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconSettings, IconSearch, IconSparkles,
+  IconBook2, IconSettings, IconSearch, IconSparkles,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -166,6 +182,7 @@ const searchFocused = ref(false)
 const showResults = computed(() => searchFocused.value || query.value.length > 0)
 const aiLauncherOpen = computed(() => aiDrawer.open)
 const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close AI') : t('Open AI')))
+const libraryPaneOpen = computed(() => workspace.globalLibraryOpen)
 
 const searchPlaceholder = computed(() => t('Go to file...'))
 
@@ -206,12 +223,14 @@ function onSearchKeydown(e) {
 }
 
 function onSelectFile(path) {
+  workspace.closeGlobalLibrary()
   editorStore.openFile(path)
   query.value = ''
   searchInputRef.value?.blur()
 }
 
 function onSelectCitation(key) {
+  workspace.closeGlobalLibrary()
   const pane = editorStore.activePane
   if (pane?.activeTab) {
     const view = editorStore.getEditorView(pane.id, pane.activeTab)
@@ -241,6 +260,11 @@ function handleOpenAi() {
   aiDrawer.toggle()
 }
 
+function openLibrary() {
+  if (!workspace.isOpen) return
+  workspace.toggleGlobalLibrary()
+}
+
 async function waitForEditorView(targetPath) {
   const startedAt = Date.now()
   let targetView = editorStore.getAnyEditorView(targetPath)
@@ -257,6 +281,7 @@ async function onSelectTypstSymbol(symbol) {
   const filePath = String(symbol?.filePath || '')
   if (!filePath) return
 
+  workspace.closeGlobalLibrary()
   editorStore.openFile(filePath)
   const targetView = await waitForEditorView(filePath)
   if (targetView) {

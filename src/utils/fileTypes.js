@@ -25,6 +25,14 @@ export function isAiLauncher(path) {
   return path?.startsWith('ai-launcher:')
 }
 
+export function isLibraryPath(path) {
+  return path?.startsWith('library:')
+}
+
+export function libraryViewIdFromPath(path) {
+  return path?.startsWith('library:') ? path.slice('library:'.length) : null
+}
+
 export function isChatTab(path) {
   return path && path.startsWith('chat:')
 }
@@ -61,6 +69,7 @@ export function previewSourcePathFromPath(path) {
 
 export function getViewerType(path) {
   if (isAiLauncher(path)) return 'ai-launcher'
+  if (isLibraryPath(path)) return 'library'
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   if (isTypstPreviewPath(path)) return 'typst-native-preview'
@@ -124,6 +133,7 @@ export function relativePath(fromFile, toFile) {
 
 export function isBinaryFile(path) {
   if (isAiLauncher(path)) return false
+  if (isLibraryPath(path)) return false
   if (isNewTab(path)) return false
   if (isReferencePath(path)) return false
   if (isChatTab(path)) return false
@@ -196,6 +206,7 @@ const ICON_MAP = {
 }
 
 export function getFileIconName(fileName) {
+  if (isLibraryPath(fileName)) return 'IconBook2'
   if (isReferencePath(fileName)) return 'IconBook2'
   const name = fileName.toLowerCase()
   // Check full filename first (e.g. ".gitignore", ".env")
@@ -213,6 +224,7 @@ export function getFileIconName(fileName) {
 }
 
 export function isRunnable(path) {
+  if (isLibraryPath(path)) return false
   if (isReferencePath(path)) return false
   const ext = getExt(path)
   return ext in RUNNABLE_MAP
