@@ -1,8 +1,8 @@
+use crate::process_utils::background_command;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use git2::{
     Cred, DiffOptions, FetchOptions, Oid, PushOptions, RemoteCallbacks, Repository, Signature,
 };
-use crate::process_utils::background_command;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -13,7 +13,11 @@ fn normalize_repo_pathbuf(repo_path: &str) -> Result<PathBuf, String> {
     }
 
     let normalized = trimmed.trim_end_matches(['/', '\\']);
-    let candidate = if normalized.is_empty() { "/" } else { normalized };
+    let candidate = if normalized.is_empty() {
+        "/"
+    } else {
+        normalized
+    };
     let path = PathBuf::from(candidate);
     if path.is_absolute() {
         Ok(path)
@@ -72,6 +76,143 @@ fn run_git_text(repo_path: &str, args: &[String]) -> Result<String, String> {
     }
 }
 
+fn is_git_conflict_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("non-fast-forward")
+        || lower.contains("cannot fast-forward")
+        || lower.contains("cannot push")
+        || lower.contains("not present locally")
+        || lower.contains("[rejected]")
+        || lower.contains("fetch first")
+        || lower.contains("updates were rejected")
+}
+
+fn is_git_auth_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("authentication")
+        || lower.contains("401")
+        || lower.contains("403")
+        || lower.contains("invalid username or token")
+        || lower.contains("access denied")
+        || lower.contains("could not read username")
+}
+
+fn is_git_network_error(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("resolve")
+        || lower.contains("dns")
+        || lower.contains("network")
+        || lower.contains("could not connect")
+        || lower.contains("failed to connect")
+        || lower.contains("timed out")
+        || lower.contains("timeout")
+        || lower.contains("failed to receive response")
+}
+
+fn map_git_push_error(message: &str) -> String {
+    if is_git_conflict_error(message) {
+        "CONFLICT: Remote has changes that conflict with your local commits.".to_string()
+    } else if is_git_auth_error(message) {
+        "Authentication failed. Please reconnect your GitHub account.".to_string()
+    } else if is_git_network_error(message) {
+        "Could not connect to GitHub. Check your internet connection.".to_string()
+    } else {
+        format!("Push failed: {message}")
+    }
+}
+
+fn map_git_push_branch_error(message: &str) -> String {
+    if is_git_auth_error(message) {
+        "Authentication failed. Please reconnect your GitHub account.".to_string()
+    } else if is_git_network_error(message) {
+        "Could not connect to GitHub. Check your internet connection.".to_string()
+    } else {
+        format!("Push to branch failed: {message}")
+    }
+}
+
+fn map_git_fetch_error(message: &str) -> String {
+    if is_git_auth_error(message) {
+        "Authentication failed. Please reconnect your GitHub account.".to_string()
+    } else if is_git_network_error(message) {
+        "Could not connect to GitHub. Check your internet connection.".to_string()
+    } else {
+        format!("Fetch failed: {message}")
+    }
+}
+
+fn map_git_clone_error(message: &str) -> String {
+    let lower = message.to_lowercase();
+    if lower.contains("unexpected http status code: 404")
+        || lower.contains("repository not found")
+        || lower.contains("404")
+    {
+        "Repository not found. Check the URL and try again.".to_string()
+    } else if is_git_auth_error(message) {
+        "Authentication failed. Please reconnect your GitHub account.".to_string()
+    } else if lower.contains("already exists and is not an empty directory")
+        || lower.contains("already exists")
+    {
+        "A folder with that name already exists.".to_string()
+    } else if is_git_network_error(message) {
+        "Could not connect. Check your internet connection and the URL.".to_string()
+    } else {
+        format!("Clone failed: {message}")
+    }
+}
+
+#[cfg(windows)]
+fn build_github_auth_header(token: &str) -> String {
+    let payload = format!("x-access-token:{token}");
+    format!("AUTHORIZATION: basic {}", STANDARD.encode(payload))
+}
+
+#[cfg(windows)]
+fn run_git_authenticated(
+    repo_path: Option<&str>,
+    token: &str,
+    args: &[String],
+) -> Result<String, String> {
+    let mut command = background_command("git");
+
+    if let Some(repo_path) = repo_path {
+        let normalized = normalize_repo_path(repo_path)?;
+        command.arg("-C").arg(normalized);
+    }
+
+    command
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "Never")
+        .arg("-c")
+        .arg("credential.helper=")
+        .arg("-c")
+        .arg("core.askPass=")
+        .arg("-c")
+        .arg("credential.interactive=never")
+        .arg("-c")
+        .arg(format!(
+            "http.https://github.com/.extraheader={}",
+            build_github_auth_header(token)
+        ))
+        .args(args);
+
+    let output = command.output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            "Git is required on Windows for GitHub sync. Install Git and retry.".to_string()
+        } else {
+            e.to_string()
+        }
+    })?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
+
 fn run_git_init(repo_path: &str) -> Result<(), String> {
     let normalized = normalize_repo_path(repo_path)?;
     let output = background_command("git")
@@ -104,22 +245,7 @@ pub async fn git_init(repo_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn git_clone(url: String, target_path: String) -> Result<(), String> {
-    Repository::clone(&url, &target_path).map_err(|e| {
-        let msg = e.message().to_string();
-        // Return user-friendly messages for common errors
-        if msg.contains("unexpected http status code: 404") || msg.contains("repository not found")
-        {
-            "Repository not found. Check the URL and try again.".to_string()
-        } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
-            "Authentication failed. This may be a private repository.".to_string()
-        } else if msg.contains("already exists and is not an empty directory") {
-            "A folder with that name already exists in the chosen location.".to_string()
-        } else if msg.contains("resolve") || msg.contains("dns") || msg.contains("network") {
-            "Could not connect. Check your internet connection and the URL.".to_string()
-        } else {
-            format!("Clone failed: {}", msg)
-        }
-    })?;
+    Repository::clone(&url, &target_path).map_err(|e| map_git_clone_error(e.message()))?;
     Ok(())
 }
 
@@ -149,11 +275,7 @@ pub async fn git_commit(repo_path: String, message: String) -> Result<String, St
 
     run_git_text(
         &repo_path,
-        &[
-            String::from("commit"),
-            String::from("-m"),
-            message,
-        ],
+        &[String::from("commit"), String::from("-m"), message],
     )?;
 
     let head = run_git_text(
@@ -481,6 +603,19 @@ pub async fn git_push(
     branch: String,
     token: String,
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let args = vec![
+            String::from("push"),
+            remote,
+            format!("refs/heads/{branch}:refs/heads/{branch}"),
+        ];
+        run_git_authenticated(Some(&repo_path), &token, &args)
+            .map(|_| ())
+            .map_err(|e| map_git_push_error(&e))?;
+        return Ok(());
+    }
+
     let repo = open_repo(&repo_path)?;
     let mut remote_obj = repo
         .find_remote(&remote)
@@ -491,20 +626,9 @@ pub async fn git_push(
     opts.remote_callbacks(callbacks);
 
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
-    remote_obj.push(&[&refspec], Some(&mut opts)).map_err(|e| {
-        let msg = e.message().to_string();
-        if msg.contains("non-fast-forward")
-            || msg.contains("cannot fast-forward")
-            || msg.contains("cannot push")
-            || msg.contains("not present locally")
-        {
-            "CONFLICT: Remote has changes that conflict with your local commits.".to_string()
-        } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
-            "Authentication failed. Please reconnect your GitHub account.".to_string()
-        } else {
-            format!("Push failed: {}", msg)
-        }
-    })?;
+    remote_obj
+        .push(&[&refspec], Some(&mut opts))
+        .map_err(|e| map_git_push_error(e.message()))?;
 
     Ok(())
 }
@@ -517,6 +641,19 @@ pub async fn git_push_branch(
     remote_branch: String,
     token: String,
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let args = vec![
+            String::from("push"),
+            remote,
+            format!("refs/heads/{local_branch}:refs/heads/{remote_branch}"),
+        ];
+        run_git_authenticated(Some(&repo_path), &token, &args)
+            .map(|_| ())
+            .map_err(|e| map_git_push_branch_error(&e))?;
+        return Ok(());
+    }
+
     let repo = open_repo(&repo_path)?;
     let mut remote_obj = repo
         .find_remote(&remote)
@@ -529,13 +666,22 @@ pub async fn git_push_branch(
     let refspec = format!("refs/heads/{}:refs/heads/{}", local_branch, remote_branch);
     remote_obj
         .push(&[&refspec], Some(&mut opts))
-        .map_err(|e| format!("Push to branch failed: {}", e.message()))?;
+        .map_err(|e| map_git_push_branch_error(e.message()))?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_fetch(repo_path: String, remote: String, token: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let args = vec![String::from("fetch"), String::from("--prune"), remote];
+        run_git_authenticated(Some(&repo_path), &token, &args)
+            .map(|_| ())
+            .map_err(|e| map_git_fetch_error(&e))?;
+        return Ok(());
+    }
+
     let repo = open_repo(&repo_path)?;
     let mut remote_obj = repo
         .find_remote(&remote)
@@ -547,16 +693,7 @@ pub async fn git_fetch(repo_path: String, remote: String, token: String) -> Resu
 
     remote_obj
         .fetch(&[] as &[&str], Some(&mut opts), None)
-        .map_err(|e| {
-            let msg = e.message().to_string();
-            if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
-                "Authentication failed. Please reconnect your GitHub account.".to_string()
-            } else if msg.contains("resolve") || msg.contains("dns") || msg.contains("network") {
-                "Could not connect to GitHub. Check your internet connection.".to_string()
-            } else {
-                format!("Fetch failed: {}", msg)
-            }
-        })?;
+        .map_err(|e| map_git_fetch_error(e.message()))?;
 
     Ok(())
 }
@@ -605,6 +742,7 @@ pub async fn git_pull_ff(
     let repo = open_repo(&repo_path)?;
 
     // Step 1: Fetch
+    #[cfg(not(windows))]
     {
         let mut remote_obj = repo
             .find_remote(&remote)
@@ -614,7 +752,18 @@ pub async fn git_pull_ff(
         opts.remote_callbacks(callbacks);
         remote_obj
             .fetch(&[] as &[&str], Some(&mut opts), None)
-            .map_err(|e| format!("Fetch failed: {}", e.message()))?;
+            .map_err(|e| map_git_fetch_error(e.message()))?;
+    }
+
+    #[cfg(windows)]
+    {
+        let args = vec![
+            String::from("fetch"),
+            String::from("--prune"),
+            remote.clone(),
+        ];
+        run_git_authenticated(Some(&repo_path), &token, &args)
+            .map_err(|e| map_git_fetch_error(&e))?;
     }
 
     // Step 2: Fast-forward merge
@@ -767,6 +916,15 @@ pub async fn git_clone_authenticated(
     target_path: String,
     token: String,
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let args = vec![String::from("clone"), url, target_path];
+        run_git_authenticated(None, &token, &args)
+            .map(|_| ())
+            .map_err(|e| map_git_clone_error(&e))?;
+        return Ok(());
+    }
+
     let callbacks = make_callbacks(&token);
     let mut fetch_opts = FetchOptions::new();
     fetch_opts.remote_callbacks(callbacks);
@@ -774,17 +932,41 @@ pub async fn git_clone_authenticated(
     let mut builder = git2::build::RepoBuilder::new();
     builder.fetch_options(fetch_opts);
 
-    builder.clone(&url, Path::new(&target_path)).map_err(|e| {
-        let msg = e.message().to_string();
-        if msg.contains("404") || msg.contains("not found") {
-            "Repository not found. Check the URL and try again.".to_string()
-        } else if msg.contains("authentication") || msg.contains("401") || msg.contains("403") {
-            "Authentication failed. Please reconnect your GitHub account.".to_string()
-        } else if msg.contains("already exists") {
-            "A folder with that name already exists.".to_string()
-        } else {
-            format!("Clone failed: {}", msg)
-        }
-    })?;
+    builder
+        .clone(&url, Path::new(&target_path))
+        .map_err(|e| map_git_clone_error(e.message()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{map_git_clone_error, map_git_fetch_error, map_git_push_error};
+
+    #[test]
+    fn maps_windows_receive_response_timeout_to_network_error() {
+        let message = "failed to receive response: 操作超时";
+        assert_eq!(
+            map_git_fetch_error(message),
+            "Could not connect to GitHub. Check your internet connection."
+        );
+    }
+
+    #[test]
+    fn maps_push_rejected_to_conflict_error() {
+        let message =
+            "Updates were rejected because the remote contains work that you do not have locally.";
+        assert_eq!(
+            map_git_push_error(message),
+            "CONFLICT: Remote has changes that conflict with your local commits."
+        );
+    }
+
+    #[test]
+    fn maps_clone_404_to_not_found_error() {
+        let message = "unexpected http status code: 404";
+        assert_eq!(
+            map_git_clone_error(message),
+            "Repository not found. Check the URL and try again."
+        );
+    }
 }

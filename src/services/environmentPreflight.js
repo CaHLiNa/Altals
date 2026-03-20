@@ -114,6 +114,11 @@ export async function ensureTypstCompileReady() {
   return showBlockedFeedback('missing-typst', t('Typst CLI not found. Install or download it in Environment settings.'))
 }
 
+export async function ensureGitHubSyncReady() {
+  if (await resolveCommandAvailable('git')) return true
+  return showBlockedFeedback('missing-git-sync', t('Git is not installed. Install Git, then retry GitHub sync.'))
+}
+
 export async function getEnvironmentHealthSummary() {
   const envStore = useEnvironmentStore()
   const latexStore = useLatexStore()

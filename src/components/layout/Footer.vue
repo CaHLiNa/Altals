@@ -263,6 +263,7 @@ import { useUsageStore } from '../../stores/usage'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
+import { ensureGitHubSyncReady } from '../../services/environmentPreflight'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
@@ -382,6 +383,9 @@ function toggleSyncPopover() {
 
 async function handleSyncNow() {
   showSyncPopover.value = false
+  if (!(await ensureGitHubSyncReady())) {
+    return
+  }
   const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {
     type: 'info',
     duration: 0,

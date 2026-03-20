@@ -274,6 +274,7 @@ const ZH_MESSAGES = {
   'Disconnect': '断开连接',
   'Switch Account': '切换账号',
   'Switching account...': '切换账号中...',
+  'Git is not installed. Install Git, then retry GitHub sync.': 'Git 未安装。安装 Git 后再重试 GitHub 同步。',
   'Unlink': '取消关联',
   'Sync Now': '立即同步',
   'Create New Repository': '创建新仓库',

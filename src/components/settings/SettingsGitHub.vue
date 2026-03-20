@@ -149,6 +149,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useUxStatusStore } from '../../stores/uxStatus'
+import { ensureGitHubSyncReady } from '../../services/environmentPreflight'
 import { formatRelativeFromNow, useI18n } from '../../i18n'
 
 const workspace = useWorkspaceStore()
@@ -484,6 +485,9 @@ async function handleUnlink() {
 
 async function handleSyncNow() {
   error.value = ''
+  if (!(await ensureGitHubSyncReady())) {
+    return
+  }
   loading.value = true
   const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {
     type: 'info',
