@@ -516,6 +516,70 @@ export function createReferenceCompareTask({
   }
 }
 
+export function createReferenceSummaryTask({
+  refKey,
+  label = '',
+  source = 'library-workbench',
+  entryContext = 'library-workbench',
+} = {}) {
+  return {
+    action: 'send',
+    role: 'citation_librarian',
+    toolProfile: 'citation_librarian',
+    taskId: 'citation.reference-summary',
+    source,
+    entryContext,
+    label: label || translate('Summarize reference'),
+    prompt: translate('Summarize reference {key} from my library. Focus on the research question, method, main findings, limitations, and why it matters for my project. Suggest a concise reading note and 3-5 tags if useful.', {
+      key: refKey ? `@${refKey}` : '',
+    }),
+  }
+}
+
+export function createReferenceCleanupTask({
+  refKeys = [],
+  label = '',
+  source = 'library-workbench',
+  entryContext = 'library-workbench',
+} = {}) {
+  const keyList = (refKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  return {
+    action: 'send',
+    role: 'citation_librarian',
+    toolProfile: 'citation_librarian',
+    taskId: 'citation.reference-cleanup',
+    source,
+    entryContext,
+    label: label || translate('Clean up reference'),
+    prompt: keyList
+      ? translate('Review these references from my library: {keys}. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.', {
+        keys: keyList,
+      })
+      : translate('Review my current library selection. Check metadata quality, duplicate risk, weak tags, missing PDFs, reading-state mismatches, and suggest concrete cleanup actions.'),
+  }
+}
+
+export function createReferenceClusterTask({
+  refKeys = [],
+  label = '',
+  source = 'library-workbench',
+  entryContext = 'library-workbench',
+} = {}) {
+  const keyList = (refKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
+  return {
+    action: 'send',
+    role: 'citation_librarian',
+    toolProfile: 'citation_librarian',
+    taskId: 'citation.reference-cluster',
+    source,
+    entryContext,
+    label: label || translate('Cluster selected'),
+    prompt: translate('Cluster these references from my library into meaningful themes: {keys}. Suggest collection names, tag cleanup opportunities, reading order, and which papers are foundational vs follow-up.', {
+      keys: keyList,
+    }),
+  }
+}
+
 function createWorkspaceExplorerTask({
   label = '',
   source = 'launcher',

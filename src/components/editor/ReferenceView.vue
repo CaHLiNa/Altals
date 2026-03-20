@@ -23,7 +23,7 @@
 
       <!-- Toggle row -->
       <div
-        class="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none hover:bg-[var(--bg-hover)]"
+        class="ref-header-row flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none hover:bg-[var(--bg-hover)]"
         @click="detailsOpen = !detailsOpen"
       >
         <svg
@@ -35,15 +35,15 @@
         <span class="ui-text-xs font-medium" :style="{ color: 'var(--fg-secondary)' }">{{ t('Details') }}</span>
         <span class="ref-key-badge ui-text-micro ml-1">@{{ ref._key }}</span>
         <!-- Collapsed summary -->
-        <span v-if="!detailsOpen" class="ui-text-xs ml-2 truncate flex-1" :style="{ color: 'var(--fg-muted)' }">
+        <span v-if="!detailsOpen" class="ref-header-summary ui-text-xs ml-2 truncate flex-1" :style="{ color: 'var(--fg-muted)' }">
           {{ authorLine }}{{ year ? ` (${year})` : '' }}
         </span>
-        <div class="flex-1" v-if="detailsOpen"></div>
+        <div class="ref-header-spacer flex-1" v-if="detailsOpen"></div>
         <!-- Actions -->
-        <div class="flex items-center gap-1 ml-auto" @click.stop>
+        <div class="ref-header-actions flex items-center gap-1 ml-auto" @click.stop>
           <template v-if="libraryEmbedded">
             <button
-              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
               :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
               @click="pdfPath ? openPdf() : attachPdf()"
             >
@@ -52,21 +52,21 @@
           </template>
           <template v-else>
             <button
-              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
               :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
               @click="askAiAboutReference"
             >
               {{ t('Ask AI') }}
             </button>
             <button
-              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
               :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
               @click="pdfPath ? openPdf() : attachPdf()"
             >
               {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
             </button>
             <button
-              class="px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
+              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
               :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
               @click="handleCopyAs(copyFormat)"
             >
@@ -74,7 +74,7 @@
             </button>
             <select
               :value="copyFormat"
-              class="ref-type-select"
+              class="ref-type-select ref-header-select"
               @change="copyFormat = $event.target.value; handleCopyAs($event.target.value)"
             >
               <option value="apa">APA</option>
@@ -88,14 +88,14 @@
         </div>
         <template v-if="!libraryEmbedded">
           <button
-            class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
+            class="ref-header-button px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
             :style="{ color: 'var(--fg-muted)' }"
             @click.stop="deleteRef"
           >
             {{ t('Remove from this project') }}
           </button>
           <button
-            class="px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
+            class="ref-header-button px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
             :style="{ color: 'var(--error)' }"
             @click.stop="deleteRefGlobally"
           >
@@ -691,9 +691,6 @@ async function askAiAboutReference() {
 function openPdf() {
   if (!pdfPath.value) return
   editorStore.openFile(pdfPath.value)
-  if (props.embedded) {
-    workspace.showEditorSurface()
-  }
 }
 
 async function deleteRef() {
@@ -767,6 +764,36 @@ function relativePath(path) {
 .ref-type-select:focus {
   border-color: var(--accent);
 }
+
+.ref-header-row {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.ref-header-summary,
+.ref-header-spacer {
+  min-width: 120px;
+}
+
+.ref-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.ref-header-button,
+.ref-header-select {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ref-header-select {
+  max-width: 110px;
+}
+
 .ref-abstract-clamped {
   display: -webkit-box;
   -webkit-line-clamp: 3;

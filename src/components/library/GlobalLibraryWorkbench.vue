@@ -19,16 +19,144 @@
           <div class="library-section-label">{{ t('Views') }}</div>
           <div class="library-nav-list">
             <button
-              v-for="view in viewOptions"
+              v-for="view in primaryViewOptions"
               :key="view.id"
               type="button"
               class="library-nav-item"
               :class="{ 'is-active': activeView === view.id }"
-              @click="activeView = view.id"
+              @click="activateView(view.id)"
             >
               <span class="truncate">{{ view.label }}</span>
               <span class="library-nav-count">{{ view.count }}</span>
             </button>
+          </div>
+        </section>
+
+        <section class="library-sidebar-section">
+          <div class="library-section-label">{{ t('Smart views') }}</div>
+          <div class="library-nav-list">
+            <button
+              v-for="view in smartViewOptions"
+              :key="view.id"
+              type="button"
+              class="library-nav-item"
+              :class="{ 'is-active': activeView === view.id }"
+              @click="activateView(view.id)"
+            >
+              <span class="truncate">{{ view.label }}</span>
+              <span class="library-nav-count">{{ view.count }}</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="library-sidebar-section">
+          <div class="library-sidebar-row">
+            <div class="library-section-label">{{ t('Collections') }}</div>
+            <div class="library-sidebar-actions">
+              <button
+                v-if="activeCollection"
+                type="button"
+                class="library-link-button"
+                @click="deleteActiveCollection"
+              >
+                {{ t('Delete') }}
+              </button>
+              <button
+                type="button"
+                class="library-link-button"
+                @click="toggleCollectionComposer"
+              >
+                {{ showCollectionComposer ? t('Cancel') : t('New') }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="showCollectionComposer" class="library-inline-form">
+            <input
+              v-model="newCollectionName"
+              class="library-batch-input"
+              :placeholder="t('New collection')"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              @keydown.enter.prevent="createCollection"
+            />
+            <button type="button" class="library-inline-button" @click="createCollection">
+              {{ t('Create') }}
+            </button>
+          </div>
+
+          <div v-if="collections.length > 0" class="library-nav-list">
+            <button
+              v-for="collection in collections"
+              :key="collection.id"
+              type="button"
+              class="library-nav-item"
+              :class="{ 'is-active': activeView === `collection:${collection.id}` }"
+              @click="activateCollection(collection.id)"
+            >
+              <span class="truncate">{{ collection.name }}</span>
+              <span class="library-nav-count">{{ collectionCounts[collection.id] || 0 }}</span>
+            </button>
+          </div>
+          <div v-else class="library-inline-empty">
+            {{ t('No collections yet') }}
+          </div>
+        </section>
+
+        <section class="library-sidebar-section">
+          <div class="library-sidebar-row">
+            <div class="library-section-label">{{ t('Saved views') }}</div>
+            <div class="library-sidebar-actions">
+              <button
+                v-if="activeSavedView"
+                type="button"
+                class="library-link-button"
+                @click="deleteCurrentSavedView"
+              >
+                {{ t('Delete') }}
+              </button>
+              <button
+                type="button"
+                class="library-link-button"
+                @click="toggleSavedViewComposer"
+              >
+                {{ showSavedViewComposer ? t('Cancel') : t('Save current view') }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="showSavedViewComposer" class="library-inline-form">
+            <input
+              v-model="newSavedViewName"
+              class="library-batch-input"
+              :placeholder="t('New saved view')"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              @keydown.enter.prevent="createSavedView"
+            />
+            <button type="button" class="library-inline-button" @click="createSavedView">
+              {{ t('Create') }}
+            </button>
+          </div>
+
+          <div v-if="savedViews.length > 0" class="library-nav-list">
+            <button
+              v-for="savedView in savedViews"
+              :key="savedView.id"
+              type="button"
+              class="library-nav-item"
+              :class="{ 'is-active': activeView === `preset:${savedView.id}` }"
+              @click="applySavedView(savedView.id)"
+            >
+              <span class="truncate">{{ savedView.name }}</span>
+            </button>
+          </div>
+          <div v-else class="library-inline-empty">
+            {{ t('No saved views yet') }}
           </div>
         </section>
 
@@ -163,8 +291,35 @@
                   autocapitalize="off"
                   spellcheck="false"
                 />
-                <button type="button" class="library-inline-button" @click="applyTagAction('add')">
-                  {{ t('Add tags') }}
+                <select v-model="batchTagAction" class="library-select library-batch-select">
+                  <option value="add">{{ t('Add tags') }}</option>
+                  <option value="replace">{{ t('Replace tags') }}</option>
+                  <option value="remove">{{ t('Remove tags') }}</option>
+                </select>
+                <button type="button" class="library-inline-button" @click="applyTagAction(batchTagAction)">
+                  {{ t('Apply') }}
+                </button>
+                <template v-if="collections.length > 0">
+                  <select v-model="batchCollectionId" class="library-select library-batch-select">
+                    <option value="">{{ t('Collection') }}</option>
+                    <option v-for="collection in collections" :key="collection.id" :value="collection.id">
+                      {{ collection.name }}
+                    </option>
+                  </select>
+                  <button type="button" class="library-inline-button" @click="applyCollectionAction('add')">
+                    {{ t('Add to collection') }}
+                  </button>
+                  <button type="button" class="library-inline-button" @click="applyCollectionAction('remove')">
+                    {{ t('Remove from collection') }}
+                  </button>
+                </template>
+                <button
+                  v-if="selectedKeys.length >= 2"
+                  type="button"
+                  class="library-inline-button"
+                  @click="clusterSelectedReferences"
+                >
+                  {{ t('AI cluster') }}
                 </button>
               </div>
             </div>
@@ -215,6 +370,12 @@
                       <span class="library-ref-title">{{ refItem.title || `@${refItem._key}` }}</span>
                       <span v-if="refItem._needsReview" class="library-state-pill warning">{{ t('Needs review') }}</span>
                       <span v-if="refItem._pdfFile" class="library-state-pill">{{ t('PDF') }}</span>
+                      <span v-if="readingState(refItem) !== 'unread'" class="library-state-pill">
+                        {{ readingState(refItem) === 'reading' ? t('Reading') : t('Reviewed') }}
+                      </span>
+                      <span v-if="priorityState(refItem) === 'high'" class="library-state-pill warning">
+                        {{ t('High priority') }}
+                      </span>
                     </div>
                     <div class="library-ref-meta">
                       <span>{{ formatAuthors(refItem) || t('Unknown author') }}</span>
@@ -257,6 +418,9 @@
           <div class="library-pane-header">
             <div class="library-section-label">{{ t('Overview') }}</div>
             <div v-if="activeRef" class="library-detail-toolbar">
+              <button type="button" class="library-inline-button" @click="askAiForCleanup">
+                {{ t('AI cleanup') }}
+              </button>
               <button type="button" class="library-inline-button" @click="enterEditMode(activeRef._key)">
                 {{ t('Edit metadata') }}
               </button>
@@ -300,6 +464,8 @@
                 </span>
                 <span v-if="activeRef._needsReview" class="library-state-pill warning">{{ t('Needs review') }}</span>
                 <span v-if="activeRef._pdfFile" class="library-state-pill">{{ t('PDF') }}</span>
+                <span class="library-state-pill">{{ activeReadingState === 'reading' ? t('Reading') : activeReadingState === 'reviewed' ? t('Reviewed') : t('Unread') }}</span>
+                <span v-if="activePriority" class="library-state-pill warning">{{ t(activePriority === 'high' ? 'High priority' : activePriority === 'medium' ? 'Medium priority' : 'Low priority') }}</span>
               </div>
             </div>
 
@@ -335,6 +501,56 @@
             </div>
 
             <div class="library-detail-section">
+              <div class="library-section-label">{{ t('Workflow') }}</div>
+              <div class="library-detail-grid workflow">
+                <div class="library-detail-label">{{ t('Reading state') }}</div>
+                <select v-model="activeReadingState" class="library-select library-detail-select">
+                  <option value="unread">{{ t('Unread') }}</option>
+                  <option value="reading">{{ t('Reading') }}</option>
+                  <option value="reviewed">{{ t('Reviewed') }}</option>
+                </select>
+                <div class="library-detail-label">{{ t('Priority') }}</div>
+                <select v-model="activePriority" class="library-select library-detail-select">
+                  <option value="">{{ t('None') }}</option>
+                  <option value="high">{{ t('High') }}</option>
+                  <option value="medium">{{ t('Medium') }}</option>
+                  <option value="low">{{ t('Low') }}</option>
+                </select>
+                <div class="library-detail-label">{{ t('Rating') }}</div>
+                <select v-model="activeRating" class="library-select library-detail-select">
+                  <option value="0">{{ t('None') }}</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="library-detail-section">
+              <div class="library-sidebar-row">
+                <div class="library-section-label">{{ t('Collections') }}</div>
+              </div>
+              <div v-if="collections.length > 0" class="library-collection-list">
+                <button
+                  v-for="collection in collections"
+                  :key="collection.id"
+                  type="button"
+                  class="library-collection-row"
+                  :class="{ 'is-active': activeCollectionSet.has(collection.id) }"
+                  @click="toggleActiveCollection(collection.id)"
+                >
+                  <span class="truncate">{{ collection.name }}</span>
+                  <span class="library-nav-count">{{ collectionCounts[collection.id] || 0 }}</span>
+                </button>
+              </div>
+              <div v-else class="library-inline-empty">
+                {{ t('No collections yet') }}
+              </div>
+            </div>
+
+            <div class="library-detail-section">
               <div class="library-sidebar-row">
                 <div class="library-section-label">{{ t('Tags') }}</div>
               </div>
@@ -362,6 +578,76 @@
                 />
                 <button type="button" class="library-inline-button" @click="saveDetailTags">
                   {{ t('Save tags') }}
+                </button>
+              </div>
+            </div>
+
+            <div class="library-detail-section">
+              <div class="library-sidebar-row">
+                <div class="library-section-label">{{ t('Reading note') }}</div>
+                <button type="button" class="library-link-button" @click="insertReadingNoteIntoManuscript">
+                  {{ t('Insert note into manuscript') }}
+                </button>
+              </div>
+              <textarea
+                v-model="detailReadingNoteInput"
+                class="library-detail-textarea"
+                :placeholder="t('Add a reading note about why this source matters...')"
+              />
+              <div class="library-detail-actions">
+                <button type="button" class="library-inline-button" @click="saveReadingNote">
+                  {{ t('Save note') }}
+                </button>
+              </div>
+            </div>
+
+            <div class="library-detail-section">
+              <div class="library-sidebar-row">
+                <div class="library-section-label">{{ t('Summary') }}</div>
+                <button type="button" class="library-link-button" @click="askAiForSummary">
+                  {{ t('AI summarize') }}
+                </button>
+              </div>
+              <textarea
+                v-model="detailSummaryInput"
+                class="library-detail-textarea"
+                :placeholder="t('Capture the main argument, method, findings, and relevance...')"
+              />
+              <div class="library-detail-actions">
+                <button type="button" class="library-inline-button" @click="saveSummary">
+                  {{ t('Save summary') }}
+                </button>
+              </div>
+            </div>
+
+            <div class="library-detail-section">
+              <div class="library-section-label">{{ t('Research assets') }}</div>
+              <div class="library-stat-grid">
+                <div class="library-stat-card">
+                  <span class="library-section-label">{{ t('PDF annotations') }}</span>
+                  <span class="library-stat-value">{{ activeAnnotationCount }}</span>
+                </div>
+                <div class="library-stat-card">
+                  <span class="library-section-label">{{ t('Research notes') }}</span>
+                  <span class="library-stat-value">{{ activeResearchNoteCount }}</span>
+                </div>
+              </div>
+              <div class="library-detail-actions">
+                <button
+                  v-if="activePdfPath"
+                  type="button"
+                  class="library-inline-button"
+                  @click="openReferencePdf(activeRef._key)"
+                >
+                  {{ t('Continue reading') }}
+                </button>
+                <button
+                  v-if="latestResearchNote"
+                  type="button"
+                  class="library-quiet-button"
+                  @click="insertLatestResearchNote"
+                >
+                  {{ t('Insert latest note') }}
                 </button>
               </div>
             </div>
@@ -399,14 +685,26 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } fr
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
+import { useChatStore } from '../../stores/chat'
+import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import { launchAiTask } from '../../services/ai/launch'
+import {
+  createReferenceCleanupTask,
+  createReferenceClusterTask,
+  createReferenceSummaryTask,
+} from '../../services/ai/taskCatalog'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 
 const ReferenceView = defineAsyncComponent(() => import('../editor/ReferenceView.vue'))
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const researchArtifactsStore = useResearchArtifactsStore()
+const chatStore = useChatStore()
+const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
@@ -416,36 +714,97 @@ const sortKey = ref('added-desc')
 const selectedTags = ref([])
 const selectedKeys = ref([])
 const tagActionInput = ref('')
+const batchTagAction = ref('add')
+const batchCollectionId = ref('')
 const detailTagsInput = ref('')
+const detailSummaryInput = ref('')
+const detailReadingNoteInput = ref('')
 const showImportDialog = ref(false)
 const showDetailMenu = ref(false)
 const detailMenuRef = ref(null)
+const showCollectionComposer = ref(false)
+const showSavedViewComposer = ref(false)
+const newCollectionName = ref('')
+const newSavedViewName = ref('')
 
 const workspaceName = computed(() => workspace.path?.split('/').pop() || t('No workspace'))
 const allRefs = computed(() => referencesStore.globalLibrary || [])
+const collections = computed(() => referencesStore.collections || [])
+const savedViews = computed(() => referencesStore.savedViews || [])
 const selectedKeySet = computed(() => new Set(selectedKeys.value))
 const projectKeySet = computed(() => new Set(referencesStore.workspaceKeys || []))
 const activeKey = computed(() => referencesStore.activeKey || '')
+const activeSavedView = computed(() => {
+  if (!activeView.value.startsWith('preset:')) return null
+  const savedViewId = activeView.value.slice('preset:'.length)
+  return savedViews.value.find((entry) => entry.id === savedViewId) || null
+})
+const resolvedViewId = computed(() => activeSavedView.value?.filters?.viewId || activeView.value)
+const activeCollection = computed(() => {
+  if (!resolvedViewId.value.startsWith('collection:')) return null
+  const collectionId = resolvedViewId.value.slice('collection:'.length)
+  return collections.value.find((entry) => entry.id === collectionId) || null
+})
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
 const hasBatchSelection = computed(() => selectedKeys.value.length > 1)
 const isLibraryLoading = computed(() => referencesStore.loading && allRefs.value.length === 0)
 
-const viewOptions = computed(() => ([
+const collectionCounts = computed(() => {
+  const counts = {}
+  for (const refItem of allRefs.value) {
+    for (const collectionId of refItem._collections || []) {
+      counts[collectionId] = (counts[collectionId] || 0) + 1
+    }
+  }
+  return counts
+})
+
+const primaryViewOptions = computed(() => ([
   { id: 'all', label: t('All references'), count: allRefs.value.length },
   { id: 'project', label: t('Current project'), count: referencesStore.workspaceKeys.length },
+]))
+
+const smartViewOptions = computed(() => ([
+  { id: 'recently-added', label: t('Recently added'), count: allRefs.value.filter((refItem) => isRecentlyAdded(refItem)).length },
   { id: 'with-pdf', label: t('With PDF'), count: allRefs.value.filter((refItem) => !!refItem._pdfFile).length },
+  { id: 'missing-pdf', label: t('Missing PDF'), count: allRefs.value.filter((refItem) => !refItem._pdfFile).length },
   { id: 'needs-review', label: t('Needs review'), count: allRefs.value.filter((refItem) => !!refItem._needsReview).length },
+  { id: 'frequently-cited', label: t('Frequently cited'), count: allRefs.value.filter((refItem) => citationCount(refItem) >= 2).length },
+  { id: 'unread', label: t('Unread'), count: allRefs.value.filter((refItem) => readingState(refItem) === 'unread').length },
+  { id: 'reading', label: t('Reading'), count: allRefs.value.filter((refItem) => readingState(refItem) === 'reading').length },
+  { id: 'reviewed', label: t('Reviewed'), count: allRefs.value.filter((refItem) => readingState(refItem) === 'reviewed').length },
+  { id: 'high-priority', label: t('High priority'), count: allRefs.value.filter((refItem) => priorityState(refItem) === 'high').length },
   { id: 'untagged', label: t('Untagged'), count: allRefs.value.filter((refItem) => !refItem._tags || refItem._tags.length === 0).length },
 ]))
 
 const scopeFilteredRefs = computed(() => {
-  switch (activeView.value) {
+  const viewId = resolvedViewId.value
+  if (viewId.startsWith('collection:')) {
+    const collectionId = viewId.slice('collection:'.length)
+    return allRefs.value.filter((refItem) => (refItem._collections || []).includes(collectionId))
+  }
+
+  switch (viewId) {
     case 'project':
       return allRefs.value.filter((refItem) => projectKeySet.value.has(refItem._key))
+    case 'recently-added':
+      return allRefs.value.filter((refItem) => isRecentlyAdded(refItem))
     case 'with-pdf':
       return allRefs.value.filter((refItem) => !!refItem._pdfFile)
+    case 'missing-pdf':
+      return allRefs.value.filter((refItem) => !refItem._pdfFile)
     case 'needs-review':
       return allRefs.value.filter((refItem) => !!refItem._needsReview)
+    case 'frequently-cited':
+      return allRefs.value.filter((refItem) => citationCount(refItem) >= 2)
+    case 'unread':
+      return allRefs.value.filter((refItem) => readingState(refItem) === 'unread')
+    case 'reading':
+      return allRefs.value.filter((refItem) => readingState(refItem) === 'reading')
+    case 'reviewed':
+      return allRefs.value.filter((refItem) => readingState(refItem) === 'reviewed')
+    case 'high-priority':
+      return allRefs.value.filter((refItem) => priorityState(refItem) === 'high')
     case 'untagged':
       return allRefs.value.filter((refItem) => !refItem._tags || refItem._tags.length === 0)
     case 'all':
@@ -467,6 +826,8 @@ const textFilteredRefs = computed(() => {
       formatAuthors(refItem),
       extractYear(refItem),
       refItem.abstract || '',
+      refItem._summary || '',
+      refItem._readingNote || '',
       ...(refItem._tags || []),
     ].join(' ').toLowerCase()
     return tokens.every((token) => haystack.includes(token))
@@ -528,8 +889,49 @@ const activeCitedCount = computed(() => {
   return referencesStore.citedIn[activeRef.value._key]?.length || 0
 })
 
+const activeCollectionSet = computed(() => new Set(activeRef.value?._collections || []))
+const activeReadingState = computed({
+  get: () => readingState(activeRef.value),
+  set: (value) => {
+    if (!activeRef.value?._key) return
+    referencesStore.setReadingState([activeRef.value._key], value)
+  },
+})
+const activePriority = computed({
+  get: () => priorityState(activeRef.value),
+  set: (value) => {
+    if (!activeRef.value?._key) return
+    referencesStore.setPriority([activeRef.value._key], value)
+  },
+})
+const activeRating = computed({
+  get: () => String(ratingValue(activeRef.value)),
+  set: (value) => {
+    if (!activeRef.value?._key) return
+    referencesStore.setRating([activeRef.value._key], Number(value || 0))
+  },
+})
+const activeAnnotations = computed(() => (
+  activePdfPath.value ? researchArtifactsStore.annotationsForPdf(activePdfPath.value) : []
+))
+const activeAnnotationCount = computed(() => activeAnnotations.value.length)
+const activeResearchNotes = computed(() => {
+  if (!activeRef.value?._key) return []
+  const annotationIds = new Set(activeAnnotations.value.map((entry) => entry.id))
+  return [...researchArtifactsStore.notes]
+    .filter((note) => (
+      (note?.sourceAnnotationId && annotationIds.has(note.sourceAnnotationId))
+      || note?.sourceRef?.referenceKey === activeRef.value._key
+    ))
+    .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))
+})
+const activeResearchNoteCount = computed(() => activeResearchNotes.value.length)
+const latestResearchNote = computed(() => activeResearchNotes.value[0] || null)
+
 watch(activeRef, (refItem) => {
   detailTagsInput.value = (refItem?._tags || []).join(', ')
+  detailSummaryInput.value = refItem?._summary || ''
+  detailReadingNoteInput.value = refItem?._readingNote || ''
   showDetailMenu.value = false
 }, { immediate: true })
 
@@ -554,6 +956,25 @@ watch(allRefs, (refs) => {
   }
 }, { deep: true })
 
+watch(collections, (items) => {
+  const activeCollectionId = activeCollection.value?.id || ''
+  if (activeCollectionId && !items.some((entry) => entry.id === activeCollectionId)) {
+    activeView.value = 'all'
+  }
+  if (batchCollectionId.value && !items.some((entry) => entry.id === batchCollectionId.value)) {
+    batchCollectionId.value = ''
+  }
+}, { deep: true })
+
+watch(savedViews, (items) => {
+  if (!activeSavedView.value && activeView.value.startsWith('preset:')) {
+    activeView.value = 'all'
+  }
+  if (items.length === 0) {
+    showSavedViewComposer.value = false
+  }
+}, { deep: true })
+
 function formatAuthors(refItem = {}) {
   const authors = Array.isArray(refItem.author) ? refItem.author : []
   return authors
@@ -568,6 +989,31 @@ function extractYear(refItem = {}) {
 
 function containerLabel(refItem = {}) {
   return refItem['container-title'] || refItem.publisher || ''
+}
+
+function readingState(refItem = {}) {
+  const value = String(refItem?._readingState || '').trim().toLowerCase()
+  return ['reading', 'reviewed'].includes(value) ? value : 'unread'
+}
+
+function priorityState(refItem = {}) {
+  const value = String(refItem?._priority || '').trim().toLowerCase()
+  return ['low', 'medium', 'high'].includes(value) ? value : ''
+}
+
+function ratingValue(refItem = {}) {
+  const numeric = Number(refItem?._rating || 0)
+  return Number.isFinite(numeric) && numeric >= 1 && numeric <= 5 ? Math.round(numeric) : 0
+}
+
+function citationCount(refItem = {}) {
+  return referencesStore.citedIn[refItem?._key]?.length || 0
+}
+
+function isRecentlyAdded(refItem = {}) {
+  const addedAt = Date.parse(refItem?._addedAt || '')
+  if (!Number.isFinite(addedAt)) return false
+  return Date.now() - addedAt <= 30 * 24 * 60 * 60 * 1000
 }
 
 function parseTags(value = '') {
@@ -585,6 +1031,24 @@ function visibleTags(refItem = {}) {
 
 function hiddenTagCount(refItem = {}) {
   return Math.max(0, (refItem._tags || []).length - 2)
+}
+
+function activateView(viewId) {
+  activeView.value = viewId
+}
+
+function activateCollection(collectionId) {
+  if (!collectionId) return
+  activeView.value = `collection:${collectionId}`
+}
+
+function applySavedView(savedViewId) {
+  const savedView = savedViews.value.find((entry) => entry.id === savedViewId)
+  if (!savedView) return
+  activeView.value = `preset:${savedView.id}`
+  selectedTags.value = [...(savedView.filters?.tags || [])]
+  searchQuery.value = savedView.filters?.searchQuery || ''
+  sortKey.value = savedView.filters?.sortKey || 'added-desc'
 }
 
 function toggleTag(tag) {
@@ -630,6 +1094,20 @@ function clearSelection() {
   selectedKeys.value = []
 }
 
+function toggleCollectionComposer() {
+  showCollectionComposer.value = !showCollectionComposer.value
+  if (!showCollectionComposer.value) {
+    newCollectionName.value = ''
+  }
+}
+
+function toggleSavedViewComposer() {
+  showSavedViewComposer.value = !showSavedViewComposer.value
+  if (!showSavedViewComposer.value) {
+    newSavedViewName.value = ''
+  }
+}
+
 function isInCurrentProject(key) {
   return projectKeySet.value.has(key)
 }
@@ -645,6 +1123,15 @@ function removeSelectionFromWorkspace() {
   referencesStore.removeReferences(selectedKeys.value)
 }
 
+function applyCollectionAction(action = 'add') {
+  if (!batchCollectionId.value || selectedKeys.value.length === 0) return
+  if (action === 'remove') {
+    referencesStore.removeCollectionFromReferences(selectedKeys.value, batchCollectionId.value)
+    return
+  }
+  referencesStore.addCollectionToReferences(selectedKeys.value, batchCollectionId.value)
+}
+
 function toggleProjectMembership(key) {
   if (isInCurrentProject(key)) {
     referencesStore.removeReference(key)
@@ -653,12 +1140,16 @@ function toggleProjectMembership(key) {
   referencesStore.addKeyToWorkspace(key)
 }
 
+function toggleActiveCollection(collectionId) {
+  if (!activeRef.value?._key) return
+  referencesStore.toggleCollectionForReference(activeRef.value._key, collectionId)
+}
+
 function openReferencePdf(key) {
   if (!key) return
   const pdfPath = referencesStore.pdfPathForKey(key)
   if (!pdfPath) return
   editorStore.openFile(pdfPath)
-  workspace.showEditorSurface()
 }
 
 function applyTagAction(action) {
@@ -680,6 +1171,170 @@ function saveDetailTags() {
   referencesStore.replaceTagsForReferences([activeRef.value._key], parseTags(detailTagsInput.value))
 }
 
+function saveSummary() {
+  if (!activeRef.value?._key) return
+  referencesStore.saveReferenceSummary(activeRef.value._key, detailSummaryInput.value)
+}
+
+function saveReadingNote() {
+  if (!activeRef.value?._key) return
+  referencesStore.saveReferenceReadingNote(activeRef.value._key, detailReadingNoteInput.value)
+}
+
+function createCollection() {
+  const result = referencesStore.createCollection(newCollectionName.value)
+  if (!result?.ok) return
+  newCollectionName.value = ''
+  showCollectionComposer.value = false
+  if (result.collection?.id) {
+    activateCollection(result.collection.id)
+  }
+}
+
+async function deleteActiveCollection() {
+  if (!activeCollection.value?.id) return
+  const yes = await ask(
+    t('Delete collection "{name}"?', { name: activeCollection.value.name }),
+    { title: t('Confirm Delete'), kind: 'warning' },
+  )
+  if (!yes) return
+  referencesStore.deleteCollection(activeCollection.value.id)
+}
+
+function createSavedView() {
+  const result = referencesStore.createSavedView({
+    name: newSavedViewName.value,
+    filters: {
+      viewId: resolvedViewId.value,
+      tags: [...selectedTags.value],
+      searchQuery: searchQuery.value,
+      sortKey: sortKey.value,
+    },
+  })
+  if (!result?.ok) return
+  newSavedViewName.value = ''
+  showSavedViewComposer.value = false
+  if (result.savedView?.id) {
+    applySavedView(result.savedView.id)
+  }
+}
+
+async function deleteCurrentSavedView() {
+  if (!activeSavedView.value?.id) return
+  const yes = await ask(
+    t('Delete saved view "{name}"?', { name: activeSavedView.value.name }),
+    { title: t('Confirm Delete'), kind: 'warning' },
+  )
+  if (!yes) return
+  const deletedId = activeSavedView.value.id
+  referencesStore.deleteSavedView(deletedId)
+  if (activeView.value === `preset:${deletedId}`) {
+    activeView.value = 'all'
+  }
+}
+
+async function askAiForSummary() {
+  if (!activeRef.value?._key) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: editorStore.activePaneId || null,
+    beside: true,
+    task: createReferenceSummaryTask({
+      refKey: activeRef.value._key,
+      source: 'library-workbench',
+      entryContext: 'library-workbench',
+    }),
+  })
+}
+
+async function askAiForCleanup() {
+  if (!activeRef.value?._key) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: editorStore.activePaneId || null,
+    beside: true,
+    task: createReferenceCleanupTask({
+      refKeys: [activeRef.value._key],
+      source: 'library-workbench',
+      entryContext: 'library-workbench',
+    }),
+  })
+}
+
+async function clusterSelectedReferences() {
+  if (selectedKeys.value.length < 2) return
+  await launchAiTask({
+    editorStore,
+    chatStore,
+    paneId: editorStore.activePaneId || null,
+    beside: true,
+    task: createReferenceClusterTask({
+      refKeys: selectedKeys.value,
+      source: 'library-workbench',
+      entryContext: 'library-workbench',
+    }),
+  })
+}
+
+function insertReadingNoteIntoManuscript() {
+  if (!activeRef.value?._key) return
+  const notePayload = {
+    quote: detailSummaryInput.value || activeRef.value.abstract || activeRef.value.title || `@${activeRef.value._key}`,
+    comment: detailReadingNoteInput.value,
+    sourceRef: {
+      type: 'reference',
+      referenceKey: activeRef.value._key,
+      pdfPath: activePdfPath.value,
+      page: 0,
+    },
+  }
+  const result = editorStore.insertResearchNoteIntoManuscript(notePayload, null)
+  if (!result?.ok) {
+    toastStore.show(
+      t('Open a text manuscript in another pane to insert this note.'),
+      { type: 'error', duration: 4200 },
+    )
+    return
+  }
+  toastStore.show(t('Inserted note into {name}', {
+    name: result.path?.split('/').pop() || t('current manuscript'),
+  }), {
+    type: 'success',
+    duration: 2400,
+  })
+}
+
+function insertLatestResearchNote() {
+  if (!latestResearchNote.value) return
+  const annotation = latestResearchNote.value.sourceAnnotationId
+    ? researchArtifactsStore.getAnnotation(latestResearchNote.value.sourceAnnotationId)
+    : null
+  const result = editorStore.insertResearchNoteIntoManuscript(latestResearchNote.value, annotation || null)
+  if (!result?.ok) {
+    toastStore.show(
+      t('Open a text manuscript in another pane to insert this note.'),
+      { type: 'error', duration: 4200 },
+    )
+    return
+  }
+  if (latestResearchNote.value.id) {
+    researchArtifactsStore.updateResearchNote(latestResearchNote.value.id, {
+      insertedInto: {
+        path: result.path,
+        insertedAt: new Date().toISOString(),
+      },
+    })
+  }
+  toastStore.show(t('Inserted note into {name}', {
+    name: result.path?.split('/').pop() || t('current manuscript'),
+  }), {
+    type: 'success',
+    duration: 2400,
+  })
+}
+
 async function deleteActiveReferenceGlobally() {
   if (!activeRef.value?._key) return
   showDetailMenu.value = false
@@ -693,7 +1348,7 @@ async function deleteActiveReferenceGlobally() {
 }
 
 function returnToWorkspace() {
-  workspace.showEditorSurface()
+  editorStore.closeLibrarySurface('global')
 }
 
 function onDocumentMousedown(event) {
@@ -782,6 +1437,7 @@ onUnmounted(() => {
 
 .library-sidebar-row,
 .library-filter-row,
+.library-toolbar-row,
 .library-batch-actions,
 .library-detail-toolbar,
 .library-detail-actions,
@@ -889,6 +1545,12 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.library-sidebar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .library-sidebar-workspace-name {
   font-size: 14px;
   line-height: 1.2;
@@ -912,7 +1574,7 @@ onUnmounted(() => {
 }
 
 .library-search-shell {
-  flex: 1;
+  flex: 1 1 320px;
   min-width: 220px;
 }
 
@@ -966,6 +1628,21 @@ onUnmounted(() => {
 .library-batch-actions .library-batch-input {
   flex: 1;
   min-width: 180px;
+}
+
+.library-batch-select {
+  width: 132px;
+  flex: 0 0 auto;
+}
+
+.library-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.library-inline-form .library-batch-input {
+  flex: 1;
 }
 
 .library-menu-wrap {
@@ -1060,6 +1737,8 @@ onUnmounted(() => {
 .library-filter-chip {
   height: 28px;
   padding: 0 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .library-nav-item:hover,
@@ -1088,6 +1767,36 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--accent) 10%, var(--bg-hover));
   border-color: transparent;
   border-left-color: var(--accent);
+  color: var(--accent);
+}
+
+.library-collection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.library-collection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--fg-secondary);
+  transition: background-color 120ms, border-color 120ms, color 120ms;
+}
+
+.library-collection-row:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.library-collection-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   color: var(--accent);
 }
 
@@ -1256,12 +1965,13 @@ onUnmounted(() => {
 .library-pane-header,
 .library-editor-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   min-height: 28px;
   padding: 8px 12px;
   background: var(--bg-secondary);
+  flex-wrap: wrap;
 }
 
 .library-detail-inner {
@@ -1301,8 +2011,53 @@ onUnmounted(() => {
   align-items: start;
 }
 
+.library-detail-grid.workflow {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
 .library-detail-value {
   overflow-wrap: anywhere;
+}
+
+.library-detail-select {
+  width: 100%;
+}
+
+.library-detail-textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--fg-primary);
+  resize: vertical;
+  outline: none;
+  line-height: 1.45;
+}
+
+.library-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.library-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 58px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+
+.library-stat-value {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--fg-primary);
+  font-weight: 650;
 }
 
 .library-abstract {
@@ -1323,11 +2078,25 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 360px;
 }
 
 .library-editor-title {
   font-size: 15px;
   line-height: 1.3;
+  min-width: 0;
+  flex: 1 1 320px;
+  overflow-wrap: anywhere;
+}
+
+.library-editor-title-row {
+  align-items: flex-start;
+}
+
+.library-editor-actions,
+.library-detail-toolbar {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .library-editor-surface {
@@ -1384,6 +2153,15 @@ onUnmounted(() => {
 
   .library-editor-stage {
     grid-column: auto;
+  }
+
+  .library-inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .library-stat-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

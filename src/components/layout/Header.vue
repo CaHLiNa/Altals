@@ -9,9 +9,9 @@
         type="button"
         class="h-6 px-2.5 rounded-md border flex items-center gap-1.5 transition-colors"
         :style="{
-          background: libraryPaneOpen ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'var(--bg-primary)',
-          borderColor: libraryPaneOpen ? 'color-mix(in srgb, var(--accent) 50%, var(--border))' : 'var(--border)',
-          color: libraryPaneOpen ? 'var(--accent)' : 'var(--fg-secondary)',
+          background: librarySurfaceOpen ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'var(--bg-primary)',
+          borderColor: librarySurfaceOpen ? 'color-mix(in srgb, var(--accent) 50%, var(--border))' : 'var(--border)',
+          color: librarySurfaceOpen ? 'var(--accent)' : 'var(--fg-secondary)',
         }"
         :title="t('Open global library')"
         @click="openLibrary"
@@ -182,7 +182,8 @@ const searchFocused = ref(false)
 const showResults = computed(() => searchFocused.value || query.value.length > 0)
 const aiLauncherOpen = computed(() => aiDrawer.open)
 const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close AI') : t('Open AI')))
-const libraryPaneOpen = computed(() => workspace.globalLibraryOpen)
+const librarySurfacePath = 'library:global'
+const librarySurfaceOpen = computed(() => !!editorStore.findPaneWithTab(librarySurfacePath))
 
 const searchPlaceholder = computed(() => t('Go to file...'))
 
@@ -223,22 +224,21 @@ function onSearchKeydown(e) {
 }
 
 function onSelectFile(path) {
-  workspace.closeGlobalLibrary()
   editorStore.openFile(path)
   query.value = ''
   searchInputRef.value?.blur()
 }
 
 function onSelectCitation(key) {
-  workspace.closeGlobalLibrary()
-  const pane = editorStore.activePane
-  if (pane?.activeTab) {
-    const view = editorStore.getEditorView(pane.id, pane.activeTab)
+  const target = editorStore.findPreferredResearchInsertTarget()
+  if (target?.path) {
+    referencesStore.addKeyToWorkspace(key)
+    editorStore.openFileInPane(target.path, target.paneId, { activatePane: true, replaceNewTab: false })
+    const view = editorStore.getEditorView(target.paneId, target.path)
     if (view) {
-      referencesStore.addKeyToWorkspace(key)
       insertCitationWithAssist({
         view,
-        filePath: pane.activeTab,
+        filePath: target.path,
         keys: key,
         t,
         toastStore,
@@ -262,7 +262,7 @@ function handleOpenAi() {
 
 function openLibrary() {
   if (!workspace.isOpen) return
-  workspace.toggleGlobalLibrary()
+  editorStore.toggleLibrarySurface('global')
 }
 
 async function waitForEditorView(targetPath) {
@@ -281,7 +281,6 @@ async function onSelectTypstSymbol(symbol) {
   const filePath = String(symbol?.filePath || '')
   if (!filePath) return
 
-  workspace.closeGlobalLibrary()
   editorStore.openFile(filePath)
   const targetView = await waitForEditorView(filePath)
   if (targetView) {

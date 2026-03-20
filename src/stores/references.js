@@ -4,17 +4,21 @@ import { listen } from '@tauri-apps/api/event'
 import { setUserStyles } from '../services/citationStyleRegistry'
 import { events } from '../services/telemetry'
 import { useWorkspaceStore } from './workspace'
+import { useEditorStore } from './editor'
 import { useFilesStore } from './files'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { buildReferenceKey } from '../utils/referenceKeys'
 import {
+  createEmptyGlobalReferenceWorkbench,
   createEmptyWorkspaceReferenceCollection,
+  parseGlobalReferenceWorkbench,
   parseWorkspaceReferenceCollection,
   resolveGlobalReferenceFulltextPath,
   resolveGlobalReferenceLibraryPath,
   resolveGlobalReferencePdfPath,
   resolveGlobalReferencePdfsDir,
   resolveGlobalReferencesDir,
+  resolveGlobalReferenceWorkbenchPath,
   resolveGlobalReferenceFulltextDir,
   resolveLegacyWorkspaceReferenceFulltextDir,
   resolveLegacyWorkspaceReferenceLibraryPath,
@@ -45,6 +49,13 @@ function normalizeAuthorToken(author = {}) {
 }
 
 const EDITABLE_REFERENCE_KEY_RE = /^[A-Za-z][A-Za-z0-9:_.-]*$/
+const VALID_LIBRARY_SORT_KEYS = new Set(['added-desc', 'year-desc', 'year-asc', 'title-asc', 'author-asc'])
+const VALID_READING_STATES = new Set(['unread', 'reading', 'reviewed'])
+const VALID_PRIORITY_LEVELS = new Set(['low', 'medium', 'high'])
+
+function createWorkbenchId(prefix = 'id') {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
 
 function normalizeEditableReferenceKey(value) {
   return String(value || '')
@@ -59,6 +70,36 @@ function normalizeReferenceTags(tags = []) {
       .map((tag) => String(tag || '').trim())
       .filter(Boolean)
   ))
+}
+
+function normalizeReferenceCollections(collections = []) {
+  const raw = Array.isArray(collections) ? collections : String(collections || '').split(',')
+  return Array.from(new Set(
+    raw
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+  ))
+}
+
+function normalizeReadingState(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  return VALID_READING_STATES.has(normalized) ? normalized : ''
+}
+
+function normalizePriority(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  return VALID_PRIORITY_LEVELS.has(normalized) ? normalized : ''
+}
+
+function normalizeRating(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  const rounded = Math.round(numeric)
+  return rounded >= 1 && rounded <= 5 ? rounded : 0
+}
+
+function normalizeWorkflowText(value) {
+  return String(value || '').trim()
 }
 
 function issuedYear(ref = {}) {
@@ -89,6 +130,107 @@ function mergeableFieldNames(existing = {}, incoming = {}) {
 
 function referenceKey(ref = {}) {
   return ref?._key || ref?.id || null
+}
+
+function sanitizeReferenceRecord(ref = {}) {
+  const next = cloneValue(ref) || {}
+  const tags = normalizeReferenceTags(next._tags || [])
+  const collections = normalizeReferenceCollections(next._collections || [])
+  const readingState = normalizeReadingState(next._readingState)
+  const priority = normalizePriority(next._priority)
+  const rating = normalizeRating(next._rating)
+  const summary = normalizeWorkflowText(next._summary)
+  const readingNote = normalizeWorkflowText(next._readingNote)
+
+  if (tags.length > 0) next._tags = tags
+  else delete next._tags
+
+  if (collections.length > 0) next._collections = collections
+  else delete next._collections
+
+  if (readingState) next._readingState = readingState
+  else delete next._readingState
+
+  if (priority) next._priority = priority
+  else delete next._priority
+
+  if (rating > 0) next._rating = rating
+  else delete next._rating
+
+  if (summary) next._summary = summary
+  else delete next._summary
+
+  if (readingNote) next._readingNote = readingNote
+  else delete next._readingNote
+
+  return next
+}
+
+function normalizeWorkbenchCollection(entry = {}, seenIds = new Set()) {
+  const name = String(entry?.name || '').trim()
+  if (!name) return null
+  const preferredId = String(entry?.id || '').trim()
+  let id = preferredId || createWorkbenchId('collection')
+  while (seenIds.has(id)) {
+    id = createWorkbenchId('collection')
+  }
+  seenIds.add(id)
+  const now = new Date().toISOString()
+  return {
+    id,
+    name,
+    createdAt: String(entry?.createdAt || now),
+    updatedAt: String(entry?.updatedAt || entry?.createdAt || now),
+  }
+}
+
+function normalizeSavedViewFilters(filters = {}) {
+  const viewId = String(filters?.viewId || 'all').trim() || 'all'
+  return {
+    viewId,
+    tags: normalizeReferenceTags(filters?.tags || []),
+    searchQuery: String(filters?.searchQuery || '').trim(),
+    sortKey: VALID_LIBRARY_SORT_KEYS.has(String(filters?.sortKey || '').trim())
+      ? String(filters.sortKey).trim()
+      : 'added-desc',
+  }
+}
+
+function normalizeWorkbenchSavedView(entry = {}, seenIds = new Set()) {
+  const name = String(entry?.name || '').trim()
+  if (!name) return null
+  const preferredId = String(entry?.id || '').trim()
+  let id = preferredId || createWorkbenchId('view')
+  while (seenIds.has(id)) {
+    id = createWorkbenchId('view')
+  }
+  seenIds.add(id)
+  const now = new Date().toISOString()
+  return {
+    id,
+    name,
+    filters: normalizeSavedViewFilters(entry?.filters || {}),
+    createdAt: String(entry?.createdAt || now),
+    updatedAt: String(entry?.updatedAt || entry?.createdAt || now),
+  }
+}
+
+function sanitizeWorkbenchState(payload = createEmptyGlobalReferenceWorkbench()) {
+  const collectionIds = new Set()
+  const savedViewIds = new Set()
+  const collections = (payload?.collections || [])
+    .map((entry) => normalizeWorkbenchCollection(entry, collectionIds))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const savedViews = (payload?.savedViews || [])
+    .map((entry) => normalizeWorkbenchSavedView(entry, savedViewIds))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return {
+    version: Number(payload?.version) || 1,
+    collections,
+    savedViews,
+  }
 }
 
 function buildKeyMapFromList(list = []) {
@@ -213,6 +355,8 @@ export const useReferencesStore = defineStore('references', {
     globalLibrary: [],
     globalKeyMap: {},
     workspaceKeys: [],
+    collections: [],
+    savedViews: [],
     initialized: false,
     loading: false,
     activeKey: null,
@@ -353,6 +497,13 @@ export const useReferencesStore = defineStore('references', {
           let workspaceCollection = await readWorkspaceReferenceCollection(resolveWorkspaceReferenceCollectionPath(context.projectDir))
           if (this._isLoadStale(context)) return
 
+          const workbenchState = sanitizeWorkbenchState(
+            parseGlobalReferenceWorkbench(
+              await readFileIfExists(resolveGlobalReferenceWorkbenchPath(context.globalConfigDir))
+            )
+          )
+          if (this._isLoadStale(context)) return
+
           const migration = await this._migrateLegacyWorkspaceData(context, {
             globalLibrary,
             workspaceKeys: workspaceCollection.keys,
@@ -364,9 +515,24 @@ export const useReferencesStore = defineStore('references', {
             ...workspaceCollection,
             keys: migration.workspaceKeys,
           }
+          const validCollectionIds = new Set(workbenchState.collections.map((entry) => entry.id))
+          globalLibrary = globalLibrary
+            .map((ref) => {
+              const nextRef = sanitizeReferenceRecord(ref)
+              if (validCollectionIds.size > 0 && Array.isArray(nextRef._collections)) {
+                nextRef._collections = nextRef._collections.filter((id) => validCollectionIds.has(id))
+                if (nextRef._collections.length === 0) delete nextRef._collections
+              } else {
+                delete nextRef._collections
+              }
+              return nextRef
+            })
+            .filter((ref) => !!referenceKey(ref))
 
           this.globalLibrary = globalLibrary
           this.globalKeyMap = buildKeyMapFromList(globalLibrary)
+          this.collections = workbenchState.collections
+          this.savedViews = workbenchState.savedViews
           const workspaceView = buildWorkspaceLibrary(globalLibrary, this.globalKeyMap, workspaceCollection.keys)
           this.library = workspaceView.library
           this.workspaceKeys = workspaceView.keys
@@ -389,6 +555,8 @@ export const useReferencesStore = defineStore('references', {
           if (!Array.isArray(this.globalLibrary) || this.globalLibrary.length === 0) {
             this.globalLibrary = []
             this.globalKeyMap = {}
+            this.collections = []
+            this.savedViews = []
           } else {
             this.globalKeyMap = buildKeyMapFromList(this.globalLibrary)
           }
@@ -474,12 +642,22 @@ export const useReferencesStore = defineStore('references', {
       if (!context?.projectDir || !context?.globalConfigDir) return
 
       const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workbenchStatePath = resolveGlobalReferenceWorkbenchPath(context.globalConfigDir)
       const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
       try {
         this._markSelfWrite(globalLibraryPath)
         await invoke('write_file', {
           path: globalLibraryPath,
           content: JSON.stringify(this.globalLibrary, null, 2),
+        })
+        this._markSelfWrite(workbenchStatePath)
+        await invoke('write_file', {
+          path: workbenchStatePath,
+          content: JSON.stringify({
+            ...createEmptyGlobalReferenceWorkbench(),
+            collections: this.collections,
+            savedViews: this.savedViews,
+          }, null, 2),
         })
         this._markSelfWrite(workspaceCollectionPath)
         await invoke('write_file', {
@@ -499,11 +677,16 @@ export const useReferencesStore = defineStore('references', {
       if (this._unlisten) this._unlisten()
 
       const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workbenchStatePath = resolveGlobalReferenceWorkbenchPath(context.globalConfigDir)
       const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
       this._unlisten = await listen('fs-change', async (event) => {
         if (!this._matchesWorkspaceContext(context)) return
         const paths = event.payload?.paths || []
-        const relevant = paths.filter((path) => path === globalLibraryPath || path === workspaceCollectionPath)
+        const relevant = paths.filter((path) => (
+          path === globalLibraryPath
+          || path === workspaceCollectionPath
+          || path === workbenchStatePath
+        ))
         if (relevant.length === 0) return
 
         let needsReload = false
@@ -532,6 +715,8 @@ export const useReferencesStore = defineStore('references', {
       if (!preserveGlobalLibrary) {
         this.globalLibrary = []
         this.globalKeyMap = {}
+        this.collections = []
+        this.savedViews = []
       }
       this.workspaceKeys = []
       this._selfWriteCounts = {}
@@ -601,6 +786,7 @@ export const useReferencesStore = defineStore('references', {
       const globalPdfsDir = resolveGlobalReferencePdfsDir(context.globalConfigDir)
       const globalFulltextDir = resolveGlobalReferenceFulltextDir(context.globalConfigDir)
       const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
+      const workbenchStatePath = resolveGlobalReferenceWorkbenchPath(context.globalConfigDir)
       const workspaceRefsDir = resolveWorkspaceReferencesDir(context.projectDir)
       const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
 
@@ -614,6 +800,14 @@ export const useReferencesStore = defineStore('references', {
         await invoke('write_file', {
           path: globalLibraryPath,
           content: '[]',
+        })
+      }
+
+      const workbenchStateExists = await invoke('path_exists', { path: workbenchStatePath }).catch(() => false)
+      if (!workbenchStateExists) {
+        await invoke('write_file', {
+          path: workbenchStatePath,
+          content: JSON.stringify(createEmptyGlobalReferenceWorkbench(), null, 2),
         })
       }
 
@@ -775,6 +969,210 @@ export const useReferencesStore = defineStore('references', {
       return 1
     },
 
+    _commitWorkbenchMutations(changed = false) {
+      if (!changed) return 0
+      this.saveLibrary()
+      return 1
+    },
+
+    createCollection(nameRaw = '') {
+      const name = String(nameRaw || '').trim()
+      if (!name) return { ok: false, error: 'Collection name is required.' }
+
+      const existing = this.collections.find((entry) => entry.name.toLowerCase() === name.toLowerCase())
+      if (existing) {
+        return { ok: true, collection: existing, duplicated: true }
+      }
+
+      const now = new Date().toISOString()
+      const collection = {
+        id: createWorkbenchId('collection'),
+        name,
+        createdAt: now,
+        updatedAt: now,
+      }
+      this.collections = [...this.collections, collection].sort((a, b) => a.name.localeCompare(b.name))
+      this.saveLibrary()
+      return { ok: true, collection, duplicated: false }
+    },
+
+    deleteCollection(collectionId = '') {
+      const id = String(collectionId || '').trim()
+      if (!id) return false
+      const exists = this.collections.some((entry) => entry.id === id)
+      if (!exists) return false
+
+      this.collections = this.collections.filter((entry) => entry.id !== id)
+      let changed = false
+      for (const refItem of this.globalLibrary) {
+        const current = normalizeReferenceCollections(refItem._collections || [])
+        if (!current.includes(id)) continue
+        const nextCollections = current.filter((item) => item !== id)
+        if (nextCollections.length > 0) refItem._collections = nextCollections
+        else delete refItem._collections
+        changed = true
+      }
+      this.savedViews = this.savedViews.map((view) => {
+        if (view.filters?.viewId !== `collection:${id}`) return view
+        return {
+          ...view,
+          filters: normalizeSavedViewFilters({
+            ...view.filters,
+            viewId: 'all',
+          }),
+          updatedAt: new Date().toISOString(),
+        }
+      })
+      this._commitGlobalReferenceMutations(changed)
+      this.saveLibrary()
+      return true
+    },
+
+    addCollectionToReferences(keys = [], collectionId = '') {
+      const id = String(collectionId || '').trim()
+      if (!id || !this.collections.some((entry) => entry.id === id)) return 0
+
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const current = normalizeReferenceCollections(this.globalLibrary[idx]._collections || [])
+        if (current.includes(id)) continue
+        this.globalLibrary[idx]._collections = [...current, id]
+        changed = true
+      }
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    removeCollectionFromReferences(keys = [], collectionId = '') {
+      const id = String(collectionId || '').trim()
+      if (!id) return 0
+
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const current = normalizeReferenceCollections(this.globalLibrary[idx]._collections || [])
+        if (!current.includes(id)) continue
+        const nextCollections = current.filter((item) => item !== id)
+        if (nextCollections.length > 0) this.globalLibrary[idx]._collections = nextCollections
+        else delete this.globalLibrary[idx]._collections
+        changed = true
+      }
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    toggleCollectionForReference(key, collectionId = '') {
+      const id = String(collectionId || '').trim()
+      if (!id) return false
+      const idx = this.globalKeyMap[key]
+      if (idx === undefined) return false
+      const current = normalizeReferenceCollections(this.globalLibrary[idx]._collections || [])
+      if (current.includes(id)) {
+        return this.removeCollectionFromReferences([key], id) > 0
+      }
+      return this.addCollectionToReferences([key], id) > 0
+    },
+
+    createSavedView({ name = '', filters = {} } = {}) {
+      const nextName = String(name || '').trim()
+      if (!nextName) return { ok: false, error: 'Saved view name is required.' }
+
+      const existing = this.savedViews.find((entry) => entry.name.toLowerCase() === nextName.toLowerCase())
+      if (existing) {
+        return { ok: true, savedView: existing, duplicated: true }
+      }
+
+      const now = new Date().toISOString()
+      const savedView = {
+        id: createWorkbenchId('view'),
+        name: nextName,
+        filters: normalizeSavedViewFilters(filters),
+        createdAt: now,
+        updatedAt: now,
+      }
+      this.savedViews = [...this.savedViews, savedView].sort((a, b) => a.name.localeCompare(b.name))
+      this.saveLibrary()
+      return { ok: true, savedView, duplicated: false }
+    },
+
+    deleteSavedView(savedViewId = '') {
+      const id = String(savedViewId || '').trim()
+      if (!id) return false
+      const nextViews = this.savedViews.filter((entry) => entry.id !== id)
+      if (nextViews.length === this.savedViews.length) return false
+      this.savedViews = nextViews
+      this.saveLibrary()
+      return true
+    },
+
+    setReadingState(keys = [], state = '') {
+      const normalizedState = normalizeReadingState(state)
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        if ((this.globalLibrary[idx]._readingState || '') === normalizedState) continue
+        if (normalizedState) this.globalLibrary[idx]._readingState = normalizedState
+        else delete this.globalLibrary[idx]._readingState
+        changed = true
+      }
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    setPriority(keys = [], priority = '') {
+      const normalizedPriority = normalizePriority(priority)
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        if ((this.globalLibrary[idx]._priority || '') === normalizedPriority) continue
+        if (normalizedPriority) this.globalLibrary[idx]._priority = normalizedPriority
+        else delete this.globalLibrary[idx]._priority
+        changed = true
+      }
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    setRating(keys = [], rating = 0) {
+      const normalizedRating = normalizeRating(rating)
+      let changed = false
+      for (const key of new Set((keys || []).filter(Boolean))) {
+        const idx = this.globalKeyMap[key]
+        if (idx === undefined) continue
+        const currentRating = normalizeRating(this.globalLibrary[idx]._rating)
+        if (currentRating === normalizedRating) continue
+        if (normalizedRating > 0) this.globalLibrary[idx]._rating = normalizedRating
+        else delete this.globalLibrary[idx]._rating
+        changed = true
+      }
+      return this._commitGlobalReferenceMutations(changed)
+    },
+
+    saveReferenceSummary(key, summary = '') {
+      const idx = this.globalKeyMap[key]
+      if (idx === undefined) return false
+      const normalizedSummary = normalizeWorkflowText(summary)
+      if ((this.globalLibrary[idx]._summary || '') === normalizedSummary) return false
+      if (normalizedSummary) this.globalLibrary[idx]._summary = normalizedSummary
+      else delete this.globalLibrary[idx]._summary
+      this._syncWorkspaceView()
+      this.saveLibrary()
+      return true
+    },
+
+    saveReferenceReadingNote(key, note = '') {
+      const idx = this.globalKeyMap[key]
+      if (idx === undefined) return false
+      const normalizedNote = normalizeWorkflowText(note)
+      if ((this.globalLibrary[idx]._readingNote || '') === normalizedNote) return false
+      if (normalizedNote) this.globalLibrary[idx]._readingNote = normalizedNote
+      else delete this.globalLibrary[idx]._readingNote
+      this._syncWorkspaceView()
+      this.saveLibrary()
+      return true
+    },
+
     addTagsToReferences(keys = [], tags = []) {
       const normalizedTags = normalizeReferenceTags(tags)
       if (normalizedTags.length === 0) return 0
@@ -911,8 +1309,8 @@ export const useReferencesStore = defineStore('references', {
       }
       this.activeKey = key
       this.libraryDetailMode = mode === 'edit' ? 'edit' : 'browse'
-      const workspace = useWorkspaceStore()
-      workspace.openGlobalLibrary?.()
+      const editorStore = useEditorStore()
+      editorStore.openLibrarySurface('global')
       return true
     },
 

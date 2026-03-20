@@ -49,13 +49,6 @@
               @editor-stats="onEditorStats"
             />
             <div
-              v-show="workspace.globalLibraryOpen"
-              class="absolute inset-0 z-10"
-              :style="{ background: 'var(--bg-primary)' }"
-            >
-              <GlobalLibraryWorkbench class="h-full" />
-            </div>
-            <div
               v-if="workspace.rightSidebarOpen"
               class="absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
             >
@@ -166,7 +159,6 @@ const Settings = defineAsyncComponent(() => import('./components/settings/Settin
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
 const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
-const GlobalLibraryWorkbench = defineAsyncComponent(() => import('./components/library/GlobalLibraryWorkbench.vue'))
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -353,8 +345,6 @@ async function openWorkspace(path, options = {}) {
     scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
       const restored = await editorStore.restoreEditorState()
       if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      const { activeLibraryTab } = editorStore.extractLibraryTabs()
-      workspace.toggleGlobalLibrary(activeLibraryTab)
       if (!restored && editorStore.allOpenFiles.size === 0) {
         editorStore.openNewTab()
       }

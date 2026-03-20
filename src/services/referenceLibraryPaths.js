@@ -1,4 +1,5 @@
 export const WORKSPACE_REFERENCE_COLLECTION_VERSION = 1
+export const GLOBAL_REFERENCE_WORKBENCH_VERSION = 1
 
 export function resolveGlobalReferencesDir(globalConfigDir = '') {
   return globalConfigDir ? `${globalConfigDir}/references` : ''
@@ -7,6 +8,11 @@ export function resolveGlobalReferencesDir(globalConfigDir = '') {
 export function resolveGlobalReferenceLibraryPath(globalConfigDir = '') {
   const dir = resolveGlobalReferencesDir(globalConfigDir)
   return dir ? `${dir}/library.json` : ''
+}
+
+export function resolveGlobalReferenceWorkbenchPath(globalConfigDir = '') {
+  const dir = resolveGlobalReferencesDir(globalConfigDir)
+  return dir ? `${dir}/workbench.json` : ''
 }
 
 export function resolveGlobalReferencePdfsDir(globalConfigDir = '') {
@@ -60,6 +66,14 @@ export function createEmptyWorkspaceReferenceCollection() {
   }
 }
 
+export function createEmptyGlobalReferenceWorkbench() {
+  return {
+    version: GLOBAL_REFERENCE_WORKBENCH_VERSION,
+    collections: [],
+    savedViews: [],
+  }
+}
+
 export function parseWorkspaceReferenceCollection(content = '') {
   if (!content) return createEmptyWorkspaceReferenceCollection()
 
@@ -72,5 +86,20 @@ export function parseWorkspaceReferenceCollection(content = '') {
     }
   } catch {
     return createEmptyWorkspaceReferenceCollection()
+  }
+}
+
+export function parseGlobalReferenceWorkbench(content = '') {
+  if (!content) return createEmptyGlobalReferenceWorkbench()
+
+  try {
+    const data = JSON.parse(content)
+    return {
+      version: Number(data?.version) || GLOBAL_REFERENCE_WORKBENCH_VERSION,
+      collections: Array.isArray(data?.collections) ? data.collections : [],
+      savedViews: Array.isArray(data?.savedViews) ? data.savedViews : [],
+    }
+  } catch {
+    return createEmptyGlobalReferenceWorkbench()
   }
 }

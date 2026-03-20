@@ -21,6 +21,10 @@ function isLauncherTab(path) {
   return isNewTab(path) || isAiLauncher(path)
 }
 
+function libraryPathForView(viewId = 'global') {
+  return `library:${viewId || 'global'}`
+}
+
 function isContextCandidatePath(path) {
   return !!path
     && !isChatTab(path)
@@ -305,6 +309,47 @@ export const useEditorStore = defineStore('editor', {
       if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
       this._revealInTree(path)
       this.saveEditorState()
+    },
+
+    openLibrarySurface(viewId = 'global') {
+      const tabPath = libraryPathForView(viewId)
+      const existingPane = this.findPaneWithTab(tabPath)
+      if (existingPane) {
+        existingPane.activeTab = tabPath
+        this.activePaneId = existingPane.id
+        this.saveEditorState()
+        return existingPane.id
+      }
+
+      this.openFile(tabPath)
+      return this.findPaneWithTab(tabPath)?.id || null
+    },
+
+    closeLibrarySurface(viewId = 'global') {
+      const tabPath = libraryPathForView(viewId)
+      const existingPane = this.findPaneWithTab(tabPath)
+      if (!existingPane) return false
+      this.closeTab(existingPane.id, tabPath)
+      return true
+    },
+
+    toggleLibrarySurface(viewId = 'global') {
+      const tabPath = libraryPathForView(viewId)
+      const existingPane = this.findPaneWithTab(tabPath)
+      if (!existingPane) {
+        this.openLibrarySurface(viewId)
+        return true
+      }
+
+      if (existingPane.id === this.activePaneId && existingPane.activeTab === tabPath) {
+        this.closeTab(existingPane.id, tabPath)
+        return false
+      }
+
+      existingPane.activeTab = tabPath
+      this.activePaneId = existingPane.id
+      this.saveEditorState()
+      return true
     },
 
     _revealInTree(path) {
@@ -800,20 +845,6 @@ export const useEditorStore = defineStore('editor', {
         this.closeTab(pane.id, path)
       }
       this.clearFileDirty(path)
-    },
-
-    extractLibraryTabs() {
-      const libraryTabs = [...this.allOpenFiles].filter(isLibraryPath)
-      if (libraryTabs.length === 0) {
-        return { hadLibraryTabs: false, activeLibraryTab: false }
-      }
-
-      const activeLibraryTab = isLibraryPath(this.activeTab)
-      for (const path of libraryTabs) {
-        this.closeFileFromAllPanes(path)
-      }
-
-      return { hadLibraryTabs: true, activeLibraryTab }
     },
 
     switchTab(delta) {
