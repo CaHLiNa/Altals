@@ -272,6 +272,8 @@ const ZH_MESSAGES = {
   'Retry': '重试',
   'Repository': '仓库',
   'Disconnect': '断开连接',
+  'Switch Account': '切换账号',
+  'Switching account...': '切换账号中...',
   'Unlink': '取消关联',
   'Sync Now': '立即同步',
   'Create New Repository': '创建新仓库',

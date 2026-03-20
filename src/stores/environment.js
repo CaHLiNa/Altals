@@ -76,12 +76,6 @@ export const useEnvironmentStore = defineStore('environment', {
   },
 
   actions: {
-    _isWindows() {
-      if (typeof navigator === 'undefined') return false
-      const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
-      return /win/i.test(platform)
-    },
-
     _stdoutOnly(output) {
       const text = String(output || '')
       const marker = '\n--- stderr ---\n'
@@ -99,21 +93,10 @@ export const useEnvironmentStore = defineStore('environment', {
       return idx >= 0 ? text.slice(idx + marker.length).trim() : stdout
     },
 
-    _firstOutputLine(output) {
-      return String(output || '')
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .find(Boolean) || ''
-    },
-
     async _detectCommandPath(cmd, fallbackCmd = null) {
       const candidates = [cmd, fallbackCmd].filter(Boolean)
       for (const candidate of candidates) {
-        const query = this._isWindows()
-          ? `where.exe ${candidate} 2>NUL`
-          : `command -v ${candidate} 2>/dev/null`
-        const output = await this._run(query)
-        const path = this._firstOutputLine(this._stdoutOnly(output))
+        const path = await invoke('resolve_command_path', { command: candidate }).catch(() => '')
         if (path) return path
       }
       return ''
@@ -190,38 +173,6 @@ export const useEnvironmentStore = defineStore('environment', {
       }
     },
 
-    /** Detect a language binary on PATH */
-    async _detectLang(cmd, fallbackCmd, versionRegex) {
-      const result = { found: false, path: null, version: null }
-      try {
-        const path = await this._detectCommandPath(cmd, fallbackCmd)
-        if (!path) return result
-        result.found = true
-        result.path = path
-
-        const verOut = await this._run(`${this._quoteShell(path)} --version 2>&1`)
-        const vMatch = this._primaryOutputText(verOut).match(versionRegex)
-        if (vMatch) result.version = vMatch[1]
-      } catch { /* not found */ }
-      return result
-    },
-
-    /** Detect jupyter command */
-    async _detectJupyter() {
-      const result = { found: false, path: null, version: null }
-      try {
-        const path = await this._detectCommandPath('jupyter')
-        if (!path) return result
-        result.found = true
-        result.path = path
-
-        const verOut = await this._run('jupyter --version 2>&1')
-        const match = this._primaryOutputText(verOut).match(/jupyter_core\s*:\s*(\d+\.\d+\.\d+)/)
-        if (match) result.version = match[1]
-      } catch { /* not found */ }
-      return result
-    },
-
     /** Parse `jupyter kernelspec list` output into [{name, display, path}] */
     async _detectKernels() {
       try {
@@ -247,10 +198,60 @@ export const useEnvironmentStore = defineStore('environment', {
       }
     },
 
+    async _runProgram(program, args = []) {
+      try {
+        const workspace = useWorkspaceStore()
+        const cwd = workspace.path || workspace.globalConfigDir || await invoke('get_global_config_dir').catch(() => '.')
+        return await invoke('run_program_capture', {
+          request: {
+            program,
+            args,
+            cwd,
+          },
+        })
+      } catch {
+        return ''
+      }
+    },
+
+    async _detectLang(cmd, fallbackCmd, versionRegex) {
+      const result = { found: false, path: null, version: null }
+      try {
+        const path = await this._detectCommandPath(cmd, fallbackCmd)
+        if (!path) return result
+        result.found = true
+        result.path = path
+
+        const verOut = await this._runProgram(path, ['--version'])
+        const vMatch = this._primaryOutputText(verOut).match(versionRegex)
+        if (vMatch) result.version = vMatch[1]
+      } catch { /* not found */ }
+      return result
+    },
+
+    /** Detect jupyter command */
+    async _detectJupyter() {
+      const result = { found: false, path: null, version: null }
+      try {
+        const path = await this._detectCommandPath('jupyter')
+        if (!path) return result
+        result.found = true
+        result.path = path
+
+        const verOut = await this._runProgram(path, ['--version'])
+        const match = this._primaryOutputText(verOut).match(/jupyter_core\s*:\s*(\d+\.\d+\.\d+)/)
+        if (match) result.version = match[1]
+      } catch { /* not found */ }
+      return result
+    },
+
     _quoteShell(value) {
       const text = String(value)
-      if (this._isWindows()) {
-        return `"${text.replace(/"/g, '\\"').replace(/%/g, '%%')}"`
+      if (typeof navigator !== 'undefined') {
+        const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
+        if (/win/i.test(platform)) {
+          return `"${text.replace(/"/g, '\\"').replace(/%/g, '%%')}"`
+        }
       }
       return `'${text.replace(/'/g, `'\"'\"'`)}'`
     },
@@ -306,13 +307,12 @@ export const useEnvironmentStore = defineStore('environment', {
       const exists = await invoke('path_exists', { path: trimmed }).catch(() => false)
       if (!exists) return null
 
-      const quoted = this._quoteShell(trimmed)
-      const versionOut = await this._run(`${quoted} --version 2>&1`)
+      const versionOut = await this._runProgram(trimmed, ['--version'])
       const versionMatch = this._primaryOutputText(versionOut).match(/Python (\d+\.\d+\.\d+)/)
-      const kernelOut = await this._run(`${quoted} -m ipykernel_launcher --version 2>&1`)
+      const kernelOut = await this._runProgram(trimmed, ['-m', 'ipykernel_launcher', '--version'])
       const hasIpykernel = kernelOut.trim().length > 0
         && !/No module named|ModuleNotFoundError|not found|can't open file/i.test(kernelOut)
-      const resolvedPathOut = await this._run(`${quoted} -c ${this._quoteShell('import os, sys; print(os.path.realpath(sys.executable))')} 2>/dev/null`)
+      const resolvedPathOut = await this._runProgram(trimmed, ['-c', 'import os, sys; print(os.path.realpath(sys.executable))'])
 
       return {
         path: trimmed,

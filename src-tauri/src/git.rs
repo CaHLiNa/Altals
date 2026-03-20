@@ -2,9 +2,9 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use git2::{
     Cred, DiffOptions, FetchOptions, Oid, PushOptions, RemoteCallbacks, Repository, Signature,
 };
+use crate::process_utils::background_command;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 fn normalize_repo_pathbuf(repo_path: &str) -> Result<PathBuf, String> {
     let trimmed = repo_path.trim();
@@ -56,7 +56,7 @@ fn repo_relative_path(repo_root: &Path, file_path: &str) -> String {
 
 fn run_git_text(repo_path: &str, args: &[String]) -> Result<String, String> {
     let normalized = normalize_repo_path(repo_path)?;
-    let output = Command::new("git")
+    let output = background_command("git")
         .arg("-C")
         .arg(&normalized)
         .args(args)
@@ -74,7 +74,7 @@ fn run_git_text(repo_path: &str, args: &[String]) -> Result<String, String> {
 
 fn run_git_init(repo_path: &str) -> Result<(), String> {
     let normalized = normalize_repo_path(repo_path)?;
-    let output = Command::new("git")
+    let output = background_command("git")
         .arg("init")
         .arg(&normalized)
         .output()

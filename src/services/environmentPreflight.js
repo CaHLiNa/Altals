@@ -10,42 +10,16 @@ import { useWorkspaceStore } from '../stores/workspace'
 const COMMAND_CACHE_MS = 5 * 60 * 1000
 const commandCache = new Map()
 
-function isWindows() {
-  if (typeof navigator === 'undefined') return false
-  const platform = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
-  return /win/i.test(platform)
-}
-
-function stdoutOnly(output) {
-  const text = String(output || '')
-  const marker = '\n--- stderr ---\n'
-  const idx = text.indexOf(marker)
-  return idx >= 0 ? text.slice(0, idx) : text
-}
-
-function firstOutputLine(output) {
-  return String(output || '')
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .find(Boolean) || ''
-}
-
 async function resolveCommandAvailable(command) {
   const cached = commandCache.get(command)
   if (cached && Date.now() - cached.checkedAt < COMMAND_CACHE_MS) {
     return cached.available
   }
 
-  const workspace = useWorkspaceStore()
-  const cwd = workspace.path || workspace.globalConfigDir || await invoke('get_global_config_dir').catch(() => '.')
-  const query = isWindows()
-    ? `where.exe ${command} 2>NUL`
-    : `command -v ${command} 2>/dev/null`
-
   let available = false
   try {
-    const output = await invoke('run_shell_command', { cwd, command: query })
-    available = !!firstOutputLine(stdoutOnly(output))
+    const path = await invoke('resolve_command_path', { command })
+    available = !!String(path || '').trim()
   } catch {
     available = false
   }

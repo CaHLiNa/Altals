@@ -1,4 +1,4 @@
-// GET /api/v1/auth/github/connect?state=xxx&transport=poll|deep-link|loopback
+// GET /api/v1/auth/github/connect?state=xxx&transport=poll|deep-link|loopback&prompt=select_account
 // Redirects to GitHub OAuth consent screen
 // Uses a signed state payload so callback verification works across server instances
 
@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
   const state = query.state
   const transport = ['deep-link', 'loopback', 'poll'].includes(query.transport) ? query.transport : 'poll'
   const returnTo = transport === 'loopback' ? normalizeLoopbackReturnTo(query.return_to) : ''
+  const prompt = query.prompt === 'select_account' ? 'select_account' : ''
 
   if (!state) {
     setResponseStatus(event, 400)
@@ -31,7 +32,15 @@ export default defineEventHandler(async (event) => {
   const scope = 'repo read:user user:email'
   const signedState = createSignedOAuthState({ originalState: state, transport, returnTo }, config)
 
-  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(signedState)}`
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope,
+    state: signedState,
+  })
+  if (prompt) params.set('prompt', prompt)
+
+  const url = `https://github.com/login/oauth/authorize?${params.toString()}`
 
   return sendRedirect(event, url)
 })

@@ -10,9 +10,14 @@
           <span class="gh-username">{{ workspace.githubUser.name || workspace.githubUser.login }}</span>
           <span class="gh-login">@{{ workspace.githubUser.login }}</span>
         </div>
-        <button class="gh-disconnect-btn" @click="handleDisconnect" :disabled="loading">
-          {{ t('Disconnect') }}
-        </button>
+        <div class="gh-account-actions">
+          <button class="gh-switch-btn" @click="handleSwitchAccount" :disabled="loading">
+            {{ loading && authAction === 'switch' ? t('Switching account...') : t('Switch Account') }}
+          </button>
+          <button class="gh-disconnect-btn" @click="handleDisconnect" :disabled="loading">
+            {{ t('Disconnect') }}
+          </button>
+        </div>
       </div>
 
       <!-- Repo management -->
@@ -152,6 +157,7 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const error = ref('')
+const authAction = ref('idle')
 const showPat = ref(false)
 const patValue = ref('')
 const showCreate = ref(false)
@@ -195,7 +201,10 @@ function isLocalhostOrigin(value = '') {
 
 function getGitHubAuthTransport() {
   if (isLocalhostOrigin(githubAuthOrigin.value)) return 'poll'
-  return import.meta.env.DEV ? 'loopback' : 'deep-link'
+  // Loopback is more reliable for packaged desktop builds, especially on
+  // Windows where deep links arrive via a new process unless single-instance
+  // forwarding is wired up explicitly.
+  return 'loopback'
 }
 
 let nativeWindowHandle = null
@@ -257,14 +266,25 @@ async function openInBrowser(url) {
   } catch {}
 }
 
-async function handleConnect() {
+function resetConnectionForms() {
+  showPat.value = false
+  patValue.value = ''
+  showCreate.value = false
+  showLink.value = false
+  repos.value = []
+}
+
+async function startGitHubOAuth(options = {}) {
+  const allowExisting = options.allowExisting === true
+  const prompt = String(options.prompt || '').trim()
   error.value = ''
   loading.value = true
+  authAction.value = allowExisting ? 'switch' : 'connect'
   let deepLinkWaiter = null
   let loopbackWaiter = null
   try {
     const existing = await workspace.ensureGitHubInitialized()
-    if (existing?.token || workspace.githubToken?.token) {
+    if (!allowExisting && (existing?.token || workspace.githubToken?.token)) {
       return
     }
 
@@ -292,6 +312,7 @@ async function handleConnect() {
 
     const params = new URLSearchParams({ state, transport })
     if (returnTo) params.set('return_to', returnTo)
+    if (prompt) params.set('prompt', prompt)
 
     await open(`${githubAuthOrigin.value}/api/v1/auth/github/connect?${params.toString()}`)
 
@@ -303,6 +324,7 @@ async function handleConnect() {
 
     if (tokenData?.token) {
       await workspace.connectGitHub(tokenData)
+      resetConnectionForms()
       await focusAltalsWindow()
     } else {
       error.value = t('Connection timed out. Please try again.')
@@ -313,8 +335,20 @@ async function handleConnect() {
     console.error('[github] Connect failed:', e)
     error.value = String(e.message || e)
   } finally {
+    authAction.value = 'idle'
     loading.value = false
   }
+}
+
+async function handleConnect() {
+  await startGitHubOAuth()
+}
+
+async function handleSwitchAccount() {
+  await startGitHubOAuth({
+    allowExisting: true,
+    prompt: 'select_account',
+  })
 }
 
 async function pollForGitHubToken(state) {
@@ -342,20 +376,28 @@ async function pollForGitHubToken(state) {
 async function handlePatConnect() {
   error.value = ''
   loading.value = true
+  authAction.value = 'pat'
   try {
     await workspace.connectGitHub({ token: patValue.value.trim() })
-    patValue.value = ''
-    showPat.value = false
+    resetConnectionForms()
   } catch (e) {
     error.value = e.message || t('Invalid token')
+  } finally {
+    authAction.value = 'idle'
+    loading.value = false
   }
-  loading.value = false
 }
 
 async function handleDisconnect() {
   loading.value = true
-  await workspace.disconnectGitHub()
-  loading.value = false
+  authAction.value = 'disconnect'
+  try {
+    await workspace.disconnectGitHub()
+    resetConnectionForms()
+  } finally {
+    authAction.value = 'idle'
+    loading.value = false
+  }
 }
 
 async function handleLoadRepos() {
@@ -526,6 +568,27 @@ async function handleSyncNow() {
   color: var(--fg-muted);
   font-size: var(--ui-font-caption);
   cursor: pointer;
+}
+
+.gh-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gh-switch-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg-secondary);
+  font-size: var(--ui-font-caption);
+  cursor: pointer;
+}
+
+.gh-switch-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .gh-disconnect-btn:hover {

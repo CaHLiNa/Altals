@@ -2,8 +2,10 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+#[cfg(windows)]
+use std::ffi::OsString;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Emitter;
 use tokio::task;
@@ -613,6 +615,67 @@ pub async fn run_shell_command(cwd: String, command: String) -> Result<String, S
 }
 
 #[tauri::command]
+pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if !target.exists() {
+        return Err("Path does not exist".to_string());
+    }
+
+    let metadata = fs::metadata(target).map_err(|e| e.to_string())?;
+    let is_dir = metadata.is_dir();
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = background_command("open");
+        if !is_dir {
+            command.arg("-R");
+        }
+        command.arg(target);
+        let status = command.status().map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to reveal path in Finder: {status}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let normalized = target.to_string_lossy().replace('/', "\\");
+        let mut command = background_command("explorer");
+        if is_dir {
+            command.arg(&normalized);
+        } else {
+            command.arg(format!("/select,{normalized}"));
+        }
+        let status = command.status().map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to reveal path in Explorer: {status}"));
+    }
+
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        let open_target = if is_dir {
+            target.to_path_buf()
+        } else {
+            target
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| target.to_path_buf())
+        };
+        let status = background_command("xdg-open")
+            .arg(&open_target)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to reveal path in file manager: {status}"));
+    }
+}
+
+#[tauri::command]
 pub async fn run_workspace_command(
     cwd: String,
     command: String,
@@ -735,6 +798,130 @@ fn format_command_output(output: std::process::Output) -> Result<String, String>
     } else {
         Err(result)
     }
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+fn resolve_command_path_impl(command: &str) -> Option<PathBuf> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let candidate = Path::new(trimmed);
+    let has_path_separator = trimmed.contains(std::path::MAIN_SEPARATOR)
+        || trimmed.contains('/')
+        || trimmed.contains('\\');
+    if candidate.is_absolute() || has_path_separator {
+        return is_executable_file(candidate).then(|| candidate.to_path_buf());
+    }
+
+    let path_var = std::env::var_os("PATH")?;
+    let path_entries = std::env::split_paths(&path_var);
+
+    #[cfg(windows)]
+    let extensions: Vec<OsString> = if Path::new(trimmed).extension().is_some() {
+        vec![OsString::new()]
+    } else {
+        std::env::var_os("PATHEXT")
+            .map(|value| {
+                value
+                    .to_string_lossy()
+                    .split(';')
+                    .filter_map(|entry| {
+                        let ext = entry.trim();
+                        (!ext.is_empty()).then(|| OsString::from(ext))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .filter(|items| !items.is_empty())
+            .unwrap_or_else(|| {
+                vec![
+                    OsString::from(".COM"),
+                    OsString::from(".EXE"),
+                    OsString::from(".BAT"),
+                    OsString::from(".CMD"),
+                ]
+            })
+    };
+
+    for dir in path_entries {
+        #[cfg(windows)]
+        {
+            for extension in &extensions {
+                let candidate_name = if extension.is_empty() {
+                    OsString::from(trimmed)
+                } else {
+                    let mut value = OsString::from(trimmed);
+                    value.push(extension);
+                    value
+                };
+                let full_path = dir.join(candidate_name);
+                if is_executable_file(&full_path) {
+                    return Some(full_path);
+                }
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let full_path = dir.join(trimmed);
+            if is_executable_file(&full_path) {
+                return Some(full_path);
+            }
+        }
+    }
+
+    None
+}
+
+#[tauri::command]
+pub async fn resolve_command_path(command: String) -> Result<String, String> {
+    Ok(resolve_command_path_impl(&command)
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_default())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramOutputRequest {
+    program: String,
+    #[serde(default)]
+    args: Vec<String>,
+    cwd: Option<String>,
+}
+
+#[tauri::command]
+pub async fn run_program_capture(request: ProgramOutputRequest) -> Result<String, String> {
+    let mut command = background_command(&request.program);
+    command.args(&request.args);
+
+    if let Some(cwd) = request.cwd.as_ref().filter(|value| !value.trim().is_empty()) {
+        command.current_dir(cwd);
+    }
+
+    let output = command.output().map_err(|e| e.to_string())?;
+    format_command_output(output)
 }
 
 fn search_dir_contents(
