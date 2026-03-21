@@ -107,6 +107,7 @@ export function createWorkspacePreferenceState() {
   const zoomState = migrateLegacyFooterZoom(editorFontSize, uiFontSize, storedAppZoomPercent)
 
   return {
+    primarySurface: readString('primarySurface', 'workspace'),
     leftSidebarOpen: readBoolean('leftSidebarOpen', true),
     rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
     bottomPanelOpen: readTrueOnlyBoolean('bottomPanelOpen'),

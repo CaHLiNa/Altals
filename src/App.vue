@@ -41,42 +41,58 @@
 
         <!-- Center: Editor panes + bottom panel -->
         <div class="flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
-          <!-- Pane container -->
           <div class="flex-1 overflow-hidden relative">
-            <PaneContainer
-              :node="editorStore.paneTree"
-              @cursor-change="onCursorChange"
-              @editor-stats="onEditorStats"
+            <template v-if="workspace.isWorkspaceSurface">
+              <PaneContainer
+                :node="editorStore.paneTree"
+                @cursor-change="onCursorChange"
+                @editor-stats="onEditorStats"
+              />
+            </template>
+
+            <GlobalLibraryWorkbench
+              v-else-if="workspace.isLibrarySurface"
+              class="h-full min-h-0 w-full"
             />
-            <div
-              v-if="workspace.rightSidebarOpen"
-              class="absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
-            >
-              <div class="pointer-events-auto flex items-stretch h-full">
-                <ResizeHandle
-                  direction="vertical"
-                  @resize="onRightResize"
-                  @dblclick="onRightResizeSnap"
-                />
-                <div
-                  class="h-full overflow-hidden"
-                  :style="{ width: rightSidebarWidth + 'px' }"
-                >
-                  <AiDrawer />
+
+            <AiWorkbenchSurface
+              v-else-if="workspace.isAiSurface"
+              class="h-full min-h-0 w-full"
+            />
+
+            <Transition name="ai-sidebar-drawer" appear>
+              <div
+                v-if="workspace.rightSidebarOpen && !workspace.isAiSurface"
+                class="ai-sidebar-shell absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
+              >
+                <div class="ai-sidebar-frame pointer-events-auto flex items-stretch h-full">
+                  <ResizeHandle
+                    direction="vertical"
+                    @resize="onRightResize"
+                    @dblclick="onRightResizeSnap"
+                  />
+                  <div
+                    class="h-full overflow-hidden"
+                    :style="{ width: rightSidebarWidth + 'px' }"
+                  >
+                    <AiDrawer />
+                  </div>
                 </div>
               </div>
-            </div>
+            </Transition>
           </div>
 
-          <!-- Bottom panel resize handle -->
-          <ResizeHandle
-            v-if="workspace.bottomPanelOpen"
-            direction="horizontal"
-            @resize="onBottomResize"
-          />
+          <template v-if="workspace.isWorkspaceSurface">
+            <!-- Bottom panel resize handle -->
+            <ResizeHandle
+              v-if="workspace.bottomPanelOpen"
+              direction="horizontal"
+              @resize="onBottomResize"
+            />
 
-          <!-- Bottom panel: Terminals -->
-          <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
+            <!-- Bottom panel: Terminals -->
+            <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
+          </template>
         </div>
 
       </div>
@@ -158,6 +174,8 @@ const VersionHistory = defineAsyncComponent(() => import('./components/VersionHi
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
+const AiWorkbenchSurface = defineAsyncComponent(() => import('./components/ai/AiWorkbenchSurface.vue'))
+const GlobalLibraryWorkbench = defineAsyncComponent(() => import('./components/library/GlobalLibraryWorkbench.vue'))
 const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
 
 const workspace = useWorkspaceStore()
@@ -883,3 +901,38 @@ function openVersionHistory(entry) {
 
 
 </script>
+
+<style scoped>
+.ai-sidebar-shell {
+  will-change: transform, opacity, filter;
+  transform-origin: right center;
+}
+
+.ai-sidebar-frame {
+  height: 100%;
+  overflow: hidden;
+  border-radius: 14px 0 0 14px;
+}
+
+.ai-sidebar-drawer-enter-active,
+.ai-sidebar-drawer-leave-active {
+  transition:
+    transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 170ms ease,
+    filter 190ms ease;
+}
+
+.ai-sidebar-drawer-enter-from,
+.ai-sidebar-drawer-leave-to {
+  opacity: 0;
+  transform: translateX(18px);
+  filter: blur(1.5px);
+}
+
+.ai-sidebar-drawer-enter-to,
+.ai-sidebar-drawer-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+  filter: blur(0);
+}
+</style>

@@ -12,6 +12,10 @@ on:
           - patch
           - minor
           - major
+      version:
+        description: Optional exact version to release (for example 1.0.1). When set, it overrides bump.
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -50,7 +54,30 @@ jobs:
         id: bump
         shell: bash
         run: |
-          VERSION="$(node scripts/bump-version.mjs "${{ inputs.bump }}")"
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION_INPUT="${{ inputs.version }}" node -e '
+              import("./scripts/version-utils.mjs").then((m) => {
+                const version = String(process.env.VERSION_INPUT || "").trim()
+                if (!m.parseSemver(version)) {
+                  throw new Error(`Unsupported version format: ${version}`)
+                }
+                const currentVersion = m.assertVersionsMatch()
+                const latestTagVersion = m.getLatestSemverTagVersion()
+                const baseVersion = m.maxSemver(currentVersion, latestTagVersion)
+                if (baseVersion && m.compareSemver(version, baseVersion) < 0) {
+                  throw new Error(`Requested version ${version} is lower than current base ${baseVersion}`)
+                }
+                m.updateVersions(version)
+                console.log(version)
+              }).catch((error) => {
+                console.error(error instanceof Error ? error.message : String(error))
+                process.exit(1)
+              })
+            ' > /tmp/altals-release-version.txt
+            VERSION="$(cat /tmp/altals-release-version.txt)"
+          else
+            VERSION="$(node scripts/bump-version.mjs "${{ inputs.bump }}")"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 

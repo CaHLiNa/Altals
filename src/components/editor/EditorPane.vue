@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex flex-col h-full"
+    class="flex flex-col h-full w-full min-w-0"
     :data-pane-id="paneId"
     :class="{ 'outline outline-1 outline-[var(--accent)]': isActive }"
     @mousedown="editorStore.setActivePane(paneId)"
@@ -64,7 +64,7 @@
     </div>
 
     <!-- Editor or empty state -->
-    <div class="flex-1 overflow-hidden relative" ref="editorContainerRef"
+    <div class="flex-1 overflow-hidden relative w-full min-w-0" ref="editorContainerRef"
          :class="{ 'flex flex-col': viewerType === 'text' }"
          style="background: var(--bg-primary);">
       <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
@@ -128,12 +128,6 @@
         :refKey="refKey"
         :paneId="paneId"
       />
-      <GlobalLibraryWorkbench
-        v-else-if="activeTab && viewerType === 'library'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-      />
       <div v-else-if="activeTab && viewerType === 'chat'" class="h-full" :data-chat-panel="paneId">
         <ChatPanel
           :key="activeTab"
@@ -172,7 +166,7 @@
 </template>
 
 <script setup>
-import { computed, ref, toRef, defineAsyncComponent } from 'vue'
+import { computed, ref, toRef, defineAsyncComponent, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useChatStore } from '../../stores/chat'
@@ -181,7 +175,7 @@ import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
-import { getViewerType, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable } from '../../utils/fileTypes'
+import { getViewerType, isAiWorkbenchPath, isLibraryPath, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -196,7 +190,6 @@ const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
 const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
-const GlobalLibraryWorkbench = defineAsyncComponent(() => import('../library/GlobalLibraryWorkbench.vue'))
 const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
@@ -259,6 +252,31 @@ const showEditorHeader = computed(() => (
 const TEXT_EDITOR_CACHE_MAX = 4
 
 const editorContainerRef = ref(null)
+
+function redirectLegacySurfaceTab(path) {
+  if (!path) return
+  if (isLibraryPath(path)) {
+    workspace.openLibrarySurface()
+  } else if (isAiWorkbenchPath(path)) {
+    workspace.openAiSurface()
+  } else {
+    return
+  }
+
+  queueMicrotask(() => {
+    editorStore.closeTab(props.paneId, path)
+  })
+}
+
+watch(
+  () => props.activeTab,
+  (path) => {
+    if (!path) return
+    redirectLegacySurfaceTab(path)
+  },
+  { immediate: true },
+)
+
 const {
   hasEditorSelection,
   showCommentPanel,

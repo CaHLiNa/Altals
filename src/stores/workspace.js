@@ -128,6 +128,9 @@ export const useWorkspaceStore = defineStore('workspace', {
 
   getters: {
     isOpen: (state) => !!state.path,
+    isWorkspaceSurface: (state) => state.primarySurface === 'workspace',
+    isLibrarySurface: (state) => state.primarySurface === 'library',
+    isAiSurface: (state) => state.primarySurface === 'ai',
     altalsDir: (state) => state.workspaceDataDir || null,
     shouldersDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null,
@@ -155,6 +158,7 @@ export const useWorkspaceStore = defineStore('workspace', {
 
   actions: {
     async openWorkspace(path) {
+      this.openWorkspaceSurface()
       this.path = path
 
       // Resolve Altals global storage (~/.altals/)
@@ -276,6 +280,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
       await this.cleanup()
+      this.openWorkspaceSurface()
       this.path = null
       this.systemPrompt = ''
       this.instructions = ''
@@ -460,6 +465,23 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     toggleLeftSidebar() {
       this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
+    },
+
+    setPrimarySurface(surface) {
+      const next = ['workspace', 'library', 'ai'].includes(surface) ? surface : 'workspace'
+      this.primarySurface = persistStoredString('primarySurface', next)
+    },
+
+    openWorkspaceSurface() {
+      this.setPrimarySurface('workspace')
+    },
+
+    openLibrarySurface() {
+      this.setPrimarySurface('library')
+    },
+
+    openAiSurface() {
+      this.setPrimarySurface('ai')
     },
 
     toggleRightSidebar() {

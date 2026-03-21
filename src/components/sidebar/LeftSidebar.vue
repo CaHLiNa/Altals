@@ -8,6 +8,7 @@
       <FileTree
         ref="fileTreeRef"
         :collapsed="explorerCollapsed"
+        :heading-label="fileTreeHeadingLabel"
         @toggle-collapse="toggleExplorer"
         @version-history="$emit('version-history', $event)"
         @open-folder="$emit('open-folder')"
@@ -38,6 +39,7 @@
       <ReferenceList
         v-if="refsLoaded"
         :collapsed="refsCollapsed"
+        :heading-label="referencesHeadingLabel"
         @toggle-collapse="toggleRefs"
       />
       <button
@@ -52,13 +54,13 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider">References</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ referencesHeadingLabel }}</span>
       </button>
     </div>
 
     <!-- Resize handle: refs ↔ outline (when both expanded) -->
     <div
-      v-if="showHandleRefsOutline"
+      v-if="showOutlineSection && showHandleRefsOutline"
       class="relative h-0.5 shrink-0 cursor-row-resize bg-transparent"
       @mousedown="startResizeOutline"
     >
@@ -67,6 +69,7 @@
 
     <!-- Outline section -->
     <div
+      v-if="showOutlineSection"
       class="overflow-hidden relative border-t border-[var(--border)] flex flex-col"
       :style="outlineStyle"
     >
@@ -93,8 +96,10 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent } from 'vue'
+import { ref, defineAsyncComponent, computed } from 'vue'
 import { useLeftSidebarPanels } from '../../composables/useLeftSidebarPanels'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { useI18n } from '../../i18n'
 import FileTree from './FileTree.vue'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
@@ -102,6 +107,8 @@ const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vu
 
 const emit = defineEmits(['version-history', 'open-folder', 'open-workspace', 'close-folder'])
 
+const workspace = useWorkspaceStore()
+const { t } = useI18n()
 const containerEl = ref(null)
 const fileTreeRef = ref(null)
 const {
@@ -121,6 +128,14 @@ const {
   startResizeRefs,
   startResizeOutline,
 } = useLeftSidebarPanels(containerEl)
+
+const showOutlineSection = computed(() => workspace.primarySurface === 'workspace')
+const fileTreeHeadingLabel = computed(() => (
+  workspace.primarySurface === 'workspace' ? '' : t('Project files')
+))
+const referencesHeadingLabel = computed(() => (
+  workspace.primarySurface === 'workspace' ? t('References') : t('Project references')
+))
 
 // Expose FileTree methods for App.vue
 defineExpose({

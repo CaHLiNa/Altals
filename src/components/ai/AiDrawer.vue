@@ -24,23 +24,30 @@
         </div>
       </div>
 
-      <button
-        class="ai-drawer-icon-btn"
-        :title="t('Close AI')"
-        :aria-label="t('Close AI')"
-        @click="drawer.close()"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2 2l6 6M8 2l-6 6"/>
-        </svg>
-      </button>
+      <div class="ai-drawer-header-actions">
+        <button
+          class="ai-drawer-upgrade-btn"
+          :title="drawer.view === 'chat' ? t('Continue in AI workspace') : t('Open AI workspace')"
+          @click="openWorkbench"
+        >
+          {{ drawer.view === 'chat' ? t('Continue in AI workspace') : t('Open AI workspace') }}
+        </button>
+        <button
+          class="ai-drawer-icon-btn"
+          :title="t('Close AI')"
+          :aria-label="t('Close AI')"
+          @click="drawer.close()"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 2l6 6M8 2l-6 6"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 min-h-0 overflow-hidden">
-      <AiLauncher
+      <AiQuickPanel
         v-if="drawer.view === 'launcher'"
-        pane-id="ai-drawer"
-        surface="drawer"
         :compact="isCompact"
       />
       <div v-else class="h-full">
@@ -70,13 +77,16 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useChatStore } from '../../stores/chat'
+import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
-import AiLauncher from '../editor/AiLauncher.vue'
+import { continueAiToWorkbench } from '../../services/ai/launch'
+import AiQuickPanel from './AiQuickPanel.vue'
 import ChatSession from '../chat/ChatSession.vue'
 
 const drawer = useAiDrawerStore()
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
+const editorStore = useEditorStore()
 const { t } = useI18n()
 const drawerRef = ref(null)
 const drawerWidth = ref(0)
@@ -98,14 +108,22 @@ const headerTitle = computed(() => {
   if (drawer.view === 'chat') {
     return sessionMeta.value?.label || session.value?.label || t('AI')
   }
-  return t('AI')
+  return t('Quick AI')
 })
 
 const headerMeta = computed(() => {
-  if (drawer.view !== 'chat') return t('Launcher')
+  if (drawer.view !== 'chat') return t('Current context')
   if (!sessionMeta.value) return ''
   return `${sessionMeta.value.roleTitle} · ${sessionMeta.value.runtimeTitle}`
 })
+
+function openWorkbench() {
+  continueAiToWorkbench({
+    editorStore,
+    sessionId: drawer.view === 'chat' ? drawer.sessionId : null,
+  })
+  drawer.close()
+}
 
 watch(
   () => [drawer.view, drawer.sessionId],
@@ -162,12 +180,39 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
 }
 
+.ai-drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .ai-drawer-header-left {
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.ai-drawer-upgrade-btn {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-primary);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  font-size: var(--ui-font-caption);
+  transition: border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease;
+}
+
+.ai-drawer-upgrade-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
+  color: var(--fg-primary);
 }
 
 .ai-drawer-title-wrap {
@@ -218,6 +263,11 @@ onUnmounted(() => {
   align-items: flex-start;
   padding-top: 6px;
   padding-bottom: 6px;
+}
+
+.ai-drawer-compact .ai-drawer-header-actions {
+  width: 100%;
+  justify-content: space-between;
 }
 
 .ai-drawer-compact .ai-drawer-title-wrap {

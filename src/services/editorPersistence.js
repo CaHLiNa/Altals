@@ -7,6 +7,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../stores/references'
 import {
+  isAiWorkbenchPath,
   isChatTab,
   getChatSessionId,
   isLibraryPath,
@@ -21,14 +22,37 @@ import {
 const STATE_FILE = 'editor-state.json'
 const STATE_VERSION = 1
 
+function detectLegacyPrimarySurface(node) {
+  if (!node) return null
+  if (node.type === 'leaf') {
+    const tabs = node.tabs || []
+    if (tabs.some(tab => isAiWorkbenchPath(tab))) return 'ai'
+    if (tabs.some(tab => isLibraryPath(tab))) return 'library'
+    return null
+  }
+  if (node.type === 'split' && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      const detected = detectLegacyPrimarySurface(child)
+      if (detected) return detected
+    }
+  }
+  return null
+}
+
 /**
  * Recursively serialize a pane tree to a plain JSON-safe object.
  */
 function serializePaneTree(node) {
   if (!node) return null
   if (node.type === 'leaf') {
-    const tabs = (node.tabs || []).filter(t => t && typeof t === 'string')
-    return { type: 'leaf', id: node.id, tabs, activeTab: node.activeTab || null }
+    const tabs = (node.tabs || []).filter((t) => (
+      t
+      && typeof t === 'string'
+      && !isLibraryPath(t)
+      && !isAiWorkbenchPath(t)
+    ))
+    const activeTab = tabs.includes(node.activeTab) ? node.activeTab : (tabs[0] || null)
+    return { type: 'leaf', id: node.id, tabs, activeTab }
   }
   if (node.type === 'split' && Array.isArray(node.children)) {
     const children = node.children.map(c => serializePaneTree(c)).filter(Boolean)
@@ -71,6 +95,8 @@ export async function loadState(shouldersDir) {
     const content = await invoke('read_file', { path: filePath })
     const state = JSON.parse(content)
     if (!state || state.version !== STATE_VERSION || !state.paneTree) return null
+    state.legacyPrimarySurface = detectLegacyPrimarySurface(state.paneTree)
+    state.paneTree = serializePaneTree(state.paneTree)
     return state
   } catch (e) {
     console.error('[editorPersistence] Failed to load:', e)
@@ -117,9 +143,10 @@ export async function findInvalidTabs(shouldersDir, paneTree) {
 async function isTabValid(tab, shouldersDir) {
   if (!tab || typeof tab !== 'string') return false
 
+  if (isLibraryPath(tab) || isAiWorkbenchPath(tab)) return false
+
   // NewTab tabs are always valid (virtual, ephemeral)
   if (isNewTab(tab) || isAiLauncher(tab)) return true
-  if (isLibraryPath(tab)) return true
 
   // Chat tabs: check if session file exists on disk
   if (isChatTab(tab)) {

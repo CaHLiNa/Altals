@@ -4,7 +4,7 @@ import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { useChatStore } from './chat'
-import { isAiLauncher, isChatTab, getChatSessionId, isLibraryPath, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
+import { isAiLauncher, isAiWorkbenchPath, isChatTab, getChatSessionId, isLibraryPath, isNewTab, getViewerType, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { saveState, loadState, findInvalidTabs } from '../services/editorPersistence'
 import { events } from '../services/telemetry'
 import { buildCitationText } from '../editor/citationSyntax'
@@ -23,6 +23,10 @@ function isLauncherTab(path) {
 
 function libraryPathForView(viewId = 'global') {
   return `library:${viewId || 'global'}`
+}
+
+function aiWorkbenchPathForView(viewId = 'workspace') {
+  return viewId === 'workspace' ? 'ai-launcher:workspace' : `ai-launcher:${viewId || 'workspace'}`
 }
 
 function isContextCandidatePath(path) {
@@ -214,7 +218,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     _findNonChatPane() {
-      return this._findLeaf(n => !n.activeTab || !isChatTab(n.activeTab))
+      return this._findLeaf(n => !n.activeTab || (!isChatTab(n.activeTab) && !isAiWorkbenchPath(n.activeTab)))
     },
 
     _rememberContextPath(path) {
@@ -247,21 +251,21 @@ export const useEditorStore = defineStore('editor', {
       if (pane.tabs.includes(path)) {
         pane.activeTab = path
         this._rememberContextPath(path)
-        if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
+        if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
         this.saveEditorState()
         return
       }
 
       // Smart routing: if the active pane is showing a chat, route file to a
       // different pane so the conversation isn't buried. Focus stays on chat.
-      if (pane.activeTab && isChatTab(pane.activeTab) && !isChatTab(path)) {
+      if (pane.activeTab && (isChatTab(pane.activeTab) || isAiWorkbenchPath(pane.activeTab)) && !isChatTab(path) && !isAiWorkbenchPath(path)) {
         // File already open in another pane — switch to it there
         const existingPane = this.findPaneWithTab(path)
         if (existingPane) {
           existingPane.activeTab = path
           this.activePaneId = existingPane.id
           this._rememberContextPath(path)
-          if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
+          if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
         }
@@ -280,7 +284,7 @@ export const useEditorStore = defineStore('editor', {
           altPane.activeTab = path
           this.activePaneId = altPane.id
           this._rememberContextPath(path)
-          if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
+          if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
           this.saveEditorState()
           return
         }
@@ -290,7 +294,7 @@ export const useEditorStore = defineStore('editor', {
         // Move focus to the new file pane
         if (newPaneId) this.activePaneId = newPaneId
         this._rememberContextPath(path)
-        if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
+        if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
         return
       }
 
@@ -306,54 +310,85 @@ export const useEditorStore = defineStore('editor', {
       }
       pane.activeTab = path
       this._rememberContextPath(path)
-      if (!isChatTab(path) && !isLibraryPath(path)) this.recordFileOpen(path)
+      if (!isChatTab(path) && !isLibraryPath(path) && !isAiWorkbenchPath(path)) this.recordFileOpen(path)
       this._revealInTree(path)
       this.saveEditorState()
     },
 
-    openLibrarySurface(viewId = 'global') {
-      const tabPath = libraryPathForView(viewId)
-      const existingPane = this.findPaneWithTab(tabPath)
-      if (existingPane) {
-        existingPane.activeTab = tabPath
-        this.activePaneId = existingPane.id
-        this.saveEditorState()
-        return existingPane.id
-      }
+    openAiWorkbenchSurface(viewId = 'workspace') {
+      this.pruneLegacySurfaceTabs()
+      useWorkspaceStore().openAiSurface()
+      return 'surface:ai'
+    },
 
-      this.openFile(tabPath)
-      return this.findPaneWithTab(tabPath)?.id || null
+    closeAiWorkbenchSurface(viewId = 'workspace') {
+      if (useWorkspaceStore().primarySurface !== 'ai') return false
+      useWorkspaceStore().openWorkspaceSurface()
+      return true
+    },
+
+    toggleAiWorkbenchSurface(viewId = 'workspace') {
+      const workspace = useWorkspaceStore()
+      if (workspace.primarySurface === 'ai') {
+        workspace.openWorkspaceSurface()
+        return false
+      }
+      this.pruneLegacySurfaceTabs()
+      workspace.openAiSurface()
+      return true
+    },
+
+    openLibrarySurface(viewId = 'global') {
+      this.pruneLegacySurfaceTabs()
+      useWorkspaceStore().openLibrarySurface()
+      return 'surface:library'
     },
 
     closeLibrarySurface(viewId = 'global') {
-      const tabPath = libraryPathForView(viewId)
-      const existingPane = this.findPaneWithTab(tabPath)
-      if (!existingPane) return false
-      this.closeTab(existingPane.id, tabPath)
+      if (useWorkspaceStore().primarySurface !== 'library') return false
+      useWorkspaceStore().openWorkspaceSurface()
       return true
     },
 
     toggleLibrarySurface(viewId = 'global') {
-      const tabPath = libraryPathForView(viewId)
-      const existingPane = this.findPaneWithTab(tabPath)
-      if (!existingPane) {
-        this.openLibrarySurface(viewId)
-        return true
-      }
-
-      if (existingPane.id === this.activePaneId && existingPane.activeTab === tabPath) {
-        this.closeTab(existingPane.id, tabPath)
+      const workspace = useWorkspaceStore()
+      if (workspace.primarySurface === 'library') {
+        workspace.openWorkspaceSurface()
         return false
       }
+      this.pruneLegacySurfaceTabs()
+      workspace.openLibrarySurface()
+      return true
+    },
 
-      existingPane.activeTab = tabPath
-      this.activePaneId = existingPane.id
-      this.saveEditorState()
+    pruneLegacySurfaceTabs() {
+      const legacyTabs = []
+      const walk = (node) => {
+        if (!node) return
+        if (node.type === 'leaf') {
+          for (const tab of node.tabs || []) {
+            if (isLibraryPath(tab) || isAiWorkbenchPath(tab)) {
+              legacyTabs.push({ paneId: node.id, tab })
+            }
+          }
+          return
+        }
+        for (const child of node.children || []) {
+          walk(child)
+        }
+      }
+
+      walk(this.paneTree)
+      if (legacyTabs.length === 0) return false
+
+      for (const entry of legacyTabs) {
+        this.closeTab(entry.paneId, entry.tab)
+      }
       return true
     },
 
     _revealInTree(path) {
-      if (isChatTab(path) || isLibraryPath(path) || isLauncherTab(path)) return
+      if (isChatTab(path) || isLibraryPath(path) || isLauncherTab(path) || isAiWorkbenchPath(path)) return
       const workspace = useWorkspaceStore()
       const files = useFilesStore()
       if (!workspace.path || !path.startsWith(workspace.path)) return
@@ -1145,6 +1180,12 @@ export const useEditorStore = defineStore('editor', {
       } else {
         const firstLeaf = this.findFirstLeaf(this.paneTree)
         this.activePaneId = firstLeaf?.id || 'pane-root'
+      }
+
+      if (state.legacyPrimarySurface === 'library') {
+        workspace.openLibrarySurface()
+      } else if (state.legacyPrimarySurface === 'ai') {
+        workspace.openAiSurface()
       }
 
       const restoredActivePane = this.findPane(this.paneTree, this.activePaneId)

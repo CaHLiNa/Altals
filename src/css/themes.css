@@ -84,6 +84,16 @@
   --ui-font-hero-xl: calc(var(--ui-font-size) + 31px);
   --ui-line-height: 1.4;
 
+  /* Surface workbench typography */
+  --surface-font-kicker: var(--ui-font-micro);
+  --surface-font-meta: var(--ui-font-caption);
+  --surface-font-body: var(--ui-font-body);
+  --surface-font-title: var(--ui-font-title);
+  --surface-font-card: var(--ui-font-display);
+  --surface-font-detail: var(--ui-font-display-md);
+  --surface-font-hero: var(--ui-font-hero-sm);
+  --surface-font-hero-compact: var(--ui-font-hero-xs);
+
   /* Font stacks — single source of truth */
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;

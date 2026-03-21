@@ -1,24 +1,25 @@
 <template>
-  <div class="flex items-center h-7 shrink-0 relative"
+  <div class="flex items-center h-7 shrink-0 relative px-1"
     data-tab-bar
     :data-pane-id="paneId"
     style="background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
     <!-- Tabs -->
-    <div ref="tabsContainer" class="flex-1 flex items-center h-full overflow-x-auto relative" data-tabs-area>
+    <div ref="tabsContainer" class="flex-1 flex items-center h-full overflow-x-auto relative gap-0.5" data-tabs-area>
       <div
         v-for="(tab, idx) in tabs"
         :key="tab"
         :ref="el => tabEls[idx] = el"
         data-tab-el
-        class="flex items-center h-full px-3 text-xs cursor-pointer shrink-0 border-r group"
+        class="flex items-center h-[26px] mt-[1px] px-3 text-xs cursor-pointer shrink-0 border rounded-t-[6px] group"
         :title="tabTitle(tab)"
         :style="{
-          borderColor: 'var(--border)',
+          borderColor: tab === activeTab ? 'var(--border)' : 'transparent',
           background: tab === activeTab ? 'var(--bg-primary)' : 'transparent',
           color: tab === activeTab ? 'var(--fg-primary)' : 'var(--fg-muted)',
-          borderTop: tab === activeTab ? '2px solid var(--accent)' : '2px solid transparent',
+          borderBottomColor: tab === activeTab ? 'var(--bg-primary)' : 'transparent',
+          boxShadow: tab === activeTab ? 'inset 0 2px 0 var(--accent)' : 'none',
           opacity: dragIdx === idx ? 0.3 : 1,
-          transition: 'opacity 0.15s',
+          transition: 'opacity 0.15s, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease',
         }"
         @mousedown="onMouseDown(idx, $event)"
         @mouseenter="onMouseEnter(idx)"
@@ -34,7 +35,7 @@
           <path d="M5.5 6.25h5M5.5 8h3.5"/>
         </svg>
         <!-- Chat tab sparkle icon -->
-        <svg v-if="isChatTab(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
+        <svg v-if="isChatTab(tab) || isAiWorkbenchPath(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
           <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
         </svg>
         <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
@@ -70,7 +71,7 @@
 
       <!-- New tab button -->
       <button
-        class="flex items-center justify-center w-6 h-6 mx-0.5 shrink-0 rounded hover:bg-[var(--bg-hover)]"
+        class="flex items-center justify-center w-6 h-6 mx-0.5 shrink-0 rounded-md hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         :title="t('New Tab')"
         @click="$emit('new-tab')"
@@ -84,9 +85,9 @@
     </div>
 
     <!-- Run actions (for renderable files) -->
-    <div v-if="showRenderButton" class="flex items-center gap-0.5 px-1 shrink-0 border-r" style="border-color: var(--border);">
+    <div v-if="showRenderButton" class="flex items-center gap-0.5 px-1 shrink-0 border-l ml-1" style="border-color: var(--border);">
       <button
-        class="h-6 px-2 flex items-center gap-1 rounded ui-text-xs hover:bg-[var(--bg-hover)]"
+        class="h-6 px-2 flex items-center gap-1 rounded-md ui-text-xs hover:bg-[var(--bg-hover)]"
         style="color: var(--accent);"
         @click="$emit('render-document')"
         :title="t('Render document')"
@@ -100,9 +101,9 @@
     </div>
 
     <!-- Pane actions -->
-    <div class="flex items-center gap-0.5 px-1 shrink-0">
+    <div class="flex items-center gap-0.5 px-1 shrink-0 border-l ml-1" style="border-color: var(--border);">
       <button
-        class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('split-vertical')"
         :title="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
@@ -113,7 +114,7 @@
         </svg>
       </button>
       <button
-        class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('split-horizontal')"
         :title="t('Split horizontal')"
@@ -125,7 +126,7 @@
       </button>
       <button
         v-if="paneId !== 'pane-root'"
-        class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
+        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
         @click="$emit('close-pane')"
         :title="t('Close pane')"
@@ -153,6 +154,7 @@ import { useReferencesStore } from '../../stores/references'
 import {
   isReferencePath,
   referenceKeyFromPath,
+  isAiWorkbenchPath,
   isLibraryPath,
   isRmdOrQmd,
   isChatTab,
@@ -219,6 +221,7 @@ const ghostLabel = ref('')
 
 function fileName(path) {
   if (isNewTab(path)) return t('New Tab')
+  if (isAiWorkbenchPath(path)) return t('AI Workspace')
   if (isAiLauncher(path)) return t('AI')
   if (isLibraryPath(path)) return t('Library')
   if (isChatTab(path)) {

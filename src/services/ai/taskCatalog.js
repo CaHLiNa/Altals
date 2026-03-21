@@ -367,6 +367,35 @@ export function getAiLauncherItems({ currentPath = '', recentFiles = [], t }) {
   return items
 }
 
+export function getQuickAiItems({ currentPath = '', recentFiles = [], t }) {
+  const primaryPath = currentPath || recentFiles[0]?.path || ''
+  const contextItems = buildContextTasks(primaryPath, t).slice(0, 3)
+
+  const quickWorkflowItems = [
+    {
+      label: t('General chat'),
+      task: {
+        action: 'prefill',
+        role: 'general',
+        taskId: 'chat.general',
+        prompt: t('Help me think through this research task.'),
+      },
+    },
+    {
+      label: t('Web Research'),
+      task: {
+        action: 'prefill',
+        role: 'researcher',
+        toolProfile: 'researcher',
+        taskId: 'research.web',
+        prompt: t('Help me investigate external websites and online sources for this topic. Use web_search and fetch_url when useful.'),
+      },
+    },
+  ]
+
+  return [...contextItems, ...quickWorkflowItems]
+}
+
 export function createCommentReviewTask({ filePath, relativePath, count, label = '' }) {
   return {
     action: 'send',

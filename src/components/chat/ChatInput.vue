@@ -732,16 +732,12 @@ defineExpose({ focus })
 }
 
 .chat-input-compact .chat-input-actions {
-  flex-wrap: wrap;
-  row-gap: 6px;
-}
-
-.chat-input-compact .chat-input-actions-left,
-.chat-input-compact .chat-input-actions-right {
-  width: 100%;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .chat-input-compact .chat-input-actions-right {
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 
@@ -752,11 +748,14 @@ defineExpose({ focus })
 }
 
 .chat-input-compact .chat-input-actions-left {
+  flex: 1 1 auto;
   gap: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chat-input-compact .chat-input-model {
-  max-width: 128px;
+  max-width: 108px;
 }
 
 .chat-input-menu {

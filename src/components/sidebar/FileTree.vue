@@ -12,7 +12,7 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{ workspaceName }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{ headingLabel || workspaceName }}</span>
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
@@ -274,6 +274,7 @@ import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  headingLabel: { type: String, default: '' },
 })
 const emit = defineEmits(['version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])
 

@@ -163,6 +163,16 @@ export function reconcileDocumentWorkflow({
     }
   }
 
+  if (!force) {
+    return {
+      ...base,
+      type: 'source-only',
+      trigger,
+      previewPaneId: null,
+      state: 'source-only',
+    }
+  }
+
   const neighbor = findRightNeighborLeaf(paneTree, activePaneId)
   if (neighbor && isPreviewCapableLeaf(neighbor)) {
     return {

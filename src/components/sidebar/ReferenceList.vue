@@ -12,7 +12,7 @@
         >
           <path d="M6 4l4 4-4 4"/>
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ t('References') }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ headingLabel || t('References') }}</span>
       </div>
       <span
         v-if="referencesStore.refCount > 0"
@@ -375,6 +375,7 @@ import { buildCitationText } from '../../editor/citationSyntax'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  headingLabel: { type: String, default: '' },
 })
 defineEmits(['toggle-collapse'])
 

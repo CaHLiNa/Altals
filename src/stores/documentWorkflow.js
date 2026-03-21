@@ -443,6 +443,19 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           return result
         }
 
+        if (result.type === 'source-only') {
+          this.setSessionState({
+            activeFile: result.sourcePath,
+            activeKind: result.kind,
+            sourcePaneId: result.sourcePaneId,
+            previewPaneId: null,
+            previewKind: result.previewKind,
+            previewSourcePath: result.sourcePath,
+            state: 'source-only',
+          })
+          return result
+        }
+
         let previewPaneId = result.previewPaneId
         let previewPath = result.previewPath
 

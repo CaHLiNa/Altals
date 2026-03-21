@@ -26,6 +26,8 @@ const ROLE_TITLES = {
 
 export const useAiWorkbenchStore = defineStore('aiWorkbench', () => {
   const launcherTab = ref('ai')
+  const view = ref('launcher')
+  const sessionId = ref(null)
 
   function roleBadge(role) {
     return ROLE_BADGES[role] || 'ai'
@@ -56,10 +58,28 @@ function roleTitle(role) {
     }
   }
 
+  function openLauncher() {
+    view.value = 'launcher'
+    sessionId.value = null
+  }
+
+  function openSession(id) {
+    if (!id) {
+      openLauncher()
+      return
+    }
+    view.value = 'chat'
+    sessionId.value = id
+  }
+
   return {
     launcherTab,
+    view,
+    sessionId,
     roleBadge,
     roleTitle,
     describeSession,
+    openLauncher,
+    openSession,
   }
 })

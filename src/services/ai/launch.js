@@ -2,6 +2,7 @@ import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../../i18n'
 import { useAiDrawerStore } from '../../stores/aiDrawer'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog'
 import { prepareTexTypFixTask } from './texTypFixer'
@@ -34,6 +35,17 @@ async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside
     return sessionId
   }
 
+  if (surface === 'workbench') {
+    const aiWorkbench = useAiWorkbenchStore()
+    chatStore.activeSessionId = sessionId
+    if (prefill) chatStore.pendingPrefill = prefill
+    if (selection) chatStore.pendingSelection = selection
+    editorStore?.openAiWorkbenchSurface?.()
+    aiWorkbench.openSession(sessionId)
+    await nextTick()
+    return sessionId
+  }
+
   if (beside) {
     editorStore.openChatBeside({ sessionId, selection, prefill })
   } else {
@@ -55,6 +67,13 @@ export function openAiLauncher({ editorStore, beside = true, paneId, surface = '
     return
   }
 
+  if (surface === 'workbench') {
+    const aiWorkbench = useAiWorkbenchStore()
+    editorStore?.openAiWorkbenchSurface?.()
+    aiWorkbench.openLauncher()
+    return
+  }
+
   const existing = typeof editorStore?._findLeaf === 'function'
     ? editorStore._findLeaf((node) => node.activeTab && isAiLauncher(node.activeTab))
     : null
@@ -70,6 +89,16 @@ export function openAiLauncher({ editorStore, beside = true, paneId, surface = '
   }
 
   editorStore.openAiLauncher(paneId)
+}
+
+export function continueAiToWorkbench({ editorStore, sessionId = null } = {}) {
+  const aiWorkbench = useAiWorkbenchStore()
+  editorStore?.openAiWorkbenchSurface?.()
+  if (sessionId) {
+    aiWorkbench.openSession(sessionId)
+  } else {
+    aiWorkbench.openLauncher()
+  }
 }
 
 function collectAiLauncherTabs(node, result = []) {

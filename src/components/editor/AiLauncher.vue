@@ -72,7 +72,7 @@
       </div>
     </div>
 
-    <div class="shrink-0 flex justify-center">
+    <div v-if="showInput" class="shrink-0 flex justify-center">
       <div class="w-full ai-launcher-input-shell">
         <ChatInput
           ref="chatInputRef"
@@ -107,6 +107,7 @@ const props = defineProps({
   paneId: { type: String, default: '' },
   surface: { type: String, default: 'pane' },
   compact: { type: Boolean, default: false },
+  showInput: { type: Boolean, default: true },
 })
 
 const editorStore = useEditorStore()
@@ -320,6 +321,12 @@ function openChat(sessionId) {
   if (props.surface === 'drawer') {
     nextTick(() => {
       aiDrawer.openSession(sessionId)
+    })
+    return
+  }
+  if (props.surface === 'workbench') {
+    nextTick(() => {
+      aiWorkbench.openSession(sessionId)
     })
     return
   }

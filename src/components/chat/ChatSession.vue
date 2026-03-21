@@ -1,9 +1,23 @@
 <template>
-  <div class="chat-session flex flex-col h-full" :class="{ 'chat-session-compact': compact }">
+  <div class="chat-session flex flex-col h-full" :class="{ 'chat-session-compact': compact, 'chat-session-workbench': surface === 'workbench' }">
     <!-- Messages area -->
     <div ref="messagesRef" class="flex-1 overflow-y-auto pt-4 pb-8 flex flex-col" @scroll="onScroll">
       <div v-if="sessionMeta" class="max-w-[80ch] mx-auto w-full px-3 pb-3">
+        <div v-if="surface === 'workbench'" class="chat-session-stage">
+          <div class="chat-session-stage-kicker">{{ t('AI session') }}</div>
+          <div class="chat-session-stage-title">{{ sessionMeta.label }}</div>
+          <div class="chat-session-stage-meta">
+            <span
+              class="chat-session-stage-pill is-role"
+            >
+              {{ sessionMeta.roleTitle }}
+            </span>
+            <span class="chat-session-stage-pill">{{ sessionMeta.runtimeTitle }}</span>
+          </div>
+        </div>
+
         <div
+          v-else
           class="chat-session-badge inline-flex items-center gap-2 rounded-full border px-2.5 py-1"
           style="background: var(--bg-secondary); border-color: var(--border);"
         >
@@ -34,14 +48,19 @@
       <!-- Empty state: suggestion chips -->
       <div v-if="messages.length === 0" class="flex-1">
         <div class="max-w-[80ch] mx-auto w-full px-3" style="padding-top: max(3rem, 40vh);">
-          <button
-            v-for="chip in suggestionChips"
-            :key="chip.text"
-            class="chip-row"
-            @click="setSuggestion(chip.text)">
-            <span class="gutter">›</span>
-            <span>{{ chip.text }}</span>
-          </button>
+          <div class="chat-suggestion-panel">
+            <div class="chat-suggestion-kicker">{{ t('Continue from here') }}</div>
+            <div class="chat-suggestion-list">
+              <button
+                v-for="chip in suggestionChips"
+                :key="chip.text"
+                class="chip-row"
+                @click="setSuggestion(chip.text)">
+                <span class="gutter">›</span>
+                <span>{{ chip.text }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -360,22 +379,89 @@ defineExpose({ focus })
   gap: 10px;
 }
 
+.chat-session-stage,
+.chat-suggestion-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+}
+
+.chat-session-stage {
+  padding: 14px 16px;
+}
+
+.chat-session-stage-kicker,
+.chat-suggestion-kicker {
+  font-size: var(--surface-font-kicker, var(--ui-font-micro));
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.chat-session-stage-title {
+  margin-top: 8px;
+  font-size: var(--surface-font-card, var(--ui-font-display));
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.chat-session-stage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chat-session-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--ui-font-body);
+  color: var(--fg-secondary);
+  background: var(--bg-primary);
+}
+
+.chat-session-stage-pill.is-role {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-primary));
+}
+
+.chat-suggestion-panel {
+  padding: 14px 16px;
+}
+
+.chat-suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+
 .chip-row {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  background: none;
-  border: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   text-align: left;
   cursor: pointer;
   font-size: var(--ui-font-body);
   color: var(--fg-secondary);
-  padding: 4px 0;
-  transition: color 75ms;
+  padding: 6px 8px;
+  transition: color 75ms, background-color 120ms ease, border-color 120ms ease;
 }
 .chip-row:hover {
   color: var(--fg-primary);
+  background: color-mix(in srgb, var(--bg-primary) 76%, var(--bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
 }
 .gutter {
   width: 12px;
@@ -392,6 +478,11 @@ defineExpose({ focus })
 
 .chat-session-badge {
   flex-wrap: wrap;
+}
+
+.chat-session-workbench .chat-artifact-header {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .chat-session-compact .chat-session-badge {

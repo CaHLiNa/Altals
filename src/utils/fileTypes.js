@@ -25,6 +25,10 @@ export function isAiLauncher(path) {
   return path?.startsWith('ai-launcher:')
 }
 
+export function isAiWorkbenchPath(path) {
+  return path === 'ai-launcher:workspace'
+}
+
 export function isLibraryPath(path) {
   return path?.startsWith('library:')
 }

@@ -1,17 +1,34 @@
 <template>
-  <div class="library-workbench h-full min-h-0">
+  <div
+    ref="workbenchEl"
+    class="library-workbench h-full min-h-0"
+    :class="{
+      'is-compact-pane': isCompactPane,
+      'is-sidebar-drawer-open': isCompactPane && compactSidebarOpen,
+      'is-detail-drawer-open': isCompactPane && compactDetailOpen && !!activeRef,
+    }"
+  >
+    <button
+      v-if="showCompactBackdrop"
+      type="button"
+      class="library-compact-backdrop"
+      :aria-label="t('Close')"
+      @click="closeCompactPanels"
+    ></button>
+
     <div class="library-shell h-full min-h-0" :class="{ 'is-editing': isEditing }">
       <aside class="library-sidebar">
-        <div class="library-sidebar-header">
-          <button type="button" class="library-back-button" @click="returnToWorkspace">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
-              <path d="M9.5 3.5L5 8l4.5 4.5" />
-            </svg>
-            <span>{{ t('Back to workspace') }}</span>
-          </button>
-          <div class="library-sidebar-meta">
-            <div class="library-section-label">{{ t('Current workspace') }}</div>
-            <div class="library-sidebar-workspace-name">{{ workspaceName }}</div>
+        <div v-if="isCompactPane" class="library-sidebar-header is-compact">
+          <div class="library-sidebar-head">
+            <div class="library-section-label">{{ t('Filters') }}</div>
+            <button
+              type="button"
+              class="library-icon-button"
+              :aria-label="t('Close')"
+              @click="compactSidebarOpen = false"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
           </div>
         </div>
 
@@ -86,6 +103,26 @@
       <template v-else>
         <main class="library-main">
           <div class="library-toolbar">
+            <div v-if="isCompactPane" class="library-compact-toolbar">
+              <button
+                type="button"
+                class="library-quiet-button"
+                :class="{ 'is-active': compactSidebarOpen }"
+                @click="toggleCompactSidebar"
+              >
+                {{ t('Filters') }}
+              </button>
+              <button
+                type="button"
+                class="library-quiet-button"
+                :class="{ 'is-active': compactDetailOpen }"
+                :disabled="!activeRef"
+                @click="toggleCompactDetail"
+              >
+                {{ t('Details') }}
+              </button>
+            </div>
+
             <div class="library-toolbar-row">
               <div class="library-search-shell">
                 <input
@@ -181,14 +218,14 @@
               <template v-if="isLibraryLoading">
                 <div class="library-empty-state">
                   <div class="library-empty-title">{{ t('Loading references...') }}</div>
-                  <div class="library-empty-copy">{{ t('Global library is loading for the current workspace.') }}</div>
+                  <div class="library-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
                 </div>
               </template>
 
               <template v-else-if="filteredRefs.length === 0">
                 <div class="library-empty-state">
-                  <div class="library-empty-title">{{ t('No references found.') }}</div>
-                  <div class="library-empty-copy">{{ t('Try another view, clear tag filters, or adjust the search query.') }}</div>
+                  <div class="library-empty-title">{{ t('Nothing in this view yet.') }}</div>
+                  <div class="library-empty-copy">{{ t('Switch library views, clear tag filters, or import references into the global library.') }}</div>
                 </div>
               </template>
 
@@ -253,6 +290,18 @@
         </main>
 
         <aside class="library-detail">
+          <div v-if="isCompactPane" class="library-detail-compact-head">
+            <div class="library-section-label">{{ t('Details') }}</div>
+            <button
+              type="button"
+              class="library-icon-button"
+              :aria-label="t('Close')"
+              @click="compactDetailOpen = false"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+
           <div v-if="activeRef" class="library-detail-inner">
             <div class="library-detail-primary">
               <div class="library-detail-title">{{ activeRef.title || `@${activeRef._key}` }}</div>
@@ -326,12 +375,12 @@
 
           <div v-else-if="isLibraryLoading" class="library-empty-state detail">
             <div class="library-empty-title">{{ t('Loading references...') }}</div>
-            <div class="library-empty-copy">{{ t('Global library is loading for the current workspace.') }}</div>
+            <div class="library-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
           </div>
 
           <div v-else class="library-empty-state detail">
             <div class="library-empty-title">{{ t('No reference selected') }}</div>
-            <div class="library-empty-copy">{{ t('Select a reference from the global library to inspect and manage it.') }}</div>
+            <div class="library-empty-copy">{{ t('Select a reference to inspect and manage it for the current project.') }}</div>
           </div>
         </aside>
       </template>
@@ -345,10 +394,9 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 
@@ -356,9 +404,9 @@ const LibraryReferenceEditor = defineAsyncComponent(() => import('./LibraryRefer
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
-const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
+const workbenchEl = ref(null)
 const activeView = ref('all')
 const searchQuery = ref('')
 const sortKey = ref('added-desc')
@@ -367,8 +415,10 @@ const selectedKeys = ref([])
 const tagActionInput = ref('')
 const batchTagAction = ref('add')
 const showImportDialog = ref(false)
+const paneWidth = ref(0)
+const compactSidebarOpen = ref(false)
+const compactDetailOpen = ref(false)
 
-const workspaceName = computed(() => workspace.path?.split('/').pop() || t('No workspace'))
 const allRefs = computed(() => referencesStore.globalLibrary || [])
 const selectedKeySet = computed(() => new Set(selectedKeys.value))
 const projectKeySet = computed(() => new Set(referencesStore.workspaceKeys || []))
@@ -376,6 +426,8 @@ const activeKey = computed(() => referencesStore.activeKey || '')
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
 const hasBatchSelection = computed(() => selectedKeys.value.length > 1)
 const isLibraryLoading = computed(() => referencesStore.loading && allRefs.value.length === 0)
+const isCompactPane = computed(() => paneWidth.value > 0 && paneWidth.value <= 1080)
+const showCompactBackdrop = computed(() => isCompactPane.value && (compactSidebarOpen.value || compactDetailOpen.value))
 
 const primaryViewOptions = computed(() => ([
   { id: 'all', label: t('All references'), count: allRefs.value.length },
@@ -509,6 +561,31 @@ const activeDetailRows = computed(() => {
   return rows.filter(Boolean)
 })
 
+function syncPaneWidth() {
+  paneWidth.value = Math.round(workbenchEl.value?.clientWidth || 0)
+}
+
+let resizeObserver = null
+
+onMounted(() => {
+  syncPaneWidth()
+
+  if (typeof ResizeObserver !== 'undefined' && workbenchEl.value) {
+    resizeObserver = new ResizeObserver(() => {
+      syncPaneWidth()
+    })
+    resizeObserver.observe(workbenchEl.value)
+  }
+
+  window.addEventListener('resize', syncPaneWidth)
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect?.()
+  resizeObserver = null
+  window.removeEventListener('resize', syncPaneWidth)
+})
+
 watch(filteredRefs, (refs) => {
   const visibleKeys = new Set(refs.map((item) => item._key))
   selectedKeys.value = selectedKeys.value.filter((key) => visibleKeys.has(key))
@@ -529,6 +606,17 @@ watch(allRefs, (refs) => {
     referencesStore.closeLibraryDetailMode()
   }
 }, { deep: true })
+
+watch(isCompactPane, (compact) => {
+  if (!compact) {
+    compactSidebarOpen.value = false
+    compactDetailOpen.value = false
+  }
+})
+
+watch(isEditing, (editing) => {
+  if (editing) closeCompactPanels()
+})
 
 function formatAuthors(refItem = {}) {
   const authors = Array.isArray(refItem.author) ? refItem.author : []
@@ -565,21 +653,26 @@ function hiddenTagCount(refItem = {}) {
 
 function activateView(viewId) {
   activeView.value = viewId
+  if (isCompactPane.value) compactSidebarOpen.value = false
 }
 
 function toggleTag(tag) {
   if (selectedTags.value.includes(tag)) {
     selectedTags.value = selectedTags.value.filter((item) => item !== tag)
+    if (isCompactPane.value) compactSidebarOpen.value = false
     return
   }
   selectedTags.value = [...selectedTags.value, tag]
+  if (isCompactPane.value) compactSidebarOpen.value = false
 }
 
 function focusReference(key) {
+  if (isCompactPane.value) compactSidebarOpen.value = false
   referencesStore.focusReferenceInLibrary(key, { mode: 'browse' })
 }
 
 function enterEditMode(key) {
+  closeCompactPanels()
   referencesStore.focusReferenceInLibrary(key, { mode: 'edit' })
 }
 
@@ -647,30 +740,50 @@ function applyTagAction(action) {
   tagActionInput.value = ''
 }
 
-function returnToWorkspace() {
-  editorStore.closeLibrarySurface('global')
+function closeCompactPanels() {
+  compactSidebarOpen.value = false
+  compactDetailOpen.value = false
 }
+
+function toggleCompactSidebar() {
+  if (!isCompactPane.value) return
+  const next = !compactSidebarOpen.value
+  compactDetailOpen.value = false
+  compactSidebarOpen.value = next
+}
+
+function toggleCompactDetail() {
+  if (!isCompactPane.value || !activeRef.value) return
+  const next = !compactDetailOpen.value
+  compactSidebarOpen.value = false
+  compactDetailOpen.value = next
+}
+
 </script>
 
 <style scoped>
 .library-workbench {
+  container-type: inline-size;
+  position: relative;
+  overflow: hidden;
   background: var(--bg-primary);
   color: var(--fg-primary);
-  --library-label-size: 10px;
-  --library-subtle-size: 11px;
-  --library-ui-size: 12px;
-  --library-list-title-size: 14px;
-  --library-detail-title-size: 20px;
+  --library-label-size: var(--surface-font-kicker);
+  --library-subtle-size: var(--surface-font-meta);
+  --library-ui-size: var(--surface-font-body);
+  --library-sidebar-title-size: var(--surface-font-card);
+  --library-list-title-size: var(--surface-font-title);
+  --library-detail-title-size: var(--surface-font-detail);
 }
 
 .library-shell {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 308px;
+  grid-template-columns: 176px minmax(0, 1fr) 300px;
   background: var(--bg-secondary);
 }
 
 .library-shell.is-editing {
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: 176px minmax(0, 1fr);
 }
 
 .library-sidebar,
@@ -691,9 +804,18 @@ function returnToWorkspace() {
 .library-sidebar-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 10px 8px;
+  gap: 4px;
+  padding: 12px 12px 10px;
   border-bottom: 1px solid var(--border);
+}
+
+.library-sidebar-head,
+.library-detail-compact-head,
+.library-compact-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .library-sidebar-row,
@@ -740,7 +862,7 @@ function returnToWorkspace() {
 .library-empty-title {
   margin: 0;
   color: var(--fg-primary);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .library-inline-empty,
@@ -751,6 +873,7 @@ function returnToWorkspace() {
 .library-detail-value {
   font-size: var(--library-subtle-size);
   color: var(--fg-muted);
+  line-height: 1.55;
 }
 
 .library-sidebar-section {
@@ -764,13 +887,14 @@ function returnToWorkspace() {
 .library-sidebar-section:first-of-type {
   border-top: none;
   padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .library-sidebar-section.grow {
   min-height: 0;
   flex: 1;
-  padding-top: 14px;
-  padding-bottom: 10px;
+  padding-top: 12px;
+  padding-bottom: 8px;
 }
 
 .library-nav-list,
@@ -817,45 +941,30 @@ function returnToWorkspace() {
   border-bottom: 1px solid var(--border);
 }
 
-.library-back-button {
+.library-sidebar-header.is-compact {
+  padding-top: 10px;
+  padding-bottom: 8px;
+}
+
+.library-icon-button {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: transparent;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-hover));
   color: var(--fg-muted);
-  font-size: var(--library-ui-size);
-  line-height: 1.2;
-  transition: color 120ms, opacity 120ms;
+  font-size: var(--surface-font-title);
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.library-back-button:hover {
+.library-icon-button:hover {
   color: var(--fg-primary);
-}
-
-.library-back-button svg {
-  width: 10px;
-  height: 10px;
-  opacity: 0.8;
-}
-
-.library-sidebar-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.library-sidebar-workspace-name {
-  font-size: var(--library-list-title-size);
-  line-height: 1.2;
-  color: var(--fg-primary);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-hover));
 }
 
 .library-inline-label {
@@ -865,13 +974,17 @@ function returnToWorkspace() {
 .library-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px 7px;
+  gap: 5px;
+  padding: 7px 10px 6px;
   background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary));
 }
 
+.library-compact-toolbar {
+  display: none;
+}
+
 .library-search-shell {
-  flex: 1 1 320px;
+  flex: 1 1 300px;
   min-width: 220px;
 }
 
@@ -1041,7 +1154,7 @@ function returnToWorkspace() {
 }
 
 .library-tag-row {
-  font-size: 10px;
+  font-size: var(--library-label-size);
 }
 
 .library-nav-list.is-secondary .library-nav-item {
@@ -1118,7 +1231,7 @@ function returnToWorkspace() {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  font-size: 10px;
+  font-size: var(--library-label-size);
   border-color: color-mix(in srgb, var(--border) 74%, var(--fg-muted));
   background: transparent;
 }
@@ -1252,9 +1365,9 @@ function returnToWorkspace() {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   font-size: var(--library-list-title-size);
-  line-height: 1.34;
+  line-height: 1.32;
   color: var(--fg-primary);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .library-ref-meta {
@@ -1289,6 +1402,17 @@ function returnToWorkspace() {
   overflow: auto;
 }
 
+.library-detail-compact-head {
+  display: none;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 90%, var(--bg-primary));
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 .library-editor-toolbar {
   display: flex;
   align-items: flex-start;
@@ -1318,7 +1442,8 @@ function returnToWorkspace() {
 
 .library-detail-title {
   font-size: var(--library-detail-title-size);
-  line-height: 1.24;
+  line-height: 1.22;
+  font-weight: 600;
 }
 
 .library-detail-section {
@@ -1332,7 +1457,7 @@ function returnToWorkspace() {
 .library-detail-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
   align-items: stretch;
 }
 
@@ -1367,12 +1492,17 @@ function returnToWorkspace() {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: var(--library-subtle-size);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   border-color: color-mix(in srgb, var(--border) 92%, var(--fg-muted));
   background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-hover));
   color: var(--fg-primary);
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .library-detail-actions .library-inline-button {
@@ -1423,7 +1553,8 @@ function returnToWorkspace() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 18px 12px;
+  max-width: 38ch;
+  padding: 22px 16px;
 }
 
 .library-empty-state.detail {
@@ -1431,7 +1562,7 @@ function returnToWorkspace() {
 }
 
 .library-empty-title {
-  font-size: var(--library-list-title-size);
+  font-size: var(--library-sidebar-title-size);
 }
 
 .library-inline-button:disabled,
@@ -1440,35 +1571,181 @@ function returnToWorkspace() {
   cursor: default;
 }
 
-@media (max-width: 1260px) {
+.library-compact-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: none;
+  background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  backdrop-filter: blur(1.5px);
+}
+
+@container (max-width: 1180px) {
   .library-shell {
-    grid-template-columns: 176px minmax(0, 1fr) 288px;
+    grid-template-columns: 168px minmax(0, 1fr) 268px;
+  }
+
+  .library-toolbar-row {
+    gap: 6px;
+  }
+
+  .library-search-shell {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .library-select {
+    width: 148px;
+  }
+
+  .library-table-header,
+  .library-table-row {
+    grid-template-columns: 26px minmax(0, 1.55fr) minmax(0, 0.75fr) 94px;
+    gap: 8px;
+  }
+
+  .library-detail-grid {
+    grid-template-columns: 62px minmax(0, 1fr);
   }
 }
 
-@media (max-width: 980px) {
+@container (max-width: 1080px) {
   .library-shell,
   .library-shell.is-editing {
-    grid-template-columns: 1fr;
-  }
-
-  .library-sidebar,
-  .library-detail {
-    border: none;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .library-sidebar {
-    border-bottom: 1px solid var(--border);
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(248px, 74cqw);
+    max-width: calc(100% - 28px);
+    z-index: 4;
+    pointer-events: none;
+    transform: translateX(calc(-100% - 10px));
+    transition: transform 180ms ease;
+    box-shadow: 14px 0 32px color-mix(in srgb, var(--bg-primary) 22%, transparent);
+  }
+
+  .library-workbench.is-sidebar-drawer-open .library-sidebar {
+    pointer-events: auto;
+    transform: translateX(0);
   }
 
   .library-detail {
-    border-top: 1px solid var(--border);
-    max-height: 42%;
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: min(312px, 68cqw);
+    max-width: calc(100% - 28px);
+    z-index: 4;
+    pointer-events: none;
+    border-left: 1px solid var(--border);
+    border-top: none;
+    transform: translateX(calc(100% + 10px));
+    transition: transform 180ms ease;
+    box-shadow: -14px 0 32px color-mix(in srgb, var(--bg-primary) 22%, transparent);
   }
 
+  .library-workbench.is-detail-drawer-open .library-detail {
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .library-main,
   .library-editor-stage {
-    grid-column: auto;
+    grid-column: 1;
   }
 
+  .library-compact-toolbar,
+  .library-detail-compact-head {
+    display: flex;
+  }
+
+  .library-toolbar {
+    gap: 5px;
+    padding: 8px 10px 7px;
+  }
+
+  .library-toolbar-row {
+    gap: 6px;
+  }
+
+  .library-search-shell {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .library-select,
+  .library-inline-button.is-primary {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  .library-table-header,
+  .library-table-row {
+    grid-template-columns: 24px minmax(0, 1fr) 92px;
+    gap: 8px;
+  }
+
+  .library-table-header > :nth-child(3),
+  .library-tags-cell {
+    display: none;
+  }
+
+  .library-ref-title {
+    -webkit-line-clamp: 2;
+  }
+
+  .library-detail-inner {
+    gap: 8px;
+    padding: 10px 10px 12px;
+  }
+
+  .library-detail-title {
+    font-size: var(--surface-font-card);
+  }
+}
+
+@container (max-width: 760px) {
+  .library-select,
+  .library-inline-button.is-primary,
+  .library-quiet-button {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  .library-table-header,
+  .library-table-row {
+    grid-template-columns: 24px minmax(0, 1fr) 84px;
+  }
+
+  .library-detail {
+    width: min(100%, 360px);
+  }
+
+  .library-detail-grid {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 4px 8px;
+  }
+
+  .library-detail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .library-detail-actions > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 640px) {
+  .library-table-header,
+  .library-table-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .library-table-header > :nth-child(4),
+  .library-project-cell {
+    display: none;
+  }
 }
 </style>
