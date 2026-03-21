@@ -129,6 +129,7 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
 
     storeWorkflow(snapshot)
     bindRunToSession(sessionId, snapshot.run.id)
+    setActiveRun(snapshot.run.id)
     return getRun(snapshot.run.id)
   }
 
@@ -203,18 +204,19 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   function syncRunToSession(session) {
     if (!session?.id) return null
 
-    let runId = sessionRunMap.value[session.id] || null
-    if (!runId && session._workflow) {
-      const restored = restoreSessionWorkflow(session.id, session._workflow)
-      runId = restored?.run?.id || null
-    }
-
+    const runId = sessionRunMap.value[session.id] || null
     if (!runId) {
       session._workflow = null
       return null
     }
 
     const workflow = getRun(runId)
+    if (!workflow) {
+      clearSessionBinding(session.id)
+      session._workflow = null
+      return null
+    }
+
     const snapshot = serializeSessionWorkflow(workflow)
     session._workflow = snapshot
     return snapshot

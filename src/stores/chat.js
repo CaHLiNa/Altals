@@ -14,7 +14,12 @@ import { appendUnresolvedCommentsToContent } from '../services/documentComments'
 import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
 import { useAiArtifactsStore } from './aiArtifacts'
-import { hydrateSessionWorkflow, serializeSessionWorkflow, useAiWorkflowRunsStore } from './aiWorkflowRuns'
+import { useAiWorkflowRunsStore } from './aiWorkflowRuns'
+import {
+  buildPersistedChatSessionData,
+  buildPersistedChatSessionMeta,
+  hydratePersistedChatSession,
+} from './chatSessionPersistence'
 import { generateWorkspaceText } from '../services/ai/textGeneration'
 import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
 import { t } from '../i18n'
@@ -429,27 +434,12 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const content = await invoke('read_file', { path: `${workspace.shouldersDir}/chats/${id}.json` })
       const data = JSON.parse(content)
-
-      const messages = data.messages || []
-      const workflowSnapshot = hydrateSessionWorkflow(data._workflow || null)
-
-      const session = {
-        id: data.id,
-        label: data.label,
-        modelId: data.modelId,
-        messages: [], // Will be populated by Chat instance
-        status: 'idle',
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-        _ai: data._ai || null,
-        _workflow: workflowSnapshot,
-        _savedMessages: messages, // Passed to Chat constructor
-      }
+      const session = hydratePersistedChatSession(data)
 
       sessions.value.push(session)
       activeSessionId.value = id
-      if (workflowSnapshot) {
-        useAiWorkflowRunsStore().restoreSessionWorkflow(id, workflowSnapshot)
+      if (session._workflow) {
+        useAiWorkflowRunsStore().restoreSessionWorkflow(id, session._workflow)
       }
 
       // Pre-create Chat so messages are immediately available
@@ -476,16 +466,7 @@ export const useChatStore = defineStore('chat', () => {
         try {
           const content = await invoke('read_file', { path: file.path })
           const data = JSON.parse(content)
-          meta.push({
-            id: data.id,
-            label: data.label || t('Untitled'),
-            updatedAt: data.updatedAt || data.createdAt,
-            messageCount: data.messages?.length || 0,
-            _aiTitle: data._aiTitle || false,
-            _keywords: data._keywords || [],
-            _ai: data._ai || null,
-            _workflow: hydrateSessionWorkflow(data._workflow || null),
-          })
+          meta.push(buildPersistedChatSessionMeta(data, t('Untitled')))
         } catch {}
       }
 
@@ -696,7 +677,7 @@ export const useChatStore = defineStore('chat', () => {
 
     const session = sessions.value.find(s => s.id === id)
     if (!session) return
-    const workflowSnapshot = serializeSessionWorkflow(useAiWorkflowRunsStore().syncRunToSession(session))
+    const workflowSnapshot = useAiWorkflowRunsStore().syncRunToSession(session)
 
     // Get messages from Chat instance
     const chat = chatInstances.get(id)
@@ -713,19 +694,8 @@ export const useChatStore = defineStore('chat', () => {
       await invoke('create_dir', { path: chatsDir })
     }
 
-    const data = {
-      id: session.id,
-      label: session.label,
-      _aiTitle: session._aiTitle || false,
-      _keywords: session._keywords || [],
-      _ai: session._ai || null,
-      _workflow: workflowSnapshot,
-      modelId: session.modelId,
-      messages,
-      status: 'idle',
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
-    }
+    session._workflow = workflowSnapshot
+    const data = buildPersistedChatSessionData(session, messages)
 
     try {
       await invoke('write_file', {
@@ -734,16 +704,7 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       const existingIdx = allSessionsMeta.value.findIndex(m => m.id === id)
-      const meta = {
-        id: session.id,
-        label: session.label,
-        updatedAt: session.updatedAt || session.createdAt,
-        messageCount: messages.length,
-        _aiTitle: session._aiTitle || false,
-        _keywords: session._keywords || [],
-        _ai: session._ai || null,
-        _workflow: workflowSnapshot,
-      }
+      const meta = buildPersistedChatSessionMeta(data, t('Untitled'))
       if (existingIdx >= 0) {
         allSessionsMeta.value[existingIdx] = meta
       } else {
