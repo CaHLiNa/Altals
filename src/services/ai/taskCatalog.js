@@ -1,4 +1,4 @@
-import { t as translate } from '../../i18n'
+import { t as translate } from '../../i18n/index.js'
 import { isMarkdown, isLatex, isTypst, isPdf } from '../../utils/fileTypes.js'
 import {
   TOOL_CATEGORIES,
@@ -25,36 +25,71 @@ function isDatasetPath(path = '') {
   return path.endsWith('.csv') || path.endsWith('.tsv')
 }
 
+function createWorkflowTaskDescriptor({
+  workflowTemplateId,
+  role,
+  toolProfile,
+  taskId,
+  source = 'launcher',
+  entryContext = null,
+  label = '',
+  prompt = '',
+  filePath = null,
+  context = null,
+  artifactIntent = null,
+  fileRefs = null,
+  richHtml = null,
+} = {}) {
+  return {
+    action: 'workflow',
+    workflowTemplateId,
+    role,
+    toolProfile: toolProfile || role || null,
+    taskId: taskId || null,
+    source,
+    entryContext,
+    label,
+    prompt,
+    filePath,
+    context,
+    artifactIntent,
+    fileRefs: Array.isArray(fileRefs) ? fileRefs : null,
+    richHtml: richHtml || null,
+  }
+}
+
 function buildWritingTasks(path, t) {
   const name = fileName(path)
   const items = [
     {
       label: t('Review current draft'),
       meta: name,
-      task: {
-        action: 'send',
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'draft.review-revise',
         role: 'reviewer',
         toolProfile: 'reviewer',
         taskId: 'review.current-draft',
         artifactIntent: 'review',
+        label: t('Review current draft'),
         prompt:
           t('Review this draft for argument quality, clarity, structure, and academic tone. Point out concrete revision opportunities.'),
         filePath: path,
-      },
+      }),
     },
     {
       label: t('Citation help'),
       meta: name,
-      task: {
-        action: 'send',
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'references.search-intake',
         role: 'citation_librarian',
         toolProfile: 'citation_librarian',
         taskId: 'citation.current-draft',
         artifactIntent: 'citation_set',
+        label: t('Citation help'),
         prompt:
           t('Inspect this draft and identify claims that need stronger citation support or better integration of references.'),
         filePath: path,
-      },
+      }),
     },
   ]
 
@@ -104,15 +139,16 @@ function buildCodeTasks(path, t) {
     {
       label: t('Code assistant'),
       meta: name,
-      task: {
-        action: 'send',
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'code.debug-current',
         role: 'code_assistant',
         toolProfile: 'code_assistant',
         taskId: 'code.explain-current',
+        label: t('Code assistant'),
         prompt:
           t('Explain this code or notebook, identify the main workflow, and call out likely issues, assumptions, or unclear areas.'),
         filePath: path,
-      },
+      }),
     },
     {
       label: t('Check reproducibility'),
@@ -221,14 +257,15 @@ function buildWorkflowSections(t) {
         },
         {
           label: t('Review current draft'),
-          task: {
-            action: 'prefill',
+          task: createWorkflowTaskDescriptor({
+            workflowTemplateId: 'draft.review-revise',
             role: 'reviewer',
             toolProfile: 'reviewer',
             taskId: 'review.prefill',
             artifactIntent: 'review',
+            label: t('Review current draft'),
             prompt: t('Act as a critical peer reviewer. Review this draft for originality, logic, clarity, and evidence:'),
-          },
+          }),
         },
       ],
     },
@@ -247,13 +284,14 @@ function buildWorkflowSections(t) {
         },
         {
           label: t('Search academic papers'),
-          task: {
-            action: 'prefill',
+          task: createWorkflowTaskDescriptor({
+            workflowTemplateId: 'references.search-intake',
             role: 'researcher',
             toolProfile: 'researcher',
             taskId: 'research.paper-search',
+            label: t('Search academic papers'),
             prompt: t('Help me search academic papers for this topic. Prefer using search_papers first, then present the best candidates with create_proposal.'),
-          },
+          }),
         },
         {
           label: t('Web Research'),
@@ -286,14 +324,15 @@ function buildWorkflowSections(t) {
       items: [
         {
           label: t('Citation help'),
-          task: {
-            action: 'prefill',
+          task: createWorkflowTaskDescriptor({
+            workflowTemplateId: 'references.search-intake',
             role: 'citation_librarian',
             toolProfile: 'citation_librarian',
             taskId: 'citation.prefill',
             artifactIntent: 'citation_set',
+            label: t('Citation help'),
             prompt: t('Help me find and integrate citations for this section or claim:'),
-          },
+          }),
         },
         {
           label: t('Add by DOI or BibTeX'),
@@ -316,13 +355,14 @@ function buildWorkflowSections(t) {
       items: [
         {
           label: t('Code assistant'),
-          task: {
-            action: 'prefill',
+          task: createWorkflowTaskDescriptor({
+            workflowTemplateId: 'code.debug-current',
             role: 'code_assistant',
             toolProfile: 'code_assistant',
             taskId: 'code.prefill',
+            label: t('Code assistant'),
             prompt: t('Help me with this research code, notebook, or debugging task:'),
-          },
+          }),
         },
         {
           label: t('Read notebook cells & outputs'),

@@ -1,11 +1,12 @@
 import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { t } from '../../i18n'
+import { t } from '../../i18n/index.js'
 import { useAiDrawerStore } from '../../stores/aiDrawer'
+import { useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns.js'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { isAiLauncher } from '../../utils/fileTypes.js'
-import { createSelectionAskTask } from './taskCatalog'
-import { prepareTexTypFixTask } from './texTypFixer'
+import { createSelectionAskTask } from './taskCatalog.js'
+import { prepareTexTypFixTask } from './texTypFixer.js'
 
 async function readFileContent(path) {
   if (!path) return null
@@ -24,12 +25,45 @@ function createAiSession({ chatStore, modelId, label, ai }) {
   return { sessionId, session }
 }
 
+function buildTaskAiMeta(task = {}, fallbackLabel = '') {
+  return {
+    ...task,
+    source: task.source || 'launcher',
+    label: task.label || fallbackLabel || t('General chat'),
+    toolProfile: task.toolProfile || task.role || null,
+  }
+}
+
+function getSession(chatStore, sessionId) {
+  if (!sessionId) return null
+  return chatStore.sessions.find((item) => item.id === sessionId) || null
+}
+
+function resolveAiSession({ chatStore, modelId, label, ai, sessionId = null }) {
+  const existingSession = getSession(chatStore, sessionId)
+  if (existingSession) {
+    if (label) existingSession.label = label
+    if (ai) chatStore.setSessionAiMeta(existingSession.id, ai)
+    return { sessionId: existingSession.id, session: existingSession }
+  }
+  return createAiSession({ chatStore, modelId, label, ai })
+}
+
+function syncActiveWorkflowRun(sessionId) {
+  const aiWorkflowRuns = useAiWorkflowRunsStore()
+  const workflow = aiWorkflowRuns.getRunForSession(sessionId)
+  if (workflow?.run?.id) {
+    aiWorkflowRuns.setActiveRun(workflow.run.id)
+  }
+}
+
 async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside = false, selection, prefill, surface = 'drawer' }) {
   if (surface === 'drawer') {
     const aiDrawer = useAiDrawerStore()
     chatStore.activeSessionId = sessionId
     if (prefill) chatStore.pendingPrefill = prefill
     if (selection) chatStore.pendingSelection = selection
+    syncActiveWorkflowRun(sessionId)
     aiDrawer.openSession(sessionId)
     await nextTick()
     return sessionId
@@ -41,6 +75,7 @@ async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside
     if (prefill) chatStore.pendingPrefill = prefill
     if (selection) chatStore.pendingSelection = selection
     editorStore?.openAiWorkbenchSurface?.()
+    syncActiveWorkflowRun(sessionId)
     aiWorkbench.openSession(sessionId)
     await nextTick()
     return sessionId
@@ -52,6 +87,7 @@ async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside
     if (paneId) editorStore.setActivePane(paneId)
     editorStore.openChat({ sessionId, paneId, selection, prefill })
   }
+  syncActiveWorkflowRun(sessionId)
   await nextTick()
   return sessionId
 }
@@ -164,13 +200,12 @@ export async function startAiConversation({
     chatStore,
     modelId,
     label,
-    ai: ai || {
+    ai: ai || buildTaskAiMeta({
       role: 'general',
       taskId: 'chat.freeform',
       source: 'launcher-input',
-      label: label || t('General chat'),
       toolProfile: null,
-    },
+    }, label || t('General chat')),
   })
 
   await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface })
@@ -200,13 +235,12 @@ export async function prefillAiConversation({
     chatStore,
     modelId,
     label,
-    ai: ai || {
+    ai: ai || buildTaskAiMeta({
       role: 'general',
       taskId: 'chat.prefill',
       source: 'launcher',
-      label: label || t('General chat'),
       toolProfile: null,
-    },
+    }, label || t('General chat')),
   })
 
   await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface, prefill: message })
@@ -214,6 +248,100 @@ export async function prefillAiConversation({
     dispatchPrefill(message)
   }
   return sessionId
+}
+
+async function buildWorkflowLaunchContext(task) {
+  const fileRefs = [...(task.fileRefs || [])]
+  if (task.filePath) {
+    fileRefs.push({
+      path: task.filePath,
+      content: await readFileContent(task.filePath),
+    })
+  }
+
+  const baseContext = task.context && typeof task.context === 'object'
+    ? { ...task.context }
+    : (task.context == null ? {} : { value: task.context })
+
+  return {
+    ...baseContext,
+    currentFile: task.filePath || baseContext.file || baseContext.currentFile || null,
+    fileRefs,
+    prompt: task.prompt || null,
+    richHtml: task.richHtml || null,
+    taskId: task.taskId || null,
+    role: task.role || 'general',
+    toolProfile: task.toolProfile || task.role || null,
+    source: task.source || 'launcher',
+    entryContext: task.entryContext || null,
+    artifactIntent: task.artifactIntent || null,
+    label: task.label || null,
+  }
+}
+
+export async function startWorkflowRun({
+  chatStore,
+  modelId,
+  task,
+  sessionId = null,
+}) {
+  if (!task?.workflowTemplateId) return null
+
+  const ai = buildTaskAiMeta(task, task.label || t('General chat'))
+  const sessionState = resolveAiSession({
+    chatStore,
+    modelId,
+    sessionId,
+    label: ai.label,
+    ai,
+  })
+
+  const aiWorkflowRuns = useAiWorkflowRunsStore()
+  const workflow = aiWorkflowRuns.createRunFromTemplate({
+    templateId: task.workflowTemplateId,
+    sessionId: sessionState.sessionId,
+    context: await buildWorkflowLaunchContext(task),
+  })
+
+  if (sessionState.session) {
+    sessionState.session._workflow = aiWorkflowRuns.syncRunToSession(sessionState.session)
+  }
+
+  return {
+    sessionId: sessionState.sessionId,
+    session: sessionState.session,
+    workflow,
+  }
+}
+
+export async function launchWorkflowTask({
+  editorStore,
+  chatStore,
+  paneId,
+  beside = false,
+  surface = 'drawer',
+  modelId,
+  task,
+  sessionId = null,
+}) {
+  const started = await startWorkflowRun({
+    chatStore,
+    modelId,
+    task,
+    sessionId,
+  })
+  if (!started) return null
+
+  await openAiSession({
+    editorStore,
+    chatStore,
+    sessionId: started.sessionId,
+    paneId,
+    beside,
+    surface,
+  })
+
+  return started.sessionId
 }
 
 export async function launchAiTask({
@@ -242,12 +370,19 @@ export async function launchAiTask({
       modelId,
       message: nextTask.prompt,
       label: nextTask.label,
-      ai: {
-        ...nextTask,
-        source: nextTask.source || 'launcher',
-        label: nextTask.label,
-        toolProfile: nextTask.toolProfile || nextTask.role || null,
-      },
+      ai: buildTaskAiMeta(nextTask, nextTask.label),
+    })
+  }
+
+  if (nextTask.action === 'workflow') {
+    return await launchWorkflowTask({
+      editorStore,
+      chatStore,
+      paneId,
+      beside,
+      surface,
+      modelId,
+      task: nextTask,
     })
   }
 
@@ -271,12 +406,7 @@ export async function launchAiTask({
     context: nextTask.context,
     richHtml: nextTask.richHtml,
     label: nextTask.label,
-    ai: {
-      ...nextTask,
-      source: nextTask.source || 'launcher',
-      label: nextTask.label,
-      toolProfile: nextTask.toolProfile || nextTask.role || null,
-    },
+    ai: buildTaskAiMeta(nextTask, nextTask.label),
   })
 }
 

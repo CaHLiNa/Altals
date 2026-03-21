@@ -2,11 +2,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createWorkflowPlan } from '../src/services/ai/workflowRuns/planner.js'
+import { getAiLauncherItems } from '../src/services/ai/taskCatalog.js'
 import {
   WORKFLOW_TEMPLATE_IDS,
   WORKFLOW_TEMPLATES,
   getWorkflowTemplate,
 } from '../src/services/ai/workflowRuns/templates.js'
+
+function t(message, params = {}) {
+  return String(message).replace(/\{(\w+)\}/g, (_, key) => String(params[key] ?? `{${key}}`))
+}
+
+function findTask(items, taskId) {
+  return items.find((item) => item.task?.taskId === taskId)?.task || null
+}
 
 test('draft review workflow inserts steps in the expected order', () => {
   const plan = createWorkflowPlan({
@@ -100,4 +109,47 @@ test('planner returns isolated copies and rejects unknown templates', () => {
   assert.throws(() => {
     createWorkflowPlan({ templateId: 'missing.template' })
   }, /Unknown workflow template/)
+})
+
+test('current draft review launcher entry maps to the draft review workflow', () => {
+  const items = getAiLauncherItems({
+    currentPath: '/tmp/draft.md',
+    t,
+  })
+  const task = findTask(items, 'review.current-draft')
+
+  assert.ok(task)
+  assert.equal(task.action, 'workflow')
+  assert.equal(task.workflowTemplateId, 'draft.review-revise')
+  assert.equal(task.role, 'reviewer')
+  assert.equal(task.toolProfile, 'reviewer')
+  assert.equal(task.filePath, '/tmp/draft.md')
+})
+
+test('paper search and citation help launcher entries map to workflow descriptors', () => {
+  const items = getAiLauncherItems({ t })
+  const paperSearchTask = findTask(items, 'research.paper-search')
+  const citationTask = findTask(items, 'citation.prefill')
+
+  assert.ok(paperSearchTask)
+  assert.equal(paperSearchTask.action, 'workflow')
+  assert.equal(paperSearchTask.workflowTemplateId, 'references.search-intake')
+  assert.equal(paperSearchTask.role, 'researcher')
+  assert.equal(paperSearchTask.toolProfile, 'researcher')
+
+  assert.ok(citationTask)
+  assert.equal(citationTask.action, 'workflow')
+  assert.equal(citationTask.workflowTemplateId, 'references.search-intake')
+  assert.equal(citationTask.role, 'citation_librarian')
+  assert.equal(citationTask.toolProfile, 'citation_librarian')
+})
+
+test('general chat launcher entry remains a normal chat prefill task', () => {
+  const items = getAiLauncherItems({ t })
+  const task = findTask(items, 'chat.general')
+
+  assert.ok(task)
+  assert.equal(task.action, 'prefill')
+  assert.equal(task.workflowTemplateId, undefined)
+  assert.equal(task.role, 'general')
 })
