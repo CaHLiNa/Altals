@@ -183,8 +183,8 @@ export function getWorkflowFirstStarterItems({ currentPath = '', recentFiles = [
 
   return [
     ...contextWorkflowItems,
-    ...contextNonWorkflowItems,
     ...genericWorkflowItems,
+    ...contextNonWorkflowItems,
     ...genericNonWorkflowItems,
   ].slice(0, limit)
 }
