@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { resolveOutlineResizeHeights } from '../src/composables/useLeftSidebarPanels.js'
-import { describeWorkflowHeader, getPendingCheckpoint } from '../src/components/ai/workflowUi.js'
+import {
+  describeWorkflowHeader,
+  getPendingCheckpoint,
+  shouldPersistCheckpointLater,
+} from '../src/components/ai/workflowUi.js'
 
 test('resolveOutlineResizeHeights keeps the refs+outline stack total constant', () => {
   const result = resolveOutlineResizeHeights({
@@ -106,4 +110,10 @@ test('getPendingCheckpoint returns null when there is no open checkpoint', () =>
   }
 
   assert.equal(getPendingCheckpoint(workflow), null)
+})
+
+test('shouldPersistCheckpointLater only treats continue_later as a deferred action', () => {
+  assert.equal(shouldPersistCheckpointLater('continue_later'), true)
+  assert.equal(shouldPersistCheckpointLater('accept'), false)
+  assert.equal(shouldPersistCheckpointLater('skip'), false)
 })

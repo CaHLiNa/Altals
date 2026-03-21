@@ -68,3 +68,7 @@ export function getPendingCheckpoint(value) {
 
   return checkpoints.find((checkpoint) => checkpoint?.status === 'open') || null
 }
+
+export function shouldPersistCheckpointLater(action) {
+  return String(action || '').trim() === 'continue_later'
+}

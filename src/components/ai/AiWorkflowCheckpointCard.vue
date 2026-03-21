@@ -49,7 +49,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns'
-import { describeWorkflowHeader } from './workflowUi.js'
+import { describeWorkflowHeader, shouldPersistCheckpointLater } from './workflowUi.js'
 
 const props = defineProps({
   workflow: { type: Object, default: null },
@@ -104,6 +104,14 @@ async function handleDecision(action) {
 
     const runId = workflow?.run?.id || props.workflow?.run?.id
     if (!runId) return
+
+    if (shouldPersistCheckpointLater(action)) {
+      await aiWorkflowRuns.persistRunSnapshot({
+        runId,
+        sessionId: props.sessionId || null,
+      })
+      return
+    }
 
     aiWorkflowRuns.applyCheckpointDecision({
       runId,
