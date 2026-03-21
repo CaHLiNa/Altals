@@ -16,6 +16,53 @@ import {
   hydratePersistedChatSession,
 } from '../src/stores/chatSessionPersistence.js'
 
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value))
+}
+
+function createFakeChatStore(sessionId) {
+  const sessions = [{ id: sessionId, label: 'Workflow chat', _workflow: null }]
+  const chats = new Map()
+  const saves = []
+
+  return {
+    sessions,
+    saves,
+    getChatInstance(id) {
+      return chats.get(id) || null
+    },
+    getOrCreateChat(session) {
+      if (chats.has(session.id)) return chats.get(session.id)
+      const state = {
+        messagesRef: { value: [] },
+        pushMessage(message) {
+          this.messagesRef.value.push(clone(message))
+        },
+      }
+      const chat = { state }
+      chats.set(session.id, chat)
+      return chat
+    },
+    async saveSession(id) {
+      saves.push(id)
+    },
+  }
+}
+
+async function waitFor(assertion, { attempts = 20 } = {}) {
+  let lastError = null
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return assertion()
+    } catch (error) {
+      lastError = error
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+  }
+  throw lastError
+}
+
 test('workflow session snapshot serializes and hydrates as isolated clones', () => {
   const plan = createWorkflowPlan({
     templateId: 'draft.review-revise',
@@ -107,6 +154,73 @@ test('checkpoint decisions update stored runs and run summaries', () => {
   assert.equal(after.approvalPending, false)
   assert.equal(after.status, 'running')
   assert.equal(after.templateId, 'draft.review-revise')
+})
+
+test('store auto-executes launched workflow runs and persists visible chat content', async () => {
+  setActivePinia(createPinia())
+  const store = useAiWorkflowRunsStore()
+  const chatStore = createFakeChatStore('session-auto-run')
+
+  store.configureExecutor({ chatStore })
+  const created = store.createRunFromTemplate({
+    templateId: 'draft.review-revise',
+    sessionId: 'session-auto-run',
+    context: { currentFile: '/tmp/draft.md', prompt: 'Polish the draft.' },
+  })
+
+  assert.equal(created.run.status, 'planned')
+
+  const waiting = await waitFor(() => {
+    const workflow = store.getRun(created.run.id)
+    assert.equal(workflow.run.status, 'waiting_user')
+    return workflow
+  })
+
+  const openCheckpoint = waiting.run.checkpoints.find((item) => item.status === 'open')
+  assert.equal(waiting.run.currentStepId, waiting.run.steps[4].id)
+  assert.equal(openCheckpoint?.type, 'apply_patch')
+  assert.ok(chatStore.getChatInstance('session-auto-run').state.messagesRef.value.length > 0)
+  assert.ok(chatStore.saves.length > 0)
+})
+
+test('checkpoint resolution resumes execution through the remaining workflow steps', async () => {
+  setActivePinia(createPinia())
+  const store = useAiWorkflowRunsStore()
+  const chatStore = createFakeChatStore('session-resume')
+
+  store.configureExecutor({ chatStore })
+  const created = store.createRunFromTemplate({
+    templateId: 'draft.review-revise',
+    sessionId: 'session-resume',
+    context: { currentFile: '/tmp/draft.md', prompt: 'Apply the safe fixes.' },
+  })
+
+  const waiting = await waitFor(() => {
+    const workflow = store.getRun(created.run.id)
+    assert.equal(workflow.run.status, 'waiting_user')
+    return workflow
+  })
+
+  const checkpointId = waiting.run.checkpoints.find((item) => item.status === 'open')?.id
+  const resumed = store.applyCheckpointDecision({
+    runId: waiting.run.id,
+    checkpointId,
+    decision: { action: 'apply' },
+    resolvedBy: 'reviewer',
+  })
+
+  assert.equal(resumed.run.checkpoints[0].status, 'resolved')
+
+  const completed = await waitFor(() => {
+    const workflow = store.getRun(created.run.id)
+    assert.equal(workflow.run.status, 'completed')
+    return workflow
+  })
+
+  assert.equal(completed.run.steps[4].status, 'completed')
+  assert.equal(completed.run.steps[5].status, 'completed')
+  assert.ok(chatStore.getChatInstance('session-resume').state.messagesRef.value.length > 0)
+  assert.ok(chatStore.saves.length >= 2)
 })
 
 test('chat persistence helpers include serialized workflow snapshots in saved data', () => {

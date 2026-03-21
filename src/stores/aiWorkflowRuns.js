@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { createWorkflowPlan } from '../services/ai/workflowRuns/planner.js'
+import { executeWorkflowRun } from '../services/ai/workflowRuns/executor.js'
 import { resolveCheckpoint } from '../services/ai/workflowRuns/state.js'
 
 function clone(value) {
@@ -77,6 +78,11 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   const byRunId = ref({})
   const sessionRunMap = ref({})
   const activeRunId = ref(null)
+  const executorServices = {
+    chatStore: null,
+  }
+  const executionByRunId = new Map()
+  const rerunAfterExecution = new Set()
 
   const activeRun = computed(() => {
     if (!activeRunId.value) return null
@@ -92,6 +98,11 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     if (!sessionId) return null
     const runId = sessionRunMap.value[sessionId]
     return runId ? getRun(runId) : null
+  }
+
+  function getSessionIdForRun(runId) {
+    if (!runId) return null
+    return Object.entries(sessionRunMap.value).find(([, candidateRunId]) => candidateRunId === runId)?.[0] || null
   }
 
   function dropRunIfUnbound(runId) {
@@ -120,6 +131,88 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     return byRunId.value[snapshot.run.id]
   }
 
+  function replaceRun(workflow) {
+    const stored = storeWorkflow(workflow)
+    if (!stored) return null
+    if (activeRunId.value === stored.run.id) {
+      activeRunId.value = stored.run.id
+    }
+    return stored
+  }
+
+  function configureExecutor({ chatStore = null } = {}) {
+    executorServices.chatStore = chatStore || null
+  }
+
+  async function resolveExecutorChatStore() {
+    if (executorServices.chatStore) return executorServices.chatStore
+    try {
+      const module = await import('./chat.js')
+      const chatStore = module?.useChatStore?.()
+      if (chatStore) {
+        executorServices.chatStore = chatStore
+      }
+      return chatStore || null
+    } catch {
+      return null
+    }
+  }
+
+  async function runExecutor({ runId, sessionId = null } = {}) {
+    if (!runId) return null
+
+    const existing = executionByRunId.get(runId)
+    if (existing) {
+      rerunAfterExecution.add(runId)
+      return existing
+    }
+
+    const task = (async () => {
+      const workflow = getRun(runId)
+      if (!workflow) return null
+
+      const boundSessionId = sessionId || getSessionIdForRun(runId) || null
+      const chatStore = await resolveExecutorChatStore()
+      if (boundSessionId) {
+        const hasSession = Array.isArray(chatStore?.sessions)
+          && chatStore.sessions.some((session) => session?.id === boundSessionId)
+        if (!hasSession) {
+          return getRun(runId)
+        }
+      }
+
+      return executeWorkflowRun({
+        run: clone(workflow.run),
+        sessionId: boundSessionId,
+        chatStore,
+        workflowStore: {
+          getRun(id) {
+            const current = getRun(id)
+            return current ? serializeSessionWorkflow(current) : null
+          },
+          replaceRun(nextWorkflow) {
+            const stored = replaceRun(nextWorkflow)
+            return stored ? serializeSessionWorkflow(stored) : null
+          },
+          syncRunToSession(session) {
+            return syncRunToSession(session)
+          },
+        },
+      })
+    })()
+
+    executionByRunId.set(runId, task)
+    task.finally(() => {
+      executionByRunId.delete(runId)
+      if (rerunAfterExecution.has(runId)) {
+        rerunAfterExecution.delete(runId)
+        void runExecutor({ runId, sessionId: getSessionIdForRun(runId) })
+      }
+    })
+
+    return task
+  }
+
   function restoreSessionWorkflow(sessionId, workflow = null) {
     const snapshot = serializeSessionWorkflow(workflow)
     if (!snapshot) {
@@ -142,6 +235,9 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     }
 
     setActiveRun(workflow.run.id)
+    if (sessionId) {
+      void runExecutor({ runId: workflow.run.id, sessionId })
+    }
     return getRun(workflow.run.id)
   }
 
@@ -198,6 +294,10 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     if (activeRunId.value === runId) {
       activeRunId.value = runId
     }
+    const sessionId = getSessionIdForRun(runId)
+    if (sessionId) {
+      void runExecutor({ runId, sessionId })
+    }
     return getRun(runId)
   }
 
@@ -240,6 +340,8 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     byRunId.value = {}
     sessionRunMap.value = {}
     activeRunId.value = null
+    executionByRunId.clear()
+    rerunAfterExecution.clear()
   }
 
   return {
@@ -249,8 +351,12 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     activeRun,
     getRun,
     getRunForSession,
+    getSessionIdForRun,
     restoreSessionWorkflow,
     createRunFromTemplate,
+    replaceRun,
+    configureExecutor,
+    runExecutor,
     bindRunToSession,
     clearSessionBinding,
     setActiveRun,

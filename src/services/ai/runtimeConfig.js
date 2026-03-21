@@ -4,6 +4,34 @@ import { buildBaseSystemPrompt } from '../systemPrompt'
 import { buildWorkspaceMeta } from '../workspaceMeta'
 import { normalizeRuntimeId } from './runtimeAdapter'
 
+function buildWorkflowPrompt(session) {
+  const workflow = session?._workflow
+  if (!workflow?.run?.id || !workflow?.template?.id) return ''
+
+  const steps = Array.isArray(workflow.run.steps) ? workflow.run.steps : []
+  const currentStep = steps.find((step) => step.id === workflow.run.currentStepId)
+    || steps.find((step) => step.status === 'running')
+    || steps.find((step) => step.status === 'pending')
+    || null
+  const checkpoint = (workflow.run.checkpoints || []).find((item) => item.status === 'open') || null
+  const lines = [
+    'Workflow session context:',
+    `- Template: ${workflow.template.label || workflow.template.id}`,
+    `- Template ID: ${workflow.template.id}`,
+    `- Run status: ${workflow.run.status || 'draft'}`,
+  ]
+
+  if (currentStep) {
+    lines.push(`- Current step: ${currentStep.label || currentStep.kind || currentStep.id}`)
+    lines.push(`- Current step kind: ${currentStep.kind || currentStep.id}`)
+  }
+  if (checkpoint) {
+    lines.push(`- Awaiting approval: ${checkpoint.type || checkpoint.label || checkpoint.id}`)
+  }
+
+  return lines.join('\n')
+}
+
 export async function buildChatRuntimeConfig({ session, workspace } = {}) {
   const role = session?._ai?.role || 'general'
   const profile = session?._ai?.toolProfile || role
@@ -29,6 +57,8 @@ export async function buildChatRuntimeConfig({ session, workspace } = {}) {
     const meta = await buildWorkspaceMeta(workspace?.path)
     if (meta) systemPrompt += '\n\n' + meta
   } catch {}
+  const workflowPrompt = buildWorkflowPrompt(session)
+  if (workflowPrompt) systemPrompt += '\n\n' + workflowPrompt
   if (!access && runtimeId !== 'opencode') return null
 
   return {
