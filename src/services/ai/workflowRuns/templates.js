@@ -44,8 +44,8 @@ const WORKFLOW_TEMPLATE_LIST = [
   {
     id: 'references.search-intake',
     label: 'Search and intake references',
-    role: 'researcher',
-    toolProfile: 'researcher',
+    role: 'citation_librarian',
+    toolProfile: 'citation_librarian',
     autoAdvanceUntil: 'generate_citation_set',
     approvalTypes: ['accept_sources'],
     steps: [

@@ -15,7 +15,7 @@ test('draft review workflow inserts steps in the expected order', () => {
   })
 
   assert.deepEqual(
-    plan.steps.map((step) => step.kind),
+    plan.run.steps.map((step) => step.kind),
     [
       'read_context',
       'analyze_goal',
@@ -49,8 +49,8 @@ test('draft review template requires apply_patch approval', () => {
 test('reference intake template requires accept_sources approval', () => {
   const template = getWorkflowTemplate('references.search-intake')
 
-  assert.equal(template.role, 'researcher')
-  assert.equal(template.toolProfile, 'researcher')
+  assert.equal(template.role, 'citation_librarian')
+  assert.equal(template.toolProfile, 'citation_librarian')
   assert.equal(template.autoAdvanceUntil, 'generate_citation_set')
   assert.deepEqual(template.approvalTypes, ['accept_sources'])
   assert.ok(template.steps.some((step) => step.approvalType === 'accept_sources'))
@@ -62,15 +62,42 @@ test('code debug template suggests fixes without direct file edits by default', 
     context: { currentFile: '/tmp/code.js' },
   })
 
-  assert.deepEqual(plan.steps.map((step) => step.kind), [
+  assert.equal(plan.run.status, 'planned')
+  assert.equal(plan.run.title, 'Debug current code')
+  assert.equal(plan.label, undefined)
+  assert.equal(plan.title, undefined)
+  assert.deepEqual(plan.run.steps.map((step) => step.kind), [
     'read_context',
     'analyze_goal',
     'diagnose_issue',
     'generate_fix_suggestions',
     'summarize_outcome',
   ])
-  assert.equal(plan.autoAdvanceUntil, 'generate_fix_suggestions')
-  assert.deepEqual(plan.approvalTypes, [])
-  assert.ok(plan.steps.some((step) => step.kind === 'generate_fix_suggestions'))
-  assert.ok(plan.steps.every((step) => !step.requiresApproval))
+  assert.equal(plan.template.autoAdvanceUntil, 'generate_fix_suggestions')
+  assert.deepEqual(plan.template.approvalTypes, [])
+  assert.ok(plan.run.steps.some((step) => step.kind === 'generate_fix_suggestions'))
+  assert.ok(plan.run.steps.every((step) => !step.requiresApproval))
+})
+
+test('step ids differ across two runs of the same template', () => {
+  const first = createWorkflowPlan({ templateId: 'draft.review-revise' })
+  const second = createWorkflowPlan({ templateId: 'draft.review-revise' })
+
+  assert.notEqual(first.run.steps[0].id, second.run.steps[0].id)
+  assert.match(first.run.steps[0].id, /^workflow-run-/)
+  assert.match(second.run.steps[0].id, /^workflow-run-/)
+})
+
+test('planner returns isolated copies and rejects unknown templates', () => {
+  const plan = createWorkflowPlan({ templateId: 'draft.review-revise' })
+  plan.template.approvalTypes.push('mutated')
+  plan.run.steps[0].label = 'Changed'
+
+  const fresh = createWorkflowPlan({ templateId: 'draft.review-revise' })
+  assert.deepEqual(fresh.template.approvalTypes, ['apply_patch'])
+  assert.notEqual(fresh.run.steps[0].label, 'Changed')
+
+  assert.throws(() => {
+    createWorkflowPlan({ templateId: 'missing.template' })
+  }, /Unknown workflow template/)
 })
