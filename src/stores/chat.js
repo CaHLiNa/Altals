@@ -14,6 +14,7 @@ import { appendUnresolvedCommentsToContent } from '../services/documentComments'
 import { isUsageBudgetExceeded, recordUsageEntry } from '../services/usageAccess'
 import { noApiKeyMessage, formatChatApiError } from '../utils/errorMessages'
 import { useAiArtifactsStore } from './aiArtifacts'
+import { hydrateSessionWorkflow, serializeSessionWorkflow, useAiWorkflowRunsStore } from './aiWorkflowRuns'
 import { generateWorkspaceText } from '../services/ai/textGeneration'
 import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
 import { t } from '../i18n'
@@ -333,6 +334,7 @@ export const useChatStore = defineStore('chat', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       _ai: null,
+      _workflow: null,
     }
     sessions.value.push(session)
     activeSessionId.value = id
@@ -373,9 +375,11 @@ export const useChatStore = defineStore('chat', () => {
   function deleteSession(id) {
     const session = sessions.value.find(s => s.id === id) || null
     const metaIdx = allSessionsMeta.value.findIndex((meta) => meta.id === id)
+    const aiWorkflowRuns = useAiWorkflowRunsStore()
 
     _stopArtifactSync(id)
     useAiArtifactsStore().clearSession(id)
+    aiWorkflowRuns.clearSessionBinding(id)
 
     const chat = chatInstances.get(id)
     if (chat) {
@@ -427,6 +431,7 @@ export const useChatStore = defineStore('chat', () => {
       const data = JSON.parse(content)
 
       const messages = data.messages || []
+      const workflowSnapshot = hydrateSessionWorkflow(data._workflow || null)
 
       const session = {
         id: data.id,
@@ -437,11 +442,15 @@ export const useChatStore = defineStore('chat', () => {
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
         _ai: data._ai || null,
+        _workflow: workflowSnapshot,
         _savedMessages: messages, // Passed to Chat constructor
       }
 
       sessions.value.push(session)
       activeSessionId.value = id
+      if (workflowSnapshot) {
+        useAiWorkflowRunsStore().restoreSessionWorkflow(id, workflowSnapshot)
+      }
 
       // Pre-create Chat so messages are immediately available
       getOrCreateChat(session)
@@ -475,6 +484,7 @@ export const useChatStore = defineStore('chat', () => {
             _aiTitle: data._aiTitle || false,
             _keywords: data._keywords || [],
             _ai: data._ai || null,
+            _workflow: hydrateSessionWorkflow(data._workflow || null),
           })
         } catch {}
       }
@@ -531,6 +541,7 @@ export const useChatStore = defineStore('chat', () => {
 
     _stopArtifactSync(id)
     useAiArtifactsStore().clearSession(id)
+    useAiWorkflowRunsStore().clearSessionBinding(id)
 
     const chat = chatInstances.get(id)
     if (chat) {
@@ -653,6 +664,7 @@ export const useChatStore = defineStore('chat', () => {
     const workspace = useWorkspaceStore()
     if (!workspace.shouldersDir) return
     const aiArtifacts = useAiArtifactsStore()
+    const aiWorkflowRuns = useAiWorkflowRunsStore()
 
     // Cleanup existing Chat instances
     for (const [id, chat] of chatInstances) {
@@ -666,6 +678,7 @@ export const useChatStore = defineStore('chat', () => {
     activeSessionId.value = null
     allSessionsMeta.value = []
     aiArtifacts.clearAll()
+    aiWorkflowRuns.clearAll()
 
     const chatsDir = `${workspace.shouldersDir}/chats`
     const exists = await invoke('path_exists', { path: chatsDir })
@@ -683,6 +696,7 @@ export const useChatStore = defineStore('chat', () => {
 
     const session = sessions.value.find(s => s.id === id)
     if (!session) return
+    const workflowSnapshot = serializeSessionWorkflow(useAiWorkflowRunsStore().syncRunToSession(session))
 
     // Get messages from Chat instance
     const chat = chatInstances.get(id)
@@ -705,6 +719,7 @@ export const useChatStore = defineStore('chat', () => {
       _aiTitle: session._aiTitle || false,
       _keywords: session._keywords || [],
       _ai: session._ai || null,
+      _workflow: workflowSnapshot,
       modelId: session.modelId,
       messages,
       status: 'idle',
@@ -727,6 +742,7 @@ export const useChatStore = defineStore('chat', () => {
         _aiTitle: session._aiTitle || false,
         _keywords: session._keywords || [],
         _ai: session._ai || null,
+        _workflow: workflowSnapshot,
       }
       if (existingIdx >= 0) {
         allSessionsMeta.value[existingIdx] = meta
@@ -740,6 +756,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function cleanup() {
     const aiArtifacts = useAiArtifactsStore()
+    const aiWorkflowRuns = useAiWorkflowRunsStore()
     for (const [, chat] of chatInstances) {
       try { chat.stop() } catch {}
     }
@@ -755,6 +772,7 @@ export const useChatStore = defineStore('chat', () => {
     pendingSelection.value = null
     _richHtmlMap.value = Object.create(null)
     aiArtifacts.clearAll()
+    aiWorkflowRuns.clearAll()
   }
 
   // ─── Title Generation ──────────────────────────────────────────
