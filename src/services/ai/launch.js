@@ -303,6 +303,13 @@ export async function startWorkflowRun({
     context: await buildWorkflowLaunchContext(task),
   })
 
+  if (workflow?.run?.id && sessionState.sessionId) {
+    await aiWorkflowRuns.runExecutor({
+      runId: workflow.run.id,
+      sessionId: sessionState.sessionId,
+    })
+  }
+
   if (sessionState.session) {
     sessionState.session._workflow = aiWorkflowRuns.syncRunToSession(sessionState.session)
   }
