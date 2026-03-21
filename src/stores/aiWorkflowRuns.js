@@ -1,8 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { t } from '../i18n/index.js'
 import { createWorkflowPlan } from '../services/ai/workflowRuns/planner.js'
 import { executeWorkflowRun } from '../services/ai/workflowRuns/executor.js'
-import { resolveCheckpoint } from '../services/ai/workflowRuns/state.js'
+import {
+  resolveCheckpoint,
+  setRunExecutionMode as updateRunExecutionMode,
+} from '../services/ai/workflowRuns/state.js'
 
 function clone(value) {
   if (value == null) return value
@@ -30,16 +34,48 @@ function normalizeTemplate(template = {}) {
     role: String(template.role || ''),
     toolProfile: String(template.toolProfile || ''),
     autoAdvanceUntil: template.autoAdvanceUntil ? String(template.autoAdvanceUntil) : null,
+    backgroundCapable: template.backgroundCapable !== false,
     approvalTypes: Array.isArray(template.approvalTypes)
       ? template.approvalTypes.map((type) => String(type)).filter(Boolean)
       : [],
   }
 }
 
-export function hydrateSessionWorkflow(snapshot = null) {
-  if (!isRecord(snapshot)) return null
+function backgroundResumeHintForRun(run = {}) {
+  switch (String(run?.status || '')) {
+    case 'running':
+      return 'This workflow is still running in the background.'
+    case 'waiting_user':
+      return 'Return to review the pending approval and continue this workflow.'
+    case 'completed':
+      return 'Open this session to review the completed workflow and its artifacts.'
+    case 'failed':
+      return 'Open this session to inspect the failure and decide how to continue.'
+    default:
+      return 'This workflow can be resumed from the AI workbench or chat list.'
+  }
+}
 
-  const run = isRecord(snapshot.run) ? clone(snapshot.run) : null
+function normalizeRunSnapshot(run = {}) {
+  if (!isRecord(run)) return null
+  const value = clone(run)
+  const executionMode = String(value.executionMode || '').trim() === 'background'
+    ? 'background'
+    : 'foreground'
+  return {
+    ...value,
+    executionMode,
+    backgroundCapable: value.backgroundCapable !== false,
+    lastHeartbeatAt: value.lastHeartbeatAt || value.updatedAt || value.createdAt || null,
+    resumeHint: executionMode === 'background'
+      ? backgroundResumeHintForRun(value)
+      : null,
+  }
+}
+
+function normalizeWorkflowSnapshot(snapshot = null) {
+  if (!isRecord(snapshot)) return null
+  const run = normalizeRunSnapshot(snapshot.run)
   const template = normalizeTemplate(snapshot.template)
 
   if (!run?.id || !template) return null
@@ -50,8 +86,12 @@ export function hydrateSessionWorkflow(snapshot = null) {
   }
 }
 
+export function hydrateSessionWorkflow(snapshot = null) {
+  return normalizeWorkflowSnapshot(snapshot)
+}
+
 export function serializeSessionWorkflow(workflow = null) {
-  const normalized = hydrateSessionWorkflow(workflow)
+  const normalized = normalizeWorkflowSnapshot(workflow)
   return normalized ? clone(normalized) : null
 }
 
@@ -74,6 +114,54 @@ function findCurrentStep(run) {
     || null
 }
 
+function shouldNotifyRunStatus(previous, next) {
+  if (!previous?.run?.id || !next?.run?.id) return false
+  const previousStatus = String(previous.run.status || '')
+  const nextStatus = String(next.run.status || '')
+  const previousCheckpointId = previous.run.currentCheckpointId || null
+  const nextCheckpointId = next.run.currentCheckpointId || null
+  if (previousStatus === nextStatus && previousCheckpointId === nextCheckpointId) return false
+  return nextStatus === 'waiting_user' || nextStatus === 'completed' || nextStatus === 'failed'
+}
+
+function describeNotification(nextWorkflow) {
+  const label = t(nextWorkflow?.template?.label || nextWorkflow?.run?.title || 'Workflow')
+  const currentStep = findCurrentStep(nextWorkflow?.run)
+  const stepLabel = currentStep?.label || null
+  const status = String(nextWorkflow?.run?.status || '')
+
+  if (status === 'waiting_user') {
+    return {
+      type: 'warning',
+      message: stepLabel
+        ? t('{label}: waiting for approval at {step}.', { label, step: stepLabel })
+        : t('{label}: waiting for approval.', { label }),
+      actionLabel: t('Open workflow'),
+    }
+  }
+
+  if (status === 'completed') {
+    return {
+      type: 'success',
+      message: t('{label}: workflow completed.', { label }),
+      actionLabel: t('Review results'),
+    }
+  }
+
+  if (status === 'failed') {
+    const errorMessage = String(nextWorkflow?.run?.error?.message || '').trim()
+    return {
+      type: 'error',
+      message: errorMessage
+        ? t('{label}: workflow failed. {error}', { label, error: errorMessage })
+        : t('{label}: workflow failed.', { label }),
+      actionLabel: t('Open workflow'),
+    }
+  }
+
+  return null
+}
+
 export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   const byRunId = ref({})
   const sessionRunMap = ref({})
@@ -88,6 +176,8 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     if (!activeRunId.value) return null
     return byRunId.value[activeRunId.value] || null
   })
+
+  const backgroundRuns = computed(() => listBackgroundRuns())
 
   function getRun(runId) {
     if (!runId) return null
@@ -119,13 +209,68 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     }
   }
 
+  function listBackgroundRuns({ includeFinal = false } = {}) {
+    const activeStatuses = new Set(['draft', 'planned', 'running', 'waiting_user'])
+    return Object.values(byRunId.value)
+      .filter((workflow) => {
+        const run = workflow?.run
+        if (!run?.id) return false
+        if (run.backgroundCapable === false) return false
+        if (run.executionMode !== 'background') return false
+        if (includeFinal) return true
+        return activeStatuses.has(String(run.status || ''))
+      })
+      .sort((left, right) => {
+        const leftTime = Date.parse(left?.run?.updatedAt || left?.run?.createdAt || 0)
+        const rightTime = Date.parse(right?.run?.updatedAt || right?.run?.createdAt || 0)
+        return rightTime - leftTime
+      })
+      .map((workflow) => serializeSessionWorkflow(workflow))
+      .filter(Boolean)
+  }
+
+  async function notifyRunStatusChange(previous, next) {
+    if (typeof window === 'undefined') return
+    if (!shouldNotifyRunStatus(previous, next)) return
+
+    const notification = describeNotification(next)
+    if (!notification) return
+
+    try {
+      const [{ useToastStore }, { useAiWorkbenchStore }] = await Promise.all([
+        import('./toast.js'),
+        import('./aiWorkbench.js'),
+      ])
+      const toastStore = useToastStore()
+      const aiWorkbench = useAiWorkbenchStore()
+      const sessionId = getSessionIdForRun(next.run.id)
+      const action = sessionId
+        ? {
+          label: notification.actionLabel,
+          onClick: () => aiWorkbench.openSession(sessionId),
+        }
+        : null
+
+      toastStore.show(notification.message, {
+        type: notification.type,
+        duration: 6000,
+        action,
+      })
+    } catch {}
+  }
+
   function storeWorkflow(workflow) {
     const snapshot = serializeSessionWorkflow(workflow)
     if (!snapshot) return null
+    const previous = byRunId.value[snapshot.run.id] || null
 
     byRunId.value = {
       ...byRunId.value,
       [snapshot.run.id]: snapshot,
+    }
+
+    if (previous) {
+      void notifyRunStatusChange(previous, snapshot)
     }
 
     return byRunId.value[snapshot.run.id]
@@ -249,8 +394,14 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     return getRun(snapshot.run.id)
   }
 
-  function createRunFromTemplate({ templateId, sessionId = null, context = {} } = {}) {
-    const workflow = createWorkflowPlan({ templateId, context })
+  function createRunFromTemplate({
+    templateId,
+    sessionId = null,
+    context = {},
+    autoRun = true,
+    executionMode = 'foreground',
+  } = {}) {
+    const workflow = createWorkflowPlan({ templateId, context, executionMode })
     storeWorkflow(workflow)
 
     if (sessionId) {
@@ -258,7 +409,7 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     }
 
     setActiveRun(workflow.run.id)
-    if (sessionId) {
+    if (sessionId && autoRun) {
       void runExecutor({ runId: workflow.run.id, sessionId })
     }
     return getRun(workflow.run.id)
@@ -294,6 +445,23 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   function setActiveRun(runId) {
     activeRunId.value = runId && byRunId.value[runId] ? runId : null
     return activeRun.value
+  }
+
+  function setRunExecutionMode({
+    runId,
+    executionMode = 'foreground',
+    resumeHint = undefined,
+  } = {}) {
+    const current = getRun(runId)
+    if (!current) return null
+
+    const nextWorkflow = {
+      ...current,
+      run: updateRunExecutionMode(clone(current.run), executionMode, { resumeHint }),
+    }
+
+    storeWorkflow(nextWorkflow)
+    return getRun(runId)
   }
 
   function applyCheckpointDecision({ runId, checkpointId = null, decision, resolvedBy = 'user' } = {}) {
@@ -355,11 +523,15 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
 
     const currentStep = findCurrentStep(workflow.run)
     return {
-      label: workflow.template.label || workflow.run.title || 'Workflow',
+      label: t(workflow.template.label || workflow.run.title || 'Workflow'),
       status: workflow.run.status || 'draft',
-      currentStepLabel: currentStep?.label || null,
+      currentStepLabel: currentStep?.label ? t(currentStep.label) : null,
       approvalPending: Boolean(findOpenCheckpoint(workflow.run)),
       templateId: workflow.template.id || workflow.run.templateId || null,
+      executionMode: workflow.run.executionMode || 'foreground',
+      backgroundCapable: workflow.run.backgroundCapable !== false,
+      lastHeartbeatAt: workflow.run.lastHeartbeatAt || null,
+      resumeHint: workflow.run.resumeHint ? t(workflow.run.resumeHint) : null,
     }
   }
 
@@ -376,9 +548,11 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     sessionRunMap,
     activeRunId,
     activeRun,
+    backgroundRuns,
     getRun,
     getRunForSession,
     getSessionIdForRun,
+    listBackgroundRuns,
     restoreSessionWorkflow,
     createRunFromTemplate,
     replaceRun,
@@ -388,6 +562,7 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     bindRunToSession,
     clearSessionBinding,
     setActiveRun,
+    setRunExecutionMode,
     applyCheckpointDecision,
     syncRunToSession,
     describeRun,

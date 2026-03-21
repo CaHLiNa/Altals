@@ -17,12 +17,19 @@
 
     <div class="ai-workflow-run-header-meta">
       <span class="ai-workflow-run-header-pill">{{ header.templateLabel }}</span>
+      <span v-if="header.executionMode === 'background'" class="ai-workflow-run-header-pill is-background">
+        {{ t('Background') }}
+      </span>
       <span class="ai-workflow-run-header-pill">
         {{ t('Current step') }} · {{ header.currentStepLabel || t('Waiting to start') }}
       </span>
       <span class="ai-workflow-run-header-pill">
         {{ t('{count} artifacts', { count: header.artifactCount }) }}
       </span>
+    </div>
+
+    <div v-if="header.executionMode === 'background' && header.resumeHint" class="ai-workflow-run-header-hint">
+      {{ header.resumeHint }}
     </div>
   </div>
 </template>
@@ -41,12 +48,12 @@ const props = defineProps({
 const { t } = useI18n()
 
 const STATUS_LABELS = {
-  draft: 'Draft',
-  planned: 'Planned',
-  running: 'Running',
-  waiting_user: 'Waiting for approval',
-  completed: 'Completed',
-  failed: 'Failed',
+  draft: 'Workflow draft',
+  planned: 'Workflow planned',
+  running: 'Workflow running',
+  waiting_user: 'Workflow waiting for approval',
+  completed: 'Workflow completed',
+  failed: 'Workflow failed',
 }
 
 const header = computed(() => describeWorkflowHeader(props.workflow))
@@ -162,6 +169,19 @@ const statusTone = computed(() => {
 .ai-workflow-run-header-pill {
   color: var(--fg-secondary);
   background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+}
+
+.ai-workflow-run-header-pill.is-background {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-primary));
+}
+
+.ai-workflow-run-header-hint {
+  margin-top: 10px;
+  font-size: calc(var(--ui-font-size) - 1px);
+  line-height: 1.45;
+  color: var(--fg-secondary);
 }
 
 .ai-workflow-run-header.is-compact {

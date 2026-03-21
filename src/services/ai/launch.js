@@ -6,6 +6,7 @@ import { useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns.js'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog.js'
+import { autoSendWorkflowMessage, buildTaskSendPayload } from './launchMessages.js'
 import { prepareTexTypFixTask } from './texTypFixer.js'
 
 async function readFileContent(path) {
@@ -210,12 +211,13 @@ export async function startAiConversation({
 
   await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface })
 
-  await chatStore.sendMessage(sessionId, {
+  await chatStore.sendMessage(sessionId, buildTaskSendPayload({
+    ai,
     text,
     fileRefs,
     context,
     richHtml,
-  })
+  }))
 
   return sessionId
 }
@@ -301,6 +303,19 @@ export async function startWorkflowRun({
     templateId: task.workflowTemplateId,
     sessionId: sessionState.sessionId,
     context: await buildWorkflowLaunchContext(task),
+    autoRun: false,
+    executionMode: task.executionMode || 'foreground',
+  })
+
+  if (sessionState.session) {
+    sessionState.session._workflow = aiWorkflowRuns.syncRunToSession(sessionState.session)
+  }
+
+  await autoSendWorkflowMessage({
+    chatStore,
+    sessionId: sessionState.sessionId,
+    task,
+    workflow,
   })
 
   if (workflow?.run?.id && sessionState.sessionId) {

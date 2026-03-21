@@ -1,7 +1,7 @@
 import { createWorkflowRun, createWorkflowStep, markRunPlanned } from './state.js'
 import { getWorkflowTemplate } from './templates.js'
 
-export function createWorkflowPlan({ templateId, context = {} } = {}) {
+export function createWorkflowPlan({ templateId, context = {}, executionMode = 'foreground' } = {}) {
   const template = getWorkflowTemplate(templateId)
   const steps = template.steps.map((step) => {
     const normalizedStep = createWorkflowStep({
@@ -21,6 +21,8 @@ export function createWorkflowPlan({ templateId, context = {} } = {}) {
       title: template.label,
       context,
       steps,
+      executionMode,
+      backgroundCapable: template.backgroundCapable !== false,
     }),
   )
 
@@ -32,6 +34,7 @@ export function createWorkflowPlan({ templateId, context = {} } = {}) {
       role: template.role,
       toolProfile: template.toolProfile,
       autoAdvanceUntil: template.autoAdvanceUntil,
+      backgroundCapable: template.backgroundCapable !== false,
       approvalTypes: [...template.approvalTypes],
     },
   }

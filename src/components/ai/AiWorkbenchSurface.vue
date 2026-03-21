@@ -56,6 +56,9 @@
             <div class="ai-workbench-chat-meta">
               {{ formatRelativeFromNow(item.updatedAt) }}
             </div>
+            <div v-if="chatWorkflowMeta(item)" class="ai-workbench-chat-meta ai-workbench-chat-meta-workflow">
+              {{ chatWorkflowMeta(item) }}
+            </div>
           </button>
         </div>
 
@@ -158,6 +161,39 @@ const compactToolbarLabel = computed(() => {
 
 function chatMeta(item) {
   return aiWorkbench.describeSession(item)
+}
+
+function chatWorkflowMeta(item) {
+  const meta = chatMeta(item)
+  if (!meta?.workflowStatus) return ''
+
+  const parts = []
+  if (meta.workflowExecutionMode === 'background') {
+    parts.push(t('Background'))
+  }
+
+  switch (String(meta.workflowStatus || '')) {
+    case 'waiting_user':
+      parts.push(t('Waiting'))
+      break
+    case 'completed':
+      parts.push(t('Completed'))
+      break
+    case 'failed':
+      parts.push(t('Failed'))
+      break
+    case 'running':
+      parts.push(t('Running'))
+      break
+    default:
+      break
+  }
+
+  if (meta.workflowStepLabel) {
+    parts.push(meta.workflowStepLabel)
+  }
+
+  return parts.join(' · ')
 }
 
 function openHome() {
@@ -462,6 +498,10 @@ onUnmounted(() => {
   margin-top: 3px;
   font-size: var(--ai-rail-meta-size);
   color: var(--fg-muted);
+}
+
+.ai-workbench-chat-meta-workflow {
+  color: var(--fg-secondary);
 }
 
 .ai-workbench-chat-empty {

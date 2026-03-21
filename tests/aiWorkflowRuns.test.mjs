@@ -77,6 +77,8 @@ test('workflow session snapshot serializes and hydrates as isolated clones', () 
   assert.ok(snapshot)
   assert.equal(snapshot.template.id, 'draft.review-revise')
   assert.equal(snapshot.run.context.currentFile, '/tmp/draft.md')
+  assert.equal(snapshot.run.executionMode, 'foreground')
+  assert.equal(snapshot.run.backgroundCapable, true)
 
   snapshot.run.steps[0].label = 'Mutated outside store'
   const restored = hydrateSessionWorkflow(plan)
@@ -84,6 +86,27 @@ test('workflow session snapshot serializes and hydrates as isolated clones', () 
 
   assert.equal(hydrateSessionWorkflow(null), null)
   assert.equal(hydrateSessionWorkflow({ template: { id: 'draft.review-revise' } }), null)
+})
+
+test('workflow hydration backfills background execution metadata for older snapshots', () => {
+  const plan = createWorkflowPlan({ templateId: 'draft.review-revise' })
+  const legacySnapshot = {
+    template: { ...plan.template },
+    run: {
+      ...plan.run,
+      executionMode: undefined,
+      backgroundCapable: undefined,
+      lastHeartbeatAt: null,
+      resumeHint: 'stale',
+    },
+  }
+
+  const restored = hydrateSessionWorkflow(legacySnapshot)
+
+  assert.equal(restored.run.executionMode, 'foreground')
+  assert.equal(restored.run.backgroundCapable, true)
+  assert.equal(restored.run.resumeHint, null)
+  assert.ok(restored.run.lastHeartbeatAt)
 })
 
 test('workflow run store binds runs to sessions and syncs workflow snapshots', () => {
@@ -105,6 +128,34 @@ test('workflow run store binds runs to sessions and syncs workflow snapshots', (
 
   session._workflow.run.status = 'tampered'
   assert.equal(store.getRun(created.run.id).run.status, 'planned')
+})
+
+test('store can move workflows into background mode and expose them for recovery', () => {
+  setActivePinia(createPinia())
+  const store = useAiWorkflowRunsStore()
+  const session = { id: 'session-background', _workflow: null }
+
+  const created = store.createRunFromTemplate({
+    templateId: 'draft.review-revise',
+    sessionId: session.id,
+    context: { currentFile: '/tmp/draft.md' },
+    autoRun: false,
+  })
+
+  const updated = store.setRunExecutionMode({
+    runId: created.run.id,
+    executionMode: 'background',
+  })
+  const synced = store.syncRunToSession(session)
+  const backgroundRuns = store.listBackgroundRuns()
+  const description = store.describeRun(created.run.id)
+
+  assert.equal(updated.run.executionMode, 'background')
+  assert.equal(backgroundRuns.length, 1)
+  assert.equal(backgroundRuns[0].run.id, created.run.id)
+  assert.equal(description.executionMode, 'background')
+  assert.match(description.resumeHint || '', /resume|workbench/i)
+  assert.equal(synced.run.executionMode, 'background')
 })
 
 test('workflow sync does not restore stale session snapshots without an explicit binding', () => {

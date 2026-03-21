@@ -1,3 +1,5 @@
+import { t } from '../../i18n/index.js'
+
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -39,16 +41,20 @@ export function describeWorkflowHeader(value) {
   const run = workflow?.run
   if (!run) return null
 
-  const templateLabel = String(workflow?.template?.label || run.templateLabel || '').trim()
-  const title = String(run.title || templateLabel || 'Workflow').trim() || 'Workflow'
+  const rawTemplateLabel = String(workflow?.template?.label || run.templateLabel || '').trim()
+  const rawTitle = String(run.title || rawTemplateLabel || 'Workflow').trim() || 'Workflow'
   const currentStep = findCurrentStep(run)
 
   return {
-    title,
-    templateLabel: templateLabel || title,
+    title: t(rawTitle),
+    templateLabel: t(rawTemplateLabel || rawTitle),
     status: String(run.status || 'draft'),
-    currentStepLabel: currentStep?.label || null,
+    currentStepLabel: currentStep?.label ? t(currentStep.label) : null,
     artifactCount: Array.isArray(run.artifacts) ? run.artifacts.length : 0,
+    executionMode: String(run.executionMode || 'foreground'),
+    backgroundCapable: run.backgroundCapable !== false,
+    lastHeartbeatAt: run.lastHeartbeatAt || null,
+    resumeHint: run.resumeHint ? t(run.resumeHint) : null,
   }
 }
 

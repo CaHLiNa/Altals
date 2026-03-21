@@ -55,6 +55,10 @@ test('describeWorkflowHeader summarizes workflow title, template, status, step, 
     status: 'waiting_user',
     currentStepLabel: 'Await patch decision',
     artifactCount: 2,
+    executionMode: 'foreground',
+    backgroundCapable: true,
+    lastHeartbeatAt: null,
+    resumeHint: null,
   })
 })
 
@@ -77,6 +81,10 @@ test('describeWorkflowHeader falls back to workflow label when run title is abse
     status: 'running',
     currentStepLabel: null,
     artifactCount: 0,
+    executionMode: 'foreground',
+    backgroundCapable: true,
+    lastHeartbeatAt: null,
+    resumeHint: null,
   })
 })
 

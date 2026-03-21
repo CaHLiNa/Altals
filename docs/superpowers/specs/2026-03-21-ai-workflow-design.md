@@ -454,6 +454,41 @@ Altals 当前已经具备一套不错的 AI 能力基础：
 - TeX / Typst compile-and-fix
 - PDF summary / compare sources
 
+### Phase 2A 实际落地说明
+
+- 现已新增 4 个 workflow templates：
+  - `code.notebook-assistant`
+  - `references.maintenance`
+  - `pdf.summary-current`
+  - `research.compare-sources`
+- 以下入口已从普通 `send/prefill` 任务迁成 workflow descriptor：
+  - `code.notebook-current`
+  - `code.notebook-explorer`
+  - `citation.maintenance`
+  - `pdf.summarise`
+  - `research.compare-sources`
+- Phase 2A 的执行边界为：
+  - notebook assistant 自动推进到 `apply_notebook_edits` 并进入 `waiting_user`
+  - reference maintenance 自动推进到 `apply_reference_changes` 并进入 `waiting_user`
+  - PDF summary 自动完成，产出 `note_bundle`
+  - compare sources 自动完成，产出 `proposal`
+- starter 体系继续保持 workflow-first，但随着高频任务迁入 workflow，context starter 的首屏现在更倾向于优先显示当前文件对应的 workflow，而不是旧的 `send` fallback。
+- Phase 2B 与 Phase 3 仍未落地；下一步应先统一 TeX / Typst compile-and-fix，再进入有限后台执行能力。
+
+### Phase 2B 实际落地说明
+
+- 现已新增 2 个 TeX / Typst workflow templates：
+  - `compile.tex-typ-diagnose`
+  - `compile.tex-typ-fix`
+- 以下当前文件级入口已从普通 `send` 任务迁成 workflow descriptor：
+  - `diagnose.tex-typ`
+  - `fix.tex-typ`
+- Phase 2B 的执行边界为：
+  - compile diagnose 自动完成，产出 `compile_diagnosis`
+  - compile fix 自动推进到 `apply_patch` 并进入 `waiting_user`
+- 现有 `prepareTexTypFixTask()` 仍继续负责启动前的 compile diagnosis 预热；workflow executor 只负责复用并避免重复挂载 `compile_diagnosis` artifact。
+- 无文件上下文的 `compile.assistant` 继续保留为 `prefill`，没有被错误地伪装成 workflow。
+
 ### Phase 3
 
 目标：加入有限后台代理能力。
@@ -463,6 +498,27 @@ Altals 当前已经具备一套不错的 AI 能力基础：
 - 可后台运行的长任务
 - 批量检查与夜间巡检
 - run 级通知与恢复入口
+
+### Phase 3 实际落地说明
+
+- `workflow run` 现已显式携带：
+  - `executionMode`
+  - `backgroundCapable`
+  - `lastHeartbeatAt`
+  - `resumeHint`
+- `Continue later` 的语义已升级为：
+  - 把当前 run 切换为 `background`
+  - 持久化 session snapshot
+  - 保持 open checkpoint，等待用户稍后从 workbench 或 chat list 恢复
+- 恢复入口现已覆盖：
+  - `AiWorkbenchHome` 的 background workflows 区块
+  - `AiWorkbenchSurface` 左侧 recent chats 列表中的 workflow 状态提示
+  - `AiWorkflowRunHeader` 中的 background pill 与 `resumeHint`
+- 应用内通知现已覆盖：
+  - run completed
+  - run failed
+  - run waiting_user
+- 本次 Phase 3 没有引入 daemon、Rust 队列、系统级常驻后台进程，也没有把 Altals 重新做成开放式自治代理。
 
 ## 为什么不直接做长期代理
 

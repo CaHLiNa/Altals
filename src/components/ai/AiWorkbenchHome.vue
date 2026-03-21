@@ -17,6 +17,33 @@
           </div>
         </section>
 
+        <section v-if="backgroundWorkflowItems.length" class="ai-workbench-section ai-workbench-section-background">
+          <div class="ai-workbench-section-header">
+            <div class="ai-workbench-section-title">{{ t('Background workflows') }}</div>
+          </div>
+          <div class="ai-workbench-background-list">
+            <button
+              v-for="item in backgroundWorkflowItems"
+              :key="item.runId"
+              class="ai-workbench-background-card"
+              @click="openBackgroundWorkflow(item)"
+            >
+              <div class="ai-workbench-background-top">
+                <div class="ai-workbench-background-label">{{ item.label }}</div>
+                <span class="ai-workbench-background-status" :class="`tone-${statusTone(item.status)}`">
+                  {{ workflowStatusLabel(item.status) }}
+                </span>
+              </div>
+              <div v-if="item.stepLabel" class="ai-workbench-background-step">
+                {{ t('Current step') }} · {{ item.stepLabel }}
+              </div>
+              <div v-if="item.resumeHint" class="ai-workbench-background-hint">
+                {{ item.resumeHint }}
+              </div>
+            </button>
+          </div>
+        </section>
+
         <section class="ai-workbench-collaboration-stage">
           <div class="ai-workbench-collaboration-main">
             <div class="ai-workbench-section-header">
@@ -120,6 +147,8 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
+import { useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
@@ -140,6 +169,8 @@ const props = defineProps({
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
 const chatStore = useChatStore()
+const aiWorkbench = useAiWorkbenchStore()
+const aiWorkflowRuns = useAiWorkflowRunsStore()
 const { t } = useI18n()
 
 const chatInputRef = ref(null)
@@ -189,6 +220,27 @@ const starterTasks = computed(() => {
 
 const primaryStarterTasks = computed(() => starterTasks.value.slice(0, 4))
 const secondaryStarterTasks = computed(() => starterTasks.value.slice(4, 6))
+
+const backgroundWorkflowItems = computed(() => {
+  return aiWorkflowRuns.listBackgroundRuns().map((workflow) => {
+    const sessionId = aiWorkflowRuns.getSessionIdForRun(workflow.run.id)
+    const session = sessionId
+      ? chatStore.sessions.find((item) => item.id === sessionId)
+        || chatStore.allSessionsMeta.find((item) => item.id === sessionId)
+        || null
+      : null
+    const sessionMeta = session ? aiWorkbench.describeSession(session) : null
+
+    return {
+      runId: workflow.run.id,
+      sessionId,
+      label: sessionMeta?.workflowLabel || sessionMeta?.label || t(workflow.template.label || workflow.run.title || 'Workflow'),
+      status: sessionMeta?.workflowStatus || workflow.run.status || 'running',
+      stepLabel: sessionMeta?.workflowStepLabel || null,
+      resumeHint: sessionMeta?.workflowResumeHint || (workflow.run.resumeHint ? t(workflow.run.resumeHint) : null),
+    }
+  })
+})
 
 function classifyWorkflow(item) {
   const taskId = String(item?.task?.taskId || '')
@@ -253,6 +305,41 @@ async function runTask(item) {
     modelId: selectedModelId.value,
     task,
   })
+}
+
+function workflowStatusLabel(status) {
+  switch (String(status || '')) {
+    case 'waiting_user':
+      return t('Waiting')
+    case 'completed':
+      return t('Completed')
+    case 'failed':
+      return t('Failed')
+    case 'running':
+      return t('Running')
+    default:
+      return t('Workflow')
+  }
+}
+
+function statusTone(status) {
+  switch (String(status || '')) {
+    case 'completed':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    case 'waiting_user':
+      return 'warning'
+    case 'running':
+      return 'accent'
+    default:
+      return 'muted'
+  }
+}
+
+function openBackgroundWorkflow(item) {
+  if (!item?.sessionId) return
+  aiWorkbench.openSession(item.sessionId)
 }
 
 async function handleLaunchTask(item) {
@@ -563,6 +650,91 @@ defineExpose({ focus })
   gap: 10px;
 }
 
+.ai-workbench-background-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.ai-workbench-background-card {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-primary));
+  padding: 14px 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+}
+
+.ai-workbench-background-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-secondary));
+}
+
+.ai-workbench-background-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-workbench-background-label {
+  min-width: 0;
+  font-size: var(--ai-workbench-card-title-size);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--fg-primary);
+  overflow-wrap: anywhere;
+}
+
+.ai-workbench-background-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--ai-workbench-meta-size);
+  background: var(--bg-primary);
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+
+.ai-workbench-background-status.tone-accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
+}
+
+.ai-workbench-background-status.tone-warning {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-primary));
+}
+
+.ai-workbench-background-status.tone-success {
+  color: var(--success, #4ade80);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 24%, var(--border));
+  background: color-mix(in srgb, var(--success, #4ade80) 8%, var(--bg-primary));
+}
+
+.ai-workbench-background-status.tone-danger {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 24%, var(--border));
+  background: color-mix(in srgb, var(--error) 8%, var(--bg-primary));
+}
+
+.ai-workbench-background-step,
+.ai-workbench-background-hint {
+  margin-top: 8px;
+  font-size: var(--ai-workbench-meta-size);
+  line-height: 1.45;
+  color: var(--fg-secondary);
+  overflow-wrap: anywhere;
+}
+
 .ai-workbench-section-starters {
   min-width: 0;
 }
@@ -619,6 +791,7 @@ defineExpose({ focus })
 
 @container (max-width: 760px) {
   .ai-workbench-starter-grid,
+  .ai-workbench-background-list,
   .ai-workbench-workflow-grid {
     grid-template-columns: 1fr;
   }
@@ -630,6 +803,7 @@ defineExpose({ focus })
 }
 
 .ai-workbench-home.is-compact-cards .ai-workbench-starter-grid,
+.ai-workbench-home.is-compact-cards .ai-workbench-background-list,
 .ai-workbench-home.is-compact-cards .ai-workbench-collaboration-stage,
 .ai-workbench-home.is-compact-cards .ai-workbench-workflow-grid {
   grid-template-columns: 1fr;

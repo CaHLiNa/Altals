@@ -68,6 +68,9 @@ function roleTitle(role) {
       workflowLabel: workflowHeader?.title || null,
       workflowStatus: workflowHeader?.status || null,
       workflowStepLabel: workflowHeader?.currentStepLabel || null,
+      workflowExecutionMode: workflowHeader?.executionMode || null,
+      workflowResumeHint: workflowHeader?.resumeHint || null,
+      workflowLastHeartbeatAt: workflowHeader?.lastHeartbeatAt || null,
     }
   }
 

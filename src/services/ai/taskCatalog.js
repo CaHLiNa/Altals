@@ -79,12 +79,24 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
     ? t('patch approval')
     : template.approvalTypes.includes('accept_sources')
       ? t('source approval')
+      : template.approvalTypes.includes('apply_notebook_edits')
+        ? t('notebook edit approval')
+        : template.approvalTypes.includes('apply_reference_changes')
+          ? t('reference change approval')
       : ''
 
   const actionLabel = template.id === 'draft.review-revise'
     ? t('review')
     : template.id === 'references.search-intake'
       ? t('search and intake')
+      : template.id === 'code.notebook-assistant'
+        ? t('notebook analysis and edit planning')
+        : template.id === 'references.maintenance'
+          ? t('reference maintenance')
+          : template.id === 'pdf.summary-current'
+            ? t('PDF summary')
+            : template.id === 'research.compare-sources'
+              ? t('source comparison')
       : t('diagnosis and fix suggestions')
 
   if (template.id === 'draft.review-revise') {
@@ -105,6 +117,48 @@ export function buildWorkflowBoundaryCopy(workflowTemplateId, t = translate) {
     return {
       meta: t('Workflow · no edit-by-default'),
       description: t('Auto-runs diagnosis and fix suggestions without editing files by default.'),
+    }
+  }
+
+  if (template.id === 'code.notebook-assistant') {
+    return {
+      meta: t('Workflow · notebook edit approval'),
+      description: t('Auto-runs notebook analysis, then pauses before notebook edits.'),
+    }
+  }
+
+  if (template.id === 'references.maintenance') {
+    return {
+      meta: t('Workflow · reference change approval'),
+      description: t('Auto-runs reference maintenance, then pauses before applying library changes.'),
+    }
+  }
+
+  if (template.id === 'pdf.summary-current') {
+    return {
+      meta: t('Workflow · auto summary'),
+      description: t('Auto-runs a structured PDF summary without pausing for approval.'),
+    }
+  }
+
+  if (template.id === 'research.compare-sources') {
+    return {
+      meta: t('Workflow · compare and recommend'),
+      description: t('Auto-runs source comparison and proposal generation without editing files.'),
+    }
+  }
+
+  if (template.id === 'compile.tex-typ-diagnose') {
+    return {
+      meta: t('Workflow · compile diagnosis'),
+      description: t('Auto-runs compile diagnosis for the current TeX or Typst file without editing it.'),
+    }
+  }
+
+  if (template.id === 'compile.tex-typ-fix') {
+    return {
+      meta: t('Workflow · compile fix approval'),
+      description: t('Auto-runs compile diagnosis, then pauses for patch approval before editing the TeX or Typst file.'),
     }
   }
 
@@ -342,15 +396,17 @@ function buildPdfTasks(path, t) {
     {
       label: t('Summarise {name}', { name }),
       meta: name,
-      task: {
-        action: 'send',
+      task: createWorkflowTaskDescriptor({
+        workflowTemplateId: 'pdf.summary-current',
         role: 'researcher',
         toolProfile: 'researcher',
         taskId: 'pdf.summarise',
+        artifactIntent: 'note_bundle',
+        label: t('Summarise {name}', { name }),
         prompt:
           t('Summarise this PDF by extracting the research question, method, evidence, and key conclusions.'),
         filePath: path,
-      },
+      }),
     },
     {
       label: t('Find related papers'),
@@ -503,13 +559,9 @@ function buildWorkflowSections(t) {
         },
         {
           label: t('Read notebook cells & outputs'),
-          task: {
-            action: 'prefill',
-            role: 'code_assistant',
-            toolProfile: 'code_assistant',
-            taskId: 'code.notebook-assistant',
-            prompt: t('Help me inspect or modify a notebook. Ask me which notebook or analysis step I want to work on, then use notebook tools when appropriate.'),
-          },
+          task: createNotebookExplorerTask({
+            label: t('Notebook AI'),
+          }),
         },
       ],
     },
@@ -708,18 +760,20 @@ export function createNotebookAssistantTask({
   source = 'notebook',
   entryContext = 'notebook',
 } = {}) {
-  return {
-    action: 'send',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'code.notebook-assistant',
     role: 'code_assistant',
     toolProfile: 'code_assistant',
     taskId: 'code.notebook-current',
     source,
     entryContext,
+    artifactIntent: 'proposal',
     label: label || translate('Notebook AI'),
     prompt: translate('Inspect the notebook at {path}. Start by reading its cells and outputs, then help with analysis, debugging, or edits using notebook tools when appropriate.', {
       path: filePath || '',
     }),
-  }
+    filePath,
+  })
 }
 
 export function createReferenceMaintenanceTask({
@@ -729,20 +783,21 @@ export function createReferenceMaintenanceTask({
   focusKeys = [],
 } = {}) {
   const keyList = (focusKeys || []).filter(Boolean).map((key) => `@${key}`).join(', ')
-  return {
-    action: 'send',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'references.maintenance',
     role: 'citation_librarian',
     toolProfile: 'citation_librarian',
     taskId: 'citation.maintenance',
     source,
     entryContext,
+    artifactIntent: 'proposal',
     label: label || translate('Reference maintenance'),
     prompt: keyList
       ? translate('Help me maintain my reference library. Focus first on these references: {keys}. Check metadata completeness, duplicates, missing PDFs, and citation-readiness.', {
         keys: keyList,
       })
       : translate('Help me maintain my reference library. Check for incomplete metadata, duplicates, missing PDFs, and weak citation coverage. Ask what part of the library or project I want to focus on first.'),
-  }
+  })
 }
 
 export function createSourceComparisonTask({
@@ -750,16 +805,17 @@ export function createSourceComparisonTask({
   source = 'launcher',
   entryContext = 'research-comparison',
 } = {}) {
-  return {
-    action: 'prefill',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'research.compare-sources',
     role: 'researcher',
     toolProfile: 'researcher',
     taskId: 'research.compare-sources',
     source,
     entryContext,
+    artifactIntent: 'proposal',
     label: label || translate('Compare sources'),
     prompt: translate('Help me compare papers, sources, or methods for this topic. Ask what I want to compare, then use proposal cards with verifiable links.'),
-  }
+  })
 }
 
 export function createReferenceAuditTask({
@@ -923,16 +979,17 @@ function createNotebookExplorerTask({
   source = 'launcher',
   entryContext = 'notebook-assistant',
 } = {}) {
-  return {
-    action: 'prefill',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'code.notebook-assistant',
     role: 'code_assistant',
     toolProfile: 'code_assistant',
     taskId: 'code.notebook-explorer',
     source,
     entryContext,
+    artifactIntent: 'proposal',
     label: label || translate('Notebook AI'),
     prompt: translate('Help me inspect or modify a notebook. Ask me which notebook or analysis step I want to work on, then use notebook tools when appropriate.'),
-  }
+  })
 }
 
 function buildCapabilityTask(categoryId, currentPath = '') {
@@ -1100,8 +1157,8 @@ export function getChatInputToolItems({ currentPath = '', t }) {
 }
 
 export function createTexTypFixTask({ filePath, label = '', source = 'launcher', entryContext = 'document' } = {}) {
-  return {
-    action: 'send',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'compile.tex-typ-fix',
     role: 'tex_typ_fixer',
     toolProfile: 'tex_typ_fixer',
     taskId: 'fix.tex-typ',
@@ -1112,12 +1169,12 @@ export function createTexTypFixTask({ filePath, label = '', source = 'launcher',
     filePath,
     prompt:
       translate('Inspect this source file for syntax, structure, and likely compilation issues. Prefer the smallest safe fixes first.'),
-  }
+  })
 }
 
 export function createTexTypDiagnoseTask({ filePath, label = '', source = 'launcher', entryContext = 'document' } = {}) {
-  return {
-    action: 'send',
+  return createWorkflowTaskDescriptor({
+    workflowTemplateId: 'compile.tex-typ-diagnose',
     role: 'tex_typ_fixer',
     toolProfile: 'tex_typ_fixer',
     taskId: 'diagnose.tex-typ',
@@ -1128,5 +1185,5 @@ export function createTexTypDiagnoseTask({ filePath, label = '', source = 'launc
     filePath,
     prompt:
       translate('Run a compile diagnosis for this source file, explain the reported problems, and do not edit anything unless I ask for a fix.'),
-  }
+  })
 }

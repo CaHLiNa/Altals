@@ -7,8 +7,8 @@
       </span>
     </div>
 
-    <div class="artifact-card-title">{{ artifact.title }}</div>
-    <div v-if="artifact.summary" class="artifact-card-summary">{{ artifact.summary }}</div>
+    <div class="artifact-card-title">{{ translatedTitle }}</div>
+    <div v-if="translatedSummary" class="artifact-card-summary">{{ translatedSummary }}</div>
 
     <div v-if="showBody" class="artifact-card-body">{{ artifact.body }}</div>
 
@@ -89,6 +89,10 @@ const TYPE_LABELS = {
 }
 
 const artifactTypeLabel = computed(() => t(TYPE_LABELS[props.artifact?.type] || 'Artifact'))
+const translatedTitle = computed(() => t(props.artifact?.title || ''))
+const translatedSummary = computed(() => (
+  props.artifact?.summary ? t(props.artifact.summary) : ''
+))
 
 const shortSourceFile = computed(() => (
   String(props.artifact?.sourceFile || '').split('/').pop() || props.artifact?.sourceFile || ''

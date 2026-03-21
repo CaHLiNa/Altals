@@ -47,8 +47,14 @@ test('workflow template registry exposes the expected ids', () => {
     'draft.review-revise',
     'references.search-intake',
     'code.debug-current',
+    'code.notebook-assistant',
+    'references.maintenance',
+    'pdf.summary-current',
+    'research.compare-sources',
+    'compile.tex-typ-diagnose',
+    'compile.tex-typ-fix',
   ])
-  assert.equal(WORKFLOW_TEMPLATES.length, 3)
+  assert.equal(WORKFLOW_TEMPLATES.length, 9)
 })
 
 test('draft review template requires apply_patch approval', () => {
@@ -92,6 +98,89 @@ test('code debug template suggests fixes without direct file edits by default', 
   assert.deepEqual(plan.template.approvalTypes, [])
   assert.ok(plan.run.steps.some((step) => step.kind === 'generate_fix_suggestions'))
   assert.ok(plan.run.steps.every((step) => !step.requiresApproval))
+})
+
+test('notebook assistant template pauses before notebook edits', () => {
+  const template = getWorkflowTemplate('code.notebook-assistant')
+
+  assert.equal(template.role, 'code_assistant')
+  assert.equal(template.toolProfile, 'code_assistant')
+  assert.equal(template.autoAdvanceUntil, 'generate_notebook_plan')
+  assert.deepEqual(template.approvalTypes, ['apply_notebook_edits'])
+  assert.ok(template.steps.some((step) => step.approvalType === 'apply_notebook_edits'))
+})
+
+test('reference maintenance template pauses before library changes', () => {
+  const template = getWorkflowTemplate('references.maintenance')
+
+  assert.equal(template.role, 'citation_librarian')
+  assert.equal(template.toolProfile, 'citation_librarian')
+  assert.equal(template.autoAdvanceUntil, 'generate_reference_actions')
+  assert.deepEqual(template.approvalTypes, ['apply_reference_changes'])
+  assert.ok(template.steps.some((step) => step.approvalType === 'apply_reference_changes'))
+})
+
+test('pdf summary and source comparison templates auto-complete without approvals', () => {
+  const pdfPlan = createWorkflowPlan({
+    templateId: 'pdf.summary-current',
+    context: { currentFile: '/tmp/paper.pdf' },
+  })
+  const comparePlan = createWorkflowPlan({
+    templateId: 'research.compare-sources',
+    context: { currentFile: '/tmp/paper.pdf' },
+  })
+
+  assert.deepEqual(pdfPlan.run.steps.map((step) => step.kind), [
+    'read_context',
+    'analyze_goal',
+    'extract_pdf_findings',
+    'generate_summary',
+    'summarize_outcome',
+  ])
+  assert.deepEqual(comparePlan.run.steps.map((step) => step.kind), [
+    'read_context',
+    'analyze_goal',
+    'search_local_references',
+    'search_external_sources',
+    'compare_source_set',
+    'generate_proposal_cards',
+    'summarize_outcome',
+  ])
+  assert.deepEqual(pdfPlan.template.approvalTypes, [])
+  assert.deepEqual(comparePlan.template.approvalTypes, [])
+})
+
+test('tex and typst compile workflows separate diagnosis from patch approval', () => {
+  const diagnoseTemplate = getWorkflowTemplate('compile.tex-typ-diagnose')
+  const fixTemplate = getWorkflowTemplate('compile.tex-typ-fix')
+  const diagnosePlan = createWorkflowPlan({
+    templateId: 'compile.tex-typ-diagnose',
+    context: { currentFile: '/tmp/paper.tex' },
+  })
+  const fixPlan = createWorkflowPlan({
+    templateId: 'compile.tex-typ-fix',
+    context: { currentFile: '/tmp/slides.typ' },
+  })
+
+  assert.equal(diagnoseTemplate.role, 'tex_typ_fixer')
+  assert.deepEqual(diagnoseTemplate.approvalTypes, [])
+  assert.deepEqual(diagnosePlan.run.steps.map((step) => step.kind), [
+    'read_context',
+    'diagnose_compile_issue',
+    'summarize_outcome',
+  ])
+
+  assert.equal(fixTemplate.role, 'tex_typ_fixer')
+  assert.deepEqual(fixTemplate.approvalTypes, ['apply_patch'])
+  assert.equal(fixTemplate.autoAdvanceUntil, 'generate_patch')
+  assert.deepEqual(fixPlan.run.steps.map((step) => step.kind), [
+    'read_context',
+    'diagnose_compile_issue',
+    'generate_patch',
+    'await_patch_decision',
+    'summarize_outcome',
+  ])
+  assert.ok(fixTemplate.steps.some((step) => step.approvalType === 'apply_patch'))
 })
 
 test('step ids differ across two runs of the same template', () => {
@@ -190,6 +279,7 @@ test('starter ordering keeps context-specific entries ahead of generic entries i
   assert.equal(codeItems[0].task?.taskId, 'code.explain-current')
   assert.equal(codeItems[0].task?.action, 'workflow')
   assert.equal(pdfItems[0].task?.action, 'workflow')
+  assert.equal(pdfItems[0].task?.taskId, 'pdf.summarise')
   assert.deepEqual(pdfQuickItems.slice(0, 4).map((item) => item.task?.action), [
     'workflow',
     'workflow',
@@ -197,9 +287,8 @@ test('starter ordering keeps context-specific entries ahead of generic entries i
     'workflow',
   ])
   assert.equal(pdfLauncherItems[0].task?.action, 'workflow')
-  assert.ok(pdfItems.findIndex((item) => item.task?.taskId === 'pdf.summarise') > 0)
-  assert.ok(pdfLauncherItems.findIndex((item) => item.task?.taskId === 'pdf.summarise') > 0)
-  assert.ok(codeItems.findIndex((item) => item.task?.taskId === 'code.reproducibility') > 0)
+  assert.equal(pdfLauncherItems[0].task?.taskId, 'pdf.summarise')
+  assert.ok(codeItems.every((item) => item.task?.action === 'workflow'))
   assert.ok(pdfItems.findIndex((item) => item.task?.taskId === 'research.paper-search') > 0)
 })
 
@@ -219,10 +308,22 @@ test('workflow boundary copy exposes auto-run and approval boundaries', () => {
   const reviewCopy = buildWorkflowBoundaryCopy('draft.review-revise', t)
   const referenceCopy = buildWorkflowBoundaryCopy('references.search-intake', t)
   const codeCopy = buildWorkflowBoundaryCopy('code.debug-current', t)
+  const notebookCopy = buildWorkflowBoundaryCopy('code.notebook-assistant', t)
+  const maintenanceCopy = buildWorkflowBoundaryCopy('references.maintenance', t)
+  const pdfCopy = buildWorkflowBoundaryCopy('pdf.summary-current', t)
+  const compareCopy = buildWorkflowBoundaryCopy('research.compare-sources', t)
+  const texDiagnoseCopy = buildWorkflowBoundaryCopy('compile.tex-typ-diagnose', t)
+  const texFixCopy = buildWorkflowBoundaryCopy('compile.tex-typ-fix', t)
 
   assert.match(reviewCopy.description, /patch approval/i)
   assert.match(referenceCopy.description, /source approval/i)
   assert.match(codeCopy.description, /without editing files/i)
+  assert.match(notebookCopy.description, /notebook/i)
+  assert.match(maintenanceCopy.description, /library changes/i)
+  assert.match(pdfCopy.description, /summary/i)
+  assert.match(compareCopy.description, /comparison/i)
+  assert.match(texDiagnoseCopy.description, /without editing/i)
+  assert.match(texFixCopy.description, /patch approval/i)
   assert.match(reviewCopy.meta, /workflow/i)
 })
 
@@ -265,4 +366,55 @@ test('general chat launcher entry remains a normal chat prefill task', () => {
   assert.equal(task.action, 'prefill')
   assert.equal(task.workflowTemplateId, undefined)
   assert.equal(task.role, 'general')
+})
+
+test('phase 2a task entries map to workflow descriptors', () => {
+  const launcherItems = getAiLauncherItems({
+    currentPath: '/tmp/paper.pdf',
+    t,
+  })
+  const chatItems = getChatInputToolItems({
+    currentPath: '/tmp/analysis.ipynb',
+    t,
+  })
+  const genericChatItems = getChatInputToolItems({ t })
+
+  const notebookTask = findTask(chatItems, 'code.notebook-current')
+  const notebookExplorerTask = findTask(genericChatItems, 'code.notebook-explorer')
+  const maintenanceTask = findTask(chatItems, 'citation.maintenance')
+  const compareTask = findTask(launcherItems, 'research.compare-sources')
+  const pdfTask = findTask(launcherItems, 'pdf.summarise')
+
+  assert.equal(notebookTask?.action, 'workflow')
+  assert.equal(notebookTask?.workflowTemplateId, 'code.notebook-assistant')
+  assert.equal(notebookExplorerTask?.action, 'workflow')
+  assert.equal(notebookExplorerTask?.workflowTemplateId, 'code.notebook-assistant')
+  assert.equal(maintenanceTask?.action, 'workflow')
+  assert.equal(maintenanceTask?.workflowTemplateId, 'references.maintenance')
+  assert.equal(compareTask?.action, 'workflow')
+  assert.equal(compareTask?.workflowTemplateId, 'research.compare-sources')
+  assert.equal(pdfTask?.action, 'workflow')
+  assert.equal(pdfTask?.workflowTemplateId, 'pdf.summary-current')
+})
+
+test('phase 2b tex and typst task entries map to workflow descriptors', () => {
+  const launcherItems = getAiLauncherItems({
+    currentPath: '/tmp/paper.tex',
+    t,
+  })
+  const chatItems = getChatInputToolItems({
+    currentPath: '/tmp/layout.typ',
+    t,
+  })
+
+  const texDiagnoseTask = findTask(launcherItems, 'diagnose.tex-typ')
+  const texFixTask = findTask(launcherItems, 'fix.tex-typ')
+  const typstDiagnoseTask = findTask(chatItems, 'diagnose.tex-typ')
+
+  assert.equal(texDiagnoseTask?.action, 'workflow')
+  assert.equal(texDiagnoseTask?.workflowTemplateId, 'compile.tex-typ-diagnose')
+  assert.equal(texFixTask?.action, 'workflow')
+  assert.equal(texFixTask?.workflowTemplateId, 'compile.tex-typ-fix')
+  assert.equal(typstDiagnoseTask?.action, 'workflow')
+  assert.equal(typstDiagnoseTask?.workflowTemplateId, 'compile.tex-typ-diagnose')
 })

@@ -296,6 +296,15 @@ function setSuggestion(text) {
   window.dispatchEvent(new CustomEvent('chat-set-input', { detail: { message: text } }))
 }
 
+function resumeForegroundWorkflow() {
+  const runId = workflow.value?.run?.id
+  if (!runId || workflow.value?.run?.executionMode !== 'background') return
+  aiWorkflowRuns.setRunExecutionMode({
+    runId,
+    executionMode: 'foreground',
+  })
+}
+
 // ─── Scroll management ────────────────────────────────────────────
 
 const messagesRef    = ref(null)
@@ -305,6 +314,7 @@ const showScrollButton = ref(false)
 const isAutoScrolling  = ref(true)
 
 function onSend(payload) {
+  resumeForegroundWorkflow()
   chatStore.sendMessage(props.session.id, payload)
   nextTick(() => scrollToBottom())
 }
@@ -329,20 +339,24 @@ function onAbort() {
 }
 
 function onProposalSelect(title) {
-  chatStore.sendMessage(props.session.id, { text: `Selected: ${title}` })
+  resumeForegroundWorkflow()
+  chatStore.sendMessage(props.session.id, {
+    text: t('Selected: {title}', { title }),
+  })
   nextTick(() => scrollToBottom())
 }
 
 function formatProposalOption(option, index) {
   const parts = [`${index + 1}. ${option.title}`]
   if (option.description) parts.push(option.description)
-  if (option.doi) parts.push(`DOI: ${option.doi}`)
-  if (option.url) parts.push(`URL: ${option.url}`)
+  if (option.doi) parts.push(t('DOI: {doi}', { doi: option.doi }))
+  if (option.url) parts.push(t('URL: {url}', { url: option.url }))
   return parts.join('\n')
 }
 
 function onProposalCompare(options) {
   if (!Array.isArray(options) || options.length < 2) return
+  resumeForegroundWorkflow()
   const prompt = [
     t('Compare these selected sources and explain where each one fits best:'),
     '',

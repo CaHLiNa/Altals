@@ -1,6 +1,7 @@
 const RUN_STATUSES = new Set(['draft', 'planned', 'running', 'waiting_user', 'completed', 'failed'])
 const STEP_STATUSES = new Set(['pending', 'running', 'completed', 'failed'])
 const CHECKPOINT_STATUSES = new Set(['open', 'resolved'])
+const EXECUTION_MODES = new Set(['foreground', 'background'])
 
 let idCounter = 0
 
@@ -27,6 +28,10 @@ function clone(value) {
 function normalizeStatus(value, allowed, fallback) {
   const text = String(value || '').trim()
   return allowed.has(text) ? text : fallback
+}
+
+function normalizeExecutionMode(value) {
+  return normalizeStatus(value, EXECUTION_MODES, 'foreground')
 }
 
 function normalizeError(error) {
@@ -114,9 +119,11 @@ function allStepsCompleted(run) {
 }
 
 function withRunUpdate(run, patch = {}) {
+  const nextHeartbeatAt = patch.lastHeartbeatAt === undefined ? now() : patch.lastHeartbeatAt
   return {
     ...clone(run),
     ...patch,
+    lastHeartbeatAt: nextHeartbeatAt,
     updatedAt: now(),
   }
 }
@@ -144,8 +151,17 @@ export function createWorkflowStep(step = {}) {
   return normalizeStep(step)
 }
 
-export function createWorkflowRun({ templateId = '', title = '', context = {}, steps = [] } = {}) {
+export function createWorkflowRun({
+  templateId = '',
+  title = '',
+  context = {},
+  steps = [],
+  executionMode = 'foreground',
+  backgroundCapable = true,
+  resumeHint = null,
+} = {}) {
   const runId = createId('workflow-run')
+  const createdAt = now()
   return {
     id: runId,
     templateId: String(templateId || ''),
@@ -157,9 +173,13 @@ export function createWorkflowRun({ templateId = '', title = '', context = {}, s
     artifacts: [],
     currentStepId: null,
     currentCheckpointId: null,
+    executionMode: normalizeExecutionMode(executionMode),
+    backgroundCapable: backgroundCapable !== false,
+    lastHeartbeatAt: createdAt,
+    resumeHint: resumeHint ? String(resumeHint) : null,
     error: null,
-    createdAt: now(),
-    updatedAt: now(),
+    createdAt,
+    updatedAt: createdAt,
   }
 }
 
@@ -187,6 +207,17 @@ export function markRunFailed(run, error = null) {
   return withRunUpdate(run, {
     status: 'failed',
     error: normalizeError(error),
+  })
+}
+
+export function setRunExecutionMode(run, executionMode, { resumeHint = undefined } = {}) {
+  const nextResumeHint = resumeHint === undefined
+    ? run?.resumeHint || null
+    : (resumeHint ? String(resumeHint) : null)
+
+  return withRunUpdate(run, {
+    executionMode: normalizeExecutionMode(executionMode),
+    resumeHint: nextResumeHint,
   })
 }
 

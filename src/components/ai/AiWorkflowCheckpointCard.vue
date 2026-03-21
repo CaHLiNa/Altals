@@ -66,6 +66,8 @@ const submittingAction = ref('')
 const CHECKPOINT_TYPE_LABELS = {
   apply_patch: 'Patch approval',
   accept_sources: 'Sources approval',
+  apply_notebook_edits: 'Notebook edits approval',
+  apply_reference_changes: 'Reference changes approval',
   checkpoint: 'Checkpoint',
 }
 
@@ -73,7 +75,7 @@ const header = computed(() => describeWorkflowHeader(props.workflow))
 const isSubmitting = computed(() => !!submittingAction.value)
 
 const checkpointTitle = computed(() => (
-  props.checkpoint?.label
+  (props.checkpoint?.label ? t(props.checkpoint.label) : '')
   || header.value?.currentStepLabel
   || t('Review workflow decision')
 ))
@@ -106,6 +108,10 @@ async function handleDecision(action) {
     if (!runId) return
 
     if (shouldPersistCheckpointLater(action)) {
+      aiWorkflowRuns.setRunExecutionMode({
+        runId,
+        executionMode: 'background',
+      })
       await aiWorkflowRuns.persistRunSnapshot({
         runId,
         sessionId: props.sessionId || null,
@@ -113,6 +119,10 @@ async function handleDecision(action) {
       return
     }
 
+    aiWorkflowRuns.setRunExecutionMode({
+      runId,
+      executionMode: 'foreground',
+    })
     aiWorkflowRuns.applyCheckpointDecision({
       runId,
       checkpointId: props.checkpoint.id,

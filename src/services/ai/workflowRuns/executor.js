@@ -1,3 +1,4 @@
+import { t } from '../../../i18n/index.js'
 import {
   attachArtifact,
   createCheckpoint,
@@ -20,6 +21,30 @@ const TEMPLATE_EXECUTION_POLICY = {
   'code.debug-current': {
     approvalStepKind: null,
     approvalType: null,
+  },
+  'code.notebook-assistant': {
+    approvalStepKind: 'await_notebook_edit_decision',
+    approvalType: 'apply_notebook_edits',
+  },
+  'references.maintenance': {
+    approvalStepKind: 'await_reference_change_decision',
+    approvalType: 'apply_reference_changes',
+  },
+  'pdf.summary-current': {
+    approvalStepKind: null,
+    approvalType: null,
+  },
+  'research.compare-sources': {
+    approvalStepKind: null,
+    approvalType: null,
+  },
+  'compile.tex-typ-diagnose': {
+    approvalStepKind: null,
+    approvalType: null,
+  },
+  'compile.tex-typ-fix': {
+    approvalStepKind: 'await_patch_decision',
+    approvalType: 'apply_patch',
   },
 }
 
@@ -152,9 +177,9 @@ function buildContextSummary(context = {}) {
   const file = context.currentFile || context.file || null
   const prompt = String(context.prompt || '').trim()
   const parts = []
-  if (file) parts.push(`文件：${file}`)
-  if (prompt) parts.push(`目标：${prompt}`)
-  return parts.join('；')
+  if (file) parts.push(t('File: {file}', { file }))
+  if (prompt) parts.push(t('Goal: {prompt}', { prompt }))
+  return parts.join(' · ')
 }
 
 function buildStepNarrative(workflow, step) {
@@ -162,32 +187,58 @@ function buildStepNarrative(workflow, step) {
   switch (step.kind) {
     case 'read_context':
       return contextSummary
-        ? `已读取启动上下文。${contextSummary}。`
-        : '已读取启动上下文，并整理了当前任务的输入材料。'
+        ? t('Read launch context. {summary}.', { summary: contextSummary })
+        : t('Read launch context and organized the current task inputs.')
     case 'analyze_goal':
-      return '已提炼任务目标，明确了这次运行的输出边界和停止条件。'
+      return t('Clarified the task goal, output boundary, and stop condition for this run.')
     case 'generate_review':
-      return '已生成结构化审阅要点，准备把可安全修改的问题整理成补丁。'
+      return t('Generated structured review findings and prepared safe issues for a patch.')
     case 'generate_patch':
-      return '已生成可直接应用的补丁草案，并在应用前停下来等待确认。'
+      return t('Drafted a patch proposal and paused before applying it.')
     case 'await_patch_decision':
-      return '补丁草案已准备好。请确认是否继续应用这些修改。'
+      return t('The patch proposal is ready. Confirm whether to apply these edits.')
     case 'search_local_references':
-      return '已先检查本地参考文献上下文，筛出和当前论点最接近的候选来源。'
+      return t('Checked local reference context first and shortlisted the closest candidate sources.')
     case 'search_external_sources':
-      return '本地来源不足以覆盖目标论点，已补充外部检索候选。'
+      return t('Local sources were not enough for the target claim, so external candidates were added.')
     case 'generate_citation_set':
-      return '已整理候选引文集合，并按相关性和证据匹配度完成排序。'
+      return t('Generated a ranked citation set for the current evidence need.')
     case 'await_source_decision':
-      return '候选来源清单已准备好。请确认要接受哪些来源。'
+      return t('The source shortlist is ready. Confirm which sources to accept.')
     case 'diagnose_issue':
-      return '已整理当前问题的主要故障假设和排查方向。'
+      return t('Collected the most likely failure hypotheses and debugging directions.')
     case 'generate_fix_suggestions':
-      return '已生成最可能有效的修复建议，并给出后续验证方向。'
+      return t('Generated the most likely fix suggestions and the next verification steps.')
+    case 'inspect_notebook_cells':
+      return t('Inspected notebook cells, outputs, and execution order to organize the current analysis context.')
+    case 'generate_notebook_plan':
+      return t('Generated notebook analysis or edit suggestions and paused before making notebook edits.')
+    case 'await_notebook_edit_decision':
+      return t('The notebook edit suggestions are ready. Confirm whether to apply these notebook edits.')
+    case 'audit_reference_library':
+      return t('Scanned the current reference scope and summarized metadata, duplicates, and missing PDF risks.')
+    case 'detect_reference_issues':
+      return t('Grouped the highest-priority reference maintenance issues and cleanup goals.')
+    case 'generate_reference_actions':
+      return t('Generated reference maintenance actions and paused before changing the library.')
+    case 'await_reference_change_decision':
+      return t('The reference maintenance suggestions are ready. Confirm whether to apply these library changes.')
+    case 'extract_pdf_findings':
+      return t('Extracted the PDF research question, method, evidence, and key conclusions.')
+    case 'generate_summary':
+      return t('Generated a structured PDF summary that is ready for follow-up questions.')
+    case 'compare_source_set':
+      return t('Compared overlap, differences, strengths, and fit across the candidate sources.')
+    case 'generate_proposal_cards':
+      return t('Generated source comparison recommendations and the next reading or adoption moves.')
+    case 'diagnose_compile_issue':
+      return t('Generated a prioritized diagnosis of the current TeX / Typst compile issues.')
     case 'summarize_outcome':
-      return '本次工作流的阶段性结果已汇总，可以直接继续对话细化后续动作。'
+      return t('Summarized the current workflow outcome and prepared the next follow-up actions.')
     default:
-      return `${step.label || step.kind || '当前步骤'} 已自动完成。`
+      return t('{step} completed automatically.', {
+        step: t(step.label || step.kind || 'Current step'),
+      })
   }
 }
 
@@ -235,12 +286,55 @@ function buildArtifactForStep(workflow, step) {
         summary: 'Actionable fix suggestions generated for the current issue.',
         file: currentFile,
       }
+    case 'generate_notebook_plan':
+      return {
+        type: 'proposal',
+        stepId: step.id,
+        title: 'Notebook plan',
+        summary: 'Concrete notebook analysis or edit suggestions generated from the current notebook context.',
+        file: currentFile,
+      }
+    case 'generate_reference_actions':
+      return {
+        type: 'proposal',
+        stepId: step.id,
+        title: 'Reference actions',
+        summary: 'Prioritized reference maintenance actions generated for the current library scope.',
+        file: currentFile,
+      }
+    case 'generate_summary':
+      return {
+        type: 'note_bundle',
+        stepId: step.id,
+        title: 'PDF summary',
+        summary: 'Structured PDF summary generated from the current paper context.',
+        file: currentFile,
+      }
+    case 'generate_proposal_cards':
+      return {
+        type: 'proposal',
+        stepId: step.id,
+        title: 'Source comparison',
+        summary: 'Comparison takeaways and next-step recommendations generated for the candidate sources.',
+        file: currentFile,
+      }
+    case 'diagnose_compile_issue':
+      return {
+        type: 'compile_diagnosis',
+        stepId: step.id,
+        title: 'Compile diagnosis',
+        summary: 'Structured compile diagnosis generated for the current TeX / Typst file.',
+        file: currentFile,
+      }
     default:
       return null
   }
 }
 
 function hasArtifactForStep(run, step, artifactType) {
+  if (artifactType === 'compile_diagnosis') {
+    return (run?.artifacts || []).some((artifact) => artifact?.type === 'compile_diagnosis')
+  }
   return (run?.artifacts || []).some((artifact) =>
     artifact?.stepId === step.id &&
     (!artifactType || artifact?.type === artifactType),
@@ -368,7 +462,9 @@ export async function executeWorkflowRun({ run, sessionId, chatStore, workflowSt
       runId: failedWorkflow.run.id,
       stepId: failedWorkflow.run.currentStepId || 'workflow-error',
       phase: 'error',
-      text: `工作流执行失败：${error?.message || String(error)}`,
+      text: t('Workflow execution failed: {error}', {
+        error: error?.message || String(error),
+      }),
     })
     workflow = await persistWorkflow(workflowStore, failedWorkflow, { chatStore, sessionId })
   }

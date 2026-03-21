@@ -22,6 +22,7 @@ import {
 } from './chatSessionPersistence'
 import { generateWorkspaceText } from '../services/ai/textGeneration'
 import { buildChatRuntimeConfig } from '../services/ai/runtimeConfig'
+import { shouldSkipAutoTitleForSession } from '../services/ai/sessionLabeling'
 import { t } from '../i18n'
 
 // Chat instances live OUTSIDE Pinia (non-reactive container).
@@ -537,7 +538,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // ─── Messaging ──────────────────────────────────────────────────
 
-  async function sendMessage(sessionId, { text, fileRefs, context, richHtml }) {
+  async function sendMessage(sessionId, { text, fileRefs, context, richHtml, preserveLabel = false }) {
     const session = sessions.value.find(s => s.id === sessionId)
     if (!session) {
       console.warn('[chat] sendMessage: session not found:', sessionId)
@@ -561,7 +562,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // Auto-label on first message
     const isFirst = chat.state.messagesRef.value.length === 0
-    if (isFirst && text) {
+    if (isFirst && text && !preserveLabel) {
       session.label = smartLabel(text)
     }
 
@@ -740,6 +741,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function _maybeGenerateTitle(session) {
     if (session._aiTitle) return
+    if (shouldSkipAutoTitleForSession(session)) return
 
     const chat = chatInstances.get(session.id)
     if (!chat) return

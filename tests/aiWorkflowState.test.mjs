@@ -292,3 +292,156 @@ test('executor can finish non-approval workflows without leaving the run pending
   assert.equal(current.run.currentCheckpointId, null)
   assert.ok(chatStore.getChatInstance('session-debug').state.messagesRef.value.length > 0)
 })
+
+test('executor advances notebook assistant runs to apply_notebook_edits approval', async () => {
+  const workflow = createWorkflowPlan({
+    templateId: 'code.notebook-assistant',
+    context: {
+      currentFile: '/tmp/analysis.ipynb',
+      prompt: 'Inspect this notebook and suggest safe improvements.',
+    },
+  })
+  const chatStore = createFakeChatStore('session-notebook')
+  const workflowStore = createWorkflowStore(workflow)
+
+  await executeWorkflowRun({
+    run: workflow.run,
+    sessionId: 'session-notebook',
+    chatStore,
+    workflowStore,
+  })
+
+  const current = workflowStore.getCurrent()
+  const checkpoint = current.run.checkpoints.find((item) => item.status === 'open')
+
+  assert.equal(current.run.status, 'waiting_user')
+  assert.equal(current.run.currentStepId, current.run.steps[4].id)
+  assert.equal(checkpoint?.type, 'apply_notebook_edits')
+  assert.ok(current.run.artifacts.some((artifact) => artifact.type === 'proposal'))
+})
+
+test('executor advances reference maintenance runs to apply_reference_changes approval', async () => {
+  const workflow = createWorkflowPlan({
+    templateId: 'references.maintenance',
+    context: {
+      prompt: 'Audit the current library selection for duplicates and missing PDFs.',
+    },
+  })
+  const chatStore = createFakeChatStore('session-maintenance')
+  const workflowStore = createWorkflowStore(workflow)
+
+  await executeWorkflowRun({
+    run: workflow.run,
+    sessionId: 'session-maintenance',
+    chatStore,
+    workflowStore,
+  })
+
+  const current = workflowStore.getCurrent()
+  const checkpoint = current.run.checkpoints.find((item) => item.status === 'open')
+
+  assert.equal(current.run.status, 'waiting_user')
+  assert.equal(current.run.currentStepId, current.run.steps[5].id)
+  assert.equal(checkpoint?.type, 'apply_reference_changes')
+  assert.ok(current.run.artifacts.some((artifact) => artifact.type === 'proposal'))
+})
+
+test('executor auto-completes pdf summary and source comparison workflows', async () => {
+  const pdfWorkflow = createWorkflowPlan({
+    templateId: 'pdf.summary-current',
+    context: {
+      currentFile: '/tmp/paper.pdf',
+      prompt: 'Summarize this paper.',
+    },
+  })
+  const compareWorkflow = createWorkflowPlan({
+    templateId: 'research.compare-sources',
+    context: {
+      prompt: 'Compare the strongest sources for this topic.',
+    },
+  })
+  const pdfChatStore = createFakeChatStore('session-pdf')
+  const compareChatStore = createFakeChatStore('session-compare')
+  const pdfStore = createWorkflowStore(pdfWorkflow)
+  const compareStore = createWorkflowStore(compareWorkflow)
+
+  await executeWorkflowRun({
+    run: pdfWorkflow.run,
+    sessionId: 'session-pdf',
+    chatStore: pdfChatStore,
+    workflowStore: pdfStore,
+  })
+  await executeWorkflowRun({
+    run: compareWorkflow.run,
+    sessionId: 'session-compare',
+    chatStore: compareChatStore,
+    workflowStore: compareStore,
+  })
+
+  const currentPdf = pdfStore.getCurrent()
+  const currentCompare = compareStore.getCurrent()
+
+  assert.equal(currentPdf.run.status, 'completed')
+  assert.equal(currentCompare.run.status, 'completed')
+  assert.equal(currentPdf.run.currentCheckpointId, null)
+  assert.equal(currentCompare.run.currentCheckpointId, null)
+  assert.ok(currentPdf.run.artifacts.some((artifact) => artifact.type === 'note_bundle'))
+  assert.ok(currentCompare.run.artifacts.some((artifact) => artifact.type === 'proposal'))
+})
+
+test('executor auto-completes tex and typst compile diagnosis workflows without patch approval', async () => {
+  const workflow = createWorkflowPlan({
+    templateId: 'compile.tex-typ-diagnose',
+    context: {
+      currentFile: '/tmp/paper.tex',
+      prompt: 'Explain the compile problems and do not edit the file.',
+    },
+  })
+  const chatStore = createFakeChatStore('session-compile-diagnose')
+  const workflowStore = createWorkflowStore(workflow)
+
+  await executeWorkflowRun({
+    run: workflow.run,
+    sessionId: 'session-compile-diagnose',
+    chatStore,
+    workflowStore,
+  })
+
+  const current = workflowStore.getCurrent()
+
+  assert.equal(current.run.status, 'completed')
+  assert.equal(current.run.currentCheckpointId, null)
+  assert.ok(current.run.artifacts.some((artifact) => artifact.type === 'compile_diagnosis'))
+})
+
+test('executor advances tex and typst fix workflows to apply_patch approval after compile diagnosis', async () => {
+  const workflow = createWorkflowPlan({
+    templateId: 'compile.tex-typ-fix',
+    context: {
+      currentFile: '/tmp/slides.typ',
+      prompt: 'Fix the compile issues with the smallest safe patch.',
+    },
+  })
+  const chatStore = createFakeChatStore('session-compile-fix')
+  const workflowStore = createWorkflowStore(workflow)
+
+  await executeWorkflowRun({
+    run: workflow.run,
+    sessionId: 'session-compile-fix',
+    chatStore,
+    workflowStore,
+  })
+
+  const current = workflowStore.getCurrent()
+  const checkpoint = current.run.checkpoints.find((item) => item.status === 'open')
+
+  assert.equal(current.run.status, 'waiting_user')
+  assert.equal(current.run.currentStepId, current.run.steps[3].id)
+  assert.equal(checkpoint?.type, 'apply_patch')
+  assert.ok(current.run.artifacts.some((artifact) => artifact.type === 'compile_diagnosis'))
+  assert.ok(current.run.artifacts.some((artifact) => artifact.type === 'patch'))
+  assert.equal(
+    current.run.artifacts.filter((artifact) => artifact.type === 'compile_diagnosis').length,
+    1,
+  )
+})
