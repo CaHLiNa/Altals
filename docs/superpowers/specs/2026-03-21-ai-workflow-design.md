@@ -2,7 +2,7 @@
 
 日期：2026-03-21
 
-状态：Draft
+状态：Phase 1 Implemented
 
 ## 背景
 
@@ -430,6 +430,18 @@ Altals 当前已经具备一套不错的 AI 能力基础：
 - 把 `draft.review-revise`、`references.search-intake`、`code.debug-current` 做成模板
 - `AiWorkbenchHome` 与 `AiQuickPanel` 改为启动 workflow run
 - `ChatSession` 增加 workflow 头部与 checkpoint 卡片
+
+## Phase 1 实际落地说明
+
+- 实际代码路径采用 `src/services/ai/workflowRuns/*` 与 `src/stores/aiWorkflowRuns.js`，没有使用文中早期建议的 `aiWorkflows` / `workflows` 命名。
+- session 持久化最终落在 `session._workflow = { run, template }` 快照上，运行时关联通过 `sessionRunMap` 维护；没有把 `linkedSessionId` 作为独立持久化字段落地。
+- 为了减少 `chat.js` 和 `ChatSession.vue` 的耦合，Phase 1 额外抽出了 `src/stores/chatSessionPersistence.js` 与 `src/components/ai/workflowUi.js` 两个辅助模块。
+- 入口层最终做成的是 workflow-first，而不是 workflow-only：`AiWorkbenchHome`、`AiQuickPanel`、`AiLauncher` 会先展示 workflow starters，再保留当前上下文的非 workflow fallback；`General chat` 仍是唯一自由聊天入口。
+- `Continue later` 的最终语义被收敛为“只持久化当前 snapshot，保持 open checkpoint，不继续执行 executor”，也就是继续停留在 `waiting_user`。
+- 截至 2026-03-21 的实际 smoke 结果是：
+  - `draft.review-revise` 自动推进到 `apply_patch` 审批点并进入 `waiting_user`
+  - `references.search-intake` 自动推进到 `accept_sources` 审批点并进入 `waiting_user`
+  - `code.debug-current` 自动完成，产出诊断与修复建议，不默认直接改文件
 
 ### Phase 2
 

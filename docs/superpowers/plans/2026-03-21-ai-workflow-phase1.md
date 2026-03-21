@@ -8,6 +8,8 @@
 
 **Tech Stack:** Vue 3、Pinia、AI SDK Chat、Tauri 前端调用、Node `node:test`
 
+**Status:** Completed on 2026-03-21
+
 ---
 
 ## File Map
@@ -667,3 +669,24 @@ git commit -m "feat: add phase 1 AI workflow runtime"
 - `taskCatalog` 中不要一次性全改，只改最有价值的 3 条链路。
 - 如果 `ChatSession.vue` 变得过重，允许把 workflow UI 逻辑进一步拆到 `src/components/ai/` 下。
 - 如果 session `_workflow` 快照开始膨胀，在 Phase 2 再拆独立持久化文件，不在本阶段提前设计。
+
+## 实际落地差异
+
+- 设计文档早期提到的 `src/services/ai/workflows/*` / `src/stores/aiWorkflows.js` 最终统一落成了 `src/services/ai/workflowRuns/*` / `src/stores/aiWorkflowRuns.js`，以便和现有命名保持一致。
+- Phase 1 额外新增了 `src/stores/chatSessionPersistence.js` 与 `src/components/ai/workflowUi.js`，分别承接 session `_workflow` 快照持久化和 workflow UI 视图辅助逻辑。
+- 没有新增 `tests/aiWorkflowLaunch.test.mjs`；启动行为主要覆盖在 `tests/aiWorkflowPlanner.test.mjs` 与 `tests/aiWorkflowRuns.test.mjs` 里。
+- Task 5 的实际落地比原计划多做了两个耐久性修正：
+  - launcher 会等待首次 workflow execution/persistence 完成后再打开 session
+  - checkpoint resolve 会先持久化 resolved snapshot，再继续 executor
+- Task 6 的 `Continue later` 最终被收敛为“保留 open checkpoint 并持久化 snapshot”，而不是 resolve checkpoint 后继续执行。
+- Task 7 最终采用 workflow-first 排序，而不是简单替换文案：
+  - `AiWorkbenchHome` 通过 `getWorkflowFirstStarterItems()` 先选 workflow starters，再显示 context fallbacks
+  - `AiQuickPanel` 和 `AiLauncher` 在 `task.action === 'workflow'` 时显式走 `launchWorkflowTask(...)`
+  - starter 列表额外做了稳定 key 和重复语义去重，避免同名 workflow 入口同时进入首屏
+- 最终验收实际运行的验证命令是：
+  - `node --test tests/aiWorkflowState.test.mjs tests/aiWorkflowPlanner.test.mjs tests/aiWorkflowRuns.test.mjs tests/leftSidebarPanels.test.mjs`
+  - `npm run build`
+- 额外 smoke 脚本确认了 3 条主链路的当前行为：
+  - `draft.review-revise` 停在 `apply_patch`
+  - `references.search-intake` 停在 `accept_sources`
+  - `code.debug-current` 直接完成且只产出诊断/修复建议
