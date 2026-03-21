@@ -17,7 +17,7 @@
     ></button>
 
     <div class="library-shell h-full min-h-0" :class="{ 'is-editing': isEditing }">
-      <aside class="library-sidebar">
+      <aside class="library-sidebar" @contextmenu="openSidebarEmptyContextMenu">
         <div v-if="isCompactPane" class="library-sidebar-header is-compact">
           <div class="library-sidebar-head">
             <div class="library-section-label">{{ t('Filters') }}</div>
@@ -101,7 +101,7 @@
       </template>
 
       <template v-else>
-        <main class="library-main">
+        <main class="library-main" @contextmenu="openTableEmptyContextMenu">
           <div class="library-toolbar">
             <div v-if="isCompactPane" class="library-compact-toolbar">
               <button
@@ -237,6 +237,7 @@
                   :class="{ 'is-focused': activeKey === refItem._key }"
                   @click="focusReference(refItem._key)"
                   @dblclick="enterEditMode(refItem._key)"
+                  @contextmenu.prevent.stop="openRowContextMenu($event, refItem._key)"
                 >
                   <label class="library-checkbox-cell" @click.stop>
                     <input
@@ -302,7 +303,11 @@
             </button>
           </div>
 
-          <div v-if="activeRef" class="library-detail-inner">
+          <div
+            v-if="activeRef"
+            class="library-detail-inner"
+            @contextmenu.prevent.stop="openDetailContextMenu($event, activeRef._key)"
+          >
             <div class="library-detail-primary">
               <div class="library-detail-title">{{ activeRef.title || `@${activeRef._key}` }}</div>
               <div class="library-detail-subtitle">
@@ -373,12 +378,20 @@
             </div>
           </div>
 
-          <div v-else-if="isLibraryLoading" class="library-empty-state detail">
+          <div
+            v-else-if="isLibraryLoading"
+            class="library-empty-state detail"
+            @contextmenu.prevent="openDetailEmptyContextMenu"
+          >
             <div class="library-empty-title">{{ t('Loading references...') }}</div>
             <div class="library-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
           </div>
 
-          <div v-else class="library-empty-state detail">
+          <div
+            v-else
+            class="library-empty-state detail"
+            @contextmenu.prevent="openDetailEmptyContextMenu"
+          >
             <div class="library-empty-title">{{ t('No reference selected') }}</div>
             <div class="library-empty-copy">{{ t('Select a reference to inspect and manage it for the current project.') }}</div>
           </div>
@@ -390,15 +403,26 @@
       v-if="showImportDialog"
       @close="showImportDialog = false"
     />
+
+    <SurfaceContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :groups="contextMenuGroups"
+      @close="closeContextMenu"
+      @select="handleContextMenuSelect"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
+import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const LibraryReferenceEditor = defineAsyncComponent(() => import('./LibraryReferenceEditor.vue'))
 
@@ -418,6 +442,13 @@ const showImportDialog = ref(false)
 const paneWidth = ref(0)
 const compactSidebarOpen = ref(false)
 const compactDetailOpen = ref(false)
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  scope: '',
+  refKey: null,
+})
 
 const allRefs = computed(() => referencesStore.globalLibrary || [])
 const selectedKeySet = computed(() => new Set(selectedKeys.value))
@@ -425,9 +456,16 @@ const projectKeySet = computed(() => new Set(referencesStore.workspaceKeys || []
 const activeKey = computed(() => referencesStore.activeKey || '')
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
 const hasBatchSelection = computed(() => selectedKeys.value.length > 1)
+const hasSelection = computed(() => selectedKeys.value.length > 0)
 const isLibraryLoading = computed(() => referencesStore.loading && allRefs.value.length === 0)
 const isCompactPane = computed(() => paneWidth.value > 0 && paneWidth.value <= 1080)
 const showCompactBackdrop = computed(() => isCompactPane.value && (compactSidebarOpen.value || compactDetailOpen.value))
+const hasSelectionInProject = computed(() => selectedKeys.value.some((key) => projectKeySet.value.has(key)))
+const hasActiveFilters = computed(() => (
+  activeView.value !== 'all'
+  || searchQuery.value.trim().length > 0
+  || selectedTags.value.length > 0
+))
 
 const primaryViewOptions = computed(() => ([
   { id: 'all', label: t('All references'), count: allRefs.value.length },
@@ -443,6 +481,14 @@ const sidebarViewOptions = computed(() => [
   ...primaryViewOptions.value,
   ...smartViewOptions.value,
 ])
+
+const librarySortOptions = computed(() => ([
+  { id: 'added-desc', label: t('Date added (newest)') },
+  { id: 'year-desc', label: t('Year (newest)') },
+  { id: 'year-asc', label: t('Year (oldest)') },
+  { id: 'title-asc', label: t('Title A → Z') },
+  { id: 'author-asc', label: t('Author A → Z') },
+]))
 
 const scopeFilteredRefs = computed(() => {
   const viewId = activeView.value
@@ -561,6 +607,96 @@ const activeDetailRows = computed(() => {
   return rows.filter(Boolean)
 })
 
+const contextMenuRef = computed(() => {
+  if (!contextMenu.value.refKey) return null
+  return referencesStore.getByKey(contextMenu.value.refKey) || null
+})
+
+const contextMenuGroups = computed(() => {
+  if (!contextMenu.value.visible) return []
+
+  const scope = contextMenu.value.scope
+  const refItem = contextMenuRef.value
+  if ((scope === 'row' || scope === 'detail') && refItem?._key) {
+    const key = refItem._key
+    const items = []
+    if (scope === 'row') {
+      items.push({ key: 'open-details', label: t('Open details') })
+    }
+    items.push({ key: 'edit-metadata', label: t('Edit metadata') })
+    if (referencesStore.pdfPathForKey(key)) {
+      items.push({ key: 'open-pdf', label: t('Open PDF') })
+    }
+
+    const projectItem = {
+      key: 'toggle-project-membership',
+      label: isInCurrentProject(key) ? t('Remove from this project') : t('Add to project'),
+      danger: isInCurrentProject(key),
+    }
+
+    return [
+      { key: 'reference-actions', items },
+      { key: 'reference-project', items: [projectItem] },
+      {
+        key: 'reference-danger',
+        items: [
+          { key: 'delete-global', label: t('Delete from global library'), danger: true },
+        ],
+      },
+    ]
+  }
+
+  const generalItems = [
+    { key: 'import-references', label: t('Import references') },
+  ]
+  if (hasSelection.value) {
+    generalItems.push({ key: 'clear-selection', label: t('Clear selection') })
+  }
+  if (hasActiveFilters.value) {
+    generalItems.push({ key: 'clear-filters', label: t('Clear filters') })
+  }
+
+  const groups = [
+    { key: 'library-general', items: generalItems },
+  ]
+
+  if (hasSelection.value) {
+    const selectionItems = [
+      { key: 'add-selection-to-project', label: t('Add selection to project') },
+      {
+        key: 'remove-selection-from-project',
+        label: t('Remove selection from this project'),
+        danger: hasSelectionInProject.value,
+      },
+      { key: 'delete-selection-global', label: t('Delete selection from global library'), danger: true },
+    ]
+    groups.push({ key: 'library-selection', items: selectionItems })
+  }
+
+  groups.push({
+    key: 'library-views',
+    label: t('Views'),
+    items: sidebarViewOptions.value.map((view) => ({
+      key: `view:${view.id}`,
+      label: view.label,
+      checked: activeView.value === view.id,
+      meta: String(view.count),
+    })),
+  })
+
+  groups.push({
+    key: 'library-sort',
+    label: t('Sort'),
+    items: librarySortOptions.value.map((option) => ({
+      key: `sort:${option.id}`,
+      label: option.label,
+      checked: sortKey.value === option.id,
+    })),
+  })
+
+  return groups
+})
+
 function syncPaneWidth() {
   paneWidth.value = Math.round(workbenchEl.value?.clientWidth || 0)
 }
@@ -587,6 +723,7 @@ onBeforeUnmount(() => {
 })
 
 watch(filteredRefs, (refs) => {
+  closeContextMenu()
   const visibleKeys = new Set(refs.map((item) => item._key))
   selectedKeys.value = selectedKeys.value.filter((key) => visibleKeys.has(key))
 
@@ -599,6 +736,7 @@ watch(filteredRefs, (refs) => {
 }, { immediate: true })
 
 watch(allRefs, (refs) => {
+  closeContextMenu()
   const availableKeys = new Set(refs.map((item) => item._key))
   selectedKeys.value = selectedKeys.value.filter((key) => availableKeys.has(key))
   if (referencesStore.activeKey && !availableKeys.has(referencesStore.activeKey)) {
@@ -608,6 +746,7 @@ watch(allRefs, (refs) => {
 }, { deep: true })
 
 watch(isCompactPane, (compact) => {
+  closeContextMenu()
   if (!compact) {
     compactSidebarOpen.value = false
     compactDetailOpen.value = false
@@ -615,6 +754,7 @@ watch(isCompactPane, (compact) => {
 })
 
 watch(isEditing, (editing) => {
+  closeContextMenu()
   if (editing) closeCompactPanels()
 })
 
@@ -649,6 +789,60 @@ function visibleTags(refItem = {}) {
 
 function hiddenTagCount(refItem = {}) {
   return Math.max(0, (refItem._tags || []).length - 2)
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false
+}
+
+function shouldIgnoreEmptyContextMenuTarget(event) {
+  const target = event?.target
+  if (!(target instanceof Element)) return false
+  return !!target.closest('button, input, textarea, select, a, label, .library-table-row, .library-detail-inner')
+}
+
+function openContextMenu(event, scope, refKey = null) {
+  event.preventDefault()
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    scope,
+    refKey,
+  }
+}
+
+function openRowContextMenu(event, key) {
+  if (!key) return
+  if (activeKey.value !== key || isEditing.value) {
+    referencesStore.focusReferenceInLibrary(key, { mode: 'browse' })
+  }
+  openContextMenu(event, 'row', key)
+}
+
+function openDetailContextMenu(event, key) {
+  if (!key) return
+  openContextMenu(event, 'detail', key)
+}
+
+function openSidebarEmptyContextMenu(event) {
+  if (shouldIgnoreEmptyContextMenuTarget(event)) return
+  openContextMenu(event, 'sidebar-empty')
+}
+
+function openTableEmptyContextMenu(event) {
+  if (shouldIgnoreEmptyContextMenuTarget(event)) return
+  openContextMenu(event, 'table-empty')
+}
+
+function openDetailEmptyContextMenu(event) {
+  openContextMenu(event, 'detail-empty')
+}
+
+function clearFilters() {
+  activeView.value = 'all'
+  searchQuery.value = ''
+  selectedTags.value = []
 }
 
 function activateView(viewId) {
@@ -706,14 +900,16 @@ function addSelectionToWorkspace() {
   }
 }
 
-function removeSelectionFromWorkspace() {
+async function removeSelectionFromWorkspace() {
   if (selectedKeys.value.length === 0) return
   referencesStore.removeReferences(selectedKeys.value)
+  await referencesStore.saveLibrary({ immediate: true })
 }
 
-function toggleProjectMembership(key) {
+async function toggleProjectMembership(key) {
   if (isInCurrentProject(key)) {
     referencesStore.removeReference(key)
+    await referencesStore.saveLibrary({ immediate: true })
     return
   }
   referencesStore.addKeyToWorkspace(key)
@@ -738,6 +934,72 @@ function applyTagAction(action) {
     referencesStore.addTagsToReferences(keys, tags)
   }
   tagActionInput.value = ''
+}
+
+async function deleteReferencesFromGlobal(keys = []) {
+  const uniqueKeys = Array.from(new Set((keys || []).filter(Boolean)))
+  if (uniqueKeys.length === 0) return
+
+  const msg = uniqueKeys.length === 1
+    ? t('Delete reference @{key} from the global library?', { key: uniqueKeys[0] })
+    : t('Delete {count} references from the global library?', { count: uniqueKeys.length })
+  const yes = await ask(msg, {
+    title: t('Confirm Global Delete'),
+    kind: 'warning',
+  })
+  if (!yes) return
+
+  await referencesStore.removeReferencesFromGlobal(uniqueKeys)
+}
+
+async function handleContextMenuSelect(actionKey) {
+  const key = contextMenu.value.refKey
+  if (actionKey.startsWith('view:')) {
+    activateView(actionKey.slice(5))
+    return
+  }
+  if (actionKey.startsWith('sort:')) {
+    sortKey.value = actionKey.slice(5)
+    return
+  }
+
+  switch (actionKey) {
+    case 'open-details':
+      focusReference(key)
+      break
+    case 'edit-metadata':
+      enterEditMode(key)
+      break
+    case 'toggle-project-membership':
+      await toggleProjectMembership(key)
+      break
+    case 'open-pdf':
+      openReferencePdf(key)
+      break
+    case 'delete-global':
+      await deleteReferencesFromGlobal([key])
+      break
+    case 'import-references':
+      showImportDialog.value = true
+      break
+    case 'clear-selection':
+      clearSelection()
+      break
+    case 'clear-filters':
+      clearFilters()
+      break
+    case 'add-selection-to-project':
+      addSelectionToWorkspace()
+      break
+    case 'remove-selection-from-project':
+      await removeSelectionFromWorkspace()
+      break
+    case 'delete-selection-global':
+      await deleteReferencesFromGlobal(selectedKeys.value)
+      break
+    default:
+      break
+  }
 }
 
 function closeCompactPanels() {

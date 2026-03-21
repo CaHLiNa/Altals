@@ -168,7 +168,7 @@ export function toggleAiLauncher({ editorStore, beside = true, paneId, surface =
       aiDrawer.close()
       return
     }
-    aiDrawer.openLauncher()
+    aiDrawer.restore()
     return
   }
 

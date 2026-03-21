@@ -170,7 +170,8 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     chatStore: null,
   }
   const executionByRunId = new Map()
-  const rerunAfterExecution = new Set()
+  const executionStateByRunId = new Map()
+  const rerunAfterExecution = new Map()
 
   const activeRun = computed(() => {
     if (!activeRunId.value) return null
@@ -193,6 +194,31 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
   function getSessionIdForRun(runId) {
     if (!runId) return null
     return Object.entries(sessionRunMap.value).find(([, candidateRunId]) => candidateRunId === runId)?.[0] || null
+  }
+
+  function getExecutionFingerprint(run = null) {
+    if (!run?.id) return ''
+    const steps = Array.isArray(run.steps)
+      ? run.steps.map((step) => `${step.id}:${step.status}:${step.attemptCount || 0}`).join('|')
+      : ''
+    const checkpoints = Array.isArray(run.checkpoints)
+      ? run.checkpoints.map((checkpoint) => `${checkpoint.id}:${checkpoint.status}`).join('|')
+      : ''
+    return [
+      String(run.status || ''),
+      String(run.currentStepId || ''),
+      String(run.currentCheckpointId || ''),
+      steps,
+      checkpoints,
+    ].join('::')
+  }
+
+  function shouldRerunWorkflow(run = null) {
+    if (!run?.id) return false
+    const status = String(run.status || '')
+    if (status === 'draft' || status === 'planned') return true
+    if (status !== 'running') return false
+    return !findOpenCheckpoint(run)
   }
 
   function dropRunIfUnbound(runId) {
@@ -330,10 +356,16 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     const existing = executionByRunId.get(runId)
     if (existing) {
       if (queueIfRunning) {
-        rerunAfterExecution.add(runId)
+        const fingerprint = getExecutionFingerprint(getRun(runId)?.run)
+        const activeFingerprint = executionStateByRunId.get(runId)
+        if (fingerprint && fingerprint !== activeFingerprint) {
+          rerunAfterExecution.set(runId, fingerprint)
+        }
       }
       return existing
     }
+
+    executionStateByRunId.set(runId, getExecutionFingerprint(getRun(runId)?.run))
 
     const task = (async () => {
       const workflow = getRun(runId)
@@ -372,8 +404,20 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     executionByRunId.set(runId, task)
     task.finally(() => {
       executionByRunId.delete(runId)
-      if (rerunAfterExecution.has(runId)) {
-        rerunAfterExecution.delete(runId)
+      const activeFingerprint = executionStateByRunId.get(runId)
+      executionStateByRunId.delete(runId)
+
+      const queuedFingerprint = rerunAfterExecution.get(runId)
+      rerunAfterExecution.delete(runId)
+
+      const latest = getRun(runId)
+      if (
+        queuedFingerprint
+        && queuedFingerprint !== activeFingerprint
+        && latest?.run
+        && shouldRerunWorkflow(latest.run)
+        && getExecutionFingerprint(latest.run) === queuedFingerprint
+      ) {
         void runExecutor({ runId, sessionId: getSessionIdForRun(runId) })
       }
     })
@@ -540,6 +584,7 @@ export const useAiWorkflowRunsStore = defineStore('aiWorkflowRuns', () => {
     sessionRunMap.value = {}
     activeRunId.value = null
     executionByRunId.clear()
+    executionStateByRunId.clear()
     rerunAfterExecution.clear()
   }
 

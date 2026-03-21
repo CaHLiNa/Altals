@@ -28,13 +28,19 @@ export const useAiDrawerStore = defineStore('aiDrawer', () => {
     workspace.closeRightSidebar()
   }
 
+  function restore() {
+    workspace.openRightSidebar()
+    if (view.value === 'chat' && sessionId.value) return
+    view.value = 'launcher'
+  }
+
   function toggle(force = null) {
     const next = typeof force === 'boolean' ? force : !open.value
     if (!next) {
       close()
       return
     }
-    openLauncher()
+    restore()
   }
 
   return {
@@ -44,6 +50,7 @@ export const useAiDrawerStore = defineStore('aiDrawer', () => {
     openLauncher,
     openSession,
     close,
+    restore,
     toggle,
   }
 })

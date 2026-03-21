@@ -654,6 +654,7 @@ async function persistEditorContent(content) {
 }
 
 function handleDocumentChanged(content) {
+  files.setInMemoryFileContent(props.filePath, content)
   if (content === lastPersistedContent) {
     editorStore.clearFileDirty(props.filePath)
     return

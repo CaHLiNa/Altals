@@ -699,6 +699,7 @@ async function deleteRef() {
   if (yes) {
     const removed = referencesStore.removeReference(ref.value._key)
     if (removed) {
+      await referencesStore.saveLibrary({ immediate: true })
       if (props.embedded) {
         emit('close-embedded')
       } else {

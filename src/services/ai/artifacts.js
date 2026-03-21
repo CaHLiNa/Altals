@@ -30,6 +30,22 @@ function truncate(text = '', max = 220) {
   return `${normalized.slice(0, max - 1).trim()}...`
 }
 
+function normalizeComparableText(text = '') {
+  return cleanText(text).replace(/\s+/g, ' ')
+}
+
+function dedupeArtifactText(artifact = null) {
+  if (!artifact) return artifact
+  if (
+    artifact.summary
+    && artifact.body
+    && normalizeComparableText(artifact.summary) === normalizeComparableText(artifact.body)
+  ) {
+    artifact.summary = ''
+  }
+  return artifact
+}
+
 function parsePayload(payload) {
   if (!payload) return null
   if (typeof payload === 'string') {
@@ -121,7 +137,7 @@ function buildBaseArtifact(type, payload = {}, context = {}) {
     payload.body,
   )
 
-  return {
+  return dedupeArtifactText({
     type,
     title: title || type,
     summary: truncate(summary),
@@ -132,7 +148,7 @@ function buildBaseArtifact(type, payload = {}, context = {}) {
     options: normalizeOptions(payload.options),
     items: normalizeItems(payload.items),
     changes: normalizePatch(payload),
-  }
+  })
 }
 
 function inferTextArtifact(message, context = {}) {
@@ -149,7 +165,7 @@ function inferTextArtifact(message, context = {}) {
 
   const artifact = buildBaseArtifact(type, { body, text: body }, context)
   if (!artifact.summary) artifact.summary = truncate(body)
-  return artifact
+  return dedupeArtifactText(artifact)
 }
 
 export function normalizeArtifactPayload(payload, context = {}) {
@@ -205,7 +221,7 @@ export function normalizeArtifactPayload(payload, context = {}) {
     artifact.summary = truncate(artifact.body || artifact.prompt)
   }
 
-  return artifact
+  return dedupeArtifactText(artifact)
 }
 
 export function collectArtifactsFromMessage(message, context = {}) {

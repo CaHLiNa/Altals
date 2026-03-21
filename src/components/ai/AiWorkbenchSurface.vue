@@ -26,7 +26,7 @@
         </button>
       </div>
 
-      <div class="ai-workbench-rail-top">
+      <div class="ai-workbench-rail-top" @contextmenu="openWorkbenchEmptyContextMenu($event, 'rail')">
         <div class="ai-workbench-rail-kicker">{{ t('Current context') }}</div>
         <div class="ai-workbench-rail-context">{{ contextName }}</div>
         <div class="ai-workbench-rail-workspace">{{ workspaceName }}</div>
@@ -36,30 +36,43 @@
         </button>
       </div>
 
-      <div class="ai-workbench-rail-section">
+      <div class="ai-workbench-rail-section" @contextmenu="openWorkbenchEmptyContextMenu($event, 'rail')">
         <div class="ai-workbench-rail-section-title">{{ t('Recent chats') }}</div>
 
         <div v-if="recentChats.length" class="ai-workbench-chat-list">
-          <button
+          <div
             v-for="item in recentChats"
             :key="item.id"
-            class="ai-workbench-chat-item"
-            :class="{ active: aiWorkbench.sessionId === item.id && showChat }"
-            @click="openRecentChat(item.id)"
+            class="ai-workbench-chat-row"
+            @contextmenu.prevent.stop="openRecentChatContextMenu($event, item.id)"
           >
-            <div class="ai-workbench-chat-label-row">
-              <span class="ai-workbench-chat-label">{{ item.label }}</span>
-              <span v-if="chatMeta(item)?.roleBadge" class="ai-workbench-chat-badge">
-                {{ chatMeta(item).roleBadge }}
-              </span>
-            </div>
-            <div class="ai-workbench-chat-meta">
-              {{ formatRelativeFromNow(item.updatedAt) }}
-            </div>
-            <div v-if="chatWorkflowMeta(item)" class="ai-workbench-chat-meta ai-workbench-chat-meta-workflow">
-              {{ chatWorkflowMeta(item) }}
-            </div>
-          </button>
+            <button
+              class="ai-workbench-chat-item"
+              :class="{ active: aiWorkbench.sessionId === item.id && showChat }"
+              @click="openRecentChat(item.id)"
+            >
+              <div class="ai-workbench-chat-label-row">
+                <span class="ai-workbench-chat-label">{{ item.label }}</span>
+                <span v-if="chatMeta(item)?.roleBadge" class="ai-workbench-chat-badge">
+                  {{ chatMeta(item).roleBadge }}
+                </span>
+              </div>
+              <div class="ai-workbench-chat-meta">
+                {{ formatRelativeFromNow(item.updatedAt) }}
+              </div>
+              <div v-if="chatWorkflowMeta(item)" class="ai-workbench-chat-meta ai-workbench-chat-meta-workflow">
+                {{ chatWorkflowMeta(item) }}
+              </div>
+            </button>
+            <button
+              class="ai-workbench-chat-delete"
+              type="button"
+              :title="t('Delete chat')"
+              @click.stop="deleteChat(item.id)"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <div v-else class="ai-workbench-chat-empty">
@@ -68,7 +81,7 @@
       </div>
     </aside>
 
-    <section class="ai-workbench-main">
+    <section class="ai-workbench-main" @contextmenu="openWorkbenchEmptyContextMenu($event, 'main')">
       <div v-if="compact" class="ai-workbench-compact-toolbar">
         <button
           class="ai-workbench-compact-trigger"
@@ -99,11 +112,21 @@
         :pane-width="width"
       />
     </section>
+
+    <SurfaceContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :groups="contextMenuGroups"
+      @close="closeContextMenu"
+      @select="handleContextMenuSelect"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -111,6 +134,7 @@ import { useChatStore } from '../../stores/chat'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 import AiWorkbenchHome from './AiWorkbenchHome.vue'
 import ChatSession from '../chat/ChatSession.vue'
+import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const props = defineProps({
   paneWidth: { type: Number, default: 0 },
@@ -127,6 +151,13 @@ const homeRef = ref(null)
 const rootRef = ref(null)
 const observedWidth = ref(0)
 const compactRailOpen = ref(false)
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  scope: '',
+  sessionId: null,
+})
 let resizeObserver = null
 
 const width = computed(() => props.paneWidth || observedWidth.value || 0)
@@ -142,6 +173,7 @@ const sessionMeta = computed(() => (
 ))
 const showChat = computed(() => aiWorkbench.view === 'chat' && !!aiWorkbench.sessionId)
 const recentChats = computed(() => [...chatStore.allSessionsMeta].slice(0, 12))
+const latestRecentChat = computed(() => recentChats.value[0] || null)
 
 const contextName = computed(() => {
   const path = editorStore.preferredContextPath || ''
@@ -157,6 +189,38 @@ const workspaceName = computed(() => {
 const compactToolbarLabel = computed(() => {
   if (showChat.value && sessionMeta.value?.label) return sessionMeta.value.label
   return contextName.value || workspaceName.value
+})
+
+const contextMenuGroups = computed(() => {
+  if (!contextMenu.value.visible) return []
+
+  if (contextMenu.value.scope === 'chat-item' && contextMenu.value.sessionId) {
+    return [
+      {
+        key: 'chat-actions',
+        items: [
+          { key: 'open-chat', label: t('Open chat') },
+          { key: 'new-chat', label: t('New chat') },
+        ],
+      },
+      {
+        key: 'chat-danger',
+        items: [
+          { key: 'delete-chat', label: t('Delete chat'), danger: true },
+        ],
+      },
+    ]
+  }
+
+  const items = [
+    { key: 'new-chat', label: t('New chat') },
+  ]
+
+  if (latestRecentChat.value?.id && latestRecentChat.value.id !== aiWorkbench.sessionId) {
+    items.push({ key: 'open-latest-chat', label: t('Open latest chat') })
+  }
+
+  return [{ key: 'empty-actions', items }]
 })
 
 function chatMeta(item) {
@@ -207,6 +271,73 @@ function openRecentChat(sessionId) {
   aiWorkbench.openSession(sessionId)
 }
 
+async function deleteChat(sessionId) {
+  if (!sessionId) return
+  const yes = await ask(t('Delete this chat permanently?'), {
+    title: t('Delete chat'),
+    kind: 'warning',
+  })
+  if (!yes) return
+
+  editorStore.closeFileFromAllPanes(`chat:${sessionId}`)
+  chatStore.deleteSession(sessionId)
+  if (aiWorkbench.sessionId === sessionId) {
+    aiWorkbench.openLauncher()
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false
+}
+
+function shouldIgnoreEmptyContextMenuTarget(event) {
+  const target = event?.target
+  if (!(target instanceof Element)) return false
+  return !!target.closest('button, input, textarea, select, a, label, .ai-workbench-chat-row')
+}
+
+function openContextMenu(event, scope, sessionId = null) {
+  event.preventDefault()
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    scope,
+    sessionId,
+  }
+}
+
+function openRecentChatContextMenu(event, sessionId) {
+  if (!sessionId) return
+  openContextMenu(event, 'chat-item', sessionId)
+}
+
+function openWorkbenchEmptyContextMenu(event, source = 'main') {
+  if (source === 'main' && showChat.value) return
+  if (shouldIgnoreEmptyContextMenuTarget(event)) return
+  openContextMenu(event, 'empty')
+}
+
+async function handleContextMenuSelect(actionKey) {
+  const targetSessionId = contextMenu.value.sessionId
+  switch (actionKey) {
+    case 'open-chat':
+      openRecentChat(targetSessionId)
+      break
+    case 'new-chat':
+      openHome()
+      break
+    case 'open-latest-chat':
+      if (latestRecentChat.value?.id) openRecentChat(latestRecentChat.value.id)
+      break
+    case 'delete-chat':
+      await deleteChat(targetSessionId)
+      break
+    default:
+      break
+  }
+}
+
 function closeCompactRail() {
   compactRailOpen.value = false
 }
@@ -238,6 +369,7 @@ watch(
 watch(
   () => aiWorkbench.view,
   (view) => {
+    closeContextMenu()
     if (compact.value && (view === 'chat' || view === 'launcher')) {
       compactRailOpen.value = false
     }
@@ -248,8 +380,16 @@ watch(
 )
 
 watch(compact, (isCompact) => {
+  closeContextMenu()
   if (!isCompact) compactRailOpen.value = false
 })
+
+watch(
+  () => aiWorkbench.sessionId,
+  () => {
+    closeContextMenu()
+  },
+)
 
 onMounted(() => {
   if (props.paneWidth > 0) {
@@ -445,8 +585,15 @@ onUnmounted(() => {
   gap: 4px;
 }
 
+.ai-workbench-chat-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
 .ai-workbench-chat-item {
   width: 100%;
+  flex: 1 1 auto;
   padding: 9px 10px;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -454,6 +601,30 @@ onUnmounted(() => {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+
+.ai-workbench-chat-delete {
+  width: 28px;
+  flex: 0 0 28px;
+  align-self: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s ease, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.ai-workbench-chat-row:hover .ai-workbench-chat-delete,
+.ai-workbench-chat-delete:focus-visible {
+  opacity: 1;
+}
+
+.ai-workbench-chat-delete:hover {
+  background: color-mix(in srgb, var(--error) 8%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--error) 28%, var(--border));
+  color: var(--error);
 }
 
 .ai-workbench-chat-item:hover {
@@ -511,6 +682,7 @@ onUnmounted(() => {
 }
 
 .ai-workbench-main {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;

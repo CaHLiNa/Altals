@@ -625,6 +625,7 @@ async function deleteRef(key) {
   const yes = await ask(msg, { title: t('Confirm Remove'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReferences(keys)
+    await referencesStore.saveLibrary({ immediate: true })
   }
 }
 

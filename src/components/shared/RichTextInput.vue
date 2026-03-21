@@ -250,6 +250,64 @@ function setText(text) {
 }
 
 /**
+ * Insert one or more file mention pills at the current cursor.
+ * If the editor is not focused, append them at the end instead.
+ */
+async function insertFileMentions(files = []) {
+  const el = editorRef.value
+  if (!el || props.disabled) return 0
+
+  const existingPaths = new Set(
+    [...el.querySelectorAll('[data-type="mention"]')].map((node) => node.dataset.path).filter(Boolean),
+  )
+  const uniqueFiles = files.filter((file) => {
+    const path = file?.path
+    if (!path || existingPaths.has(path)) return false
+    existingPaths.add(path)
+    return true
+  })
+  if (!uniqueFiles.length) return 0
+
+  el.focus()
+
+  const sel = window.getSelection()
+  let range = null
+  if (sel?.rangeCount) {
+    const currentRange = sel.getRangeAt(0)
+    const container = currentRange.startContainer
+    if (container === el || el.contains(container)) {
+      range = currentRange.cloneRange()
+    }
+  }
+  if (!range) {
+    range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+
+  range.deleteContents()
+
+  const inserted = []
+  for (const file of uniqueFiles) {
+    const pill = buildMentionPillEl(file)
+    range.insertNode(pill)
+    const spaceNode = document.createTextNode('\u00a0')
+    pill.after(spaceNode)
+    range.setStart(spaceNode, spaceNode.length)
+    range.collapse(true)
+    inserted.push({ pill, file })
+  }
+
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+
+  emit('input')
+  await Promise.all(inserted.map(({ pill, file }) => loadPillContent(pill, file)))
+  emit('input')
+  return inserted.length
+}
+
+/**
  * Return a sanitized snapshot of the editor HTML for rendering in sent messages.
  * Strips contenteditable and loading-state attributes so pills render cleanly.
  */
@@ -266,7 +324,7 @@ function getSerializedHtml() {
   return clone.innerHTML
 }
 
-defineExpose({ focus, clear, isEmpty, extractPayload, triggerAtMention, insertContextPill, setText, getSerializedHtml })
+defineExpose({ focus, clear, isEmpty, extractPayload, triggerAtMention, insertContextPill, insertFileMentions, setText, getSerializedHtml })
 
 // ─── Internal: Event handlers ────────────────────────────────────────────────
 
@@ -605,6 +663,13 @@ function buildContextPillEl(context) {
 
 async function loadPillContent(pill, file) {
   try {
+    if (typeof file?.content === 'string') {
+      pill._loadedContent = file.content.length > 50000
+        ? file.content.slice(0, 50000) + '\n... [truncated at 50KB]'
+        : file.content
+      pill.dataset.loading = 'false'
+      return
+    }
     let content
     const viewerType = getViewerType(file.path)
     if (viewerType === 'pdf') {

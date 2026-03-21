@@ -2,11 +2,14 @@
   <div class="chat-input px-2 pb-2 pt-1" :class="{ 'chat-input-compact': compact }">
     <!-- Container: rounded border -->
     <div
+      ref="inputShellRef"
       class="rounded-md border transition-all"
       :style="{
-        borderColor: isFocused ? 'var(--accent)' : 'var(--border)',
-        background: isLightTheme ? 'var(--bg-primary)' : 'var(--bg-secondary)',
-        boxShadow: isFocused
+        borderColor: (isFocused || isFileDropHover) ? 'var(--accent)' : 'var(--border)',
+        background: isFileDropHover
+          ? 'color-mix(in srgb, var(--accent) 6%, var(--bg-primary))'
+          : (isLightTheme ? 'var(--bg-primary)' : 'var(--bg-secondary)'),
+        boxShadow: (isFocused || isFileDropHover)
           ? (isLightTheme ? '0 0 0 1.5px var(--accent)' : 'none')
           : (isLightTheme ? '0 2px 14px rgba(0,0,0,0.06)' : 'none'),
       }"
@@ -241,6 +244,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { IconFocus2, IconNotes, IconPencil, IconSparkles } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
+import { useFilesStore } from '../../stores/files'
 import { useUsageStore } from '../../stores/usage'
 import { useChatStore } from '../../stores/chat'
 import { useReviewsStore } from '../../stores/reviews'
@@ -265,6 +269,7 @@ const emit = defineEmits(['send', 'abort', 'update-model', 'launch-task'])
 
 const workspace   = useWorkspaceStore()
 const editorStore = useEditorStore()
+const filesStore  = useFilesStore()
 const usageStore  = useUsageStore()
 const chatStore   = useChatStore()
 const reviews     = useReviewsStore()
@@ -276,11 +281,13 @@ const isLightTheme = computed(() =>
   ['light', 'one-light', 'humane', 'solarized'].includes(workspace.theme)
 )
 
+const inputShellRef    = ref(null)
 const richInputRef     = ref(null)
 const modelButtonRef   = ref(null)
 const contextButtonRef = ref(null)
 const toolsButtonRef   = ref(null)
 const isFocused        = ref(false)
+const isFileDropHover  = ref(false)
 const hasContent       = ref(false)   // tracks whether richInput is empty (for canSend)
 const showModelPicker  = ref(false)
 const showContextMenu  = ref(false)
@@ -342,6 +349,44 @@ const reviewButtonTitle = computed(() => (
     : `${t('Review changes')} · ${t('Controls how AI-suggested edits are applied - affects all AI features')}`
 ))
 
+function isPointInsideInput(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+  const el = inputShellRef.value
+  if (!el) return false
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return false
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+}
+
+function buildDroppedFiles(paths = []) {
+  const seen = new Set()
+  const files = []
+
+  for (const path of paths) {
+    if (!path || seen.has(path)) continue
+    seen.add(path)
+
+    const entry = filesStore._findEntry(path)
+    if (entry?.is_dir) continue
+
+    const viewerType = getViewerType(path)
+    if (viewerType === 'chat' || viewerType === 'ai-launcher' || viewerType === 'newtab' || viewerType === 'reference' || viewerType === 'library') {
+      continue
+    }
+
+    const file = {
+      path,
+      name: path.split('/').pop() || path,
+    }
+    if (viewerType === 'text' && typeof filesStore.fileContents[path] === 'string') {
+      file.content = filesStore.fileContents[path]
+    }
+    files.push(file)
+  }
+
+  return files
+}
+
 // Keep hasContent in sync with RichTextInput changes
 function onRichInput() {
   hasContent.value = richInputRef.value ? !richInputRef.value.isEmpty() : false
@@ -374,9 +419,30 @@ function handleChatWithSelection(e) {
   }
 }
 
+function handleFileTreeDragMove(e) {
+  const { x, y } = e.detail || {}
+  isFileDropHover.value = isPointInsideInput(x, y)
+}
+
+async function handleFileTreeDragEnd(e) {
+  const { paths = [], x, y } = e.detail || {}
+  const shouldAttach = paths.length > 0 && isPointInsideInput(x, y)
+  isFileDropHover.value = false
+  if (!shouldAttach || !richInputRef.value) return
+
+  const files = buildDroppedFiles(paths)
+  if (!files.length) return
+
+  await richInputRef.value.insertFileMentions(files)
+  onRichInput()
+  nextTick(() => richInputRef.value?.focus())
+}
+
 onMounted(() => {
   window.addEventListener('chat-set-input',        handleChatSetInput)
   window.addEventListener('chat-with-selection',   handleChatWithSelection)
+  window.addEventListener('filetree-drag-move',    handleFileTreeDragMove)
+  window.addEventListener('filetree-drag-end',     handleFileTreeDragEnd)
   // Consume any prefill/selection queued before this async component finished mounting
   if (chatStore.pendingPrefill) {
     handleChatSetInput({ detail: { message: chatStore.pendingPrefill } })
@@ -390,6 +456,9 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('chat-set-input',       handleChatSetInput)
   window.removeEventListener('chat-with-selection',  handleChatWithSelection)
+  window.removeEventListener('filetree-drag-move',   handleFileTreeDragMove)
+  window.removeEventListener('filetree-drag-end',    handleFileTreeDragEnd)
+  isFileDropHover.value = false
 })
 
 // ─── Token donut ─────────────────────────────────────────────────────────────

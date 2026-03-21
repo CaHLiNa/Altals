@@ -304,6 +304,9 @@ body.tab-dragging * {
   border-radius: 5px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   opacity: 0.92;
+  max-width: min(360px, calc(100vw - 32px));
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   transform: translate(-50%, -50%);
 }

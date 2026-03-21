@@ -546,6 +546,11 @@ export const useReferencesStore = defineStore('references', {
             await this._writeLibraries(context)
             if (this._isLoadStale(context)) return
           }
+
+          if (migration.legacyLibraryFound) {
+            await this._deleteLegacyWorkspaceReferenceLibrary(context)
+            if (this._isLoadStale(context)) return
+          }
         } catch (e) {
           if (this._isLoadStale(context)) return
           console.warn('Failed to load reference library:', e)
@@ -627,10 +632,21 @@ export const useReferencesStore = defineStore('references', {
     },
 
     _saveTimer: null,
-    async saveLibrary() {
+    async saveLibrary(options = {}) {
+      const { immediate = false } = options || {}
       const context = this._captureWorkspaceContext()
       clearTimeout(this._saveTimer)
-      this._saveTimer = setTimeout(() => this._doSave(context), 500)
+      this._saveTimer = null
+
+      if (immediate) {
+        await this._doSave(context)
+        return
+      }
+
+      this._saveTimer = setTimeout(() => {
+        this._saveTimer = null
+        void this._doSave(context)
+      }, 500)
     },
 
     async _doSave(context = this._captureWorkspaceContext()) {
@@ -820,6 +836,20 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
+    async _deleteLegacyWorkspaceReferenceLibrary(context = this._captureWorkspaceContext()) {
+      const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(context.projectDir)
+      if (!legacyLibraryPath) return false
+      try {
+        const exists = await invoke('path_exists', { path: legacyLibraryPath })
+        if (!exists) return false
+        await invoke('delete_path', { path: legacyLibraryPath })
+        return true
+      } catch (error) {
+        console.warn('Failed to delete legacy workspace reference library:', error)
+        return false
+      }
+    },
+
     async _migrateLegacyWorkspaceData(context = this._captureWorkspaceContext(), { globalLibrary = [], workspaceKeys = [] } = {}) {
       const legacyLibraryPath = resolveLegacyWorkspaceReferenceLibraryPath(context.projectDir)
       const legacyRefs = await readJsonArray(legacyLibraryPath)
@@ -828,6 +858,7 @@ export const useReferencesStore = defineStore('references', {
           globalLibrary,
           workspaceKeys,
           didChange: false,
+          legacyLibraryFound: false,
         }
       }
 
@@ -865,6 +896,7 @@ export const useReferencesStore = defineStore('references', {
         globalLibrary: nextGlobalLibrary,
         workspaceKeys: nextWorkspaceKeys,
         didChange,
+        legacyLibraryFound: true,
       }
     },
 

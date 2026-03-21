@@ -389,7 +389,9 @@ function onMouseDown(idx, e) {
     if (!mouseDownStart) return
     const dx = Math.abs(ev.clientX - mouseDownStart.x)
     const dy = Math.abs(ev.clientY - mouseDownStart.y)
-    if ((dx > 5 || dy > 5) && !isDragging) {
+    if (!isDragging) {
+      if (dx <= 5) return
+      if (dy > dx) return
       isDragging = true
       dragIdx.value = mouseDownStart.idx
       ghostLabel.value = fileName(props.tabs[mouseDownStart.idx])

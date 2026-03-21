@@ -295,9 +295,12 @@ export function createCheckpoint(run, checkpoint = {}) {
 export function resolveCheckpoint(run, checkpointId, resolution = {}) {
   const resolvedAt = now()
   let matched = false
+  let checkpointWasOpen = false
   const checkpoints = (run.checkpoints || []).map((checkpoint) => {
     if (checkpoint.id !== checkpointId) return checkpoint
+    if (checkpoint.status !== 'open') return checkpoint
     matched = true
+    checkpointWasOpen = true
     return {
       ...checkpoint,
       status: 'resolved',
@@ -307,7 +310,7 @@ export function resolveCheckpoint(run, checkpointId, resolution = {}) {
     }
   })
 
-  if (!matched) return clone(run)
+  if (!matched || !checkpointWasOpen) return clone(run)
 
   const openCheckpoint = firstOpenCheckpoint({ ...run, checkpoints })
   const nextRun = {

@@ -753,6 +753,12 @@ export const useFilesStore = defineStore('files', {
       }
     },
 
+    setInMemoryFileContent(path, content) {
+      if (!path || typeof content !== 'string') return
+      this.fileContents[path] = content
+      this._clearFileLoadError(path)
+    },
+
     async createFile(dirPath, name) {
       try {
         const result = await createWorkspaceFile(dirPath, name)

@@ -5,7 +5,7 @@
     :class="{ 'ai-drawer-compact': isCompact }"
     style="background: var(--bg-primary);"
   >
-    <div class="ai-drawer-header">
+    <div class="ai-drawer-header" @contextmenu="openDrawerEmptyContextMenu">
       <div class="ai-drawer-header-left">
         <button
           v-if="drawer.view === 'chat'"
@@ -18,7 +18,10 @@
             <path d="M7.5 2.5L4 6l3.5 3.5"/>
           </svg>
         </button>
-        <div class="ai-drawer-title-wrap">
+        <div
+          class="ai-drawer-title-wrap"
+          @contextmenu="openDrawerTitleContextMenu"
+        >
           <div class="ai-drawer-title">{{ headerTitle }}</div>
           <div v-if="headerMeta" class="ai-drawer-meta">{{ headerMeta }}</div>
         </div>
@@ -31,6 +34,18 @@
           @click="openWorkbench"
         >
           {{ drawer.view === 'chat' ? t('Continue in AI workspace') : t('Open AI workspace') }}
+        </button>
+        <button
+          v-if="drawer.view === 'chat' && session"
+          class="ai-drawer-icon-btn"
+          :title="t('Delete chat')"
+          :aria-label="t('Delete chat')"
+          @click="deleteCurrentChat"
+        >
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M2 3.5h8M4.2 3.5V2.4c0-.5.4-.9.9-.9h1.8c.5 0 .9.4.9.9v1.1M9.1 3.5v5.3c0 .5-.4.9-.9.9H3.8c-.5 0-.9-.4-.9-.9V3.5"/>
+            <path d="M4.9 5.1v3.1M7.1 5.1v3.1"/>
+          </svg>
         </button>
         <button
           class="ai-drawer-icon-btn"
@@ -46,10 +61,15 @@
     </div>
 
     <div class="flex-1 min-h-0 overflow-hidden">
-      <AiQuickPanel
+      <div
         v-if="drawer.view === 'launcher'"
-        :compact="isCompact"
-      />
+        class="h-full"
+        @contextmenu="openDrawerEmptyContextMenu"
+      >
+        <AiQuickPanel
+          :compact="isCompact"
+        />
+      </div>
       <div v-else class="h-full">
         <ChatSession
           v-if="session"
@@ -69,11 +89,21 @@
         </div>
       </div>
     </div>
+
+    <SurfaceContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :groups="contextMenuGroups"
+      @close="closeContextMenu"
+      @select="handleContextMenuSelect"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useChatStore } from '../../stores/chat'
@@ -82,6 +112,7 @@ import { useI18n } from '../../i18n'
 import { continueAiToWorkbench } from '../../services/ai/launch'
 import AiQuickPanel from './AiQuickPanel.vue'
 import ChatSession from '../chat/ChatSession.vue'
+import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const drawer = useAiDrawerStore()
 const aiWorkbench = useAiWorkbenchStore()
@@ -90,6 +121,12 @@ const editorStore = useEditorStore()
 const { t } = useI18n()
 const drawerRef = ref(null)
 const drawerWidth = ref(0)
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  scope: '',
+})
 let resizeObserver = null
 
 const isCompact = computed(() => drawerWidth.value > 0 && drawerWidth.value < 430)
@@ -117,6 +154,40 @@ const headerMeta = computed(() => {
   return `${sessionMeta.value.roleTitle} · ${sessionMeta.value.runtimeTitle}`
 })
 
+const contextMenuGroups = computed(() => {
+  if (!contextMenu.value.visible) return []
+
+  if (contextMenu.value.scope === 'session' && drawer.view === 'chat' && session.value) {
+    return [
+      {
+        key: 'session-actions',
+        items: [
+          { key: 'new-chat', label: t('New chat') },
+          { key: 'open-workbench', label: t('Continue in AI workspace') },
+          { key: 'close-ai', label: t('Close AI') },
+        ],
+      },
+      {
+        key: 'session-danger',
+        items: [
+          { key: 'delete-chat', label: t('Delete chat'), danger: true },
+        ],
+      },
+    ]
+  }
+
+  return [
+    {
+      key: 'drawer-actions',
+      items: [
+        { key: 'new-chat', label: t('New chat') },
+        { key: 'open-workbench', label: t('Open AI workspace') },
+        { key: 'close-ai', label: t('Close AI') },
+      ],
+    },
+  ]
+})
+
 function openWorkbench() {
   continueAiToWorkbench({
     editorStore,
@@ -125,9 +196,80 @@ function openWorkbench() {
   drawer.close()
 }
 
+async function deleteCurrentChat() {
+  const sessionId = drawer.sessionId
+  if (!sessionId) return
+  const yes = await ask(t('Delete this chat permanently?'), {
+    title: t('Delete chat'),
+    kind: 'warning',
+  })
+  if (!yes) return
+
+  editorStore.closeFileFromAllPanes(`chat:${sessionId}`)
+  chatStore.deleteSession(sessionId)
+  drawer.openLauncher()
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false
+}
+
+function shouldIgnoreEmptyContextMenuTarget(event) {
+  const target = event?.target
+  if (!(target instanceof Element)) return false
+  return !!target.closest('button, input, textarea, select, a, label')
+}
+
+function openContextMenu(event, scope) {
+  event.preventDefault()
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    scope,
+  }
+}
+
+function openCurrentChatContextMenu(event) {
+  if (drawer.view !== 'chat' || !session.value) return
+  openContextMenu(event, 'session')
+}
+
+function openDrawerTitleContextMenu(event) {
+  if (drawer.view === 'chat' && session.value) {
+    event.stopPropagation()
+    openCurrentChatContextMenu(event)
+  }
+}
+
+function openDrawerEmptyContextMenu(event) {
+  if (shouldIgnoreEmptyContextMenuTarget(event)) return
+  openContextMenu(event, 'empty')
+}
+
+async function handleContextMenuSelect(actionKey) {
+  switch (actionKey) {
+    case 'new-chat':
+      drawer.openLauncher()
+      break
+    case 'open-workbench':
+      openWorkbench()
+      break
+    case 'close-ai':
+      drawer.close()
+      break
+    case 'delete-chat':
+      await deleteCurrentChat()
+      break
+    default:
+      break
+  }
+}
+
 watch(
   () => [drawer.view, drawer.sessionId],
   async ([view, sessionId]) => {
+    closeContextMenu()
     if (view !== 'chat' || !sessionId) return
     let current = chatStore.sessions.find((item) => item.id === sessionId) || null
     if (!current) {

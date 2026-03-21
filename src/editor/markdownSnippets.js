@@ -110,16 +110,54 @@ function buildSnippetOption(snippet, t) {
   })
 }
 
+function extractMarkdownDraftCommand(textBefore = '') {
+  const input = String(textBefore || '')
+  let index = 0
+  const length = input.length
+
+  const consumeWhitespace = () => {
+    while (index < length && /\s/.test(input[index])) index += 1
+  }
+
+  consumeWhitespace()
+
+  let advanced = true
+  while (advanced && index < length) {
+    advanced = false
+
+    while (input[index] === '>') {
+      advanced = true
+      index += 1
+      while (index < length && input[index] === ' ') index += 1
+    }
+
+    const listMatch = input.slice(index).match(/^(?:[-+*]|\d+\.)\s+/)
+    if (listMatch) {
+      advanced = true
+      index += listMatch[0].length
+      consumeWhitespace()
+    }
+  }
+
+  const command = input.slice(index)
+  if (!/^\/[\w-]*$/.test(command)) return null
+
+  return {
+    command,
+    from: index,
+  }
+}
+
 export function createMarkdownDraftSnippetSource(t = (value) => value) {
   return (context) => {
     const { state, pos } = context
     const line = state.doc.lineAt(pos)
     const textBefore = line.text.slice(0, pos - line.from)
-    const match = textBefore.match(/^(\s*)(\/[\w-]*)$/)
+    const match = extractMarkdownDraftCommand(textBefore)
     if (!match) return null
     if (isInCodeContext(state, line.from, pos)) return null
 
-    const command = match[2]
+    const { command, from } = match
     const options = MARKDOWN_DRAFT_SNIPPETS
       .filter(snippet => matchesCommand(snippet, command))
       .map(snippet => buildSnippetOption(snippet, t))
@@ -127,7 +165,7 @@ export function createMarkdownDraftSnippetSource(t = (value) => value) {
     if (options.length === 0) return null
 
     return {
-      from: pos - command.length,
+      from: line.from + from,
       options,
       validFor: /^\/[\w-]*$/,
     }

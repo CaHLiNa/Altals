@@ -77,6 +77,9 @@ export function useFileTreeDrag(options) {
     const onMouseMove = (moveEvent) => {
       dragGhostX.value = moveEvent.clientX
       dragGhostY.value = moveEvent.clientY
+      window.dispatchEvent(new CustomEvent('filetree-drag-move', {
+        detail: { paths: [...draggedPaths], x: moveEvent.clientX, y: moveEvent.clientY },
+      }))
 
       if (!canImport) return
       const nowOverRef = isOverRefZone({ x: moveEvent.clientX, y: moveEvent.clientY })
@@ -202,6 +205,7 @@ export function useFileTreeDrag(options) {
     stopNativeListeners = null
     externalDragOver.value = false
     cleanupDragState()
+    window.dispatchEvent(new CustomEvent('filetree-drag-end'))
     window.dispatchEvent(new CustomEvent('ref-drag-leave'))
   })
 
