@@ -133,6 +133,18 @@ test('current draft review launcher entry maps to the draft review workflow', ()
   assert.match(task.meta || '', /Workflow/i)
 })
 
+test('launcher items preserve workflow boundary description and meta on task data', () => {
+  const items = getAiLauncherItems({
+    currentPath: '/tmp/draft.md',
+    t,
+  })
+  const item = items.find((entry) => entry.task?.taskId === 'review.current-draft')
+
+  assert.ok(item)
+  assert.match(item.task.description || '', /patch approval/i)
+  assert.match(item.task.meta || '', /Workflow/i)
+})
+
 test('quick items prioritize workflow starts and keep general chat as the only free chat entry', () => {
   const items = getQuickAiItems({ t })
   const taskIds = items.map((item) => item.task?.taskId)

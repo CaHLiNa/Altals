@@ -150,8 +150,10 @@ const aiItems = computed(() => {
   }).map((item) => ({
     label: item.label,
     meta: item.meta,
+    description: item.description,
     groupHeader: item.groupHeader,
     muted: item.muted,
+    task: item.task,
     action: () => runAiTask(item.task, item.label),
   }))
 })
@@ -164,6 +166,7 @@ const capabilityItems = computed(() => {
     label: item.label,
     description: item.description,
     meta: item.meta,
+    task: item.task,
     groupHeader: item.groupHeader,
     muted: false,
     action: () => runAiTask(item.task, item.label),
