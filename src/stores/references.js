@@ -33,6 +33,7 @@ import {
   searchSortedReferences,
   sortReferences,
 } from '../domains/reference/referenceSearchExport'
+import { createReferenceLibraryRuntime } from '../domains/reference/referenceLibraryRuntime'
 import {
   auditReferenceImportCandidate,
   buildMergedReference,
@@ -201,6 +202,28 @@ export const useReferencesStore = defineStore('references', {
   },
 
   actions: {
+    _getReferenceLibraryRuntime() {
+      if (!this._referenceLibraryRuntime) {
+        this._referenceLibraryRuntime = createReferenceLibraryRuntime({
+          captureWorkspaceContext: () => this._captureWorkspaceContext(),
+          matchesWorkspaceContext: (context) => this._matchesWorkspaceContext(context),
+          loadLibrary: () => this.loadLibrary(),
+          getGlobalLibrary: () => this.globalLibrary,
+          getCollections: () => this.collections,
+          getSavedViews: () => this.savedViews,
+          getWorkspaceKeys: () => this.workspaceKeys,
+          createEmptyGlobalReferenceWorkbench,
+          createEmptyWorkspaceReferenceCollection,
+          resolveGlobalReferenceLibraryPath,
+          resolveGlobalReferenceWorkbenchPath,
+          resolveWorkspaceReferenceCollectionPath,
+          invoke,
+          listenToFsChange: (handler) => listen('fs-change', handler),
+        })
+      }
+      return this._referenceLibraryRuntime
+    },
+
     // --- Persistence ---
 
     _captureWorkspaceContext() {
@@ -344,100 +367,29 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
-    _saveTimer: null,
     async saveLibrary(options = {}) {
-      const { immediate = false } = options || {}
-      const context = this._captureWorkspaceContext()
-      clearTimeout(this._saveTimer)
-      this._saveTimer = null
-
-      if (immediate) {
-        await this._doSave(context)
-        return
-      }
-
-      this._saveTimer = setTimeout(() => {
-        this._saveTimer = null
-        void this._doSave(context)
-      }, 500)
+      return this._getReferenceLibraryRuntime().saveLibrary(options)
     },
 
     async _doSave(context = this._captureWorkspaceContext()) {
-      if (!this._matchesWorkspaceContext(context)) return
-      await this._writeLibraries(context)
+      return this._getReferenceLibraryRuntime().doSave(context)
     },
 
     async _writeLibraries(context = this._captureWorkspaceContext()) {
-      if (!context?.projectDir || !context?.globalConfigDir) return
-
-      const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
-      const workbenchStatePath = resolveGlobalReferenceWorkbenchPath(context.globalConfigDir)
-      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
-      try {
-        this._markSelfWrite(globalLibraryPath)
-        await invoke('write_file', {
-          path: globalLibraryPath,
-          content: JSON.stringify(this.globalLibrary, null, 2),
-        })
-        this._markSelfWrite(workbenchStatePath)
-        await invoke('write_file', {
-          path: workbenchStatePath,
-          content: JSON.stringify({
-            ...createEmptyGlobalReferenceWorkbench(),
-            collections: this.collections,
-            savedViews: this.savedViews,
-          }, null, 2),
-        })
-        this._markSelfWrite(workspaceCollectionPath)
-        await invoke('write_file', {
-          path: workspaceCollectionPath,
-          content: JSON.stringify({
-            ...createEmptyWorkspaceReferenceCollection(),
-            keys: [...this.workspaceKeys],
-          }, null, 2),
-        })
-      } catch (e) {
-        console.warn('Failed to save reference library:', e)
-      }
+      return this._getReferenceLibraryRuntime().writeLibraries(context)
     },
 
     async startWatching(context = this._captureWorkspaceContext()) {
-      if (!this._matchesWorkspaceContext(context)) return
-      if (this._unlisten) this._unlisten()
-
-      const globalLibraryPath = resolveGlobalReferenceLibraryPath(context.globalConfigDir)
-      const workbenchStatePath = resolveGlobalReferenceWorkbenchPath(context.globalConfigDir)
-      const workspaceCollectionPath = resolveWorkspaceReferenceCollectionPath(context.projectDir)
-      this._unlisten = await listen('fs-change', async (event) => {
-        if (!this._matchesWorkspaceContext(context)) return
-        const paths = event.payload?.paths || []
-        const relevant = paths.filter((path) => (
-          path === globalLibraryPath
-          || path === workspaceCollectionPath
-          || path === workbenchStatePath
-        ))
-        if (relevant.length === 0) return
-
-        let needsReload = false
-        for (const path of relevant) {
-          if (this._consumeSelfWrite(path)) continue
-          needsReload = true
-        }
-        if (needsReload) {
-          await this.loadLibrary()
-        }
-      })
+      return this._getReferenceLibraryRuntime().startWatching(context)
     },
 
     stopWatching() {
-      if (this._unlisten) { this._unlisten(); this._unlisten = null }
+      return this._getReferenceLibraryRuntime().stopWatching()
     },
 
     cleanup(options = {}) {
       const { preserveGlobalLibrary = false } = options
-      clearTimeout(this._saveTimer)
-      this._saveTimer = null
-      this.stopWatching()
+      this._getReferenceLibraryRuntime().cleanup()
       this._loadGeneration += 1
       this.library = []
       this.keyMap = {}
@@ -448,7 +400,6 @@ export const useReferencesStore = defineStore('references', {
         this.savedViews = []
       }
       this.workspaceKeys = []
-      this._selfWriteCounts = {}
       this.initialized = false
       this.loading = false
       this.activeKey = null
@@ -469,19 +420,6 @@ export const useReferencesStore = defineStore('references', {
       } catch (e) {
         console.warn('Failed to save citation style:', e)
       }
-    },
-
-    _markSelfWrite(path) {
-      if (!path) return
-      if (!this._selfWriteCounts) this._selfWriteCounts = {}
-      this._selfWriteCounts[path] = (this._selfWriteCounts[path] || 0) + 1
-    },
-
-    _consumeSelfWrite(path) {
-      if (!path || !this._selfWriteCounts?.[path]) return false
-      this._selfWriteCounts[path] -= 1
-      if (this._selfWriteCounts[path] <= 0) delete this._selfWriteCounts[path]
-      return true
     },
 
     _syncWorkspaceView() {

@@ -16,6 +16,11 @@ import {
   writeTerminalSession,
 } from '../services/terminal/terminalSessions'
 import { buildShellIntegrationBootstrap } from '../services/terminal/terminalShellIntegration'
+import { createTerminalExecutionRuntime } from '../domains/terminal/terminalExecutionRuntime'
+import { createTerminalHydrationRuntime } from '../domains/terminal/terminalHydrationRuntime'
+import { createTerminalLifecycleRuntime } from '../domains/terminal/terminalLifecycleRuntime'
+import { createTerminalLogRuntime } from '../domains/terminal/terminalLogRuntime'
+import { createTerminalSessionRuntime } from '../domains/terminal/terminalSessionRuntime'
 
 const SHARED_SHELL_KEY = 'shared-shell-terminal'
 const SHARED_LOG_KEY = 'shared-build-terminal'
@@ -32,16 +37,6 @@ const TOOL_LOG_TERMINALS = Object.freeze({
   },
 })
 const MAX_COMMAND_MARKERS = 200
-const REPL_TEMP_EXT = {
-  r: '.R',
-  python: '.py',
-  julia: '.jl',
-}
-
-function clampIndex(value, length) {
-  if (length <= 0) return -1
-  return Math.min(Math.max(value, 0), length - 1)
-}
 
 function nextLabelNumber(instances) {
   const numbers = instances
@@ -218,6 +213,122 @@ export const useTerminalStore = defineStore('terminal', {
       return useWorkspaceStore()
     },
 
+    _getTerminalExecutionRuntime() {
+      if (!this._terminalExecutionRuntime) {
+        this._terminalExecutionRuntime = createTerminalExecutionRuntime({
+          getWorkspacePath: () => this._workspace().path,
+          getInstance: (instanceId) => this._findInstance(instanceId),
+          getSessionId: (instanceId) => this._findInstance(instanceId)?.sessionId ?? null,
+          defaultShell,
+          spawnTerminalSession,
+          writeTerminalSession,
+          buildShellIntegrationBootstrap,
+          writeFile: (path, content) => invoke('write_file', { path, content }),
+          ensureSharedShellTerminal: (options = {}) => this.ensureSharedShellTerminal(options),
+          ensureLanguageTerminal: (language, options = {}) => this.ensureLanguageTerminal(language, options),
+          findLanguageTerminalInstanceId: (language) => (
+            this.instances.find((instance) => instance.language === language && instance.kind === 'repl')?.id ?? null
+          ),
+          activateInstance: (instanceId) => this.activateInstance(instanceId),
+          openBottomPanel: () => this._workspace().openBottomPanel(),
+          markSessionStarted: (instanceId, sessionId, options = {}) => {
+            const instance = this._findInstance(instanceId)
+            if (!instance) return
+            instance.sessionId = sessionId
+            instance.status = 'running'
+            instance.lastExitCode = null
+            instance.shellIntegrationReady = options.shellIntegrationReady === true
+          },
+        })
+      }
+      return this._terminalExecutionRuntime
+    },
+
+    _getTerminalHydrationRuntime() {
+      if (!this._terminalHydrationRuntime) {
+        this._terminalHydrationRuntime = createTerminalHydrationRuntime({
+          createEmptyState,
+          createGroup,
+          cloneArgs,
+          getWorkspacePath: () => this._workspace().path,
+          getHydratedWorkspacePath: () => this.hydratedWorkspacePath,
+          getStateSnapshot: () => ({
+            nextInstanceId: this.nextInstanceId,
+            nextGroupId: this.nextGroupId,
+            nextMarkerId: this.nextMarkerId,
+            activeGroupId: this.activeGroupId,
+            activeInstanceId: this.activeInstanceId,
+            groups: this.groups,
+            tabOrder: this.tabOrder,
+            instances: this.instances,
+          }),
+          getInstances: () => this.instances,
+          replaceState: (state) => {
+            Object.assign(this, state)
+          },
+          normalizeSerializedGroup,
+          normalizeSerializedInstance,
+          refreshLocalizedLabels: () => this._refreshLocalizedLabels(),
+          saveTerminalSnapshot,
+          loadTerminalSnapshot,
+          killTerminalSession,
+          disposeTerminalSession,
+        })
+      }
+      return this._terminalHydrationRuntime
+    },
+
+    _getTerminalLifecycleRuntime() {
+      if (!this._terminalLifecycleRuntime) {
+        this._terminalLifecycleRuntime = createTerminalLifecycleRuntime({
+          getState: () => this,
+          hydrateForWorkspace: (force = false) => this.hydrateForWorkspace(force),
+          createGroup,
+          cloneArgs,
+          createDefaultTerminalLabel: () => this._defaultTerminalLabel(),
+          getLanguageConfig,
+          translateLabel: (label, fallback = '') => translateLabel(label, fallback),
+          shellLabel: () => shellLabel(),
+          sharedShellKey: SHARED_SHELL_KEY,
+          sharedLogKey: SHARED_LOG_KEY,
+          persistSnapshot: () => this._persistSnapshot(),
+          openBottomPanel: () => this._workspace().openBottomPanel(),
+        })
+      }
+      return this._terminalLifecycleRuntime
+    },
+
+    _getTerminalLogRuntime() {
+      if (!this._terminalLogRuntime) {
+        this._terminalLogRuntime = createTerminalLogRuntime({
+          getInstance: (instanceId) => this._findInstance(instanceId),
+          ensureBuildLogTerminal: ({ key, label, activate } = {}) => this.ensureBuildLogTerminal({ key, label, activate }),
+          activateInstance: (instanceId) => this.activateInstance(instanceId),
+          openBottomPanel: () => this._workspace().openBottomPanel(),
+          resolveLogTerminalDefinition: (key, label) => resolveLogTerminalDefinition(key, label),
+        })
+      }
+      return this._terminalLogRuntime
+    },
+
+    _getTerminalSessionRuntime() {
+      if (!this._terminalSessionRuntime) {
+        this._terminalSessionRuntime = createTerminalSessionRuntime({
+          getState: () => this,
+          getWorkspacePath: () => this._workspace().path || '',
+          isBottomPanelOpen: () => this._workspace().bottomPanelOpen,
+          closeBottomPanel: () => this._workspace().toggleBottomPanel(),
+          killTerminalSession,
+          disposeTerminalSession,
+          clearTerminalSnapshot,
+          activateInstance: (instanceId) => this.activateInstance(instanceId),
+          persistSnapshot: () => this._persistSnapshot(),
+          maxCommandMarkers: MAX_COMMAND_MARKERS,
+        })
+      }
+      return this._terminalSessionRuntime
+    },
+
     _refreshLocalizedLabels() {
       for (const instance of this.instances) {
         if (instance.customLabel) continue
@@ -230,11 +341,7 @@ export const useTerminalStore = defineStore('terminal', {
     },
 
     _ensureBaseGroup() {
-      if (this.groups.length > 0) return this.groups[0].id
-      const groupId = this.nextGroupId++
-      this.groups.push(createGroup(groupId))
-      this.activeGroupId = groupId
-      return groupId
+      return this._getTerminalLifecycleRuntime().ensureBaseGroup()
     },
 
     _findInstance(instanceId) {
@@ -245,304 +352,56 @@ export const useTerminalStore = defineStore('terminal', {
       return this.groups.find((group) => group.id === groupId) || null
     },
 
-    _groupIndex(groupId) {
-      return this.groups.findIndex((group) => group.id === groupId)
-    },
-
     _persistSnapshot() {
-      const workspace = this._workspace()
-      if (!workspace.path) return
-
-      const snapshot = {
-        nextInstanceId: this.nextInstanceId,
-        nextGroupId: this.nextGroupId,
-        nextMarkerId: this.nextMarkerId,
-        activeGroupId: this.activeGroupId,
-        activeInstanceId: this.activeInstanceId,
-        groups: this.groups.map((group) => ({
-          id: group.id,
-          activeInstanceId: group.activeInstanceId,
-        })),
-        tabOrder: [...this.tabOrder],
-        instances: this.instances.map((instance) => ({
-          id: instance.id,
-          key: instance.key,
-          groupId: instance.groupId,
-          kind: instance.kind,
-          mode: instance.mode,
-          label: instance.label,
-          customLabel: instance.customLabel,
-          title: instance.title,
-          language: instance.language,
-          spawnCmd: instance.spawnCmd,
-          spawnArgs: cloneArgs(instance.spawnArgs),
-        })),
-      }
-
-      saveTerminalSnapshot(workspace.path, snapshot)
+      return this._getTerminalHydrationRuntime().persistSnapshot()
     },
 
     async resetForWorkspace() {
-      const sessionIds = this.instances
-        .map((instance) => instance.sessionId)
-        .filter((sessionId) => sessionId !== null)
-
-      for (const sessionId of sessionIds) {
-        try {
-          await killTerminalSession(sessionId)
-        } catch {}
-        await disposeTerminalSession(sessionId)
-      }
-
-      Object.assign(this, createEmptyState())
+      return this._getTerminalHydrationRuntime().resetForWorkspace()
     },
 
     hydrateForWorkspace(force = false) {
-      const workspace = this._workspace()
-      const workspacePath = workspace.path || ''
-
-      if (!workspacePath) {
-        if (this.hydratedWorkspacePath) {
-          void this.resetForWorkspace()
-        }
-        return
-      }
-
-      if (!force && this.hydratedWorkspacePath === workspacePath) return
-
-      Object.assign(this, createEmptyState())
-      const snapshot = loadTerminalSnapshot(workspacePath)
-
-      if (!snapshot) {
-        this.hydratedWorkspacePath = workspacePath
-        this._ensureBaseGroup()
-        return
-      }
-
-      this.nextInstanceId = Math.max(Number(snapshot.nextInstanceId) || 1, 1)
-      this.nextGroupId = Math.max(Number(snapshot.nextGroupId) || 1, 1)
-      this.nextMarkerId = Math.max(Number(snapshot.nextMarkerId) || 1, 1)
-      this.groups = (snapshot.groups || [])
-        .map(normalizeSerializedGroup)
-        .filter((group) => group.id > 0)
-      this.instances = (snapshot.instances || [])
-        .map(normalizeSerializedInstance)
-        .filter((instance) => instance.id > 0)
-
-      const validIds = new Set(this.instances.map((instance) => instance.id))
-      this.tabOrder = (snapshot.tabOrder || []).filter((id) => validIds.has(id))
-      for (const instance of this.instances) {
-        if (!this.tabOrder.includes(instance.id)) {
-          this.tabOrder.push(instance.id)
-        }
-      }
-
-      if (this.groups.length === 0) {
-        this._ensureBaseGroup()
-      }
-
-      const validGroupIds = new Set(this.groups.map((group) => group.id))
-      for (const instance of this.instances) {
-        if (!validGroupIds.has(instance.groupId)) {
-          instance.groupId = this.groups[0].id
-        }
-      }
-
-      this.activeGroupId = validGroupIds.has(snapshot.activeGroupId)
-        ? snapshot.activeGroupId
-        : this.groups[0]?.id || null
-      this.activeInstanceId = validIds.has(snapshot.activeInstanceId)
-        ? snapshot.activeInstanceId
-        : this.tabOrder[0] || null
-
-      for (const group of this.groups) {
-        const groupInstances = this.instances.filter((instance) => instance.groupId === group.id)
-        if (!groupInstances.some((instance) => instance.id === group.activeInstanceId)) {
-          group.activeInstanceId = groupInstances[0]?.id || null
-        }
-      }
-
-      this._refreshLocalizedLabels()
-      this.hydratedWorkspacePath = workspacePath
+      return this._getTerminalHydrationRuntime().hydrateForWorkspace(force)
     },
 
     _createInstance(definition = {}, { activate = true, persist = true } = {}) {
-      const groupId = definition.groupId || this.activeGroupId || this._ensureBaseGroup()
-      const instance = {
-        id: this.nextInstanceId++,
-        key: definition.key || null,
-        groupId,
-        kind: definition.kind || 'shell',
-        mode: definition.mode || (definition.kind === 'log' ? 'log' : 'shell'),
-        label: definition.label || this._defaultTerminalLabel(),
-        customLabel: definition.customLabel || null,
-        title: definition.title || '',
-        language: definition.language || null,
-        spawnCmd: definition.spawnCmd || null,
-        spawnArgs: cloneArgs(definition.spawnArgs),
-        cwd: '',
-        status: 'idle',
-        lastExitCode: null,
-        lastCols: definition.lastCols || 120,
-        lastRows: definition.lastRows || 32,
-        sessionId: null,
-        shellIntegrationReady: false,
-        commandMarkers: [],
-        activeCommandMarkerId: null,
-        logChunks: [],
-        logRevision: 0,
-        logResetToken: 0,
-      }
-
-      this.instances.push(instance)
-      this.tabOrder.push(instance.id)
-      const group = this._findGroup(groupId) || this._findGroup(this._ensureBaseGroup())
-      if (group && !group.activeInstanceId) {
-        group.activeInstanceId = instance.id
-      }
-      if (activate) {
-        this.activateInstance(instance.id)
-      }
-      if (persist) this._persistSnapshot()
-      return instance.id
+      return this._getTerminalLifecycleRuntime().createInstance(definition, { activate, persist })
     },
 
     ensureDefaultShell() {
-      this.hydrateForWorkspace()
-      if (this.instances.length > 0) return this.activeInstanceId || this.instances[0].id
-      return this._createInstance()
+      return this._getTerminalLifecycleRuntime().ensureDefaultShell()
     },
 
     createTerminal() {
-      this.hydrateForWorkspace()
-      const id = this._createInstance()
-      this._workspace().openBottomPanel()
-      return id
+      return this._getTerminalLifecycleRuntime().createTerminal()
     },
 
     activateInstance(instanceId) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-      this.activeInstanceId = instance.id
-      this.activeGroupId = instance.groupId
-      const group = this._findGroup(instance.groupId)
-      if (group) {
-        group.activeInstanceId = instance.id
-      }
-      this._persistSnapshot()
+      return this._getTerminalLifecycleRuntime().activateInstance(instanceId)
     },
 
     activateGroup(groupId) {
-      const group = this._findGroup(groupId)
-      if (!group) return
-      this.activeGroupId = group.id
-      if (group.activeInstanceId) this.activeInstanceId = group.activeInstanceId
+      return this._getTerminalLifecycleRuntime().activateGroup(groupId)
     },
 
     renameInstance(instanceId, label) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-      const nextLabel = String(label || '').trim()
-      if (!nextLabel) return
-      instance.label = nextLabel
-      instance.customLabel = nextLabel
-      this._persistSnapshot()
+      return this._getTerminalLifecycleRuntime().renameInstance(instanceId, label)
     },
 
     reorderTabs(fromIndex, toIndex) {
-      if (fromIndex === toIndex) return
-      const safeFrom = clampIndex(fromIndex, this.tabOrder.length)
-      const safeTo = clampIndex(toIndex, this.tabOrder.length)
-      if (safeFrom < 0 || safeTo < 0) return
-      const [moved] = this.tabOrder.splice(safeFrom, 1)
-      this.tabOrder.splice(safeTo, 0, moved)
-      this._persistSnapshot()
+      return this._getTerminalLifecycleRuntime().reorderTabs(fromIndex, toIndex)
     },
 
     _insertGroupAfter(groupId) {
-      const currentIndex = this._groupIndex(groupId)
-      const nextId = this.nextGroupId++
-      const nextGroup = createGroup(nextId)
-      if (currentIndex === -1) {
-        this.groups.push(nextGroup)
-      } else {
-        this.groups.splice(currentIndex + 1, 0, nextGroup)
-      }
-      return nextId
+      return this._getTerminalLifecycleRuntime().insertGroupAfter(groupId)
     },
 
     splitInstance(instanceId = this.activeInstanceId) {
-      const source = this._findInstance(instanceId)
-      if (!source) return null
-
-      const nextGroupId = this._insertGroupAfter(source.groupId)
-      let nextDefinition
-
-      if (source.kind === 'repl' && source.language) {
-        const config = getLanguageConfig(source.language)
-        nextDefinition = {
-          groupId: nextGroupId,
-          kind: 'repl',
-          mode: 'shell',
-          label: config?.label || source.label,
-          language: source.language,
-          spawnCmd: config?.cmd || source.spawnCmd,
-          spawnArgs: cloneArgs(config?.args || source.spawnArgs),
-        }
-      } else {
-        nextDefinition = {
-          groupId: nextGroupId,
-          kind: 'shell',
-          mode: 'shell',
-          label: this._defaultTerminalLabel(),
-        }
-      }
-
-      const id = this._createInstance(nextDefinition)
-      this._workspace().openBottomPanel()
-      return id
+      return this._getTerminalLifecycleRuntime().splitInstance(instanceId)
     },
 
     async closeInstance(instanceId) {
-      const workspace = this._workspace()
-      const instanceIndex = this.instances.findIndex((instance) => instance.id === instanceId)
-      if (instanceIndex === -1) return
-
-      const instance = this.instances[instanceIndex]
-      if (instance.sessionId !== null) {
-        try {
-          await killTerminalSession(instance.sessionId)
-        } catch {}
-        await disposeTerminalSession(instance.sessionId)
-      }
-
-      this.instances.splice(instanceIndex, 1)
-      this.tabOrder = this.tabOrder.filter((id) => id !== instanceId)
-
-      const group = this._findGroup(instance.groupId)
-      const remainingGroupInstances = this.instances.filter((item) => item.groupId === instance.groupId)
-      if (group) {
-        group.activeInstanceId = remainingGroupInstances[0]?.id || null
-      }
-      if (group && remainingGroupInstances.length === 0 && this.groups.length > 1) {
-        this.groups = this.groups.filter((item) => item.id !== group.id)
-      }
-
-      if (this.instances.length === 0) {
-        this.activeInstanceId = null
-        this.activeGroupId = this.groups[0]?.id || null
-        if (workspace.bottomPanelOpen) {
-          workspace.toggleBottomPanel()
-        }
-        clearTerminalSnapshot(workspace.path || '')
-        return
-      }
-
-      const nextActive = this._findInstance(this.activeInstanceId)
-        || this._findInstance(group?.activeInstanceId)
-        || this.instances[0]
-      this.activateInstance(nextActive.id)
-      this._persistSnapshot()
+      return this._getTerminalSessionRuntime().closeInstance(instanceId)
     },
 
     setFindVisible(visible) {
@@ -559,331 +418,91 @@ export const useTerminalStore = defineStore('terminal', {
     },
 
     setSurfaceSize(instanceId, cols, rows) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-      instance.lastCols = cols || instance.lastCols
-      instance.lastRows = rows || instance.lastRows
+      return this._getTerminalSessionRuntime().setSurfaceSize(instanceId, cols, rows)
     },
 
     async ensureSession(instanceId) {
-      const workspace = this._workspace()
-      const instance = this._findInstance(instanceId)
-      if (!workspace.path || !instance || instance.kind === 'log') return null
-      if (instance.sessionId !== null) return instance.sessionId
-
-      const shell = defaultShell()
-      const sessionId = await spawnTerminalSession({
-        cmd: instance.spawnCmd || shell.cmd,
-        args: instance.spawnCmd ? instance.spawnArgs : shell.args,
-        cwd: workspace.path,
-        cols: instance.lastCols || 120,
-        rows: instance.lastRows || 32,
-      })
-
-      instance.sessionId = sessionId
-      instance.status = 'running'
-      instance.lastExitCode = null
-      instance.shellIntegrationReady = false
-
-      if (instance.kind === 'shell' && !instance.spawnCmd) {
-        const bootstrap = buildShellIntegrationBootstrap(shell.cmd)
-        if (bootstrap) {
-          window.setTimeout(() => {
-            if (instance.sessionId !== sessionId) return
-            void writeTerminalSession(sessionId, bootstrap).catch(() => {})
-          }, 120)
-        }
-        instance.shellIntegrationReady = true
-      }
-
-      return sessionId
+      return this._getTerminalExecutionRuntime().ensureSession(instanceId)
     },
 
     markSessionExited(instanceId, payload = null) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-      instance.sessionId = null
-      instance.status = 'exited'
-      instance.activeCommandMarkerId = null
-      instance.lastExitCode = Number.isFinite(payload?.code) ? payload.code : null
+      return this._getTerminalSessionRuntime().markSessionExited(instanceId, payload)
     },
 
     updateInstanceCwd(instanceId, cwd) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-      instance.cwd = cwd || ''
+      return this._getTerminalSessionRuntime().updateInstanceCwd(instanceId, cwd)
     },
 
     registerCommandStart(instanceId, command = '') {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return null
-
-      const markerId = this.nextMarkerId++
-      const marker = {
-        id: markerId,
-        command: String(command || '').trim(),
-        cwd: instance.cwd || '',
-        status: null,
-        startedAt: Date.now(),
-      }
-      instance.commandMarkers.push(marker)
-      if (instance.commandMarkers.length > MAX_COMMAND_MARKERS) {
-        instance.commandMarkers.splice(0, instance.commandMarkers.length - MAX_COMMAND_MARKERS)
-      }
-      instance.activeCommandMarkerId = markerId
-      instance.status = 'busy'
-      return markerId
+      return this._getTerminalSessionRuntime().registerCommandStart(instanceId, command)
     },
 
     registerCommandFinish(instanceId, markerId, status) {
-      const instance = this._findInstance(instanceId)
-      if (!instance) return
-
-      const targetId = markerId || instance.activeCommandMarkerId
-      const marker = instance.commandMarkers.find((item) => item.id === targetId)
-      if (marker) {
-        marker.status = Number.isFinite(Number(status)) ? Number(status) : null
-        marker.finishedAt = Date.now()
-      }
-
-      instance.activeCommandMarkerId = null
-      instance.lastExitCode = Number.isFinite(Number(status)) ? Number(status) : null
-      instance.status = 'running'
+      return this._getTerminalSessionRuntime().registerCommandFinish(instanceId, markerId, status)
     },
 
     _setLogInstanceStatus(instanceId, status) {
-      const instance = this._findInstance(instanceId)
-      if (!instance || instance.kind !== 'log' || !status) return
-
-      switch (status) {
-        case 'running':
-          instance.status = 'busy'
-          instance.lastExitCode = null
-          break
-        case 'success':
-          instance.status = 'success'
-          instance.lastExitCode = 0
-          break
-        case 'error':
-          instance.status = 'error'
-          instance.lastExitCode = 1
-          break
-        default:
-          break
-      }
+      return this._getTerminalLogRuntime().setLogInstanceStatus(instanceId, status)
     },
 
     clearLogInstance(instanceId) {
-      const instance = this._findInstance(instanceId)
-      if (!instance || instance.kind !== 'log') return
-      instance.logChunks = []
-      instance.logRevision += 1
-      instance.logResetToken += 1
-      instance.status = 'idle'
-      instance.lastExitCode = null
+      return this._getTerminalLogRuntime().clearLogInstance(instanceId)
     },
 
     appendLogChunk(instanceId, text, { clear = false } = {}) {
-      const instance = this._findInstance(instanceId)
-      if (!instance || instance.kind !== 'log') return
-      if (clear) {
-        instance.logChunks = []
-        instance.logResetToken += 1
-      }
-      instance.logChunks.push(String(text || ''))
-      instance.logRevision += 1
+      return this._getTerminalLogRuntime().appendLogChunk(instanceId, text, { clear })
     },
 
     _buildLogText(label, text, { clear = false } = {}) {
-      const body = String(text ?? '').replace(/\r\n/g, '\n')
-      const lines = []
-      if (!clear) lines.push('')
-      lines.push(`[${label}]`)
-      lines.push(body.trimEnd())
-      lines.push('')
-      return lines.join('\n')
+      return this._getTerminalLogRuntime().buildLogText(label, text, { clear })
     },
 
     ensureBuildLogTerminal({ key = SHARED_LOG_KEY, label = 'Build', activate = true } = {}) {
-      this.hydrateForWorkspace()
-      const existing = this.instances.find((instance) => instance.key === key)
-      if (existing) {
-        existing.label = translateLabel(label, 'Build')
-        if (activate) this.activateInstance(existing.id)
-        return existing.id
-      }
-      return this._createInstance({
-        key,
-        kind: 'log',
-        mode: 'log',
-        label: translateLabel(label, 'Build'),
-      }, { activate })
+      return this._getTerminalLifecycleRuntime().ensureBuildLogTerminal({ key, label, activate })
     },
 
     ensureSharedShellTerminal({ activate = true } = {}) {
-      this.hydrateForWorkspace()
-      const existing = this.instances.find((instance) => instance.key === SHARED_SHELL_KEY)
-      if (existing) {
-        existing.label = shellLabel()
-        if (activate) this.activateInstance(existing.id)
-        return existing.id
-      }
-      return this._createInstance({
-        key: SHARED_SHELL_KEY,
-        kind: 'shell',
-        mode: 'shell',
-        label: shellLabel(),
-      }, { activate })
+      return this._getTerminalLifecycleRuntime().ensureSharedShellTerminal({ activate })
     },
 
     ensureLanguageTerminal(language, { activate = true } = {}) {
-      this.hydrateForWorkspace()
-      const config = getLanguageConfig(language)
-      if (!config) return null
-
-      const existing = this.instances.find((instance) => instance.language === language && instance.kind === 'repl')
-      if (existing) {
-        if (activate) this.activateInstance(existing.id)
-        return existing.id
-      }
-
-      return this._createInstance({
-        kind: 'repl',
-        mode: 'shell',
-        label: translateLabel(config.label, config.label),
-        language,
-        spawnCmd: config.cmd,
-        spawnArgs: config.args,
-      }, { activate })
+      return this._getTerminalLifecycleRuntime().ensureLanguageTerminal(language, { activate })
     },
 
     async sendTextToInstance(instanceId, text) {
-      const instance = this._findInstance(instanceId)
-      if (!instance || instance.kind === 'log') return false
-
-      const sessionId = await this.ensureSession(instanceId)
-      if (sessionId === null) return false
-
-      const payload = String(text || '')
-      if (payload.length < 2048) {
-        await writeTerminalSession(sessionId, payload)
-        return true
-      }
-
-      const chunkSize = 2048
-      for (let offset = 0; offset < payload.length; offset += chunkSize) {
-        let end = Math.min(offset + chunkSize, payload.length)
-        if (end < payload.length) {
-          const newline = payload.lastIndexOf('\n', end)
-          if (newline > offset) end = newline + 1
-        }
-        await writeTerminalSession(sessionId, payload.slice(offset, end))
-        if (end < payload.length) {
-          await new Promise((resolve) => window.setTimeout(resolve, 10))
-        }
-      }
-      return true
+      return this._getTerminalExecutionRuntime().sendTextToInstance(instanceId, text)
     },
 
     async _buildReplCommand(code, language) {
-      if (!String(code || '').includes('\n')) return `${code}\n`
-
-      const extension = REPL_TEMP_EXT[language] || '.txt'
-      const tempPath = `/tmp/.altals-run-${Date.now()}${extension}`
-      await invoke('write_file', { path: tempPath, content: code })
-
-      switch (language) {
-        case 'r':
-          return `source("${tempPath}", echo = TRUE)\n`
-        case 'python':
-          return `exec(open("${tempPath}").read())\n`
-        case 'julia':
-          return `include("${tempPath}")\n`
-        default:
-          return `${code}\n`
-      }
+      return this._getTerminalExecutionRuntime().buildReplCommand(code, language)
     },
 
     async handleCreateLanguageTerminalEvent({ language } = {}) {
-      if (!language) return
-      if (language === '__shell__') {
-        const id = this.ensureSharedShellTerminal()
-        this._workspace().openBottomPanel()
-        this.activateInstance(id)
-        return
-      }
-
-      const id = this.ensureLanguageTerminal(language)
-      if (id !== null) {
-        this._workspace().openBottomPanel()
-        this.activateInstance(id)
-      }
+      return this._getTerminalExecutionRuntime().handleCreateLanguageTerminalEvent({ language })
     },
 
     handleFocusLanguageTerminalEvent({ language } = {}) {
-      if (!language) return
-      const instance = this.instances.find((item) => item.language === language && item.kind === 'repl')
-      if (!instance) return
-      this.activateInstance(instance.id)
-      this._workspace().openBottomPanel()
+      return this._getTerminalExecutionRuntime().handleFocusLanguageTerminalEvent({ language })
     },
 
     async handleSendToReplEvent({ code, language } = {}) {
-      if (!code || !language) return
-      this._workspace().openBottomPanel()
-
-      if (language === '__shell__') {
-        const id = this.ensureSharedShellTerminal()
-        this.activateInstance(id)
-        await this.sendTextToInstance(id, `${code}\n`)
-        return
-      }
-
-      const id = this.ensureLanguageTerminal(language)
-      if (id === null) return
-      this.activateInstance(id)
-      const command = await this._buildReplCommand(code, language)
-      await this.sendTextToInstance(id, command)
+      return this._getTerminalExecutionRuntime().handleSendToReplEvent({ code, language })
     },
 
     handleTerminalLogEvent({ key, label, text, clear = false, open = true, status = null } = {}) {
-      if (!key || !text) return
-      const definition = resolveLogTerminalDefinition(key, label)
-      const id = this.ensureBuildLogTerminal({
-        key: definition.terminalKey,
-        label: definition.label,
-        activate: open,
-      })
-      if (open) {
-        this.activateInstance(id)
-        this._workspace().openBottomPanel()
-      }
-      const payload = definition.preserveText
-        ? String(text ?? '')
-        : this._buildLogText(label || key, text, { clear })
-      this.appendLogChunk(id, payload, { clear })
-      this._setLogInstanceStatus(id, status)
+      return this._getTerminalLogRuntime().handleTerminalLogEvent({ key, label, text, clear, open, status })
     },
 
     handleTerminalStreamEvent({ key, label, text, clear = false, open = false, header = false, status = null } = {}) {
-      if (!key || !text) return
-      const definition = resolveLogTerminalDefinition(key, label)
-      const id = this.ensureBuildLogTerminal({
-        key: definition.terminalKey,
-        label: definition.label,
-        activate: open,
+      return this._getTerminalLogRuntime().handleTerminalStreamEvent({
+        key,
+        label,
+        text,
+        clear,
+        open,
+        header,
+        status,
       })
-      if (open) {
-        this.activateInstance(id)
-        this._workspace().openBottomPanel()
-      }
-      const normalizedText = String(text ?? '').replace(/\r\n/g, '\n')
-      const prefix = header ? `\n[${label || key}]\n` : ''
-      const payload = definition.preserveText
-        ? normalizedText
-        : `${prefix}${normalizedText}`
-      this.appendLogChunk(id, payload, { clear })
-      this._setLogInstanceStatus(id, status)
     },
   },
 })

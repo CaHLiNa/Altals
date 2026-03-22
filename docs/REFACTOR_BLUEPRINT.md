@@ -10,9 +10,9 @@ Current overall assessment:
 
 - Phase 0 is effectively complete.
 - Phase 1 is substantially advanced but not fully closed.
-- Phase 2 is meaningfully underway with two major store/domain reductions already completed.
+- Phase 2 is meaningfully underway with `files`, `workspace`, and `terminal` all substantially reduced and the active store split now focused on `chat`.
 - Phase 3 onward are still mostly ahead of us and should not be treated as already in execution.
-- Repository state was re-audited on 2026-03-22; the current worktree already contains in-flight `files` runtime extractions and blueprint updates that must be carried forward, not discarded.
+- Repository state was re-audited on 2026-03-22; the worktree was clean at the start of this execution cycle and the pushed `files` / `workspace` runtime extractions are now the repository baseline.
 
 ## Product Direction
 
@@ -96,6 +96,7 @@ The current strongest signs of progress are:
 - `App.vue` has already been reduced significantly and no longer carries as much direct orchestration as before.
 - `src/domains/changes` has been established as an early domain boundary.
 - `references` and `editor` have both gone through first-round store/domain extraction.
+- `files` and `workspace` have both gone through repeated runtime extraction cycles and are no longer the clearest Phase 2 bottlenecks.
 
 ### Frontend current state
 
@@ -120,7 +121,11 @@ The references store has already had these responsibilities extracted into domai
 - import / dedup / merge
 - storage IO
 
-The store still retains mostly store-specific lifecycle, watcher, self-write bookkeeping, load generation, and state sync responsibilities.
+The store has now also begun a second-round extraction:
+
+- `src/domains/reference/referenceLibraryRuntime.js` now carries save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file library/workbench/workspace collection persistence.
+
+The store still retains mostly store-specific load generation, context matching, migration, and workspace-view sync responsibilities.
 
 ##### Editor domain status
 
@@ -148,7 +153,7 @@ The largest remaining frontend architectural bottlenecks include:
 - `src/stores/terminal.js`
 - `src/components/editor/PdfViewer.vue`
 
-`workspace` is now the clearest next large store/domain split target.
+`references` is now the active Phase 2 extraction target for second-round store reduction, and `chat` is no longer the active bottleneck after its live-instance/runtime slice landed.
 
 Current `files`-specific audit notes:
 
@@ -195,6 +200,25 @@ Current `files`-specific audit notes:
   - deletion race protection and post-mutation tree refresh
 - `files` is no longer the clearest next extraction target; the next high-value store slice has shifted to `workspace`.
 
+Current `references`-specific audit notes:
+
+- `src/stores/references.js` is now 1027 lines after the new library-runtime slice and remains the largest remaining Pinia store.
+- `src/domains/reference/referenceLibraryRuntime.js` now carries:
+  - delayed save scheduling
+  - self-write bookkeeping
+  - fs-change listener lifecycle
+  - global/workbench/workspace collection writes
+- The store still directly mixes several distinct concerns:
+  - workspace context capture / stale-generation guards
+  - loadLibrary migration and hydration sequencing
+  - workspace/global view synchronization
+- The cleanest next `references` seam is load/runtime orchestration:
+  - `_captureWorkspaceContext`
+  - `_matchesWorkspaceContext`
+  - `_beginLoadContext`
+  - `_isLoadStale`
+  - `loadLibrary`
+
 Current `workspace`-specific audit notes:
 
 - `src/stores/workspace.js` is now 727 lines after automation, GitHub session, settings/instructions, and bootstrap/watch runtime extractions.
@@ -221,7 +245,93 @@ Current `workspace`-specific audit notes:
   - open/close state reset
   - thin service wrappers for data-dir/project-dir/edit-hook setup
   - preference/UI state setters and zoom/theme helpers
-- The next high-value store reduction should shift away from `workspace`; `src/stores/terminal.js` (889 lines) is now the largest remaining store bottleneck ahead of `src/stores/chat.js` (854 lines).
+- The next high-value store reduction has already shifted away from `workspace`; `src/stores/chat.js` (854 lines) is now the largest remaining store, but the active extraction sequence is still finishing high-value seams in `src/stores/terminal.js`.
+
+Current `chat`-specific audit notes:
+
+- `src/stores/chat.js` is now 381 lines after six chat runtime extractions and is no longer a primary Phase 2 bottleneck.
+- Existing chat support modules already cover portions of the persistence/runtime surface:
+  - `src/stores/chatSessionPersistence.js`
+  - `src/services/ai/runtimeConfig.js`
+  - `src/services/ai/sessionLabeling.js`
+  - `src/services/chatTransport.js`
+- `src/domains/chat/chatPersistenceRuntime.js` now carries:
+  - persisted session meta loading
+  - workspace chat bootstrap/reset orchestration
+  - persisted session save behavior
+  - store cleanup/reset orchestration
+- `src/domains/chat/chatSessionLifecycleRuntime.js` now carries:
+  - session creation and AI metadata application
+  - persisted-session reopen behavior
+  - archive/background session lifecycle
+  - delete/remove session cleanup orchestration
+- `src/domains/chat/chatMessageRuntime.js` now carries:
+  - user-message send gating
+  - first-message smart labeling
+  - multimodal file-ref/context shaping
+  - rich-html attachment persistence
+  - live session abort behavior
+- `src/domains/chat/chatTitleRuntime.js` now carries:
+  - first-exchange title-generation gating
+  - smart session-label helpers
+  - UIMessage text extraction for titles
+  - keyword persistence after AI titling
+- `src/domains/chat/chatRuntimeConfigRuntime.js` now carries:
+  - provider/runtime config assembly
+  - missing-API-key gating
+  - runtime metadata persistence
+  - usage/cost accounting callbacks
+- `src/domains/chat/chatLiveInstanceRuntime.js` now carries:
+  - Chat instance creation/reuse
+  - broken tool-call recovery
+  - artifact sync lifecycle
+  - ready-state persistence and background cleanup wiring
+- The store still directly mixes several distinct concerns:
+  - runtime accessor wiring
+  - reactive getters/state shell
+  - thin session/message bridges
+- `chat` is now thin enough that the next high-value Phase 2 slice should shift away from it.
+
+Current `terminal`-specific audit notes:
+
+- `src/stores/terminal.js` is now 508 lines after five terminal runtime extraction slices and is no longer the active Phase 2 bottleneck.
+- Terminal infra helpers already exist in:
+  - `src/services/terminal/terminalSessions.js`
+  - `src/services/terminal/terminalPersistence.js`
+  - `src/services/terminal/terminalShellIntegration.js`
+  - `src/services/terminal/terminalEvents.js`
+- `src/domains/terminal/terminalExecutionRuntime.js` now carries:
+  - PTY session startup
+  - shell bootstrap injection
+  - chunked terminal writes
+  - multiline REPL temp-file command building
+  - create/focus/send-to-REPL event routing
+- `src/domains/terminal/terminalHydrationRuntime.js` now carries:
+  - workspace-bound terminal snapshot persistence
+  - workspace reset / live-session disposal
+  - snapshot hydration and invalid-id repair
+  - localized-label refresh after restore
+- `src/domains/terminal/terminalLifecycleRuntime.js` now carries:
+  - base-group creation
+  - terminal instance creation
+  - instance/group activation
+  - tab reorder and rename flows
+  - split/create/shared/language/log terminal lifecycle orchestration
+- `src/domains/terminal/terminalLogRuntime.js` now carries:
+  - log buffer mutation
+  - log status mapping
+  - formatted build-log text generation
+  - build/tool log event routing
+- `src/domains/terminal/terminalSessionRuntime.js` now carries:
+  - PTY close/reset teardown
+  - session exit state repair
+  - cwd/surface-size updates
+  - command-marker start/finish tracking
+- The store still directly mixes several distinct concerns:
+  - simple find UI state setters
+  - runtime accessor wiring
+  - thin lookup helpers
+- `terminal` is now thin enough that the next high-value Phase 2 slice should shift to `chat`.
 
 ### Backend current state
 
@@ -325,10 +435,11 @@ Status:
 Completed phase slices:
 - `references` first-round extraction completed
 - `editor` first-round extraction completed
-- `files` first extraction slice completed
+- `files` repeated runtime extraction sequence completed for the current phase focus
+- `workspace` repeated runtime extraction sequence completed for the current phase focus
 
 Current next target:
-- `src/stores/workspace.js`
+- `src/stores/chat.js`
 
 Exit criteria:
 - third large store/domain split begun and validated
@@ -438,9 +549,36 @@ Exit criteria:
 - [x] Extract the `workspace` bootstrap/watch orchestration slice into `src/domains/workspace/*`
 - [x] Validate the `workspace` bootstrap/watch extraction with targeted tests and build verification
 - [x] Decide whether `workspace` still merits another high-value extraction or whether Phase 2 focus should shift to the next large store
-- [ ] Audit `src/stores/terminal.js` in detail and identify the cleanest first extraction slice
-- [ ] Extract the first `terminal` runtime/domain slice into `src/domains/terminal/*`
-- [ ] Validate the first `terminal` slice with targeted tests and build verification
+- [x] Audit `src/stores/terminal.js` in detail and identify the cleanest first extraction slice
+- [x] Extract the first `terminal` runtime/domain slice into `src/domains/terminal/*`
+- [x] Validate the first `terminal` slice with targeted tests and build verification
+- [x] Decide whether the second `terminal` slice should target hydration/persistence or close/reset lifecycle
+- [x] Extract the `terminal` hydration/persistence slice into `src/domains/terminal/*`
+- [x] Validate the `terminal` hydration/persistence slice with targeted tests and build verification
+- [x] Extract the `terminal` instance/group lifecycle slice into `src/domains/terminal/*`
+- [x] Validate the `terminal` instance/group lifecycle slice with targeted tests and build verification
+- [x] Extract the `terminal` log-routing/runtime slice into `src/domains/terminal/*`
+- [x] Validate the `terminal` log-routing/runtime slice with targeted tests and build verification
+- [x] Extract the `terminal` session/teardown runtime slice into `src/domains/terminal/*`
+- [x] Validate the `terminal` session/teardown runtime slice with targeted tests and build verification
+- [x] Audit `src/stores/chat.js` in detail and identify the cleanest first extraction slice
+- [x] Extract the `chat` persistence/runtime slice into `src/domains/chat/*` or equivalent
+- [x] Validate the `chat` persistence/runtime slice with targeted tests and build verification
+- [x] Extract the `chat` session/archive lifecycle slice into `src/domains/chat/*`
+- [x] Validate the `chat` session/archive lifecycle slice with targeted tests and build verification
+- [x] Extract the `chat` message/runtime slice into `src/domains/chat/*`
+- [x] Validate the `chat` message/runtime slice with targeted tests and build verification
+- [x] Extract the `chat` title/runtime slice into `src/domains/chat/*`
+- [x] Validate the `chat` title/runtime slice with targeted tests and build verification
+- [x] Extract the `chat` runtime-config slice into `src/domains/chat/*`
+- [x] Validate the `chat` runtime-config slice with targeted tests and build verification
+- [x] Extract the `chat` live-instance/runtime slice into `src/domains/chat/*`
+- [x] Validate the `chat` live-instance/runtime slice with targeted tests and build verification
+- [x] Audit `src/stores/references.js` in detail and identify the cleanest second-round extraction slice
+- [x] Extract the `references` library save/watch/self-write slice into `src/domains/reference/*`
+- [x] Validate the `references` library save/watch/self-write slice with targeted tests and build verification
+- [ ] Extract the `references` load/runtime slice into `src/domains/reference/*`
+- [ ] Validate the `references` load/runtime slice with targeted tests and build verification
 
 ### Product and architecture docs
 
@@ -489,7 +627,19 @@ Exit criteria:
 - `workspace` GitHub session lifecycle is now also extracted; the remaining `workspace` store pressure has shifted to settings/instructions IO plus bootstrap/watch sequencing
 - `workspace` settings/instructions IO is now also extracted; the remaining `workspace` store pressure is concentrated in bootstrap/watch sequencing and a smaller preference-state shell
 - `workspace` bootstrap/watch orchestration is now also extracted; the remaining `workspace` pressure is mostly a thinner preference/open-close shell rather than another large orchestration knot
-- the next execution cycle should shift from `workspace` to the next large store rather than spending more time on lower-value preference wrappers
+- `terminal` audit is now underway; the first extraction target is session startup + command routing rather than persistence or cosmetic tab/group helpers
+- `terminal` session startup + command routing is now extracted; the next execution cycle stays in `terminal` for hydration/persistence before touching lower-value UI helpers
+- `terminal` hydration/persistence is now also extracted; the next execution cycle stays in `terminal` for instance/group lifecycle before shifting to log routing or close-teardown work
+- `terminal` instance/group lifecycle is now also extracted; the next execution cycle stays in `terminal` for log-routing/runtime before deciding whether close/reset teardown is still worth another slice
+- `terminal` log-routing/runtime is now also extracted; the next execution cycle stays in `terminal` for session/teardown runtime before deciding whether the store is thin enough to shift to `chat`
+- `terminal` session/teardown runtime is now also extracted; Phase 2 focus now shifts to `chat`, starting with persistence/runtime orchestration
+- `chat` persistence/runtime is now also extracted; the next execution cycle stays in `chat` for session/archive lifecycle before touching transport creation or message send paths
+- `chat` session/archive lifecycle is now also extracted; the next execution cycle stays in `chat` for message send/build before deciding whether transport creation or title generation is the better follow-up seam
+- `chat` message/runtime is now also extracted; the next execution cycle stays in `chat` for title generation before touching transport creation or runtime-config construction
+- `chat` title/runtime is now also extracted; the next execution cycle stays in `chat` for runtime-config construction before touching the more coupled live Chat instance wiring
+- `chat` runtime-config is now also extracted; the next execution cycle stays in `chat` for live Chat instance wiring before deciding whether the store is now thin enough to shift focus back to another boundary
+- `chat` live-instance/runtime is now also extracted; the next execution cycle should shift Phase 2 focus away from `chat` because the remaining store shell is mostly accessors/getters rather than another large orchestration knot
+- `references` library save/watch/self-write runtime is now also extracted; the next execution cycle stays in `references` for load-generation/runtime rather than jumping to another store too early
 
 ## Completed
 
@@ -611,6 +761,100 @@ Exit criteria:
   - `node --test tests/workspaceAutomationRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs tests/workspaceSettingsRuntime.test.mjs tests/workspaceBootstrapRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/terminal/terminalExecutionRuntime.js`
+- Moved terminal session startup, shell integration bootstrap injection, chunked writes, multiline REPL temp-file command generation, and REPL event routing behind the new runtime module
+- Reduced `src/stores/terminal.js` from 889 lines to 817 lines
+- Added `tests/terminalExecutionRuntime.test.mjs` to validate session startup, chunked terminal writes, REPL temp-file commands, and terminal event routing outside the Pinia store shell
+- Validated the first terminal/runtime slice with:
+  - `node --test tests/terminalExecutionRuntime.test.mjs`
+  - `npm run build`
+- Established `src/domains/terminal/terminalHydrationRuntime.js`
+- Moved terminal snapshot persistence, workspace reset/session disposal, snapshot hydration, invalid-id repair, and localized-label refresh behind the new runtime module
+- Reduced `src/stores/terminal.js` from 817 lines to 747 lines
+- Added `tests/terminalHydrationRuntime.test.mjs` to validate snapshot persistence, workspace reset teardown, snapshot repair, and base-group restore outside the Pinia store shell
+- Validated the second terminal/runtime slice with:
+  - `node --test tests/terminalExecutionRuntime.test.mjs tests/terminalHydrationRuntime.test.mjs`
+  - `npm run build`
+- Established `src/domains/terminal/terminalLifecycleRuntime.js`
+- Moved terminal base-group creation, instance/group activation, tab reorder, split/create flows, and shared/language/log terminal lifecycle orchestration behind the new runtime module
+- Reduced `src/stores/terminal.js` from 747 lines to 613 lines
+- Added `tests/terminalLifecycleRuntime.test.mjs` to validate base-group creation, terminal creation, repl split behavior, shared/log terminal reuse, and tab lifecycle mutations outside the Pinia store shell
+- Validated the third terminal/runtime slice with:
+  - `node --test tests/terminalExecutionRuntime.test.mjs tests/terminalHydrationRuntime.test.mjs tests/terminalLifecycleRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/terminal/terminalLogRuntime.js`
+- Moved terminal log buffer mutation, status mapping, formatted build-log text generation, and tool/build log event routing behind the new runtime module
+- Reduced `src/stores/terminal.js` from 613 lines to 566 lines
+- Added `tests/terminalLogRuntime.test.mjs` to validate log buffering, status mapping, build-log formatting, and tool-log stream handling outside the Pinia store shell
+- Validated the fourth terminal/runtime slice with:
+  - `node --test tests/terminalExecutionRuntime.test.mjs tests/terminalHydrationRuntime.test.mjs tests/terminalLifecycleRuntime.test.mjs tests/terminalLogRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/terminal/terminalSessionRuntime.js`
+- Moved terminal close/reset teardown, session exit repair, cwd/surface-size updates, and command-marker tracking behind the new runtime module
+- Reduced `src/stores/terminal.js` from 566 lines to 508 lines
+- Added `tests/terminalSessionRuntime.test.mjs` to validate close fallback behavior, snapshot clearing, session exit repair, and command-marker trimming outside the Pinia store shell
+- Validated the fifth terminal/runtime slice with:
+  - `node --test tests/terminalExecutionRuntime.test.mjs tests/terminalHydrationRuntime.test.mjs tests/terminalLifecycleRuntime.test.mjs tests/terminalLogRuntime.test.mjs tests/terminalSessionRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatPersistenceRuntime.js`
+- Moved persisted chat meta loading, workspace chat bootstrap/reset, session save behavior, and cleanup/reset orchestration behind the new runtime module
+- Reduced `src/stores/chat.js` from 854 lines to 796 lines
+- Added `tests/chatPersistenceRuntime.test.mjs` to validate persisted meta sorting, session save/meta update, workspace bootstrap reset, and cleanup state clearing outside the Pinia store shell
+- Validated the first chat/runtime slice with:
+  - `node --test tests/chatPersistenceRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatSessionLifecycleRuntime.js`
+- Moved session creation, AI metadata application, archive/background lifecycle, reopen/delete flows, and session removal cleanup behind the new runtime module
+- Reduced `src/stores/chat.js` from 796 lines to 698 lines
+- Added `tests/chatSessionLifecycleRuntime.test.mjs` to validate session creation, AI metadata sync, archive behavior, reopen behavior, and delete fallback cleanup outside the Pinia store shell
+- Validated the second chat/runtime slice with:
+  - `node --test tests/chatPersistenceRuntime.test.mjs tests/chatSessionLifecycleRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatMessageRuntime.js`
+- Moved chat send gating, message text/file shaping, rich-html persistence, and live-session abort behavior behind the new runtime module
+- Reduced `src/stores/chat.js` from 698 lines to 629 lines
+- Added `tests/chatMessageRuntime.test.mjs` to validate multimodal send payload shaping, first-message labeling, send blocking, and abort behavior outside the Pinia store shell
+- Validated the third chat/runtime slice with:
+  - `node --test tests/chatMessageRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatTitleRuntime.js`
+- Moved smart session-label helpers, UIMessage title text extraction, first-exchange title gating, and keyword persistence behind the new runtime module
+- Reduced `src/stores/chat.js` from 629 lines to 543 lines
+- Added `tests/chatTitleRuntime.test.mjs` to validate smart labels, title text extraction, first-exchange gating, and plain-text/JSON title persistence outside the Pinia store shell
+- Validated the fourth chat/runtime slice with:
+  - `node --test tests/chatTitleRuntime.test.mjs tests/chatMessageRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatRuntimeConfigRuntime.js`
+- Moved runtime config assembly, no-key gating, runtime metadata persistence, and usage/cost accounting behind the new runtime module
+- Reduced `src/stores/chat.js` from 543 lines to 482 lines
+- Added `tests/chatRuntimeConfigRuntime.test.mjs` to validate missing-key gating, runtime metadata updates, usage recording, and `opencode` no-access behavior outside the Pinia store shell
+- Validated the fifth chat/runtime slice with:
+  - `node --test tests/chatRuntimeConfigRuntime.test.mjs tests/chatTitleRuntime.test.mjs tests/chatMessageRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/chat/chatLiveInstanceRuntime.js`
+- Moved Chat instance creation/reuse, broken tool-call recovery, artifact sync lifecycle, and ready-state persistence wiring behind the new runtime module
+- Reduced `src/stores/chat.js` from 482 lines to 381 lines
+- Added `tests/chatLiveInstanceRuntime.test.mjs` to validate instance reuse, artifact sync teardown, ready-state side effects, and broken tool-call recovery outside the Pinia store shell
+- Validated the sixth chat/runtime slice with:
+  - `node --test tests/chatLiveInstanceRuntime.test.mjs tests/chatRuntimeConfigRuntime.test.mjs tests/chatTitleRuntime.test.mjs tests/chatMessageRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/reference/referenceLibraryRuntime.js`
+- Moved reference library save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file persistence behind the new runtime module
+- Reduced `src/stores/references.js` from 1089 lines to 1027 lines
+- Added `tests/referenceLibraryRuntime.test.mjs` to validate three-file writes, debounced save behavior, self-write suppression, and watcher cleanup outside the Pinia store shell
+- Validated the first second-round references slice with:
+  - `node --test tests/referenceLibraryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
@@ -624,16 +868,19 @@ Exit criteria:
 - `files` now delegates visible-tree refresh execution, watch/poll lifecycle orchestration, tree hydration/loading, flat-file indexing, file content/PDF handling, entry-creation/import flows, and rename/move/delete coordination to domain runtimes; the store is no longer the clearest next extraction target
 - `workspace` now delegates automation, GitHub session lifecycle, settings/instructions IO, and bootstrap/watch sequencing to domain runtimes; the remaining store shell is thinner but still not minimal
 - The remaining `workspace` logic is lower-value than before, so there is risk of slipping into cosmetic preference-wrapper extraction instead of moving to the next genuinely large store
+- `terminal` is now mostly a thin shell around runtime accessors and local find-state setters; further extraction there risks becoming cosmetic rather than architectural
+- `chat` is no longer one of the highest-value remaining Phase 2 seams; its remaining store logic is now mostly runtime accessors, getters, and a thinner shell
+- `references` remains large after its first second-round slice and still keeps load-generation/context-matching/migration/state-sync logic in the store shell, so it remains the clearest Phase 2 re-entry point
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Audit `src/stores/terminal.js` and identify the smallest high-value orchestration seam that can move without entangling the entire terminal surface
-2. Prefer extracting terminal session/watch/process lifecycle or command-routing orchestration before touching cosmetic terminal UI state
-3. Keep `workspace` where it is for now; remaining preference/open-close wrappers are no longer the best Phase 2 leverage
-4. Validate the first terminal slice with focused runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
-5. Update this blueprint based on the actual migration result and then decide whether the next large target stays in `terminal` or shifts to `chat`
+1. Extract the `references` load/runtime slice around workspace context capture, stale-generation guards, migration sequencing, and hydrated library/workbench state application
+2. Reuse the new `referenceLibraryRuntime` for persistence/watch concerns so the next slice stays focused on loading rather than mixing save logic back in
+3. Preserve current legacy migration, citation-style load, and user-style preload behavior while making load sequencing testable outside the Pinia shell
+4. Validate with targeted references runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
+5. Update this blueprint based on the actual migration result and then decide whether to stay in `references` for workspace-view sync or shift to the next boundary
 
 ## Validation Checklist
 
@@ -655,6 +902,18 @@ Exit criteria:
 - [x] `workspace` GitHub/runtime extraction is documented truthfully
 - [x] `workspace` settings/runtime extraction is documented truthfully
 - [x] `workspace` bootstrap/runtime extraction is documented truthfully
+- [x] `terminal` execution/runtime extraction is documented truthfully
+- [x] `terminal` hydration/runtime extraction is documented truthfully
+- [x] `terminal` lifecycle/runtime extraction is documented truthfully
+- [x] `terminal` log/runtime extraction is documented truthfully
+- [x] `terminal` session/runtime extraction is documented truthfully
+- [x] `chat` persistence/runtime extraction is documented truthfully
+- [x] `chat` session/runtime extraction is documented truthfully
+- [x] `chat` message/runtime extraction is documented truthfully
+- [x] `chat` title/runtime extraction is documented truthfully
+- [x] `chat` runtime-config extraction is documented truthfully
+- [x] `chat` live-instance/runtime extraction is documented truthfully
+- [x] `references` library-runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
 - [ ] safety model has been documented as a first-class system
 - [x] testing/validation story is stronger than build-only checks for the current `files` and `workspace` slices
@@ -679,6 +938,21 @@ Exit criteria:
 - The fourth `workspace` slice has now landed as `workspaceBootstrapRuntime`, so the remaining `workspace` logic is mostly a thinner shell plus preference/open-close wrappers.
 - After four `workspace` slices, `src/stores/workspace.js` is down to 727 lines and is no longer the clearest next large-store target.
 - Preference toggles remain in the store, but they are now lower-value than shifting to `terminal` because they are mostly direct state wrappers and do not carry the same orchestration risk.
+- The first `terminal` slice has now landed as `terminalExecutionRuntime`, and it confirmed that the store can shed PTY startup / REPL routing without forcing a broad terminal rewrite.
+- The second `terminal` slice has now landed as `terminalHydrationRuntime`, and it confirmed that snapshot persistence/reset can move out without changing the snapshot schema.
+- The third `terminal` slice has now landed as `terminalLifecycleRuntime`, and it confirmed that create/activate/split/reuse flows can move out cleanly while continuing to reuse the hydration runtime for persistence.
+- The fourth `terminal` slice has now landed as `terminalLogRuntime`, and it confirmed that log buffering/status logic can move out cleanly while continuing to reuse the lifecycle runtime for log-terminal creation.
+- The fifth `terminal` slice has now landed as `terminalSessionRuntime`, and it confirmed that PTY teardown/session tracking can move out cleanly without widening into chat or workspace behavior.
+- With five `terminal` slices landed, the store is now mostly a thin shell; the next high-value Phase 2 move is to start a comparable extraction sequence in `chat`.
+- The first `chat` slice has now landed as `chatPersistenceRuntime`, and it confirmed that persisted-session IO and cleanup/reset behavior can move out without touching transport creation.
+- The second `chat` slice has now landed as `chatSessionLifecycleRuntime`, and it confirmed that session creation/archive/reopen/delete behavior can move out cleanly while continuing to reuse the persistence runtime for saved-session IO.
+- The third `chat` slice has now landed as `chatMessageRuntime`, and it confirmed that send/build behavior can move out cleanly while continuing to reuse the live Chat instance bridge in the store.
+- The fourth `chat` slice has now landed as `chatTitleRuntime`, and it confirmed that auto-title generation can move out cleanly while continuing to reuse the store shell for live Chat instance lookup.
+- The fifth `chat` slice has now landed as `chatRuntimeConfigRuntime`, and it confirmed that provider/runtime config behavior can move out cleanly while continuing to reuse the store shell for live Chat instance lookup.
+- The sixth `chat` slice has now landed as `chatLiveInstanceRuntime`, and it confirmed that the remaining watch/recovery bridges can move out cleanly without changing the public store surface.
+- With six `chat` slices landed, the store is now mostly a thin shell; the next Phase 2 move should re-enter `references` rather than extracting lower-value wrappers from `chat`, `terminal`, or `workspace`.
+- The first second-round `references` slice has now landed as `referenceLibraryRuntime`, and it confirmed that save/watch/self-write orchestration can move out cleanly without widening into migration or workspace-view sync behavior.
+- After the library-runtime extraction, the next best `references` seam is load/runtime orchestration rather than ad hoc view-sync helpers because the remaining complexity still clusters around stale-generation and migration flow control.
 - The repository can now validate `files` runtime slices with focused `node:test` coverage instead of relying on build-only confidence.
 - The repository can now also validate `workspace` runtime slices with focused `node:test` coverage instead of relying on build-only confidence for sync/settings/bootstrap behavior.
 - `PdfViewer.vue` is large enough to deserve future attention, but it should not displace the more structurally important `files` migration unless product work proves otherwise.
