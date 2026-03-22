@@ -98,6 +98,33 @@ test('workspace snapshot runtime lists file history through the explicit lower g
 test('workspace snapshot runtime lists only manifest-backed workspace save points in the explicit repo-wide feed', async () => {
   const calls = []
   const runtime = createWorkspaceSnapshotRuntime({
+    localSnapshotStoreRuntime: {
+      loadWorkspaceSavePointEntries: async ({ workspaceDataDir }) => {
+        calls.push(['loadWorkspaceSavePointEntries', workspaceDataDir])
+        return []
+      },
+      syncWorkspaceSavePointEntries: async ({ workspaceDataDir, snapshots }) => {
+        calls.push(['syncWorkspaceSavePointEntries', workspaceDataDir, snapshots.length])
+        return [{
+          id: 'local:workspace:workspace123',
+          backend: 'local',
+          sourceKind: 'workspace-save-point',
+          sourceId: 'workspace123',
+          scope: 'workspace',
+          filePath: '',
+          kind: 'named',
+          label: 'Draft 3 ready',
+          message: 'Draft 3 ready',
+          rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+          createdAt: '2026-03-22T10:13:00.000Z',
+          manifest: {
+            version: 1,
+            scope: 'workspace',
+            kind: 'named',
+          },
+        }]
+      },
+    },
     versionHistoryRuntime: {
       loadWorkspaceHistory: async ({ workspacePath, limit }) => {
         calls.push(['loadWorkspaceHistory', workspacePath, limit])
@@ -112,17 +139,20 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
 
   const result = await runtime.listWorkspaceSavePointEntries({
     workspacePath: '/workspace/demo',
+    workspaceDataDir: '/workspace/.altals',
     limit: 10,
   })
 
   assert.deepEqual(calls, [
+    ['loadWorkspaceSavePointEntries', '/workspace/.altals'],
     ['loadWorkspaceHistory', '/workspace/demo', 10],
+    ['syncWorkspaceSavePointEntries', '/workspace/.altals', 1],
   ])
   assert.deepEqual(result, [
     {
-      id: 'git:workspace123',
-      backend: 'git',
-      sourceKind: 'git-commit',
+      id: 'local:workspace:workspace123',
+      backend: 'local',
+      sourceKind: 'workspace-save-point',
       sourceId: 'workspace123',
       scope: 'workspace',
       filePath: '',
@@ -130,7 +160,7 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
       label: 'Draft 3 ready',
       message: 'Draft 3 ready',
       rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
-      createdAt: '2026-03-22T10:13:00Z',
+      createdAt: '2026-03-22T10:13:00.000Z',
       manifest: {
         version: 1,
         scope: 'workspace',

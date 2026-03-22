@@ -1,5 +1,9 @@
 import { getWorkspaceHistoryMessageKind } from './workspaceHistoryMessageRuntime.js'
 import {
+  createWorkspaceLocalSnapshotStoreRuntime,
+  mergeWorkspaceSavePointEntries,
+} from './workspaceLocalSnapshotStoreRuntime.js'
+import {
   getWorkspaceSnapshotManifestKind,
   getWorkspaceSnapshotManifestScope,
   parseWorkspaceSnapshotPersistedMessage,
@@ -82,7 +86,9 @@ export function getWorkspaceSnapshotDisplayMessage(snapshot = null) {
 
 export function createWorkspaceSnapshotRuntime({
   versionHistoryRuntime = createWorkspaceVersionHistoryRuntime(),
+  localSnapshotStoreRuntime = createWorkspaceLocalSnapshotStoreRuntime(),
   createSnapshotRecordImpl = createWorkspaceSnapshotRecord,
+  mergeWorkspaceSavePointEntriesImpl = mergeWorkspaceSavePointEntries,
 } = {}) {
   function mapWorkspaceSnapshotEntries({
     entries = [],
@@ -121,6 +127,7 @@ export function createWorkspaceSnapshotRuntime({
 
   async function listWorkspaceSavePointEntries({
     workspacePath = '',
+    workspaceDataDir = '',
     limit = 50,
     t,
   } = {}) {
@@ -128,15 +135,43 @@ export function createWorkspaceSnapshotRuntime({
       return []
     }
 
-    const entries = await versionHistoryRuntime.loadWorkspaceHistory({
-      workspacePath,
-      limit,
-    })
+    const [localEntries, entries] = await Promise.all([
+      localSnapshotStoreRuntime.loadWorkspaceSavePointEntries({
+        workspaceDataDir,
+      }),
+      versionHistoryRuntime.loadWorkspaceHistory({
+        workspacePath,
+        limit,
+      }),
+    ])
 
-    return mapWorkspaceSnapshotEntries({
+    const gitSnapshots = mapWorkspaceSnapshotEntries({
       entries,
       t,
     }).filter((snapshot) => isWorkspaceFeedWorkspaceSnapshot(snapshot))
+
+    let synchronizedLocalEntries = localEntries
+    if (
+      workspaceDataDir
+      && gitSnapshots.length > 0
+      && typeof localSnapshotStoreRuntime.syncWorkspaceSavePointEntries === 'function'
+    ) {
+      synchronizedLocalEntries = await localSnapshotStoreRuntime.syncWorkspaceSavePointEntries({
+        workspaceDataDir,
+        snapshots: gitSnapshots,
+      }).catch(() => localEntries)
+    }
+
+    const snapshots = mergeWorkspaceSavePointEntriesImpl({
+      localEntries: synchronizedLocalEntries,
+      gitEntries: gitSnapshots,
+    })
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+      return snapshots
+    }
+
+    return snapshots.slice(0, limit)
   }
 
   async function loadFileVersionHistoryPreview({

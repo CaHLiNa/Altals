@@ -13,17 +13,18 @@ The current implementation does not fully separate these concepts yet. This file
 
 ## Current Truth
 
-Altals now has a first explicit history-repo boundary, but it does not yet have a first-class local snapshot system separate from Git.
+Altals now has a first explicit history-repo boundary and a first local workspace-snapshot index, but it does not yet have a restorable local snapshot payload separate from Git-backed content history.
 
 Today:
 
 - autosave exists as normal file/editor persistence behavior
-- named “snapshots” still map to Git commits
+- named workspace save points still create Git commits
 - explicit workspace save points now stamp a small manifest trailer into the Git-backed history subject
+- explicit workspace save points now also record a local index entry under `workspaceDataDir`
 - Git history is the current recovery/history backend
 - remote sync is layered on top of the same Git repository
 
-This means the four concepts are still only partially separated.
+This means the four concepts are more separated than before, but still not fully separated.
 
 ## Current Components
 
@@ -65,8 +66,9 @@ Current flow:
 6. `git add`
 7. `git status`
 8. create an explicit commit
+9. record a workspace-save-point entry in the local snapshot index when `workspaceDataDir` is available
 
-This is useful, but it means explicit save history is still coupled to Git commit behavior.
+This is useful, but it means explicit save history is still coupled to Git commit behavior for the underlying content state.
 
 The public snapshot boundary now composes these lower seams:
 
@@ -92,6 +94,13 @@ The current snapshot UI is not a separate snapshot backend.
 `src/domains/changes/workspaceSnapshotMetadataRuntime.js` now attaches explicit title/named/capability metadata above those records.
 
 `src/domains/changes/workspaceSnapshotManifestRuntime.js` now persists and parses a minimal manifest trailer so explicit workspace save points keep `scope` / `kind` metadata even when they later show up inside file-scoped Git history.
+
+`src/domains/changes/workspaceLocalSnapshotStoreRuntime.js` now owns the first local snapshot-store slice:
+
+- resolve the workspace save-point index path under `workspaceDataDir`
+- normalize local workspace-save-point records
+- record newly created workspace save points into the local index
+- backfill manifest-backed Git workspace save points into the local index when the browser/feed is loaded
 
 `src/app/changes/snapshotLabelPromptRuntime.js` plus `src/app/changes/useSnapshotLabelPrompt.js` now isolate the Footer prompt timer, dialog visibility, and pending label resolution from the rest of the Footer status UI.
 
@@ -130,13 +139,15 @@ The app-facing file-history entry points are now explicit:
 
 Its current app-facing feed entry point is:
 
-- `listWorkspaceSavePoints({ workspacePath })`
+- `listWorkspaceSavePoints({ workspacePath, workspaceDataDir })`
 
 Its lower runtime entry point is now also explicit:
 
-- `listWorkspaceSavePointEntries({ workspacePath })`
+- `listWorkspaceSavePointEntries({ workspacePath, workspaceDataDir })`
 
-That feed still lists Git-backed milestones rather than a separate local snapshot backend, and it still does not support workspace-level preview/restore.
+That feed now reads a local workspace-save-point index under `workspaceDataDir/snapshots/workspace-save-points.json` and backfills manifest-backed Git workspace save points into that index as needed.
+
+It still does not support workspace-level preview/restore.
 
 ### Remote Link Preparation
 
@@ -182,12 +193,13 @@ This is the closest concept to being separate already.
 
 Current state:
 
-- now has a first explicit Git-backed snapshot object and operation boundary
+- now has a first explicit snapshot object and operation boundary above Git
 - snapshot scope is explicit: workspace-level save points vs file-level version-history entries
 - explicit workspace save points now also persist a small manifest trailer in Git-backed history subjects
-- backend behavior still resolves to Git commit creation
-- no separate local snapshot store exists yet
-- no dedicated UI/browser exists yet for the repo-wide workspace snapshot feed
+- explicit workspace save points now also persist into a local workspace-save-point index under `workspaceDataDir`
+- the workspace snapshot browser now reads that local index and backfills older manifest-backed Git entries into it
+- backend behavior for workspace save points still resolves to Git commit creation for the underlying content state
+- no workspace-level preview/restore payload exists yet outside Git-backed history content
 
 This is the largest remaining safety-model gap.
 
@@ -215,12 +227,11 @@ Remote sync is more explicit than before, but it is not yet independent from loc
 
 The main current risks are:
 
-- the app still lacks a true local snapshot backend
-- the repo-wide workspace snapshot feed exists only as an operation seam, not a user-facing browser
+- the app still lacks a restorable local snapshot backend
 - explicit save history and auto-commit still both feed Git history directly
 - remote link/setup can also influence local history behavior
 - users and maintainers can still misread Git history as the whole safety model
-- manifest metadata is still encoded inside Git-backed history subjects rather than stored in a separate app-level snapshot store
+- the local snapshot store currently persists only workspace save-point index metadata, not a restore payload
 
 ## Target Direction
 
@@ -231,14 +242,14 @@ The repository target remains:
 - Git commits as explicit history/milestone actions
 - remote sync as visible networked state synchronization
 
-That target has not landed yet.
+That target has landed only partially.
 
 ## Next Safety Slice
 
-The next Phase 4 slice is no longer choosing whether to start with a Git-backed wrapper. That wrapper path has already landed.
+The next Phase 4 slice is no longer choosing whether a first local snapshot store should exist. That slice has landed as a workspace-save-point index.
 
-The remaining high-value gap is choosing and wiring the user-facing surface for the repo-wide workspace snapshot feed. The recommended next step is:
+The remaining high-value gap is defining the first restorable local snapshot payload and restore seam. The recommended next step is:
 
-1. decide whether that feed reuses `VersionHistory.vue` or becomes a separate workspace-snapshot browser
-2. preserve the new `workspace` vs `file` scope distinction instead of collapsing save points back into file history
-3. keep Git history as an implementation detail rather than the whole visible safety model
+1. define what a workspace snapshot stores beyond the current label/message/index metadata
+2. keep the current `workspace` vs `file` scope distinction explicit instead of collapsing workspace restore back into file history
+3. avoid treating `git checkout` or raw commit rewinds as the default workspace-snapshot restore path

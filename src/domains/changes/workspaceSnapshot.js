@@ -1,5 +1,6 @@
 import { createWorkspaceHistoryAvailabilityRuntime } from './workspaceHistoryAvailabilityRuntime.js'
 import { createWorkspaceHistoryPointRuntime } from './workspaceHistoryPointRuntime.js'
+import { createWorkspaceLocalSnapshotStoreRuntime } from './workspaceLocalSnapshotStoreRuntime.js'
 import {
   attachWorkspaceSnapshotMetadata,
   attachWorkspaceSnapshotMetadataList,
@@ -20,6 +21,7 @@ export function createWorkspaceSnapshotOperations({
     availabilityRuntime,
   }),
   snapshotRuntime = createWorkspaceSnapshotRuntime(),
+  localSnapshotStoreRuntime = createWorkspaceLocalSnapshotStoreRuntime(),
   attachSnapshotMetadataImpl = attachWorkspaceSnapshotMetadata,
   attachSnapshotMetadataListImpl = attachWorkspaceSnapshotMetadataList,
   logErrorImpl = (...args) => console.error(...args),
@@ -57,9 +59,17 @@ export function createWorkspaceSnapshotOperations({
         return result
       }
 
-      const snapshot = attachSnapshotMetadataImpl(result.snapshot)
+      const gitSnapshot = attachSnapshotMetadataImpl(result.snapshot)
+      const localSnapshotRecord = await localSnapshotStoreRuntime.recordWorkspaceSavePoint({
+        workspaceDataDir: workspace?.workspaceDataDir || '',
+        snapshot: result.snapshot,
+      })
+      const localSnapshot = attachSnapshotMetadataImpl(localSnapshotRecord)
+      const snapshot = localSnapshot || gitSnapshot
       return {
         ...result,
+        gitSnapshot,
+        localSnapshot,
         snapshot,
         snapshotMetadata: snapshot?.metadata ?? null,
       }
@@ -121,6 +131,7 @@ export function createWorkspaceSnapshotOperations({
 
   async function listWorkspaceSavePoints({
     workspacePath = '',
+    workspaceDataDir = '',
     limit = 50,
     t,
   } = {}) {
@@ -130,6 +141,7 @@ export function createWorkspaceSnapshotOperations({
 
     const snapshots = await snapshotRuntime.listWorkspaceSavePointEntries({
       workspacePath,
+      workspaceDataDir,
       limit,
       t,
     })

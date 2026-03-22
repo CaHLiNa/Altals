@@ -192,6 +192,7 @@ The first concrete safety-model split has landed:
 - `src/domains/changes/workspaceSnapshot.js` now owns the shared Git-backed snapshot operation boundary for create/list/preview/restore behavior, with explicit file-history vs workspace-save-point wrappers as the surviving public seams, and the old `workspaceHistory.js` bridge has been removed.
 - `src/domains/changes/workspaceSnapshotMetadataRuntime.js` now owns explicit snapshot title, named/system classification, and preview/restore capability metadata above the raw Git-backed snapshot records.
 - `src/domains/changes/workspaceSnapshotManifestRuntime.js` now owns persisted snapshot manifest trailers so explicit workspace save points can retain `scope` / `kind` metadata above raw Git message heuristics even when they later appear in file-scoped Git history.
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js` now owns the local workspace-save-point index path plus record/backfill behavior under `workspaceDataDir`.
 - `src/domains/changes/workspaceAutoCommitRuntime.js` now owns auto-commit marker enablement, workspace eligibility gating, shared auto-message construction, and timed Git add/status/commit execution behind the service shell.
 - `src/domains/changes/workspaceVersionHistoryRuntime.js` now owns Git-backed history list/load/restore IO so `VersionHistory.vue` no longer performs those side effects directly.
 - `src/domains/git/workspaceRepoLinkRuntime.js` now owns local history bootstrap plus remote-link preparation ordering, so `workspaceGitHub.js` no longer inlines history repo creation, auto-commit enablement, remote setup, and initial auto-commit sequencing.
@@ -801,6 +802,10 @@ Exit criteria:
 - 2026-03-22 execution cycle: removing the now-unused `saveWorkspaceHistoryCommit` / `requestCommitMessage` compatibility bridge so the public history API stops leaking old Git-centric naming
 - 2026-03-22 execution cycle: `snapshotLabelPromptRuntime` / `useSnapshotLabelPrompt` are now landed, and the public history API no longer exports the old save-and-commit bridge names
 - 2026-03-22 execution cycle: continuing Phase 4 by unifying auto-commit message generation with the shared history message helper so automatic and explicit history entries use the same message semantics
+- 2026-03-22 execution cycle: choosing the first true local snapshot backend path as a separate local store under `workspaceDataDir` instead of stacking another Git-only wrapper above the current manifest trailer
+- 2026-03-22 execution cycle: the next narrow safety slice is a local workspace-save-point index only; file-history preview/restore stays Git-backed until restore semantics are designed explicitly
+- 2026-03-22 execution cycle: the first local snapshot-store slice has now landed as a workspace-save-point index under `workspaceDataDir`, and the next gap is no longer store existence but defining a restorable local snapshot payload/restore seam
+- 2026-03-22 execution cycle: the workspace snapshot feed now backfills manifest-backed Git save points into the local index so the new local store does not stay a new-records-only side path
 
 ## Completed
 
@@ -1147,6 +1152,15 @@ Exit criteria:
   - `node --test tests/snapshotLabelPromptRuntime.test.mjs tests/workspaceSnapshotActions.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js`
+- Moved local workspace-save-point index path resolution, local record normalization, explicit save-point recording, and manifest-backed Git backfill into the new local snapshot-store runtime
+- Rerouted `src/domains/changes/workspaceSnapshot.js`, `src/domains/changes/workspaceSnapshotRuntime.js`, and `src/components/WorkspaceSnapshotBrowser.vue` so workspace save points now record/list through `workspaceDataDir`-backed local index paths while file preview/restore stays Git-backed
+- Added `tests/workspaceLocalSnapshotStoreRuntime.test.mjs` and expanded `tests/workspaceSnapshot.test.mjs` / `tests/workspaceSnapshotRuntime.test.mjs` to validate local index recording, Git-backfill syncing, and local-store-aware workspace save-point listing
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` to describe the new hybrid local-index-plus-Git snapshot boundary truthfully
+- Validated the twenty-third and twenty-fourth safety-model slices with:
+  - `node --test tests/workspaceLocalSnapshotStoreRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceHistoryPointRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 - Established `src/domains/reference/referenceLibraryRuntime.js`
 - Moved reference library save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file persistence behind the new runtime module
 - Reduced `src/stores/references.js` from 1089 lines to 1027 lines
@@ -1245,18 +1259,18 @@ Exit criteria:
 - `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
 - `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
 - `documentWorkflow` is thinner after the preview/open/reconcile extraction, but the build/review loop is still not yet documented or split into clear operations
-- The safety model is cleaner now, and the first Git-backed snapshot object/operation boundary, persisted manifest trailers, repo-wide workspace snapshot feed, and separate workspace-snapshot browser have landed, but the repository still lacks a true local snapshot backend above raw Git commits
+- The safety model is cleaner now, and the first local workspace-save-point index has landed above the Git-backed snapshot/history boundary, but that local backend still stores metadata/index state rather than a restorable snapshot payload
 - Snapshot scope is now explicit (`workspace` vs `file`), but restore semantics still only exist for file-scoped version-history entries
-- The next high-value snapshot step is now choosing the first true local snapshot backend so Phase 4 keeps moving on safety semantics instead of falling back to lower-value naming cleanup
+- The next high-value snapshot step is now defining the first restorable local workspace-snapshot payload/restore seam so Phase 4 keeps moving on safety semantics instead of falling back to lower-value naming cleanup
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Decide whether the first true app-level snapshot backend should be a separate local store or another Git-backed layer above the current manifest wrapper
-2. Keep the current `workspace` vs `file` scope distinction explicit whichever backend path is chosen
-3. Validate the chosen slice with the relevant history/snapshot tests plus `node --test tests/*.test.mjs` and `npm run build`
-4. Update `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the chosen backend path truthfully
+1. Define the first restorable local workspace-snapshot payload above the current metadata/index file under `workspaceDataDir`
+2. Keep the current `workspace` vs `file` scope distinction explicit: workspace save points may gain a local restore payload, while file-history preview/restore remains Git-backed until deliberately replaced
+3. Validate the restore-seam slice with the relevant history/snapshot tests plus `node --test tests/*.test.mjs` and `npm run build`
+4. Update `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the restore boundary truthfully
 5. Avoid drifting back into lower-value naming cleanup now that the app/public snapshot surfaces are aligned
 
 ## Validation Checklist
@@ -1311,7 +1325,7 @@ Exit criteria:
 - The first Phase 3 slice has now started the document preview loop as an explicit domain runtime rather than leaving it buried inside the store.
 - The first Phase 4 slice has now started separating history bootstrap from auto-commit, and the immediate shared-utility cleanup has removed the dynamic-import workaround before it could harden into new accidental complexity.
 - The next two Phase 4 slices separated pre-history file preparation and explicit history commit execution from the old `workspaceHistory.js` bridge; that bridge is now gone, and the remaining safety-model gap has shifted from ad hoc snapshot metadata to persisted manifest metadata above the new Git-backed boundary.
-- The repository now has a first shared Git-backed snapshot operation boundary plus explicit `workspace` vs `file` scope and explicit derived snapshot metadata, but it still needs persisted manifest metadata above those snapshot records before a separate local snapshot store would be justified.
+- The repository now has a first shared snapshot operation boundary plus explicit `workspace` vs `file` scope, explicit derived snapshot metadata, persisted manifest metadata, and a local workspace-save-point index; the next gap is defining a restorable local snapshot payload above that index without collapsing back into raw Git rewinds.
 - `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.

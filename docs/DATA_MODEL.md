@@ -6,19 +6,20 @@ This document records the current explicit data-model seams that already exist i
 
 It describes the repository as it exists today. It does not describe target models as if they are already implemented.
 
-## Current Snapshot Wrapper
+## Current Snapshot Model
 
 Altals still stores local history in Git.
 
-It now has three explicit layers above that Git history:
+It now has four explicit layers above that Git history:
 
 - `src/domains/changes/workspaceSnapshotRuntime.js`
 - `src/domains/changes/workspaceSnapshotMetadataRuntime.js`
 - `src/domains/changes/workspaceSnapshotManifestRuntime.js`
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js`
 
-These layers still do not introduce a separate snapshot store. Instead, they map Git-backed history into explicit snapshot objects, attach UI/runtime metadata, and persist a minimal manifest trailer for explicit workspace save points.
+These layers now introduce a first local workspace-save-point index while still reusing Git-backed history for the underlying content state. They map Git-backed history into explicit snapshot objects, attach UI/runtime metadata, persist a minimal manifest trailer for explicit workspace save points, and record workspace-level save points into a local index under `workspaceDataDir`.
 
-Current record shape:
+Current Git-backed record shape:
 
 ```js
 {
@@ -55,6 +56,36 @@ Current meaning:
 - `manifest` is only present for explicit workspace save points that were written through the new manifest trailer path
 - only file-scoped snapshots are previewable/restorable through the current version-history flow
 
+Current local workspace-save-point index record shape:
+
+```js
+{
+  id: 'local:workspace:<commit-hash>',
+  backend: 'local',
+  sourceKind: 'workspace-save-point',
+  sourceId: '<commit-hash>',
+  scope: 'workspace',
+  filePath: '',
+  kind: 'named' | 'save',
+  label: 'Draft 3 ready',
+  message: 'Draft 3 ready',
+  rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+  createdAt: '2026-03-22T10:11:00.000Z',
+  manifest: {
+    version: 1,
+    scope: 'workspace',
+    kind: 'named',
+  },
+}
+```
+
+Current meaning:
+
+- local workspace-save-point entries are stored in `workspaceDataDir/snapshots/workspace-save-points.json`
+- `backend: 'local'` means the browser/feed is reading from the app-managed index, not that content restore is independent from Git yet
+- `sourceId` still points at the underlying Git commit hash for the saved workspace milestone
+- the local index currently stores snapshot metadata/index information only; it does not yet store a separate restore payload
+
 Current attached metadata shape:
 
 ```js
@@ -84,6 +115,7 @@ The current Git-backed snapshot wrapper is used by:
 
 - `src/domains/changes/workspaceSnapshot.js`
 - `src/components/VersionHistory.vue`
+- `src/components/WorkspaceSnapshotBrowser.vue`
 - `src/app/changes/useWorkspaceSnapshotActions.js`
 
 Current operations use explicit snapshot objects for:
@@ -97,30 +129,31 @@ Current operations use explicit snapshot objects for:
 Current feed behavior is now split:
 
 - `listFileVersionHistory({ workspacePath, filePath })` returns the file history for that file, including manifest-backed workspace save points if they touched the file
-- `listWorkspaceSavePoints({ workspacePath })` returns only manifest-backed workspace save points from repo-wide history
+- `listWorkspaceSavePoints({ workspacePath, workspaceDataDir })` returns workspace save points from the local index and backfills manifest-backed Git entries into that index when needed
 
 The underlying implementation still routes through:
 
 - `src/domains/changes/workspaceHistoryPointRuntime.js`
 - `src/domains/changes/workspaceVersionHistoryRuntime.js`
 - `src/domains/changes/workspaceSnapshotRuntime.js`, which now also exposes explicit `listFileVersionHistoryEntries`, `listWorkspaceSavePointEntries`, `loadFileVersionHistoryPreview`, and `restoreFileVersionHistoryEntry` runtime seams
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js`, which now owns the workspace save-point index path plus local record/write/backfill behavior
 
 ## Current Limitations
 
-This is still a Git-backed wrapper layer.
+This is now a hybrid local-index plus Git-content layer.
 
 It does not yet provide:
 
-- a separate local snapshot store
 - workspace-level preview/restore independent from Git show/write flows
-- manifest persistence outside Git-backed history subjects
+- a restorable local snapshot payload beyond the current workspace-save-point index
+- manifest persistence outside Git-backed history subjects for the file-history path
 
 ## Next Data-Model Step
 
-The next Phase 4 data-model step is now deciding whether the repository will keep stopping at the Git-backed snapshot wrapper or start introducing a true local snapshot backend.
+The next Phase 4 data-model step is no longer deciding whether a local snapshot store should exist. That first local-store slice has landed.
 
 The next immediate step is:
 
-1. choose whether the first true app-level snapshot backend should be a separate local store or another Git-backed layer
-2. keep the current `workspace` vs `file` scope distinction explicit whichever backend path is chosen
+1. define the first restorable local workspace-snapshot payload above the current index metadata
+2. keep the current `workspace` vs `file` scope distinction explicit while doing that
 3. avoid drifting back into lower-value naming cleanup now that the public app boundary is aligned

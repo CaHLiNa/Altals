@@ -94,7 +94,7 @@
               {{ t('This browser lists workspace-level save points separately from File Version History.') }}
             </div>
             <div class="workspace-snapshot-note">
-              {{ t('Workspace save points are still Git-backed milestones, not a separate local snapshot backend.') }}
+              {{ t('Workspace save points now have a local Altals index while still pointing at Git-backed milestones underneath.') }}
             </div>
             <div class="workspace-snapshot-note">
               {{ t('Restore is not available here yet. Use File Version History for per-file restores.') }}
@@ -164,6 +164,7 @@ async function loadWorkspaceSnapshots() {
   try {
     snapshots.value = await listWorkspaceSavePoints({
       workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
     })
     selectedIndex.value = snapshots.value.length > 0 ? 0 : -1
   } catch (error) {

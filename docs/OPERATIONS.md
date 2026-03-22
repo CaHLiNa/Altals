@@ -88,6 +88,7 @@ Primary entry points:
 - `src/domains/changes/workspaceSnapshot.js`
 - `src/app/changes/useSnapshotLabelPrompt.js`
 - `src/domains/changes/workspaceHistoryPointRuntime.js`
+- `src/domains/changes/workspaceLocalSnapshotStoreRuntime.js`
 - `src/domains/changes/workspaceVersionHistoryRuntime.js`
 - `src/components/VersionHistory.vue`
 
@@ -95,15 +96,17 @@ Current behavior:
 
 - explicit snapshot creation now routes through `workspaceSnapshot.js`, which persists dirty/open files before committing through the lower history-point/runtime seam
 - explicit workspace save points now persist a Git-backed manifest trailer through `workspaceSnapshotManifestRuntime.js` so `scope` / `kind` metadata survives later history listing
+- explicit workspace save points now also record a local index entry under `workspaceDataDir/snapshots/workspace-save-points.json`
 - Footer prompt state for naming that history point is now isolated behind the `snapshotLabelPromptRuntime` / `useSnapshotLabelPrompt` app-layer seam
 - file version history now opens through `openFileVersionHistoryBrowser(...)` and lists through `listFileVersionHistory(...)`
-- repo-wide workspace save points now list through `listWorkspaceSavePoints(...)` and surface in `WorkspaceSnapshotBrowser.vue`
+- repo-wide workspace save points now list through `listWorkspaceSavePoints({ workspacePath, workspaceDataDir })` and surface in `WorkspaceSnapshotBrowser.vue`
 - file version history preview/restore now route through `loadFileVersionHistoryPreview(...)` / `restoreFileVersionHistoryEntry(...)`
 - the lower snapshot runtime now mirrors that separation through `listFileVersionHistoryEntries(...)`, `listWorkspaceSavePointEntries(...)`, `loadFileVersionHistoryPreview(...)`, and `restoreFileVersionHistoryEntry(...)`
+- the lower snapshot runtime now also backfills manifest-backed Git workspace save points into the local index so the workspace browser does not remain a new-records-only surface
 - created save points are currently workspace-scoped snapshots, while version-history browsing still yields file-scoped snapshots plus any manifest-backed workspace save points that touched the current file
 - restore actions still operate through Git history for file-scoped snapshots
 
-This is now the first explicit Git-backed `CreateSnapshot` / `RestoreSnapshot` boundary, but it is still not a separate local snapshot backend.
+This is now the first explicit hybrid `CreateSnapshot` boundary: local workspace-save-point indexing above Git-backed content history. `RestoreSnapshot` is still only a file-scoped Git-history action.
 
 ## Current Operation Map
 
@@ -133,18 +136,18 @@ The main missing pieces are:
 - no single operation layer shared by UI, AI, and commands
 - save/build/review operations are still split between stores, composables, and services
 - build execution is still launched from UI-facing composables instead of a shared document operation entry
-- the repository still has no true local snapshot backend above the current Git-backed save-point/history wrapper
-- change review is still Git-first rather than a snapshot store independent from Git
+- the repository still has no restorable local snapshot payload above the current workspace-save-point index
+- change review is still partly Git-first because file preview/restore remains Git-backed
 
 ## Next Operation Work
 
 The next operation-oriented refactor should stay in Phase 4 and focus on the safety model boundary, not on more cosmetic Phase 2 store cleanup.
 
-The most useful next operation target is to decide the first true local snapshot backend so:
+The most useful next operation target is to define the first restorable local workspace-snapshot seam so:
 
 - explicit workspace save points
 - per-file version history
 - preview/restore affordances
 - Footer save-point creation
 
-stop sharing a single file-history modal without inventing a second hidden safety path.
+stop depending on a metadata-only local index for workspace save points while avoiding a hidden Git-checkout restore path.

@@ -38,6 +38,70 @@ test('workspace snapshot operations create snapshots through the history-point r
   assert.equal(result?.snapshot?.metadata?.scope, 'workspace')
 })
 
+test('workspace snapshot operations record workspace save points into the local snapshot store when workspace data is available', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    historyPointRuntime: {
+      createHistoryPoint: async () => ({
+        committed: true,
+        snapshot: {
+          id: 'git:abc123',
+          backend: 'git',
+          sourceKind: 'git-commit',
+          sourceId: 'abc123',
+          scope: 'workspace',
+          kind: 'named',
+          label: 'Draft 3 ready',
+          message: 'Draft 3 ready',
+          rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+          createdAt: '2026-03-22T10:11:00Z',
+          manifest: {
+            version: 1,
+            scope: 'workspace',
+            kind: 'named',
+          },
+        },
+      }),
+    },
+    localSnapshotStoreRuntime: {
+      recordWorkspaceSavePoint: async ({ workspaceDataDir, snapshot }) => {
+        calls.push([workspaceDataDir, snapshot.sourceId])
+        return {
+          id: 'local:workspace:abc123',
+          backend: 'local',
+          sourceKind: 'workspace-save-point',
+          sourceId: 'abc123',
+          scope: 'workspace',
+          filePath: '',
+          kind: 'named',
+          label: 'Draft 3 ready',
+          message: 'Draft 3 ready',
+          rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+          createdAt: '2026-03-22T10:11:00Z',
+          manifest: {
+            version: 1,
+            scope: 'workspace',
+            kind: 'named',
+          },
+        }
+      },
+    },
+  })
+
+  const result = await operations.createWorkspaceSnapshot({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+  })
+
+  assert.deepEqual(calls, [['/workspace/.altals', 'abc123']])
+  assert.equal(result?.snapshot?.id, 'local:workspace:abc123')
+  assert.equal(result?.snapshot?.metadata?.backend, 'local')
+  assert.equal(result?.localSnapshot?.id, 'local:workspace:abc123')
+  assert.equal(result?.gitSnapshot?.id, 'git:abc123')
+})
+
 test('workspace snapshot operations surface create errors through the failure callback', async () => {
   const errors = []
   let failureCalls = 0
@@ -102,11 +166,15 @@ test('workspace snapshot operations open file version history only after history
 
 test('workspace snapshot operations delegate explicit file/workspace list and file-preview/restore wrappers to the lower snapshot runtime', async () => {
   const calls = []
-  const listSnapshots = async (input) => {
-    calls.push(['list', input.workspacePath, input.filePath || ''])
+  const listFileSnapshots = async (input) => {
+    calls.push(['list-file', input.workspacePath, input.filePath || '', input.workspaceDataDir || ''])
     if (input.filePath) {
       return [{ id: 'git:abc123', scope: 'file', message: 'Save: 2026-03-22 10:11' }]
     }
+    return []
+  }
+  const listWorkspaceSnapshots = async (input) => {
+    calls.push(['list-workspace', input.workspacePath, input.filePath || '', input.workspaceDataDir || ''])
 
     return [{
       id: 'git:workspace123',
@@ -129,8 +197,8 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
   }
   const operations = createWorkspaceSnapshotOperations({
     snapshotRuntime: {
-      listFileVersionHistoryEntries: listSnapshots,
-      listWorkspaceSavePointEntries: listSnapshots,
+      listFileVersionHistoryEntries: listFileSnapshots,
+      listWorkspaceSavePointEntries: listWorkspaceSnapshots,
       loadFileVersionHistoryPreview: loadPreview,
       restoreFileVersionHistoryEntry: restoreEntry,
     },
@@ -142,6 +210,7 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
   })
   const workspaceSnapshots = await operations.listWorkspaceSavePoints({
     workspacePath: '/workspace/demo',
+    workspaceDataDir: '/workspace/.altals',
   })
   const preview = await operations.loadFileVersionHistoryPreview({
     workspacePath: '/workspace/demo',
@@ -204,8 +273,8 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
   assert.equal(preview, '# preview')
   assert.deepEqual(restored, { restored: true })
   assert.deepEqual(calls, [
-    ['list', '/workspace/demo', '/workspace/demo/draft.md'],
-    ['list', '/workspace/demo', ''],
+    ['list-file', '/workspace/demo', '/workspace/demo/draft.md', ''],
+    ['list-workspace', '/workspace/demo', '', '/workspace/.altals'],
     ['preview', 'abc123'],
     ['restore', 'abc123'],
   ])
