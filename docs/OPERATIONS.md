@@ -65,7 +65,25 @@ This is the clearest currently landed Phase 3 operation seam.
 - `getProblemsForFile`
 - `getUiStateForFile`
 - `getStatusTextForFile`
+- `getArtifactPathForFile`
 - `getStatusTone`
+
+`src/domains/document/documentWorkflowBuildOperationRuntime.js` now owns shared build execution behavior:
+
+- `runBuildForFile`
+
+`src/domains/document/documentWorkflowTypstPaneRuntime.js` now owns the typst preview/pdf shared-pane state machine:
+
+- `revealPreviewForFile`
+- `revealPdfForFile`
+
+`src/domains/document/documentWorkflowActionRuntime.js` now owns the remaining UI-facing document workflow action routing:
+
+- `toggleMarkdownPreviewForFile`
+- `togglePdfPreviewForFile`
+- `runPrimaryActionForFile`
+- `revealPreviewForFile`
+- `revealPdfForFile`
 
 These runtimes deliberately reuse the existing document adapters in `src/services/documentWorkflow/adapters/*` instead of creating a parallel build abstraction.
 
@@ -76,7 +94,7 @@ Current adapter-backed behavior includes:
 - Typst compile/log/problem/status wiring
 - preview-kind and preview-availability resolution
 
-`src/stores/documentWorkflow.js` is now a thinner migration shell over these runtimes, and `src/composables/useEditorPaneWorkflow.js` reuses the same runtime seam for toolbar state and compile context.
+`src/stores/documentWorkflow.js` is now a migration shell over these runtimes, and `src/composables/useEditorPaneWorkflow.js` now reuses the same document seam for toolbar state, build launch, compile-artifact lookup, typst preview/pdf pane switching, and UI-facing primary/reveal action routing instead of calling compile adapters or running the typst shared-pane/action state machine directly.
 
 ### Review Changes / History
 
@@ -141,7 +159,7 @@ The repository is converging toward the target operation model, but the current 
 | `ListProjectFiles` | Partial | files store + file tree runtimes |
 | `ReadDocument` | Partial | file content runtime |
 | `SaveDocument` | Partial | files store + editor dirty persistence |
-| `BuildDocument` | Partial but strongest | document workflow adapters + build runtime |
+| `BuildDocument` | Partial but strongest | document workflow build operation runtime + build runtime |
 | `RevealPreview` | Landed seam | document workflow runtime |
 | `ListProblems` | Landed seam | document workflow build runtime |
 | `OpenBuildLog` | Landed seam | document workflow build runtime |
@@ -158,20 +176,20 @@ The main missing pieces are:
 
 - no single operation layer shared by UI, AI, and commands
 - save/build/review operations are still split between stores, composables, and services
-- build execution is still launched from UI-facing composables instead of a shared document operation entry
 - workspace snapshot restore currently covers only the current filtered `project-text-set`, not a whole-project rewind
 - that `project-text-set` boundary is broader than the loaded-only path but still narrower than the whole workspace, which keeps workspace restore separate from PDF extraction and other non-document side paths
 - change review is still partly Git-first because file preview/restore remains Git-backed even though workspace save-point review now has local chunk-level apply/restore
 - workspace save-point preview/restore now covers captured-file replay, chunk-level apply, and in-scope added-file removal, but it still does not provide a whole-project rewind
+- the remaining document workflow glue in `useEditorPaneWorkflow.js` is now mostly thin compile-button wrappers plus AI diagnose/fix launch entry code rather than the main Phase 3 orchestration knot
 
 ## Next Operation Work
 
-The current planned Phase 4 operation work is complete.
+The current planned Phase 3 and Phase 4 operation work is complete.
 
-The next operation-oriented refactor should shift back to Phase 3 and focus on the document build/review loop, not on more cosmetic Phase 2 cleanup.
+The next operation-oriented refactor should shift to Phase 5 and focus on AI workflow discipline, not on more cosmetic Phase 2 cleanup or more speculative Phase 3 wrapper extraction.
 
 The most useful next operation target is now:
 
-- extract build execution out of `src/composables/useEditorPaneWorkflow.js` and other UI-facing glue into a shared document operation seam
-- keep the current adapter-backed log/problem/preview behavior intact while build launch moves behind that operation boundary
+- extract the current document AI diagnose/fix launch path out of `src/composables/useEditorPaneWorkflow.js` into a focused document AI action runtime
+- keep the current task-catalog ids, beside-chat launch behavior, and patch-first AI entry semantics intact while the launch routing moves behind that operation boundary
 - leave workspace save-point restore separate from Git-backed file version history restore

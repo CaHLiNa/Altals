@@ -187,3 +187,20 @@ test('document workflow build runtime exposes queued latex ui state and status t
   assert.equal(runtime.getStatusTextForFile('/workspace/main.tex'), 'Queued')
   assert.equal(getDocumentWorkflowStatusTone(uiState), 'warning')
 })
+
+test('document workflow build runtime exposes adapter-specific artifact paths outside the store shell', () => {
+  const { runtime } = createBuildRuntime({
+    typstStore: {
+      stateForFile() {
+        return {
+          pdfPath: '/workspace/main-built.pdf',
+        }
+      },
+    },
+  })
+
+  assert.equal(
+    runtime.getArtifactPathForFile('/workspace/main.typ'),
+    '/workspace/main-built.pdf',
+  )
+})

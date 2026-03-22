@@ -11,7 +11,7 @@ Current overall assessment:
 - Phase 0 is effectively complete.
 - Phase 1 is substantially advanced but not fully closed.
 - Phase 2 has completed its currently highest-value `editor` slice and should no longer be extended for cosmetic cleanup.
-- Phase 3 is now in active execution with both the `documentWorkflow` preview/open/reconcile runtime and the build/diagnostic visibility seam landed and validated.
+- Phase 3 is complete for the current planned scope: the `documentWorkflow` preview/open/reconcile runtime, build/diagnostic seam, shared build execution seam, typst shared-pane seam, and UI-facing action-routing seam are all landed and validated.
 - Phase 4 is complete for the current planned scope: explicit history-point intent, Git-backed snapshot metadata/manifest seams, local workspace-save-point indexing, app-managed payload restore, project-text-set capture, preview/diff/apply flows, and in-scope added-file removal are all landed and validated.
 - Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and the current planned Phase 4 safety-model runtime/service extractions plus targeted tests.
 
@@ -173,9 +173,15 @@ The largest remaining frontend architectural bottlenecks include:
 
 `src/domains/document/documentWorkflowBuildRuntime.js` now carries workflow adapter context construction, adapter-specific log opening, problem aggregation, UI-state lookup, and status-text/tone wiring needed for compile/review visibility.
 
-`src/stores/documentWorkflow.js` is now 381 lines after the second extraction sequence, down from 521 lines, and is increasingly a thinner shell around state plus smaller runtime-backed action wrappers instead of the full document workflow loop.
+`src/domains/document/documentWorkflowBuildOperationRuntime.js` now carries shared build execution above that build/runtime seam, so UI-facing composables no longer launch LaTeX/Typst builds by calling compile adapters directly.
 
-`src/composables/useEditorPaneWorkflow.js` now reuses the same document runtime seam for compile adapter context and toolbar visibility/status wiring instead of recomputing those rules separately inside the composable.
+`src/domains/document/documentWorkflowTypstPaneRuntime.js` now carries the typst preview/pdf shared-pane state machine, including shared-pane reuse, preview-close behavior, preview-to-PDF switching, PDF overlay vs owned-pane tracking, and split-right fallback when no reusable pane exists.
+
+`src/domains/document/documentWorkflowActionRuntime.js` now carries UI-facing document workflow action branching for markdown preview toggles, primary compile-vs-preview routing, non-typst reveal-preview behavior, and typst reveal delegation.
+
+`src/stores/documentWorkflow.js` is now 450 lines after the third extraction sequence, up from the thinner mid-migration shell because it now exposes more explicit runtime-backed action wrappers; the newly added surface area is wrapper-oriented rather than a return to inline orchestration.
+
+`src/composables/useEditorPaneWorkflow.js` now reuses the same document seam for toolbar visibility/status wiring, shared build execution, compile-artifact lookup, typst preview/pdf pane switching, and UI-facing primary/reveal action routing instead of calling compile adapters or running the typst shared-pane/action state machine directly inside the composable.
 
 ##### Safety model status
 
@@ -783,6 +789,10 @@ Exit criteria:
 - `references` asset/runtime is now also extracted; the second-round `references` sequence is complete enough that the next execution cycle should shift Phase 2 focus to `editor`
 - `editor` open-routing/runtime is now also extracted; reassessment shows the remaining editor shell is lower-value than starting the Phase 3 document preview/build/review loop
 - `documentWorkflow` preview/open/reconcile runtime is now also extracted; the next execution cycle should decide whether the remaining main-loop priority is build/review flow work or the first safety-model cleanup follow-up
+- 2026-03-22 execution cycle: the shared document build-operation seam plus compile-artifact lookup reroute are now landed, and the remaining Phase 3 knot is the typst preview/pdf shared-pane state machine still living in `useEditorPaneWorkflow.js`
+- 2026-03-22 execution cycle: `documentWorkflowTypstPaneRuntime` is now landed, so the typst preview/pdf shared-pane state machine no longer lives in `useEditorPaneWorkflow.js`; the next remaining Phase 3 knot is the UI-facing action branching that still lives there
+- 2026-03-22 execution cycle: extracting the remaining document workflow action branching out of `useEditorPaneWorkflow.js` so primary-action, reveal-preview, and preview-toggle routing converge behind a shared document action seam
+- 2026-03-22 execution cycle: the current planned Phase 3 scope is now being closed after `documentWorkflowActionRuntime` landed; remaining `useEditorPaneWorkflow.js` direct workflow calls are thin wrappers or lower-priority AI-entry glue rather than the next best architectural knot
 - `workspaceHistoryRepo` is now extracted as a first safety-model boundary, and the shared `pathExists` cleanup has removed its temporary dynamic-import workaround; the next execution cycle should shift back to the next concrete Phase 3 main-loop seam
 - 2026-03-22 execution cycle: `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` are now created, and the newest landed Phase 4 slice separates pre-history file persistence from Git commit execution in `workspaceHistory`
 - 2026-03-22 execution cycle: `workspaceHistoryCommitRuntime` is now landed, so repo readiness, file preparation, and commit execution are separate safety steps
@@ -1057,6 +1067,32 @@ Exit criteria:
 - Adjusted LaTeX and Typst workflow adapters to lazy-load compile preflight helpers so document-workflow runtime tests can exercise build/diagnostic behavior without pulling compile-only environment setup into module load
 - Validated the second document-workflow slice with:
   - `node --test tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/document/documentWorkflowBuildOperationRuntime.js`
+- Rerouted `src/stores/documentWorkflow.js` and `src/composables/useEditorPaneWorkflow.js` so LaTeX/Typst build launch now goes through the shared document build operation seam instead of the composable calling compile adapters directly
+- Extended `src/domains/document/documentWorkflowBuildRuntime.js` plus the same store/composable path so compile-artifact lookup for typst/pdf reveal also stays behind the document workflow build/runtime boundary instead of reading compile adapters directly in the composable
+- Added `tests/documentWorkflowBuildOperationRuntime.test.mjs` and expanded `tests/documentWorkflowBuildRuntime.test.mjs` to validate shared build execution delegation plus adapter-specific artifact-path lookup outside the UI shell
+- Updated `docs/OPERATIONS.md` to describe the new document build operation seam truthfully
+- Validated the next two document-workflow slices with:
+  - `node --test tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
+  - `node --test tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/document/documentWorkflowTypstPaneRuntime.js`
+- Rerouted `src/stores/documentWorkflow.js` and `src/composables/useEditorPaneWorkflow.js` so typst preview/pdf shared-pane reuse, overlay/owned-pane switching, and close-preview reconciliation now run through the new typst pane runtime instead of UI glue
+- Added `tests/documentWorkflowTypstPaneRuntime.test.mjs` to validate overlay toggling, owned-pane reuse, and shared-pane close behavior outside the composable shell
+- Updated `docs/OPERATIONS.md` to describe the new typst pane runtime and the thinner composable truthfully
+- Validated the next document-workflow slice with:
+  - `node --test tests/documentWorkflowTypstPaneRuntime.test.mjs tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/document/documentWorkflowActionRuntime.js`
+- Rerouted `src/stores/documentWorkflow.js` and `src/composables/useEditorPaneWorkflow.js` so markdown preview toggles, primary compile-vs-preview routing, reveal-preview routing, and typst reveal-PDF delegation now run through the new document action runtime instead of UI-facing branching
+- Added `tests/documentWorkflowActionRuntime.test.mjs` to validate markdown preview toggles, compile primary actions, typst delegation, and generic reveal-preview routing outside the composable shell
+- Updated `docs/OPERATIONS.md` to describe the new document action runtime and the current planned Phase 3 closure truthfully
+- Validated the next document-workflow slice with:
+  - `node --test tests/documentWorkflowActionRuntime.test.mjs tests/documentWorkflowTypstPaneRuntime.test.mjs tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
 - Created `docs/OPERATIONS.md` to document the real current operation seams around project/document/build/change flow
@@ -1401,7 +1437,7 @@ Exit criteria:
 - `chat` is no longer one of the highest-value remaining Phase 2 seams; its remaining store logic is now mostly runtime accessors, getters, and a thinner shell
 - `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
 - `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
-- `documentWorkflow` is thinner after the preview/open/reconcile extraction, but the build/review loop is still not yet documented or split into clear operations
+- `documentWorkflow` is now substantially split across explicit runtimes, but compile-specific button handlers and AI diagnose/fix launch still live in `useEditorPaneWorkflow.js` as thinner follow-up seams rather than full orchestration knots
 - The safety model is cleaner now, and workspace save points have a first app-managed payload manifest plus restore seam above the Git-backed snapshot/history boundary, but that restore coverage is still intentionally narrow
 - Snapshot scope is now explicit (`workspace` vs `file`), and restore semantics are now split: file-scoped version history remains Git-backed while payload-backed workspace save points restore only the current filtered project text set
 - Older/backfilled workspace save points can still appear in the browser without a local restore payload
@@ -1414,11 +1450,11 @@ Exit criteria:
 
 ## Next Recommended Slice
 
-1. Continue Phase 3, not more cosmetic Phase 2 cleanup and not more speculative Phase 4 expansion
-2. Extract document build execution out of `src/composables/useEditorPaneWorkflow.js` and other UI-facing glue into a shared document operation seam above the existing `documentWorkflowBuildRuntime.js`
-3. Keep reusing the current document adapters and preserve adapter-specific log/problem/preview behavior while build launch moves behind that shared operation entry
-4. Validate with targeted document-workflow runtime tests, `node --test tests/*.test.mjs`, and `npm run build`
-5. Leave workspace snapshot restore separate from Git-backed file-history restore; do not reopen Phase 4 unless a new safety-model decision is truly required
+1. Phase 3 is complete for the current planned scope; do not reopen it for cosmetic wrapper extraction
+2. Shift to Phase 5 by extracting the current document AI diagnose/fix launch path out of `src/composables/useEditorPaneWorkflow.js` into a focused document AI action runtime
+3. Preserve the current task-catalog ids, beside-chat launch behavior, and patch-first AI entry semantics while that AI action routing moves behind the new seam
+4. Validate with targeted document-workflow / AI-launch runtime tests, `node --test tests/*.test.mjs`, and `npm run build`
+5. Keep workspace snapshot restore separate from Git-backed file-history restore, and keep AI file mutation flowing through normal reviewable operations rather than direct mutation paths
 
 ## Validation Checklist
 

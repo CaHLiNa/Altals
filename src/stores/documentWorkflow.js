@@ -19,6 +19,9 @@ import {
 } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
+import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
+import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/documentWorkflowTypstPaneRuntime.js'
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
@@ -135,6 +138,36 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         })
       }
       return this._documentWorkflowBuildRuntime
+    },
+
+    _getDocumentWorkflowBuildOperationRuntime() {
+      if (!this._documentWorkflowBuildOperationRuntime) {
+        this._documentWorkflowBuildOperationRuntime = createDocumentWorkflowBuildOperationRuntime({
+          getBuildRuntime: () => this._getDocumentWorkflowBuildRuntime(),
+        })
+      }
+      return this._documentWorkflowBuildOperationRuntime
+    },
+
+    _getDocumentWorkflowTypstPaneRuntime() {
+      if (!this._documentWorkflowTypstPaneRuntime) {
+        this._documentWorkflowTypstPaneRuntime = createDocumentWorkflowTypstPaneRuntime({
+          getEditorStore: () => useEditorStore(),
+          getWorkflowStore: () => this,
+        })
+      }
+      return this._documentWorkflowTypstPaneRuntime
+    },
+
+    _getDocumentWorkflowActionRuntime() {
+      if (!this._documentWorkflowActionRuntime) {
+        this._documentWorkflowActionRuntime = createDocumentWorkflowActionRuntime({
+          getWorkflowStore: () => this,
+          getBuildOperationRuntime: () => this._getDocumentWorkflowBuildOperationRuntime(),
+          getTypstPaneRuntime: () => this._getDocumentWorkflowTypstPaneRuntime(),
+        })
+      }
+      return this._documentWorkflowActionRuntime
     },
 
     persistPrefs() {
@@ -355,6 +388,42 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     getStatusTextForFile(filePath, options = {}) {
       return this._getDocumentWorkflowBuildRuntime().getStatusTextForFile(filePath, options)
+    },
+
+    getArtifactPathForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getArtifactPathForFile(filePath, options)
+    },
+
+    runBuildForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildOperationRuntime().runBuildForFile(filePath, options)
+    },
+
+    revealTypstPreviewForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowTypstPaneRuntime().revealPreviewForFile(filePath, options)
+    },
+
+    revealTypstPdfForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowTypstPaneRuntime().revealPdfForFile(filePath, options)
+    },
+
+    toggleWorkflowMarkdownPreviewForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().toggleMarkdownPreviewForFile(filePath, options)
+    },
+
+    toggleWorkflowPdfPreviewForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().togglePdfPreviewForFile(filePath, options)
+    },
+
+    runWorkflowPrimaryActionForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().runPrimaryActionForFile(filePath, options)
+    },
+
+    revealWorkflowPreviewForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().revealPreviewForFile(filePath, options)
+    },
+
+    revealWorkflowPdfForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowActionRuntime().revealPdfForFile(filePath, options)
     },
 
     reconcile(options = {}) {

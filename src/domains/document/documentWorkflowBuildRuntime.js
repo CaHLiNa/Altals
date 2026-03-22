@@ -125,12 +125,18 @@ export function createDocumentWorkflowBuildRuntime({
     return context.adapter?.compile?.getStatusText?.(filePath, context) || ''
   }
 
+  function getArtifactPathForFile(filePath, options = {}) {
+    const context = buildAdapterContext(filePath, options)
+    return context.adapter?.compile?.getArtifactPath?.(filePath, context) || ''
+  }
+
   return {
     buildAdapterContext,
     openLogForFile,
     getProblemsForFile,
     getUiStateForFile,
     getStatusTextForFile,
+    getArtifactPathForFile,
     getStatusTone: getDocumentWorkflowStatusTone,
   }
 }
