@@ -2,138 +2,215 @@
 
 ## Overview
 
-This repository is being refactored from a broad, feature-heavy research application into a focused, local-first academic writing workspace centered on project-based document editing, references, builds, changes, and AI-assisted patch workflows.
+Altals 仍处于从“广泛研究工作台”向“本地优先、以项目目录为中心的学术写作工作区”收缩的早期阶段。
 
-This file is the living refactor execution plan. It must be kept current.
+当前仓库已经具备项目打开、文件浏览、文档编辑、参考文献、构建预览、变更查看与 AI 入口，但这些能力仍主要挂在平铺式的 `components/services/stores` 结构上，根组件和多个 Pinia store 依然承担过多编排职责。
+
+本蓝图现已从占位模板更新为基于仓库现状的执行计划，后续每个切片都必须同步维护。
 
 ## Product Direction
 
-Target product definition:
+目标产品定义不变：
 
 > A local-first, project-directory-centered academic writing workspace.
 
-Primary workflow:
+主工作流应收敛为：
 
-1. Open project
-2. Browse files
-3. Edit document
-4. Manage references
-5. Build / preview
-6. Review changes
-7. Use AI through auditable proposals
+1. 打开本地项目
+2. 浏览项目文件
+3. 编辑文档
+4. 管理参考文献
+5. 构建并预览输出
+6. 查看与恢复变更
+7. 在可审计、补丁优先的约束下使用 AI
+
+当前偏离点：
+
+- 工作区、Git、AI、设置、终端等次级系统在入口层暴露过多实现细节
+- 根组件仍直接编排工作区生命周期、快捷键、外链处理、版本历史触发等跨域逻辑
+- 文档体系尚未建立，产品边界只能从代码推断
 
 ## Architectural Principles
 
-- Domain-first structure
-- Thin root components
-- Thin Rust commands
-- Shared operation model
-- Patch-first AI
-- Clear separation of autosave, snapshot, git commit, and remote sync
-- Documentation maintained alongside code
-- Controlled migration, not uncontrolled rewrite
+- 新边界优先落在 `src/app` 或未来的 `src/domains/*` 下，而不是继续扩充 `src/App.vue` 或平铺式 `src/services`
+- 根组件只负责组合 UI，不负责工作区启动、恢复、关闭、后台任务编排
+- store 继续保留现状时，也要优先把跨 store 的 orchestration 抽到明确模块中
+- Rust 端逐步从平铺式 `src-tauri/src/*.rs` 迁向 `commands/core/services/models/errors`
+- 自动保存、本地快照、Git 提交、远程同步必须继续拆分，不再混为一个“历史”概念
+- AI 工作流优先走 proposal/patch/review，而不是隐藏式直接修改
 
 ## Current State Assessment
 
-Initial assessment pending or incomplete.
+### Frontend structure
 
-Suggested assessment areas:
-- giant root components
-- giant global stores
-- legacy naming and docs
-- mixed product identity
-- overlapping build paths
-- hidden automation in git/sync
-- AI behavior and control surfaces
-- insufficient tests and validation
+- 前端目前以 `src/App.vue` 为根入口，`src/main.js` 仅做 Vue/Pinia 挂载与遥测初始化
+- 已建立首个 `src/app` 入口层模块：`src/app/workspace/useWorkspaceLifecycle.js`
+- 已建立第二个 `src/app` 入口层模块：`src/app/shell/useAppShellEventBridge.js`
+- 已建立第三个 `src/app` 入口层模块：`src/app/changes/useWorkspaceHistoryActions.js`
+- 已建立第四个 `src/app` 入口层模块：`src/app/teardown/useAppTeardown.js`
+- 已建立首个 `src/domains/*` 模块：`src/domains/changes/workspaceHistory.js`
+- 目录仍以 `src/components`、`src/services`、`src/stores`、`src/composables` 为主，`src/app` 目前承接了工作区生命周期、app-shell 事件编排、changes/history 入口动作、footer 状态同步与 app teardown，`src/domains/*` 只完成了 `changes` 的起步边界
+- `src/services` 已经出现按主题分组的早期迹象（如 `ai/`、`documentWorkflow/`、`terminal/`、`latex/`、`typst/`），但顶层仍非常平铺
+
+### Largest frontend bottlenecks
+
+- `src/App.vue` 已从 938 行降到 280 行，当前主要保留模板组合与各入口层模块拼接
+- `src/app/workspace/useWorkspaceLifecycle.js` 340 行：已承接工作区启动恢复、打开/关闭、后台任务调度、可见性/焦点刷新，后续需要继续沉淀为更细操作边界
+- `src/app/shell/useAppShellEventBridge.js` 289 行：已承接全局快捷键、应用事件桥接、外链激活与版本历史事件入口，后续可继续切成 shortcut / external-link / window-event 更细模块
+- `src/app/changes/useWorkspaceHistoryActions.js` 71 行：现在主要负责 UI 适配和入口层 wiring
+- `src/app/teardown/useAppTeardown.js` 27 行：已承接根级 cleanup 顺序与 sidecar shutdown 桥接
+- `src/app/editor/useFooterStatusSync.js` 15 行：已承接 footer 状态同步回调
+- `src/domains/changes/workspaceHistory.js` 106 行：已承接 changes/history 的核心逻辑，是当前唯一一个 domain-first 边界
+- `src/stores/references.js` 1658 行：参考文献域逻辑过重
+- `src/stores/editor.js` 1244 行：编辑器 pane/tab/workbench 行为过度集中
+- `src/stores/files.js` 996 行、`src/stores/workspace.js` 809 行、`src/stores/chat.js` 854 行、`src/stores/terminal.js` 889 行：多个横切 store 仍过大
+- `src/components/editor/PdfViewer.vue` 4394 行：PDF 相关能力高度耦合，后续需要单独拆域
+
+### Backend structure
+
+- Rust 端仍是平铺式 `src-tauri/src/*.rs`
+- 体量最大的后端文件包括：
+  - `src-tauri/src/latex.rs` 2266 行
+  - `src-tauri/src/fs_commands.rs` 1145 行
+  - `src-tauri/src/kernel.rs` 1027 行
+  - `src-tauri/src/pdf_translate.rs` 1005 行
+  - `src-tauri/src/git.rs` 997 行
+- 说明命令处理、核心逻辑与服务分层尚未建立
+
+### Docs state
+
+- 当前 `docs/` 下只有 `docs/REFACTOR_BLUEPRINT.md`
+- `docs/PRODUCT.md`、`docs/ARCHITECTURE.md`、`docs/DOMAINS.md`、`docs/OPERATIONS.md` 等必需文档尚未建立
+
+### Safety model observations
+
+- `src/services/workspaceAutoCommit.js` 与版本历史入口仍表明 Git 历史和应用内变更安全模型存在耦合
+- `App.vue` 中的版本历史触发会在需要时启用 auto-commit，说明“快照 / Git 提交 / 历史查看”边界还不清晰
 
 ## Phase Plan
 
-### Phase 0 - Inventory and Freeze
-- inventory current architecture
-- identify keep/refactor/delete/defer
-- establish docs baseline
+### Phase 0 - Inventory and Truthful Documentation
 
-### Phase 1 - Architecture Skeleton
-- create domain structure
-- introduce operation-oriented boundaries
-- establish new docs structure
+- 记录仓库真实结构、瓶颈文件、缺失文档
+- 用蓝图取代占位描述
+- 标明哪些是当前主入口，哪些是后续删除目标
 
-### Phase 2 - Project and Document Migration
-- split workspace logic
-- migrate open/read/save/dirty/tab flows
+Status: 已启动，当前轮次完成首轮现实审计
 
-### Phase 3 - Build and Diagnostics Migration
-- unify build jobs and diagnostics
+### Phase 1 - App and Domain Skeleton
 
-### Phase 4 - Changes, Snapshots, and Git Migration
-- separate autosave, snapshot, git, sync
+- 建立 `src/app` 入口层边界
+- 从 `App.vue` 抽离工作区生命周期与全局编排职责
+- 为后续 `src/domains/project|document|reference|build|changes|ai|git|terminal` 迁移铺路
 
-### Phase 5 - AI Workflow Migration
-- move AI to proposal/patch/review flows
+Status: 进行中
+
+### Phase 2 - Store Boundary Reduction
+
+- 缩小 `editor`、`references`、`workspace`、`files` 等大 store 的责任面
+- 将跨 store orchestration 迁到显式模块或操作层
+
+### Phase 3 - Project / Document / Build / Change Loop
+
+- 稳定打开项目、编辑文档、保存、构建、查看变更的主闭环
+- 统一诊断与结果可见性
+
+### Phase 4 - Safety Model Separation
+
+- 明确 autosave、local snapshot、git commit、remote sync 四层边界
+- 降低 auto-commit 与历史查看耦合
+
+### Phase 5 - AI Workflow Discipline
+
+- 将 AI 行为压缩到 proposal/patch/review 的显式路径
+- 限制 whole-repo 级上下文和直接副作用
 
 ### Phase 6 - Cleanup and Stabilization
-- delete dead paths
-- clean docs
-- improve tests and CI
+
+- 删除旧路径
+- 建立缺失文档
+- 增加验证与测试
 
 ## Task Backlog
 
-- [ ] Audit current top-level architecture
-- [ ] Identify largest legacy bottleneck files
-- [ ] Create or refine product definition doc
-- [ ] Create or refine architecture doc
-- [ ] Introduce domain directory structure
-- [ ] Introduce shared operation model
-- [ ] Migrate project open/read/save flow
-- [ ] Migrate build diagnostics flow
-- [ ] Introduce snapshot abstraction
-- [ ] Reduce hidden git automation
-- [ ] Convert AI to patch-first workflow
-- [ ] Delete obsolete legacy paths
-- [ ] Add validation and tests
+- [ ] 继续扩展 `src/app` 入口层，使 `App.vue` 进一步收缩到模板组合和最少量 UI 状态
+- [ ] 抽离 `App.vue` 的根级 cleanup 编排
+- [ ] 将 `src/app/shell/useAppShellEventBridge.js` 继续拆成更窄的 app-shell 子模块
+- [ ] 将 `src/app/changes/useWorkspaceHistoryActions.js` 向显式 changes/history operation 收敛
+- [ ] 为 `src/stores/references.js` 制定拆分方案并先切 metadata / import / library UI orchestration
+- [ ] 为 `src/stores/editor.js` 切分 pane-tree 管理与 surface 切换逻辑
+- [ ] 将 `workspaceAutoCommit` 与版本历史触发关系整理到显式安全模型文档
+- [ ] 建立 `docs/PRODUCT.md`
+- [ ] 建立 `docs/ARCHITECTURE.md`
+- [ ] 建立 `docs/DOMAINS.md`
+- [ ] 建立 `docs/OPERATIONS.md`
+- [ ] 规划 `src-tauri/src/latex.rs` 的命令与核心逻辑分层
 
 ## In Progress
 
-- None yet
+- `src/app` 入口层与 `src/domains/changes` 起步边界已经建立
+- 下一步将进入首个大型 store/domain 的真实拆分，但具体从 `references`、`editor` 还是 `workspace/files` 开始需要明确优先级
 
 ## Completed
 
-- Created initial refactor blueprint baseline
+- 将 `docs/REFACTOR_BLUEPRINT.md` 从占位模板更新为基于当前仓库状态的执行蓝图
+- 确认前端当前主要瓶颈位于 `App.vue` 与多个大型 Pinia store
+- 确认 Rust 端仍为平铺式模块，尚未进入目标分层
+- 建立 `src/app/workspace/useWorkspaceLifecycle.js`，承接工作区启动恢复、打开/关闭、后台任务调度、可见性/焦点刷新
+- 将 `src/App.vue` 从 938 行缩减到 640 行，移除大块工作区生命周期编排代码
+- 使用 `npm run build` 完成一次新鲜构建验证
+- 建立 `src/app/shell/useAppShellEventBridge.js`，承接全局快捷键、`window` 级应用事件、外链激活与版本历史事件入口
+- 将 `src/App.vue` 从 640 行进一步缩减到 381 行，移除大块 document/window 事件注册与 handler 编排
+- 再次运行 `npm run build`，构建通过，未引入新的构建错误
+- 建立 `src/app/changes/useWorkspaceHistoryActions.js`，承接保存并提交、版本历史打开与 auto-commit 启动桥接
+- 将 `src/App.vue` 从 381 行进一步缩减到 288 行，移除 changes/history 入口动作实现
+- 再次运行 `npm run build`，构建通过，未引入新的构建错误
+- 建立 `src/app/teardown/useAppTeardown.js`，承接根级 cleanup 顺序与 sidecar shutdown 桥接
+- 将 `src/App.vue` 从 288 行进一步缩减到 285 行，移除根级 teardown 编排
+- 再次运行 `npm run build`，构建通过，未引入新的构建错误
+- 建立 `src/domains/changes/workspaceHistory.js`，承接 changes/history 核心逻辑
+- 将 `src/app/changes/useWorkspaceHistoryActions.js` 收窄为 UI 适配层
+- 再次运行 `npm run build`，构建通过，未引入新的构建错误
+- 建立 `src/app/editor/useFooterStatusSync.js`，承接 footer 状态同步回调
+- 将 `src/App.vue` 从 285 行进一步缩减到 280 行，移除残留 footer 状态同步逻辑
+- 再次运行 `npm run build`，构建通过，未引入新的构建错误
 
 ## Blocked / Risks
 
-- Legacy code paths may be deeply coupled
-- Product behavior may be partially undocumented
-- Some large files may mix multiple responsibilities
-- Existing user-facing flows may depend on hidden side effects
+- 工作区打开/关闭流程同时触达多个 store 与服务，轻率重排可能造成回归
+- `workspaceAutoCommit` 与版本历史流程仍有耦合，后续拆分必须先补清晰文档
+- `PdfViewer.vue` 与 `references/editor` 大 store 体量很大，但不适合在缺乏骨架的情况下直接大拆
+- 目前缺少系统化测试，验证主要依赖构建与手动行为回归
+- 下一步第一个“大型 store/domain 拆分”存在多条高风险路径：
+  - `references` 最贴近产品对象，但体量最大
+  - `editor` 是根交互核心，但跨域引用很多
+  - `workspace/files` 会触及项目打开与文件浏览主循环
+- 蓝图当前还没有足够细的 domain map 来自动决定这三者谁应先切；盲选会把下一刀扩大成多域重排
 
 ## Next Recommended Slice
 
-1. Audit the existing repository structure and identify:
-   - giant root components
-   - giant stores
-   - Rust command aggregation points
-   - legacy docs and naming
-2. Update this blueprint with concrete findings
-3. Create or update `docs/PRODUCT.md`
-4. Begin Phase 1 skeleton work
+1. 明确第一个大型 store/domain 切入点：`references`、`editor` 或 `workspace/files`
+2. 基于该选择更新蓝图里的 domain map 和删除目标
+3. 执行只覆盖该域的一刀拆分，不跨到其他域
+4. 再次构建验证，并记录新旧边界与后续删除顺序
 
 ## Validation Checklist
 
-For each meaningful refactor slice, verify:
-
-- [ ] code still builds
-- [ ] changed flows still run
-- [ ] docs were updated
-- [ ] old/new boundary is clear
-- [ ] dead code candidates are identified
-- [ ] next slice is documented
+- [x] 蓝图已反映当前仓库真实结构
+- [x] 新边界已建立且不是把逻辑简单复制到另一个巨型文件
+- [x] `App.vue` 体量和职责得到实际缩减
+- [x] 工作区打开/关闭主流程仍可构建
+- [x] 遗留在 `App.vue` 的职责已被明确记录
+- [x] 下一切片已更新
 
 ## Migration Notes
 
-Keep migration incremental where possible:
-- create new paths
-- reroute usage
-- validate behavior
-- delete old paths after stabilization
+- 本轮优先建立 `src/app` 入口层，而不是直接重写 store
+- `App.vue` 已将工作区生命周期委托给 `src/app/workspace/useWorkspaceLifecycle.js`
+- `App.vue` 已将 document/window 级事件注册与快捷键编排委托给 `src/app/shell/useAppShellEventBridge.js`
+- `App.vue` 已将保存并提交与版本历史入口动作委托给 `src/app/changes/useWorkspaceHistoryActions.js`
+- `App.vue` 已将根级 teardown 委托给 `src/app/teardown/useAppTeardown.js`
+- `App.vue` 已将 footer 状态同步委托给 `src/app/editor/useFooterStatusSync.js`
+- 当前已建立首个 `src/domains/changes` 边界，后续应避免回到纯 app-layer 横向拆分
+- 下一切片会进入第一个大型 store/domain 拆分；在缺少 domain map 的情况下不应盲切
+- 任何新抽离的入口层模块都应只负责 orchestration，不再吞入更多 domain 逻辑

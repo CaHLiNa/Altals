@@ -122,10 +122,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { open } from '@tauri-apps/plugin-dialog'
+import { ref, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -136,19 +133,7 @@ import { useChatStore } from './stores/chat'
 import { useReferencesStore } from './stores/references'
 import { useResearchArtifactsStore } from './stores/researchArtifacts'
 import { useAiDrawerStore } from './stores/aiDrawer'
-import { useTypstStore } from './stores/typst'
-import { useLatexStore } from './stores/latex'
-import { useKernelStore } from './stores/kernel'
 import { useToastStore } from './stores/toast'
-import { useUxStatusStore } from './stores/uxStatus'
-import { gitAdd, gitCommit, gitStatus } from './services/git'
-import { isMod } from './platform'
-import { isAiLauncher, isChatTab, isLibraryPath, isNewTab, getViewerType, isPreviewPath } from './utils/fileTypes'
-import {
-  activateWorkspaceBookmark,
-  captureWorkspaceBookmark,
-  releaseWorkspaceBookmark,
-} from './services/workspacePermissions'
 
 import Header from './components/layout/Header.vue'
 import Footer from './components/layout/Footer.vue'
@@ -157,16 +142,12 @@ import PaneContainer from './components/editor/PaneContainer.vue'
 import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
-import { events } from './services/telemetry'
 import { useAppShellLayout } from './composables/useAppShellLayout'
-import {
-  reconcileCriticalWorkspaceState,
-  resetCriticalWorkspaceState,
-} from './services/criticalWorkspaceState'
-import { openExternalHttpUrl, resolveExternalHttpAnchor } from './services/externalLinks'
-import { releaseOpencodeWorkspaceInstance, shutdownOpencodeSidecar } from './services/ai/opencodeSidecar'
-import { confirmUnsavedChanges } from './services/unsavedChanges'
-import { ensureWorkspaceHistoryRepo } from './services/workspaceAutoCommit'
+import { useFooterStatusSync } from './app/editor/useFooterStatusSync'
+import { useWorkspaceHistoryActions } from './app/changes/useWorkspaceHistoryActions'
+import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
+import { useAppTeardown } from './app/teardown/useAppTeardown'
+import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
@@ -188,25 +169,15 @@ const chatStore = useChatStore()
 const referencesStore = useReferencesStore()
 const researchArtifactsStore = useResearchArtifactsStore()
 const aiDrawerStore = useAiDrawerStore()
-const typstStore = useTypstStore()
-const latexStore = useLatexStore()
-const kernelStore = useKernelStore()
 const toastStore = useToastStore()
-const uxStatusStore = useUxStatusStore()
 const { t } = useI18n()
 
 const footerRef = ref(null)
 const headerRef = ref(null)
 const leftSidebarRef = ref(null)
 const bottomPanelRef = ref(null)
-const setupWizardVisible = ref(false)
 const versionHistoryVisible = ref(false)
 const versionHistoryFile = ref('')
-let backgroundWorkspaceLoadTimer = null
-let backgroundWorkspaceTaskTimers = []
-let workspaceLoadGeneration = 0
-let unlistenWindowFocusChange = null
-const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -217,687 +188,58 @@ const {
   onBottomResize,
   cleanupAppShellLayout,
 } = useAppShellLayout()
-
-function normalizeWorkspacePath(path = '') {
-  const normalized = String(path || '').replace(/\/+$/, '')
-  return normalized || '/'
-}
-
-function cancelWorkspaceBackgroundTasks() {
-  if (backgroundWorkspaceLoadTimer) {
-    clearTimeout(backgroundWorkspaceLoadTimer)
-    backgroundWorkspaceLoadTimer = null
-  }
-  for (const timer of backgroundWorkspaceTaskTimers) {
-    clearTimeout(timer)
-  }
-  backgroundWorkspaceTaskTimers = []
-}
-
-function scheduleWorkspaceBackgroundTask(delayMs, generation, targetPath, task, label) {
-  const timer = window.setTimeout(async () => {
-    backgroundWorkspaceTaskTimers = backgroundWorkspaceTaskTimers.filter(value => value !== timer)
-    if (generation !== workspaceLoadGeneration || workspace.path !== targetPath) return
-    try {
-      await task()
-    } catch (error) {
-      console.warn(`[workspace] Background task failed (${label}):`, error)
-    }
-  }, delayMs)
-  backgroundWorkspaceTaskTimers.push(timer)
-  return timer
-}
-
-async function setupDesktopWindowFocusRefresh() {
-  if (!isTauriDesktop) return
-  try {
-    unlistenWindowFocusChange = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (!focused) return
-      refreshWorkspaceStateAfterVisibility('window-focus')
-    })
-  } catch (error) {
-    console.warn('[workspace] failed to listen for native focus changes:', error)
-  }
-}
-
-// Startup
-onMounted(async () => {
-  await setupDesktopWindowFocusRefresh()
-
-  // Telemetry: app launched
-  events.appOpen()
-
-  // Restore saved theme + editor font sizes + prose font
-  workspace.restoreTheme()
-  workspace.applyFontSizes()
-  workspace.restoreProseFont()
-  await workspace.applyAppZoom()
-
-  // Try to restore last workspace
-  const lastWorkspace = localStorage.getItem('lastWorkspace')
-  if (lastWorkspace) {
-    try {
-      const restoredWorkspace = await activateWorkspaceBookmark(lastWorkspace)
-      const exists = await invoke('path_exists', { path: restoredWorkspace })
-      if (exists) {
-        await openWorkspace(restoredWorkspace, { skipBookmarkActivation: true })
-        return
-      }
-    } catch (e) {
-      // Fall through to launcher
-    }
-  }
-  // No workspace to restore — launcher will show automatically (workspace.isOpen is false)
+const {
+  closeWorkspace,
+  handleVisibilityChange,
+  openWorkspace,
+  pickWorkspace,
+  setupWizardVisible,
+} = useWorkspaceLifecycle()
+const {
+  forceSaveAndCommit,
+  openVersionHistory,
+} = useWorkspaceHistoryActions({
+  workspace,
+  filesStore,
+  editorStore,
+  footerRef,
+  toastStore,
+  versionHistoryVisible,
+  versionHistoryFile,
+  t,
+})
+const { onCursorChange, onEditorStats } = useFooterStatusSync({
+  footerRef,
+  editorStore,
 })
 
-async function pickWorkspace() {
-  const { homeDir } = await import('@tauri-apps/api/path')
-  const home = await homeDir()
-  const selected = await open({
-    directory: true,
-    multiple: false,
-    title: t('Open Workspace'),
-    defaultPath: home,
-  })
-
-  if (selected) {
-    const bookmarkedPath = await captureWorkspaceBookmark(selected)
-    await openWorkspace(bookmarkedPath, { skipBookmarkActivation: true })
-  }
-}
-
-async function openWorkspace(path, options = {}) {
-  const { skipBookmarkActivation = false } = options
-  let targetPath = path
-  if (!skipBookmarkActivation) {
-    targetPath = await activateWorkspaceBookmark(path)
-  }
-  targetPath = normalizeWorkspacePath(targetPath)
-
-  if (workspace.isOpen && normalizeWorkspacePath(workspace.path) === targetPath) {
-    return
-  }
-
-  cancelWorkspaceBackgroundTasks()
-  const loadGeneration = ++workspaceLoadGeneration
-  const workspaceName = targetPath.split('/').pop() || targetPath
-  const workspaceStatusId = uxStatusStore.show(t('Opening {name}...', { name: workspaceName }), {
-    type: 'info',
-    duration: 0,
-  })
-
-  // Close any currently open workspace first
-  if (workspace.isOpen) {
-    const closed = await closeWorkspace()
-    if (!closed) {
-      uxStatusStore.clear(workspaceStatusId)
-      return
-    }
-  }
-
-  try {
-    await workspace.openWorkspace(targetPath)
-    await invoke('workspace_set_allowed_roots', {
-      workspaceRoot: targetPath,
-      dataDir: workspace.workspaceDataDir || null,
-      globalConfigDir: workspace.globalConfigDir || null,
-      claudeConfigDir: workspace.claudeConfigDir || null,
-    })
-    editorStore.loadRecentFiles(targetPath)
-
-    const hadCachedTree = filesStore.restoreCachedTree(targetPath)
-    const loadTreePromise = filesStore.loadFileTree({
-      suppressErrors: hadCachedTree,
-      keepCurrentTreeOnError: hadCachedTree,
-    })
-    if (!hadCachedTree) {
-      await loadTreePromise
-    } else {
-      loadTreePromise.catch((error) => {
-        console.warn('[workspace] Background file tree refresh failed:', error)
-      })
-    }
-    if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
-
-    // Background: don't block the editor opening
-    scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
-      const restored = await editorStore.restoreEditorState()
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      if (!restored && editorStore.allOpenFiles.size === 0) {
-        editorStore.openNewTab()
-      }
-    }, 'editor.restoreEditorState')
-    scheduleWorkspaceBackgroundTask(hadCachedTree ? 40 : 120, loadGeneration, targetPath, async () => {
-      await loadTreePromise.catch(() => {})
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await filesStore.restoreCachedExpandedDirs(targetPath)
-    }, 'files.restoreCachedExpandedDirs')
-    scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
-    scheduleWorkspaceBackgroundTask(40, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await reviews.startWatching()
-    }, 'reviews.startWatching')
-    scheduleWorkspaceBackgroundTask(100, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await commentsStore.loadComments()
-    }, 'comments.loadComments')
-    scheduleWorkspaceBackgroundTask(180, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await researchArtifactsStore.loadResearchArtifacts()
-    }, 'researchArtifacts.loadResearchArtifacts')
-    scheduleWorkspaceBackgroundTask(220, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await chatStore.loadSessions()
-    }, 'chat.loadSessions')
-    scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await referencesStore.loadLibrary()
-    }, 'references.loadLibrary')
-    scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
-      await workspace.ensureWorkspaceBootstrapReady(targetPath)
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      await typstStore.checkCompiler()
-    }, 'typst.checkCompiler')
-    backgroundWorkspaceLoadTimer = window.setTimeout(() => {
-      if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-      backgroundWorkspaceLoadTimer = null
-    }, 600)
-    uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
-  } catch (e) {
-    console.error('Failed to open workspace:', e)
-    await closeWorkspace({ skipUnsavedCheck: true })
-    uxStatusStore.error(t('Failed to open workspace'), { duration: 4000 })
-    toastStore.show(t('Failed to open workspace: {error}', { error: e.message || e }), { type: 'error', duration: 8000 })
-    return
-  } finally {
-    uxStatusStore.clear(workspaceStatusId)
-  }
-
-  // Show setup wizard on first launch
-  if (!localStorage.getItem('setupComplete')) {
-    setupWizardVisible.value = true
-  }
-}
-
-async function closeWorkspace(options = {}) {
-  const { skipUnsavedCheck = false } = options
-  if (!skipUnsavedCheck) {
-    const result = await confirmUnsavedChanges([...editorStore.allOpenFiles], {
-      message: t('These files have unsaved changes and will be closed with the workspace.'),
-    })
-    if (result.choice === 'cancel') return false
-  }
-
-  workspaceLoadGeneration += 1
-  cancelWorkspaceBackgroundTasks()
-  const closingWorkspacePath = workspace.path
-  const closingRuntimeEndpoint = workspace.aiRuntime?.opencode?.endpoint || null
-
-  // Save editor state before cleanup resets the pane tree
-  await editorStore.saveEditorStateImmediate()
-  editorStore.cleanup()
-  filesStore.cleanup()
-  reviews.cleanup()
-  linksStore.cleanup()
-  chatStore.cleanup()
-  commentsStore.cleanup()
-  referencesStore.cleanup({ preserveGlobalLibrary: true })
-  researchArtifactsStore.cleanup()
-  void kernelStore.shutdownAll().catch((error) => {
-    console.warn('[workspace] kernel shutdown failed:', error)
-  })
-  latexStore.cleanup()
-  typstStore.cleanup()
-  await releaseOpencodeWorkspaceInstance(closingWorkspacePath, {
-    immediate: true,
-    endpoint: closingRuntimeEndpoint,
-  })
-  await workspace.closeWorkspace()
-  resetCriticalWorkspaceState(closingWorkspacePath)
-  await invoke('workspace_clear_allowed_roots').catch((error) => {
-    console.warn('[workspace] failed to clear allowed roots:', error)
-  })
-  void releaseWorkspaceBookmark(closingWorkspacePath)
-  return true
-}
-
-
-// Keyboard shortcuts
-async function handleKeydown(e) {
-  // Cmd+S: Force save + commit
-  if (isMod(e) && e.key === 's') {
-    e.preventDefault()
-    await forceSaveAndCommit()
-    return
-  }
-
-  // Cmd+O: Open folder
-  if (isMod(e) && e.key === 'o') {
-    e.preventDefault()
-    pickWorkspace()
-    return
-  }
-
-  // Cmd+N: Context-aware — new instance of whatever you're currently doing
-  if (isMod(e) && e.key === 'n') {
-    e.preventDefault()
-    const tab = editorStore.activeTab
-    if (tab && isChatTab(tab)) {
-      // In a chat → new chat
-      editorStore.openChat({ paneId: editorStore.activePaneId })
-    } else if (tab && !isNewTab(tab) && !isAiLauncher(tab) && !isLibraryPath(tab)) {
-      // In a file → new file of same type
-      const dot = tab.lastIndexOf('.')
-      const ext = dot > 0 ? tab.substring(dot) : '.md'
-      const nextExt = ext.toLowerCase() === '.docx' ? '.md' : ext
-      leftSidebarRef.value?.createNewFile(nextExt)
-    } else {
-      // NewTab, AI launcher, or no tab → new markdown
-      leftSidebarRef.value?.createNewFile('.md')
-    }
-    return
-  }
-
-  // Cmd+B: Toggle left sidebar (Markdown keeps Cmd+B for bold)
-  if (isMod(e) && e.key === 'b') {
-    const tab = editorStore.activeTab
-    if (tab?.endsWith('.md')) return // let editor handle bold
-    e.preventDefault()
-    workspace.toggleLeftSidebar()
-    return
-  }
-
-  // Cmd+T: New tab page in current pane
-  if (isMod(e) && e.key === 't') {
-    e.preventDefault()
-    editorStore.openNewTab()
-    return
-  }
-
-  // Cmd+J: Split pane and open NewTab in the new pane
-  if (isMod(e) && e.key === 'j') {
-    e.preventDefault()
-    editorStore.openNewTabBeside()
-    return
-  }
-
-  // Cmd+,: Settings
-  if (isMod(e) && e.key === ',') {
-    e.preventDefault()
-    workspace.settingsOpen ? workspace.closeSettings() : workspace.openSettings()
-    return
-  }
-
-  // Cmd+P: Focus header search
-  if (isMod(e) && e.key === 'p') {
-    e.preventDefault()
-    headerRef.value?.focusSearch()
-    return
-  }
-
-  // Cmd+Option+Left/Right: Switch tabs
-  if (isMod(e) && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-    e.preventDefault()
-    editorStore.switchTab(e.key === 'ArrowLeft' ? -1 : 1)
-    return
-  }
-
-  // Cmd+W: Close tab, or close empty pane
-  if (isMod(e) && e.key === 'w') {
-    e.preventDefault()
-    const pane = editorStore.activePane
-    if (!pane) return
-    if (pane.activeTab) {
-      const result = await confirmUnsavedChanges([pane.activeTab])
-      if (result.choice === 'cancel') return
-      editorStore.closeTab(pane.id, pane.activeTab)
-    } else {
-      // No tabs — collapse pane if it's not the root
-      const parent = editorStore.findParent(editorStore.paneTree, pane.id)
-      if (parent) editorStore.collapsePane(pane.id)
-    }
-    return
-  }
-
-  // Cmd+Shift+L: Add comment on selection
-  if (isMod(e) && e.shiftKey && (e.key === 'L' || e.key === 'l' || e.code === 'KeyL')) {
-    e.preventDefault()
-
-    const pane = editorStore.activePane
-    if (!pane || !pane.activeTab) return
-
-    // Only for text files
-    const vt = getViewerType(pane.activeTab)
-    if (vt !== 'text') return
-
-    // Get the editor view and check for selection
-    const view = editorStore.getEditorView(pane.id, pane.activeTab)
-    if (!view) return
-    const sel = view.state.selection.main
-    if (sel.from === sel.to) return // no selection
-
-    // Auto-show margin
-    if (!commentsStore.isMarginVisible(pane.activeTab)) {
-      commentsStore.toggleMargin(pane.activeTab)
-    }
-
-    // Dispatch event for EditorPane to handle
-    window.dispatchEvent(new CustomEvent('comment-create', {
-      detail: { paneId: pane.id }
-    }))
-    return
-  }
-
-  // Cmd/Ctrl+`: toggle bottom terminal panel
-  if (isMod(e) && e.code === 'Backquote') {
-    e.preventDefault()
-    handleToggleTerminal()
-    return
-  }
-
-  // Cmd+F: Route to file tree filter when sidebar is focused
-  if (isMod(e) && e.key === 'f') {
-    const sidebarEl = document.querySelector('[data-sidebar="left"]')
-    if (sidebarEl && sidebarEl.contains(document.activeElement)) {
-      e.preventDefault()
-      leftSidebarRef.value?.activateFilter()
-      return
-    }
-    // Otherwise fall through to CodeMirror's built-in search
-  }
-
-  // Escape: Close modals
-  if (e.key === 'Escape') {
-    if (workspace.settingsOpen) {
-      workspace.closeSettings()
-      e.preventDefault()
-      return
-    }
-    if (versionHistoryVisible.value) {
-      versionHistoryVisible.value = false
-      e.preventDefault()
-      return
-    }
-    if (workspace.rightSidebarOpen) {
-      aiDrawerStore.close()
-      e.preventDefault()
-      return
-    }
-  }
-}
-
-function handleChatPrefill(e) {
-  const { message } = e.detail || {}
-  if (!message) return
-  aiDrawerStore.openLauncher()
-  chatStore.pendingPrefill = message
-}
-
-// Alt+Z: capture phase so it fires before CodeMirror consumes the event
-// (Option+Z produces Ω on macOS, which CM would insert as text)
-// Alt+Z: capture phase so it fires before CodeMirror consumes the event
-// (Option+Z produces Ω on macOS, which CM would insert as text)
-// e.code is physical-position-based: QWERTY='KeyZ', QWERTZ='KeyY'
-function handleAltZ(e) {
-  if (e.altKey && !e.metaKey && !e.ctrlKey
-      && (e.code === 'KeyZ' || e.code === 'KeyY' || e.key.toLowerCase() === 'z')) {
-    e.preventDefault()
-    workspace.toggleSoftWrap()
-  }
-}
-
-function handleFocusSearch() { headerRef.value?.focusSearch() }
-function handleNewFile() {
-  if (!workspace.isOpen) return
-  leftSidebarRef.value?.createNewFile('.md')
-}
-function handleOpenFolder() { pickWorkspace() }
-async function handleCloseFolder() {
-  if (!workspace.isOpen) return
-  await closeWorkspace()
-}
-function handleOpenSettings(e) {
-  const section = e?.detail?.section ?? null
-  workspace.openSettings(section)
-}
-function handleToggleLeftSidebar() {
-  if (!workspace.isOpen) return
-  workspace.toggleLeftSidebar()
-}
-function handleToggleTerminal() {
-  if (!workspace.isOpen) return
-  if (workspace.bottomPanelOpen) {
-    workspace.toggleBottomPanel()
-    return
-  }
-  if (bottomPanelRef.value?.focusTerminal) {
-    bottomPanelRef.value.focusTerminal()
-    return
-  }
-  workspace.openBottomPanel()
-}
-
-// Refresh file tree when window regains focus (catches files added via Finder etc.)
-let lastFocusRefresh = 0
-function shouldSkipFocusRefresh() {
-  return Date.now() - (workspace._lastAppZoomInteractionAt || 0) < 1500
-}
-
-function refreshWorkspaceStateAfterVisibility(reason = 'visibility') {
-  if (!workspace.isOpen) return
-  if (shouldSkipFocusRefresh()) return
-
-  const now = Date.now()
-  if (now - lastFocusRefresh < 2000) return
-  lastFocusRefresh = now
-
-  filesStore.refreshVisibleTree({ suppressErrors: true, reason, announce: true })
-    .then(() => reconcileCriticalWorkspaceState({ announce: true }))
-    .catch(() => {})
-}
-
-function handleVisibilityChange() {
-  if (isTauriDesktop) return
-  if (document.visibilityState !== 'visible') return
-  refreshWorkspaceStateAfterVisibility('visibility')
-}
-
-function handleOpenVersionHistoryEvent(event) {
-  const path = event.detail?.path
-  if (!path) return
-  openVersionHistory({ path })
-}
-
-function handleExternalLinkActivation(event) {
-  if (event.defaultPrevented) return
-  const match = resolveExternalHttpAnchor(event.target, document.baseURI)
-  if (!match) return
-  event.preventDefault()
-  event.stopPropagation()
-  openExternalHttpUrl(match.url).catch((error) => {
-    console.warn('[external-links] failed to open external url:', error)
-  })
-}
-
-function handleExternalLinkKeydown(event) {
-  if (event.defaultPrevented || event.key !== 'Enter') return
-  const match = resolveExternalHttpAnchor(event.target, document.baseURI)
-  if (!match) return
-  event.preventDefault()
-  event.stopPropagation()
-  openExternalHttpUrl(match.url).catch((error) => {
-    console.warn('[external-links] failed to open external url:', error)
-  })
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleExternalLinkActivation)
-  document.addEventListener('keydown', handleKeydown)
-  document.addEventListener('keydown', handleExternalLinkKeydown)
-  document.addEventListener('keydown', handleAltZ, true)
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('chat-prefill', handleChatPrefill)
-  window.addEventListener('app:focus-search', handleFocusSearch)
-  window.addEventListener('app:new-file', handleNewFile)
-  window.addEventListener('app:open-folder', handleOpenFolder)
-  window.addEventListener('app:close-folder', handleCloseFolder)
-  window.addEventListener('app:open-settings', handleOpenSettings)
-  window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-  window.addEventListener('app:toggle-terminal', handleToggleTerminal)
-  window.addEventListener('open-version-history', handleOpenVersionHistoryEvent)
+useAppShellEventBridge({
+  workspace,
+  editorStore,
+  commentsStore,
+  aiDrawerStore,
+  chatStore,
+  headerRef,
+  leftSidebarRef,
+  bottomPanelRef,
+  versionHistoryVisible,
+  handleVisibilityChange,
+  pickWorkspace,
+  closeWorkspace,
+  forceSaveAndCommit,
+  openVersionHistory,
 })
-
-onUnmounted(() => {
-  workspaceLoadGeneration += 1
-  cancelWorkspaceBackgroundTasks()
-  cleanupAppShellLayout()
-  document.removeEventListener('click', handleExternalLinkActivation)
-  document.removeEventListener('keydown', handleKeydown)
-  document.removeEventListener('keydown', handleExternalLinkKeydown)
-  document.removeEventListener('keydown', handleAltZ, true)
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  window.removeEventListener('chat-prefill', handleChatPrefill)
-  window.removeEventListener('app:focus-search', handleFocusSearch)
-  window.removeEventListener('app:new-file', handleNewFile)
-  window.removeEventListener('app:open-folder', handleOpenFolder)
-  window.removeEventListener('app:close-folder', handleCloseFolder)
-  window.removeEventListener('app:open-settings', handleOpenSettings)
-  window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-  window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
-  window.removeEventListener('open-version-history', handleOpenVersionHistoryEvent)
-  if (unlistenWindowFocusChange) {
-    unlistenWindowFocusChange()
-    unlistenWindowFocusChange = null
-  }
-  workspace.cleanup()
-  filesStore.cleanup()
-  reviews.cleanup()
-  linksStore.cleanup()
-  chatStore.cleanup()
-  commentsStore.cleanup()
-  referencesStore.cleanup()
-  researchArtifactsStore.cleanup()
-  void shutdownOpencodeSidecar()
+useAppTeardown({
+  cleanupAppShellLayout,
+  workspace,
+  filesStore,
+  reviews,
+  linksStore,
+  chatStore,
+  commentsStore,
+  referencesStore,
+  researchArtifactsStore,
 })
-
-// Force save + commit
-async function forceSaveAndCommit() {
-  if (!workspace.path) return
-
-  try {
-    const historyRepo = await ensureWorkspaceHistoryRepo(workspace.path)
-    if (!historyRepo.ok) {
-      toastStore.show(t('Version History is not available for the home folder.'), {
-        type: 'warning',
-        duration: 5000,
-      })
-      return
-    }
-    if (historyRepo.autoCommitEnabled) {
-      void workspace.startAutoCommit()
-    }
-
-    const dirtyPaths = editorStore.getDirtyFiles([...editorStore.allOpenFiles])
-    if (dirtyPaths.length > 0) {
-      const saved = await editorStore.persistPaths(dirtyPaths)
-      if (!saved) return
-    }
-
-    // Save all open files by triggering a flush on every editor view
-    const openFiles = editorStore.allOpenFiles
-    for (const filePath of openFiles) {
-      // Skip virtual paths (reference tabs, chat tabs, preview tabs, new tabs)
-      if (filePath.startsWith('ref:@') || filePath.startsWith('chat:') || isPreviewPath(filePath) || filePath.startsWith('newtab:') || isAiLauncher(filePath) || isLibraryPath(filePath)) continue
-      const content = filesStore.fileContents[filePath]
-      if (content !== undefined) {
-        const saved = await filesStore.saveFile(filePath, content)
-        if (!saved) return
-      }
-    }
-
-    // Stage all changes (freezes the snapshot)
-    await gitAdd(workspace.path)
-
-    // Check if there are actually changes to commit
-    const status = await gitStatus(workspace.path)
-    const hasChanges = status && status.trim().length > 0
-
-    if (!hasChanges) {
-      footerRef.value?.showCenterMessage(t('All saved (no changes)'))
-      return
-    }
-
-    // Changes exist — show save confirmation in footer center
-    const name = await footerRef.value?.beginSaveConfirmation()
-
-    // Determine commit message
-    let commitMessage
-    if (name && name.trim()) {
-      commitMessage = name.trim()
-    } else {
-      const now = new Date()
-      const ts = now.toISOString().replace('T', ' ').slice(0, 16)
-      commitMessage = t('Save: {ts}', { ts })
-    }
-
-    await gitCommit(workspace.path, commitMessage)
-  } catch (e) {
-    const errStr = String(e)
-    if (errStr.includes('nothing to commit')) {
-      footerRef.value?.showCenterMessage(t('All saved (no changes)'))
-    } else {
-      console.error('Save+commit error:', e)
-      footerRef.value?.showSaveMessage(t('Saved (commit failed)'))
-    }
-  }
-}
-
-// Footer updates
-function onCursorChange(pos) {
-  footerRef.value?.setCursorPos(pos)
-  if (pos.offset != null) editorStore.cursorOffset = pos.offset
-}
-
-function onEditorStats(stats) {
-  footerRef.value?.setEditorStats(stats)
-}
-
-// Version history
-function openVersionHistory(entry) {
-  if (!workspace.path) return
-  ensureWorkspaceHistoryRepo(workspace.path, {
-    seedInitialCommit: true,
-    seedMessage: t('Initial snapshot'),
-    enableAutoCommit: true,
-  })
-    .then((result) => {
-      if (!result.ok) {
-        toastStore.show(t('Version History is not available for the home folder.'), {
-          type: 'warning',
-          duration: 5000,
-        })
-        return
-      }
-      if (result.autoCommitEnabled) {
-        void workspace.startAutoCommit()
-      }
-      versionHistoryFile.value = entry.path
-      versionHistoryVisible.value = true
-    })
-    .catch((error) => {
-      toastStore.show(t('Failed to initialize Version History: {error}', {
-        error: error?.message || String(error || ''),
-      }), {
-        type: 'error',
-        duration: 6000,
-      })
-    })
-}
 
 
 </script>
