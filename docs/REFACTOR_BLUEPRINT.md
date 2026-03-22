@@ -11,8 +11,8 @@ Current overall assessment:
 - Phase 0 is effectively complete.
 - Phase 1 is substantially advanced but not fully closed.
 - Phase 2 has completed its currently highest-value `editor` slice and should no longer be extended for cosmetic cleanup.
-- Phase 3 is now in early execution with the first `documentWorkflow` preview/open/reconcile runtime extraction landed and validated.
-- Phase 4 is now also in early execution with the first history-repo vs auto-commit separation slice landed and its immediate `pathExists` cleanup follow-up validated.
+- Phase 3 is now in active execution with both the `documentWorkflow` preview/open/reconcile runtime and the build/diagnostic visibility seam landed and validated.
+- Phase 4 is now also in active early execution with the history-repo readiness plus explicit history availability, history-point intent, Footer prompt state, file preparation, message semantics, and commit execution slices landed and validated.
 - Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and early safety-model runtime/service extractions plus targeted tests.
 
 ## Product Direction
@@ -171,7 +171,11 @@ The largest remaining frontend architectural bottlenecks include:
 
 `src/domains/document/documentWorkflowRuntime.js` now carries preview-pane reuse, split-right fallback, preview-session state updates, jump-to-preview routing, and reconcile/close-preview orchestration.
 
-`src/stores/documentWorkflow.js` is now 400 lines after this extraction, down from 521 lines, and the store is beginning to resemble a thinner shell around state plus smaller action wrappers rather than the whole preview loop.
+`src/domains/document/documentWorkflowBuildRuntime.js` now carries workflow adapter context construction, adapter-specific log opening, problem aggregation, UI-state lookup, and status-text/tone wiring needed for compile/review visibility.
+
+`src/stores/documentWorkflow.js` is now 381 lines after the second extraction sequence, down from 521 lines, and is increasingly a thinner shell around state plus smaller runtime-backed action wrappers instead of the full document workflow loop.
+
+`src/composables/useEditorPaneWorkflow.js` now reuses the same document runtime seam for compile adapter context and toolbar visibility/status wiring instead of recomputing those rules separately inside the composable.
 
 ##### Safety model status
 
@@ -179,7 +183,19 @@ The first concrete safety-model split has landed:
 
 - `src/services/workspaceHistoryRepo.js` now owns history-repo existence/init plus optional initial seed commit behavior.
 - `src/services/workspaceAutoCommit.js` now focuses on marker checks, explicit enablement, and commit execution rather than repo bootstrap.
-- `src/domains/changes/workspaceHistory.js` and `src/services/workspaceGitHub.js` now compose history-repo readiness and auto-commit enablement explicitly at the caller boundary.
+- `src/domains/changes/workspaceHistoryAvailabilityRuntime.js` now owns explicit history availability checks, home-directory unavailability handling, and optional auto-commit enablement bridging.
+- `src/domains/changes/workspaceHistoryPointRuntime.js` now owns app-level history-point intent resolution and orchestration across availability, preparation, message, and commit runtimes.
+- `src/domains/changes/workspaceHistoryPreparationRuntime.js` now owns dirty-editor persistence plus eligible open-file save preparation before explicit history commits.
+- `src/domains/changes/workspaceHistoryCommitRuntime.js` now owns staged explicit history commits, no-change detection, and default commit-message fallback behavior.
+- `src/domains/changes/workspaceHistoryMessageRuntime.js` now owns default save/auto message generation plus named-vs-system history entry classification for UI affordances.
+- `src/domains/changes/workspaceSnapshotRuntime.js` now owns Git-backed snapshot record mapping for both workspace-level save points and file-level version-history entries.
+- `src/domains/changes/workspaceSnapshot.js` now owns the shared Git-backed snapshot operation boundary for create/list/preview/restore behavior, with explicit file-history vs workspace-save-point wrappers as the surviving public seams, and the old `workspaceHistory.js` bridge has been removed.
+- `src/domains/changes/workspaceSnapshotMetadataRuntime.js` now owns explicit snapshot title, named/system classification, and preview/restore capability metadata above the raw Git-backed snapshot records.
+- `src/domains/changes/workspaceSnapshotManifestRuntime.js` now owns persisted snapshot manifest trailers so explicit workspace save points can retain `scope` / `kind` metadata above raw Git message heuristics even when they later appear in file-scoped Git history.
+- `src/domains/changes/workspaceAutoCommitRuntime.js` now owns auto-commit marker enablement, workspace eligibility gating, shared auto-message construction, and timed Git add/status/commit execution behind the service shell.
+- `src/domains/changes/workspaceVersionHistoryRuntime.js` now owns Git-backed history list/load/restore IO so `VersionHistory.vue` no longer performs those side effects directly.
+- `src/domains/git/workspaceRepoLinkRuntime.js` now owns local history bootstrap plus remote-link preparation ordering, so `workspaceGitHub.js` no longer inlines history repo creation, auto-commit enablement, remote setup, and initial auto-commit sequencing.
+- `src/app/changes/snapshotLabelPromptRuntime.js` plus `src/app/changes/useSnapshotLabelPrompt.js` now own Footer snapshot-label prompt timers, dialog visibility, and pending confirmation resolution instead of leaving that UI state embedded in `Footer.vue`.
 
 This is now a cleaner explicit boundary: shared filesystem existence checks come from `src/services/pathExists.js`, so the safety split no longer depends on a temporary dynamic-import workaround to stay testable.
 
@@ -405,20 +421,19 @@ Current docs are still incomplete.
 
 Observed repository reality as of 2026-03-22:
 
-- `docs/REFACTOR_BLUEPRINT.md` is still the only substantive top-level architecture/refactor document in `docs/`.
-- `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, `docs/OPERATIONS.md`, and the other required documents still do not exist.
-- The repository currently has no additional markdown architecture map to explain how the newly extracted frontend domain modules relate to the remaining large stores.
+- `docs/REFACTOR_BLUEPRINT.md` remains the primary execution document.
+- `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` now exist and document the current Phase 3/4 boundaries truthfully.
+- `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, and the other required documents still do not exist.
+- The repository still lacks a broader top-level architecture map for the remaining domain/store boundaries outside the two newly created Phase 3/4 docs.
 
 Required docs such as the following are still missing:
 
 - `docs/PRODUCT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/DOMAINS.md`
-- `docs/OPERATIONS.md`
 - `docs/DATA_MODEL.md`
 - `docs/BUILD_SYSTEM.md`
 - `docs/AI_SYSTEM.md`
-- `docs/GIT_AND_SNAPSHOTS.md`
 - `docs/CONTRIBUTING.md`
 - `docs/TESTING.md`
 
@@ -433,6 +448,7 @@ Important remaining coupling:
 - version history flows
 - app-level history triggers
 - Git-based safety expectations
+- named "snapshot" UI semantics now use a shared history-message runtime, an explicit history-point operation wrapper, and a dedicated Footer prompt seam, but the backend is still Git-backed rather than a first-class app-level snapshot store
 
 This means autosave, local snapshot, git commit, and remote sync are still not sufficiently separated.
 
@@ -515,6 +531,7 @@ What has already happened:
 - `src/domains/document/documentWorkflowRuntime.js` established
 - preview open/reconcile orchestration moved out of `src/stores/documentWorkflow.js`
 - targeted runtime tests added for preview-pane reuse, split-right fallback, ready-preview reuse, and reconcile behavior
+- targeted runtime tests now also cover adapter-context construction, adapter-specific log opening, markdown draft/preview problems, and queued compile visibility outside the Pinia shell
 
 Exit criteria:
 - coherent main loop documented
@@ -535,6 +552,12 @@ What has already happened:
 - history-repo init/seed behavior moved out of `src/services/workspaceAutoCommit.js`
 - explicit auto-commit enablement moved to caller composition in `workspaceHistory` and `workspaceGitHub`
 - targeted service tests added for repo init/seed and home-directory guard behavior
+- `src/domains/changes/workspaceHistoryPreparationRuntime.js` established for pre-history file persistence
+- `src/domains/changes/workspaceHistoryCommitRuntime.js` established for explicit history-commit execution and commit-message fallback
+- `src/domains/changes/workspaceHistoryMessageRuntime.js` established for explicit history-message generation and classification across commit/runtime and version-history UI
+- `src/domains/changes/workspaceHistoryAvailabilityRuntime.js` established for explicit history availability checks and optional auto-commit enablement
+- `src/domains/changes/workspaceHistoryPointRuntime.js` established for explicit history-point intent resolution and orchestration across the new safety seams
+- `src/app/changes/snapshotLabelPromptRuntime.js` / `src/app/changes/useSnapshotLabelPrompt.js` established for explicit Footer history-point prompt state
 
 Exit criteria:
 - explicit safety model documented
@@ -663,17 +686,30 @@ Exit criteria:
 - [ ] Create `docs/PRODUCT.md`
 - [ ] Create `docs/ARCHITECTURE.md`
 - [ ] Create `docs/DOMAINS.md`
-- [ ] Create `docs/OPERATIONS.md`
+- [x] Create `docs/OPERATIONS.md`
 
 ### Safety model
 
 - [x] Document the current coupling between auto-commit and history/version flows
-- [ ] Create `docs/GIT_AND_SNAPSHOTS.md`
+- [x] Create `docs/GIT_AND_SNAPSHOTS.md`
 - [x] Identify a concrete first code slice for separating safety responsibilities
 - [x] Extract the first history-repo bootstrap slice away from `workspaceAutoCommit`
 - [x] Validate the first safety-model slice with targeted tests and build verification
 - [x] Remove the temporary dynamic-import workaround introduced in `workspaceHistoryRepo` and keep the safety split statically testable
-- [ ] Extract the next Phase 3 document build/diagnostic slice so preview, compile status, and review visibility continue converging toward one main loop
+- [x] Extract the next Phase 3 document build/diagnostic slice so preview, compile status, and review visibility continue converging toward one main loop
+- [x] Extract the pre-history file persistence slice out of `workspaceHistory` so explicit history actions stop mixing save orchestration with Git commit execution
+- [x] Extract the Git add/status/commit execution plus commit-message fallback slice out of `workspaceHistory` so explicit history actions compose repo readiness, file preparation, and commit execution as separate safety steps
+- [x] Extract history entry message classification out of UI heuristics so named snapshot affordances stop depending on hard-coded English Git commit prefixes
+- [x] Extract history-repo readiness and auto-commit enablement out of `workspaceHistory` so availability checks become a dedicated safety boundary alongside preparation and commit execution
+- [x] Introduce an explicit snapshot-intent / history-point operation wrapper so footer naming and version-history entry creation stop flowing through raw commit-message prompts
+- [x] Extract Footer history-point prompt state out of generic save-confirmation UI state so snapshot naming no longer piggybacks on save-message timers and modal flags
+- [x] Remove the now-unused `saveWorkspaceHistoryCommit` / `requestCommitMessage` bridge names once the UI path no longer depends on them
+- [x] Reuse shared history message helpers from `workspaceAutoCommit` so auto-created history entries and version-history classification stop depending on duplicated `Auto:` formatting
+- [x] Extract the local history bootstrap + remote-link preparation slice out of `workspaceGitHub.linkWorkspaceRepo` so remote binding stops directly orchestrating safety setup details
+- [x] Align remaining user-facing snapshot wording with the current Git-backed history model so the UI stops implying a separate snapshot backend that does not exist yet
+- [x] Extract the Git log/show/restore IO seam out of `VersionHistory.vue` so review-history UI stops owning file-history side effects directly
+- [x] Add an explicit snapshot metadata seam above the Git-backed snapshot records so UI/runtime code stops re-deriving titles, named state, and preview/restore capability rules ad hoc
+- [x] Define the first app-level snapshot backend/data-model slice above raw Git commit messages
 
 ### Backend planning
 
@@ -731,6 +767,40 @@ Exit criteria:
 - `editor` open-routing/runtime is now also extracted; reassessment shows the remaining editor shell is lower-value than starting the Phase 3 document preview/build/review loop
 - `documentWorkflow` preview/open/reconcile runtime is now also extracted; the next execution cycle should decide whether the remaining main-loop priority is build/review flow work or the first safety-model cleanup follow-up
 - `workspaceHistoryRepo` is now extracted as a first safety-model boundary, and the shared `pathExists` cleanup has removed its temporary dynamic-import workaround; the next execution cycle should shift back to the next concrete Phase 3 main-loop seam
+- 2026-03-22 execution cycle: `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` are now created, and the newest landed Phase 4 slice separates pre-history file persistence from Git commit execution in `workspaceHistory`
+- 2026-03-22 execution cycle: `workspaceHistoryCommitRuntime` is now landed, so repo readiness, file preparation, and commit execution are separate safety steps
+- 2026-03-22 execution cycle: `workspaceAutoCommitRuntime` is now landed, so auto-commit marker enablement, gating, and shared auto-history message construction are validated behind an explicit safety runtime
+- 2026-03-22 execution cycle: `workspaceRepoLinkRuntime` is now landed, so remote linking no longer inlines history repo bootstrap, auto-commit enablement, remote setup, and initial local auto-commit ordering inside `workspaceGitHub.js`
+- 2026-03-22 execution cycle: user-facing history wording and initial seed labels now avoid overstating an app-level snapshot backend that has not landed yet
+- 2026-03-22 execution cycle: `workspaceVersionHistoryRuntime` is now landed, so Git-backed history list/load/restore IO no longer lives directly inside `VersionHistory.vue`
+- 2026-03-22 execution cycle: the next Phase 4 step is no longer another narrow extraction; it is defining the first app-level snapshot backend/data-model slice above raw Git commit messages
+- 2026-03-22 execution cycle: `workspaceSnapshotRuntime` is now landed, so version-history UI consumes explicit Git-backed snapshot objects instead of raw commit entries
+- 2026-03-22 execution cycle: explicit history-point creation now also returns the same snapshot object family instead of only commit-message metadata
+- 2026-03-22 execution cycle: the shared Git-backed snapshot operation boundary for create/list/preview/restore has now landed instead of splitting app actions across history-point and version-history runtimes
+- 2026-03-22 execution cycle: snapshot-centric public action naming has now landed at the app-shell boundary, and the now-unused `workspaceHistory.js` bridge has been removed
+- 2026-03-22 execution cycle: snapshot scope is now explicit so workspace-level save points are not misread as file-level restore records
+- 2026-03-22 execution cycle: file-scope guards are now enforced around snapshot preview/restore so workspace-level save points cannot be misused as file-history entries
+- 2026-03-22 execution cycle: `workspaceSnapshotMetadataRuntime` is now landed, so snapshot objects carry explicit title, named/system classification, and preview/restore capability metadata above the raw Git-backed record shape
+- 2026-03-22 execution cycle: `workspaceSnapshotManifestRuntime` is now landed, so explicit workspace save points persist a Git-backed manifest trailer and keep `workspace` scope even when surfaced through file-scoped history
+- 2026-03-22 execution cycle: the repo-wide workspace snapshot feed has now landed at the operation layer, and it lists only manifest-backed explicit workspace save points above the file-history path
+- 2026-03-22 execution cycle: the repo-wide workspace snapshot feed is now wired into a separate workspace-snapshot browser instead of reusing `VersionHistory.vue`
+- 2026-03-22 execution cycle: the file-scoped history surface is now being clarified as `File Version History` so it no longer shares one ambiguous name with workspace save points
+- 2026-03-22 execution cycle: explicit file-history vs workspace-save-point operation names have now landed, so `workspaceSnapshot.js` no longer exposes one overloaded list/open surface to active UI callers
+- 2026-03-22 execution cycle: explicit file-history preview/restore operation names have now landed, so active UI callers no longer depend on generic snapshot preview/restore names
+- 2026-03-22 execution cycle: explicit file-history vs workspace-save-point runtime names have now landed, so the lower snapshot runtime mirrors the operation-layer truth instead of exposing only generic list/preview/restore seams
+- 2026-03-22 execution cycle: the now-unused snapshot compatibility aliases have been deleted from `workspaceSnapshot.js` and `workspaceSnapshotRuntime.js`, so the snapshot/history surface no longer carries a dual-system bridge at those boundaries
+- 2026-03-22 execution cycle: the last shell-level `open-version-history` legacy event alias has been deleted, and the app boundary now keeps only the explicit file-version-history / workspace-snapshot events
+- 2026-03-22 execution cycle: `workspaceHistoryMessageRuntime` is now landed, so footer/version-history UI no longer infer named snapshots from hard-coded English commit prefixes
+- 2026-03-22 execution cycle: `workspaceHistoryAvailabilityRuntime` is now landed, and repo-readiness details remain isolated beneath the shared snapshot/history seams instead of living inline at the app boundary
+- 2026-03-22 execution cycle: continuing Phase 4 by introducing an explicit snapshot-intent / history-point operation wrapper so footer naming and version-history actions stop flowing through raw commit-message prompts
+- 2026-03-22 execution cycle: re-auditing footer save-confirmation wiring and the app snapshot actions boundary so the next slice introduces a real history-point intent boundary instead of another commit-message bridge
+- 2026-03-22 execution cycle: after landing the history-point wrapper, the next follow-up is to expose that app-level operation explicitly in action/composable wiring instead of keeping Git-centric save-and-commit names at the public boundary
+- 2026-03-22 execution cycle: `workspaceHistoryPointRuntime` is now landed, and app/shell wiring now calls `createWorkspaceHistoryPoint` / `createHistoryPoint` instead of Git-centric save-and-commit names
+- 2026-03-22 execution cycle: continuing Phase 4 by separating Footer history-point prompt state from generic save-confirmation UI state so snapshot naming no longer piggybacks on save timers
+- 2026-03-22 execution cycle: extracting Footer history-point prompt state into its own runtime/composable so the UI shell matches the new `createHistoryPoint` operation boundary
+- 2026-03-22 execution cycle: removing the now-unused `saveWorkspaceHistoryCommit` / `requestCommitMessage` compatibility bridge so the public history API stops leaking old Git-centric naming
+- 2026-03-22 execution cycle: `snapshotLabelPromptRuntime` / `useSnapshotLabelPrompt` are now landed, and the public history API no longer exports the old save-and-commit bridge names
+- 2026-03-22 execution cycle: continuing Phase 4 by unifying auto-commit message generation with the shared history message helper so automatic and explicit history entries use the same message semantics
 
 ## Completed
 
@@ -739,7 +809,7 @@ Exit criteria:
 - Identified the real primary backend bottlenecks
 - Established `src/app/workspace/useWorkspaceLifecycle.js`
 - Established `src/app/shell/useAppShellEventBridge.js`
-- Established `src/app/changes/useWorkspaceHistoryActions.js`
+- Established `src/app/changes/useWorkspaceSnapshotActions.js`
 - Established `src/app/teardown/useAppTeardown.js`
 - Established `src/app/editor/useFooterStatusSync.js`
 - Reduced `App.vue` substantially from its earlier monolithic role
@@ -938,6 +1008,145 @@ Exit criteria:
   - `node --test tests/chatLiveInstanceRuntime.test.mjs tests/chatRuntimeConfigRuntime.test.mjs tests/chatTitleRuntime.test.mjs tests/chatMessageRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/document/documentWorkflowBuildRuntime.js`
+- Moved workflow adapter context construction, adapter-specific log opening, problem aggregation, UI-state lookup, and toolbar status-text/tone helpers behind the new document runtime seam
+- Reduced `src/stores/documentWorkflow.js` from 400 lines to 381 lines while removing duplicated build/diagnostic wiring from `src/composables/useEditorPaneWorkflow.js`
+- Added `tests/documentWorkflowBuildRuntime.test.mjs` to validate adapter-context construction, compile-log routing, markdown draft/preview problems, and queued LaTeX visibility outside the Pinia shell
+- Adjusted LaTeX and Typst workflow adapters to lazy-load compile preflight helpers so document-workflow runtime tests can exercise build/diagnostic behavior without pulling compile-only environment setup into module load
+- Validated the second document-workflow slice with:
+  - `node --test tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Created `docs/OPERATIONS.md` to document the real current operation seams around project/document/build/change flow
+- Created `docs/GIT_AND_SNAPSHOTS.md` to document the real current safety model and the remaining autosave/snapshot/Git/sync coupling
+- Established `src/domains/changes/workspaceHistoryPreparationRuntime.js`
+- Moved dirty-editor persistence, eligible open-file save preparation, and history-path filtering out of `src/domains/changes/workspaceHistory.js`
+- Added `tests/workspaceHistoryPreparationRuntime.test.mjs` to validate dirty-file persistence, eligible path filtering, and early-return save failures outside the Git commit shell
+- Validated the second safety-model slice with:
+  - `node --test tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceHistoryCommitRuntime.js`
+- Moved explicit history `git add` / `git status` / `git commit` execution and default message fallback out of `src/domains/changes/workspaceHistory.js`
+- Added `tests/workspaceHistoryCommitRuntime.test.mjs` to validate preferred/requested/fallback commit messages plus no-change handling outside the workspace history shell
+- Validated the third safety-model slice with:
+  - `node --test tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceHistoryMessageRuntime.js`
+- Moved explicit history save/auto message formatting plus named-vs-system entry classification out of `VersionHistory.vue` and `workspaceHistoryCommitRuntime.js`
+- Added `tests/workspaceHistoryMessageRuntime.test.mjs` to validate English and translated system-message detection plus named-entry classification outside the UI shell
+- Validated the fourth safety-model slice with:
+  - `node --test tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceHistoryAvailabilityRuntime.js`
+- Moved history-repo readiness, home-directory unavailability handling, and optional auto-commit enablement out of `src/domains/changes/workspaceHistory.js`
+- Added `tests/workspaceHistoryAvailabilityRuntime.test.mjs` to validate unavailable workspaces, existing auto-commit reuse, and enable-on-demand behavior outside the domain shell
+- Fixed legacy extension-less imports in `src/services/workspaceAutoCommit.js` so the new availability runtime stays Node-testable under ESM
+- Validated the fifth safety-model slice with:
+  - `node --test tests/workspaceHistoryAvailabilityRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceHistoryPointRuntime.js`
+- Moved app-level history-point intent resolution above the availability/preparation/message/commit seams and rerouted the app snapshot actions boundary, `useAppShellEventBridge`, and `App.vue` to `createWorkspaceHistoryPoint` / `createHistoryPoint`
+- Added `tests/workspaceHistoryPointRuntime.test.mjs` to validate named-history intent, default save fallback, and no-change handling outside the app shell
+- Updated `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` so the current public operation path is described as history-point creation rather than Git-centric save+commit wording
+- Validated the sixth safety-model slice with:
+  - `node --test tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceHistoryAvailabilityRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/app/changes/snapshotLabelPromptRuntime.js` and `src/app/changes/useSnapshotLabelPrompt.js`
+- Moved Footer history-point prompt timers, dialog visibility, and pending confirmation resolution out of `src/components/layout/Footer.vue`
+- Added `tests/snapshotLabelPromptRuntime.test.mjs` to validate named-dialog resolution, timeout fallback, restart behavior, and dispose cleanup outside the Footer shell
+- Removed the unused `saveWorkspaceHistoryCommit` alias and `requestCommitMessage` bridge from `src/domains/changes/workspaceHistory.js`, and updated the Footer shortcut label to use plain save wording instead of Git-centric copy
+- Validated the seventh safety-model slice with:
+  - `node --test tests/snapshotLabelPromptRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceHistoryAvailabilityRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceAutoCommitRuntime.js`
+- Moved auto-commit marker enablement, home-directory gating, shared auto-message construction, and timed Git add/status/commit execution behind the new safety runtime
+- Added `tests/workspaceAutoCommitRuntime.test.mjs` to validate marker enablement, home-directory blocking, no-change handling, and shared message construction outside the service shell
+- Validated the eighth safety-model slice with:
+  - `node --test tests/workspaceAutoCommitRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryAvailabilityRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceHistoryPreparationRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/git/workspaceRepoLinkRuntime.js`
+- Moved local history bootstrap, optional auto-commit enablement, remote setup/gitignore ordering, and swallow-on-failure initial auto-commit behavior out of `src/services/workspaceGitHub.js`
+- Added `tests/workspaceRepoLinkRuntime.test.mjs` to validate missing-path no-op, failed local-history preparation, and preserved remote-link ordering outside the service shell
+- Validated the ninth safety-model slice with:
+  - `node --test tests/workspaceRepoLinkRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs tests/workspaceAutoCommitRuntime.test.mjs tests/workspaceHistoryAvailabilityRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Aligned user-facing history wording so the naming dialog no longer says `Create Snapshot`, and changed initial seed labels from `Initial snapshot` to `Initial history`
+- Established `src/domains/changes/workspaceVersionHistoryRuntime.js`
+- Moved Git-backed version-history list/load/restore IO out of `src/components/VersionHistory.vue` while preserving unsupported-binary behavior and named-entry affordances
+- Added `tests/workspaceVersionHistoryRuntime.test.mjs` to validate history list loading, preview loading, and restore/reload behavior outside the component shell
+- Validated the tenth and eleventh safety/review slices with:
+  - `node --test tests/workspaceVersionHistoryRuntime.test.mjs tests/workspaceHistoryMessageRuntime.test.mjs tests/workspaceHistoryRepo.test.mjs tests/workspaceRepoLinkRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotRuntime.js`
+- Moved Git-backed snapshot record mapping out of raw `VersionHistory.vue` commit handling so UI code now consumes explicit snapshot objects instead of raw Git entries
+- Added `tests/workspaceSnapshotRuntime.test.mjs` to validate Git-entry mapping, snapshot listing, preview loading, restore behavior, and explicit `workspace` vs `file` scope semantics outside the component shell
+- Established `src/domains/changes/workspaceSnapshot.js`
+- Moved snapshot create/list/preview/restore behavior behind a shared Git-backed snapshot operation boundary and rerouted `useWorkspaceSnapshotActions`, `useAppShellEventBridge`, `App.vue`, and `VersionHistory.vue` through that boundary
+- Added `tests/workspaceSnapshot.test.mjs` to validate create/open/list/preview/restore delegation outside the app shell
+- Removed the now-unused `src/domains/changes/workspaceHistory.js` bridge after all public callers moved to the shared snapshot boundary
+- Validated the twelfth, thirteenth, and fourteenth safety-model slices with:
+  - `node --test tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceHistoryCommitRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/changes/workspaceSnapshotMetadataRuntime.js`
+- Moved snapshot title, named/system classification, and preview/restore capability derivation out of ad hoc UI/runtime helpers and behind an explicit metadata seam
+- Added `tests/workspaceSnapshotMetadataRuntime.test.mjs` to validate metadata derivation and attachment behavior outside the component shell
+- Established `src/domains/changes/workspaceSnapshotManifestRuntime.js`
+- Persisted explicit workspace snapshot manifest trailers in the Git-backed history message path and parsed them back into snapshot records before falling back to legacy message heuristics
+- Extended `src/domains/changes/workspaceVersionHistoryRuntime.js` with repo-wide history loading and `src/domains/changes/workspaceSnapshotRuntime.js` with a separate workspace snapshot feed filtered to manifest-backed explicit save points
+- Added `tests/workspaceSnapshotManifestRuntime.test.mjs` and expanded snapshot/version-history tests to validate persisted manifest parsing, workspace-scope preservation inside file history, and repo-wide workspace snapshot feed filtering
+- Validated the fifteenth, sixteenth, and seventeenth safety-model/data-model slices with:
+  - `node --test tests/workspaceSnapshotManifestRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Split file-history vs workspace-save-point app-facing operation names in `src/domains/changes/workspaceSnapshot.js` into explicit `openFileVersionHistoryBrowser`, `listFileVersionHistory`, and `listWorkspaceSavePoints` wrappers while keeping compatibility aliases temporarily
+- Rerouted `src/components/VersionHistory.vue`, `src/components/WorkspaceSnapshotBrowser.vue`, and `src/app/changes/useWorkspaceSnapshotActions.js` to the explicit file/workspace operation names so active UI callers no longer depend on the overloaded list/open surface
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` to describe the explicit file/workspace operation split truthfully
+- Expanded `tests/workspaceSnapshot.test.mjs` to validate the new explicit wrappers and the retained compatibility aliases
+- Validated the eighteenth safety-model slice with:
+  - `node --test tests/workspaceSnapshot.test.mjs tests/workspaceHistoryActions.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshotManifestRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Split file-history preview/restore app-facing operation names in `src/domains/changes/workspaceSnapshot.js` into explicit `loadFileVersionHistoryPreview` and `restoreFileVersionHistoryEntry` wrappers while keeping generic compatibility aliases temporarily
+- Rerouted `src/components/VersionHistory.vue` to the explicit file-history preview/restore operation names so active UI callers no longer depend on generic snapshot preview/restore names
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the explicit file-history preview/restore split truthfully
+- Expanded `tests/workspaceSnapshot.test.mjs` to validate the explicit preview/restore wrappers and the retained compatibility aliases
+- Validated the nineteenth safety-model slice with:
+  - `node --test tests/workspaceSnapshot.test.mjs tests/workspaceHistoryActions.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshotManifestRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Split the lower snapshot runtime names in `src/domains/changes/workspaceSnapshotRuntime.js` into explicit `listFileVersionHistoryEntries`, `listWorkspaceSavePointEntries`, `loadFileVersionHistoryPreview`, and `restoreFileVersionHistoryEntry` seams while keeping generic compatibility aliases temporarily
+- Rerouted `src/domains/changes/workspaceSnapshot.js` to the explicit lower runtime entry points instead of the generic overloaded ones
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the explicit runtime split truthfully
+- Expanded `tests/workspaceSnapshotRuntime.test.mjs` and `tests/workspaceSnapshot.test.mjs` to validate the explicit runtime seams plus the retained compatibility aliases
+- Validated the twentieth safety-model slice with:
+  - `node --test tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotActions.test.mjs tests/workspaceSnapshotManifestRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Deleted the now-unused overloaded compatibility aliases from `src/domains/changes/workspaceSnapshot.js` and `src/domains/changes/workspaceSnapshotRuntime.js` so explicit file-history and workspace-save-point seams are now the only remaining public entry points
+- Trimmed snapshot tests to stop asserting the deleted compatibility aliases and keep validation focused on the surviving explicit seams
+- Updated `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the alias removal truthfully
+- Validated the twenty-first safety-model slice with:
+  - `node --test tests/workspaceSnapshotRuntime.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotActions.test.mjs tests/workspaceSnapshotManifestRuntime.test.mjs tests/workspaceSnapshotMetadataRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Renamed `src/app/changes/useWorkspaceSnapshotActions.js`, `src/app/changes/snapshotLabelPromptRuntime.js`, and `src/app/changes/useSnapshotLabelPrompt.js` so the public app boundary now describes snapshot actions and snapshot labeling instead of leaking old history-point wording
+- Deleted the last shell-level `open-version-history` listener from `src/app/shell/useAppShellEventBridge.js` so the app boundary keeps only explicit file-version-history and workspace-snapshot events
+- Renamed the prompt/action tests to `tests/snapshotLabelPromptRuntime.test.mjs` and `tests/workspaceSnapshotActions.test.mjs` and rerouted the Footer/snapshot action path to the new app-layer names
+- Validated the twenty-second safety-model slice with:
+  - `node --test tests/snapshotLabelPromptRuntime.test.mjs tests/workspaceSnapshotActions.test.mjs tests/workspaceSnapshot.test.mjs tests/workspaceSnapshotRuntime.test.mjs tests/workspaceHistoryPointRuntime.test.mjs tests/workspaceVersionHistoryRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 - Established `src/domains/reference/referenceLibraryRuntime.js`
 - Moved reference library save scheduling, self-write bookkeeping, fs-change listener lifecycle, and three-file persistence behind the new runtime module
 - Reduced `src/stores/references.js` from 1089 lines to 1027 lines
@@ -1036,17 +1245,19 @@ Exit criteria:
 - `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
 - `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
 - `documentWorkflow` is thinner after the preview/open/reconcile extraction, but the build/review loop is still not yet documented or split into clear operations
-- The first safety-model slice is cleaner now, but the repository still lacks first-class documentation for autosave, local history, git commit, and remote sync boundaries
+- The safety model is cleaner now, and the first Git-backed snapshot object/operation boundary, persisted manifest trailers, repo-wide workspace snapshot feed, and separate workspace-snapshot browser have landed, but the repository still lacks a true local snapshot backend above raw Git commits
+- Snapshot scope is now explicit (`workspace` vs `file`), but restore semantics still only exist for file-scoped version-history entries
+- The next high-value snapshot step is now choosing the first true local snapshot backend so Phase 4 keeps moving on safety semantics instead of falling back to lower-value naming cleanup
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Continue Phase 3 by extracting the document build/diagnostic seam from `src/stores/documentWorkflow.js`, centered on `buildAdapterContext`, `openLogForFile`, `getProblemsForFile`, `getUiStateForFile`, and adjacent compile/review visibility wiring
-2. Reuse the existing document adapters so the slice strengthens the main loop instead of inventing a parallel build abstraction
-3. Preserve current adapter-specific log opening, problem focus, and preview UI-state behavior while making compile/review visibility testable outside the Pinia shell
-4. Validate with targeted document-workflow runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
-5. Update this blueprint again based on whether that slice is enough to justify `docs/OPERATIONS.md` / `docs/GIT_AND_SNAPSHOTS.md` as the next paired documentation effort
+1. Decide whether the first true app-level snapshot backend should be a separate local store or another Git-backed layer above the current manifest wrapper
+2. Keep the current `workspace` vs `file` scope distinction explicit whichever backend path is chosen
+3. Validate the chosen slice with the relevant history/snapshot tests plus `node --test tests/*.test.mjs` and `npm run build`
+4. Update `docs/DATA_MODEL.md`, `docs/OPERATIONS.md`, and `docs/GIT_AND_SNAPSHOTS.md` again to describe the chosen backend path truthfully
+5. Avoid drifting back into lower-value naming cleanup now that the app/public snapshot surfaces are aligned
 
 ## Validation Checklist
 
@@ -1087,7 +1298,7 @@ Exit criteria:
 - [x] `references` CRUD-runtime extraction is documented truthfully
 - [x] `references` asset-runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
-- [ ] safety model has been documented as a first-class system
+- [x] safety model has been documented as a first-class system
 - [x] testing/validation story is stronger than build-only checks for the current `files`, `workspace`, and `references` slices
 - [ ] backend layering migration has begun
 
@@ -1099,6 +1310,8 @@ Exit criteria:
 - The repository has now correctly stopped extending Phase 2 after the `editor` open-routing seam; the next work should stay in Phase 3/4 unless a genuinely non-cosmetic store seam appears.
 - The first Phase 3 slice has now started the document preview loop as an explicit domain runtime rather than leaving it buried inside the store.
 - The first Phase 4 slice has now started separating history bootstrap from auto-commit, and the immediate shared-utility cleanup has removed the dynamic-import workaround before it could harden into new accidental complexity.
+- The next two Phase 4 slices separated pre-history file preparation and explicit history commit execution from the old `workspaceHistory.js` bridge; that bridge is now gone, and the remaining safety-model gap has shifted from ad hoc snapshot metadata to persisted manifest metadata above the new Git-backed boundary.
+- The repository now has a first shared Git-backed snapshot operation boundary plus explicit `workspace` vs `file` scope and explicit derived snapshot metadata, but it still needs persisted manifest metadata above those snapshot records before a separate local snapshot store would be justified.
 - `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.

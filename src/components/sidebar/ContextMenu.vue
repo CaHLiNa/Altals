@@ -71,9 +71,9 @@
 
         <template v-if="entry && !entry.is_dir">
           <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="$emit('version-history', entry)">
+          <div class="context-menu-item" @click="$emit('file-version-history', entry)">
             <IconClock :size="14" :stroke-width="1.5" />
-            {{ t('Version History') }}
+            {{ t('File Version History') }}
           </div>
         </template>
 
@@ -117,7 +117,7 @@ const props = defineProps({
   selectedCount: { type: Number, default: 0 },
 })
 
-defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'version-history', 'reveal-in-finder', 'import-to-refs'])
+defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'file-version-history', 'reveal-in-finder', 'import-to-refs'])
 
 const IMPORTABLE_EXTS = ['.bib', '.ris', '.json', '.pdf', '.csl', '.nbib', '.enw']
 

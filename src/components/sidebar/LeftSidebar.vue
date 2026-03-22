@@ -10,7 +10,7 @@
         :collapsed="explorerCollapsed"
         :heading-label="fileTreeHeadingLabel"
         @toggle-collapse="toggleExplorer"
-        @version-history="$emit('version-history', $event)"
+        @file-version-history="$emit('file-version-history', $event)"
         @open-folder="$emit('open-folder')"
         @open-workspace="$emit('open-workspace', $event)"
         @close-folder="$emit('close-folder')"
@@ -105,7 +105,7 @@ import FileTree from './FileTree.vue'
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 
-const emit = defineEmits(['version-history', 'open-folder', 'open-workspace', 'close-folder'])
+const emit = defineEmits(['file-version-history', 'open-folder', 'open-workspace', 'close-folder'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()

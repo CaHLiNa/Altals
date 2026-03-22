@@ -25,7 +25,7 @@
         >
           <LeftSidebar
             ref="leftSidebarRef"
-            @version-history="openVersionHistory"
+            @file-version-history="openFileVersionHistory"
             @open-folder="pickWorkspace"
             @open-workspace="openWorkspace"
             @close-folder="closeWorkspace"
@@ -98,14 +98,23 @@
       </div>
 
       <!-- Footer -->
-      <Footer ref="footerRef" @open-settings="(s) => workspace.openSettings(s)" />
+      <Footer
+        ref="footerRef"
+        @open-settings="(s) => workspace.openSettings(s)"
+        @open-workspace-snapshots="openWorkspaceSnapshots"
+      />
     </template>
 
-    <!-- Version History Modal -->
-    <VersionHistory
-      :visible="versionHistoryVisible"
-      :filePath="versionHistoryFile"
-      @close="versionHistoryVisible = false"
+    <WorkspaceSnapshotBrowser
+      :visible="workspaceSnapshotBrowserVisible"
+      @close="workspaceSnapshotBrowserVisible = false"
+    />
+
+    <!-- File Version History Modal -->
+    <FileVersionHistory
+      :visible="fileVersionHistoryVisible"
+      :filePath="fileVersionHistoryFile"
+      @close="fileVersionHistoryVisible = false"
     />
 
     <!-- Settings Modal -->
@@ -144,14 +153,15 @@ import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useFooterStatusSync } from './app/editor/useFooterStatusSync'
-import { useWorkspaceHistoryActions } from './app/changes/useWorkspaceHistoryActions'
+import { useWorkspaceSnapshotActions } from './app/changes/useWorkspaceSnapshotActions'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
-const VersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
+const WorkspaceSnapshotBrowser = defineAsyncComponent(() => import('./components/WorkspaceSnapshotBrowser.vue'))
+const FileVersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
@@ -176,8 +186,9 @@ const footerRef = ref(null)
 const headerRef = ref(null)
 const leftSidebarRef = ref(null)
 const bottomPanelRef = ref(null)
-const versionHistoryVisible = ref(false)
-const versionHistoryFile = ref('')
+const workspaceSnapshotBrowserVisible = ref(false)
+const fileVersionHistoryVisible = ref(false)
+const fileVersionHistoryFile = ref('')
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -196,16 +207,18 @@ const {
   setupWizardVisible,
 } = useWorkspaceLifecycle()
 const {
-  forceSaveAndCommit,
-  openVersionHistory,
-} = useWorkspaceHistoryActions({
+  createSnapshot,
+  openWorkspaceSnapshots,
+  openFileVersionHistory,
+} = useWorkspaceSnapshotActions({
   workspace,
   filesStore,
   editorStore,
   footerRef,
   toastStore,
-  versionHistoryVisible,
-  versionHistoryFile,
+  workspaceSnapshotBrowserVisible,
+  fileVersionHistoryVisible,
+  fileVersionHistoryFile,
   t,
 })
 const { onCursorChange, onEditorStats } = useFooterStatusSync({
@@ -222,12 +235,14 @@ useAppShellEventBridge({
   headerRef,
   leftSidebarRef,
   bottomPanelRef,
-  versionHistoryVisible,
+  workspaceSnapshotBrowserVisible,
+  fileVersionHistoryVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
-  forceSaveAndCommit,
-  openVersionHistory,
+  createSnapshot,
+  openWorkspaceSnapshots,
+  openFileVersionHistory,
 })
 useAppTeardown({
   cleanupAppShellLayout,

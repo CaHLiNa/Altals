@@ -1,0 +1,126 @@
+# Data Model
+
+## Purpose
+
+This document records the current explicit data-model seams that already exist in Altals.
+
+It describes the repository as it exists today. It does not describe target models as if they are already implemented.
+
+## Current Snapshot Wrapper
+
+Altals still stores local history in Git.
+
+It now has three explicit layers above that Git history:
+
+- `src/domains/changes/workspaceSnapshotRuntime.js`
+- `src/domains/changes/workspaceSnapshotMetadataRuntime.js`
+- `src/domains/changes/workspaceSnapshotManifestRuntime.js`
+
+These layers still do not introduce a separate snapshot store. Instead, they map Git-backed history into explicit snapshot objects, attach UI/runtime metadata, and persist a minimal manifest trailer for explicit workspace save points.
+
+Current record shape:
+
+```js
+{
+  id: 'git:<commit-hash>',
+  backend: 'git',
+  sourceKind: 'git-commit',
+  sourceId: '<commit-hash>',
+  scope: 'file' | 'workspace',
+  filePath: '/workspace/demo/draft.md',
+  kind: 'named' | 'save' | 'auto' | 'empty',
+  label: 'Draft 3 ready',
+  message: 'Draft 3 ready',
+  rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+  createdAt: '2026-03-22T10:11:00Z',
+  manifest: null | {
+    version: 1,
+    scope: 'workspace',
+    kind: 'named',
+  },
+}
+```
+
+Current meaning:
+
+- `id` is the app-facing snapshot id
+- `backend` identifies the current storage/recovery backend
+- `sourceKind` and `sourceId` preserve the underlying Git implementation detail
+- `scope` distinguishes file-history records from workspace-level save points created through the explicit snapshot action
+- `kind` comes from the persisted manifest when present, and otherwise falls back to the shared history-message runtime
+- `filePath` is populated for file-history/version-browser entries and stays empty for repo-wide workspace snapshot feed entries
+- `label` is only populated for named history points
+- `message` is the clean display text after stripping any persisted manifest trailer
+- `rawMessage` preserves the raw Git-backed history subject
+- `manifest` is only present for explicit workspace save points that were written through the new manifest trailer path
+- only file-scoped snapshots are previewable/restorable through the current version-history flow
+
+Current attached metadata shape:
+
+```js
+{
+  snapshotId: 'git:<commit-hash>',
+  scope: 'file' | 'workspace',
+  backend: 'git',
+  sourceKind: 'git-commit',
+  kind: 'named' | 'save' | 'auto' | 'empty',
+  title: 'Draft 3 ready',
+  message: 'Draft 3 ready',
+  isNamed: true,
+  isSystemGenerated: false,
+  capabilities: {
+    canPreview: false,
+    canRestore: false,
+    canCopy: false,
+  },
+}
+```
+
+This metadata is derived at runtime from the snapshot record and is attached by `src/domains/changes/workspaceSnapshot.js`.
+
+## Current Operations Using This Model
+
+The current Git-backed snapshot wrapper is used by:
+
+- `src/domains/changes/workspaceSnapshot.js`
+- `src/components/VersionHistory.vue`
+- `src/app/changes/useWorkspaceSnapshotActions.js`
+
+Current operations use explicit snapshot objects for:
+
+- explicit snapshot creation
+- file-scoped version listing
+- repo-wide workspace snapshot feed listing
+- preview loading
+- restore actions
+
+Current feed behavior is now split:
+
+- `listFileVersionHistory({ workspacePath, filePath })` returns the file history for that file, including manifest-backed workspace save points if they touched the file
+- `listWorkspaceSavePoints({ workspacePath })` returns only manifest-backed workspace save points from repo-wide history
+
+The underlying implementation still routes through:
+
+- `src/domains/changes/workspaceHistoryPointRuntime.js`
+- `src/domains/changes/workspaceVersionHistoryRuntime.js`
+- `src/domains/changes/workspaceSnapshotRuntime.js`, which now also exposes explicit `listFileVersionHistoryEntries`, `listWorkspaceSavePointEntries`, `loadFileVersionHistoryPreview`, and `restoreFileVersionHistoryEntry` runtime seams
+
+## Current Limitations
+
+This is still a Git-backed wrapper layer.
+
+It does not yet provide:
+
+- a separate local snapshot store
+- workspace-level preview/restore independent from Git show/write flows
+- manifest persistence outside Git-backed history subjects
+
+## Next Data-Model Step
+
+The next Phase 4 data-model step is now deciding whether the repository will keep stopping at the Git-backed snapshot wrapper or start introducing a true local snapshot backend.
+
+The next immediate step is:
+
+1. choose whether the first true app-level snapshot backend should be a separate local store or another Git-backed layer
+2. keep the current `workspace` vs `file` scope distinction explicit whichever backend path is chosen
+3. avoid drifting back into lower-value naming cleanup now that the public app boundary is aligned

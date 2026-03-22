@@ -1,9 +1,16 @@
 import { gitRemoteGetUrl } from './git'
+import { createWorkspaceRepoLinkRuntime } from '../domains/git/workspaceRepoLinkRuntime.js'
 import { ensureWorkspaceHistoryRepo } from './workspaceHistoryRepo.js'
 import {
   enableWorkspaceAutoCommit,
   runWorkspaceAutoCommit as performWorkspaceAutoCommit,
 } from './workspaceAutoCommit'
+
+const workspaceRepoLinkRuntime = createWorkspaceRepoLinkRuntime({
+  ensureWorkspaceHistoryRepoImpl: ensureWorkspaceHistoryRepo,
+  enableWorkspaceAutoCommitImpl: enableWorkspaceAutoCommit,
+  runWorkspaceAutoCommitImpl: performWorkspaceAutoCommit,
+})
 
 function normalizeGitHubUser(user = {}) {
   return {
@@ -130,28 +137,13 @@ export async function disconnectWorkspaceGitHub() {
 }
 
 export async function linkWorkspaceRepo(path = '', cloneUrl = '') {
-  if (!path) return null
   const { setupRemote, ensureGitignore } = await import('./githubSync')
-  const historyRepo = await ensureWorkspaceHistoryRepo(path, {
-    seedInitialCommit: true,
-    seedMessage: 'Initial snapshot',
+  return workspaceRepoLinkRuntime.linkWorkspaceRepo({
+    path,
+    cloneUrl,
+    setupRemoteImpl: setupRemote,
+    ensureGitignoreImpl: ensureGitignore,
   })
-  if (!historyRepo?.ok) {
-    throw new Error('Failed to initialize a local Git repository for this workspace.')
-  }
-  const autoCommitEnabled = await enableWorkspaceAutoCommit(path).catch(() => false)
-
-  await setupRemote(path, cloneUrl)
-  await ensureGitignore(path)
-  await performWorkspaceAutoCommit(path).catch(() => {})
-  return {
-    remoteUrl: cloneUrl,
-    syncStatus: 'idle',
-    historyRepo: {
-      ...historyRepo,
-      autoCommitEnabled,
-    },
-  }
 }
 
 export async function unlinkWorkspaceRepo(path = '') {

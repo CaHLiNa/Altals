@@ -1,20 +1,21 @@
 import {
-  openWorkspaceHistoryEntry,
-  saveWorkspaceHistoryCommit,
-} from '../../domains/changes/workspaceHistory'
+  createWorkspaceSnapshot,
+  openFileVersionHistoryBrowser,
+} from '../../domains/changes/workspaceSnapshot.js'
 
-export function useWorkspaceHistoryActions({
+export function useWorkspaceSnapshotActions({
   workspace,
   filesStore,
   editorStore,
   footerRef,
   toastStore,
-  versionHistoryVisible,
-  versionHistoryFile,
+  workspaceSnapshotBrowserVisible,
+  fileVersionHistoryVisible,
+  fileVersionHistoryFile,
   t,
 }) {
   function showHistoryUnavailable() {
-    toastStore.show(t('Version History is not available for the home folder.'), {
+    toastStore.show(t('File Version History is not available for the home folder.'), {
       type: 'warning',
       duration: 5000,
     })
@@ -24,12 +25,12 @@ export function useWorkspaceHistoryActions({
     void workspace.startAutoCommit()
   }
 
-  async function forceSaveAndCommit() {
-    await saveWorkspaceHistoryCommit({
+  async function createSnapshot() {
+    await createWorkspaceSnapshot({
       workspace,
       filesStore,
       editorStore,
-      requestCommitMessage: () => footerRef.value?.beginSaveConfirmation(),
+      requestSnapshotLabel: () => footerRef.value?.beginSnapshotLabelConfirmation(),
       showNoChanges: () => footerRef.value?.showCenterMessage(t('All saved (no changes)')),
       showCommitFailure: () => footerRef.value?.showSaveMessage(t('Saved (commit failed)')),
       onUnavailable: showHistoryUnavailable,
@@ -38,24 +39,32 @@ export function useWorkspaceHistoryActions({
     })
   }
 
-  function openVersionHistory(entry) {
-    openWorkspaceHistoryEntry({
+  function openWorkspaceSnapshots() {
+    if (!workspace?.path) {
+      return
+    }
+
+    workspaceSnapshotBrowserVisible.value = true
+  }
+
+  function openFileVersionHistory(entry) {
+    openFileVersionHistoryBrowser({
       workspace,
-      entry,
+      filePath: entry.path,
       onUnavailable: showHistoryUnavailable,
       onAutoCommitEnabled: startAutoCommitIfNeeded,
       onReady: (path) => {
-        versionHistoryFile.value = entry.path
-        versionHistoryVisible.value = true
+        fileVersionHistoryFile.value = path
+        fileVersionHistoryVisible.value = true
       },
       options: {
         seedInitialCommit: true,
-        seedMessage: t('Initial snapshot'),
+        seedMessage: t('Initial history'),
         enableAutoCommit: true,
       },
     })
       .catch((error) => {
-        toastStore.show(t('Failed to initialize Version History: {error}', {
+        toastStore.show(t('Failed to initialize File Version History: {error}', {
           error: error?.message || String(error || ''),
         }), {
           type: 'error',
@@ -65,7 +74,8 @@ export function useWorkspaceHistoryActions({
   }
 
   return {
-    forceSaveAndCommit,
-    openVersionHistory,
+    createSnapshot,
+    openWorkspaceSnapshots,
+    openFileVersionHistory,
   }
 }

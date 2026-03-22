@@ -55,12 +55,12 @@
       </span>
     </div>
 
-    <!-- CENTER: zoom control OR save confirmation OR transient message (crossfade) -->
+    <!-- CENTER: snapshot-label prompt or transient status messaging -->
     <div class="footer-center justify-self-center">
-      <div class="footer-center-layer" :class="{ 'footer-center-hidden': saveConfirmationActive || centerMessage || uxStatusEntry }"></div>
+      <div class="footer-center-layer" :class="{ 'footer-center-hidden': snapshotLabelPromptActive || centerMessage || uxStatusEntry }"></div>
 
-      <!-- Save confirmation (shown during 8s window) -->
-      <div class="footer-center-layer flex items-center gap-1" :class="{ 'footer-center-hidden': !saveConfirmationActive }">
+      <!-- Snapshot-label prompt (shown during 8s window) -->
+      <div class="footer-center-layer flex items-center gap-1" :class="{ 'footer-center-hidden': !snapshotLabelPromptActive }">
       
         <IconCheck width="12" height="12" style="color: var(--success);" />
         <div class="font-medium ui-text-sm pe-2" style="color: var(--success);">
@@ -69,7 +69,7 @@
         <div
           class="cursor-pointer underline hover:opacity-80 ui-text-sm font-medium"
           style="color: var(--accent);"
-          @click="openSnapshotDialog"
+          @click="openSnapshotLabelDialog"
         >{{ t('Name this version?') }}</div>
       </div>
 
@@ -81,7 +81,7 @@
         </span>
       </div>
 
-      <div class="footer-center-layer" :class="{ 'footer-center-hidden': !!centerMessage || saveConfirmationActive || !uxStatusEntry }">
+      <div class="footer-center-layer" :class="{ 'footer-center-hidden': !!centerMessage || snapshotLabelPromptActive || !uxStatusEntry }">
         <span class="flex items-center gap-1.5 ui-text-sm" :style="{ color: uxStatusColor }">
           <svg v-if="uxStatusEntry?.type === 'success'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
           <svg v-else-if="uxStatusEntry?.type === 'error' || uxStatusEntry?.type === 'warning'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l5.5 9.5H2.5L8 2.5z"/><path d="M8 6v3"/><path d="M8 11.25h.01"/></svg>
@@ -99,10 +99,10 @@
       </div>
     </div>
 
-    <!-- Snapshot naming dialog -->
+    <!-- Snapshot-label naming dialog -->
     <SnapshotDialog
-      :visible="snapshotDialogVisible"
-      @resolve="onSnapshotResolve"
+      :visible="snapshotLabelDialogVisible"
+      @resolve="resolveSnapshotLabelDialog"
     />
 
     <!-- RIGHT: tools + editor info -->
@@ -115,6 +115,17 @@
         :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
       >
         <IconTerminal2 width="14" height="14" :stroke-width="1.5" />
+      </button>
+      <button
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        style="color: var(--fg-muted);"
+        @click="$emit('open-workspace-snapshots')"
+        :title="t('Saved versions')"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 2.5h6a1.5 1.5 0 011.5 1.5v9l-2.75-1.9L5.5 13V4a1.5 1.5 0 011.5-1.5z"/>
+          <path d="M11 4.5h1.5A1.5 1.5 0 0114 6v7.5l-2-1.4"/>
+        </svg>
       </button>
       <button
         class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
@@ -179,7 +190,7 @@
         <div class="px-3 py-2 space-y-1.5 ui-text-sm" style="color: var(--fg-secondary);">
           <div class="flex justify-between"><span>{{ t('Toggle left sidebar') }}</span><kbd>{{ modKey }}+B</kbd></div>
           <div class="flex justify-between"><span>{{ t('Quick open') }}</span><kbd>{{ modKey }}+P</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Save & commit') }}</span><kbd>{{ modKey }}+S</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Save') }}</span><kbd>{{ modKey }}+S</kbd></div>
           <div class="flex justify-between"><span>{{ t('Close tab') }}</span><kbd>{{ modKey }}+W</kbd></div>
           <div class="flex justify-between"><span>{{ t('Split vertical') }}</span><kbd>{{ modKey }}+\</kbd></div>
           <div class="flex justify-between"><span>{{ t('Split horizontal') }}</span><kbd>{{ modKey }}+Shift+\</kbd></div>
@@ -264,6 +275,7 @@ import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { getBillingRoute } from '../../services/apiClient'
 import { ensureGitHubSyncReady } from '../../services/environmentPreflight'
+import { useSnapshotLabelPrompt } from '../../app/changes/useSnapshotLabelPrompt.js'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
@@ -272,7 +284,7 @@ import GitHubConflictDialog from '../GitHubConflictDialog.vue'
 import { IconTerminal2 } from '@tabler/icons-vue'
 import { IconCheck } from '@tabler/icons-vue'
 
-const emit = defineEmits(['open-settings'])
+const emit = defineEmits(['open-settings', 'open-workspace-snapshots'])
 
 const workspace = useWorkspaceStore()
 const reviews = useReviewsStore()
@@ -295,12 +307,13 @@ const showSyncPopover = ref(false)
 const syncTriggerRef = ref(null)
 const syncPopoverPos = ref({})
 const showConflictDialog = ref(false)
-
-// Save confirmation state (center section swap)
-const saveConfirmationActive = ref(false)
-const snapshotDialogVisible = ref(false)
-let saveConfirmationTimer = null
-let saveConfirmationResolve = null
+const {
+  beginSnapshotLabelConfirmation,
+  snapshotLabelDialogVisible,
+  snapshotLabelPromptActive,
+  openSnapshotLabelDialog,
+  resolveSnapshotLabelDialog,
+} = useSnapshotLabelPrompt()
 
 // Transient center message (e.g. "All saved (no changes)")
 const centerMessage = ref('')
@@ -519,44 +532,6 @@ function handleUxStatusAction() {
   uxStatusStore.clear(uxStatusEntry.value?.id)
 }
 
-function beginSaveConfirmation() {
-  // Cancel any previous confirmation
-  clearSaveConfirmation(null)
-
-  return new Promise((resolve) => {
-    saveConfirmationResolve = resolve
-    saveConfirmationActive.value = true
-
-    saveConfirmationTimer = setTimeout(() => {
-      // Timeout — resolve with null (auto-commit with timestamp)
-      clearSaveConfirmation(null)
-    }, 8000)
-  })
-}
-
-function openSnapshotDialog() {
-  // Pause the timeout while dialog is open
-  clearTimeout(saveConfirmationTimer)
-  saveConfirmationTimer = null
-  snapshotDialogVisible.value = true
-}
-
-function onSnapshotResolve(name) {
-  snapshotDialogVisible.value = false
-  clearSaveConfirmation(name)
-}
-
-function clearSaveConfirmation(result) {
-  clearTimeout(saveConfirmationTimer)
-  saveConfirmationTimer = null
-  saveConfirmationActive.value = false
-  if (saveConfirmationResolve) {
-    const resolve = saveConfirmationResolve
-    saveConfirmationResolve = null
-    resolve(result)
-  }
-}
-
 // Expose methods for editor to call
 defineExpose({
   setEditorStats(s) {
@@ -567,7 +542,7 @@ defineExpose({
   },
   showSaveMessage,
   showCenterMessage,
-  beginSaveConfirmation,
+  beginSnapshotLabelConfirmation,
 })
 
 </script>

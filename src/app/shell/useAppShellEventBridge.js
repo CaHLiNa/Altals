@@ -20,17 +20,19 @@ export function useAppShellEventBridge({
   headerRef,
   leftSidebarRef,
   bottomPanelRef,
-  versionHistoryVisible,
+  workspaceSnapshotBrowserVisible,
+  fileVersionHistoryVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
-  forceSaveAndCommit,
-  openVersionHistory,
+  createSnapshot,
+  openWorkspaceSnapshots,
+  openFileVersionHistory,
 }) {
   async function handleKeydown(event) {
     if (isMod(event) && event.key === 's') {
       event.preventDefault()
-      await forceSaveAndCommit()
+      await createSnapshot()
       return
     }
 
@@ -153,8 +155,13 @@ export function useAppShellEventBridge({
         event.preventDefault()
         return
       }
-      if (versionHistoryVisible.value) {
-        versionHistoryVisible.value = false
+      if (workspaceSnapshotBrowserVisible.value) {
+        workspaceSnapshotBrowserVisible.value = false
+        event.preventDefault()
+        return
+      }
+      if (fileVersionHistoryVisible.value) {
+        fileVersionHistoryVisible.value = false
         event.preventDefault()
         return
       }
@@ -225,10 +232,14 @@ export function useAppShellEventBridge({
     workspace.openBottomPanel()
   }
 
-  function handleOpenVersionHistoryEvent(event) {
+  function handleOpenFileVersionHistoryEvent(event) {
     const path = event.detail?.path
     if (!path) return
-    openVersionHistory({ path })
+    openFileVersionHistory({ path })
+  }
+
+  function handleOpenWorkspaceSnapshotsEvent() {
+    openWorkspaceSnapshots()
   }
 
   function handleExternalLinkActivation(event) {
@@ -267,7 +278,8 @@ export function useAppShellEventBridge({
     window.addEventListener('app:open-settings', handleOpenSettings)
     window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.addEventListener('app:toggle-terminal', handleToggleTerminal)
-    window.addEventListener('open-version-history', handleOpenVersionHistoryEvent)
+    window.addEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
+    window.addEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 
   onUnmounted(() => {
@@ -284,6 +296,7 @@ export function useAppShellEventBridge({
     window.removeEventListener('app:open-settings', handleOpenSettings)
     window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
-    window.removeEventListener('open-version-history', handleOpenVersionHistoryEvent)
+    window.removeEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
+    window.removeEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 }

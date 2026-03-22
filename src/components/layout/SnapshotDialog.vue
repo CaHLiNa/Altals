@@ -9,7 +9,7 @@
       >
         <div class="snapshot-dialog" @keydown.esc="cancel">
           <div class="snapshot-header">
-            <span class="snapshot-title">{{ t('Create Snapshot') }}</span>
+            <span class="snapshot-title">{{ t('Name this version') }}</span>
             <button class="snapshot-close" @click="cancel" :aria-label="t('Close')">&times;</button>
           </div>
           <input
@@ -21,7 +21,7 @@
             @keydown.enter="submit"
           />
           <p class="snapshot-helper">
-            {{ t('Use this dialog to create named checkpoints in Version History.') }}<br />
+            {{ t('Use this dialog to name a saved version.') }}<br />
           </p>
           <button class="snapshot-btn" @click="submit">{{ t('Save') }}</button>
         </div>

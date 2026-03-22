@@ -33,7 +33,7 @@ test('workspace history repo service initializes and seeds a first commit withou
 
   const result = await service.ensureWorkspaceHistoryRepo('/workspace/demo', {
     seedInitialCommit: true,
-    seedMessage: 'Initial snapshot',
+    seedMessage: 'Initial history',
   })
 
   assert.deepEqual(result, {
@@ -48,7 +48,7 @@ test('workspace history repo service initializes and seeds a first commit withou
     ['gitLog', '/workspace/demo', null, 1],
     ['gitAdd', '/workspace/demo'],
     ['gitStatus', '/workspace/demo'],
-    ['gitCommit', '/workspace/demo', 'Initial snapshot'],
+    ['gitCommit', '/workspace/demo', 'Initial history'],
   ])
 })
 

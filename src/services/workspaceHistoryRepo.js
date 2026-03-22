@@ -15,7 +15,7 @@ export function createWorkspaceHistoryRepoService({
   async function ensureWorkspaceHistoryRepo(path = '', options = {}) {
     const {
       seedInitialCommit = false,
-      seedMessage = 'Initial snapshot',
+      seedMessage = 'Initial history',
     } = options
 
     if (!path) return { ok: false, reason: 'missing' }

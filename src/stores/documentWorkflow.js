@@ -15,10 +15,10 @@ import {
 } from '../services/documentWorkflow/policy.js'
 import {
   getDocumentAdapterByKind,
-  getDocumentAdapterForWorkflow,
   listWorkflowDocumentAdapters,
 } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
+import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
@@ -45,45 +45,6 @@ function readPrefs() {
     }
   } catch {
     return defaultPrefs()
-  }
-}
-
-function buildAdapterContext(workflowStore, filePath) {
-  const adapter = getDocumentAdapterForWorkflow(filePath)
-  const filesStore = useFilesStore()
-  const referencesStore = useReferencesStore()
-  const workspace = useWorkspaceStore()
-  const editorStore = useEditorStore()
-  if (!adapter) {
-    return {
-      adapter: null,
-      workflowStore,
-      latexStore: null,
-      typstStore: null,
-      editorStore,
-      filesStore,
-      referencesStore,
-      workspace,
-      previewKind: null,
-      previewAvailable: false,
-    }
-  }
-
-  const previewKind = workflowStore.session.activeFile === filePath
-    ? (workflowStore.session.previewKind || workflowStore.getPreferredPreviewKind(adapter.kind))
-    : workflowStore.getPreferredPreviewKind(adapter.kind)
-
-  return {
-    adapter,
-    workflowStore,
-    latexStore: useLatexStore(),
-    typstStore: useTypstStore(),
-    editorStore,
-    filesStore,
-    referencesStore,
-    workspace,
-    previewKind,
-    previewAvailable: workflowStore.hasPreviewForSource(filePath, previewKind),
   }
 }
 
@@ -159,6 +120,21 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         })
       }
       return this._documentWorkflowRuntime
+    },
+
+    _getDocumentWorkflowBuildRuntime() {
+      if (!this._documentWorkflowBuildRuntime) {
+        this._documentWorkflowBuildRuntime = createDocumentWorkflowBuildRuntime({
+          getWorkflowStore: () => this,
+          getEditorStore: () => useEditorStore(),
+          getFilesStore: () => useFilesStore(),
+          getWorkspaceStore: () => useWorkspaceStore(),
+          getLatexStore: () => useLatexStore(),
+          getTypstStore: () => useTypstStore(),
+          getReferencesStore: () => useReferencesStore(),
+        })
+      }
+      return this._documentWorkflowBuildRuntime
     },
 
     persistPrefs() {
@@ -361,19 +337,24 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }))
     },
 
-    openLogForFile(filePath) {
-      const context = buildAdapterContext(this, filePath)
-      context.adapter?.compile?.openLog?.(filePath, context)
+    buildAdapterContext(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().buildAdapterContext(filePath, options)
     },
 
-    getProblemsForFile(filePath) {
-      const context = buildAdapterContext(this, filePath)
-      return context.adapter?.getProblems?.(filePath, context) || []
+    openLogForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().openLogForFile(filePath, options)
     },
 
-    getUiStateForFile(filePath) {
-      const context = buildAdapterContext(this, filePath)
-      return context.adapter?.getUiState?.(filePath, context) || null
+    getProblemsForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getProblemsForFile(filePath, options)
+    },
+
+    getUiStateForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getUiStateForFile(filePath, options)
+    },
+
+    getStatusTextForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getStatusTextForFile(filePath, options)
     },
 
     reconcile(options = {}) {

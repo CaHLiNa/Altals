@@ -5,6 +5,7 @@ import {
   ensureLanguageExecutionReady,
 } from '../services/environmentPreflight'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
+import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { launchAiTask } from '../services/ai/launch'
 import { createTexTypDiagnoseTask, createTexTypFixTask } from '../services/ai/taskCatalog'
 
@@ -25,8 +26,25 @@ export function useEditorPaneWorkflow(options) {
     t,
   } = options
 
+  function buildWorkflowOptions(extra = {}) {
+    return {
+      editorStore,
+      filesStore,
+      chatStore,
+      workspace,
+      latexStore,
+      typstStore,
+      toastStore,
+      referencesStore,
+      t,
+      ...extra,
+    }
+  }
+
   const workflowUiState = computed(() => (
-    activeTabRef.value ? workflowStore.getUiStateForFile(activeTabRef.value) : null
+    activeTabRef.value
+      ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
+      : null
   ))
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value ? getDocumentAdapterForFile(activeTabRef.value) : null
@@ -43,23 +61,12 @@ export function useEditorPaneWorkflow(options) {
   ))
   const workflowStatusText = computed(() => {
     if (!activeTabRef.value || !workflowUiState.value) return ''
-    return activeCompileAdapter.value?.getStatusText?.(activeTabRef.value, buildAdapterContext()) || ''
+    return workflowStore.getStatusTextForFile(activeTabRef.value, buildWorkflowOptions({
+      adapter: activeDocumentAdapter.value,
+      workflowOnly: false,
+    }))
   })
-  const workflowStatusTone = computed(() => {
-    if (!workflowUiState.value) return 'muted'
-    if (workflowUiState.value.kind === 'markdown') {
-      if (workflowUiState.value.exportPhase === 'exporting' || workflowUiState.value.phase === 'rendering') return 'running'
-      if (workflowUiState.value.phase === 'error') return 'error'
-      if (workflowUiState.value.exportPhase === 'error') return 'warning'
-      if (workflowUiState.value.phase === 'ready' || workflowUiState.value.exportPhase === 'ready') return 'success'
-      return 'muted'
-    }
-    if (workflowUiState.value.phase === 'compiling' || workflowUiState.value.phase === 'rendering') return 'running'
-    if (workflowUiState.value.phase === 'queued') return 'warning'
-    if (workflowUiState.value.phase === 'error') return 'error'
-    if (workflowUiState.value.phase === 'ready') return 'success'
-    return 'muted'
-  })
+  const workflowStatusTone = computed(() => getDocumentWorkflowStatusTone(workflowUiState.value))
   const typstPdfPaneState = new Map()
 
   function isPreviewHostPane(paneId) {
@@ -179,19 +186,11 @@ export function useEditorPaneWorkflow(options) {
   }
 
   function buildAdapterContext(extra = {}) {
-    return {
-      editorStore,
-      filesStore,
-      chatStore,
-      workspace,
-      latexStore,
-      typstStore,
-      toastStore,
-      workflowStore,
-      referencesStore,
-      t,
+    return workflowStore.buildAdapterContext(activeTabRef.value || '', buildWorkflowOptions({
+      adapter: activeDocumentAdapter.value,
+      workflowOnly: false,
       ...extra,
-    }
+    }))
   }
 
   async function handleRunCode() {

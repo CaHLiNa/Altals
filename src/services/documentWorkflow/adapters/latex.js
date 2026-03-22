@@ -1,5 +1,4 @@
 import { isLatex } from '../../../utils/fileTypes.js'
-import { ensureLatexCompileReady } from '../../environmentPreflight.js'
 import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
@@ -148,6 +147,7 @@ const latexCompileAdapter = {
   },
 
   async ensureReady(_filePath) {
+    const { ensureLatexCompileReady } = await import('../../environmentPreflight.js')
     return ensureLatexCompileReady()
   },
 

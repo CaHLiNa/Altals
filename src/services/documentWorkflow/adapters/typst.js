@@ -1,5 +1,4 @@
 import { isTypst } from '../../../utils/fileTypes.js'
-import { ensureTypstCompileReady } from '../../environmentPreflight.js'
 import {
   buildTypstCompileProblems,
   buildTypstWorkflowStatusText,
@@ -54,6 +53,7 @@ const typstCompileAdapter = {
   },
 
   async ensureReady(_filePath) {
+    const { ensureTypstCompileReady } = await import('../../environmentPreflight.js')
     return ensureTypstCompileReady()
   },
 

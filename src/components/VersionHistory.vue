@@ -18,37 +18,37 @@
         <div class="version-list">
           <div class="px-3 py-2 text-xs font-medium uppercase tracking-wider"
             style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
-            {{ t('History: {fileName}', { fileName }) }}
+            {{ t('File Version History: {fileName}', { fileName }) }}
           </div>
           <div v-if="loading" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
             {{ t('Loading...') }}
           </div>
-          <div v-else-if="commits.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
+          <div v-else-if="snapshots.length === 0" class="px-3 py-4 text-xs" style="color: var(--fg-muted);">
             {{ t('No history yet') }}
           </div>
           <div
-            v-for="(commit, idx) in commits"
-            :key="commit.hash"
+            v-for="(snapshot, idx) in snapshots"
+            :key="snapshot.id"
             class="version-item"
-            :class="{ active: idx === selectedIndex, 'version-item-named': isNamedSnapshot(commit.message) }"
+            :class="{ active: idx === selectedIndex, 'version-item-named': isNamedSnapshot(snapshot) }"
             @click="selectVersion(idx)"
           >
-            <div class="timestamp">{{ formatDisplayDate(commit.date) }}</div>
-            <div class="message" :class="{ 'version-named-message': isNamedSnapshot(commit.message) }">
-              <svg v-if="isNamedSnapshot(commit.message)" class="version-bookmark-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"/></svg>
-              {{ commit.message }}
+            <div class="timestamp">{{ formatDisplayDate(snapshot.createdAt) }}</div>
+            <div class="message" :class="{ 'version-named-message': isNamedSnapshot(snapshot) }">
+              <svg v-if="isNamedSnapshot(snapshot)" class="version-bookmark-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"/></svg>
+              {{ getSnapshotMessage(snapshot) }}
             </div>
           </div>
         </div>
 
         <!-- Preview -->
         <div class="version-preview">
-          <div v-if="selectedCommit" class="version-preview-header">
+          <div v-if="selectedSnapshot" class="version-preview-header">
             <div class="version-preview-headline">
               <span class="text-xs" style="color: var(--fg-muted);">
-                {{ formatDisplayDate(selectedCommit.date) }}
-                <span v-if="selectedCommit.message" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
-                  {{ selectedCommit.message }}
+                {{ formatDisplayDate(selectedSnapshot.createdAt) }}
+                <span v-if="selectedSnapshotMetadata.title" style="margin-left: 8px; color: var(--fg-muted); opacity: 0.7;">
+                  {{ selectedSnapshotMetadata.title }}
                 </span>
               </span>
             </div>
@@ -58,22 +58,28 @@
           <div v-if="previewLoading" class="version-empty-state">
             <div class="text-xs" style="color: var(--fg-muted);">{{ t('Loading preview...') }}</div>
           </div>
-          <div v-else-if="selectedCommit && isUnsupportedBinary" class="version-empty-state">
+          <div v-else-if="selectedSnapshot && isUnsupportedBinary" class="version-empty-state">
             <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('Version preview is not available for this file type.') }}</div>
             <div style="color: var(--fg-muted); opacity: 0.6; font-size: var(--ui-font-caption); margin-top: 6px;">
               {{ t('DOCX files remain in history, but Altals no longer previews or restores them.') }}
             </div>
           </div>
+          <div v-else-if="selectedSnapshot && !canPreviewSelectedSnapshot" class="version-empty-state">
+            <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('This saved version is not previewable from file history.') }}</div>
+            <div style="color: var(--fg-muted); opacity: 0.6; font-size: var(--ui-font-caption); margin-top: 6px;">
+              {{ t('Workspace-level save points remain Git-backed, but this view only restores file-level history.') }}
+            </div>
+          </div>
           <!-- Empty state -->
-          <div v-else-if="!selectedCommit" class="version-empty-state">
+          <div v-else-if="!selectedSnapshot" class="version-empty-state">
             <div style="color: var(--fg-muted); font-size: var(--ui-font-body);">{{ t('Select a version to preview') }}</div>
             <div style="color: var(--fg-muted); opacity: 0.5; font-size: var(--ui-font-caption); margin-top: 6px;">
-              {{ t('Click a commit on the left') }}
+              {{ t('Click a version on the left') }}
             </div>
           </div>
           <!-- Preview content -->
           <div
-            v-else-if="selectedCommit"
+            v-else-if="selectedSnapshot"
             ref="previewContainer"
             class="flex-1 overflow-hidden"
           ></div>
@@ -84,7 +90,7 @@
               v-if="!isUnsupportedBinary"
               class="version-action-btn version-action-copy"
               :class="{ 'is-success': copyFeedback }"
-              :disabled="!selectedCommit"
+              :disabled="!selectedSnapshot || !canCopySelectedSnapshot"
               @click="copyContent"
             >
               {{ copyFeedback ? t('Copied!') : t('Copy content') }}
@@ -92,7 +98,7 @@
             <button
               v-if="!isUnsupportedBinary"
               class="version-action-btn version-action-restore"
-              :disabled="!selectedCommit"
+              :disabled="!selectedSnapshot || !canRestoreSelectedSnapshot"
               @click="restoreVersion"
             >
               {{ t('Restore this version') }}
@@ -106,7 +112,6 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { IconX } from '@tabler/icons-vue'
 import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
@@ -114,7 +119,13 @@ import { shouldersTheme, shouldersHighlighting } from '../editor/theme'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useFilesStore } from '../stores/files'
 import { useToastStore } from '../stores/toast'
-import { gitLog, gitShow } from '../services/git'
+import {
+  getWorkspaceSnapshotMetadata,
+  isNamedWorkspaceSnapshot,
+  listFileVersionHistory,
+  loadFileVersionHistoryPreview,
+  restoreFileVersionHistoryEntry,
+} from '../domains/changes/workspaceSnapshot.js'
 import { getViewerType } from '../utils/fileTypes'
 import { formatFileError } from '../utils/errorMessages'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -129,13 +140,14 @@ const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 const previewContainer = ref(null)
 const overlayEl = ref(null)
 
 const loading = ref(false)
 const previewLoading = ref(false)
-const commits = ref([])
+const snapshots = ref([])
 const selectedIndex = ref(-1)
 const previewContent = ref('')
 const copyFeedback = ref(false)
@@ -145,8 +157,18 @@ let copyTimer = null
 
 const fileName = computed(() => props.filePath.split('/').pop())
 const isUnsupportedBinary = computed(() => getViewerType(props.filePath) === 'unsupported-binary')
-const selectedCommit = computed(() =>
-  selectedIndex.value >= 0 ? commits.value[selectedIndex.value] : null
+const selectedSnapshot = computed(() =>
+  selectedIndex.value >= 0 ? snapshots.value[selectedIndex.value] : null
+)
+const selectedSnapshotMetadata = computed(() => getSnapshotMetadata(selectedSnapshot.value))
+const canPreviewSelectedSnapshot = computed(() =>
+  !!selectedSnapshotMetadata.value?.capabilities?.canPreview
+)
+const canCopySelectedSnapshot = computed(() =>
+  canPreviewSelectedSnapshot.value && !isUnsupportedBinary.value
+)
+const canRestoreSelectedSnapshot = computed(() =>
+  !!selectedSnapshotMetadata.value?.capabilities?.canRestore && !isUnsupportedBinary.value
 )
 
 function destroyPreview() {
@@ -178,7 +200,7 @@ watch(() => props.visible, async (v) => {
     await nextTick()
     overlayEl.value?.focus()
   } else {
-    commits.value = []
+    snapshots.value = []
     selectedIndex.value = -1
     previewLoading.value = false
     destroyPreview()
@@ -189,19 +211,23 @@ async function loadHistory() {
   if (!workspace.path) return
   loading.value = true
   try {
-    commits.value = await gitLog(workspace.path, props.filePath)
+    snapshots.value = await listFileVersionHistory({
+      workspacePath: workspace.path,
+      filePath: props.filePath,
+      t,
+    })
     selectedIndex.value = -1
   } catch (e) {
     console.error('Failed to load history:', e)
-    commits.value = []
+    snapshots.value = []
   }
   loading.value = false
 }
 
 async function selectVersion(idx) {
   selectedIndex.value = idx
-  const commit = commits.value[idx]
-  if (!commit || !workspace.path) return
+  const snapshot = snapshots.value[idx]
+  if (!snapshot || !workspace.path) return
 
   previewLoading.value = true
   try {
@@ -211,7 +237,13 @@ async function selectVersion(idx) {
       destroyPreview()
       return
     }
-    await selectVersionText(commit)
+    if (!getSnapshotMetadata(snapshot)?.capabilities?.canPreview) {
+      previewContent.value = ''
+      previewLoading.value = false
+      destroyPreview()
+      return
+    }
+    await selectVersionText(snapshot)
   } catch (e) {
     console.error('Failed to show version:', e)
     previewContent.value = t('Could not load this version.')
@@ -219,8 +251,12 @@ async function selectVersion(idx) {
   }
 }
 
-async function selectVersionText(commit) {
-  const content = await gitShow(workspace.path, commit.hash, props.filePath)
+async function selectVersionText(snapshot) {
+  const content = await loadFileVersionHistoryPreview({
+    workspacePath: workspace.path,
+    filePath: props.filePath,
+    snapshot,
+  })
   previewContent.value = content
   previewLoading.value = false
 
@@ -249,13 +285,14 @@ async function copyContent() {
 }
 
 async function restoreVersion() {
-  const commit = selectedCommit.value
-  if (!commit || !workspace.path) return
+  const snapshot = selectedSnapshot.value
+  if (!snapshot || !workspace.path) return
+  if (!getSnapshotMetadata(snapshot)?.capabilities?.canRestore) return
 
   const yes = await ask(
     t('Restore "{fileName}" to version from {date}?', {
       fileName: fileName.value,
-      date: formatDisplayDate(commit.date),
+      date: formatDisplayDate(snapshot.createdAt),
     }),
     { title: t('Confirm Restore'), kind: 'warning' },
   )
@@ -264,19 +301,29 @@ async function restoreVersion() {
   }
 
   try {
-    const content = await gitShow(workspace.path, commit.hash, props.filePath)
-    await invoke('write_file', { path: props.filePath, content })
-    await filesStore.reloadFile(props.filePath)
+    await restoreFileVersionHistoryEntry({
+      workspacePath: workspace.path,
+      filePath: props.filePath,
+      snapshot,
+      reloadFileImpl: (path) => filesStore.reloadFile(path),
+    })
     emit('close')
   } catch (e) {
     console.error('Failed to restore:', e)
-    useToastStore().show(formatFileError('restore', props.filePath, e), { type: 'error', duration: 5000 })
+    toastStore.show(formatFileError('restore', props.filePath, e), { type: 'error', duration: 5000 })
   }
 }
 
-function isNamedSnapshot(message) {
-  if (!message) return false
-  return !message.startsWith('Auto:') && !message.startsWith('Save:')
+function isNamedSnapshot(snapshot) {
+  return getSnapshotMetadata(snapshot).isNamed && isNamedWorkspaceSnapshot(snapshot)
+}
+
+function getSnapshotMessage(snapshot) {
+  return getSnapshotMetadata(snapshot).title
+}
+
+function getSnapshotMetadata(snapshot) {
+  return getWorkspaceSnapshotMetadata(snapshot)
 }
 
 function formatDisplayDate(dateStr) {

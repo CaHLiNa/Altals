@@ -158,7 +158,7 @@
       @duplicate="handleDuplicate"
       @delete="handleDelete"
       @delete-selected="handleDeleteSelected"
-      @version-history="$emit('version-history', $event)"
+      @file-version-history="$emit('file-version-history', $event)"
       @reveal-in-finder="revealInFinder"
       @import-to-refs="handleImportToRefs"
     />
@@ -276,7 +276,7 @@ const props = defineProps({
   collapsed: { type: Boolean, default: false },
   headingLabel: { type: String, default: '' },
 })
-const emit = defineEmits(['version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])
+const emit = defineEmits(['file-version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])
 
 const files = useFilesStore()
 const editor = useEditorStore()
