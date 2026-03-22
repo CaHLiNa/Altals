@@ -13,6 +13,8 @@ Current overall assessment:
 - Phase 2 has completed its currently highest-value `editor` slice and should no longer be extended for cosmetic cleanup.
 - Phase 3 is complete for the current planned scope: the `documentWorkflow` preview/open/reconcile runtime, build/diagnostic seam, shared build execution seam, typst shared-pane seam, and UI-facing action-routing seam are all landed and validated.
 - Phase 4 is complete for the current planned scope: explicit history-point intent, Git-backed snapshot metadata/manifest seams, local workspace-save-point indexing, app-managed payload restore, project-text-set capture, preview/diff/apply flows, and in-scope added-file removal are all landed and validated.
+- Phase 5 is complete for the current planned scope: document-scoped AI launch routing is now behind an explicit runtime seam, the existing TeX/Typst proposal-first workflows are documented truthfully, and no broader direct-action AI path was expanded.
+- Phase 6 is complete for the current planned scope: the missing core docs baseline now exists, remaining direct AI launch/deletion targets are documented, and repo-level audit tests now guard the docs baseline plus the current direct AI launch inventory.
 - Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and the current planned Phase 4 safety-model runtime/service extractions plus targeted tests.
 
 ## Product Direction
@@ -432,27 +434,17 @@ This means the backend has not yet entered the target command/core/service/model
 
 ### Docs state
 
-Current docs are still incomplete.
+The docs baseline is much stronger than before, but it still requires ongoing maintenance.
 
-Observed repository reality as of 2026-03-22:
+Observed repository reality as of 2026-03-23:
 
 - `docs/REFACTOR_BLUEPRINT.md` remains the primary execution document.
 - `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` now exist and document the current Phase 3/4 boundaries truthfully.
 - `docs/DATA_MODEL.md` now exists and documents the explicit snapshot record/index/payload seams truthfully.
-- `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, and the other required documents still do not exist.
-- The repository still lacks a broader top-level architecture map for the remaining domain/store boundaries outside the two newly created Phase 3/4 docs.
+- `docs/AI_SYSTEM.md`, `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, `docs/BUILD_SYSTEM.md`, `docs/CONTRIBUTING.md`, and `docs/TESTING.md` now also exist and reflect the current frontend/runtime-heavy architecture truthfully.
+- The repository now has a real top-level architecture/testing/docs baseline instead of relying only on the blueprint plus a few phase-specific docs.
 
-Required docs such as the following are still missing:
-
-- `docs/PRODUCT.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DOMAINS.md`
-- `docs/BUILD_SYSTEM.md`
-- `docs/AI_SYSTEM.md`
-- `docs/CONTRIBUTING.md`
-- `docs/TESTING.md`
-
-At the moment, the most established active refactor docs are `docs/REFACTOR_BLUEPRINT.md`, `docs/OPERATIONS.md`, `docs/DATA_MODEL.md`, and `docs/GIT_AND_SNAPSHOTS.md`.
+At the moment, the most established active refactor docs are `docs/REFACTOR_BLUEPRINT.md`, `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, `docs/OPERATIONS.md`, `docs/DATA_MODEL.md`, `docs/GIT_AND_SNAPSHOTS.md`, `docs/AI_SYSTEM.md`, `docs/BUILD_SYSTEM.md`, `docs/CONTRIBUTING.md`, and `docs/TESTING.md`.
 
 ### Safety model observations
 
@@ -540,7 +532,7 @@ Goal:
 - unify diagnostics and visibility of outcomes
 
 Status:
-- In progress, early stage
+- Complete for the current planned scope
 
 What has already happened:
 - `src/domains/document/documentWorkflowRuntime.js` established
@@ -594,7 +586,7 @@ Goal:
 - move toward operation-aligned AI paths
 
 Status:
-- Not yet started
+- Complete for the current planned scope
 
 Exit criteria:
 - AI behavior documented
@@ -609,7 +601,7 @@ Goal:
 - reduce ambiguity in the repository
 
 Status:
-- Not yet started, aside from blueprint maintenance
+- Complete for the current planned scope
 
 Exit criteria:
 - missing core docs exist
@@ -706,9 +698,12 @@ Exit criteria:
 
 ### Product and architecture docs
 
-- [ ] Create `docs/PRODUCT.md`
-- [ ] Create `docs/ARCHITECTURE.md`
-- [ ] Create `docs/DOMAINS.md`
+- [x] Create `docs/PRODUCT.md`
+- [x] Create `docs/ARCHITECTURE.md`
+- [x] Create `docs/DOMAINS.md`
+- [x] Create `docs/BUILD_SYSTEM.md`
+- [x] Create `docs/CONTRIBUTING.md`
+- [x] Create `docs/TESTING.md`
 - [x] Create `docs/OPERATIONS.md`
 
 ### Safety model
@@ -742,9 +737,9 @@ Exit criteria:
 
 ### Cleanup / validation
 
-- [ ] Identify dead or near-dead paths left behind by App/store extraction
-- [ ] Record deletion targets for temporary bridges
-- [ ] Strengthen validation beyond repeated build-only verification
+- [x] Identify dead or near-dead paths left behind by App/store extraction
+- [x] Record deletion targets for temporary bridges
+- [x] Strengthen validation beyond repeated build-only verification
 
 ## In Progress
 
@@ -793,6 +788,7 @@ Exit criteria:
 - 2026-03-22 execution cycle: `documentWorkflowTypstPaneRuntime` is now landed, so the typst preview/pdf shared-pane state machine no longer lives in `useEditorPaneWorkflow.js`; the next remaining Phase 3 knot is the UI-facing action branching that still lives there
 - 2026-03-22 execution cycle: extracting the remaining document workflow action branching out of `useEditorPaneWorkflow.js` so primary-action, reveal-preview, and preview-toggle routing converge behind a shared document action seam
 - 2026-03-22 execution cycle: the current planned Phase 3 scope is now being closed after `documentWorkflowActionRuntime` landed; remaining `useEditorPaneWorkflow.js` direct workflow calls are thin wrappers or lower-priority AI-entry glue rather than the next best architectural knot
+- 2026-03-23 execution cycle: `documentWorkflowAiRuntime` landed, `docs/AI_SYSTEM.md` was created, and the current planned Phase 5 scope is now complete around one explicit document-scoped patch-first AI entry seam rather than a broad AI rewrite
 - `workspaceHistoryRepo` is now extracted as a first safety-model boundary, and the shared `pathExists` cleanup has removed its temporary dynamic-import workaround; the next execution cycle should shift back to the next concrete Phase 3 main-loop seam
 - 2026-03-22 execution cycle: `docs/OPERATIONS.md` and `docs/GIT_AND_SNAPSHOTS.md` are now created, and the newest landed Phase 4 slice separates pre-history file persistence from Git commit execution in `workspaceHistory`
 - 2026-03-22 execution cycle: `workspaceHistoryCommitRuntime` is now landed, so repo readiness, file preparation, and commit execution are separate safety steps
@@ -1095,6 +1091,20 @@ Exit criteria:
   - `node --test tests/documentWorkflowActionRuntime.test.mjs tests/documentWorkflowTypstPaneRuntime.test.mjs tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Established `src/domains/document/documentWorkflowAiRuntime.js`
+- Rerouted `src/stores/documentWorkflow.js` and `src/composables/useEditorPaneWorkflow.js` so document workflow AI diagnose/fix launch now goes through the new document AI runtime instead of the composable building TeX/Typst tasks and calling `launchAiTask(...)` directly
+- Added `tests/documentWorkflowAiRuntime.test.mjs` to validate document-scoped AI launch routing, preserved launcher metadata, and unsupported-file guards outside the composable shell
+- Deleted the now-unused typst-specific store bridge methods after the action runtime stopped calling them
+- Created `docs/AI_SYSTEM.md` to document the current AI workflow system truthfully, including the existing TeX/Typst diagnosis-vs-patch approval behavior
+- Updated `docs/OPERATIONS.md` to describe the new document AI runtime, `RunAiWorkflow` partial operation seam, and the current planned Phase 5 closure truthfully
+- Validated the first Phase 5 slice plus dead-bridge cleanup with:
+  - `node --test tests/documentWorkflowAiRuntime.test.mjs tests/documentWorkflowActionRuntime.test.mjs tests/documentWorkflowTypstPaneRuntime.test.mjs tests/documentWorkflowRuntime.test.mjs tests/documentWorkflowBuildRuntime.test.mjs tests/documentWorkflowBuildOperationRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Revalidated the landed Phase 5 scope after doc closure with:
+  - targeted document workflow/AI suites passing `23/23`
+  - `node --test tests/*.test.mjs` passing `331/331`
+  - `npm run build` succeeding with only the pre-existing Vite dynamic-import and chunk-size warnings
 - Created `docs/OPERATIONS.md` to document the real current operation seams around project/document/build/change flow
 - Created `docs/GIT_AND_SNAPSHOTS.md` to document the real current safety model and the remaining autosave/snapshot/Git/sync coupling
 - Established `src/domains/changes/workspaceHistoryPreparationRuntime.js`
@@ -1421,13 +1431,21 @@ Exit criteria:
   - `node --test tests/workspaceHistoryRepo.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build`
+- Created `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DOMAINS.md`, `docs/BUILD_SYSTEM.md`, `docs/CONTRIBUTING.md`, and `docs/TESTING.md` so the repository now has the missing core docs baseline required by the refactor constitution
+- Updated `docs/AI_SYSTEM.md` and `docs/OPERATIONS.md` so the remaining direct AI launch callers, operation gaps, and post-Phase-6 next work are recorded truthfully
+- Added `tests/aiLaunchBoundaryAudit.test.mjs` to freeze the current direct `launchAiTask(...)` / `launchWorkflowTask(...)` caller inventory and to guard against `useEditorPaneWorkflow.js` regressing back to direct TeX/Typst AI task launching
+- Added `tests/repoDocsAudit.test.mjs` to guard the required top-level docs baseline plus the mandatory blueprint section headings
+- Validated the current planned Phase 6 scope with:
+  - `node --test tests/aiLaunchBoundaryAudit.test.mjs tests/repoDocsAudit.test.mjs tests/documentWorkflowAiRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
 - Workspace open/close still touches multiple stores and services, so careless reordering can introduce regressions
 - Auto-commit and history/version flows are still coupled
 - `PdfViewer.vue` remains extremely large and highly coupled, but is not yet the best next target
-- Validation is still heavily dependent on build checks and manual confidence rather than systematic tests outside the growing runtime test surface
+- Validation is stronger now, but it still lacks a lint gate, a typecheck gate, browser E2E coverage, and a routine Rust test workflow for refactor slices
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
 - `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
 - `files` now delegates visible-tree refresh execution, watch/poll lifecycle orchestration, tree hydration/loading, flat-file indexing, file content/PDF handling, entry-creation/import flows, and rename/move/delete coordination to domain runtimes; the store is no longer the clearest next extraction target
@@ -1437,7 +1455,8 @@ Exit criteria:
 - `chat` is no longer one of the highest-value remaining Phase 2 seams; its remaining store logic is now mostly runtime accessors, getters, and a thinner shell
 - `references` is much thinner after its seventh second-round slice, but still keeps thin UI/helper wrappers that are lower-value than shifting to a different large store
 - `editor` still owns close/move/layout shell logic, but the major currently identified routing knot is now extracted; staying in Phase 2 there risks slipping into lower-value cleanup
-- `documentWorkflow` is now substantially split across explicit runtimes, but compile-specific button handlers and AI diagnose/fix launch still live in `useEditorPaneWorkflow.js` as thinner follow-up seams rather than full orchestration knots
+- `documentWorkflow` is now substantially split across explicit runtimes, but compile-specific button handlers still live in `useEditorPaneWorkflow.js` as thinner follow-up seams rather than full orchestration knots
+- AI launch entry points are still distributed across other surfaces such as notebook, references, comments, and generic launcher UI even though the document workflow toolbar now has an explicit runtime seam
 - The safety model is cleaner now, and workspace save points have a first app-managed payload manifest plus restore seam above the Git-backed snapshot/history boundary, but that restore coverage is still intentionally narrow
 - Snapshot scope is now explicit (`workspace` vs `file`), and restore semantics are now split: file-scoped version history remains Git-backed while payload-backed workspace save points restore only the current filtered project text set
 - Older/backfilled workspace save points can still appear in the browser without a local restore payload
@@ -1446,19 +1465,23 @@ Exit criteria:
 - The current `project-text-set` payload boundary is broader than the loaded set, but it still depends on flat-file index freshness, text-read limits, and explicit path filtering rather than representing a whole-project rewind
 - Workspace save-point preview/restore now models captured-file replay, chunk-level apply/restore, and in-scope added-file removal inside the filtered `project-text-set`, but it still is not a whole-workspace rewind and does not delete files outside that explicit scope
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
-- The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
+- The docs baseline now exists, but it can become stale again if later refactor slices land without updating the architecture/testing/product docs alongside the blueprint
 
 ## Next Recommended Slice
 
-1. Phase 3 is complete for the current planned scope; do not reopen it for cosmetic wrapper extraction
-2. Shift to Phase 5 by extracting the current document AI diagnose/fix launch path out of `src/composables/useEditorPaneWorkflow.js` into a focused document AI action runtime
-3. Preserve the current task-catalog ids, beside-chat launch behavior, and patch-first AI entry semantics while that AI action routing moves behind the new seam
-4. Validate with targeted document-workflow / AI-launch runtime tests, `node --test tests/*.test.mjs`, and `npm run build`
-5. Keep workspace snapshot restore separate from Git-backed file-history restore, and keep AI file mutation flowing through normal reviewable operations rather than direct mutation paths
+1. The current planned Phase 6 scope is complete; do not reopen it with docs-only churn or cosmetic cleanup
+2. Start backend planning by auditing `src-tauri/src/latex.rs` and `src-tauri/src/fs_commands.rs` for the first safe command/core/service split opportunity
+3. Use `docs/ARCHITECTURE.md` and `docs/BUILD_SYSTEM.md` to record the exact first backend layering target and what will intentionally remain flat for now
+4. Validate the next slice with the narrowest Rust-facing verification available plus `node --test tests/*.test.mjs` and `npm run build`
+5. Keep workspace snapshot restore separate from Git-backed file-history restore, and keep AI mutation flowing through reviewable workflow/checkpoint paths rather than direct mutation entry points
 
 ## Validation Checklist
 
 - [x] Blueprint reflects the current repository state
+- [x] architecture docs baseline exists
+- [x] testing docs baseline exists
+- [x] required top-level docs presence is guarded by an audit test
+- [x] remaining direct AI launch callers are documented and guarded by an audit test
 - [x] App-layer boundary extraction is documented
 - [x] `App.vue` responsibility has materially shrunk
 - [x] `references` first-round split is documented

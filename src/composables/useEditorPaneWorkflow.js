@@ -6,8 +6,6 @@ import {
 } from '../services/environmentPreflight'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
-import { launchAiTask } from '../services/ai/launch'
-import { createTexTypDiagnoseTask, createTexTypFixTask } from '../services/ai/taskCatalog'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -180,32 +178,22 @@ export function useEditorPaneWorkflow(options) {
   }
 
   async function handleWorkflowFixWithAi() {
-    if (!activeTabRef.value || (!isLatex(activeTabRef.value) && !isTypst(activeTabRef.value))) return
-    await launchAiTask({
+    if (!activeTabRef.value) return
+    await workflowStore.launchWorkflowFixWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
-      paneId: paneIdRef.value,
+      paneId: paneIdRef.value || null,
       beside: true,
-      task: createTexTypFixTask({
-        filePath: activeTabRef.value,
-        source: 'document-workflow',
-        entryContext: 'document-workflow',
-      }),
     })
   }
 
   async function handleWorkflowDiagnoseWithAi() {
-    if (!activeTabRef.value || (!isLatex(activeTabRef.value) && !isTypst(activeTabRef.value))) return
-    await launchAiTask({
+    if (!activeTabRef.value) return
+    await workflowStore.launchWorkflowDiagnoseWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
-      paneId: paneIdRef.value,
+      paneId: paneIdRef.value || null,
       beside: true,
-      task: createTexTypDiagnoseTask({
-        filePath: activeTabRef.value,
-        source: 'document-workflow',
-        entryContext: 'document-workflow',
-      }),
     })
   }
 

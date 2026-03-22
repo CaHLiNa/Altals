@@ -20,6 +20,7 @@ Current operations are distributed across:
 The most concrete current operation seams are in:
 
 - document preview/build/diagnostic flow
+- AI workflow launch/executor flow
 - workspace history and Git bootstrap
 - workspace automation for auto-commit and GitHub sync
 
@@ -149,6 +150,33 @@ Current behavior:
 
 This is now the first explicit hybrid snapshot boundary: local workspace-save-point indexing plus payload-backed workspace restore above Git-backed content history. File-scoped restore is still Git-backed.
 
+## Phase 5 AI Workflow
+
+The current AI system is still distributed, but it now has one clearer document-scoped operation seam.
+
+Primary launch/runtime paths today:
+
+- `src/services/ai/taskCatalog.js`
+- `src/services/ai/launch.js`
+- `src/services/ai/workflowRuns/templates.js`
+- `src/stores/aiWorkflowRuns.js`
+- `src/domains/document/documentWorkflowAiRuntime.js`
+
+`src/domains/document/documentWorkflowAiRuntime.js` now owns the document workflow toolbar's AI launch routing:
+
+- `launchDiagnoseForFile`
+- `launchFixForFile`
+
+This runtime deliberately reuses the existing AI launch service and task catalog instead of introducing a second document-only AI backend.
+
+Current document-scoped AI behavior includes:
+
+- only TeX / Typst files are eligible through this seam
+- diagnose uses the existing `compile.tex-typ-diagnose` workflow template
+- fix uses the existing `compile.tex-typ-fix` workflow template
+- fix remains patch-first because the underlying workflow still pauses at `apply_patch`
+- `useEditorPaneWorkflow.js` no longer builds those tasks or calls `launchAiTask(...)` directly
+
 ## Current Operation Map
 
 The repository is converging toward the target operation model, but the current mapping is still partial:
@@ -169,6 +197,7 @@ The repository is converging toward the target operation model, but the current 
 | `PushRemote` / `PullRemote` | Partial | workspace GitHub services/runtime |
 | `CreateSnapshot` | Partial but explicit | workspace snapshot operation boundary + history point runtime |
 | `RestoreSnapshot` | Partial but explicit | workspace snapshot operation boundary + version-history runtime + local payload runtime |
+| `RunAiWorkflow` | Partial but explicit | AI task catalog + launch service + workflow runs + document workflow AI runtime |
 
 ## Gaps
 
@@ -180,16 +209,17 @@ The main missing pieces are:
 - that `project-text-set` boundary is broader than the loaded-only path but still narrower than the whole workspace, which keeps workspace restore separate from PDF extraction and other non-document side paths
 - change review is still partly Git-first because file preview/restore remains Git-backed even though workspace save-point review now has local chunk-level apply/restore
 - workspace save-point preview/restore now covers captured-file replay, chunk-level apply, and in-scope added-file removal, but it still does not provide a whole-project rewind
-- the remaining document workflow glue in `useEditorPaneWorkflow.js` is now mostly thin compile-button wrappers plus AI diagnose/fix launch entry code rather than the main Phase 3 orchestration knot
+- the remaining document workflow glue in `useEditorPaneWorkflow.js` is now mostly thin compile-button wrappers rather than the main Phase 3/5 orchestration knot
+- many non-document surfaces still launch AI workflows directly instead of going through one shared app/domain AI operation seam
 
 ## Next Operation Work
 
-The current planned Phase 3 and Phase 4 operation work is complete.
+The current planned Phase 3, Phase 4, Phase 5, and the current planned Phase 6 documentation/stabilization baseline are complete for their current scopes.
 
-The next operation-oriented refactor should shift to Phase 5 and focus on AI workflow discipline, not on more cosmetic Phase 2 cleanup or more speculative Phase 3 wrapper extraction.
+The next operation-oriented refactor should not reopen document workflow extraction or scatter more one-off AI wrappers.
 
 The most useful next operation target is now:
 
-- extract the current document AI diagnose/fix launch path out of `src/composables/useEditorPaneWorkflow.js` into a focused document AI action runtime
-- keep the current task-catalog ids, beside-chat launch behavior, and patch-first AI entry semantics intact while the launch routing moves behind that operation boundary
-- leave workspace save-point restore separate from Git-backed file version history restore
+- keep workspace save-point restore separate from Git-backed file version history restore
+- shrink the remaining direct AI launch callers toward a clearer shared app/domain AI operation seam
+- start backend layering work where the frontend architecture now has the clearest lead, especially around the still-flat Rust command modules

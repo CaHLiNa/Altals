@@ -21,6 +21,7 @@ import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkf
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
+import { createDocumentWorkflowAiRuntime } from '../domains/document/documentWorkflowAiRuntime.js'
 import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/documentWorkflowTypstPaneRuntime.js'
 import {
   findWorkflowPreviewPane,
@@ -168,6 +169,13 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         })
       }
       return this._documentWorkflowActionRuntime
+    },
+
+    _getDocumentWorkflowAiRuntime() {
+      if (!this._documentWorkflowAiRuntime) {
+        this._documentWorkflowAiRuntime = createDocumentWorkflowAiRuntime()
+      }
+      return this._documentWorkflowAiRuntime
     },
 
     persistPrefs() {
@@ -398,14 +406,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildOperationRuntime().runBuildForFile(filePath, options)
     },
 
-    revealTypstPreviewForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowTypstPaneRuntime().revealPreviewForFile(filePath, options)
-    },
-
-    revealTypstPdfForFile(filePath, options = {}) {
-      return this._getDocumentWorkflowTypstPaneRuntime().revealPdfForFile(filePath, options)
-    },
-
     toggleWorkflowMarkdownPreviewForFile(filePath, options = {}) {
       return this._getDocumentWorkflowActionRuntime().toggleMarkdownPreviewForFile(filePath, options)
     },
@@ -424,6 +424,14 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
 
     revealWorkflowPdfForFile(filePath, options = {}) {
       return this._getDocumentWorkflowActionRuntime().revealPdfForFile(filePath, options)
+    },
+
+    launchWorkflowFixWithAiForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowAiRuntime().launchFixForFile(filePath, options)
+    },
+
+    launchWorkflowDiagnoseWithAiForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowAiRuntime().launchDiagnoseForFile(filePath, options)
     },
 
     reconcile(options = {}) {
