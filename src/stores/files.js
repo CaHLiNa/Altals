@@ -31,10 +31,16 @@ import {
 } from '../domains/files/fileTreeCacheRuntime'
 import {
   createVisibleTreeRefreshRuntime,
-  mergePreservingLoadedChildren,
-  patchTreeEntry,
 } from '../domains/files/fileTreeRefreshRuntime'
 import { createFileTreeWatchRuntime } from '../domains/files/fileTreeWatchRuntime'
+import {
+  createFileTreeHydrationRuntime,
+  findTreeEntry,
+} from '../domains/files/fileTreeHydrationRuntime'
+import { createFlatFilesIndexRuntime } from '../domains/files/flatFilesIndexRuntime'
+import { createFileContentRuntime } from '../domains/files/fileContentRuntime'
+import { createFileCreationRuntime } from '../domains/files/fileCreationRuntime'
+import { createFileMutationRuntime } from '../domains/files/fileMutationRuntime'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
@@ -158,65 +164,11 @@ export const useFilesStore = defineStore('files', {
     },
 
     invalidatePdfSourceForPath(path) {
-      if (!path) return
-      const lowerPath = path.toLowerCase()
-      if (lowerPath.endsWith('.pdf')) {
-        delete this.pdfSourceKinds[path]
-        return
-      }
-      if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.typ')) {
-        delete this.pdfSourceKinds[path.replace(/\.(tex|typ)$/i, '.pdf')]
-      }
-    },
-
-    async _detectPdfSourceKind(pdfPath) {
-      return detectPdfSourceKind({
-        pdfPath,
-        fileContents: this.fileContents,
-        findEntry: (path) => this._findEntry(path),
-      })
+      return this._getFileContentRuntime().invalidatePdfSourceForPath(path)
     },
 
     async ensurePdfSourceKind(pdfPath, options = {}) {
-      if (!pdfPath?.toLowerCase().endsWith('.pdf')) return 'plain'
-      const { force = false } = options
-      const cached = this.pdfSourceKinds[pdfPath]
-      if (!force && cached?.status === 'ready') {
-        return cached.kind
-      }
-
-      if (!this._pdfSourcePromises) this._pdfSourcePromises = new Map()
-      const existingPromise = this._pdfSourcePromises.get(pdfPath)
-      if (existingPromise && !force) {
-        return existingPromise
-      }
-
-      this._setPdfSourceState(pdfPath, {
-        status: 'loading',
-        kind: cached?.kind || 'plain',
-      })
-
-      const loadPromise = (async () => {
-        const kind = await this._detectPdfSourceKind(pdfPath)
-        this._setPdfSourceState(pdfPath, {
-          status: 'ready',
-          kind,
-        })
-        return kind
-      })()
-
-      this._pdfSourcePromises.set(pdfPath, loadPromise)
-      try {
-        return await loadPromise
-      } catch (error) {
-        this._setPdfSourceState(pdfPath, {
-          status: 'ready',
-          kind: 'plain',
-        })
-        throw error
-      } finally {
-        this._pdfSourcePromises.delete(pdfPath)
-      }
+      return this._getFileContentRuntime().ensurePdfSourceKind(pdfPath, options)
     },
 
     noteTreeActivity() {
@@ -246,18 +198,36 @@ export const useFilesStore = defineStore('files', {
       return this._fileTreeWatchRuntime
     },
 
-    _findEntry(path) {
-      const walk = (entries = []) => {
-        for (const entry of entries) {
-          if (entry.path === path) return entry
-          if (Array.isArray(entry.children)) {
-            const found = walk(entry.children)
-            if (found) return found
-          }
-        }
-        return null
+    _getFileTreeHydrationRuntime() {
+      if (!this._fileTreeHydrationRuntime) {
+        this._fileTreeHydrationRuntime = createFileTreeHydrationRuntime({
+          getWorkspacePath: () => useWorkspaceStore().path,
+          getCurrentTree: () => this.tree,
+          readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          applyTree: (tree, workspacePath, options = {}) => this._setTree(tree, workspacePath, options),
+          refreshVisibleTree: (options = {}) => this.refreshVisibleTree(options),
+          setLastLoadError: (error) => {
+            this.lastLoadError = error
+          },
+          addExpandedDir: (path) => {
+            this.expandedDirs.add(path)
+          },
+          removeExpandedDir: (path) => {
+            this.expandedDirs.delete(path)
+          },
+          hasExpandedDir: (path) => this.expandedDirs.has(path),
+          cacheSnapshot: () => this._cacheWorkspaceSnapshot(),
+          invalidateFlatFiles: () => {
+            this.flatFilesCache = []
+            this.flatFilesReady = false
+          },
+        })
       }
-      return walk(this.tree)
+      return this._fileTreeHydrationRuntime
+    },
+
+    _findEntry(path) {
+      return findTreeEntry(this.tree, path)
     },
 
     restoreCachedTree(workspacePath) {
@@ -266,6 +236,167 @@ export const useFilesStore = defineStore('files', {
       if (!patch) return false
       Object.assign(this, patch)
       return true
+    },
+
+    _getFlatFilesIndexRuntime() {
+      if (!this._flatFilesIndexRuntime) {
+        this._flatFilesIndexRuntime = createFlatFilesIndexRuntime({
+          getWorkspacePath: () => useWorkspaceStore().path,
+          getFlatFilesReady: () => this.flatFilesReady,
+          getFlatFilesCache: () => this.flatFilesCache,
+          setFlatFiles: (flatFiles, workspacePath) => this._setFlatFiles(flatFiles, workspacePath),
+          markFlatFilesNotReady: () => {
+            this.flatFilesReady = false
+          },
+          listFilesRecursive: (path) => invoke('list_files_recursive', { path }),
+        })
+      }
+      return this._flatFilesIndexRuntime
+    },
+
+    _getFileContentRuntime() {
+      if (!this._fileContentRuntime) {
+        this._fileContentRuntime = createFileContentRuntime({
+          getPdfSourceState: (path) => this.pdfSourceKinds[path] || null,
+          setPdfSourceState: (path, state) => this._setPdfSourceState(path, state),
+          clearPdfSourceState: (path) => {
+            if (!path) return
+            delete this.pdfSourceKinds[path]
+          },
+          detectPdfSourceKind: (pdfPath) => detectPdfSourceKind({
+            pdfPath,
+            fileContents: this.fileContents,
+            findEntry: (path) => this._findEntry(path),
+          }),
+          readTextFile: (path, maxBytes) => readWorkspaceTextFile(path, maxBytes),
+          saveTextFile: (path, content) => saveWorkspaceTextFile(path, content),
+          extractPdfText: (path) => extractTextFromPdf(path),
+          isBinaryPath: (path) => isBinaryFile(path),
+          setFileContent: (path, content) => {
+            this.fileContents[path] = content
+          },
+          clearFileLoadError: (path) => this._clearFileLoadError(path),
+          setFileLoadError: (path, error) => this._setFileLoadError(path, error),
+          syncSavedMarkdownLinks: (path) => syncSavedMarkdownLinks(path),
+          notifyPdfUpdated: (path) => {
+            window.dispatchEvent(new CustomEvent('pdf-updated', {
+              detail: { path },
+            }))
+          },
+          onPdfReadError: (_path, error) => {
+            console.error('Failed to extract PDF text:', error)
+          },
+          onSaveError: (path, error) => {
+            console.error('Failed to save file:', error)
+            useToastStore().showOnce(`save:${path}`, formatFileError('save', path, error), {
+              type: 'error',
+              duration: 5000,
+            })
+          },
+        })
+      }
+      return this._fileContentRuntime
+    },
+
+    _getFileCreationRuntime() {
+      if (!this._fileCreationRuntime) {
+        this._fileCreationRuntime = createFileCreationRuntime({
+          createWorkspaceFile: (dirPath, name) => createWorkspaceFile(dirPath, name),
+          duplicateWorkspacePath: (path) => duplicateWorkspacePath(path),
+          createWorkspaceFolder: (dirPath, name) => createWorkspaceFolder(dirPath, name),
+          copyExternalWorkspaceFile: (srcPath, destDir) => copyExternalWorkspaceFile(srcPath, destDir),
+          syncTreeAfterMutation: (options = {}) => this.syncTreeAfterMutation(options),
+          ensureDirLoaded: (path, options = {}) => this.ensureDirLoaded(path, options),
+          addExpandedDir: (path) => {
+            this.expandedDirs.add(path)
+          },
+          cacheSnapshot: () => this._cacheWorkspaceSnapshot(),
+          showCreateExistsError: (path, name) => {
+            useToastStore().showOnce(`create:${path}`, `"${name}" already exists`, {
+              type: 'error',
+              duration: 4000,
+            })
+          },
+          onCreateFileError: (dirPath, name, error) => {
+            console.error('Failed to create file:', error)
+            useToastStore().showOnce(`create:${dirPath}/${name}`, `"${name}" already exists`, {
+              type: 'error',
+              duration: 4000,
+            })
+          },
+          onDuplicateError: (_path, error) => {
+            console.error('Failed to duplicate:', error)
+          },
+          onCreateFolderError: (_dirPath, _name, error) => {
+            console.error('Failed to create folder:', error)
+          },
+          onCopyExternalFileError: (_srcPath, _destDir, error) => {
+            console.error('Failed to copy external file:', error)
+          },
+        })
+      }
+      return this._fileCreationRuntime
+    },
+
+    _getFileMutationRuntime() {
+      if (!this._fileMutationRuntime) {
+        this._fileMutationRuntime = createFileMutationRuntime({
+          renameWorkspaceEntry: (oldPath, newPath) => renameWorkspaceEntry(oldPath, newPath),
+          relocateWorkspacePath: (srcPath, destDir) => relocateWorkspacePath(srcPath, destDir),
+          removeWorkspacePath: (path) => removeWorkspacePath(path),
+          syncTreeAfterMutation: (options = {}) => this.syncTreeAfterMutation(options),
+          invalidatePdfSourceForPath: (path) => this.invalidatePdfSourceForPath(path),
+          handleRenamedPathEffects: (oldPath, newPath) => handleRenamedPathEffects(oldPath, newPath),
+          handleMovedPathEffects: (srcPath, destPath) => handleMovedPathEffects(srcPath, destPath),
+          handleDeletedPathEffects: (path) => handleDeletedPathEffects(path),
+          hasFileContent: (path) => path in this.fileContents,
+          getFileContent: (path) => this.fileContents[path],
+          setFileContent: (path, value) => {
+            this.fileContents[path] = value
+          },
+          deleteFileContent: (path) => {
+            delete this.fileContents[path]
+          },
+          hasFileLoadError: (path) => path in this.fileLoadErrors,
+          getFileLoadError: (path) => this.fileLoadErrors[path],
+          setFileLoadError: (path, value) => {
+            this.fileLoadErrors[path] = value
+          },
+          deleteFileLoadError: (path) => {
+            delete this.fileLoadErrors[path]
+          },
+          hasExpandedDir: (path) => this.expandedDirs.has(path),
+          addExpandedDir: (path) => {
+            this.expandedDirs.add(path)
+          },
+          removeExpandedDir: (path) => {
+            this.expandedDirs.delete(path)
+          },
+          addDeletingPath: (path) => {
+            this.deletingPaths.add(path)
+          },
+          removeDeletingPath: (path) => {
+            this.deletingPaths.delete(path)
+          },
+          showRenameExistsError: (newPath) => {
+            const name = newPath.split('/').pop()
+            useToastStore().showOnce(`rename:${newPath}`, `"${name}" already exists`, {
+              type: 'error',
+              duration: 4000,
+            })
+          },
+          onRenameError: (_oldPath, _newPath, error) => {
+            console.error('Failed to rename:', error)
+          },
+          onMoveError: (_srcPath, _destDir, error) => {
+            console.error('Failed to move:', error)
+          },
+          onDeleteError: (_path, error) => {
+            console.error('Failed to delete:', error)
+          },
+        })
+      }
+      return this._fileMutationRuntime
     },
 
     async restoreCachedExpandedDirs(workspacePath, options = {}) {
@@ -283,124 +414,19 @@ export const useFilesStore = defineStore('files', {
     },
 
     async indexWorkspaceFiles(options = {}) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.path) return []
-
-      const {
-        delayMs = 0,
-        force = false,
-      } = options
-
-      const workspacePath = workspace.path
-      if (!force && this.flatFilesReady && this._flatFilesWorkspace === workspacePath) {
-        return this.flatFilesCache
-      }
-
-      if (!force && this._flatFilesPromise && this._flatFilesWorkspace === workspacePath) {
-        return this._flatFilesPromise
-      }
-
-      if (this._flatFilesTimer) {
-        clearTimeout(this._flatFilesTimer)
-        this._flatFilesTimer = null
-      }
-
-      const generation = (this._flatFilesGeneration || 0) + 1
-      this._flatFilesGeneration = generation
-      this._flatFilesWorkspace = workspacePath
-
-      this._flatFilesPromise = new Promise((resolve, reject) => {
-        this._flatFilesTimer = window.setTimeout(async () => {
-          this._flatFilesTimer = null
-          try {
-            const flatFiles = await invoke('list_files_recursive', { path: workspacePath })
-            if (this._flatFilesGeneration !== generation || useWorkspaceStore().path !== workspacePath) {
-              resolve([])
-              return
-            }
-            this._setFlatFiles(flatFiles, workspacePath)
-            resolve(flatFiles)
-          } catch (error) {
-            if (this._flatFilesGeneration === generation) {
-              this.flatFilesReady = false
-            }
-            reject(error)
-          } finally {
-            if (this._flatFilesGeneration === generation) {
-              this._flatFilesPromise = null
-            }
-          }
-        }, delayMs)
-      })
-
-      return this._flatFilesPromise
+      return this._getFlatFilesIndexRuntime().indexWorkspaceFiles(options)
     },
 
     async ensureFlatFilesReady(options = {}) {
-      return this.indexWorkspaceFiles({
-        delayMs: 0,
-        ...options,
-      })
+      return this._getFlatFilesIndexRuntime().ensureFlatFilesReady(options)
     },
 
     async loadFileTree(options = {}) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.path) return
-      const {
-        suppressErrors = false,
-        keepCurrentTreeOnError = false,
-      } = options
-
-      try {
-        const tree = await invoke('read_dir_shallow', { path: workspace.path })
-        const nextTree = mergePreservingLoadedChildren(tree, this.tree)
-        this._setTree(nextTree, workspace.path, { preserveFlatFiles: true })
-        this.flatFilesCache = []
-        this.flatFilesReady = false
-        this._cacheWorkspaceSnapshot(workspace.path)
-        this.lastLoadError = null
-        return nextTree
-      } catch (e) {
-        console.error('Failed to load file tree:', e)
-        this.lastLoadError = e
-        if (!suppressErrors) {
-          throw e
-        }
-        return keepCurrentTreeOnError ? this.tree : []
-      }
+      return this._getFileTreeHydrationRuntime().loadFileTree(options)
     },
 
     async ensureDirLoaded(path, options = {}) {
-      const entry = this._findEntry(path)
-      if (!entry?.is_dir) return []
-      const { force = false } = options
-
-      if (!force && Array.isArray(entry.children)) {
-        return entry.children
-      }
-
-      if (!this._dirLoadPromises) this._dirLoadPromises = new Map()
-      const existingPromise = this._dirLoadPromises.get(path)
-      if (existingPromise && !force) {
-        return existingPromise
-      }
-
-      const loadPromise = (async () => {
-        const children = await invoke('read_dir_shallow', { path })
-        this.tree = patchTreeEntry(this.tree, path, (current) => ({
-          ...current,
-          children: mergePreservingLoadedChildren(children, current.children || []),
-        }))
-        this._cacheWorkspaceSnapshot()
-        return children
-      })()
-
-      this._dirLoadPromises.set(path, loadPromise)
-      try {
-        return await loadPromise
-      } finally {
-        this._dirLoadPromises.delete(path)
-      }
+      return this._getFileTreeHydrationRuntime().ensureDirLoaded(path, options)
     },
 
     async refreshVisibleTree(options = {}) {
@@ -408,20 +434,7 @@ export const useFilesStore = defineStore('files', {
     },
 
     async revealPath(path) {
-      const workspace = useWorkspaceStore()
-      if (!workspace.path || !path.startsWith(workspace.path)) return
-
-      const relativePath = path.slice(workspace.path.length).replace(/^\/+/, '')
-      if (!relativePath) return
-
-      const parts = relativePath.split('/').filter(Boolean)
-      let currentPath = workspace.path
-      for (let i = 0; i < parts.length - 1; i++) {
-        currentPath = `${currentPath}/${parts[i]}`
-        await this.ensureDirLoaded(currentPath)
-        this.expandedDirs.add(currentPath)
-      }
-      this._cacheWorkspaceSnapshot()
+      return this._getFileTreeHydrationRuntime().revealPath(path)
     },
 
     async startWatching() {
@@ -429,14 +442,7 @@ export const useFilesStore = defineStore('files', {
     },
 
     async toggleDir(path) {
-      if (this.expandedDirs.has(path)) {
-        this.expandedDirs.delete(path)
-        this._cacheWorkspaceSnapshot()
-      } else {
-        await this.ensureDirLoaded(path)
-        this.expandedDirs.add(path)
-        this._cacheWorkspaceSnapshot()
-      }
+      return this._getFileTreeHydrationRuntime().toggleDir(path)
     },
 
     isDirExpanded(path) {
@@ -444,235 +450,66 @@ export const useFilesStore = defineStore('files', {
     },
 
     async syncTreeAfterMutation(options = {}) {
-      const { expandPath = null } = options
-      await this.refreshVisibleTree({ suppressErrors: true, reason: 'mutation' })
-      const workspacePath = useWorkspaceStore().path
-      if (expandPath && expandPath !== workspacePath) {
-        await this.ensureDirLoaded(expandPath, { force: true })
-        this.expandedDirs.add(expandPath)
-      }
-      this.flatFilesCache = []
-      this.flatFilesReady = false
-      this._cacheWorkspaceSnapshot()
+      return this._getFileTreeHydrationRuntime().syncTreeAfterMutation(options)
     },
 
     async readFile(path, options = {}) {
       const { maxBytes = TEXT_FILE_READ_LIMIT_BYTES } = options
-      // PDF: extract text and cache it (for chat dedup and @file refs)
-      if (path.toLowerCase().endsWith('.pdf')) {
-        try {
-          const text = await extractTextFromPdf(path)
-          this.fileContents[path] = text
-          this._clearFileLoadError(path)
-          return text
-        } catch (e) {
-          console.error('Failed to extract PDF text:', e)
-          return null
-        }
-      }
-      // Other binary files are handled by dedicated viewers or fallbacks.
-      if (isBinaryFile(path)) return null
-      try {
-        const content = await readWorkspaceTextFile(path, maxBytes)
-        this.fileContents[path] = content
-        this._clearFileLoadError(path)
-        return content
-      } catch (e) {
-        console.error('Failed to read file:', e)
-        this._setFileLoadError(path, e)
-        return null
-      }
+      return this._getFileContentRuntime().readFile(path, { maxBytes })
     },
 
     async reloadFile(path) {
-      if (path.toLowerCase().endsWith('.pdf')) {
-        this.invalidatePdfSourceForPath(path)
-        window.dispatchEvent(new CustomEvent('pdf-updated', {
-          detail: { path },
-        }))
-        return null
-      }
-      const content = await this.readFile(path)
-      // The editor will detect this change via the store
-      return content
+      return this._getFileContentRuntime().reloadFile(path)
     },
 
     async saveFile(path, content) {
-      try {
-        await saveWorkspaceTextFile(path, content)
-        this.fileContents[path] = content
-        this._clearFileLoadError(path)
-
-        // Update wiki link index (markdown only)
-        syncSavedMarkdownLinks(path)
-        return true
-      } catch (e) {
-        console.error('Failed to save file:', e)
-        useToastStore().showOnce(`save:${path}`, formatFileError('save', path, e), { type: 'error', duration: 5000 })
-        return false
-      }
+      return this._getFileContentRuntime().saveFile(path, content)
     },
 
     setInMemoryFileContent(path, content) {
-      if (!path || typeof content !== 'string') return
-      this.fileContents[path] = content
-      this._clearFileLoadError(path)
+      this._getFileContentRuntime().setInMemoryFileContent(path, content)
     },
 
     async createFile(dirPath, name) {
-      try {
-        const result = await createWorkspaceFile(dirPath, name)
-        if (!result.ok) {
-          useToastStore().showOnce(`create:${result.path}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
-          return null
-        }
-        await this.syncTreeAfterMutation({ expandPath: dirPath })
-        return result.path
-      } catch (e) {
-        console.error('Failed to create file:', e)
-        useToastStore().showOnce(`create:${dirPath}/${name}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
-        return null
-      }
+      return this._getFileCreationRuntime().createFile(dirPath, name)
     },
 
     async duplicatePath(path) {
-      const dir = path.substring(0, path.lastIndexOf('/'))
-      try {
-        const newPath = await duplicateWorkspacePath(path)
-        await this.syncTreeAfterMutation({ expandPath: dir })
-        return newPath
-      } catch (e) {
-        console.error('Failed to duplicate:', e)
-        return null
-      }
+      return this._getFileCreationRuntime().duplicatePath(path)
     },
 
     async createFolder(dirPath, name) {
-      try {
-        const fullPath = await createWorkspaceFolder(dirPath, name)
-        await this.syncTreeAfterMutation({ expandPath: dirPath })
-        this.expandedDirs.add(fullPath)
-        await this.ensureDirLoaded(fullPath, { force: true })
-        this._cacheWorkspaceSnapshot()
-        return fullPath
-      } catch (e) {
-        console.error('Failed to create folder:', e)
-        return null
-      }
+      return this._getFileCreationRuntime().createFolder(dirPath, name)
     },
 
     async renamePath(oldPath, newPath) {
-      try {
-        const result = await renameWorkspaceEntry(oldPath, newPath)
-        if (!result.ok) {
-          const name = newPath.split('/').pop()
-          useToastStore().showOnce(`rename:${newPath}`, `"${name}" already exists`, { type: 'error', duration: 4000 })
-          return false
-        }
-        await this.syncTreeAfterMutation({ expandPath: newPath.substring(0, newPath.lastIndexOf('/')) })
-
-        // Migrate cached file content
-        if (oldPath in this.fileContents) {
-          this.fileContents[newPath] = this.fileContents[oldPath]
-          delete this.fileContents[oldPath]
-        }
-        if (oldPath in this.fileLoadErrors) {
-          this.fileLoadErrors[newPath] = this.fileLoadErrors[oldPath]
-          delete this.fileLoadErrors[oldPath]
-        }
-        this.invalidatePdfSourceForPath(oldPath)
-        this.invalidatePdfSourceForPath(newPath)
-
-        // Update editor tabs so the open tab follows the rename
-        await handleRenamedPathEffects(oldPath, newPath)
-
-        // Update expanded dirs
-        if (this.expandedDirs.has(oldPath)) {
-          this.expandedDirs.delete(oldPath)
-          this.expandedDirs.add(newPath)
-        }
-
-        return true
-      } catch (e) {
-        console.error('Failed to rename:', e)
-        return false
-      }
+      return this._getFileMutationRuntime().renamePath(oldPath, newPath)
     },
 
     async movePath(srcPath, destDir) {
-      const name = srcPath.split('/').pop()
-      let destPath = `${destDir}/${name}`
-      if (srcPath === destPath) return true
-
-      try {
-        const result = await relocateWorkspacePath(srcPath, destDir)
-        destPath = result.destPath
-        await this.syncTreeAfterMutation({ expandPath: destDir })
-
-        this.invalidatePdfSourceForPath(srcPath)
-        this.invalidatePdfSourceForPath(destPath)
-
-        // Update editor tabs and wiki links
-        await handleMovedPathEffects(srcPath, destPath)
-
-        return true
-      } catch (e) {
-        console.error('Failed to move:', e)
-        return false
-      }
+      return this._getFileMutationRuntime().movePath(srcPath, destDir)
     },
 
     async copyExternalFile(srcPath, destDir) {
-      try {
-        const result = await copyExternalWorkspaceFile(srcPath, destDir)
-        await this.syncTreeAfterMutation({ expandPath: destDir })
-        return result
-      } catch (e) {
-        console.error('Failed to copy external file:', e)
-        return null
-      }
+      return this._getFileCreationRuntime().copyExternalFile(srcPath, destDir)
     },
 
     async deletePath(path) {
-      try {
-        this.deletingPaths.add(path)
-        await removeWorkspacePath(path)
-        await this.syncTreeAfterMutation()
-
-        // Remove from file contents cache
-        delete this.fileContents[path]
-        delete this.fileLoadErrors[path]
-        this.invalidatePdfSourceForPath(path)
-
-        handleDeletedPathEffects(path)
-
-        return true
-      } catch (e) {
-        console.error('Failed to delete:', e)
-        return false
-      } finally {
-        this.deletingPaths.delete(path)
-      }
+      return this._getFileMutationRuntime().deletePath(path)
     },
 
     cleanup() {
       this._fileTreeWatchRuntime?.stopWatching?.()
       this._fileTreeWatchRuntime = null
-      if (this._flatFilesTimer) {
-        clearTimeout(this._flatFilesTimer)
-        this._flatFilesTimer = null
-      }
-      this._flatFilesGeneration = (this._flatFilesGeneration || 0) + 1
-      this._flatFilesPromise = null
-      this._flatFilesWorkspace = null
+      this._flatFilesIndexRuntime?.reset?.()
+      this._flatFilesIndexRuntime = null
       this._visibleTreeRefreshRuntime?.reset?.()
       this._visibleTreeRefreshRuntime = null
-      if (this._dirLoadPromises) {
-        this._dirLoadPromises.clear()
-      }
-      if (this._pdfSourcePromises) {
-        this._pdfSourcePromises.clear()
-      }
+      this._fileTreeHydrationRuntime?.reset?.()
+      this._fileTreeHydrationRuntime = null
+      this._fileContentRuntime?.reset?.()
+      this._fileContentRuntime = null
+      this._fileMutationRuntime = null
       this.tree = []
       this.flatFilesCache = []
       this.flatFilesReady = false

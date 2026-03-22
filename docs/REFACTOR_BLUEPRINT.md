@@ -12,7 +12,7 @@ Current overall assessment:
 - Phase 1 is substantially advanced but not fully closed.
 - Phase 2 is meaningfully underway with two major store/domain reductions already completed.
 - Phase 3 onward are still mostly ahead of us and should not be treated as already in execution.
-- Repository state was re-audited on 2026-03-22; the git worktree was clean at the start of this execution cycle.
+- Repository state was re-audited on 2026-03-22; the current worktree already contains in-flight `files` runtime extractions and blueprint updates that must be carried forward, not discarded.
 
 ## Product Direction
 
@@ -148,11 +148,11 @@ The largest remaining frontend architectural bottlenecks include:
 - `src/stores/terminal.js`
 - `src/components/editor/PdfViewer.vue`
 
-`files` is now the clearest next large store/domain split target.
+`workspace` is now the clearest next large store/domain split target.
 
 Current `files`-specific audit notes:
 
-- `src/stores/files.js` is now 976 lines after the first `files` extraction.
+- `src/stores/files.js` is now 579 lines after the cache, refresh, watch, hydration, flat-file indexing, content-runtime, entry-creation/import, mutation-runtime, and cleanup slices.
 - `fileStoreIO` already carries filesystem IO helpers.
 - `fileStoreEffects` already carries cross-store rename/move/delete side effects.
 - `src/domains/files/fileTreeCacheRuntime.js` now carries the first extracted `files` runtime slice:
@@ -160,10 +160,68 @@ Current `files`-specific audit notes:
   - root expanded-dir snapshotting
   - cached tree restore
   - cached expanded-dir replay
-- The clearest next remaining `files` slice is refresh/runtime orchestration:
+- `src/domains/files/fileTreeRefreshRuntime.js` now carries visible-tree refresh orchestration:
   - loaded-directory traversal
   - tree snapshot diffing
   - queued visible-tree refresh loop
+- `src/domains/files/fileTreeWatchRuntime.js` now carries watch/poll lifecycle orchestration:
+  - filesystem event filtering
+  - debounce handling
+  - activity tracking
+  - visibility-aware polling
+- `src/domains/files/fileTreeHydrationRuntime.js` now carries tree hydration/loading orchestration:
+  - entry lookup
+  - shallow tree load
+  - directory child hydration
+  - post-mutation tree resync / expansion replay
+- `src/domains/files/flatFilesIndexRuntime.js` now carries flat-file indexing/runtime orchestration:
+  - delayed recursive indexing
+  - generation-based stale-result suppression
+  - promise/timer reuse and cleanup
+- `src/domains/files/fileContentRuntime.js` now carries file content/runtime orchestration:
+  - text/PDF read behavior
+  - file load error normalization and cache updates
+  - PDF source-kind detection and reload behavior
+  - save-path cache synchronization
+- `src/domains/files/fileCreationRuntime.js` now carries entry-creation/import runtime orchestration:
+  - create file
+  - duplicate path
+  - create folder
+  - copy external file into workspace
+- `src/domains/files/fileMutationRuntime.js` now carries rename/move/delete coordination:
+  - cache migration after rename
+  - editor tab and wiki-link side effects
+  - expanded-dir state repair
+  - deletion race protection and post-mutation tree refresh
+- `files` is no longer the clearest next extraction target; the next high-value store slice has shifted to `workspace`.
+
+Current `workspace`-specific audit notes:
+
+- `src/stores/workspace.js` is now 727 lines after automation, GitHub session, settings/instructions, and bootstrap/watch runtime extractions.
+- `src/domains/workspace/workspaceAutomationRuntime.js` now carries:
+  - auto-commit interval lifecycle
+  - sync timer lifecycle
+  - auto-sync / fetch / sync-now orchestration
+  - timer cleanup during workspace teardown
+- `src/domains/workspace/workspaceGitHubRuntime.js` now carries:
+  - init/connect/disconnect state transitions
+  - repo link/unlink orchestration
+  - sync-state application bridges
+- `src/domains/workspace/workspaceSettingsRuntime.js` now carries:
+  - workspace settings load orchestration
+  - instructions file migration/load/open flows
+  - global key/model config persistence
+  - tool-permission and skills-manifest IO
+- `src/domains/workspace/workspaceBootstrapRuntime.js` now carries:
+  - bootstrap step sequencing with stale-generation guards
+  - watch-directory registration
+  - instructions fs-change listener lifecycle
+  - workspace usage kickoff and auto-commit startup bridge
+- Remaining `workspace` store logic is now mostly:
+  - open/close state reset
+  - thin service wrappers for data-dir/project-dir/edit-hook setup
+  - preference/UI state setters and zoom/theme helpers
+- The next high-value store reduction should shift away from `workspace`; `src/stores/terminal.js` (889 lines) is now the largest remaining store bottleneck ahead of `src/stores/chat.js` (854 lines).
 
 ### Backend current state
 
@@ -270,7 +328,7 @@ Completed phase slices:
 - `files` first extraction slice completed
 
 Current next target:
-- `src/stores/files.js`
+- `src/stores/workspace.js`
 
 Exit criteria:
 - third large store/domain split begun and validated
@@ -353,7 +411,36 @@ Exit criteria:
 - [x] Extract the `files` watch/poll orchestration slice into `src/domains/files/*`
 - [x] Validate the `files` watch/poll extraction with targeted runtime tests and build verification
 - [x] Remove the dead `files` flat-file cache gate and unused active-file state left behind after the runtime splits
-- [ ] Decide whether the next safe slice is `files` tree hydration/runtime or a docs/architecture catch-up slice
+- [x] Decide whether the next safe slice is `files` tree hydration/runtime or a docs/architecture catch-up slice
+- [x] Extract the `files` tree hydration/runtime slice into `src/domains/files/*`
+- [x] Validate the `files` tree hydration/runtime extraction with targeted runtime tests and build verification
+- [x] Decide whether the next safe slice remains in `files` flat-file indexing/runtime or shifts to architecture/doc catch-up
+- [x] Extract the `files` flat-file indexing/runtime slice into `src/domains/files/*`
+- [x] Validate the `files` flat-file indexing/runtime extraction with targeted runtime tests and build verification
+- [x] Decide whether the next safe slice remains in `files` content/runtime or shifts to architecture/doc catch-up
+- [x] Extract the `files` content/runtime slice into `src/domains/files/*`
+- [x] Validate the `files` content/runtime extraction with targeted runtime tests and build verification
+- [x] Decide whether the next safe slice remains in `files` entry-creation/import runtime or shifts to architecture/doc catch-up
+- [x] Extract the `files` entry-creation/import runtime slice into `src/domains/files/*`
+- [x] Validate the `files` entry-creation/import runtime extraction with targeted runtime tests and build verification
+- [x] Decide whether rename/move/delete should become a dedicated file-operations boundary or wait until `docs/OPERATIONS.md` exists
+- [x] Extract the `files` rename/move/delete coordination slice into `src/domains/files/*` without widening cross-store leakage
+- [x] Validate the rename/move/delete slice against editor-tab migration, wiki-link updates, and delete-race behavior
+- [x] Decide whether the next safe slice shifts from `files` to `workspace` timer/runtime orchestration
+- [x] Extract the `workspace` auto-commit + GitHub sync timer/runtime slice into `src/domains/workspace/*` or `src/app/workspace/*`
+- [x] Validate the `workspace` timer/runtime extraction with targeted tests and build verification
+- [x] Decide whether the next safe slice after timer/runtime extraction is GitHub session lifecycle or settings/bootstrap loading
+- [x] Extract the `workspace` GitHub session lifecycle slice into `src/domains/workspace/*`
+- [x] Validate the `workspace` GitHub session lifecycle extraction with targeted tests and build verification
+- [x] Extract the `workspace` settings/instructions/runtime slice into `src/domains/workspace/*`
+- [x] Validate the `workspace` settings/instructions/runtime extraction with targeted tests and build verification
+- [x] Decide whether the next safe `workspace` slice is bootstrap/watch orchestration or preference-state cleanup
+- [x] Extract the `workspace` bootstrap/watch orchestration slice into `src/domains/workspace/*`
+- [x] Validate the `workspace` bootstrap/watch extraction with targeted tests and build verification
+- [x] Decide whether `workspace` still merits another high-value extraction or whether Phase 2 focus should shift to the next large store
+- [ ] Audit `src/stores/terminal.js` in detail and identify the cleanest first extraction slice
+- [ ] Extract the first `terminal` runtime/domain slice into `src/domains/terminal/*`
+- [ ] Validate the first `terminal` slice with targeted tests and build verification
 
 ### Product and architecture docs
 
@@ -390,9 +477,19 @@ Exit criteria:
 - transition of store-boundary reduction focus toward `files`
 - `files` detailed audit completed; first narrow slice selected as tree cache / workspace snapshot runtime
 - `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
-- 2026-03-22 execution cycle: re-auditing `files` refresh/runtime orchestration, docs truthfulness, and validation gaps before the next code slice lands
+- 2026-03-22 execution cycle: re-auditing `files` post-watch state, docs truthfulness, and validation gaps before the next code slice lands
 - `files` refresh/runtime orchestration has now been extracted into a dedicated domain runtime module; next decision is whether to continue with watch/poll orchestration in the same domain
 - `files` watch/poll orchestration has now also been extracted into a dedicated domain runtime module; remaining `files` runtime complexity is concentrated in tree hydration/loading and a small reconcile/status shell
+- `files` tree hydration/runtime has now also been extracted into a dedicated domain runtime module; the next remaining `files` runtime knot is flat-file indexing and timer/promise coordination
+- `files` flat-file indexing/runtime has now also been extracted into a dedicated domain runtime module; the next remaining `files` logic cluster is file content/PDF handling plus mutation-side orchestration
+- `files` content/runtime has now also been extracted into a dedicated domain runtime module; the next remaining `files` logic cluster is creation/import mutations plus rename/move/delete coordination
+- `files` entry-creation/import runtime has now also been extracted into a dedicated domain runtime module; the remaining `files` mutation logic is concentrated in rename/move/delete plus reconcile/status shell code
+- `files` rename/move/delete is now also extracted as an explicit file-operations boundary; remaining `files` store logic is mostly state shell and reconcile/watch/bootstrap glue
+- `workspace` automation/runtime orchestration is now extracted; remaining `workspace` store pressure has shifted to GitHub session lifecycle, settings/instructions IO, and bootstrap/watch sequencing
+- `workspace` GitHub session lifecycle is now also extracted; the remaining `workspace` store pressure has shifted to settings/instructions IO plus bootstrap/watch sequencing
+- `workspace` settings/instructions IO is now also extracted; the remaining `workspace` store pressure is concentrated in bootstrap/watch sequencing and a smaller preference-state shell
+- `workspace` bootstrap/watch orchestration is now also extracted; the remaining `workspace` pressure is mostly a thinner preference/open-close shell rather than another large orchestration knot
+- the next execution cycle should shift from `workspace` to the next large store rather than spending more time on lower-value preference wrappers
 
 ## Completed
 
@@ -445,6 +542,75 @@ Exit criteria:
   - `node --test tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
   - `node --test tests/*.test.mjs`
   - `npm run build` after the watch/runtime extraction
+- Established `src/domains/files/fileTreeHydrationRuntime.js`
+- Moved tree entry lookup, shallow root load, directory hydration, reveal/toggle expansion wiring, and post-mutation tree resync behind the new runtime module
+- Reduced `src/stores/files.js` from 749 lines to 680 lines
+- Added `tests/fileTreeHydrationRuntime.test.mjs` to validate nested entry lookup, directory-load promise coalescing, ancestor reveal expansion, and mutation-triggered tree resync outside the Pinia store shell
+- Validated the hydration/runtime slice with:
+  - `node --test tests/fileTreeHydrationRuntime.test.mjs tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/files/flatFilesIndexRuntime.js`
+- Moved delayed recursive flat-file indexing, stale-generation suppression, and timer/promise lifecycle cleanup behind the new runtime module
+- Reduced `src/stores/files.js` from 680 lines to 639 lines
+- Added `tests/flatFilesIndexRuntime.test.mjs` to validate request coalescing, ready-cache reuse, stale workspace suppression, and timer cleanup outside the Pinia store shell
+- Validated the flat-file indexing/runtime slice with:
+  - `node --test tests/flatFilesIndexRuntime.test.mjs tests/fileTreeHydrationRuntime.test.mjs tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/files/fileContentRuntime.js`
+- Moved PDF source-kind detection, PDF/text read behavior, save-path cache synchronization, and in-memory file-content updates behind the new runtime module
+- Reduced `src/stores/files.js` from 639 lines to 583 lines
+- Added `tests/fileContentRuntime.test.mjs` to validate PDF source-kind coalescing, PDF reload invalidation, text read failure handling, and save success/failure behavior outside the Pinia store shell
+- Validated the content/runtime slice with:
+  - `node --test tests/fileContentRuntime.test.mjs tests/flatFilesIndexRuntime.test.mjs tests/fileTreeHydrationRuntime.test.mjs tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/files/fileCreationRuntime.js`
+- Moved create-file, duplicate, create-folder, and external-copy workspace entry creation flows behind the new runtime module
+- `src/stores/files.js` ended at 587 lines after the extraction; the new runtime boundary landed, but the store shell grew slightly because the remaining rename/move/delete bridge code still dominates and now sits beside an additional runtime accessor
+- Added `tests/fileCreationRuntime.test.mjs` to validate duplicate-name handling, forced folder hydration, and tree-sync behavior for duplicate/import flows outside the Pinia store shell
+- Validated the entry-creation/import slice with:
+  - `node --test tests/fileCreationRuntime.test.mjs tests/fileContentRuntime.test.mjs tests/flatFilesIndexRuntime.test.mjs tests/fileTreeHydrationRuntime.test.mjs tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/files/fileMutationRuntime.js`
+- Moved rename, move, delete, cache migration, expanded-dir repair, and delete-race coordination behind the new runtime module
+- Reduced `src/stores/files.js` from 587 lines to 579 lines
+- Added `tests/fileMutationRuntime.test.mjs` to validate rename cache migration, move no-op/relocation behavior, and delete cleanup outside the Pinia store shell
+- Validated the mutation/runtime slice with:
+  - `node --test tests/fileMutationRuntime.test.mjs tests/fileCreationRuntime.test.mjs tests/fileContentRuntime.test.mjs tests/flatFilesIndexRuntime.test.mjs tests/fileTreeHydrationRuntime.test.mjs tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
+- Established `src/domains/workspace/workspaceAutomationRuntime.js`
+- Moved workspace auto-commit, sync timer lifecycle, auto-sync/fetch/sync-now orchestration, and timer cleanup behind the new runtime module
+- Reduced `src/stores/workspace.js` from 809 lines to 791 lines
+- Added `tests/workspaceAutomationRuntime.test.mjs` to validate timer scheduling, committed auto-sync flow, remote fetch reload behavior, and cleanup outside the Pinia store shell
+- Validated the workspace automation/runtime slice with:
+  - `node --test tests/workspaceAutomationRuntime.test.mjs`
+  - `npm run build`
+- Established `src/domains/workspace/workspaceGitHubRuntime.js`
+- Moved GitHub init/connect/disconnect/link/unlink state orchestration and sync-state application behind the new runtime module
+- Reduced `src/stores/workspace.js` from 791 lines to 764 lines
+- Added `tests/workspaceGitHubRuntime.test.mjs` to validate init, disconnect, link/unlink, and sync-state mapping outside the Pinia store shell
+- Validated the workspace GitHub/runtime slice with:
+  - `node --test tests/workspaceAutomationRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs`
+  - `npm run build`
+- Established `src/domains/workspace/workspaceSettingsRuntime.js`
+- Moved workspace settings load, instructions migration/load/open, key/model persistence, tool-permission IO, and skills-manifest IO behind the new runtime module
+- Reduced `src/stores/workspace.js` from 764 lines to 755 lines
+- Added `tests/workspaceSettingsRuntime.test.mjs` to validate settings load, provider-model sync, instructions IO, and tool-permission persistence outside the Pinia store shell
+- Validated the workspace settings/runtime slice with:
+  - `node --test tests/workspaceAutomationRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs tests/workspaceSettingsRuntime.test.mjs`
+  - `npm run build`
+- Established `src/domains/workspace/workspaceBootstrapRuntime.js`
+- Moved workspace bootstrap step sequencing, stale-generation guards, watch-directory registration, instructions listener lifecycle, usage kickoff, and auto-commit startup bridge behind the new runtime module
+- Reduced `src/stores/workspace.js` from 755 lines to 727 lines
+- Added `tests/workspaceBootstrapRuntime.test.mjs` to validate step order, stale bootstrap cancellation, listener refresh, and listener-failure resilience outside the Pinia store shell
+- Validated the workspace bootstrap/runtime slice with:
+  - `node --test tests/workspaceAutomationRuntime.test.mjs tests/workspaceGitHubRuntime.test.mjs tests/workspaceSettingsRuntime.test.mjs tests/workspaceBootstrapRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build`
 
 ## Blocked / Risks
 
@@ -455,21 +621,19 @@ Exit criteria:
 - `references` still retains watcher/self-write/load-generation/state-sync responsibilities that should eventually move into clearer infra/runtime boundaries
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
 - `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
-- `files` now delegates visible-tree refresh execution to a domain runtime, but watch/poll lifecycle wiring still lives in the store and remains the clearest remaining `files` orchestration knot
-- `files` now delegates both visible-tree refresh execution and watch/poll lifecycle orchestration to domain runtimes, but tree hydration/loading still lives in the store and remains the next clearest `files` boundary candidate
+- `files` now delegates visible-tree refresh execution, watch/poll lifecycle orchestration, tree hydration/loading, flat-file indexing, file content/PDF handling, entry-creation/import flows, and rename/move/delete coordination to domain runtimes; the store is no longer the clearest next extraction target
+- `workspace` now delegates automation, GitHub session lifecycle, settings/instructions IO, and bootstrap/watch sequencing to domain runtimes; the remaining store shell is thinner but still not minimal
+- The remaining `workspace` logic is lower-value than before, so there is risk of slipping into cosmetic preference-wrapper extraction instead of moving to the next genuinely large store
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Reevaluate `src/stores/files.js` after the refresh/runtime and watch/runtime extractions
-2. Choose between two safe next slices:
-   - `files` tree hydration/runtime (`_findEntry`, `loadFileTree`, `ensureDirLoaded`, `syncTreeAfterMutation`, `_dirLoadPromises`)
-   - architecture/doc catch-up (`docs/ARCHITECTURE.md` or `docs/DOMAINS.md`) so the new frontend runtime boundaries are documented truthfully
-3. Keep reconcile UX state updates as thin store-local bridges unless the next extraction naturally clarifies them
-4. Continue adding targeted `node:test` coverage whenever runtime logic becomes pure enough to validate outside the UI shell
-5. Validate with `node --test tests/*.test.mjs` plus `npm run build`
-6. Update this blueprint based on the actual migration result
+1. Audit `src/stores/terminal.js` and identify the smallest high-value orchestration seam that can move without entangling the entire terminal surface
+2. Prefer extracting terminal session/watch/process lifecycle or command-routing orchestration before touching cosmetic terminal UI state
+3. Keep `workspace` where it is for now; remaining preference/open-close wrappers are no longer the best Phase 2 leverage
+4. Validate the first terminal slice with focused runtime tests plus `node --test tests/*.test.mjs` and `npm run build`
+5. Update this blueprint based on the actual migration result and then decide whether the next large target stays in `terminal` or shifts to `chat`
 
 ## Validation Checklist
 
@@ -482,9 +646,18 @@ Exit criteria:
 - [x] next recommended slice is explicit
 - [x] `files` refresh/runtime extraction is documented truthfully
 - [x] `files` watch/runtime extraction is documented truthfully
+- [x] `files` hydration/runtime extraction is documented truthfully
+- [x] `files` flat-file indexing/runtime extraction is documented truthfully
+- [x] `files` content/runtime extraction is documented truthfully
+- [x] `files` entry-creation/import runtime extraction is documented truthfully
+- [x] `files` mutation/runtime extraction is documented truthfully
+- [x] `workspace` automation/runtime extraction is documented truthfully
+- [x] `workspace` GitHub/runtime extraction is documented truthfully
+- [x] `workspace` settings/runtime extraction is documented truthfully
+- [x] `workspace` bootstrap/runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
 - [ ] safety model has been documented as a first-class system
-- [x] testing/validation story is stronger than build-only checks for the current `files` slice
+- [x] testing/validation story is stronger than build-only checks for the current `files` and `workspace` slices
 - [ ] backend layering migration has begun
 
 ## Migration Notes
@@ -492,12 +665,22 @@ Exit criteria:
 - The refactor correctly began by reducing root-level orchestration before attacking every large store at once.
 - `references` was a good first store/domain split because it allowed meaningful logic extraction without immediately entangling the entire workspace lifecycle.
 - `editor` was a reasonable second large split, and it now appears to be past the highest-value extraction stage for the current phase.
-- `files` is now the highest-value next target because it remains large, central, and only partially bounded by earlier helper modules.
-- The next slice should remain in `files`, not shift to `workspace`, because `files` still contains an isolated refresh/runtime loop that can be extracted without widening workspace bootstrap coupling.
+- `files` was the highest-value target through the runtime extraction sequence, but after the mutation slice landed it is no longer the clearest bottleneck.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
 - After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.
-- `workspace` should likely remain behind `files` unless the `files` audit reveals that the next safe slice is actually blocked on workspace boundaries.
+- After the hydration/runtime extraction, the highest-value remaining `files` slice is flat-file indexing/runtime rather than immediately widening into workspace-level orchestration.
+- After the flat-file indexing/runtime extraction, the highest-value remaining `files` slice is content/PDF handling rather than mutation-side cross-store coordination.
+- After the content/runtime extraction, the highest-value remaining `files` slice is entry creation/import handling rather than rename/move/delete coordination.
+- After the entry-creation/import extraction, the next remaining `files` slice was rename/move/delete coordination; that slice has now landed as `fileMutationRuntime`.
+- The entry-creation/import slice improved boundary clarity more than raw line count; the store did not get smaller in that cycle because the remaining rename/move/delete bridge code still dominated.
+- With rename/move/delete extracted, `files` is now mostly a thinner shell around state, reconcile status, and runtime accessors; the next high-value store reduction has shifted to `workspace`.
+- The first `workspace` slice should target timer/runtime orchestration before bootstrap or settings loading because it has a narrower blast radius and can be tested without reopening workspace bootstrap sequencing.
+- The first three `workspace` slices have now landed in the expected order: automation/timers first, then GitHub session lifecycle, then settings/instructions IO.
+- The fourth `workspace` slice has now landed as `workspaceBootstrapRuntime`, so the remaining `workspace` logic is mostly a thinner shell plus preference/open-close wrappers.
+- After four `workspace` slices, `src/stores/workspace.js` is down to 727 lines and is no longer the clearest next large-store target.
+- Preference toggles remain in the store, but they are now lower-value than shifting to `terminal` because they are mostly direct state wrappers and do not carry the same orchestration risk.
 - The repository can now validate `files` runtime slices with focused `node:test` coverage instead of relying on build-only confidence.
+- The repository can now also validate `workspace` runtime slices with focused `node:test` coverage instead of relying on build-only confidence for sync/settings/bootstrap behavior.
 - `PdfViewer.vue` is large enough to deserve future attention, but it should not displace the more structurally important `files` migration unless product work proves otherwise.
 - Missing documentation is now a repository-level risk, not just a nice-to-have, because the codebase is accumulating new boundaries without a matching shared architectural map.
 - Safety model separation should become a first-class implementation effort soon after the next store-boundary slice, especially because current history/version flows still imply Git-coupled safety behavior.

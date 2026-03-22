@@ -86,6 +86,10 @@ import {
   canAutoCommitWorkspace,
   runWorkspaceAutoCommit as performWorkspaceAutoCommit,
 } from '../services/workspaceAutoCommit'
+import { createWorkspaceAutomationRuntime } from '../domains/workspace/workspaceAutomationRuntime'
+import { createWorkspaceBootstrapRuntime } from '../domains/workspace/workspaceBootstrapRuntime'
+import { createWorkspaceGitHubRuntime } from '../domains/workspace/workspaceGitHubRuntime'
+import { createWorkspaceSettingsRuntime } from '../domains/workspace/workspaceSettingsRuntime'
 
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
@@ -157,6 +161,164 @@ export const useWorkspaceStore = defineStore('workspace', {
   },
 
   actions: {
+    _getWorkspaceBootstrapRuntime() {
+      if (!this._workspaceBootstrapRuntime) {
+        this._workspaceBootstrapRuntime = createWorkspaceBootstrapRuntime({
+          getPath: () => this.path,
+          getCurrentBootstrapGeneration: () => this._workspaceBootstrapGeneration,
+          getWorkspaceDataDir: () => this.workspaceDataDir,
+          getInstructionsPaths: () => ({
+            rootPath: this.instructionsFilePath,
+            internalPath: this.internalInstructionsPath,
+          }),
+          getInstructionsUnlisten: () => this._instructionsUnlisten,
+          setInstructionsUnlisten: (unlisten) => {
+            this._instructionsUnlisten = unlisten
+          },
+          initWorkspaceDataDir: () => this.initWorkspaceDataDir(),
+          initProjectDir: () => this.initProjectDir(),
+          installEditHooks: () => this.installEditHooks(),
+          loadSettings: () => this.loadSettings(),
+          loadInstructions: () => this.loadInstructions(),
+          canAutoCommit: (path) => this._getWorkspaceAutomationRuntime().canAutoCommit(path),
+          startAutoCommit: () => this.startAutoCommit(),
+          loadWorkspaceUsage,
+          watchDirectory: (payload) => invoke('watch_directory', payload),
+          listenToFsChange: (handler) => listen('fs-change', handler),
+          logWorkspaceBootstrapWarning,
+        })
+      }
+      return this._workspaceBootstrapRuntime
+    },
+
+    _getWorkspaceSettingsRuntime() {
+      if (!this._workspaceSettingsRuntime) {
+        this._workspaceSettingsRuntime = createWorkspaceSettingsRuntime({
+          getShouldersDir: () => this.shouldersDir,
+          getGlobalConfigDir: () => this.globalConfigDir,
+          getProjectDir: () => this.projectDir,
+          getInstructionsPaths: () => ({
+            rootPath: this.instructionsFilePath,
+            internalPath: this.internalInstructionsPath,
+          }),
+          getApiKeys: () => this.apiKeys,
+          getModelsConfig: () => this.modelsConfig,
+          getDisabledTools: () => this.disabledTools,
+          setSystemPrompt: (value) => {
+            this.systemPrompt = value || ''
+          },
+          setInstructions: (value) => {
+            this.instructions = value || ''
+          },
+          setApiKeys: (value) => {
+            this.apiKeys = value || {}
+          },
+          setApiKey: (value) => {
+            this.apiKey = value || ''
+          },
+          setModelsConfig: (value) => {
+            this.modelsConfig = value
+          },
+          setAiRuntime: (value) => {
+            this.aiRuntime = value
+          },
+          setDisabledTools: (value) => {
+            this.disabledTools = value || []
+          },
+          setSkillsManifest: (value) => {
+            this.skillsManifest = value
+          },
+          loadSystemPrompt,
+          loadWorkspaceInstructions,
+          migrateWorkspaceInstructionsFile,
+          resolveInstructionsFileToOpen,
+          loadWorkspaceGlobalKeys,
+          saveWorkspaceGlobalKeys,
+          loadWorkspaceModelsConfig,
+          saveWorkspaceModelsConfig,
+          loadAiRuntimeConfig,
+          loadWorkspaceToolPermissions,
+          saveWorkspaceToolPermissions,
+          loadWorkspaceSkillsManifest,
+          migrateWorkspaceEnvKeys,
+          syncWorkspaceProviderModels,
+          getDefaultModelsConfig,
+          openWorkspaceFileInEditor,
+          onInstructionsMigrationError: (error) => {
+            console.warn('Failed to migrate auto-generated instructions file:', error)
+          },
+        })
+      }
+      return this._workspaceSettingsRuntime
+    },
+
+    _getWorkspaceGitHubRuntime() {
+      if (!this._workspaceGitHubRuntime) {
+        this._workspaceGitHubRuntime = createWorkspaceGitHubRuntime({
+          getPath: () => this.path,
+          getRemoteUrl: () => this.remoteUrl,
+          getGitHubToken: () => this.githubToken,
+          getGitHubInitialized: () => this.githubInitialized,
+          getGitHubInitPromise: () => this._githubInitPromise,
+          setGitHubInitPromise: (promise) => {
+            this._githubInitPromise = promise
+          },
+          patchState: (patch) => {
+            Object.assign(this, patch)
+          },
+          createDisconnectedGitHubState,
+          mapWorkspaceSyncState,
+          loadWorkspaceGitHubSession,
+          connectWorkspaceGitHub,
+          disconnectWorkspaceGitHub,
+          linkWorkspaceRepo,
+          unlinkWorkspaceRepo,
+          startSyncTimer: () => this.startSyncTimer(),
+          stopSyncTimer: () => this.stopSyncTimer(),
+          startAutoCommit: () => this.startAutoCommit(),
+          autoSync: () => this.autoSync(),
+          onInitError: (error) => {
+            console.warn('[github] Init failed:', error)
+          },
+        })
+      }
+      return this._workspaceGitHubRuntime
+    },
+
+    _getWorkspaceAutomationRuntime() {
+      if (!this._workspaceAutomationRuntime) {
+        this._workspaceAutomationRuntime = createWorkspaceAutomationRuntime({
+          getPath: () => this.path,
+          getGitAutoCommitInterval: () => this.gitAutoCommitInterval,
+          getGitAutoCommitTimer: () => this.gitAutoCommitTimer,
+          setGitAutoCommitTimer: (timer) => {
+            this.gitAutoCommitTimer = timer
+          },
+          getSyncTimer: () => this.syncTimer,
+          setSyncTimer: (timer) => {
+            this.syncTimer = timer
+          },
+          canAutoCommitWorkspace,
+          performWorkspaceAutoCommit,
+          ensureGitHubInitialized: (options = {}) => this.ensureGitHubInitialized(options),
+          getGitHubToken: () => this.githubToken,
+          getRemoteUrl: () => this.remoteUrl,
+          setRemoteUrl: (remoteUrl) => {
+            this.remoteUrl = remoteUrl || ''
+          },
+          applySyncState: (syncState, remoteUrl = this.remoteUrl) => this._getWorkspaceGitHubRuntime().applySyncState(syncState, remoteUrl),
+          runWorkspaceAutoSync,
+          fetchWorkspaceRemoteChanges,
+          runWorkspaceSyncNow,
+          reloadOpenFilesAfterPull,
+          onAutoCommitError: (error) => {
+            console.warn('Auto-commit failed:', error)
+          },
+        })
+      }
+      return this._workspaceAutomationRuntime
+    },
+
     async openWorkspace(path) {
       this.openWorkspaceSurface()
       this.path = path
@@ -192,64 +354,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async _bootstrapWorkspace(path, generation) {
-      const isStale = () => generation !== this._workspaceBootstrapGeneration || this.path !== path
-      const runStep = async (label, fn) => {
-        if (isStale()) return false
-        try {
-          await fn()
-          return !isStale()
-        } catch (error) {
-          logWorkspaceBootstrapWarning(label, error)
-          return !isStale()
-        }
-      }
-
-      if (!(await runStep('initWorkspaceDataDir', () => this.initWorkspaceDataDir()))) return
-      if (!(await runStep('initProjectDir', () => this.initProjectDir()))) return
-      if (!(await runStep('installEditHooks', () => this.installEditHooks()))) return
-      if (!(await runStep('loadSettings', () => this.loadSettings()))) return
-
-      let fsWatchReady = false
-      if (!isStale()) {
-        try {
-          await invoke('watch_directory', {
-            paths: [path, this.workspaceDataDir].filter(Boolean),
-            recursivePaths: [this.workspaceDataDir].filter(Boolean),
-          })
-          fsWatchReady = true
-        } catch (error) {
-          logWorkspaceBootstrapWarning('watch_directory', error)
-        }
-      }
-
-      if (fsWatchReady && !isStale()) {
-        try {
-          if (this._instructionsUnlisten) {
-            this._instructionsUnlisten()
-            this._instructionsUnlisten = null
-          }
-          this._instructionsUnlisten = await listen('fs-change', (event) => {
-            const paths = event.payload?.paths || []
-            const instructionsPaths = [
-              this.instructionsFilePath,
-              this.internalInstructionsPath,
-            ].filter(Boolean)
-            if (paths.some(path => instructionsPaths.includes(path))) {
-              this.loadInstructions()
-            }
-          })
-        } catch (error) {
-          logWorkspaceBootstrapWarning('listen(fs-change)', error)
-        }
-      }
-
-      if (!isStale()) {
-        loadWorkspaceUsage(isStale)
-      }
-
-      if (!isStale() && await this._canAutoCommitWorkspace(path)) {
-        void this.startAutoCommit()
-      }
+      return this._getWorkspaceBootstrapRuntime().bootstrapWorkspace(path, generation)
     },
 
     async ensureWorkspaceBootstrapReady(path = this.path) {
@@ -338,119 +443,47 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async loadSettings() {
-      const shouldersDir = this.shouldersDir
-      if (!shouldersDir) return
-
-      this.systemPrompt = await loadSystemPrompt(shouldersDir)
-      await this.loadInstructions()
-
-      this.apiKeys = await this.loadGlobalKeys()
-      if (Object.keys(this.apiKeys).length === 0) {
-        const workspaceKeys = await migrateWorkspaceEnvKeys({
-          shouldersDir,
-          globalConfigDir: this.globalConfigDir,
-        })
-        if (Object.keys(workspaceKeys).length > 0) {
-          this.apiKeys = workspaceKeys
-        }
-      }
-
-      this.apiKey = this.apiKeys.ANTHROPIC_API_KEY || ''
-      this.modelsConfig = await loadWorkspaceModelsConfig({
-        globalConfigDir: this.globalConfigDir,
-        shouldersDir,
-      })
-      this.aiRuntime = await loadAiRuntimeConfig(this.globalConfigDir)
-      await this.loadToolPermissions()
-      await this.loadSkillsManifest()
+      return this._getWorkspaceSettingsRuntime().loadSettings()
     },
 
     async loadSkillsManifest() {
-      this.skillsManifest = await loadWorkspaceSkillsManifest(this.projectDir)
+      return this._getWorkspaceSettingsRuntime().loadSkillsManifest()
     },
 
     async loadGlobalKeys() {
-      return loadWorkspaceGlobalKeys(this.globalConfigDir)
+      return this._getWorkspaceSettingsRuntime().loadGlobalKeys()
     },
 
     async saveGlobalKeys(keys) {
-      await saveWorkspaceGlobalKeys(this.globalConfigDir, keys)
+      return this._getWorkspaceSettingsRuntime().saveGlobalKeys(keys)
     },
 
     async saveModelsConfig(config) {
-      const normalized = await saveWorkspaceModelsConfig({
-        globalConfigDir: this.globalConfigDir,
-        shouldersDir: this.shouldersDir,
-        config,
-      })
-      this.modelsConfig = normalized
-      return normalized
+      return this._getWorkspaceSettingsRuntime().saveModelsConfig(config)
     },
 
     async syncProviderModels({ providerIds = null } = {}) {
-      if (!this.modelsConfig) {
-        await this.loadSettings()
-      }
-
-      const result = await syncWorkspaceProviderModels({
-        globalConfigDir: this.globalConfigDir,
-        shouldersDir: this.shouldersDir,
-        modelsConfig: this.modelsConfig || getDefaultModelsConfig(),
-        apiKeys: this.apiKeys,
-        providerIds,
-      })
-      this.modelsConfig = result.config
-      return {
-        addedCount: result.addedCount,
-        syncedProviders: result.syncedProviders,
-        failedProviders: result.failedProviders,
-      }
+      return this._getWorkspaceSettingsRuntime().syncProviderModels({ providerIds })
     },
 
     async migrateAutoInstructionsFile() {
-      const rootPath = this.instructionsFilePath
-      const internalPath = this.internalInstructionsPath
-      if (!rootPath || !internalPath) return
-
-      try {
-        await migrateWorkspaceInstructionsFile({
-          rootPath,
-          internalPath,
-        })
-      } catch (error) {
-        console.warn('Failed to migrate auto-generated instructions file:', error)
-      }
+      return this._getWorkspaceSettingsRuntime().migrateAutoInstructionsFile()
     },
 
     async loadInstructions() {
-      this.instructions = await loadWorkspaceInstructions({
-        rootPath: this.instructionsFilePath,
-        internalPath: this.internalInstructionsPath,
-      })
+      return this._getWorkspaceSettingsRuntime().loadInstructions()
     },
 
     async openInstructionsFile() {
-      const filePath = await resolveInstructionsFileToOpen({
-        rootPath: this.instructionsFilePath,
-        internalPath: this.internalInstructionsPath,
-      })
-      if (!filePath) return
-
-      openWorkspaceFileInEditor(filePath)
+      return this._getWorkspaceSettingsRuntime().openInstructionsFile()
     },
 
     async loadToolPermissions() {
-      this.disabledTools = await loadWorkspaceToolPermissions({
-        globalConfigDir: this.globalConfigDir,
-        shouldersDir: this.shouldersDir,
-      })
+      return this._getWorkspaceSettingsRuntime().loadToolPermissions()
     },
 
     async saveToolPermissions() {
-      await saveWorkspaceToolPermissions({
-        globalConfigDir: this.globalConfigDir,
-        disabledTools: this.disabledTools,
-      })
+      return this._getWorkspaceSettingsRuntime().saveToolPermissions()
     },
 
     toggleTool(name) {
@@ -610,195 +643,80 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     async startAutoCommit() {
-      this.stopAutoCommit()
-      if (!(await this._canAutoCommitWorkspace())) return
-
-      this.gitAutoCommitTimer = setInterval(async () => {
-        await this.autoCommit()
-      }, this.gitAutoCommitInterval)
+      return this._getWorkspaceAutomationRuntime().startAutoCommit()
     },
 
     stopAutoCommit() {
-      if (this.gitAutoCommitTimer) {
-        clearInterval(this.gitAutoCommitTimer)
-        this.gitAutoCommitTimer = null
-      }
+      return this._getWorkspaceAutomationRuntime().stopAutoCommit()
     },
 
     async _canAutoCommitWorkspace(path = this.path) {
-      return canAutoCommitWorkspace(path)
+      return this._getWorkspaceAutomationRuntime().canAutoCommit(path)
     },
 
     async autoCommit() {
-      if (!(await this._canAutoCommitWorkspace())) return
-      try {
-        const result = await performWorkspaceAutoCommit(this.path)
-        if (result.committed) {
-          await this.autoSync()
-        }
-      } catch (e) {
-        console.warn('Auto-commit failed:', e)
-      }
+      return this._getWorkspaceAutomationRuntime().autoCommit()
     },
 
     // ── GitHub Sync ──
 
     async ensureGitHubInitialized(options = {}) {
-      const force = options?.force === true
-      if (this.githubInitialized && !force) return this.githubToken
-      if (this._githubInitPromise && !force) return this._githubInitPromise
-
-      this._githubInitPromise = (async () => {
-        if (force) {
-          Object.assign(this, createDisconnectedGitHubState({ remoteUrl: this.remoteUrl }))
-        }
-
-        try {
-          const session = await loadWorkspaceGitHubSession(this.path, options)
-          if (!session) {
-            this.githubToken = null
-            this.githubUser = null
-            return null
-          }
-
-          this.githubToken = session.token
-          this.githubUser = session.user
-          this.remoteUrl = session.remoteUrl
-          this.syncStatus = session.syncStatus
-          if (session.syncStatus === 'idle') {
-            this.startSyncTimer()
-          }
-
-          return session.token
-        } catch (e) {
-          console.warn('[github] Init failed:', e)
-          return null
-        } finally {
-          const localOnly = options?.localOnly === true
-          this.githubInitialized = localOnly ? !!this.githubToken : true
-          this._githubInitPromise = null
-        }
-      })()
-
-      return this._githubInitPromise
+      return this._getWorkspaceGitHubRuntime().ensureGitHubInitialized(options)
     },
 
     async initGitHub(options = {}) {
-      return this.ensureGitHubInitialized(options)
+      return this._getWorkspaceGitHubRuntime().initGitHub(options)
     },
 
     startSyncTimer() {
-      this.stopSyncTimer()
-      if (!this.githubToken?.token || !this.remoteUrl) return
-
-      // Fetch from remote every 5 minutes
-      this.syncTimer = setInterval(async () => {
-        await this.fetchRemoteChanges()
-      }, 5 * 60 * 1000)
+      return this._getWorkspaceAutomationRuntime().startSyncTimer()
     },
 
     stopSyncTimer() {
-      if (this.syncTimer) {
-        clearInterval(this.syncTimer)
-        this.syncTimer = null
-      }
+      return this._getWorkspaceAutomationRuntime().stopSyncTimer()
     },
 
     async autoSync() {
-      await this.ensureGitHubInitialized()
-      if (!this.githubToken?.token) return
-
-      const result = await runWorkspaceAutoSync(this.path, this.githubToken.token)
-      if (!result) return
-
-      this.remoteUrl = result.remoteUrl
-      this._applySyncState(result.syncState)
+      return this._getWorkspaceAutomationRuntime().autoSync()
     },
 
     async fetchRemoteChanges() {
-      await this.ensureGitHubInitialized()
-      if (!this.path || !this.githubToken?.token) return
-
-      const response = await fetchWorkspaceRemoteChanges(this.path, this.githubToken.token)
-      if (!response) return
-
-      this.remoteUrl = response.remoteUrl
-      this._applySyncState(response.syncState)
-
-      // If files were pulled, reload open files
-      if (response.result?.pulled) {
-        try {
-          await reloadOpenFilesAfterPull()
-        } catch {}
-      }
-
-      return response.result
+      return this._getWorkspaceAutomationRuntime().fetchRemoteChanges()
     },
 
     async syncNow() {
-      await this.ensureGitHubInitialized()
-      if (!this.path || !this.githubToken?.token) return
-      const result = await runWorkspaceSyncNow(this.path, this.githubToken.token)
-      if (!result) return
-      this._applySyncState(result.syncState)
-      return result.result || null
+      return this._getWorkspaceAutomationRuntime().syncNow()
     },
 
-    _applySyncState(syncState) {
-      Object.assign(this, mapWorkspaceSyncState(syncState, this.remoteUrl))
+    _applySyncState(syncState, remoteUrl = this.remoteUrl) {
+      return this._getWorkspaceGitHubRuntime().applySyncState(syncState, remoteUrl)
     },
 
     async connectGitHub(tokenData) {
-      const session = await connectWorkspaceGitHub({
-        tokenData,
-        path: this.path,
-      })
-      this.githubToken = session.token
-      this.githubInitialized = true
-      this.githubUser = session.user
+      return this._getWorkspaceGitHubRuntime().connectGitHub(tokenData)
     },
 
     async disconnectGitHub() {
-      await disconnectWorkspaceGitHub()
-      this.stopSyncTimer()
-      Object.assign(this, createDisconnectedGitHubState({ remoteUrl: this.remoteUrl }))
-      this.githubInitialized = true
-      this._githubInitPromise = null
+      return this._getWorkspaceGitHubRuntime().disconnectGitHub()
     },
 
     async linkRepo(cloneUrl) {
-      if (!this.path) return
-      const result = await linkWorkspaceRepo(this.path, cloneUrl)
-      if (!result) return
-      this.remoteUrl = result.remoteUrl
-      this.syncStatus = result.syncStatus
-      if (result.historyRepo?.autoCommitEnabled) {
-        void this.startAutoCommit()
-      }
-      this.startSyncTimer()
-
-      // Initial push
-      await this.autoSync()
+      return this._getWorkspaceGitHubRuntime().linkRepo(cloneUrl)
     },
 
     async unlinkRepo() {
-      if (!this.path) return
-      await unlinkWorkspaceRepo(this.path)
-      this.stopSyncTimer()
-      this.remoteUrl = ''
-      this.syncStatus = 'disconnected'
-      this.syncConflictBranch = null
+      return this._getWorkspaceGitHubRuntime().unlinkRepo()
     },
 
     async cleanup() {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
-      this.stopAutoCommit()
-      this.stopSyncTimer()
-      if (this._instructionsUnlisten) {
-        this._instructionsUnlisten()
-        this._instructionsUnlisten = null
-      }
+      this._getWorkspaceAutomationRuntime().cleanup()
+      this._getWorkspaceBootstrapRuntime().clearInstructionsWatcher()
+      this._workspaceBootstrapRuntime = null
+      this._workspaceSettingsRuntime = null
+      this._workspaceAutomationRuntime = null
+      this._workspaceGitHubRuntime = null
       if (this.path) {
         await invoke('unwatch_directory').catch((error) => {
           console.warn('[workspace] unwatch_directory failed:', error)
