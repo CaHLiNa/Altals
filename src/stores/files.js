@@ -22,24 +22,19 @@ import {
   saveWorkspaceTextFile,
   TEXT_FILE_READ_LIMIT_BYTES,
 } from '../services/fileStoreIO'
+import {
+  buildFlatFilesStatePatch,
+  buildRestoredCachedTreeState,
+  buildTreeStatePatch,
+  buildWorkspaceTreeCacheSnapshot,
+  replayCachedExpandedDirs,
+} from '../domains/files/fileTreeCacheRuntime'
 import { formatFileError } from '../utils/errorMessages'
 import { isBinaryFile } from '../utils/fileTypes'
 import { extractTextFromPdf } from '../utils/pdfMetadata'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
-
-function cloneRootEntries(entries = []) {
-  return entries.map((entry) => {
-    const { children, ...rest } = entry
-    return { ...rest }
-  })
-}
-
-function collectRootExpandedDirs(entries = [], expandedDirs = new Set()) {
-  const rootDirPaths = new Set(entries.filter(entry => entry?.is_dir).map(entry => entry.path))
-  return [...expandedDirs].filter(path => rootDirPaths.has(path))
-}
 
 function patchTreeEntry(entries = [], targetPath, updater) {
   let changed = false
@@ -195,25 +190,19 @@ export const useFilesStore = defineStore('files', {
     _cacheWorkspaceSnapshot(workspacePath = null) {
       const targetWorkspace = workspacePath || useWorkspaceStore().path
       if (!targetWorkspace) return
-      this.treeCacheByWorkspace[targetWorkspace] = {
-        tree: cloneRootEntries(this.tree),
-        rootExpandedDirs: collectRootExpandedDirs(this.tree, this.expandedDirs),
-      }
+      this.treeCacheByWorkspace[targetWorkspace] = buildWorkspaceTreeCacheSnapshot({
+        tree: this.tree,
+        expandedDirs: this.expandedDirs,
+      })
     },
 
     _setTree(tree = [], workspacePath = null, options = {}) {
-      const { preserveFlatFiles = false } = options
-      this.tree = tree
-      if (!preserveFlatFiles) {
-        this.flatFilesCache = []
-        this.flatFilesReady = false
-      }
+      Object.assign(this, buildTreeStatePatch(tree, options))
       this._cacheWorkspaceSnapshot(workspacePath)
     },
 
     _setFlatFiles(flatFiles = [], workspacePath = null) {
-      this.flatFilesCache = flatFiles
-      this.flatFilesReady = true
+      Object.assign(this, buildFlatFilesStatePatch(flatFiles))
       this._cacheWorkspaceSnapshot(workspacePath)
     },
 
@@ -369,33 +358,24 @@ export const useFilesStore = defineStore('files', {
 
     restoreCachedTree(workspacePath) {
       if (!workspacePath) return false
-      const cached = this.treeCacheByWorkspace[workspacePath]
-      if (!cached?.tree) return false
-      this.tree = cloneRootEntries(cached.tree)
-      this.flatFilesCache = []
-      this.flatFilesReady = false
-      this.expandedDirs = new Set(cached.rootExpandedDirs || [])
-      this.lastLoadError = null
+      const patch = buildRestoredCachedTreeState(this.treeCacheByWorkspace[workspacePath])
+      if (!patch) return false
+      Object.assign(this, patch)
       return true
     },
 
     async restoreCachedExpandedDirs(workspacePath, options = {}) {
-      if (!workspacePath) return
-      const cached = this.treeCacheByWorkspace[workspacePath]
-      const rootExpandedDirs = Array.isArray(cached?.rootExpandedDirs) ? cached.rootExpandedDirs : []
-      const { maxDirs = 6 } = options
-
-      for (const dirPath of rootExpandedDirs.slice(0, maxDirs)) {
-        if (useWorkspaceStore().path !== workspacePath) return
-        try {
-          await this.ensureDirLoaded(dirPath)
+      await replayCachedExpandedDirs({
+        workspacePath,
+        cachedSnapshot: this.treeCacheByWorkspace[workspacePath],
+        maxDirs: options.maxDirs,
+        getCurrentWorkspacePath: () => useWorkspaceStore().path,
+        ensureDirLoaded: (dirPath) => this.ensureDirLoaded(dirPath),
+        onDirExpanded: (dirPath) => {
           this.expandedDirs.add(dirPath)
-        } catch {
-          // Directory may have disappeared or become inaccessible.
-        }
-      }
-
-      this._cacheWorkspaceSnapshot(workspacePath)
+        },
+        persistSnapshot: () => this._cacheWorkspaceSnapshot(workspacePath),
+      })
     },
 
     async indexWorkspaceFiles(options = {}) {

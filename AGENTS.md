@@ -735,3 +735,45 @@ make behavior more explicit
 If you are unsure whether to stop after planning or continue into implementation:
 
 continue into implementation unless truly blocked
+
+# 25. Continuous Execution Requirement
+
+When the user asks to continue refactoring, do not stop after a single slice unless one of the following is true:
+- there is a real blocker requiring human judgment
+- validation fails and requires human input
+- the current phase is fully completed
+
+Otherwise, continue in repeated execution cycles.
+
+For each cycle:
+1. read `docs/REFACTOR_BLUEPRINT.md`
+2. update it to reflect the current repo state
+3. choose the next recommended slice
+4. implement one coherent slice with real code changes
+5. run relevant validation
+6. update `docs/REFACTOR_BLUEPRINT.md` again
+7. continue to the next slice
+
+Do not stop after docs-only edits unless truly blocked.
+Do not stop after planning.
+Do not stop after one slice if more safe slices remain in the current phase.
+
+# 26. Required Subagent Trigger
+
+If there are 2 to 4 independent workstreams with low merge/conflict risk, use subagents.
+
+Subagents should be used especially for:
+- docs cleanup and terminology cleanup
+- test-gap audits and validation scaffolding
+- isolated store/module extraction planning
+- dead code / legacy path audits
+- independent narrow domain splits
+
+Do not wait for the user to explicitly request subagents if the repository state clearly supports safe parallel work.
+
+The main coordinating agent must still:
+- update `docs/REFACTOR_BLUEPRINT.md`
+- assign workstreams
+- integrate results
+- resolve conflicts
+- report final validation

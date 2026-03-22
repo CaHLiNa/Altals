@@ -149,6 +149,21 @@ The largest remaining frontend architectural bottlenecks include:
 
 `files` is now the clearest next large store/domain split target.
 
+Current `files`-specific audit notes:
+
+- `src/stores/files.js` is now 976 lines after the first `files` extraction.
+- `fileStoreIO` already carries filesystem IO helpers.
+- `fileStoreEffects` already carries cross-store rename/move/delete side effects.
+- `src/domains/files/fileTreeCacheRuntime.js` now carries the first extracted `files` runtime slice:
+  - `treeCacheByWorkspace`
+  - root expanded-dir snapshotting
+  - cached tree restore
+  - cached expanded-dir replay
+- The clearest next remaining `files` slice is refresh/runtime orchestration:
+  - loaded-directory traversal
+  - tree snapshot diffing
+  - queued visible-tree refresh loop
+
 ### Backend current state
 
 Rust backend structure is still largely flat.
@@ -245,6 +260,7 @@ Status:
 Completed phase slices:
 - `references` first-round extraction completed
 - `editor` first-round extraction completed
+- `files` first extraction slice completed
 
 Current next target:
 - `src/stores/files.js`
@@ -320,9 +336,9 @@ Exit criteria:
 
 ### Highest-priority backlog
 
-- [ ] Audit `src/stores/files.js` in detail and identify the cleanest first extraction slice
-- [ ] Create `src/domains/files/*` or equivalent runtime boundary for the first `files` slice
-- [ ] Validate the first `files` extraction with build verification
+- [x] Audit `src/stores/files.js` in detail and identify the cleanest first extraction slice
+- [x] Create `src/domains/files/*` or equivalent runtime boundary for the first `files` slice
+- [x] Validate the first `files` extraction with build verification
 - [ ] Decide whether the next slice stays in `files` or shifts to `workspace`
 
 ### Product and architecture docs
@@ -358,6 +374,8 @@ Exit criteria:
 - post-extraction stabilization after `references` first-round split
 - post-extraction stabilization after `editor` first-round split
 - transition of store-boundary reduction focus toward `files`
+- `files` detailed audit completed; first narrow slice selected as tree cache / workspace snapshot runtime
+- `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
 
 ## Completed
 
@@ -388,6 +406,11 @@ Exit criteria:
   - `editorCleanupRuntime.js`
   - `editorRestoreRuntime.js`
 - Repeatedly validated migration slices with successful `npm run build`
+- Audited `src/stores/files.js` and identified tree cache / workspace snapshot runtime as the first extraction slice
+- Established `src/domains/files/fileTreeCacheRuntime.js`
+- Moved `files` tree cache snapshotting, cached tree restore, and cached expanded-dir replay behind the new runtime module
+- Reduced `src/stores/files.js` from 996 lines to 976 lines
+- Validated the `files` slice with a fresh successful `npm run build`
 
 ## Blocked / Risks
 
@@ -397,20 +420,19 @@ Exit criteria:
 - Validation is still heavily dependent on build checks and manual confidence rather than systematic tests
 - `references` still retains watcher/self-write/load-generation/state-sync responsibilities that should eventually move into clearer infra/runtime boundaries
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
+- `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
+- `files` still retains refreshVisibleTree/reconcile/watch orchestration in the store; that remains the highest-risk remaining area in this domain split
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 
 ## Next Recommended Slice
 
-1. Switch the next large store/domain reduction target to `src/stores/files.js`
-2. Audit the remaining non-extracted logic in `files.js`, especially:
-   - tree cache
-   - workspace snapshot
-   - refresh runtime
-3. Choose exactly one narrow, high-value first extraction slice
-4. Move that slice into `src/domains/files/*` or an equivalent runtime module
-5. validate with build verification
-6. update this blueprint based on the actual migration result
-7. only then decide whether to keep pushing `files` or redirect to `workspace`
+1. Keep `src/stores/files.js` as the current large store/domain reduction target
+2. Extract exactly one narrow next slice: refresh/runtime orchestration
+3. Move loaded-directory traversal, tree snapshot diffing, and queued visible-tree refresh loop into `src/domains/files/*` or equivalent runtime module
+4. Keep watch wiring and reconcile UX as thin store bridges unless the extraction naturally clarifies them
+5. Validate with build verification
+6. Update this blueprint based on the actual migration result
+7. Only then decide whether to keep pushing `files` or redirect to `workspace`
 
 ## Validation Checklist
 
