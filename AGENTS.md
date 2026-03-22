@@ -618,7 +618,74 @@ At the start of a fresh session in this repository, do this before major edits:
 
 ---
 
-# 21. Definition of Failure
+# 21. Subagent Execution Policy
+
+Subagents may be used to accelerate the refactor, but only in a controlled way.
+
+## 21.1 Main coordinator requirement
+There must always be one main coordinating agent responsible for:
+- reading `AGENTS.md`
+- reading and updating `docs/REFACTOR_BLUEPRINT.md`
+- deciding the next recommended slice
+- deciding which workstreams are safe to parallelize
+- integrating subagent results back into one coherent repository state
+- reporting final validation and remaining risks
+
+Subagents must not act as independent architects for the whole repository.
+
+## 21.2 When subagents should be used
+Use subagents only when there are 2 to 4 reasonably independent workstreams that can proceed in parallel with low merge/conflict risk.
+
+Good candidates for subagents:
+- docs cleanup and terminology cleanup
+- test-gap audits and validation scaffolding
+- targeted domain extraction planning
+- isolated store/module splits
+- dead code and legacy path audits
+
+## 21.3 When subagents should not be used
+Do not use subagents to blindly parallelize all remaining phases.
+
+Do not split tightly coupled work across multiple subagents when it requires shared architectural decisions.
+
+Especially avoid blind parallelization for:
+- final operation model decisions
+- root app integration
+- autosave/snapshot/git/sync safety model integration
+- AI proposal/patch/review main-path integration
+- broad cross-domain rewrites
+
+## 21.4 Parallelize by workstream, not by phase
+Do not assign one subagent per remaining phase by default.
+
+Instead, parallelize only by independent workstreams that can be merged safely.
+
+## 21.5 Model and effort guidance
+Do not default all subagents to the highest-cost or slowest reasoning mode.
+
+Use stronger models / higher effort only for difficult architectural or refactor tasks.
+Use faster or automatically selected models for lighter audits, docs cleanup, naming cleanup, and test-gap analysis.
+
+## 21.6 Integration requirement
+Before starting subagent work:
+1. update `docs/REFACTOR_BLUEPRINT.md`
+2. identify the independent workstreams
+3. define expected outputs for each subagent
+
+After subagent work:
+1. integrate results into one coherent state
+2. resolve conflicts and duplication
+3. update `docs/REFACTOR_BLUEPRINT.md` again
+4. report what was completed, what was validated, and what remains blocked
+
+## 21.7 Anti-pattern
+Do not use subagents as a substitute for architectural judgment.
+
+If subagents are used, the repository must still become more coherent, not less.
+
+---
+
+# 22. Definition of Failure
 
 A refactor turn is considered poor or failed if it does any of the following:
 
@@ -634,7 +701,7 @@ A refactor turn is considered poor or failed if it does any of the following:
 
 ---
 
-# 22. Definition of Success
+# 23. Definition of Success
 
 A refactor turn is successful when the repository becomes measurably more like this:
 
@@ -651,7 +718,7 @@ A refactor turn is successful when the repository becomes measurably more like t
 
 ---
 
-# 23. Final Order
+# 24. Final Order
 
 If you are an agent and you are unsure whether to optimize for speed or repository quality:
 
