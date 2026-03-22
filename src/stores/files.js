@@ -82,7 +82,6 @@ export const useFilesStore = defineStore('files', {
     flatFilesReady: false,
     treeCacheByWorkspace: {},
     expandedDirs: new Set(),
-    activeFilePath: null,
     fileContents: {}, // cache: path → content
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
     pdfSourceKinds: {}, // cache: pdf path -> { status, kind }
@@ -293,7 +292,7 @@ export const useFilesStore = defineStore('files', {
       } = options
 
       const workspacePath = workspace.path
-      if (!force && this.flatFilesReady && this.treeCacheByWorkspace[workspacePath]?.flatFilesReady) {
+      if (!force && this.flatFilesReady && this._flatFilesWorkspace === workspacePath) {
         return this.flatFilesCache
       }
 
@@ -572,11 +571,6 @@ export const useFilesStore = defineStore('files', {
         }
         await this.syncTreeAfterMutation({ expandPath: newPath.substring(0, newPath.lastIndexOf('/')) })
 
-        // Update active file if it was renamed
-        if (this.activeFilePath === oldPath) {
-          this.activeFilePath = newPath
-        }
-
         // Migrate cached file content
         if (oldPath in this.fileContents) {
           this.fileContents[newPath] = this.fileContents[oldPath]
@@ -683,7 +677,6 @@ export const useFilesStore = defineStore('files', {
       this.flatFilesCache = []
       this.flatFilesReady = false
       this.expandedDirs = new Set()
-      this.activeFilePath = null
       this.fileContents = {}
       this.fileLoadErrors = {}
       this.pdfSourceKinds = {}

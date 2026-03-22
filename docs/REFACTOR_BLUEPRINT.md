@@ -349,7 +349,11 @@ Exit criteria:
 - [x] Decide whether the next slice stays in `files` or shifts to `workspace`
 - [x] Extract the `files` refresh/runtime orchestration slice into `src/domains/files/*`
 - [x] Validate the `files` refresh/runtime extraction with targeted runtime tests and build verification
-- [ ] Decide whether the next safe slice remains in `files` watch/poll orchestration or shifts to `workspace`
+- [x] Decide whether the next safe slice remains in `files` watch/poll orchestration or shifts to `workspace`
+- [x] Extract the `files` watch/poll orchestration slice into `src/domains/files/*`
+- [x] Validate the `files` watch/poll extraction with targeted runtime tests and build verification
+- [x] Remove the dead `files` flat-file cache gate and unused active-file state left behind after the runtime splits
+- [ ] Decide whether the next safe slice is `files` tree hydration/runtime or a docs/architecture catch-up slice
 
 ### Product and architecture docs
 
@@ -388,6 +392,7 @@ Exit criteria:
 - `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
 - 2026-03-22 execution cycle: re-auditing `files` refresh/runtime orchestration, docs truthfulness, and validation gaps before the next code slice lands
 - `files` refresh/runtime orchestration has now been extracted into a dedicated domain runtime module; next decision is whether to continue with watch/poll orchestration in the same domain
+- `files` watch/poll orchestration has now also been extracted into a dedicated domain runtime module; remaining `files` runtime complexity is concentrated in tree hydration/loading and a small reconcile/status shell
 
 ## Completed
 
@@ -430,6 +435,16 @@ Exit criteria:
 - Validated the refresh/runtime slice with:
   - `node --test tests/fileTreeRefreshRuntime.test.mjs`
   - `npm run build`
+- Established `src/domains/files/fileTreeWatchRuntime.js`
+- Moved file-watch filtering, debounce handling, activity tracking, visibility-aware polling, and filesystem listener lifecycle behind the new runtime module
+- Reduced `src/stores/files.js` from 839 lines to 749 lines
+- Added `tests/fileTreeWatchRuntime.test.mjs` to validate `.git` filtering, debounced watch handling, and refresh triggering outside the Pinia store shell
+- Removed the dead `treeCacheByWorkspace[workspacePath]?.flatFilesReady` gate in favor of `_flatFilesWorkspace`-based cache reuse
+- Removed the unused `activeFilePath` state that no longer participates in the main file workflow
+- Validated the watch/runtime and cleanup slices with:
+  - `node --test tests/fileTreeRefreshRuntime.test.mjs tests/fileTreeWatchRuntime.test.mjs`
+  - `node --test tests/*.test.mjs`
+  - `npm run build` after the watch/runtime extraction
 
 ## Blocked / Risks
 
@@ -441,17 +456,20 @@ Exit criteria:
 - `files` may already have partial helper boundaries (`fileStoreIO` / `fileStoreEffects`) that can either help the migration or hide remaining coupling
 - `files` refresh runtime remains more coupled than cache/snapshot state; pulling refresh logic first would widen blast radius compared with extracting the cache/runtime boundary
 - `files` now delegates visible-tree refresh execution to a domain runtime, but watch/poll lifecycle wiring still lives in the store and remains the clearest remaining `files` orchestration knot
+- `files` now delegates both visible-tree refresh execution and watch/poll lifecycle orchestration to domain runtimes, but tree hydration/loading still lives in the store and remains the next clearest `files` boundary candidate
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
+- The architecture docs are still missing even though frontend domain boundaries are now multiplying; this remains a shared-understanding risk
 
 ## Next Recommended Slice
 
-1. Reevaluate `src/stores/files.js` after the refresh/runtime extraction
-2. If the blast radius remains narrow, extract one more `files` slice: watch/poll orchestration and activity tracking
-3. Keep reconcile UX state updates as store-local bridges unless the extraction naturally clarifies them
-4. Add or extend targeted runtime tests when logic becomes pure enough to validate outside the UI shell
-5. Validate with targeted tests plus `npm run build`
+1. Reevaluate `src/stores/files.js` after the refresh/runtime and watch/runtime extractions
+2. Choose between two safe next slices:
+   - `files` tree hydration/runtime (`_findEntry`, `loadFileTree`, `ensureDirLoaded`, `syncTreeAfterMutation`, `_dirLoadPromises`)
+   - architecture/doc catch-up (`docs/ARCHITECTURE.md` or `docs/DOMAINS.md`) so the new frontend runtime boundaries are documented truthfully
+3. Keep reconcile UX state updates as thin store-local bridges unless the next extraction naturally clarifies them
+4. Continue adding targeted `node:test` coverage whenever runtime logic becomes pure enough to validate outside the UI shell
+5. Validate with `node --test tests/*.test.mjs` plus `npm run build`
 6. Update this blueprint based on the actual migration result
-7. Only then decide whether to keep pushing `files` or redirect to `workspace`
 
 ## Validation Checklist
 
@@ -463,6 +481,7 @@ Exit criteria:
 - [x] current bottlenecks are explicitly named
 - [x] next recommended slice is explicit
 - [x] `files` refresh/runtime extraction is documented truthfully
+- [x] `files` watch/runtime extraction is documented truthfully
 - [ ] core architecture docs have been created
 - [ ] safety model has been documented as a first-class system
 - [x] testing/validation story is stronger than build-only checks for the current `files` slice
@@ -476,7 +495,9 @@ Exit criteria:
 - `files` is now the highest-value next target because it remains large, central, and only partially bounded by earlier helper modules.
 - The next slice should remain in `files`, not shift to `workspace`, because `files` still contains an isolated refresh/runtime loop that can be extracted without widening workspace bootstrap coupling.
 - After the refresh/runtime extraction, `files` still contains a second narrow orchestration seam around watch/poll scheduling and activity hooks; that is the best candidate if we continue in the same domain.
+- After the watch/runtime extraction, the highest-value remaining `files` slice is tree hydration/loading rather than more watch logic.
 - `workspace` should likely remain behind `files` unless the `files` audit reveals that the next safe slice is actually blocked on workspace boundaries.
+- The repository can now validate `files` runtime slices with focused `node:test` coverage instead of relying on build-only confidence.
 - `PdfViewer.vue` is large enough to deserve future attention, but it should not displace the more structurally important `files` migration unless product work proves otherwise.
 - Missing documentation is now a repository-level risk, not just a nice-to-have, because the codebase is accumulating new boundaries without a matching shared architectural map.
 - Safety model separation should become a first-class implementation effort soon after the next store-boundary slice, especially because current history/version flows still imply Git-coupled safety behavior.

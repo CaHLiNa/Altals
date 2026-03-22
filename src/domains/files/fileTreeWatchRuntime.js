@@ -110,7 +110,10 @@ export function createFileTreeWatchRuntime({
 
     fsUnlisten = await listenToFsChange?.(async (event) => {
       const workspace = getWorkspaceContext?.() || {}
-      const paths = filterRelevantFileWatchPaths(event.payload?.paths || [], workspace)
+      const paths = filterRelevantFileWatchPaths(event.payload?.paths || [], {
+        workspacePath: workspace.path,
+        workspaceDataDir: workspace.workspaceDataDir,
+      })
       if (paths.length === 0) return
 
       onFsEvent?.(event.payload?.kind, paths)
