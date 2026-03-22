@@ -35,6 +35,23 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     message: 'Save: 2026-03-22 10:12',
     createdAt: '2026-03-22T10:12:00Z',
   }
+  const restorableWorkspaceSnapshot = {
+    id: 'local:workspace:payload123',
+    backend: 'local',
+    sourceKind: 'workspace-save-point',
+    sourceId: 'payload123',
+    scope: 'workspace',
+    filePath: '',
+    kind: 'named',
+    label: 'Draft 4 ready',
+    message: 'Draft 4 ready',
+    createdAt: '2026-03-22T10:13:00Z',
+    payload: {
+      manifestPath: '/workspace/.altals/snapshots/payloads/payload123/manifest.json',
+      fileCount: 2,
+      capturedAt: '2026-03-22T10:13:10Z',
+    },
+  }
 
   assert.equal(getWorkspaceSnapshotTitle(namedSnapshot), 'Draft 3 ready')
   assert.deepEqual(getWorkspaceSnapshotCapabilities(namedSnapshot), {
@@ -57,6 +74,7 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
       canRestore: true,
       canCopy: true,
     },
+    payload: null,
   })
 
   assert.equal(getWorkspaceSnapshotTitle(workspaceSnapshot), 'Save: 2026-03-22 10:12')
@@ -64,6 +82,18 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     canPreview: false,
     canRestore: false,
     canCopy: false,
+  })
+  assert.deepEqual(getWorkspaceSnapshotCapabilities(restorableWorkspaceSnapshot), {
+    canPreview: false,
+    canRestore: true,
+    canCopy: false,
+  })
+  assert.deepEqual(createWorkspaceSnapshotMetadata({ snapshot: restorableWorkspaceSnapshot }).payload, {
+    version: 1,
+    kind: 'workspace-text-v1',
+    manifestPath: '/workspace/.altals/snapshots/payloads/payload123/manifest.json',
+    fileCount: 2,
+    capturedAt: '2026-03-22T10:13:10.000Z',
   })
 })
 
@@ -85,4 +115,5 @@ test('workspace snapshot metadata runtime attaches metadata and reuses matching 
   assert.equal(attached.metadata.snapshotId, 'git:abc123')
   assert.deepEqual(attachWorkspaceSnapshotMetadataList([snapshot]), [attached])
   assert.equal(getWorkspaceSnapshotMetadata(attached), attached.metadata)
+  assert.equal(attached.metadata.payload, null)
 })

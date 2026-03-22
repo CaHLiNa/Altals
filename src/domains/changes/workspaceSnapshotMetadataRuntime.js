@@ -3,6 +3,7 @@ import {
   isFileWorkspaceSnapshot,
   isNamedWorkspaceSnapshot,
 } from './workspaceSnapshotRuntime.js'
+import { createWorkspaceSnapshotPayloadMeta } from './workspaceLocalSnapshotPayloadRuntime.js'
 
 function normalizeSnapshotValue(value = '') {
   return String(value || '').trim()
@@ -10,10 +11,11 @@ function normalizeSnapshotValue(value = '') {
 
 export function getWorkspaceSnapshotCapabilities(snapshot = null) {
   const isFileSnapshot = isFileWorkspaceSnapshot(snapshot)
+  const payload = createWorkspaceSnapshotPayloadMeta(snapshot?.payload)
 
   return {
     canPreview: isFileSnapshot,
-    canRestore: isFileSnapshot,
+    canRestore: isFileSnapshot || !!payload,
     canCopy: isFileSnapshot,
   }
 }
@@ -33,6 +35,7 @@ export function createWorkspaceSnapshotMetadata({
   const capabilities = getWorkspaceSnapshotCapabilities(snapshot)
   const message = getWorkspaceSnapshotDisplayMessage(snapshot)
   const isNamed = isNamedWorkspaceSnapshot(snapshot)
+  const payload = createWorkspaceSnapshotPayloadMeta(snapshot?.payload)
 
   return {
     snapshotId: normalizeSnapshotValue(snapshot?.id),
@@ -45,6 +48,7 @@ export function createWorkspaceSnapshotMetadata({
     isNamed,
     isSystemGenerated: !isNamed && !!message,
     capabilities,
+    payload,
   }
 }
 

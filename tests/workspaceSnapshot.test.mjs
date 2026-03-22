@@ -63,9 +63,19 @@ test('workspace snapshot operations record workspace save points into the local 
         },
       }),
     },
+    localSnapshotPayloadRuntime: {
+      captureWorkspaceSnapshotPayload: async ({ workspacePath, workspaceDataDir, snapshot }) => {
+        calls.push(['payload', workspacePath, workspaceDataDir, snapshot.sourceId])
+        return {
+          manifestPath: '/workspace/.altals/snapshots/payloads/abc123/manifest.json',
+          fileCount: 2,
+          capturedAt: '2026-03-22T10:11:30Z',
+        }
+      },
+    },
     localSnapshotStoreRuntime: {
       recordWorkspaceSavePoint: async ({ workspaceDataDir, snapshot }) => {
-        calls.push([workspaceDataDir, snapshot.sourceId])
+        calls.push(['record', workspaceDataDir, snapshot.sourceId, snapshot.payload?.fileCount || 0])
         return {
           id: 'local:workspace:abc123',
           backend: 'local',
@@ -83,6 +93,7 @@ test('workspace snapshot operations record workspace save points into the local 
             scope: 'workspace',
             kind: 'named',
           },
+          payload: snapshot.payload,
         }
       },
     },
@@ -95,9 +106,13 @@ test('workspace snapshot operations record workspace save points into the local 
     },
   })
 
-  assert.deepEqual(calls, [['/workspace/.altals', 'abc123']])
+  assert.deepEqual(calls, [
+    ['payload', '/workspace/demo', '/workspace/.altals', 'abc123'],
+    ['record', '/workspace/.altals', 'abc123', 2],
+  ])
   assert.equal(result?.snapshot?.id, 'local:workspace:abc123')
   assert.equal(result?.snapshot?.metadata?.backend, 'local')
+  assert.equal(result?.snapshot?.metadata?.capabilities?.canRestore, true)
   assert.equal(result?.localSnapshot?.id, 'local:workspace:abc123')
   assert.equal(result?.gitSnapshot?.id, 'git:abc123')
 })
@@ -242,6 +257,7 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
         canRestore: true,
         canCopy: true,
       },
+      payload: null,
     },
   }])
   assert.deepEqual(workspaceSnapshots, [{
@@ -268,6 +284,7 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
         canRestore: false,
         canCopy: false,
       },
+      payload: null,
     },
   }])
   assert.equal(preview, '# preview')
@@ -278,4 +295,104 @@ test('workspace snapshot operations delegate explicit file/workspace list and fi
     ['preview', 'abc123'],
     ['restore', 'abc123'],
   ])
+})
+
+test('workspace snapshot operations restore workspace save points through the local payload runtime without using git history restore', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    localSnapshotPayloadRuntime: {
+      restoreWorkspaceSnapshotPayload: async ({ workspacePath, workspaceDataDir, snapshot, applyFileContent }) => {
+        calls.push(['restore-payload', workspacePath, workspaceDataDir, snapshot.sourceId])
+        const applied = await applyFileContent('/workspace/demo/draft.md', '# Restored draft')
+        return {
+          restored: applied !== false,
+          restoredFiles: ['/workspace/demo/draft.md'],
+        }
+      },
+    },
+  })
+
+  const editorUpdates = []
+  const result = await operations.restoreWorkspaceSavePoint({
+    workspace: {
+      path: '/workspace/demo',
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+      payload: {
+        manifestPath: '/workspace/.altals/snapshots/payloads/abc123/manifest.json',
+        fileCount: 1,
+      },
+    },
+    filesStore: {
+      saveFile: async (path, content) => {
+        calls.push(['saveFile', path, content])
+        return true
+      },
+      reloadFile: async (path) => {
+        calls.push(['reloadFile', path])
+      },
+    },
+    editorStore: {
+      editorViews: {
+        'pane-1:/workspace/demo/draft.md': {
+          altalsApplyExternalContent: async (content) => {
+            editorUpdates.push(content)
+          },
+        },
+      },
+      allOpenFiles: new Set(['/workspace/demo/draft.md']),
+      clearFileDirty: (path) => {
+        calls.push(['clearDirty', path])
+      },
+    },
+  })
+
+  assert.deepEqual(result, {
+    restored: true,
+    restoredFiles: ['/workspace/demo/draft.md'],
+  })
+  assert.deepEqual(editorUpdates, ['# Restored draft'])
+  assert.deepEqual(calls, [
+    ['restore-payload', '/workspace/demo', '/workspace/.altals', 'abc123'],
+    ['saveFile', '/workspace/demo/draft.md', '# Restored draft'],
+    ['clearDirty', '/workspace/demo/draft.md'],
+  ])
+})
+
+test('workspace snapshot operations can load workspace save-point payload manifests for the browser surface', async () => {
+  const calls = []
+  const operations = createWorkspaceSnapshotOperations({
+    localSnapshotPayloadRuntime: {
+      loadWorkspaceSnapshotPayloadManifest: async ({ workspaceDataDir, snapshot }) => {
+        calls.push([workspaceDataDir, snapshot.sourceId])
+        return {
+          fileCount: 2,
+          files: [
+            { path: '/workspace/demo/draft.md', relativePath: 'draft.md' },
+            { path: '/workspace/demo/notes.md', relativePath: 'notes.md' },
+          ],
+        }
+      },
+    },
+  })
+
+  const manifest = await operations.loadWorkspaceSavePointPayloadManifest({
+    workspace: {
+      workspaceDataDir: '/workspace/.altals',
+    },
+    snapshot: {
+      sourceId: 'abc123',
+    },
+  })
+
+  assert.deepEqual(calls, [['/workspace/.altals', 'abc123']])
+  assert.deepEqual(manifest, {
+    fileCount: 2,
+    files: [
+      { path: '/workspace/demo/draft.md', relativePath: 'draft.md' },
+      { path: '/workspace/demo/notes.md', relativePath: 'notes.md' },
+    ],
+  })
 })

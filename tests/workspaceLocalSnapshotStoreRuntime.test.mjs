@@ -73,6 +73,7 @@ test('workspace local snapshot store records and reloads workspace save points f
       scope: 'workspace',
       kind: 'named',
     },
+    payload: null,
   })
   assert.deepEqual(loaded, [recorded])
 })
@@ -219,5 +220,6 @@ test('workspace local snapshot store can backfill manifest-backed git save point
       scope: 'workspace',
       kind: 'named',
     },
+    payload: null,
   }])
 })

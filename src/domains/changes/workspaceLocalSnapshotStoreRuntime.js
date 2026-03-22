@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { createWorkspaceSnapshotPayloadMeta } from './workspaceLocalSnapshotPayloadRuntime.js'
 
 const WORKSPACE_SAVE_POINT_INDEX_DIR = 'snapshots'
 const WORKSPACE_SAVE_POINT_INDEX_FILE = 'workspace-save-points.json'
@@ -84,6 +85,7 @@ export function createLocalWorkspaceSavePointRecord({
   const kind = normalizeSnapshotValue(snapshot?.kind)
   const label = normalizeSnapshotValue(snapshot?.label)
   const manifest = normalizeSnapshotManifest(snapshot?.manifest)
+  const payload = createWorkspaceSnapshotPayloadMeta(snapshot?.payload)
   const idSuffix = sourceId || `${createdAt}:${message}`
 
   return {
@@ -99,6 +101,7 @@ export function createLocalWorkspaceSavePointRecord({
     rawMessage,
     createdAt,
     manifest,
+    payload,
   }
 }
 

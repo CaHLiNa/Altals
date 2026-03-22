@@ -13,7 +13,7 @@ The current implementation does not fully separate these concepts yet. This file
 
 ## Current Truth
 
-Altals now has a first explicit history-repo boundary and a first local workspace-snapshot index, but it does not yet have a restorable local snapshot payload separate from Git-backed content history.
+Altals now has a first explicit history-repo boundary, a local workspace-snapshot index, and a first app-managed restorable payload for captured workspace save-point files.
 
 Today:
 
@@ -21,6 +21,7 @@ Today:
 - named workspace save points still create Git commits
 - explicit workspace save points now stamp a small manifest trailer into the Git-backed history subject
 - explicit workspace save points now also record a local index entry under `workspaceDataDir`
+- explicit workspace save points can now capture a local payload manifest plus per-file content payload for explicitly captured files
 - Git history is the current recovery/history backend
 - remote sync is layered on top of the same Git repository
 
@@ -67,6 +68,7 @@ Current flow:
 7. `git status`
 8. create an explicit commit
 9. record a workspace-save-point entry in the local snapshot index when `workspaceDataDir` is available
+10. capture a local payload manifest plus per-file payload files for the explicitly captured restore set
 
 This is useful, but it means explicit save history is still coupled to Git commit behavior for the underlying content state.
 
@@ -101,6 +103,13 @@ The current snapshot UI is not a separate snapshot backend.
 - normalize local workspace-save-point records
 - record newly created workspace save points into the local index
 - backfill manifest-backed Git workspace save points into the local index when the browser/feed is loaded
+
+`src/domains/changes/workspaceLocalSnapshotPayloadRuntime.js` now owns the first restorable payload slice:
+
+- resolve payload manifest/content paths under `workspaceDataDir/snapshots/payloads/*`
+- capture text payload files for explicitly captured workspace save-point files
+- write a payload manifest that describes the captured files
+- restore those captured files without using `git checkout`
 
 `src/app/changes/snapshotLabelPromptRuntime.js` plus `src/app/changes/useSnapshotLabelPrompt.js` now isolate the Footer prompt timer, dialog visibility, and pending label resolution from the rest of the Footer status UI.
 
@@ -147,7 +156,13 @@ Its lower runtime entry point is now also explicit:
 
 That feed now reads a local workspace-save-point index under `workspaceDataDir/snapshots/workspace-save-points.json` and backfills manifest-backed Git workspace save points into that index as needed.
 
-It still does not support workspace-level preview/restore.
+`WorkspaceSnapshotBrowser.vue` now also:
+
+- loads the payload manifest summary for payload-backed workspace save points
+- shows which captured files belong to the selected save point
+- restores those captured files through the new app-managed payload runtime
+
+Older/backfilled workspace save points can still appear without a local payload.
 
 ### Remote Link Preparation
 
@@ -198,8 +213,10 @@ Current state:
 - explicit workspace save points now also persist a small manifest trailer in Git-backed history subjects
 - explicit workspace save points now also persist into a local workspace-save-point index under `workspaceDataDir`
 - the workspace snapshot browser now reads that local index and backfills older manifest-backed Git entries into it
+- explicit workspace save points can now also persist a local payload manifest plus payload files for the captured restore set
+- workspace-level restore now exists for payload-backed save points without using raw Git rewinds
 - backend behavior for workspace save points still resolves to Git commit creation for the underlying content state
-- no workspace-level preview/restore payload exists yet outside Git-backed history content
+- payload capture is still intentionally narrow and currently covers only the explicitly captured file set rather than the whole workspace
 
 This is the largest remaining safety-model gap.
 
@@ -227,11 +244,12 @@ Remote sync is more explicit than before, but it is not yet independent from loc
 
 The main current risks are:
 
-- the app still lacks a restorable local snapshot backend
+- workspace restore currently covers only explicitly captured payload files, not the whole workspace
 - explicit save history and auto-commit still both feed Git history directly
 - remote link/setup can also influence local history behavior
 - users and maintainers can still misread Git history as the whole safety model
-- the local snapshot store currently persists only workspace save-point index metadata, not a restore payload
+- older/backfilled workspace save points may exist in the browser without a local restore payload
+- workspace-level preview/diff still does not exist above the payload manifest summary
 
 ## Target Direction
 
@@ -246,10 +264,10 @@ That target has landed only partially.
 
 ## Next Safety Slice
 
-The next Phase 4 slice is no longer choosing whether a first local snapshot store should exist. That slice has landed as a workspace-save-point index.
+The next Phase 4 slice is no longer defining whether a first restorable payload/restore seam should exist. That slice has landed.
 
-The remaining high-value gap is defining the first restorable local snapshot payload and restore seam. The recommended next step is:
+The remaining high-value gap is deciding and implementing the next payload-scope expansion. The recommended next step is:
 
-1. define what a workspace snapshot stores beyond the current label/message/index metadata
+1. decide whether workspace save points should keep restoring only explicitly captured files or broaden toward a larger project text set
 2. keep the current `workspace` vs `file` scope distinction explicit instead of collapsing workspace restore back into file history
-3. avoid treating `git checkout` or raw commit rewinds as the default workspace-snapshot restore path
+3. continue avoiding `git checkout` or raw commit rewinds as the default workspace-snapshot restore path

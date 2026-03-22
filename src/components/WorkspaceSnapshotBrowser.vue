@@ -88,6 +88,9 @@
               <div class="workspace-snapshot-meta">
                 {{ isNamedSnapshot(selectedSnapshot) ? t('Named save point') : t('Saved automatically through the normal save flow') }}
               </div>
+              <div v-if="selectedPayloadFileCount > 0" class="workspace-snapshot-meta">
+                {{ t('{count} captured file(s) available for local restore', { count: selectedPayloadFileCount }) }}
+              </div>
             </div>
 
             <div class="workspace-snapshot-note">
@@ -96,8 +99,35 @@
             <div class="workspace-snapshot-note">
               {{ t('Workspace save points now have a local Altals index while still pointing at Git-backed milestones underneath.') }}
             </div>
-            <div class="workspace-snapshot-note">
-              {{ t('Restore is not available here yet. Use File Version History for per-file restores.') }}
+            <div v-if="canRestoreSelectedSnapshot" class="workspace-snapshot-note">
+              {{ t('This save point can restore its captured files through the local snapshot payload without rewinding Git history.') }}
+            </div>
+            <div v-else class="workspace-snapshot-note">
+              {{ t('Older workspace save points may appear here without a local payload yet. Use File Version History for per-file restores.') }}
+            </div>
+
+            <div v-if="payloadManifestLoading" class="workspace-snapshot-note">
+              {{ t('Loading captured files...') }}
+            </div>
+            <div v-else-if="selectedPayloadFiles.length > 0" class="workspace-snapshot-payload-list">
+              <div class="workspace-snapshot-payload-title">{{ t('Captured files') }}</div>
+              <div
+                v-for="file in selectedPayloadFiles"
+                :key="file.path"
+                class="workspace-snapshot-payload-item"
+              >
+                {{ file.relativePath || file.path }}
+              </div>
+            </div>
+
+            <div class="workspace-snapshot-actions">
+              <button
+                class="workspace-snapshot-action workspace-snapshot-action-restore"
+                :disabled="!canRestoreSelectedSnapshot || restoring"
+                @click="restoreSelectedSnapshot"
+              >
+                {{ restoring ? t('Restoring...') : t('Restore captured files') }}
+              </button>
             </div>
           </div>
         </div>
@@ -109,11 +139,17 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { IconX } from '@tabler/icons-vue'
+import { ask } from '@tauri-apps/plugin-dialog'
+import { useEditorStore } from '../stores/editor'
+import { useFilesStore } from '../stores/files'
+import { useToastStore } from '../stores/toast'
 import { useWorkspaceStore } from '../stores/workspace'
 import {
   getWorkspaceSnapshotMetadata,
   isNamedWorkspaceSnapshot,
   listWorkspaceSavePoints,
+  loadWorkspaceSavePointPayloadManifest,
+  restoreWorkspaceSavePoint,
 } from '../domains/changes/workspaceSnapshot.js'
 import { useI18n, formatDate as formatLocaleDate } from '../i18n'
 
@@ -124,16 +160,31 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
+const editorStore = useEditorStore()
+const filesStore = useFilesStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 const overlayEl = ref(null)
 const loading = ref(false)
+const restoring = ref(false)
+const payloadManifestLoading = ref(false)
 const snapshots = ref([])
 const selectedIndex = ref(-1)
+const selectedPayloadManifest = ref(null)
 
 const selectedSnapshot = computed(() =>
   selectedIndex.value >= 0 ? snapshots.value[selectedIndex.value] : null
 )
 const selectedSnapshotMetadata = computed(() => getSnapshotMetadata(selectedSnapshot.value))
+const selectedPayloadFileCount = computed(() =>
+  Number.parseInt(selectedSnapshotMetadata.value?.payload?.fileCount, 10) || 0
+)
+const selectedPayloadFiles = computed(() =>
+  Array.isArray(selectedPayloadManifest.value?.files) ? selectedPayloadManifest.value.files : []
+)
+const canRestoreSelectedSnapshot = computed(() =>
+  !!selectedSnapshotMetadata.value?.capabilities?.canRestore
+)
 
 watch(() => props.visible, async (visible) => {
   if (visible) {
@@ -145,12 +196,20 @@ watch(() => props.visible, async (visible) => {
 
   snapshots.value = []
   selectedIndex.value = -1
+  selectedPayloadManifest.value = null
 })
 
 watch(() => workspace.isOpen, (isOpen) => {
   if (!isOpen && props.visible) {
     emit('close')
   }
+})
+
+watch(selectedSnapshot, (snapshot) => {
+  if (!props.visible) {
+    return
+  }
+  void loadSelectedSnapshotPayloadManifest(snapshot)
 })
 
 async function loadWorkspaceSnapshots() {
@@ -186,6 +245,79 @@ function getSnapshotMessage(snapshot) {
 
 function isNamedSnapshot(snapshot) {
   return getSnapshotMetadata(snapshot).isNamed && isNamedWorkspaceSnapshot(snapshot)
+}
+
+async function loadSelectedSnapshotPayloadManifest(snapshot) {
+  if (!snapshot || !canRestoreSelectedSnapshot.value) {
+    selectedPayloadManifest.value = null
+    payloadManifestLoading.value = false
+    return
+  }
+
+  payloadManifestLoading.value = true
+  try {
+    selectedPayloadManifest.value = await loadWorkspaceSavePointPayloadManifest({
+      workspace,
+      snapshot,
+    })
+  } catch (error) {
+    console.error('Failed to load workspace snapshot payload manifest:', error)
+    selectedPayloadManifest.value = null
+  } finally {
+    payloadManifestLoading.value = false
+  }
+}
+
+async function restoreSelectedSnapshot() {
+  const snapshot = selectedSnapshot.value
+  if (!snapshot || !canRestoreSelectedSnapshot.value || restoring.value) {
+    return
+  }
+
+  const count = selectedPayloadFileCount.value
+  const confirmed = await ask(
+    t('Restore {count} captured file(s) from {date}? This overwrites the current contents of those files.', {
+      count,
+      date: formatDisplayDate(snapshot.createdAt),
+    }),
+    { title: t('Restore Workspace Save Point'), kind: 'warning' },
+  )
+  if (!confirmed) {
+    return
+  }
+
+  restoring.value = true
+  try {
+    const result = await restoreWorkspaceSavePoint({
+      workspace,
+      filesStore,
+      editorStore,
+      snapshot,
+    })
+    if (!result?.restored) {
+      const message = result?.reason === 'missing-payload'
+        ? t('This saved version does not have a local restore payload yet.')
+        : t('Failed to restore the selected workspace save point.')
+      toastStore.show(message, { type: 'warning', duration: 5000 })
+      return
+    }
+
+    toastStore.show(t('Restored {count} file(s) from the selected workspace save point.', {
+      count: result.restoredFiles?.length || count,
+    }), {
+      type: 'success',
+      duration: 4000,
+    })
+    emit('close')
+  } catch (error) {
+    console.error('Failed to restore workspace save point:', error)
+    toastStore.show(t('Failed to restore the selected workspace save point.'), {
+      type: 'error',
+      duration: 5000,
+    })
+  } finally {
+    restoring.value = false
+  }
 }
 
 function formatDisplayDate(dateStr) {
@@ -249,5 +381,57 @@ function formatDisplayDate(dateStr) {
   font-size: var(--ui-font-body);
   color: var(--fg-secondary);
   line-height: 1.5;
+}
+
+.workspace-snapshot-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.workspace-snapshot-payload-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-hover) 45%, var(--bg-primary));
+}
+
+.workspace-snapshot-payload-title {
+  font-size: var(--ui-font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+
+.workspace-snapshot-payload-item {
+  font-size: var(--ui-font-body);
+  color: var(--fg-primary);
+  word-break: break-word;
+}
+
+.workspace-snapshot-action {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: var(--ui-font-body);
+  font-weight: 500;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.workspace-snapshot-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workspace-snapshot-action-restore {
+  color: var(--fg-primary);
+  background: color-mix(in srgb, var(--bg-hover) 72%, var(--bg-secondary));
+}
+
+.workspace-snapshot-action-restore:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 </style>

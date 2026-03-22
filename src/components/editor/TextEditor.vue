@@ -1179,6 +1179,31 @@ onMounted(async () => {
   })
   view.altalsPersist = async () => persistEditorContent(view?.state.doc.toString() || '')
   view.altalsGetContent = () => view?.state.doc.toString() || ''
+  view.altalsApplyExternalContent = async (nextContent = '') => {
+    const normalizedContent = typeof nextContent === 'string' ? nextContent : ''
+    if (!view) return false
+
+    lastPersistedContent = normalizedContent
+    if (view.state.doc.toString() !== normalizedContent) {
+      const selection = view.state.selection.main
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: normalizedContent,
+        },
+        selection: {
+          anchor: Math.min(selection.anchor, normalizedContent.length),
+          head: Math.min(selection.head, normalizedContent.length),
+        },
+      })
+    } else {
+      files.setInMemoryFileContent(props.filePath, normalizedContent)
+      editorStore.clearFileDirty(props.filePath)
+    }
+
+    return true
+  }
 
   activateEditorRuntime()
 })

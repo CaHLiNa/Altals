@@ -1,5 +1,6 @@
 import { createWorkspaceHistoryAvailabilityRuntime } from './workspaceHistoryAvailabilityRuntime.js'
 import { createWorkspaceHistoryPointRuntime } from './workspaceHistoryPointRuntime.js'
+import { createWorkspaceLocalSnapshotPayloadRuntime } from './workspaceLocalSnapshotPayloadRuntime.js'
 import { createWorkspaceLocalSnapshotStoreRuntime } from './workspaceLocalSnapshotStoreRuntime.js'
 import {
   attachWorkspaceSnapshotMetadata,
@@ -15,12 +16,23 @@ import {
   isNamedWorkspaceSnapshot,
 } from './workspaceSnapshotRuntime.js'
 
+function getSnapshotEditorViewsForPath(editorViews = {}, filePath = '') {
+  if (!editorViews || !filePath) {
+    return []
+  }
+
+  return Object.entries(editorViews)
+    .filter(([key]) => key.endsWith(`:${filePath}`))
+    .map(([, view]) => view)
+}
+
 export function createWorkspaceSnapshotOperations({
   availabilityRuntime = createWorkspaceHistoryAvailabilityRuntime(),
   historyPointRuntime = createWorkspaceHistoryPointRuntime({
     availabilityRuntime,
   }),
   snapshotRuntime = createWorkspaceSnapshotRuntime(),
+  localSnapshotPayloadRuntime = createWorkspaceLocalSnapshotPayloadRuntime(),
   localSnapshotStoreRuntime = createWorkspaceLocalSnapshotStoreRuntime(),
   attachSnapshotMetadataImpl = attachWorkspaceSnapshotMetadata,
   attachSnapshotMetadataListImpl = attachWorkspaceSnapshotMetadataList,
@@ -60,9 +72,22 @@ export function createWorkspaceSnapshotOperations({
       }
 
       const gitSnapshot = attachSnapshotMetadataImpl(result.snapshot)
-      const localSnapshotRecord = await localSnapshotStoreRuntime.recordWorkspaceSavePoint({
+      const payload = await localSnapshotPayloadRuntime.captureWorkspaceSnapshotPayload({
+        workspacePath: workspace?.path || '',
         workspaceDataDir: workspace?.workspaceDataDir || '',
         snapshot: result.snapshot,
+        editorStore,
+        filesStore,
+      }).catch((error) => {
+        logErrorImpl('Capture snapshot payload error:', error)
+        return null
+      })
+      const localSnapshotRecord = await localSnapshotStoreRuntime.recordWorkspaceSavePoint({
+        workspaceDataDir: workspace?.workspaceDataDir || '',
+        snapshot: {
+          ...result.snapshot,
+          payload,
+        },
       })
       const localSnapshot = attachSnapshotMetadataImpl(localSnapshotRecord)
       const snapshot = localSnapshot || gitSnapshot
@@ -156,6 +181,55 @@ export function createWorkspaceSnapshotOperations({
     return snapshotRuntime.restoreFileVersionHistoryEntry(input)
   }
 
+  async function loadWorkspaceSavePointPayloadManifest({
+    workspace,
+    snapshot = null,
+  } = {}) {
+    if (!workspace?.workspaceDataDir || !snapshot) {
+      return null
+    }
+
+    return localSnapshotPayloadRuntime.loadWorkspaceSnapshotPayloadManifest({
+      workspaceDataDir: workspace.workspaceDataDir,
+      snapshot,
+    })
+  }
+
+  async function restoreWorkspaceSavePoint({
+    workspace,
+    filesStore,
+    editorStore,
+    snapshot = null,
+  } = {}) {
+    if (!workspace?.path || !workspace?.workspaceDataDir || !snapshot) {
+      return { restored: false, reason: 'missing-input' }
+    }
+
+    return localSnapshotPayloadRuntime.restoreWorkspaceSnapshotPayload({
+      workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
+      snapshot,
+      applyFileContent: async (filePath, content) => {
+        const saved = await filesStore?.saveFile?.(filePath, content)
+        if (!saved) {
+          return false
+        }
+
+        const openViews = getSnapshotEditorViewsForPath(editorStore?.editorViews, filePath)
+        for (const view of openViews) {
+          await view?.altalsApplyExternalContent?.(content)
+        }
+
+        if (openViews.length === 0 && editorStore?.allOpenFiles?.has?.(filePath)) {
+          await filesStore?.reloadFile?.(filePath)
+        }
+
+        editorStore?.clearFileDirty?.(filePath)
+        return true
+      },
+    })
+  }
+
   return {
     createWorkspaceSnapshot,
     openFileVersionHistoryBrowser,
@@ -163,6 +237,8 @@ export function createWorkspaceSnapshotOperations({
     listWorkspaceSavePoints,
     loadFileVersionHistoryPreview,
     restoreFileVersionHistoryEntry,
+    loadWorkspaceSavePointPayloadManifest,
+    restoreWorkspaceSavePoint,
   }
 }
 
@@ -174,6 +250,8 @@ export const listFileVersionHistory = workspaceSnapshotOperations.listFileVersio
 export const listWorkspaceSavePoints = workspaceSnapshotOperations.listWorkspaceSavePoints
 export const loadFileVersionHistoryPreview = workspaceSnapshotOperations.loadFileVersionHistoryPreview
 export const restoreFileVersionHistoryEntry = workspaceSnapshotOperations.restoreFileVersionHistoryEntry
+export const loadWorkspaceSavePointPayloadManifest = workspaceSnapshotOperations.loadWorkspaceSavePointPayloadManifest
+export const restoreWorkspaceSavePoint = workspaceSnapshotOperations.restoreWorkspaceSavePoint
 
 export {
   attachWorkspaceSnapshotMetadata,
