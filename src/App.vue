@@ -4,7 +4,6 @@
     <Header
       ref="headerRef"
       @open-settings="workspace.openSettings()"
-      @open-workspace-snapshots="openWorkspaceSnapshots"
     />
 
     <!-- Launcher (no workspace open) -->

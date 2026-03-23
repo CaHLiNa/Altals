@@ -16,8 +16,6 @@ Current overall assessment:
 - Phase 5 is complete for the current planned scope: document-scoped AI launch routing is now behind an explicit runtime seam, the existing TeX/Typst proposal-first workflows are documented truthfully, and no broader direct-action AI path was expanded.
 - Phase 6 is complete for the current planned scope: the missing core docs baseline now exists, remaining direct AI launch/deletion targets are documented, and repo-level audit tests now guard the docs baseline plus the current direct AI launch inventory.
 - Repository state was re-audited on 2026-03-23; active docs and agent instructions are now aligned with the broader research-operating-system definition, while the biggest remaining product-shape gap is the missing execution/notebook domain boundary.
-- The active user-directed slice has temporarily shifted to a UI OS redesign track because the shell still feels older and more IDE-like than the underlying research-workspace model.
-- The first UI OS redesign slice is now landed: the shell header is workflow-oriented, the project continue surface is no longer a thin launcher, the active document has a real context header, and the footer is visually demoted without changing the underlying safety model.
 
 ## Product Direction
 
@@ -119,25 +117,6 @@ The current strongest signs of progress are:
 #### App/root layer
 
 The root app component has already been reduced through extraction of several orchestration modules, including workspace lifecycle, shell event bridge, workspace history actions, teardown handling, and footer status sync.
-
-#### Shell / IA reality
-
-The biggest remaining frontend product-shape issue is now interaction hierarchy rather than missing shell plumbing.
-
-Current shell symptoms:
-
-- `Header.vue` still centers a tool/surface switcher (`Project` / `Library` / `AI`) instead of a workflow shell
-- `WorkspaceStarter.vue` exists, but still behaves more like a thin empty-state launcher than a true project continue surface
-- `EditorPane.vue` still leads with tabs and sub-bars, so documents read as pane content rather than first-class research objects
-- `Footer.vue` still carries too much product-level meaning through dense status controls and low-level utility affordances
-- the combined effect still reads as a multi-pane IDE with research features attached
-
-The first redesign pass has now started changing that shape:
-
-- `Header.vue` now frames the app around workflow navigation plus project/document context instead of only tool surfaces
-- `WorkspaceStarter.vue` now acts as a project continue surface with recent documents, attention items, saved versions, and contextual workbench entry points
-- `EditorPane.vue` now uses a document context header so build/change/recovery/assist actions attach to the active document instead of only to tabs and narrow toolbars
-- `Footer.vue` is now calmer and more secondary while still preserving save/sync/terminal/recovery hooks
 
 #### Large store reduction progress
 
@@ -774,13 +753,11 @@ Exit criteria:
 
 - `src/app` entry-layer boundary construction
 - reduction of `App.vue` toward composition-only role
-- 2026-03-23 execution cycle: the next active UI OS redesign slice is now being implemented in the left sidebar so project navigation, evidence, build focus, and recovery stop reading like equal-weight IDE panels
 - early `changes` domain boundary
 - post-extraction stabilization after `references` first-round split
 - post-extraction stabilization after `editor` first-round split
 - transition of store-boundary reduction focus toward `files`
 - `files` detailed audit completed; first narrow slice selected as tree cache / workspace snapshot runtime
-- UI OS redesign now continues beyond the first shell pass; the next remaining product-shape gap is the still IDE-like left sidebar / evidence / build / changes hierarchy
 - `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
 - 2026-03-22 execution cycle: re-auditing `files` post-watch state, docs truthfulness, and validation gaps before the next code slice lands
 - `files` refresh/runtime orchestration has now been extracted into a dedicated domain runtime module; next decision is whether to continue with watch/poll orchestration in the same domain
@@ -1501,10 +1478,10 @@ Exit criteria:
 
 ## Next Recommended Slice
 
-1. Do not reopen the first shell/header/project-home/document-header slice as cosmetic churn unless product reality changes or a concrete usability issue appears
-2. Continue the UI OS redesign by reworking the left sidebar and evidence/build/changes hierarchy so files, references, outline, and recovery stop feeling like equal-weight IDE panels
-3. Move more build and changes language to summary-first writer-facing affordances before exposing raw logs or low-level mechanics
-4. After the UI track reaches a stable shell and sidebar hierarchy, return to execution/notebook boundary planning by auditing `src/components/editor/NotebookEditor.vue`, `src/stores/kernel.js`, `src/stores/environment.js`, `src/services/chunkKernelBridge.js`, and `src-tauri/src/kernel.rs`
+1. The current planned Phase 6 scope is complete; do not reopen it with docs-only churn or cosmetic cleanup
+2. Start execution/notebook boundary planning by auditing `src/components/editor/NotebookEditor.vue`, `src/stores/kernel.js`, `src/stores/environment.js`, `src/services/chunkKernelBridge.js`, and `src-tauri/src/kernel.rs`
+3. Use `docs/ARCHITECTURE.md` and `docs/OPERATIONS.md` to record the first explicit execution/notebook boundary and what will intentionally remain shared with the document/build loop for now
+4. After the boundary is documented, extract one narrow runtime seam from the current execution/notebook stack instead of continuing cosmetic UI work
 5. Keep workspace snapshot restore separate from Git-backed file-history restore, and keep AI mutation flowing through reviewable workflow/checkpoint paths rather than direct mutation entry points
 
 ## Validation Checklist

@@ -242,10 +242,6 @@ export function useAppShellEventBridge({
     openWorkspaceSnapshots()
   }
 
-  function handleCreateSnapshotEvent() {
-    void createSnapshot()
-  }
-
   function handleExternalLinkActivation(event) {
     if (event.defaultPrevented) return
     const match = resolveExternalHttpAnchor(event.target, document.baseURI)
@@ -283,7 +279,6 @@ export function useAppShellEventBridge({
     window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.addEventListener('app:toggle-terminal', handleToggleTerminal)
     window.addEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
-    window.addEventListener('app:create-snapshot', handleCreateSnapshotEvent)
     window.addEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 
@@ -302,7 +297,6 @@ export function useAppShellEventBridge({
     window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
     window.removeEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
-    window.removeEventListener('app:create-snapshot', handleCreateSnapshotEvent)
     window.removeEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 }

@@ -150,41 +150,12 @@ Likely slice candidates:
 - add documented Rust validation commands
 - add missing build/test scripts only when they reduce ambiguity
 
-### Parallel User-Directed Track — UI OS Redesign
-
-Goals:
-
-- shift the frontend away from an IDE-like shell toward a research-workspace shell
-- make project, document, build, recovery, and AI context more legible in the primary UI
-- improve information architecture and interaction hierarchy without regressing safety semantics
-
-Current first slice:
-
-- workflow-oriented shell header
-- upgraded project continue surface
-- document context header
-- lighter footer role
-
-Current status:
-
-- the first shell-oriented slice is landed; the next UI OS step is sidebar / evidence / build / changes hierarchy rather than another pass of cosmetic shell tweaking
-- the sidebar / evidence / build / changes restructuring slice is now the active UI execution track
-
-Reference:
-
-- `docs/UI_OS_REDESIGN_BRIEF.md`
-- `docs/plan/UI_OS_REDESIGN_PHASE1.md`
-
 ## Next Recommended Slices
 
 1. Audit the notebook/kernel/terminal flow and define the first explicit `execution` boundary before adding more computation features.
 2. Extract one narrow notebook or kernel orchestration runtime so execution logic stops living primarily in UI/store code.
 3. Reroute one distributed AI launch surface through a shared app/domain seam after the execution boundary starts to exist.
 4. Start the first Rust layering slice only after the execution-boundary direction is documented and stable enough to guide backend shape.
-
-User-directed override in progress:
-
-- before returning to the execution-boundary roadmap, land the first UI OS redesign slice described in `docs/plan/UI_OS_REDESIGN_PHASE1.md`.
 
 ## Guardrails
 

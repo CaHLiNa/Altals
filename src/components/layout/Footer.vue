@@ -1,35 +1,62 @@
 <template>
-  <footer class="footer-shell">
-    <div class="footer-side footer-left">
-      <span v-if="wordSummary" class="footer-chip">
-        {{ wordSummary }}
-      </span>
+  <footer class="grid items-center px-3 ui-text-xs select-none shrink-0"
+    style="grid-template-columns: 1fr auto 1fr; background: var(--bg-secondary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;">
 
-      <button
+    <!-- LEFT: word count + sync status -->
+    <div class="flex items-center gap-2 justify-self-start whitespace-nowrap">
+      <!-- Word count -->
+      <template v-if="stats.words > 0">
+        <span :style="{ color: stats.selWords > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selWords > 0 ? stats.selWords : stats.words).toLocaleString() }}</span> {{ t('words') }}
+        </span>
+        <span :style="{ color: stats.selChars > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selChars > 0 ? stats.selChars : stats.chars).toLocaleString() }}</span> {{ t('chars') }}
+        </span>
+      </template>
+
+      <!-- Separator -->
+      <div v-if="workspace.githubUser && stats.words > 0" class="w-px h-3 shrink-0" style="background: var(--border);"></div>
+
+      <!-- Sync status (only when GitHub connected) -->
+      <span
         v-if="workspace.githubUser"
         ref="syncTriggerRef"
-        type="button"
-        class="footer-chip footer-chip-button"
-        :class="`is-${syncTone}`"
+        class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+        :style="{ color: syncColor }"
         @click="toggleSyncPopover"
         :title="syncTooltip"
       >
-        {{ syncLabel || t('GitHub connected') }}
-      </button>
+        <!-- Cloud icon variations -->
+        <svg v-if="workspace.syncStatus === 'synced'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+        </svg>
+        <svg v-else-if="workspace.syncStatus === 'syncing'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sync-pulse">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+          <path d="M11 13l-2 2 2 2M13 11l2-2-2-2"/>
+        </svg>
+        <svg v-else-if="workspace.syncStatus === 'error' || workspace.syncStatus === 'conflict'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+          <path d="M12 9v4M12 17h.01"/>
+        </svg>
+        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4;">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+          <path d="M4 20L20 4"/>
+        </svg>
+        <span v-if="syncLabel" class="ui-text-xs">{{ syncLabel }}</span>
+      </span>
 
-      <button
-        v-if="reviews.pendingCount > 0"
+      <!-- Pending changes -->
+      <span v-if="reviews.pendingCount > 0"
         ref="pendingTriggerRef"
-        type="button"
-        class="footer-chip footer-chip-button is-warning"
-        @click="togglePendingPopover"
-      >
-        {{ t('{count} pending change(s)', { count: reviews.pendingCount }) }}
-      </button>
+        class="flex items-center gap-1 cursor-pointer hover:opacity-80"
+        style="color: var(--warning);"
+        @click="togglePendingPopover">
+        {{ reviews.pendingCount }} {{ t('Pending Changes') }}
+      </span>
     </div>
 
     <!-- CENTER: snapshot-label prompt or transient status messaging -->
-    <div class="footer-center">
+    <div class="footer-center justify-self-center">
       <div class="footer-center-layer" :class="{ 'footer-center-hidden': snapshotLabelPromptActive || centerMessage || uxStatusEntry }"></div>
 
       <!-- Snapshot-label prompt (shown during 8s window) -->
@@ -78,54 +105,73 @@
       @resolve="resolveSnapshotLabelDialog"
     />
 
-    <div class="footer-side footer-right">
+    <!-- RIGHT: tools + editor info -->
+    <div class="flex items-center gap-2 justify-self-end whitespace-nowrap">
+      <!-- Tools -->
       <button
-        class="footer-quiet-button"
-        :class="{ 'is-active': workspace.bottomPanelOpen }"
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        :style="{ color: workspace.bottomPanelOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
         @click="toggleTerminalPanel"
         :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
       >
-        {{ t('Terminal') }}
+        <IconTerminal2 width="14" height="14" :stroke-width="1.5" />
       </button>
       <button
-        class="footer-quiet-button"
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        style="color: var(--fg-muted);"
         @click="$emit('open-workspace-snapshots')"
         :title="t('Saved versions')"
       >
-        {{ t('Saved versions') }}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 2.5h6a1.5 1.5 0 011.5 1.5v9l-2.75-1.9L5.5 13V4a1.5 1.5 0 011.5-1.5z"/>
+          <path d="M11 4.5h1.5A1.5 1.5 0 0114 6v7.5l-2-1.4"/>
+        </svg>
       </button>
       <button
-        class="footer-quiet-button"
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        style="color: var(--fg-muted);"
         @click="showShortcuts = !showShortcuts"
         :title="t('Keyboard shortcuts')"
       >
-        {{ t('Shortcuts') }}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="4" width="14" height="9" rx="1.5"/>
+          <path d="M4 7h1M7 7h2M11 7h1M5 10h6"/>
+        </svg>
       </button>
       <button
-        class="footer-quiet-button"
-        :class="{ 'is-active': workspace.softWrap }"
+        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
+        :style="{ color: workspace.softWrap ? 'var(--accent)' : 'var(--fg-muted)' }"
         @click="workspace.toggleSoftWrap()"
         :title="workspace.softWrap ? t('Word wrap: on') : t('Word wrap: off')"
       >
-        {{ t('Wrap') }}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M2 3h12"/>
+          <path d="M2 7h10a2 2 0 010 4H8"/>
+          <path d="M10 13l-2-2 2-2"/>
+          <path d="M2 11h3"/>
+        </svg>
       </button>
+
+      <!-- Separator -->
+      <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
 
       <!-- Billing context display -->
       <template v-if="usageStore.showInFooter && footerBillingVisible">
         <span
           v-if="billingRoute?.route === 'direct'"
-          class="footer-chip footer-chip-button"
-          :class="{ 'is-danger': usageStore.isOverBudget, 'is-warning': usageStore.isNearBudget }"
+          class="cursor-pointer hover:opacity-80"
+          :style="{ color: usageStore.isOverBudget ? 'var(--error)' : usageStore.isNearBudget ? 'var(--warning)' : 'var(--fg-muted)' }"
           :title="t('Estimated API cost this month - check provider dashboards for actual charges')"
           @click="$emit('open-settings', 'models')">
           {{ t('{cost} this month', { cost: `~${formatCost(usageStore.directCost)}` }) }}
         </span>
+        <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
       </template>
 
       <!-- Save message -->
       <span v-if="saveMessage"
-        class="footer-inline-message transition-opacity"
-        :style="{ opacity: saveMessageFading ? 0 : 1 }">
+        class="transition-opacity"
+        :style="{ color: 'var(--success)', opacity: saveMessageFading ? 0 : 1 }">
         {{ saveMessage }}
       </span>
     </div>
@@ -235,6 +281,7 @@ import { useI18n } from '../../i18n'
 import SyncPopover from './SyncPopover.vue'
 import SnapshotDialog from './SnapshotDialog.vue'
 import GitHubConflictDialog from '../GitHubConflictDialog.vue'
+import { IconTerminal2 } from '@tabler/icons-vue'
 import { IconCheck } from '@tabler/icons-vue'
 
 const emit = defineEmits(['open-settings', 'open-workspace-snapshots'])
@@ -330,27 +377,6 @@ const syncLabel = computed(() => {
     case 'conflict': return t('Sync issue')
     default: return null
   }
-})
-
-const syncTone = computed(() => {
-  switch (workspace.syncStatus) {
-    case 'error': return 'danger'
-    case 'conflict': return 'warning'
-    case 'syncing': return 'accent'
-    default: return 'neutral'
-  }
-})
-
-const wordSummary = computed(() => {
-  if (stats.value.words <= 0) return ''
-  if (stats.value.selWords > 0) {
-    return t('{count} words selected', {
-      count: stats.value.selWords.toLocaleString(),
-    })
-  }
-  return t('{count} words', {
-    count: stats.value.words.toLocaleString(),
-  })
 })
 
 function toggleSyncPopover() {
@@ -522,139 +548,11 @@ defineExpose({
 </script>
 
 <style scoped>
-.footer-shell {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  min-height: 34px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 78%, transparent), color-mix(in srgb, var(--bg-primary) 86%, transparent));
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.footer-side {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.footer-left {
-  justify-content: flex-start;
-}
-
-.footer-right {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.footer-chip,
-.footer-quiet-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 58%, transparent);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.footer-chip {
-  color: var(--fg-secondary);
-}
-
-.footer-chip-button,
-.footer-quiet-button {
-  cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
-}
-
-.footer-chip-button:hover,
-.footer-quiet-button:hover {
-  color: var(--fg-primary);
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
-  background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
-}
-
-.footer-quiet-button {
-  color: var(--fg-muted);
-}
-
-.footer-quiet-button.is-active {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.footer-chip.is-warning {
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-}
-
-.footer-chip.is-danger {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-}
-
-.footer-chip.is-accent {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.footer-center {
-  position: relative;
-  min-width: 240px;
-  justify-self: center;
-}
-
-.footer-center-layer {
-  transition: opacity 160ms ease;
-}
-
-.footer-center-hidden {
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-}
-
-.footer-inline-message {
-  color: var(--success);
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .sync-pulse {
   animation: syncPulse 2s ease-in-out infinite;
 }
-
 @keyframes syncPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
-}
-
-@media (max-width: 980px) {
-  .footer-shell {
-    grid-template-columns: 1fr;
-    padding: 8px 12px;
-  }
-
-  .footer-center {
-    order: 3;
-    justify-self: stretch;
-    min-width: 0;
-  }
-
-  .footer-right {
-    justify-content: flex-start;
-  }
 }
 </style>
