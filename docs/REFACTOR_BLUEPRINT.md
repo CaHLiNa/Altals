@@ -774,6 +774,7 @@ Exit criteria:
 
 - `src/app` entry-layer boundary construction
 - reduction of `App.vue` toward composition-only role
+- 2026-03-23 execution cycle: the next active UI OS redesign slice is now being implemented in the left sidebar so project navigation, evidence, build focus, and recovery stop reading like equal-weight IDE panels
 - early `changes` domain boundary
 - post-extraction stabilization after `references` first-round split
 - post-extraction stabilization after `editor` first-round split

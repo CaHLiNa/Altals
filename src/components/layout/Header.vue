@@ -240,6 +240,7 @@ import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
+import { useWorkspaceShellNavigation } from '../../app/shell/useWorkspaceShellNavigation'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
@@ -344,6 +345,17 @@ const activeContextPath = computed(() => {
     return activeTab
   }
   return editorStore.preferredContextPath || ''
+})
+
+const {
+  openProjectHome,
+  focusWritingWorkspace,
+  openEvidence: openLibrary,
+  openAssist: openAiWorkbench,
+} = useWorkspaceShellNavigation({
+  workspace,
+  editorStore,
+  getFallbackContextPath: () => activeContextPath.value,
 })
 
 const activeContextTitle = computed(() => (
@@ -514,50 +526,6 @@ function onSelectChat(sessionId) {
 
 function handleOpenAi() {
   aiDrawer.toggle()
-}
-
-function openProjectHome() {
-  if (!workspace.isOpen) return
-  workspace.openWorkspaceSurface()
-  const paneId = editorStore.activePaneId || 'pane-root'
-  const activePane = editorStore.activePane
-  if (activePane?.activeTab && isNewTab(activePane.activeTab)) {
-    return
-  }
-  editorStore.openNewTab(paneId)
-}
-
-function focusWritingWorkspace() {
-  if (!workspace.isOpen) return
-  workspace.openWorkspaceSurface()
-  const targetPath = editorStore.preferredContextPath || activeContextPath.value
-  if (targetPath) {
-    const existingPane = editorStore.findPaneWithTab(targetPath)
-    if (existingPane) {
-      existingPane.activeTab = targetPath
-      editorStore.activePaneId = existingPane.id
-      editorStore.saveEditorState()
-      return
-    }
-
-    editorStore.openFileInPane(targetPath, editorStore.activePaneId, {
-      activatePane: true,
-      replaceNewTab: false,
-    })
-    return
-  }
-
-  openProjectHome()
-}
-
-function openAiWorkbench() {
-  if (!workspace.isOpen) return
-  workspace.openAiSurface()
-}
-
-function openLibrary() {
-  if (!workspace.isOpen) return
-  workspace.openLibrarySurface()
 }
 
 async function waitForEditorView(targetPath) {

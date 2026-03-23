@@ -17,7 +17,7 @@ As of 2026-03-23, the first slice is landed in code:
 - document context header above active files
 - calmer, more secondary footer
 
-The next redesign work should move from shell semantics into sidebar / evidence / build / changes hierarchy.
+The next redesign work is now in progress and moves from shell semantics into sidebar / evidence / build / changes hierarchy.
 
 ## Why This Slice Exists
 

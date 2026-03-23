@@ -168,6 +168,7 @@ Current first slice:
 Current status:
 
 - the first shell-oriented slice is landed; the next UI OS step is sidebar / evidence / build / changes hierarchy rather than another pass of cosmetic shell tweaking
+- the sidebar / evidence / build / changes restructuring slice is now the active UI execution track
 
 Reference:
 
