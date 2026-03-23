@@ -1,9 +1,9 @@
 import { nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { t } from '../../i18n/index.js'
-import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkflowRunsStore } from '../../stores/aiWorkflowRuns.js'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { isAiLauncher } from '../../utils/fileTypes.js'
 import { createSelectionAskTask } from './taskCatalog.js'
 import { autoSendWorkflowMessage, buildTaskSendPayload } from './launchMessages.js'
@@ -58,19 +58,16 @@ function syncActiveWorkflowRun(sessionId) {
   }
 }
 
-async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside = false, selection, prefill, surface = 'drawer' }) {
-  if (surface === 'drawer') {
-    const aiDrawer = useAiDrawerStore()
-    chatStore.activeSessionId = sessionId
-    if (prefill) chatStore.pendingPrefill = prefill
-    if (selection) chatStore.pendingSelection = selection
-    syncActiveWorkflowRun(sessionId)
-    aiDrawer.openSession(sessionId)
-    await nextTick()
-    return sessionId
-  }
+function normalizeAiLaunchSurface(surface = 'workbench') {
+  if (surface === 'drawer') return 'workbench'
+  if (surface === 'pane') return 'pane'
+  return 'workbench'
+}
 
-  if (surface === 'workbench') {
+async function openAiSession({ editorStore, chatStore, sessionId, paneId, beside = false, selection, prefill, surface = 'workbench' }) {
+  const normalizedSurface = normalizeAiLaunchSurface(surface)
+
+  if (normalizedSurface === 'workbench') {
     const aiWorkbench = useAiWorkbenchStore()
     chatStore.activeSessionId = sessionId
     if (prefill) chatStore.pendingPrefill = prefill
@@ -98,13 +95,10 @@ function dispatchPrefill(message) {
   window.dispatchEvent(new CustomEvent('chat-set-input', { detail: { message } }))
 }
 
-export function openAiLauncher({ editorStore, beside = true, paneId, surface = 'drawer' } = {}) {
-  if (surface === 'drawer') {
-    useAiDrawerStore().openLauncher()
-    return
-  }
+export function openAiLauncher({ editorStore, beside = true, paneId, surface = 'workbench' } = {}) {
+  const normalizedSurface = normalizeAiLaunchSurface(surface)
 
-  if (surface === 'workbench') {
+  if (normalizedSurface === 'workbench') {
     const aiWorkbench = useAiWorkbenchStore()
     editorStore?.openAiWorkbenchSurface?.()
     aiWorkbench.openLauncher()
@@ -155,26 +149,30 @@ function collectAiLauncherTabs(node, result = []) {
 }
 
 export function hasAiLauncherOpen(editorStore) {
-  const aiDrawer = useAiDrawerStore()
-  if (aiDrawer.open) return true
+  const workspace = useWorkspaceStore()
+  const aiWorkbench = useAiWorkbenchStore()
+  if (workspace.isAiSurface && aiWorkbench.view === 'launcher') return true
   if (!editorStore?.paneTree) return false
   return collectAiLauncherTabs(editorStore.paneTree).length > 0
 }
 
-export function toggleAiLauncher({ editorStore, beside = true, paneId, surface = 'drawer' } = {}) {
-  if (surface === 'drawer') {
-    const aiDrawer = useAiDrawerStore()
-    if (aiDrawer.open) {
-      aiDrawer.close()
+export function toggleAiLauncher({ editorStore, beside = true, paneId, surface = 'workbench' } = {}) {
+  const normalizedSurface = normalizeAiLaunchSurface(surface)
+
+  if (normalizedSurface === 'workbench') {
+    const aiWorkbench = useAiWorkbenchStore()
+    editorStore?.openAiWorkbenchSurface?.()
+    if (aiWorkbench.view === 'launcher' || aiWorkbench.view === 'chat') {
+      aiWorkbench.openLauncher()
       return
     }
-    aiDrawer.restore()
+    openAiLauncher({ editorStore, beside, paneId, surface: normalizedSurface })
     return
   }
 
   const tabs = collectAiLauncherTabs(editorStore?.paneTree)
   if (tabs.length === 0) {
-    openAiLauncher({ editorStore, beside, paneId, surface })
+    openAiLauncher({ editorStore, beside, paneId, surface: normalizedSurface })
     return
   }
 
@@ -188,7 +186,7 @@ export async function startAiConversation({
   chatStore,
   paneId,
   beside = false,
-  surface = 'drawer',
+  surface = 'workbench',
   modelId,
   text,
   fileRefs,
@@ -227,7 +225,7 @@ export async function prefillAiConversation({
   chatStore,
   paneId,
   beside = false,
-  surface = 'drawer',
+  surface = 'workbench',
   modelId,
   message,
   label,
@@ -246,7 +244,7 @@ export async function prefillAiConversation({
   })
 
   await openAiSession({ editorStore, chatStore, sessionId, paneId, beside, surface, prefill: message })
-  if (surface !== 'drawer') {
+  if (normalizeAiLaunchSurface(surface) !== 'workbench') {
     dispatchPrefill(message)
   }
   return sessionId
@@ -342,7 +340,7 @@ export async function launchWorkflowTask({
   chatStore,
   paneId,
   beside = false,
-  surface = 'drawer',
+  surface = 'workbench',
   modelId,
   task,
   sessionId = null,
@@ -372,7 +370,7 @@ export async function launchAiTask({
   chatStore,
   paneId,
   beside = false,
-  surface = 'drawer',
+  surface = 'workbench',
   modelId,
   task,
 }) {

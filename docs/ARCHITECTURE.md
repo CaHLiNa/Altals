@@ -34,6 +34,8 @@ This layer now carries app-facing orchestration close to the shell, including:
 - footer/status coordination
 - snapshot prompt and workspace-history entry actions
 - persistent shell navigation composition for project/library/AI surface selection
+- surface-aware left-sidebar hosting so each primary surface can own its own shell-level secondary panels without pushing more orchestration back into `App.vue`
+- workspace-surface right-inspector hosting so `Outline` / `Backlinks` now live in a mirrored shell column rather than an overlay AI drawer
 
 This layer is thinner than the old `App.vue`-centric shape, but it is still not a full operation layer.
 

@@ -4,96 +4,9 @@
     class="ai-workbench h-full min-h-0 w-full"
     :class="{
       'ai-workbench-compact': compact,
-      'is-rail-drawer-open': compact && compactRailOpen,
     }"
   >
-    <button
-      v-if="showCompactBackdrop"
-      class="ai-workbench-backdrop"
-      type="button"
-      @click="closeCompactRail"
-    />
-
-    <aside class="ai-workbench-rail">
-      <div v-if="compact" class="ai-workbench-rail-compact-head">
-        <div class="ai-workbench-rail-compact-title">{{ t('Current context') }}</div>
-        <button
-          class="ai-workbench-rail-close"
-          type="button"
-          @click="closeCompactRail"
-        >
-          ×
-        </button>
-      </div>
-
-      <div class="ai-workbench-rail-top" @contextmenu="openWorkbenchEmptyContextMenu($event, 'rail')">
-        <div class="ai-workbench-rail-kicker">{{ t('Current context') }}</div>
-        <div class="ai-workbench-rail-context">{{ contextName }}</div>
-        <div class="ai-workbench-rail-workspace">{{ workspaceName }}</div>
-
-        <button class="ai-workbench-new-chat" @click="openHome">
-          {{ t('New chat') }}
-        </button>
-      </div>
-
-      <div class="ai-workbench-rail-section" @contextmenu="openWorkbenchEmptyContextMenu($event, 'rail')">
-        <div class="ai-workbench-rail-section-title">{{ t('Recent chats') }}</div>
-
-        <div v-if="recentChats.length" class="ai-workbench-chat-list">
-          <div
-            v-for="item in recentChats"
-            :key="item.id"
-            class="ai-workbench-chat-row"
-            @contextmenu.prevent.stop="openRecentChatContextMenu($event, item.id)"
-          >
-            <button
-              class="ai-workbench-chat-item"
-              :class="{ active: aiWorkbench.sessionId === item.id && showChat }"
-              @click="openRecentChat(item.id)"
-            >
-              <div class="ai-workbench-chat-label-row">
-                <span class="ai-workbench-chat-label">{{ item.label }}</span>
-                <span v-if="chatMeta(item)?.roleBadge" class="ai-workbench-chat-badge">
-                  {{ chatMeta(item).roleBadge }}
-                </span>
-              </div>
-              <div class="ai-workbench-chat-meta">
-                {{ formatRelativeFromNow(item.updatedAt) }}
-              </div>
-              <div v-if="chatWorkflowMeta(item)" class="ai-workbench-chat-meta ai-workbench-chat-meta-workflow">
-                {{ chatWorkflowMeta(item) }}
-              </div>
-            </button>
-            <button
-              class="ai-workbench-chat-delete"
-              type="button"
-              :title="t('Delete chat')"
-              @click.stop="deleteChat(item.id)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div v-else class="ai-workbench-chat-empty">
-          {{ t('No chats yet') }}
-        </div>
-      </div>
-    </aside>
-
     <section class="ai-workbench-main" @contextmenu="openWorkbenchEmptyContextMenu($event, 'main')">
-      <div v-if="compact" class="ai-workbench-compact-toolbar">
-        <button
-          class="ai-workbench-compact-trigger"
-          type="button"
-          :class="{ active: compactRailOpen }"
-          @click="toggleCompactRail"
-        >
-          <span class="ai-workbench-compact-trigger-label">{{ t('Current context') }}</span>
-          <span class="ai-workbench-compact-trigger-value">{{ compactToolbarLabel }}</span>
-        </button>
-      </div>
-
       <template v-if="showChat && session">
         <ChatSession
           ref="chatSessionRef"
@@ -126,12 +39,9 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ask } from '@tauri-apps/plugin-dialog'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
-import { useEditorStore } from '../../stores/editor'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { useChatStore } from '../../stores/chat'
-import { useI18n, formatRelativeFromNow } from '../../i18n'
+import { useI18n } from '../../i18n'
 import AiWorkbenchHome from './AiWorkbenchHome.vue'
 import ChatSession from '../chat/ChatSession.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
@@ -141,8 +51,6 @@ const props = defineProps({
 })
 
 const aiWorkbench = useAiWorkbenchStore()
-const editorStore = useEditorStore()
-const workspace = useWorkspaceStore()
 const chatStore = useChatStore()
 const { t } = useI18n()
 
@@ -150,19 +58,16 @@ const chatSessionRef = ref(null)
 const homeRef = ref(null)
 const rootRef = ref(null)
 const observedWidth = ref(0)
-const compactRailOpen = ref(false)
 const contextMenu = ref({
   visible: false,
   x: 0,
   y: 0,
   scope: '',
-  sessionId: null,
 })
 let resizeObserver = null
 
 const width = computed(() => props.paneWidth || observedWidth.value || 0)
 const compact = computed(() => width.value > 0 && width.value < 980)
-const showCompactBackdrop = computed(() => compact.value && compactRailOpen.value)
 const session = computed(() => (
   aiWorkbench.sessionId
     ? chatStore.sessions.find((item) => item.id === aiWorkbench.sessionId) || null
@@ -175,42 +80,8 @@ const showChat = computed(() => aiWorkbench.view === 'chat' && !!aiWorkbench.ses
 const recentChats = computed(() => [...chatStore.allSessionsMeta].slice(0, 12))
 const latestRecentChat = computed(() => recentChats.value[0] || null)
 
-const contextName = computed(() => {
-  const path = editorStore.preferredContextPath || ''
-  if (path) return String(path).split('/').pop() || path
-  const fallback = workspace.path || ''
-  return fallback ? (String(fallback).split('/').pop() || fallback) : t('Current workspace')
-})
-
-const workspaceName = computed(() => {
-  const path = workspace.path || ''
-  return path ? (String(path).split('/').pop() || path) : t('Current workspace')
-})
-const compactToolbarLabel = computed(() => {
-  if (showChat.value && sessionMeta.value?.label) return sessionMeta.value.label
-  return contextName.value || workspaceName.value
-})
-
 const contextMenuGroups = computed(() => {
   if (!contextMenu.value.visible) return []
-
-  if (contextMenu.value.scope === 'chat-item' && contextMenu.value.sessionId) {
-    return [
-      {
-        key: 'chat-actions',
-        items: [
-          { key: 'open-chat', label: t('Open chat') },
-          { key: 'new-chat', label: t('New chat') },
-        ],
-      },
-      {
-        key: 'chat-danger',
-        items: [
-          { key: 'delete-chat', label: t('Delete chat'), danger: true },
-        ],
-      },
-    ]
-  }
 
   const items = [
     { key: 'new-chat', label: t('New chat') },
@@ -223,67 +94,13 @@ const contextMenuGroups = computed(() => {
   return [{ key: 'empty-actions', items }]
 })
 
-function chatMeta(item) {
-  return aiWorkbench.describeSession(item)
-}
-
-function chatWorkflowMeta(item) {
-  const meta = chatMeta(item)
-  if (!meta?.workflowStatus) return ''
-
-  const parts = []
-  if (meta.workflowExecutionMode === 'background') {
-    parts.push(t('Background'))
-  }
-
-  switch (String(meta.workflowStatus || '')) {
-    case 'waiting_user':
-      parts.push(t('Waiting'))
-      break
-    case 'completed':
-      parts.push(t('Completed'))
-      break
-    case 'failed':
-      parts.push(t('Failed'))
-      break
-    case 'running':
-      parts.push(t('Running'))
-      break
-    default:
-      break
-  }
-
-  if (meta.workflowStepLabel) {
-    parts.push(meta.workflowStepLabel)
-  }
-
-  return parts.join(' · ')
-}
-
 function openHome() {
-  closeCompactRail()
   aiWorkbench.openLauncher()
   homeRef.value?.focus?.()
 }
 
 function openRecentChat(sessionId) {
-  closeCompactRail()
   aiWorkbench.openSession(sessionId)
-}
-
-async function deleteChat(sessionId) {
-  if (!sessionId) return
-  const yes = await ask(t('Delete this chat permanently?'), {
-    title: t('Delete chat'),
-    kind: 'warning',
-  })
-  if (!yes) return
-
-  editorStore.closeFileFromAllPanes(`chat:${sessionId}`)
-  chatStore.deleteSession(sessionId)
-  if (aiWorkbench.sessionId === sessionId) {
-    aiWorkbench.openLauncher()
-  }
 }
 
 function closeContextMenu() {
@@ -293,23 +110,17 @@ function closeContextMenu() {
 function shouldIgnoreEmptyContextMenuTarget(event) {
   const target = event?.target
   if (!(target instanceof Element)) return false
-  return !!target.closest('button, input, textarea, select, a, label, .ai-workbench-chat-row')
+  return !!target.closest('button, input, textarea, select, a, label')
 }
 
-function openContextMenu(event, scope, sessionId = null) {
+function openContextMenu(event, scope) {
   event.preventDefault()
   contextMenu.value = {
     visible: true,
     x: event.clientX,
     y: event.clientY,
     scope,
-    sessionId,
   }
-}
-
-function openRecentChatContextMenu(event, sessionId) {
-  if (!sessionId) return
-  openContextMenu(event, 'chat-item', sessionId)
 }
 
 function openWorkbenchEmptyContextMenu(event, source = 'main') {
@@ -319,32 +130,16 @@ function openWorkbenchEmptyContextMenu(event, source = 'main') {
 }
 
 async function handleContextMenuSelect(actionKey) {
-  const targetSessionId = contextMenu.value.sessionId
   switch (actionKey) {
-    case 'open-chat':
-      openRecentChat(targetSessionId)
-      break
     case 'new-chat':
       openHome()
       break
     case 'open-latest-chat':
       if (latestRecentChat.value?.id) openRecentChat(latestRecentChat.value.id)
       break
-    case 'delete-chat':
-      await deleteChat(targetSessionId)
-      break
     default:
       break
   }
-}
-
-function closeCompactRail() {
-  compactRailOpen.value = false
-}
-
-function toggleCompactRail() {
-  if (!compact.value) return
-  compactRailOpen.value = !compactRailOpen.value
 }
 
 watch(
@@ -370,9 +165,6 @@ watch(
   () => aiWorkbench.view,
   (view) => {
     closeContextMenu()
-    if (compact.value && (view === 'chat' || view === 'launcher')) {
-      compactRailOpen.value = false
-    }
     if (view === 'launcher') {
       homeRef.value?.focus?.()
     }
@@ -381,7 +173,6 @@ watch(
 
 watch(compact, (isCompact) => {
   closeContextMenu()
-  if (!isCompact) compactRailOpen.value = false
 })
 
 watch(
@@ -430,257 +221,6 @@ onUnmounted(() => {
   --ai-rail-title-size: var(--surface-font-card);
 }
 
-.ai-workbench-rail {
-  flex: 0 0 224px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
-}
-
-.ai-workbench-rail-compact-head,
-.ai-workbench-compact-toolbar {
-  display: none;
-}
-
-.ai-workbench-rail-compact-head {
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 34px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-secondary) 90%, var(--bg-primary));
-}
-
-.ai-workbench-rail-compact-title,
-.ai-workbench-compact-trigger-label {
-  font-size: var(--ai-rail-kicker-size);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
-.ai-workbench-rail-close {
-  width: 24px;
-  height: 24px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-hover));
-  color: var(--fg-muted);
-  font-size: var(--surface-font-title);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.ai-workbench-compact-toolbar {
-  padding: 8px 10px 0;
-}
-
-.ai-workbench-compact-trigger {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
-  text-align: left;
-  cursor: pointer;
-}
-
-.ai-workbench-compact-trigger.active {
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
-}
-
-.ai-workbench-rail-close:hover,
-.ai-workbench-compact-trigger:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: color-mix(in srgb, var(--bg-hover) 72%, var(--bg-primary));
-}
-
-.ai-workbench-compact-trigger-value {
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ai-rail-body-size);
-  color: var(--fg-primary);
-}
-
-.ai-workbench-rail-top {
-  padding: 18px 16px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.ai-workbench-rail-kicker {
-  font-size: var(--ai-rail-kicker-size);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
-.ai-workbench-rail-context {
-  margin-top: 8px;
-  font-size: var(--ai-rail-title-size);
-  line-height: 1.2;
-  font-weight: 600;
-  color: var(--fg-primary);
-  word-break: break-word;
-}
-
-.ai-workbench-rail-workspace {
-  margin-top: 6px;
-  font-size: var(--ai-rail-meta-size);
-  color: var(--fg-muted);
-  word-break: break-word;
-}
-
-.ai-workbench-new-chat {
-  margin-top: 12px;
-  width: 100%;
-  height: 30px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-primary);
-  color: var(--fg-secondary);
-  font-size: var(--ai-rail-body-size);
-  cursor: pointer;
-  transition: border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease;
-}
-
-.ai-workbench-new-chat:hover {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--bg-primary));
-  color: var(--fg-primary);
-}
-
-.ai-workbench-rail-section {
-  min-height: 0;
-  flex: 1 1 auto;
-  padding: 14px 10px 12px;
-  overflow-y: auto;
-}
-
-.ai-workbench-rail-section-title {
-  padding: 0 6px 8px;
-  font-size: var(--ai-rail-kicker-size);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
-.ai-workbench-chat-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ai-workbench-chat-row {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.ai-workbench-chat-item {
-  width: 100%;
-  flex: 1 1 auto;
-  padding: 9px 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.14s ease, background-color 0.14s ease;
-}
-
-.ai-workbench-chat-delete {
-  width: 28px;
-  flex: 0 0 28px;
-  align-self: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--fg-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.14s ease, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
-}
-
-.ai-workbench-chat-row:hover .ai-workbench-chat-delete,
-.ai-workbench-chat-delete:focus-visible {
-  opacity: 1;
-}
-
-.ai-workbench-chat-delete:hover {
-  background: color-mix(in srgb, var(--error) 8%, var(--bg-primary));
-  border-color: color-mix(in srgb, var(--error) 28%, var(--border));
-  color: var(--error);
-}
-
-.ai-workbench-chat-item:hover {
-  background: var(--bg-hover);
-}
-
-.ai-workbench-chat-item.active {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
-}
-
-.ai-workbench-chat-label-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ai-workbench-chat-label {
-  min-width: 0;
-  flex: 1 1 auto;
-  font-size: var(--ai-rail-body-size);
-  line-height: 1.4;
-  color: var(--fg-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-workbench-chat-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 999px;
-  font-size: var(--ai-rail-kicker-size);
-  text-transform: uppercase;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.ai-workbench-chat-meta {
-  margin-top: 3px;
-  font-size: var(--ai-rail-meta-size);
-  color: var(--fg-muted);
-}
-
-.ai-workbench-chat-meta-workflow {
-  color: var(--fg-secondary);
-}
-
-.ai-workbench-chat-empty {
-  padding: 0 6px;
-  font-size: var(--ai-rail-body-size);
-  color: var(--fg-muted);
-}
-
 .ai-workbench-main {
   position: relative;
   display: flex;
@@ -691,46 +231,5 @@ onUnmounted(() => {
   min-height: 0;
   justify-self: stretch;
   background: var(--bg-primary);
-}
-
-.ai-workbench-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border: none;
-  background: color-mix(in srgb, var(--bg-primary) 26%, transparent);
-  backdrop-filter: blur(1.5px);
-}
-
-@container (max-width: 980px) {
-  .ai-workbench-rail {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: min(224px, 74cqw);
-    max-width: calc(100% - 28px);
-    z-index: 4;
-    pointer-events: none;
-    transform: translateX(calc(-100% - 10px));
-    transition: transform 180ms ease;
-    box-shadow: 14px 0 32px color-mix(in srgb, var(--bg-primary) 22%, transparent);
-  }
-
-  .ai-workbench.is-rail-drawer-open .ai-workbench-rail {
-    pointer-events: auto;
-    transform: translateX(0);
-  }
-
-  .ai-workbench-rail-compact-head,
-  .ai-workbench-compact-toolbar {
-    display: flex;
-  }
-
-  .ai-workbench-rail-top {
-    padding: 14px 12px 12px;
-  }
-
-  .ai-workbench-rail-context {
-    font-size: var(--surface-font-title);
-  }
 }
 </style>

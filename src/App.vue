@@ -5,6 +5,7 @@
       ref="headerRef"
       :left-sidebar-width="leftSidebarWidth"
       :left-rail-width="WORKBENCH_RAIL_WIDTH"
+      :right-sidebar-width="rightSidebarWidth"
     />
 
     <!-- Launcher (no workspace open) -->
@@ -63,26 +64,6 @@
               class="h-full min-h-0 w-full"
             />
 
-            <Transition name="ai-sidebar-drawer" appear>
-              <div
-                v-if="workspace.rightSidebarOpen && !workspace.isAiSurface"
-                class="ai-sidebar-shell absolute inset-y-0 right-0 z-20 flex items-stretch px-2 py-2 pointer-events-none"
-              >
-                <div class="ai-sidebar-frame pointer-events-auto flex items-stretch h-full">
-                  <ResizeHandle
-                    direction="vertical"
-                    @resize="onRightResize"
-                    @dblclick="onRightResizeSnap"
-                  />
-                  <div
-                    class="h-full overflow-hidden"
-                    :style="{ width: rightSidebarWidth + 'px' }"
-                  >
-                    <AiDrawer />
-                  </div>
-                </div>
-              </div>
-            </Transition>
           </div>
 
           <template v-if="workspace.isWorkspaceSurface">
@@ -97,6 +78,22 @@
             <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
           </template>
         </div>
+
+        <template v-if="showRightSidebar">
+          <ResizeHandle
+            direction="vertical"
+            @resize="onRightResize"
+            @dblclick="onRightResizeSnap"
+          />
+
+          <div
+            data-sidebar="right"
+            class="shrink-0 overflow-hidden border-l"
+            :style="{ width: rightSidebarWidth + 'px', borderColor: 'var(--border)' }"
+          >
+            <RightSidebar />
+          </div>
+        </template>
 
       </div>
 
@@ -134,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -144,7 +141,6 @@ import { useLinksStore } from './stores/links'
 import { useChatStore } from './stores/chat'
 import { useReferencesStore } from './stores/references'
 import { useResearchArtifactsStore } from './stores/researchArtifacts'
-import { useAiDrawerStore } from './stores/aiDrawer'
 import { useToastStore } from './stores/toast'
 
 import Header from './components/layout/Header.vue'
@@ -163,12 +159,12 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
+const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
 const WorkspaceSnapshotBrowser = defineAsyncComponent(() => import('./components/WorkspaceSnapshotBrowser.vue'))
 const FileVersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
-const AiDrawer = defineAsyncComponent(() => import('./components/ai/AiDrawer.vue'))
 const AiWorkbenchSurface = defineAsyncComponent(() => import('./components/ai/AiWorkbenchSurface.vue'))
 const GlobalLibraryWorkbench = defineAsyncComponent(() => import('./components/library/GlobalLibraryWorkbench.vue'))
 const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
@@ -182,7 +178,6 @@ const linksStore = useLinksStore()
 const chatStore = useChatStore()
 const referencesStore = useReferencesStore()
 const researchArtifactsStore = useResearchArtifactsStore()
-const aiDrawerStore = useAiDrawerStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
 
@@ -194,6 +189,11 @@ const workspaceSnapshotBrowserVisible = ref(false)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
+const showRightSidebar = computed(() => (
+  workspace.isOpen
+  && workspace.isWorkspaceSurface
+  && workspace.rightSidebarOpen
+))
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -235,7 +235,6 @@ useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  aiDrawerStore,
   chatStore,
   headerRef,
   leftSidebarRef,
@@ -260,41 +259,4 @@ useAppTeardown({
   referencesStore,
   researchArtifactsStore,
 })
-
-
 </script>
-
-<style scoped>
-.ai-sidebar-shell {
-  will-change: transform, opacity, filter;
-  transform-origin: right center;
-}
-
-.ai-sidebar-frame {
-  height: 100%;
-  overflow: hidden;
-  border-radius: 14px 0 0 14px;
-}
-
-.ai-sidebar-drawer-enter-active,
-.ai-sidebar-drawer-leave-active {
-  transition:
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 170ms ease,
-    filter 190ms ease;
-}
-
-.ai-sidebar-drawer-enter-from,
-.ai-sidebar-drawer-leave-to {
-  opacity: 0;
-  transform: translateX(18px);
-  filter: blur(1.5px);
-}
-
-.ai-sidebar-drawer-enter-to,
-.ai-sidebar-drawer-leave-from {
-  opacity: 1;
-  transform: translateX(0);
-  filter: blur(0);
-}
-</style>

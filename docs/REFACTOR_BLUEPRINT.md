@@ -118,7 +118,15 @@ The current strongest signs of progress are:
 
 The root app component has already been reduced through extraction of several orchestration modules, including workspace lifecycle, shell event bridge, workspace history actions, teardown handling, and footer status sync.
 
-A narrow persistent left rail for `Project` / `Library` / `AI` navigation has now also landed as a shell-level component, replacing the previous header-level primary-surface switcher without reintroducing broader orchestration into `App.vue`; the left-sidebar toggle affordance now lives as one persistent control in the global header, tracking the live left-sidebar edge while expanded and snapping back to the traffic-light/left-rail anchor when collapsed instead of duplicating a second toggle in the top-right chrome, while a fixed three-button mode group for `Project files` / `References` / `Outline` now sits just to the right of the rail and switches the left sidebar between single-panel content modes instead of stacking all three sections inside one resizable column.
+A narrow persistent left rail for `Project` / `Library` / `AI` navigation has now also landed as a shell-level component, replacing the previous header-level primary-surface switcher without reintroducing broader orchestration into `App.vue`; the left-sidebar toggle affordance now lives as one persistent control in the global header, tracking the live left-sidebar edge while expanded and snapping back to the traffic-light/left-rail anchor when collapsed instead of duplicating a second toggle in the top-right chrome.
+
+That shell chrome is no longer tied to one project-only left-sidebar mode set. The left sidebar is now a surface-aware host: the workspace surface still switches between `Project files` / `References` / `Outline`, the library surface owns its own outer-shell sidebar panels for `Library views` and `Library tags`, and the AI surface has now been simplified down to one shell-level recent-chat sidebar instead of carrying a separate current-context mode. In practice that means the library and AI workbenches no longer carry their own internal left rails; their panel navigation has moved up into the shared shell, while surface-specific filtering/state is shared through smaller UI composables instead of being duplicated across shell and workbench components.
+
+The library sidebar chrome has also been tightened into a denser index-like presentation, with flatter rows, lighter counts, and less button-shaped affordance so that it reads more like a materials catalog than a generic settings list.
+
+The resizable left sidebar also now resolves its minimum width against the largest shell button group across `workspace` / `library` / `ai`, instead of shrinking to a smaller per-surface minimum when the current surface exposes fewer header buttons.
+
+The old quick-AI header button plus right-side drawer are no longer the active shell pattern. The workspace surface now uses a fixed, resizable right inspector column hosted by `App.vue`, with header-level shell controls for `Outline` / `Backlinks` mirrored against the left-sidebar chrome: the right toggle sits inside the inspector's left edge, the panel buttons extend inward toward the right, and the inspector minimum width is now derived from that shared shell chrome instead of a fixed pixel floor. AI launch entry points that previously defaulted to the drawer now route into the dedicated AI workbench surface instead.
 
 The empty-pane / new-tab workspace starter has also been reframed from a generic welcome surface into a restrained academic dashboard that reuses existing project metrics, recent-material history, and workbench entry points instead of inventing a synthetic system-status layer.
 
@@ -150,6 +158,7 @@ The store has now also begun a second-round extraction:
 - `src/domains/reference/referenceAssetRuntime.js` now carries global asset deletion and PDF/fulltext storage flows.
 
 The store is now mostly a thinner shell around focus/detail-mode state, search/export helpers, path lookup helpers, and a smaller set of direct UI bridges.
+The current global-library workbench chrome has also been tightened toward a more restrained academic density: auxiliary buttons, filter chips, and toolbar controls now sit a clearer visual step below the primary search surface instead of sharing nearly the same weight.
 
 ##### Editor domain status
 

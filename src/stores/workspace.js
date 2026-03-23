@@ -76,6 +76,11 @@ import {
   toggleStoredBoolean,
 } from '../services/workspacePreferences'
 import {
+  normalizeWorkbenchSidebarPanel,
+  normalizeWorkbenchSurface,
+} from '../shared/workbenchSidebarPanels'
+import { normalizeWorkbenchInspectorPanel } from '../shared/workbenchInspectorPanels.js'
+import {
   addRecentWorkspace,
   clearLastWorkspace,
   getRecentWorkspaces as readRecentWorkspaces,
@@ -501,13 +506,20 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setLeftSidebarPanel(panel) {
-      const next = ['files', 'references', 'outline'].includes(panel) ? panel : 'files'
+      const next = normalizeWorkbenchSidebarPanel(this.primarySurface, panel)
       this.leftSidebarPanel = persistStoredString('leftSidebarPanel', next)
     },
 
+    setRightSidebarPanel(panel) {
+      const next = normalizeWorkbenchInspectorPanel(panel)
+      this.rightSidebarPanel = persistStoredString('rightSidebarPanel', next)
+    },
+
     setPrimarySurface(surface) {
-      const next = ['workspace', 'library', 'ai'].includes(surface) ? surface : 'workspace'
+      const next = normalizeWorkbenchSurface(surface)
       this.primarySurface = persistStoredString('primarySurface', next)
+      const nextPanel = normalizeWorkbenchSidebarPanel(next, this.leftSidebarPanel)
+      this.leftSidebarPanel = persistStoredString('leftSidebarPanel', nextPanel)
     },
 
     openWorkspaceSurface() {

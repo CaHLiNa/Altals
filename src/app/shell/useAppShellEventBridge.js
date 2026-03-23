@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted } from 'vue'
 import { isMod } from '../../platform'
+import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import {
   isAiLauncher,
   isChatTab,
@@ -15,7 +16,6 @@ export function useAppShellEventBridge({
   workspace,
   editorStore,
   commentsStore,
-  aiDrawerStore,
   chatStore,
   headerRef,
   leftSidebarRef,
@@ -29,6 +29,8 @@ export function useAppShellEventBridge({
   openWorkspaceSnapshots,
   openFileVersionHistory,
 }) {
+  const aiWorkbenchStore = useAiWorkbenchStore()
+
   async function handleKeydown(event) {
     if (isMod(event) && event.key === 's') {
       event.preventDefault()
@@ -166,7 +168,7 @@ export function useAppShellEventBridge({
         return
       }
       if (workspace.rightSidebarOpen) {
-        aiDrawerStore.close()
+        workspace.closeRightSidebar()
         event.preventDefault()
       }
     }
@@ -175,7 +177,8 @@ export function useAppShellEventBridge({
   function handleChatPrefill(event) {
     const { message } = event.detail || {}
     if (!message) return
-    aiDrawerStore.openLauncher()
+    workspace.openAiSurface()
+    aiWorkbenchStore.openLauncher()
     chatStore.pendingPrefill = message
   }
 

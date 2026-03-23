@@ -4,7 +4,6 @@
     class="library-workbench h-full min-h-0"
     :class="{
       'is-compact-pane': isCompactPane,
-      'is-sidebar-drawer-open': isCompactPane && compactSidebarOpen,
       'is-detail-drawer-open': isCompactPane && compactDetailOpen && !!activeRef,
     }"
   >
@@ -17,69 +16,6 @@
     ></button>
 
     <div class="library-shell h-full min-h-0" :class="{ 'is-editing': isEditing }">
-      <aside class="library-sidebar" @contextmenu="openSidebarEmptyContextMenu">
-        <div v-if="isCompactPane" class="library-sidebar-header is-compact">
-          <div class="library-sidebar-head">
-            <div class="library-section-label">{{ t('Filters') }}</div>
-            <button
-              type="button"
-              class="library-icon-button"
-              :aria-label="t('Close')"
-              @click="compactSidebarOpen = false"
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-        </div>
-
-        <section class="library-sidebar-section">
-          <div class="library-nav-list is-views">
-            <button
-              v-for="view in sidebarViewOptions"
-              :key="view.id"
-              type="button"
-              class="library-nav-item"
-              :class="{ 'is-active': activeView === view.id }"
-              @click="activateView(view.id)"
-            >
-              <span class="truncate">{{ view.label }}</span>
-              <span class="library-nav-count">{{ view.count }}</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="library-sidebar-section grow">
-          <div class="library-sidebar-row">
-            <div class="library-section-label">{{ t('Tags') }}</div>
-            <button
-              v-if="selectedTags.length > 0"
-              type="button"
-              class="library-link-button"
-              @click="selectedTags = []"
-            >
-              {{ t('Clear') }}
-            </button>
-          </div>
-
-          <div v-if="tagFacets.length > 0" class="library-tag-list">
-            <button
-              v-for="tag in tagFacets"
-              :key="tag.tag"
-              type="button"
-              class="library-tag-row"
-              :class="{ 'is-active': selectedTags.includes(tag.tag) }"
-              @click="toggleTag(tag.tag)"
-            >
-              <span class="truncate">{{ tag.tag }}</span>
-              <span class="library-nav-count">{{ tag.count }}</span>
-            </button>
-          </div>
-          <div v-else class="library-inline-empty">
-            {{ t('No tags in this view') }}
-          </div>
-        </section>
-      </aside>
-
       <template v-if="isEditing && activeRef">
         <section class="library-editor-stage">
           <div class="library-editor-toolbar">
@@ -104,14 +40,6 @@
         <main class="library-main" @contextmenu="openTableEmptyContextMenu">
           <div class="library-toolbar">
             <div v-if="isCompactPane" class="library-compact-toolbar">
-              <button
-                type="button"
-                class="library-quiet-button"
-                :class="{ 'is-active': compactSidebarOpen }"
-                @click="toggleCompactSidebar"
-              >
-                {{ t('Filters') }}
-              </button>
               <button
                 type="button"
                 class="library-quiet-button"
@@ -149,7 +77,7 @@
               </button>
             </div>
 
-            <div v-if="selectedTags.length > 0" class="library-filter-row">
+            <div v-if="selectedTags.length > 0" class="library-filter-row is-tag-summary">
               <div class="library-section-label">{{ t('Tags') }}</div>
               <div class="library-filter-chip-row">
                 <button
@@ -421,6 +349,7 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
+import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
@@ -429,18 +358,47 @@ const LibraryReferenceEditor = defineAsyncComponent(() => import('./LibraryRefer
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
 const { t } = useI18n()
+const {
+  activeView,
+  searchQuery,
+  sortKey,
+  selectedTags,
+  selectedKeys,
+  tagActionInput,
+  batchTagAction,
+  showImportDialog,
+  allRefs,
+  selectedKeySet,
+  projectKeySet,
+  activeKey,
+  activeRef,
+  activePdfPath,
+  activeSummaryText,
+  activeCitedCount,
+  activeDetailRows,
+  isLibraryLoading,
+  hasBatchSelection,
+  hasSelection,
+  hasSelectionInProject,
+  hasActiveFilters,
+  sidebarViewOptions,
+  librarySortOptions,
+  filteredRefs,
+  formatAuthors,
+  extractYear,
+  containerLabel,
+  parseTags,
+  visibleTags,
+  hiddenTagCount,
+  clearFilters,
+  activateView,
+  toggleTag,
+  clearSelection,
+  isInCurrentProject,
+} = useLibraryWorkbenchUi()
 
 const workbenchEl = ref(null)
-const activeView = ref('all')
-const searchQuery = ref('')
-const sortKey = ref('added-desc')
-const selectedTags = ref([])
-const selectedKeys = ref([])
-const tagActionInput = ref('')
-const batchTagAction = ref('add')
-const showImportDialog = ref(false)
 const paneWidth = ref(0)
-const compactSidebarOpen = ref(false)
 const compactDetailOpen = ref(false)
 const contextMenu = ref({
   visible: false,
@@ -450,162 +408,9 @@ const contextMenu = ref({
   refKey: null,
 })
 
-const allRefs = computed(() => referencesStore.globalLibrary || [])
-const selectedKeySet = computed(() => new Set(selectedKeys.value))
-const projectKeySet = computed(() => new Set(referencesStore.workspaceKeys || []))
-const activeKey = computed(() => referencesStore.activeKey || '')
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
-const hasBatchSelection = computed(() => selectedKeys.value.length > 1)
-const hasSelection = computed(() => selectedKeys.value.length > 0)
-const isLibraryLoading = computed(() => referencesStore.loading && allRefs.value.length === 0)
 const isCompactPane = computed(() => paneWidth.value > 0 && paneWidth.value <= 1080)
-const showCompactBackdrop = computed(() => isCompactPane.value && (compactSidebarOpen.value || compactDetailOpen.value))
-const hasSelectionInProject = computed(() => selectedKeys.value.some((key) => projectKeySet.value.has(key)))
-const hasActiveFilters = computed(() => (
-  activeView.value !== 'all'
-  || searchQuery.value.trim().length > 0
-  || selectedTags.value.length > 0
-))
-
-const primaryViewOptions = computed(() => ([
-  { id: 'all', label: t('All references'), count: allRefs.value.length },
-  { id: 'project', label: t('Current project'), count: referencesStore.workspaceKeys.length },
-]))
-
-const smartViewOptions = computed(() => ([
-  { id: 'with-pdf', label: t('With PDF'), count: allRefs.value.filter((refItem) => !!refItem._pdfFile).length },
-  { id: 'needs-review', label: t('Needs review'), count: allRefs.value.filter((refItem) => !!refItem._needsReview).length },
-]))
-
-const sidebarViewOptions = computed(() => [
-  ...primaryViewOptions.value,
-  ...smartViewOptions.value,
-])
-
-const librarySortOptions = computed(() => ([
-  { id: 'added-desc', label: t('Date added (newest)') },
-  { id: 'year-desc', label: t('Year (newest)') },
-  { id: 'year-asc', label: t('Year (oldest)') },
-  { id: 'title-asc', label: t('Title A → Z') },
-  { id: 'author-asc', label: t('Author A → Z') },
-]))
-
-const scopeFilteredRefs = computed(() => {
-  const viewId = activeView.value
-  switch (viewId) {
-    case 'project':
-      return allRefs.value.filter((refItem) => projectKeySet.value.has(refItem._key))
-    case 'with-pdf':
-      return allRefs.value.filter((refItem) => !!refItem._pdfFile)
-    case 'needs-review':
-      return allRefs.value.filter((refItem) => !!refItem._needsReview)
-    case 'all':
-    default:
-      return allRefs.value
-  }
-})
-
-const textFilteredRefs = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-  if (!query) return scopeFilteredRefs.value
-  const tokens = query.split(/\s+/).filter(Boolean)
-  return scopeFilteredRefs.value.filter((refItem) => {
-    const haystack = [
-      refItem.title || '',
-      refItem._key || '',
-      refItem.DOI || '',
-      containerLabel(refItem),
-      formatAuthors(refItem),
-      extractYear(refItem),
-      refItem.abstract || '',
-      refItem._summary || '',
-      refItem._readingNote || '',
-      ...(refItem._tags || []),
-    ].join(' ').toLowerCase()
-    return tokens.every((token) => haystack.includes(token))
-  })
-})
-
-const tagFacets = computed(() => {
-  const counts = new Map()
-  for (const refItem of textFilteredRefs.value) {
-    for (const tag of refItem._tags || []) {
-      counts.set(tag, (counts.get(tag) || 0) + 1)
-    }
-  }
-  return [...counts.entries()]
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => a.tag.localeCompare(b.tag))
-})
-
-const filteredRefs = computed(() => {
-  let list = textFilteredRefs.value
-  if (selectedTags.value.length > 0) {
-    list = list.filter((refItem) => {
-      const tags = new Set(refItem._tags || [])
-      return selectedTags.value.every((tag) => tags.has(tag))
-    })
-  }
-
-  const copy = [...list]
-  switch (sortKey.value) {
-    case 'author-asc':
-      return copy.sort((a, b) => formatAuthors(a).localeCompare(formatAuthors(b)))
-    case 'title-asc':
-      return copy.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-    case 'year-asc':
-      return copy.sort((a, b) => extractYear(a) - extractYear(b))
-    case 'year-desc':
-      return copy.sort((a, b) => extractYear(b) - extractYear(a))
-    case 'added-desc':
-    default:
-      return copy.sort((a, b) => String(b._addedAt || '').localeCompare(String(a._addedAt || '')))
-  }
-})
-
-const activeRef = computed(() => {
-  if (referencesStore.activeKey) {
-    return referencesStore.getByKey(referencesStore.activeKey)
-  }
-  if (filteredRefs.value.length > 0) return filteredRefs.value[0]
-  return null
-})
-
-const activePdfPath = computed(() => {
-  if (!activeRef.value?._key) return null
-  return referencesStore.pdfPathForKey(activeRef.value._key)
-})
-
-const activeSummaryText = computed(() => {
-  if (!activeRef.value) return ''
-  return String(activeRef.value._summary || activeRef.value.abstract || '').trim()
-})
-
-const activeCitedCount = computed(() => {
-  if (!activeRef.value?._key) return 0
-  return referencesStore.citedIn[activeRef.value._key]?.length || 0
-})
-
-const activeDetailRows = computed(() => {
-  if (!activeRef.value) return []
-
-  const year = extractYear(activeRef.value)
-  const container = containerLabel(activeRef.value)
-  const rows = [
-    { label: t('Key'), value: `@${activeRef.value._key}` },
-    year > 0 ? { label: t('Year'), value: String(year) } : null,
-    container ? { label: t('Journal / Conference'), value: container } : null,
-    activeRef.value.DOI ? { label: 'DOI', value: activeRef.value.DOI } : null,
-    {
-      label: t('Cited in'),
-      value: activeCitedCount.value > 0
-        ? t('Cited in {count} files', { count: activeCitedCount.value })
-        : t('Not cited'),
-    },
-  ]
-
-  return rows.filter(Boolean)
-})
+const showCompactBackdrop = computed(() => isCompactPane.value && compactDetailOpen.value)
 
 const contextMenuRef = computed(() => {
   if (!contextMenu.value.refKey) return null
@@ -748,7 +553,6 @@ watch(allRefs, (refs) => {
 watch(isCompactPane, (compact) => {
   closeContextMenu()
   if (!compact) {
-    compactSidebarOpen.value = false
     compactDetailOpen.value = false
   }
 })
@@ -757,39 +561,6 @@ watch(isEditing, (editing) => {
   closeContextMenu()
   if (editing) closeCompactPanels()
 })
-
-function formatAuthors(refItem = {}) {
-  const authors = Array.isArray(refItem.author) ? refItem.author : []
-  return authors
-    .map((author) => author?.family || author?.given || '')
-    .filter(Boolean)
-    .join(', ')
-}
-
-function extractYear(refItem = {}) {
-  return Number(refItem?.issued?.['date-parts']?.[0]?.[0] || 0)
-}
-
-function containerLabel(refItem = {}) {
-  return refItem['container-title'] || refItem.publisher || ''
-}
-
-function parseTags(value = '') {
-  return Array.from(new Set(
-    String(value || '')
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-  ))
-}
-
-function visibleTags(refItem = {}) {
-  return (refItem._tags || []).slice(0, 2)
-}
-
-function hiddenTagCount(refItem = {}) {
-  return Math.max(0, (refItem._tags || []).length - 2)
-}
 
 function closeContextMenu() {
   contextMenu.value.visible = false
@@ -825,11 +596,6 @@ function openDetailContextMenu(event, key) {
   openContextMenu(event, 'detail', key)
 }
 
-function openSidebarEmptyContextMenu(event) {
-  if (shouldIgnoreEmptyContextMenuTarget(event)) return
-  openContextMenu(event, 'sidebar-empty')
-}
-
 function openTableEmptyContextMenu(event) {
   if (shouldIgnoreEmptyContextMenuTarget(event)) return
   openContextMenu(event, 'table-empty')
@@ -839,29 +605,7 @@ function openDetailEmptyContextMenu(event) {
   openContextMenu(event, 'detail-empty')
 }
 
-function clearFilters() {
-  activeView.value = 'all'
-  searchQuery.value = ''
-  selectedTags.value = []
-}
-
-function activateView(viewId) {
-  activeView.value = viewId
-  if (isCompactPane.value) compactSidebarOpen.value = false
-}
-
-function toggleTag(tag) {
-  if (selectedTags.value.includes(tag)) {
-    selectedTags.value = selectedTags.value.filter((item) => item !== tag)
-    if (isCompactPane.value) compactSidebarOpen.value = false
-    return
-  }
-  selectedTags.value = [...selectedTags.value, tag]
-  if (isCompactPane.value) compactSidebarOpen.value = false
-}
-
 function focusReference(key) {
-  if (isCompactPane.value) compactSidebarOpen.value = false
   referencesStore.focusReferenceInLibrary(key, { mode: 'browse' })
 }
 
@@ -884,14 +628,6 @@ function toggleSelection(key) {
   }
   selectedKeys.value = [...selectedKeys.value, key]
   referencesStore.activeKey = key
-}
-
-function clearSelection() {
-  selectedKeys.value = []
-}
-
-function isInCurrentProject(key) {
-  return projectKeySet.value.has(key)
 }
 
 function addSelectionToWorkspace() {
@@ -1003,21 +739,12 @@ async function handleContextMenuSelect(actionKey) {
 }
 
 function closeCompactPanels() {
-  compactSidebarOpen.value = false
   compactDetailOpen.value = false
-}
-
-function toggleCompactSidebar() {
-  if (!isCompactPane.value) return
-  const next = !compactSidebarOpen.value
-  compactDetailOpen.value = false
-  compactSidebarOpen.value = next
 }
 
 function toggleCompactDetail() {
   if (!isCompactPane.value || !activeRef.value) return
   const next = !compactDetailOpen.value
-  compactSidebarOpen.value = false
   compactDetailOpen.value = next
 }
 
@@ -1030,22 +757,22 @@ function toggleCompactDetail() {
   overflow: hidden;
   background: var(--bg-primary);
   color: var(--fg-primary);
-  --library-label-size: var(--surface-font-kicker);
-  --library-subtle-size: var(--surface-font-meta);
-  --library-ui-size: var(--surface-font-body);
-  --library-sidebar-title-size: var(--surface-font-card);
-  --library-list-title-size: var(--surface-font-title);
-  --library-detail-title-size: var(--surface-font-detail);
+  --library-label-size: 0.68rem;
+  --library-subtle-size: 0.8rem;
+  --library-ui-size: 0.89rem;
+  --library-sidebar-title-size: 1.02rem;
+  --library-list-title-size: 1rem;
+  --library-detail-title-size: 1.16rem;
 }
 
 .library-shell {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   background: var(--bg-secondary);
 }
 
 .library-shell.is-editing {
-  grid-template-columns: 176px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .library-sidebar,
@@ -1067,7 +794,7 @@ function toggleCompactDetail() {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px 12px 10px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1105,10 +832,24 @@ function toggleCompactDetail() {
   flex-wrap: wrap;
 }
 
+.library-sidebar-row.is-section-header {
+  width: 100%;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.library-sidebar-row.is-section-header .library-section-label,
+.library-filter-row.is-tag-summary .library-section-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+
 .library-section-label,
 .library-detail-label {
   font-size: var(--library-label-size);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--fg-muted) 92%, var(--fg-primary));
   font-weight: 600;
@@ -1135,28 +876,28 @@ function toggleCompactDetail() {
 .library-detail-value {
   font-size: var(--library-subtle-size);
   color: var(--fg-muted);
-  line-height: 1.55;
+  line-height: 1.62;
 }
 
 .library-sidebar-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 0 0;
+  padding: 12px 8px 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
 }
 
 .library-sidebar-section:first-of-type {
   border-top: none;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .library-sidebar-section.grow {
   min-height: 0;
   flex: 1;
-  padding-top: 12px;
-  padding-bottom: 8px;
+  padding-top: 14px;
+  padding-bottom: 10px;
 }
 
 .library-nav-list,
@@ -1170,7 +911,11 @@ function toggleCompactDetail() {
 .library-filter-chip-row {
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
+}
+
+.library-filter-row.is-tag-summary {
+  align-items: center;
 }
 
 .library-nav-list.is-secondary {
@@ -1236,8 +981,8 @@ function toggleCompactDetail() {
 .library-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 7px 10px 6px;
+  gap: 7px;
+  padding: 10px 14px 9px;
   background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary));
 }
 
@@ -1256,7 +1001,7 @@ function toggleCompactDetail() {
   width: 100%;
   min-width: 0;
   height: 27px;
-  padding: 0 8px;
+  padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
   border-radius: 5px;
   background: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-hover));
@@ -1276,20 +1021,20 @@ function toggleCompactDetail() {
   width: 164px;
   appearance: none;
   -webkit-appearance: none;
-  padding-right: 30px;
+  padding-right: 28px;
   background-image:
     linear-gradient(45deg, transparent 50%, var(--fg-muted) 50%),
     linear-gradient(135deg, var(--fg-muted) 50%, transparent 50%);
   background-position:
-    calc(100% - 15px) calc(50% - 2px),
-    calc(100% - 10px) calc(50% - 2px);
+    calc(100% - 14px) calc(50% - 2px),
+    calc(100% - 9px) calc(50% - 2px);
   background-size: 5px 5px;
   background-repeat: no-repeat;
 }
 
 .library-batch-row {
   display: flex;
-  padding-top: 5px;
+  padding-top: 7px;
   border-top: 1px solid var(--border);
 }
 
@@ -1316,10 +1061,10 @@ function toggleCompactDetail() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 29px;
-  padding: 2px;
+  min-height: 27px;
+  padding: 1px;
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
-  border-radius: 7px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--bg-primary) 58%, var(--bg-hover));
 }
 
@@ -1379,35 +1124,42 @@ function toggleCompactDetail() {
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  min-height: 28px;
-  padding: 0 8px 0 10px;
+  min-height: 30px;
+  padding: 0 10px 0 12px;
 }
 
 .library-nav-list.is-views .library-nav-item {
-  min-height: 24px;
-  padding: 0 8px 0 8px;
+  min-height: 28px;
+  padding: 0 10px 0 12px;
   margin: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
 }
 
 .library-tag-row {
-  min-height: 22px;
-  padding: 0 2px 0 6px;
+  min-height: 24px;
+  padding: 0 4px 0 10px;
   border: none;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
 }
 
 .library-inline-button,
 .library-quiet-button,
 .library-filter-chip {
-  height: 27px;
+  height: 25px;
   padding: 0 8px;
   white-space: nowrap;
   flex-shrink: 0;
   font-size: var(--library-ui-size);
+}
+
+.library-filter-chip {
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.76rem;
 }
 
 .library-nav-item,
@@ -1499,8 +1251,8 @@ function toggleCompactDetail() {
 }
 
 .library-link-button {
-  height: 24px;
-  padding: 0 8px;
+  height: 22px;
+  padding: 0 7px;
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--fg-muted));
   border-radius: 5px;
   background: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-hover));
@@ -1508,9 +1260,26 @@ function toggleCompactDetail() {
   font-size: var(--library-subtle-size);
 }
 
+.library-section-header-action {
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
 .library-link-button:hover {
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   background: color-mix(in srgb, var(--bg-primary) 68%, var(--bg-hover));
+  color: var(--fg-primary);
+}
+
+.library-section-header-action:hover {
+  border-color: transparent;
+  background: transparent;
   color: var(--fg-primary);
 }
 
@@ -1566,8 +1335,8 @@ function toggleCompactDetail() {
 
 .library-table-header {
   align-items: center;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
   font-size: var(--library-label-size);
@@ -1587,7 +1356,7 @@ function toggleCompactDetail() {
 
 .library-table-row {
   align-items: flex-start;
-  padding: 7px 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   box-shadow: inset 0 0 0 1px transparent;
   cursor: default;
@@ -1627,14 +1396,14 @@ function toggleCompactDetail() {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   font-size: var(--library-list-title-size);
-  line-height: 1.32;
+  line-height: 1.42;
   color: var(--fg-primary);
   font-weight: 600;
 }
 
 .library-ref-meta {
-  margin-top: 3px;
-  line-height: 1.35;
+  margin-top: 5px;
+  line-height: 1.55;
 }
 
 .library-ref-key {
@@ -1645,15 +1414,15 @@ function toggleCompactDetail() {
 .library-tags-cell {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  padding-top: 1px;
+  gap: 6px;
+  padding-top: 3px;
 }
 
 .library-project-cell {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding-top: 1px;
+  padding-top: 3px;
 }
 
 .library-detail {
@@ -1681,7 +1450,7 @@ function toggleCompactDetail() {
   justify-content: space-between;
   gap: 12px;
   min-height: 28px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--bg-secondary);
   flex-wrap: wrap;
   position: sticky;
@@ -1692,14 +1461,14 @@ function toggleCompactDetail() {
 .library-detail-inner {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 12px 12px 12px;
+  gap: 12px;
+  padding: 16px 16px 18px;
 }
 
 .library-detail-primary {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
 }
 
 .library-detail-title {
@@ -1711,15 +1480,15 @@ function toggleCompactDetail() {
 .library-detail-section {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding-top: 8px;
+  gap: 9px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
 }
 
 .library-detail-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+  gap: 6px;
   align-items: stretch;
 }
 
@@ -1729,8 +1498,8 @@ function toggleCompactDetail() {
 
 .library-detail-grid {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 5px 10px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 6px 12px;
   align-items: start;
 }
 
@@ -1741,8 +1510,8 @@ function toggleCompactDetail() {
 }
 
 .library-detail-copy {
-  font-size: var(--library-ui-size);
-  line-height: 1.6;
+  font-size: 0.94rem;
+  line-height: 1.72;
   color: var(--fg-secondary);
   white-space: pre-wrap;
 }
@@ -1754,8 +1523,8 @@ function toggleCompactDetail() {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  height: 28px;
-  padding: 0 6px;
+  height: 30px;
+  padding: 0 8px;
   font-size: var(--library-subtle-size);
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -1816,7 +1585,7 @@ function toggleCompactDetail() {
   flex-direction: column;
   gap: 6px;
   max-width: 38ch;
-  padding: 22px 16px;
+  padding: 28px 18px;
 }
 
 .library-empty-state.detail {
@@ -1844,7 +1613,7 @@ function toggleCompactDetail() {
 
 @container (max-width: 1180px) {
   .library-shell {
-    grid-template-columns: 168px minmax(0, 1fr) 268px;
+    grid-template-columns: minmax(0, 1fr) 268px;
   }
 
   .library-toolbar-row {
@@ -1875,23 +1644,6 @@ function toggleCompactDetail() {
   .library-shell,
   .library-shell.is-editing {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .library-sidebar {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: min(248px, 74cqw);
-    max-width: calc(100% - 28px);
-    z-index: 4;
-    pointer-events: none;
-    transform: translateX(calc(-100% - 10px));
-    transition: transform 180ms ease;
-    box-shadow: 14px 0 32px color-mix(in srgb, var(--bg-primary) 22%, transparent);
-  }
-
-  .library-workbench.is-sidebar-drawer-open .library-sidebar {
-    pointer-events: auto;
-    transform: translateX(0);
   }
 
   .library-detail {
@@ -1925,7 +1677,7 @@ function toggleCompactDetail() {
 
   .library-toolbar {
     gap: 5px;
-    padding: 8px 10px 7px;
+    padding: 9px 12px 8px;
   }
 
   .library-toolbar-row {
@@ -1960,7 +1712,7 @@ function toggleCompactDetail() {
 
   .library-detail-inner {
     gap: 8px;
-    padding: 10px 10px 12px;
+    padding: 12px 12px 14px;
   }
 
   .library-detail-title {

@@ -1,11 +1,11 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden" style="color: var(--fg-primary);">
     <div class="px-3 py-2 ui-text-lg font-medium shrink-0" style="color: var(--fg-muted);">
-      Backlinks to {{ currentFileName }}
+      {{ t('Backlinks to {name}', { name: currentFileName }) }}
     </div>
 
     <div v-if="backlinks.length === 0" class="px-3 py-4 ui-text-lg" style="color: var(--fg-muted);">
-      No other files link to this file.
+      {{ t('No other files link to this file.') }}
     </div>
 
     <div v-else class="flex-1 overflow-y-auto">
@@ -32,6 +32,7 @@
 import { computed } from 'vue'
 import { useLinksStore } from '../../stores/links'
 import { useEditorStore } from '../../stores/editor'
+import { useI18n } from '../../i18n'
 
 const props = defineProps({
   overrideActiveFile: { type: String, default: null },
@@ -39,6 +40,7 @@ const props = defineProps({
 
 const linksStore = useLinksStore()
 const editorStore = useEditorStore()
+const { t } = useI18n()
 
 // Use overrideActiveFile prop when provided (e.g., from right sidebar when chat tab is focused)
 const currentFilePath = computed(() => props.overrideActiveFile || editorStore.activeTab)

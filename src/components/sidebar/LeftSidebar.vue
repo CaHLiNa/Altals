@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden bg-[var(--bg-secondary)]">
-    <template v-if="activePanel === 'files'">
+    <template v-if="workspace.isWorkspaceSurface && activePanel === 'files'">
       <FileTree
         ref="fileTreeRef"
         :collapsed="false"
@@ -13,7 +13,7 @@
       />
     </template>
 
-    <template v-else-if="activePanel === 'references'">
+    <template v-else-if="workspace.isWorkspaceSurface && activePanel === 'references'">
       <ReferenceList
         :collapsed="false"
         :heading-collapsible="false"
@@ -21,9 +21,13 @@
       />
     </template>
 
-    <div v-else class="flex-1 min-h-0 overflow-hidden">
+    <div v-else-if="workspace.isWorkspaceSurface" class="flex-1 min-h-0 overflow-hidden">
       <OutlinePanel embedded />
     </div>
+
+    <LibrarySidebar v-else-if="workspace.isLibrarySurface" />
+
+    <AiWorkbenchSidebar v-else class="flex-1 min-h-0 overflow-hidden" />
   </div>
 </template>
 
@@ -31,17 +35,23 @@
 import { ref, defineAsyncComponent, computed, nextTick } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import { normalizeWorkbenchSidebarPanel } from '../../shared/workbenchSidebarPanels'
 import FileTree from './FileTree.vue'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
+const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
+const AiWorkbenchSidebar = defineAsyncComponent(() => import('./AiWorkbenchSidebar.vue'))
 
 const emit = defineEmits(['file-version-history', 'open-folder', 'open-workspace', 'close-folder'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const fileTreeRef = ref(null)
-const activePanel = computed(() => workspace.leftSidebarPanel || 'files')
+const activePanel = computed(() => normalizeWorkbenchSidebarPanel(
+  workspace.primarySurface,
+  workspace.leftSidebarPanel,
+))
 
 const fileTreeHeadingLabel = computed(() => (
   workspace.primarySurface === 'workspace' ? '' : t('Project files')
@@ -51,7 +61,11 @@ const referencesHeadingLabel = computed(() => (
 ))
 
 async function focusFileTree(method, ...args) {
-  if (workspace.leftSidebarPanel !== 'files') {
+  if (!workspace.isWorkspaceSurface) {
+    workspace.openWorkspaceSurface()
+    await nextTick()
+  }
+  if (activePanel.value !== 'files') {
     workspace.setLeftSidebarPanel('files')
     await nextTick()
   }

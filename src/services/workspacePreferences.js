@@ -1,4 +1,10 @@
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import {
+  ALL_WORKBENCH_SIDEBAR_PANELS,
+  normalizeWorkbenchSidebarPanel,
+  normalizeWorkbenchSurface,
+} from '../shared/workbenchSidebarPanels.js'
+import { normalizeWorkbenchInspectorPanel } from '../shared/workbenchInspectorPanels.js'
 
 const THEME_CLASSES = [
   'theme-light',
@@ -110,12 +116,17 @@ export function createWorkspacePreferenceState() {
     ? normalizeAppZoomPercent(readNumber(APP_ZOOM_KEY, DEFAULT_APP_ZOOM_PERCENT))
     : null
   const zoomState = migrateLegacyFooterZoom(editorFontSize, uiFontSize, storedAppZoomPercent)
+  const primarySurface = normalizeWorkbenchSurface(readString('primarySurface', 'workspace'))
+  const storedLeftSidebarPanel = readEnum('leftSidebarPanel', ALL_WORKBENCH_SIDEBAR_PANELS, 'files')
+  const leftSidebarPanel = normalizeWorkbenchSidebarPanel(primarySurface, storedLeftSidebarPanel)
+  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(readString('rightSidebarPanel', 'outline'))
 
   return {
-    primarySurface: readString('primarySurface', 'workspace'),
+    primarySurface,
     leftSidebarOpen: readBoolean('leftSidebarOpen', true),
-    leftSidebarPanel: readEnum('leftSidebarPanel', ['files', 'references', 'outline'], 'files'),
+    leftSidebarPanel,
     rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
+    rightSidebarPanel,
     bottomPanelOpen: readTrueOnlyBoolean('bottomPanelOpen'),
     autoSave: readBoolean('autoSave', true),
     selectedModelId: readString('lastModelId'),

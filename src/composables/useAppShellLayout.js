@@ -1,9 +1,12 @@
 import { onMounted, ref } from 'vue'
+import { MAX_WORKBENCH_SIDEBAR_PANEL_COUNT } from '../shared/workbenchSidebarPanels.js'
+import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspectorPanels.js'
 
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 240
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 250
 const FALLBACK_LEFT_SIDEBAR_MIN_WIDTH = 160
+const FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH = 200
 const MAX_LEFT_SIDEBAR_WIDTH = 500
 
 const leftSidebarWidth = ref(readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH))
@@ -47,6 +50,9 @@ export function resolveMinimumLeftSidebarWidth(measurements = {}) {
   const collapseButtonWidth = Number(measurements.collapseButtonWidth)
   const rightmostPanelRight = Number(measurements.rightmostPanelRight)
   const panelGap = Number(measurements.panelGap)
+  const currentPanelCount = Number(measurements.currentPanelCount)
+  const maxPanelCount = Number(measurements.maxPanelCount)
+  const panelButtonWidth = Number(measurements.panelButtonWidth)
 
   if (
     !Number.isFinite(railWidth)
@@ -64,15 +70,68 @@ export function resolveMinimumLeftSidebarWidth(measurements = {}) {
     return FALLBACK_LEFT_SIDEBAR_MIN_WIDTH
   }
 
+  const normalizedPanelGap = Math.max(panelGap, 0)
+  const normalizedCurrentPanelCount = Number.isFinite(currentPanelCount) && currentPanelCount > 0
+    ? currentPanelCount
+    : 1
+  const normalizedMaxPanelCount = Number.isFinite(maxPanelCount) && maxPanelCount > 0
+    ? Math.max(maxPanelCount, normalizedCurrentPanelCount)
+    : normalizedCurrentPanelCount
+  const extraPanels = Math.max(0, normalizedMaxPanelCount - normalizedCurrentPanelCount)
+  const effectiveRightmostPanelRight = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
+    ? rightmostPanelRight + extraPanels * (panelButtonWidth + normalizedPanelGap)
+    : rightmostPanelRight
+
   return Math.max(
     0,
     Math.ceil(
-      rightmostPanelRight
-      + Math.max(panelGap, 0)
+      effectiveRightmostPanelRight
+      + normalizedPanelGap
       - railWidth
       + collapseButtonWidth
       + Math.max(inferredInset, 0),
     ),
+  )
+}
+
+export function resolveMinimumRightSidebarWidth(measurements = {}) {
+  const viewportWidth = Number(measurements.viewportWidth)
+  const currentSidebarWidth = Number(measurements.currentSidebarWidth)
+  const rightmostPanelRight = Number(measurements.rightmostPanelRight)
+  const panelGap = Number(measurements.panelGap)
+  const currentPanelCount = Number(measurements.currentPanelCount)
+  const maxPanelCount = Number(measurements.maxPanelCount)
+  const panelButtonWidth = Number(measurements.panelButtonWidth)
+
+  if (
+    !Number.isFinite(viewportWidth)
+    || !Number.isFinite(currentSidebarWidth)
+    || !Number.isFinite(rightmostPanelRight)
+    || !Number.isFinite(panelGap)
+  ) {
+    return FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH
+  }
+
+  const sidebarLeftBoundary = viewportWidth - currentSidebarWidth
+  if (!Number.isFinite(sidebarLeftBoundary)) {
+    return FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH
+  }
+
+  const normalizedPanelGap = Math.max(panelGap, 0)
+  const normalizedCurrentPanelCount = Number.isFinite(currentPanelCount) && currentPanelCount > 0
+    ? currentPanelCount
+    : 1
+  const normalizedMaxPanelCount = Number.isFinite(maxPanelCount) && maxPanelCount > 0
+    ? Math.max(maxPanelCount, normalizedCurrentPanelCount)
+    : normalizedCurrentPanelCount
+  const extraPanels = Math.max(0, normalizedMaxPanelCount - normalizedCurrentPanelCount)
+  const effectiveRightmostPanelRight = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
+    ? rightmostPanelRight + extraPanels * (panelButtonWidth + normalizedPanelGap)
+    : rightmostPanelRight
+
+  return Math.max(
+    0,
+    Math.ceil(effectiveRightmostPanelRight - sidebarLeftBoundary),
   )
 }
 
@@ -81,9 +140,10 @@ function readLeftSidebarChromeMeasurements() {
 
   const railEl = document.querySelector('.workbench-rail')
   const collapseButtonEl = document.querySelector('.header-sidebar-collapse-button')
+  const panelTabsEl = document.querySelector('.header-sidebar-panel-tabs.is-left')
   const panelButtonEls = Array.from(document.querySelectorAll('.header-sidebar-panel-button'))
 
-  if (!railEl || !collapseButtonEl || panelButtonEls.length < 2) {
+  if (!railEl || !collapseButtonEl || !panelTabsEl || panelButtonEls.length === 0) {
     return null
   }
 
@@ -91,9 +151,16 @@ function readLeftSidebarChromeMeasurements() {
   const adjacentPanelRect = panelButtonEls.at(-2)?.getBoundingClientRect()
   const collapseButtonRect = collapseButtonEl.getBoundingClientRect()
   const railRect = railEl.getBoundingClientRect()
+  const panelTabsStyle = window.getComputedStyle(panelTabsEl)
+  const rawGap = parseFloat(panelTabsStyle.columnGap || panelTabsStyle.gap || '0')
+  const panelGap = rightmostPanelRect && adjacentPanelRect
+    ? rightmostPanelRect.left - adjacentPanelRect.right
+    : (Number.isFinite(rawGap) ? rawGap : 0)
 
   if (!rightmostPanelRect || !adjacentPanelRect || !collapseButtonRect || !railRect) {
-    return null
+    if (!rightmostPanelRect || !collapseButtonRect || !railRect) {
+      return null
+    }
   }
 
   return {
@@ -102,12 +169,52 @@ function readLeftSidebarChromeMeasurements() {
     collapseButtonLeft: collapseButtonRect.left,
     collapseButtonWidth: collapseButtonRect.width,
     rightmostPanelRight: rightmostPanelRect.right,
-    panelGap: rightmostPanelRect.left - adjacentPanelRect.right,
+    panelGap,
+    currentPanelCount: panelButtonEls.length,
+    maxPanelCount: MAX_WORKBENCH_SIDEBAR_PANEL_COUNT,
+    panelButtonWidth: rightmostPanelRect.width,
+  }
+}
+
+function readRightSidebarChromeMeasurements() {
+  if (typeof document === 'undefined') return null
+
+  const panelTabsEl = document.querySelector('.header-sidebar-panel-tabs.is-right')
+  const panelButtonEls = Array.from(document.querySelectorAll('.header-inspector-panel-button'))
+
+  if (!panelTabsEl || panelButtonEls.length === 0) {
+    return null
+  }
+
+  const rightmostPanelRect = panelButtonEls.at(-1)?.getBoundingClientRect()
+  const adjacentPanelRect = panelButtonEls.at(-2)?.getBoundingClientRect()
+  const panelTabsStyle = window.getComputedStyle(panelTabsEl)
+  const rawGap = parseFloat(panelTabsStyle.columnGap || panelTabsStyle.gap || '0')
+  const panelGap = rightmostPanelRect && adjacentPanelRect
+    ? rightmostPanelRect.left - adjacentPanelRect.right
+    : (Number.isFinite(rawGap) ? rawGap : 0)
+
+  if (!rightmostPanelRect) {
+    return null
+  }
+
+  return {
+    viewportWidth: window.innerWidth,
+    currentSidebarWidth: rightSidebarWidth.value,
+    rightmostPanelRight: rightmostPanelRect.right,
+    panelGap,
+    currentPanelCount: panelButtonEls.length,
+    maxPanelCount: MAX_WORKBENCH_INSPECTOR_PANEL_COUNT,
+    panelButtonWidth: rightmostPanelRect.width,
   }
 }
 
 function resolveDynamicLeftSidebarMinWidth() {
   return resolveMinimumLeftSidebarWidth(readLeftSidebarChromeMeasurements() || {})
+}
+
+function resolveDynamicRightSidebarMinWidth() {
+  return resolveMinimumRightSidebarWidth(readRightSidebarChromeMeasurements() || {})
 }
 
 function setLeftSidebarWidth(value) {
@@ -118,7 +225,8 @@ function setLeftSidebarWidth(value) {
 
 function setRightSidebarWidth(value) {
   const maxWidth = Math.floor(window.innerWidth * 0.8)
-  rightSidebarWidth.value = Math.max(200, Math.min(maxWidth, value))
+  const minWidth = resolveDynamicRightSidebarMinWidth()
+  rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, value))
   debounceSidebarWidthSave()
 }
 
@@ -161,6 +269,7 @@ export function useAppShellLayout() {
   onMounted(() => {
     window.requestAnimationFrame(() => {
       setLeftSidebarWidth(leftSidebarWidth.value)
+      setRightSidebarWidth(rightSidebarWidth.value)
     })
   })
 

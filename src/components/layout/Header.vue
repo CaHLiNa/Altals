@@ -5,7 +5,7 @@
   >
     <div
       v-if="showSidebarPanelTabs"
-      class="header-sidebar-panel-tabs"
+      class="header-sidebar-panel-tabs is-left"
       :style="sidebarPanelTabsStyle"
     >
       <button
@@ -40,18 +40,42 @@
 
     <div class="header-project-slot" data-tauri-drag-region></div>
 
-    <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
+    <div
+      v-if="showInspectorPanelTabs"
+      class="header-sidebar-panel-tabs is-right"
+      :style="inspectorPanelTabsStyle"
+    >
       <button
-        v-if="!workspace.isAiSurface"
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: aiLauncherOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
-        @click="handleOpenAi"
-        :title="aiButtonTitle"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
+        v-for="entry in inspectorPanelEntries"
+        :key="entry.key"
+        type="button"
+        class="header-chrome-button header-inspector-panel-button flex items-center justify-center border-none cursor-pointer"
+        :class="{ 'is-active': workspace.rightSidebarPanel === entry.key }"
+        :title="entry.title"
+        :aria-label="entry.label"
+        @click="handleSelectRightSidebarPanel(entry.key)"
       >
-        <IconSparkles :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
+        <component :is="entry.icon" :size="HEADER_ICON_SIZE" :stroke-width="1.6" />
       </button>
+    </div>
+
+    <button
+      v-if="workspace.isOpen && workspace.isWorkspaceSurface"
+      class="header-chrome-button header-inspector-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
+      :style="inspectorCollapseButtonStyle"
+      :title="t('Toggle right sidebar')"
+      @click="workspace.toggleRightSidebar()"
+      @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
+      @mouseout="$event.currentTarget.style.background='transparent'"
+    >
+      <component
+        :is="workspace.rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
+        :size="HEADER_ICON_SIZE"
+        :stroke-width="1.5"
+      />
+    </button>
+
+    <div class="header-right-slot" data-tauri-drag-region>
     </div>
   </header>
 
@@ -113,17 +137,22 @@ import { ref, computed, nextTick, defineAsyncComponent, onMounted, onUnmounted }
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
-import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconBook2,
   IconFolder,
+  IconLayoutList,
+  IconLayoutSidebarRight,
+  IconLayoutSidebarRightCollapse,
   IconListTree,
+  IconLink,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
-  IconSearch, IconSparkles,
+  IconMessages,
+  IconSearch,
+  IconTag,
 } from '@tabler/icons-vue'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -135,11 +164,11 @@ const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 const props = defineProps({
   leftSidebarWidth: { type: Number, default: 0 },
   leftRailWidth: { type: Number, default: 44 },
+  rightSidebarWidth: { type: Number, default: 0 },
 })
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
-const aiDrawer = useAiDrawerStore()
 const aiWorkbench = useAiWorkbenchStore()
 const toastStore = useToastStore()
 const referencesStore = useReferencesStore()
@@ -148,6 +177,7 @@ const isMacDesktop = isMac
   && typeof window !== 'undefined'
   && !!window.__TAURI_INTERNALS__
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
 
 const HEADER_HEIGHT = 30
 const HEADER_ICON_SIZE = 18
@@ -195,26 +225,56 @@ const headerStyle = computed(() => ({
 
 const showSidebarPanelTabs = computed(() => workspace.isOpen && workspace.leftSidebarOpen)
 
-const sidebarPanelEntries = computed(() => ([
-  {
-    key: 'files',
-    label: t('Project files'),
-    title: t('Project files'),
-    icon: IconFolder,
-  },
-  {
-    key: 'references',
-    label: t('References'),
-    title: t('References'),
-    icon: IconBook2,
-  },
-  {
-    key: 'outline',
-    label: t('Outline'),
-    title: t('Outline'),
-    icon: IconListTree,
-  },
-]))
+const sidebarPanelEntries = computed(() => {
+  if (workspace.isLibrarySurface) {
+    return [
+      {
+        key: 'library-views',
+        label: t('Library views'),
+        title: t('Library views'),
+        icon: IconLayoutList,
+      },
+      {
+        key: 'library-tags',
+        label: t('Library tags'),
+        title: t('Library tags'),
+        icon: IconTag,
+      },
+    ]
+  }
+
+  if (workspace.isAiSurface) {
+    return [
+      {
+        key: 'ai-chats',
+        label: t('Recent chats'),
+        title: t('Recent chats'),
+        icon: IconMessages,
+      },
+    ]
+  }
+
+  return [
+    {
+      key: 'files',
+      label: t('Project files'),
+      title: t('Project files'),
+      icon: IconFolder,
+    },
+    {
+      key: 'references',
+      label: t('References'),
+      title: t('References'),
+      icon: IconBook2,
+    },
+    {
+      key: 'outline',
+      label: t('Outline'),
+      title: t('Outline'),
+      icon: IconListTree,
+    },
+  ]
+})
 
 const sidebarPanelAnchorLeft = computed(() => {
   const railBoundary = (Number(props.leftRailWidth) || 44) + SIDEBAR_PANEL_GROUP_GAP
@@ -245,6 +305,55 @@ const sidebarCollapseButtonStyle = computed(() => {
   }
 })
 
+const showInspectorPanelTabs = computed(() => (
+  workspace.isOpen
+  && workspace.isWorkspaceSurface
+  && workspace.rightSidebarOpen
+))
+
+const inspectorPanelEntries = computed(() => ([
+  {
+    key: 'outline',
+    label: t('Outline'),
+    title: t('Outline'),
+    icon: IconListTree,
+  },
+  {
+    key: 'backlinks',
+    label: t('Backlinks'),
+    title: t('Backlinks'),
+    icon: IconLink,
+  },
+]))
+
+const inspectorExpandedAnchorLeft = computed(() => (
+  Math.max(
+    viewportWidth.value - Math.max(Number(props.rightSidebarWidth) || 0, 0) + HEADER_BUTTON_INSET,
+    0,
+  )
+))
+
+const inspectorCollapsedAnchorLeft = computed(() => (
+  Math.max(viewportWidth.value - HEADER_BUTTON_SIZE - HEADER_BUTTON_INSET, 0)
+))
+
+const inspectorPanelTabsStyle = computed(() => ({
+  left: toPx(
+    inspectorExpandedAnchorLeft.value
+      + HEADER_BUTTON_SIZE
+      + SIDEBAR_PANEL_GROUP_GAP,
+  ),
+}))
+
+const inspectorCollapseButtonStyle = computed(() => ({
+  left: toPx(
+    workspace.rightSidebarOpen
+      ? inspectorExpandedAnchorLeft.value
+      : inspectorCollapsedAnchorLeft.value,
+  ),
+  color: 'var(--fg-muted)',
+}))
+
 // Search
 const searchInputRef = ref(null)
 const searchResultsRef = ref(null)
@@ -253,8 +362,6 @@ const searchFocused = ref(false)
 const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
-const aiLauncherOpen = computed(() => aiDrawer.open)
-const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close Quick AI') : t('Open Quick AI')))
 const searchPlaceholder = computed(() => t('Go to file...'))
 
 function onFocus() {
@@ -323,8 +430,9 @@ function onSelectChat(sessionId) {
   closeSearchPalette()
 }
 
-function handleOpenAi() {
-  aiDrawer.toggle()
+function handleSelectRightSidebarPanel(panel) {
+  workspace.setRightSidebarPanel(panel)
+  workspace.openRightSidebar()
 }
 
 async function waitForEditorView(targetPath) {
@@ -379,6 +487,9 @@ function closeSearchPalette() {
 }
 
 async function syncNativeWindowChromeState() {
+  if (typeof window !== 'undefined') {
+    viewportWidth.value = window.innerWidth
+  }
   if (!isTauriDesktop) return
   try {
     isNativeFullscreen.value = await getCurrentWindow().isFullscreen()
@@ -416,6 +527,11 @@ defineExpose({ focusSearch })
   height: 100%;
 }
 
+.header-right-slot {
+  min-width: 0;
+  height: 100%;
+}
+
 .header-chrome-button {
   width: 30px;
   height: 30px;
@@ -423,6 +539,14 @@ defineExpose({ focusSearch })
 }
 
 .header-sidebar-collapse-button {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.header-inspector-collapse-button {
   position: absolute;
   top: 50%;
   z-index: 2;
@@ -454,6 +578,25 @@ defineExpose({ focusSearch })
 }
 
 .header-sidebar-panel-button.is-active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--fg-primary);
+  opacity: 1;
+}
+
+.header-inspector-panel-button {
+  background: transparent;
+  color: var(--fg-muted);
+  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  opacity: 0.88;
+}
+
+.header-inspector-panel-button:hover {
+  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
+  color: var(--fg-secondary);
+  opacity: 1;
+}
+
+.header-inspector-panel-button.is-active {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--fg-primary);
   opacity: 1;
