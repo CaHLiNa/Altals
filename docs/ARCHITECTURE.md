@@ -67,6 +67,7 @@ These modules carry much of the workflow/runtime logic that previously lived ins
 - LaTeX / Typst helpers
 - notebook/document serialization helpers
 - terminal and process helpers
+- provider-specific PDF translation option shaping and serialization
 
 This layer is still broader and flatter than the target architecture.
 
@@ -83,6 +84,8 @@ Current remaining large store-heavy bottlenecks include:
 - `src/stores/editor.js`
 - `src/stores/workspace.js`
 - `src/stores/pdfTranslate.js`
+
+`src/domains/document/pdfTranslateRuntime.js` now owns PDF translation settings normalization, request shaping, requested-output selection, glossary extraction policy, and advanced translation/PDF extra shaping above the store shell. `src/services/pdfTranslateProviderOptions.js` now owns provider-specific PDF translation tuning schema plus serialization for model settings. The settings surfaces (`src/components/settings/SettingsPdfTranslate.vue` and `src/components/settings/SettingsModels.vue`) now expose those runtime/provider knobs while the Rust/Python backend remains a filtered pass-through into `pdf2zh_next`, but `src/stores/pdfTranslate.js` and `src/components/editor/PdfViewer.vue` remain the larger workflow bottlenecks around that slice.
 
 ### `src/components` and `src/composables`
 

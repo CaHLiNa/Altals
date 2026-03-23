@@ -49,7 +49,7 @@
         </div>
 
         <p v-if="compatibleModels.length === 0" class="pdft-inline-warning pdft-section-pad">
-          {{ t('PDF translation currently supports Google and OpenAI-compatible models. Configure one in Settings > Models first.') }}
+          {{ t('PDF translation supports any configured provider with a PDF translation engine. Configure one in Settings > Models first.') }}
         </p>
       </div>
 
@@ -119,6 +119,52 @@
       </div>
 
       <div class="env-lang-card">
+        <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row">
+            <span class="env-lang-dot good"></span>
+            <span class="env-lang-name">{{ t('Bilingual layout') }}</span>
+            <span class="pdft-summary-badge">{{ dualLayoutLabel }}</span>
+          </div>
+        </div>
+
+        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Bilingual layout')">
+          <button
+            v-for="option in dualLayouts"
+            :key="option.value"
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: draft.dualLayout === option.value }"
+            @click="draft.dualLayout = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row">
+            <span class="env-lang-dot" :class="draft.fontFamily === 'auto' ? 'none' : 'good'"></span>
+            <span class="env-lang-name">{{ t('Primary font family') }}</span>
+            <span class="pdft-summary-badge">{{ fontFamilyLabel }}</span>
+          </div>
+        </div>
+
+        <div class="pdft-choice-grid pdft-section-pad" role="radiogroup" :aria-label="t('Primary font family')">
+          <button
+            v-for="option in fontFamilies"
+            :key="option.value"
+            type="button"
+            class="pdft-choice-btn"
+            :class="{ active: draft.fontFamily === option.value }"
+            @click="draft.fontFamily = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
         <div class="env-lang-header">
           <span class="env-lang-dot" :class="draft.autoMapPoolMaxWorkers ? 'good' : 'warn'"></span>
           <span class="env-lang-name">{{ t('Throughput') }}</span>
@@ -143,6 +189,22 @@
             class="tool-toggle-switch"
             :class="{ on: draft.autoMapPoolMaxWorkers }"
             @click="draft.autoMapPoolMaxWorkers = !draft.autoMapPoolMaxWorkers"
+          >
+            <span class="tool-toggle-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="draft.enhanceCompatibility ? 'warn' : 'none'"></span>
+          <span class="env-lang-name">{{ t('Enhance compatibility') }}</span>
+          <span class="env-lang-version">{{ draft.enhanceCompatibility ? t('Enabled') : t('Disabled') }}</span>
+          <div class="pdft-card-spacer"></div>
+          <button
+            class="tool-toggle-switch"
+            :class="{ on: draft.enhanceCompatibility }"
+            @click="draft.enhanceCompatibility = !draft.enhanceCompatibility"
           >
             <span class="tool-toggle-knob"></span>
           </button>
@@ -236,6 +298,144 @@
 
       <div class="env-lang-card">
         <div class="pdft-card-head">
+          <div class="env-lang-header pdft-card-header-row">
+            <span class="env-lang-dot" :class="advancedSettingsCustomized ? 'warn' : 'none'"></span>
+            <span class="env-lang-name">{{ t('Advanced translation & layout') }}</span>
+            <span class="pdft-summary-badge">{{ advancedSummaryLabel }}</span>
+          </div>
+          <button class="pdft-toolbar-btn" @click="showAdvancedTuning = !showAdvancedTuning">
+            {{ showAdvancedTuning ? t('Hide') : t('Advanced') }}
+          </button>
+        </div>
+
+        <div v-if="showAdvancedTuning" class="pdft-advanced-stack pdft-section-pad">
+          <div class="pdft-advanced-group">
+            <div class="pdft-inline-label">{{ t('Translation quality') }}</div>
+
+            <div class="pdft-form-grid">
+              <label v-for="field in qualityNumberFields" :key="field.key" class="pdft-field">
+                <span class="pdft-label">{{ t(field.labelKey) }}</span>
+                <input
+                  v-model.number="draft[field.key]"
+                  type="number"
+                  class="pdft-input"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                />
+                <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+              </label>
+            </div>
+
+            <div class="pdft-inline-setting" v-for="field in qualityToggleFields" :key="field.key">
+              <div class="pdft-inline-copy">
+                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+              </div>
+              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                <span class="tool-toggle-knob"></span>
+              </button>
+            </div>
+
+            <label v-for="field in qualityTextFields" :key="field.key" class="pdft-field pdft-field-block">
+              <span class="pdft-label">{{ t(field.labelKey) }}</span>
+              <textarea
+                v-model="draft[field.key]"
+                class="pdft-textarea"
+                :rows="field.rows"
+                :placeholder="t(field.placeholderKey)"
+                spellcheck="false"
+              ></textarea>
+              <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+            </label>
+          </div>
+
+          <div class="pdft-advanced-group">
+            <div class="pdft-inline-label">{{ t('Layout & segmentation') }}</div>
+
+            <div class="pdft-form-grid">
+              <label v-for="field in layoutTextFields" :key="field.key" class="pdft-field">
+                <span class="pdft-label">{{ t(field.labelKey) }}</span>
+                <input
+                  v-model="draft[field.key]"
+                  type="text"
+                  class="pdft-input"
+                  :placeholder="t(field.placeholderKey)"
+                  spellcheck="false"
+                />
+                <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+              </label>
+
+              <label v-for="field in layoutNumberFields" :key="field.key" class="pdft-field">
+                <span class="pdft-label">{{ t(field.labelKey) }}</span>
+                <input
+                  v-model.number="draft[field.key]"
+                  type="number"
+                  class="pdft-input"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                />
+                <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+              </label>
+            </div>
+
+            <div class="pdft-inline-setting" v-for="field in layoutToggleFields" :key="field.key">
+              <div class="pdft-inline-copy">
+                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+              </div>
+              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                <span class="tool-toggle-knob"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pdft-advanced-group">
+            <div class="pdft-inline-label">{{ t('Scanned / formula handling') }}</div>
+
+            <div class="pdft-form-grid">
+              <label v-for="field in formulaNumberFields" :key="field.key" class="pdft-field">
+                <span class="pdft-label">{{ t(field.labelKey) }}</span>
+                <input
+                  v-model.number="draft[field.key]"
+                  type="number"
+                  class="pdft-input"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                />
+                <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+              </label>
+
+              <label v-for="field in formulaTextFields" :key="field.key" class="pdft-field">
+                <span class="pdft-label">{{ t(field.labelKey) }}</span>
+                <input
+                  v-model="draft[field.key]"
+                  type="text"
+                  class="pdft-input"
+                  :placeholder="t(field.placeholderKey)"
+                  spellcheck="false"
+                />
+                <span v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</span>
+              </label>
+            </div>
+
+            <div class="pdft-inline-setting" v-for="field in formulaToggleFields" :key="field.key">
+              <div class="pdft-inline-copy">
+                <div class="pdft-inline-label">{{ t(field.labelKey) }}</div>
+                <div v-if="field.hintKey" class="pdft-field-hint">{{ t(field.hintKey) }}</div>
+              </div>
+              <button class="tool-toggle-switch" :class="{ on: draft[field.key] }" @click="draft[field.key] = !draft[field.key]">
+                <span class="tool-toggle-knob"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="pdft-card-head">
           <div class="env-lang-header pdft-card-header-row pdft-card-header-main">
             <span class="env-lang-dot" :class="runtimeDotClass"></span>
             <span class="env-lang-name">{{ t('Runtime') }}</span>
@@ -307,27 +507,195 @@ import { usePdfTranslateStore } from '../../stores/pdfTranslate'
 import { useEnvironmentStore } from '../../stores/environment'
 import { useI18n } from '../../i18n'
 import { findModelById, getFirstModelForProvider, groupModelsByProvider } from '../../services/modelCatalog'
+import { createDefaultPdfTranslateSettings } from '../../domains/document/pdfTranslateRuntime'
 
 const { t } = useI18n()
 const pdfTranslateStore = usePdfTranslateStore()
 const envStore = useEnvironmentStore()
 const saved = ref(false)
 const selectedProviderId = ref('')
+const showAdvancedTuning = ref(false)
 
-const draft = reactive({
-  modelId: '',
-  langIn: 'en',
-  langOut: 'zh',
-  mode: 'dual',
-  qps: 8,
-  poolMaxWorkers: 0,
-  autoMapPoolMaxWorkers: true,
-  ocrWorkaround: false,
-  autoEnableOcrWorkaround: false,
-  noWatermarkMode: false,
-  translateTableText: true,
-  saveAutoExtractedGlossary: false,
-})
+const draft = reactive(createDefaultPdfTranslateSettings())
+
+const qualityNumberFields = [
+  {
+    key: 'minTextLength',
+    labelKey: 'Minimum text length',
+    min: 0,
+    max: 500,
+    step: 1,
+    hintKey: 'Short text blocks below this length are skipped.',
+  },
+  {
+    key: 'termQps',
+    labelKey: 'Glossary extraction QPS',
+    min: 0,
+    max: 1000,
+    step: 1,
+    hintKey: '0 keeps pdf2zh_next default glossary throughput.',
+  },
+  {
+    key: 'termPoolMaxWorkers',
+    labelKey: 'Glossary worker pool',
+    min: 0,
+    max: 1000,
+    step: 1,
+    hintKey: '0 keeps pdf2zh_next default glossary worker count.',
+  },
+]
+
+const qualityTextFields = [
+  {
+    key: 'customSystemPrompt',
+    labelKey: 'Custom system prompt',
+    rows: 4,
+    placeholderKey: 'Optional prompt override for PDF translation',
+    hintKey: 'Applied on top of the provider model during PDF translation only.',
+  },
+  {
+    key: 'glossaries',
+    labelKey: 'Glossary text',
+    rows: 4,
+    placeholderKey: 'Optional glossary text passed to pdf2zh_next',
+    hintKey: 'Use one term mapping per line or the upstream raw glossary format.',
+  },
+]
+
+const qualityToggleFields = [
+  {
+    key: 'ignoreCache',
+    labelKey: 'Ignore translation cache',
+    hintKey: 'Force a fresh translation even if cached results exist.',
+  },
+]
+
+const layoutNumberFields = [
+  {
+    key: 'maxPagesPerPart',
+    labelKey: 'Max pages per part',
+    min: 0,
+    max: 1000,
+    step: 1,
+    hintKey: '0 keeps pdf2zh_next automatic splitting.',
+  },
+  {
+    key: 'shortLineSplitFactor',
+    labelKey: 'Short-line split factor',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    hintKey: 'Used when short-line splitting is enabled.',
+  },
+]
+
+const layoutTextFields = [
+  {
+    key: 'pages',
+    labelKey: 'Page ranges',
+    placeholderKey: 'Example: 1-3,5,8-10',
+    hintKey: 'Leave empty to translate the whole PDF.',
+  },
+]
+
+const layoutToggleFields = [
+  {
+    key: 'splitShortLines',
+    labelKey: 'Split short lines',
+    hintKey: 'Helps bilingual layout on narrow columns and dense academic PDFs.',
+  },
+  {
+    key: 'skipClean',
+    labelKey: 'Skip PDF cleanup',
+    hintKey: 'Useful when cleanup damages the original page structure.',
+  },
+  {
+    key: 'dualTranslateFirst',
+    labelKey: 'Translate bilingual output first',
+    hintKey: 'Prioritize dual output generation when both mono and dual PDFs are requested.',
+  },
+  {
+    key: 'disableRichTextTranslate',
+    labelKey: 'Disable rich-text translation',
+    hintKey: 'Fallback for PDFs whose styled text extraction breaks layout.',
+  },
+  {
+    key: 'onlyIncludeTranslatedPage',
+    labelKey: 'Only include translated pages',
+    hintKey: 'Omit untouched pages from the generated output when page ranges are used.',
+  },
+]
+
+const formulaNumberFields = [
+  {
+    key: 'nonFormulaLineIouThreshold',
+    labelKey: 'Non-formula line IoU threshold',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    hintKey: 'Higher values protect more surrounding text from formula handling.',
+  },
+  {
+    key: 'figureTableProtectionThreshold',
+    labelKey: 'Figure/table protection threshold',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    hintKey: 'Higher values protect figures and tables more aggressively.',
+  },
+]
+
+const formulaTextFields = [
+  {
+    key: 'formularFontPattern',
+    labelKey: 'Formula font pattern',
+    placeholderKey: 'Optional regex-like hint for formula fonts',
+    hintKey: 'Advanced override for PDFs with unusual embedded math fonts.',
+  },
+  {
+    key: 'formularCharPattern',
+    labelKey: 'Formula character pattern',
+    placeholderKey: 'Optional regex-like hint for formula characters',
+    hintKey: 'Advanced override for PDFs with unusual formula character sets.',
+  },
+]
+
+const formulaToggleFields = [
+  {
+    key: 'skipScannedDetection',
+    labelKey: 'Skip scanned-PDF detection',
+    hintKey: 'Useful when vector PDFs are misdetected as scanned pages.',
+  },
+  {
+    key: 'noMergeAlternatingLineNumbers',
+    labelKey: 'Do not merge alternating line numbers',
+    hintKey: 'Helps papers whose line numbers interfere with bilingual page merging.',
+  },
+  {
+    key: 'noRemoveNonFormulaLines',
+    labelKey: 'Do not remove non-formula lines',
+    hintKey: 'Protect more non-formula lines around equations and inline math.',
+  },
+  {
+    key: 'skipFormulaOffsetCalculation',
+    labelKey: 'Skip formula offset calculation',
+    hintKey: 'Fallback for PDFs whose formula offset estimation breaks placement.',
+  },
+]
+
+const advancedSettingKeys = [
+  ...qualityNumberFields.map(field => field.key),
+  ...qualityTextFields.map(field => field.key),
+  ...qualityToggleFields.map(field => field.key),
+  ...layoutNumberFields.map(field => field.key),
+  ...layoutTextFields.map(field => field.key),
+  ...layoutToggleFields.map(field => field.key),
+  ...formulaNumberFields.map(field => field.key),
+  ...formulaTextFields.map(field => field.key),
+  ...formulaToggleFields.map(field => field.key),
+]
+
+const defaultPdfTranslateSettings = createDefaultPdfTranslateSettings()
 
 const sourceLanguages = computed(() => ([
   { value: 'auto', label: t('Auto detect (auto)') },
@@ -348,6 +716,16 @@ const outputModes = computed(() => ([
   { value: 'mono', label: t('Translated only') },
   { value: 'dual', label: t('Bilingual PDF') },
   { value: 'both', label: t('Create both') },
+]))
+const dualLayouts = computed(() => ([
+  { value: 'side-by-side', label: t('Left & Right') },
+  { value: 'alternating-pages', label: t('Alternating pages') },
+]))
+const fontFamilies = computed(() => ([
+  { value: 'auto', label: t('Auto') },
+  { value: 'serif', label: t('Serif') },
+  { value: 'sans-serif', label: t('Sans-serif') },
+  { value: 'script', label: t('Script') },
 ]))
 
 const targetLanguages = computed(() => sourceLanguages.value.filter(item => item.value !== 'auto'))
@@ -396,6 +774,8 @@ const languageSummary = computed(() => (
 ))
 
 const outputModeLabel = computed(() => optionLabel(outputModes.value, draft.mode, draft.mode))
+const dualLayoutLabel = computed(() => optionLabel(dualLayouts.value, draft.dualLayout, draft.dualLayout))
+const fontFamilyLabel = computed(() => optionLabel(fontFamilies.value, draft.fontFamily, draft.fontFamily))
 const throughputSummary = computed(() => `${draft.qps} QPS`)
 const ocrMode = computed(() => (
   draft.autoEnableOcrWorkaround ? 'auto' : draft.ocrWorkaround ? 'manual' : 'off'
@@ -406,27 +786,21 @@ const ocrModeLabel = computed(() => {
   return t('Off')
 })
 
+const advancedSettingsCustomized = computed(() => (
+  advancedSettingKeys.some((key) => JSON.stringify(draft[key]) !== JSON.stringify(defaultPdfTranslateSettings[key]))
+))
+const advancedSummaryLabel = computed(() => (
+  advancedSettingsCustomized.value ? t('Customized') : t('Defaults')
+))
+
 function draftSnapshot() {
-  return {
-    modelId: draft.modelId,
-    langIn: draft.langIn,
-    langOut: draft.langOut,
-    mode: draft.mode,
-    qps: draft.qps,
-    poolMaxWorkers: draft.poolMaxWorkers,
-    autoMapPoolMaxWorkers: draft.autoMapPoolMaxWorkers,
-    ocrWorkaround: draft.ocrWorkaround,
-    autoEnableOcrWorkaround: draft.autoEnableOcrWorkaround,
-    noWatermarkMode: draft.noWatermarkMode,
-    translateTableText: draft.translateTableText,
-    saveAutoExtractedGlossary: draft.saveAutoExtractedGlossary,
-  }
+  return JSON.parse(JSON.stringify(draft))
 }
 
 const isDirty = computed(() => JSON.stringify(draftSnapshot()) !== JSON.stringify(pdfTranslateStore.settings))
 
 function syncDraft() {
-  Object.assign(draft, pdfTranslateStore.settings)
+  Object.assign(draft, createDefaultPdfTranslateSettings(), pdfTranslateStore.settings)
 }
 
 function preferredProviderId() {
@@ -591,6 +965,12 @@ onMounted(async () => {
   color: var(--fg-secondary);
 }
 
+.pdft-field-hint {
+  font-size: var(--ui-font-micro);
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
 .pdft-progress-meta,
 .pdft-save-hint {
   font-size: var(--ui-font-micro);
@@ -622,13 +1002,29 @@ onMounted(async () => {
   padding-right: 9px;
 }
 
+.pdft-textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.5;
+  padding: 8px 9px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
 .pdft-select:hover,
-.pdft-input:hover {
+.pdft-input:hover,
+.pdft-textarea:hover {
   border-color: rgba(255, 255, 255, 0.14);
 }
 
 .pdft-select:focus,
-.pdft-input:focus {
+.pdft-input:focus,
+.pdft-textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -727,6 +1123,34 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.pdft-inline-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pdft-advanced-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.pdft-advanced-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+}
+
+.pdft-field-block {
+  margin-top: 2px;
 }
 
 .pdft-inline-warning {

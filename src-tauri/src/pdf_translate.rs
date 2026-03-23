@@ -33,6 +33,7 @@ pub struct TranslationTask {
     input_path: String,
     provider: Option<String>,
     model: Option<String>,
+    requested_mode: String,
     status: String,
     progress: f32,
     message: String,
@@ -67,6 +68,9 @@ pub struct TranslationRequest {
     enhance_compatibility: Option<bool>,
     translate_table_text: Option<bool>,
     only_include_translated_page: Option<bool>,
+    translation_extra: Option<HashMap<String, Value>>,
+    pdf_extra: Option<HashMap<String, Value>>,
+    provider_extra: Option<HashMap<String, Value>>,
     mode: String,
 }
 
@@ -701,6 +705,21 @@ async fn run_translation_task(
         cmd.arg("--only-include-translated-page")
             .arg(only_include_translated_page.to_string());
     }
+    if let Some(translation_extra) = request.translation_extra.as_ref().filter(|map| !map.is_empty()) {
+        if let Ok(payload) = serde_json::to_string(translation_extra) {
+            cmd.arg("--translation-extra-json").arg(payload);
+        }
+    }
+    if let Some(pdf_extra) = request.pdf_extra.as_ref().filter(|map| !map.is_empty()) {
+        if let Ok(payload) = serde_json::to_string(pdf_extra) {
+            cmd.arg("--pdf-extra-json").arg(payload);
+        }
+    }
+    if let Some(provider_extra) = request.provider_extra.as_ref().filter(|map| !map.is_empty()) {
+        if let Ok(payload) = serde_json::to_string(provider_extra) {
+            cmd.arg("--provider-extra-json").arg(payload);
+        }
+    }
 
     let mut child = match cmd.spawn() {
         Ok(child) => child,
@@ -932,6 +951,7 @@ pub fn pdf_translate_start(
         input_path: request.input_path.clone(),
         provider: request.provider.clone(),
         model: request.model.clone(),
+        requested_mode: request.mode.clone(),
         status: "queued".to_string(),
         progress: 0.0,
         message: "Task created".to_string(),

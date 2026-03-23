@@ -194,6 +194,12 @@ The largest remaining frontend architectural bottlenecks include:
 
 `references` and `editor` have both now had their highest-value currently identified Phase 2 slices extracted, and `documentWorkflow` has now had its first main-loop slice extracted; the next higher-value repository need has shifted back to the remaining Phase 3 build/review loop now that the current planned Phase 4 safety-model slices have landed.
 
+`src/domains/document/pdfTranslateRuntime.js` now carries PDF translation settings normalization, request shaping, requested-output selection, Altals-specific glossary extraction policy, and the advanced translation/PDF extra shaping needed to reach more of the upstream `pdf2zh_next` quality/layout surface without pushing that policy back into `src/stores/pdfTranslate.js`.
+
+`src/services/pdfTranslateProviderOptions.js` now carries provider-specific PDF translation tuning schema and serialization, so `src/components/settings/SettingsModels.vue` can expose per-provider quality controls without turning `src/stores/pdfTranslate.js` into another provider-policy hub.
+
+The PDF translation settings surfaces now also expose higher-value upstream quality/layout controls (`custom system prompt`, raw glossary text, page ranges, segmentation/layout toggles, formula/scanned-PDF fallbacks, provider JSON/reasoning/temperature controls), while `src-tauri/src/pdf_translate.rs` plus `scripts/translate_stream.py` stay as a filtered pass-through that only forwards fields supported by the installed `pdf2zh_next` models.
+
 ##### Document workflow status
 
 `src/domains/document/documentWorkflowRuntime.js` now carries preview-pane reuse, split-right fallback, preview-session state updates, jump-to-preview routing, and reconcile/close-preview orchestration.

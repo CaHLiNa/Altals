@@ -97,6 +97,7 @@
 
       <div v-if="showAdvanced" class="advanced-section">
         <div class="key-field">
+          <div class="provider-option-label">{{ t('API URL') }}</div>
           <div class="key-input-row models-key-row">
             <input
               type="text"
@@ -108,9 +109,65 @@
             />
           </div>
         </div>
+
+        <div v-if="activeProviderPdfTranslateOptionDefs.length > 0" class="provider-options-section">
+          <div class="provider-option-label">{{ t('PDF translation tuning') }}</div>
+          <p class="settings-hint provider-option-hint">
+            {{ t('These options only affect PDF translation for this provider.') }}
+          </p>
+
+          <div class="provider-options-grid">
+            <template v-for="option in activeProviderPdfTranslateOptionDefs" :key="option.key">
+              <label v-if="option.type === 'number'" class="key-field provider-option-field">
+                <span class="provider-option-field-label">{{ t(option.labelKey) }}</span>
+                <input
+                  v-model.number="editPdfTranslateOptions[activeProviderSpec.id][option.key]"
+                  type="number"
+                  class="key-input"
+                  :min="option.min"
+                  :max="option.max"
+                  :step="option.step"
+                  spellcheck="false"
+                />
+                <span v-if="option.hintKey" class="provider-option-field-hint">{{ t(option.hintKey) }}</span>
+              </label>
+
+              <label v-else-if="option.type === 'select'" class="key-field provider-option-field">
+                <span class="provider-option-field-label">{{ t(option.labelKey) }}</span>
+                <div class="pdft-select-shell">
+                  <select v-model="editPdfTranslateOptions[activeProviderSpec.id][option.key]" class="pdft-select">
+                    <option v-for="choice in option.options || []" :key="choice.value" :value="choice.value">
+                      {{ t(choice.labelKey) }}
+                    </option>
+                  </select>
+                  <span class="pdft-caret" aria-hidden="true">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                      <path d="M1 3l4 4 4-4z"/>
+                    </svg>
+                  </span>
+                </div>
+              </label>
+
+              <div v-else class="provider-inline-toggle">
+                <div class="provider-inline-copy">
+                  <div class="provider-option-field-label">{{ t(option.labelKey) }}</div>
+                  <div v-if="option.hintKey" class="provider-option-field-hint">{{ t(option.hintKey) }}</div>
+                </div>
+                <button
+                  class="tool-toggle-switch"
+                  :class="{ on: editPdfTranslateOptions[activeProviderSpec.id][option.key] }"
+                  @click="editPdfTranslateOptions[activeProviderSpec.id][option.key] = !editPdfTranslateOptions[activeProviderSpec.id][option.key]"
+                >
+                  <span class="tool-toggle-knob"></span>
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
         <div class="keys-actions">
-          <button class="key-save-btn" :class="{ saved: urlSaved }" @click="saveUrls">
-            {{ urlSaved ? t('Saved') : t('Save URLs') }}
+          <button class="key-save-btn" :class="{ saved: advancedSaved }" @click="saveAdvancedSettings">
+            {{ advancedSaved ? t('Saved') : t('Save Advanced Settings') }}
           </button>
         </div>
       </div>
@@ -162,13 +219,18 @@ import {
   getProviderDefinitions,
   getProviderPlaceholder,
 } from '../../services/modelCatalog'
+import {
+  compactPdfTranslateProviderOptions,
+  getPdfTranslateProviderOptionDefs,
+  normalizePdfTranslateProviderOptions,
+} from '../../services/pdfTranslateProviderOptions'
 
 const workspace = useWorkspaceStore()
 const usageStore = useUsageStore()
 const { t } = useI18n()
 const keySaved = ref(false)
 const showAdvanced = ref(false)
-const urlSaved = ref(false)
+const advancedSaved = ref(false)
 const editMonthlyLimit = ref('')
 const limitSaved = ref(false)
 const selectedProviderId = ref('')
@@ -240,11 +302,27 @@ const editUrls = reactive({
   ),
 })
 
+const editPdfTranslateOptions = reactive(
+  Object.fromEntries(
+    providerDefs.map(spec => [
+      spec.id,
+      normalizePdfTranslateProviderOptions(
+        spec.id,
+        workspace.modelsConfig?.providers?.[spec.id]?.pdfTranslateOptions,
+      ),
+    ]),
+  ),
+)
+
 const urlFields = providerDefs.map(spec => ({
   provider: spec.id,
   label: spec.label,
   placeholder: getProviderPlaceholder(spec.id),
 }))
+
+const activeProviderPdfTranslateOptionDefs = computed(() => (
+  getPdfTranslateProviderOptionDefs(activeProviderSpec.value?.id || '')
+))
 
 function keyPlaceholderFor(spec) {
   if (spec.id === 'anthropic') return 'sk-ant-...'
@@ -297,7 +375,7 @@ async function saveKeys() {
   }
 }
 
-async function saveUrls() {
+async function saveAdvancedSettings() {
   try {
     const config = JSON.parse(JSON.stringify(workspace.modelsConfig || getDefaultModelsConfig()))
 
@@ -311,16 +389,43 @@ async function saveUrls() {
           delete config.providers[p.provider].customUrl
           config.providers[p.provider].url = getProviderDefaultUrl(p.provider)
         }
+
+        const compactedOptions = compactPdfTranslateProviderOptions(
+          p.provider,
+          editPdfTranslateOptions[p.provider],
+        )
+        if (Object.keys(compactedOptions).length > 0) {
+          config.providers[p.provider].pdfTranslateOptions = compactedOptions
+        } else {
+          delete config.providers[p.provider].pdfTranslateOptions
+        }
       }
     }
 
     await workspace.saveModelsConfig(config)
-    urlSaved.value = true
-    setTimeout(() => urlSaved.value = false, 3000)
+    advancedSaved.value = true
+    setTimeout(() => advancedSaved.value = false, 3000)
   } catch (e) {
-    console.error('Failed to save URLs:', e)
+    console.error('Failed to save advanced provider settings:', e)
   }
 }
+
+watch(
+  () => workspace.modelsConfig,
+  (modelsConfig) => {
+    for (const spec of providerDefs) {
+      editUrls[spec.id] = modelsConfig?.providers?.[spec.id]?.customUrl || ''
+      Object.assign(
+        editPdfTranslateOptions[spec.id],
+        normalizePdfTranslateProviderOptions(
+          spec.id,
+          modelsConfig?.providers?.[spec.id]?.pdfTranslateOptions,
+        ),
+      )
+    }
+  },
+  { deep: true },
+)
 
 async function syncModels({ auto = false } = {}) {
   syncError.value = false
@@ -420,6 +525,41 @@ async function syncModels({ auto = false } = {}) {
 
 .advanced-section {
   margin-top: 8px;
+}
+
+.pdft-select-shell {
+  position: relative;
+}
+
+.pdft-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--fg-primary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.2;
+  padding: 7px 30px 7px 9px;
+}
+
+.pdft-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pdft-caret {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .provider-group {
@@ -522,6 +662,58 @@ async function syncModels({ auto = false } = {}) {
 
 .provider-detail-card .keys-actions {
   margin-top: 10px;
+}
+
+.provider-options-section {
+  margin-top: 12px;
+}
+
+.provider-options-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.provider-option-label {
+  font-size: var(--ui-font-caption);
+  font-weight: 600;
+  color: var(--fg-secondary);
+}
+
+.provider-option-hint {
+  margin: 4px 0 0;
+}
+
+.provider-option-field {
+  gap: 4px;
+}
+
+.provider-option-field-label {
+  font-size: var(--ui-font-caption);
+  color: var(--fg-primary);
+}
+
+.provider-option-field-hint {
+  font-size: var(--ui-font-micro);
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+.provider-inline-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-secondary) 85%, transparent);
+}
+
+.provider-inline-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .models-page-compact .settings-section-title {

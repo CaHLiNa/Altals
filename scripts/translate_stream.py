@@ -123,6 +123,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--enhance-compatibility", type=parse_bool)
     parser.add_argument("--translate-table-text", type=parse_bool)
     parser.add_argument("--only-include-translated-page", type=parse_bool)
+    parser.add_argument("--translation-extra-json")
+    parser.add_argument("--pdf-extra-json")
+    parser.add_argument("--provider-extra-json")
     print(f"DEBUG: Script received args: {sanitize_cli_args(sys.argv)}", file=sys.stderr)
     return parser.parse_args()
 
@@ -132,6 +135,22 @@ def clean(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped else None
+
+
+def parse_json_object(value: str | None, flag: str) -> dict[str, Any]:
+    cleaned = clean(value)
+    if not cleaned:
+        return {}
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as exc:  # noqa: PERF203
+        raise ValueError(f"{flag} 不是有效的 JSON 对象: {exc}") from exc
+
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{flag} 必须是 JSON 对象。")
+
+    return parsed
 
 
 def normalize_engine_name(engine: str | None) -> str:
@@ -151,6 +170,22 @@ def resolve_pool_max_workers(args: argparse.Namespace) -> int | None:
         return min(qps * 10, MAX_POOL_MAX_WORKERS)
 
     return None
+
+
+def filter_model_kwargs(model_cls: Any, values: dict[str, Any]) -> dict[str, Any]:
+    allowed_keys = set(model_cls.model_fields.keys())
+    filtered: dict[str, Any] = {}
+    for key, value in values.items():
+        if key not in allowed_keys or value is None:
+            continue
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                continue
+            filtered[key] = stripped
+            continue
+        filtered[key] = value
+    return filtered
 
 
 def _can_use_as_home(home_dir: Path) -> bool:
@@ -268,7 +303,7 @@ def ensure_required_modules() -> None:
         )
 
 
-def build_engine_settings(args: argparse.Namespace) -> Any:
+def build_engine_settings(args: argparse.Namespace, provider_extra: dict[str, Any] | None = None) -> Any:
     from pdf2zh_next import (
         DeepSeekSettings,
         GeminiSettings,
@@ -280,6 +315,7 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
     api_key = clean(args.api_key)
     model = clean(args.model)
     base_url = clean(args.base_url)
+    provider_extra = provider_extra or {}
 
     # 调试日志：打印关键配置（脱敏）
     print(f"DEBUG: Engine selected(raw): {engine_raw}", file=sys.stderr)
@@ -297,11 +333,12 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
     if engine == "openai":
         if not api_key:
             raise ValueError("OpenAI 引擎需要配置 API Key")
-        return OpenAISettings(
-            openai_api_key=api_key,
-            openai_model=model or "gpt-4o-mini",
-            openai_base_url=base_url,
-        )
+        return OpenAISettings(**filter_model_kwargs(OpenAISettings, {
+            **provider_extra,
+            "openai_api_key": api_key,
+            "openai_model": model or "gpt-4o-mini",
+            "openai_base_url": base_url,
+        }))
 
     if engine == "deepseek":
         if not api_key:
@@ -309,16 +346,18 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
 
         if base_url:
             print("DEBUG: Using OpenAI path for DeepSeek with custom Base URL", file=sys.stderr)
-            return OpenAISettings(
-                openai_api_key=api_key,
-                openai_model=model or "deepseek-chat",
-                openai_base_url=base_url,
-            )
+            return OpenAISettings(**filter_model_kwargs(OpenAISettings, {
+                **provider_extra,
+                "openai_api_key": api_key,
+                "openai_model": model or "deepseek-chat",
+                "openai_base_url": base_url,
+            }))
 
-        return DeepSeekSettings(
-            deepseek_api_key=api_key,
-            deepseek_model=model or "deepseek-chat",
-        )
+        return DeepSeekSettings(**filter_model_kwargs(DeepSeekSettings, {
+            **provider_extra,
+            "deepseek_api_key": api_key,
+            "deepseek_model": model or "deepseek-chat",
+        }))
 
     if engine == "gemini":
         if not api_key:
@@ -326,16 +365,18 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
 
         if base_url:
             print("DEBUG: Using OpenAI path for Gemini with custom Base URL", file=sys.stderr)
-            return OpenAISettings(
-                openai_api_key=api_key,
-                openai_model=model or "gemini-1.5-flash",
-                openai_base_url=base_url,
-            )
+            return OpenAISettings(**filter_model_kwargs(OpenAISettings, {
+                **provider_extra,
+                "openai_api_key": api_key,
+                "openai_model": model or "gemini-1.5-flash",
+                "openai_base_url": base_url,
+            }))
 
-        return GeminiSettings(
-            gemini_api_key=api_key,
-            gemini_model=model or "gemini-1.5-flash",
-        )
+        return GeminiSettings(**filter_model_kwargs(GeminiSettings, {
+            **provider_extra,
+            "gemini_api_key": api_key,
+            "gemini_model": model or "gemini-1.5-flash",
+        }))
 
     if engine == "zhipu":
         if not api_key:
@@ -343,25 +384,28 @@ def build_engine_settings(args: argparse.Namespace) -> Any:
 
         if base_url:
             print("DEBUG: Using OpenAI path for Zhipu with custom Base URL", file=sys.stderr)
-            return OpenAISettings(
-                openai_api_key=api_key,
-                openai_model=model or "glm-4-flash",
-                openai_base_url=base_url,
-            )
+            return OpenAISettings(**filter_model_kwargs(OpenAISettings, {
+                **provider_extra,
+                "openai_api_key": api_key,
+                "openai_model": model or "glm-4-flash",
+                "openai_base_url": base_url,
+            }))
 
-        return ZhipuSettings(
-            zhipu_api_key=api_key,
-            zhipu_model=model or "glm-4-flash",
-        )
+        return ZhipuSettings(**filter_model_kwargs(ZhipuSettings, {
+            **provider_extra,
+            "zhipu_api_key": api_key,
+            "zhipu_model": model or "glm-4-flash",
+        }))
 
     if engine == "kimi":
         if not api_key:
             raise ValueError("Kimi 引擎需要配置 API Key")
-        return OpenAISettings(
-            openai_api_key=api_key,
-            openai_model=model or "moonshot-v1-8k",
-            openai_base_url=base_url or "https://api.moonshot.cn/v1",
-        )
+        return OpenAISettings(**filter_model_kwargs(OpenAISettings, {
+            **provider_extra,
+            "openai_api_key": api_key,
+            "openai_model": model or "moonshot-v1-8k",
+            "openai_base_url": base_url or "https://api.moonshot.cn/v1",
+        }))
 
     supported = ", ".join(SUPPORTED_ENGINES)
     raise ValueError(
@@ -656,14 +700,19 @@ async def run() -> int:
         })
         return 1
 
-    engine_settings = build_engine_settings(args)
+    translation_extra = parse_json_object(args.translation_extra_json, "--translation-extra-json")
+    pdf_extra = parse_json_object(args.pdf_extra_json, "--pdf-extra-json")
+    provider_extra = parse_json_object(args.provider_extra_json, "--provider-extra-json")
 
-    translation_kwargs: dict[str, Any] = {
+    engine_settings = build_engine_settings(args, provider_extra=provider_extra)
+
+    translation_kwargs = filter_model_kwargs(TranslationSettings, {
+        **translation_extra,
         "lang_in": args.lang_in,
         "lang_out": args.lang_out,
         "output": str(output_dir),
         "qps": max(MIN_QPS, min(args.qps, MAX_QPS)),
-    }
+    })
     resolved_pool_max_workers = resolve_pool_max_workers(args)
     if resolved_pool_max_workers is not None:
         translation_kwargs["pool_max_workers"] = resolved_pool_max_workers
@@ -680,10 +729,11 @@ async def run() -> int:
     final_no_mono = args.mode == "dual"
     keep_glossary = args.save_auto_extracted_glossary is True
 
-    pdf_kwargs: dict[str, Any] = {
+    pdf_kwargs = filter_model_kwargs(PDFSettings, {
+        **pdf_extra,
         "no_dual": final_no_dual,
         "no_mono": final_no_mono,
-    }
+    })
     if args.use_alternating_pages_dual is not None:
         pdf_kwargs["use_alternating_pages_dual"] = args.use_alternating_pages_dual
     if args.enhance_compatibility is not None:
