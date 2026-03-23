@@ -14,7 +14,7 @@ The repository currently relies on three main validation layers:
 - full Node test sweeps through `tests/*.test.mjs`
 - Vite production builds through `npm run build`
 
-There is no single broad lint/typecheck gate in `package.json` today.
+There is no single broad lint or typecheck gate in `package.json` today.
 
 ## Standard Commands
 
@@ -55,17 +55,21 @@ The current Node test suite covers many runtime/domain seams, including:
 - terminal runtimes
 - workspace bootstrap/settings/github/automation
 - workspace history/snapshot/save-point runtimes
-- PDF/text/outline helpers
+- notebook-adjacent helpers and document serialization
 - small repo policy tests such as markdown snippets and selection/context-menu rules
 
-## Phase 6 Stabilization Audits
+## Repo Policy Audits
 
-The repository now also keeps lightweight audit tests for cleanup/stabilization work:
+The repository also keeps lightweight audit tests for repository policy and documentation integrity.
 
-- direct AI launch caller inventory
-- required top-level docs presence and blueprint section integrity
+These can guard:
 
-These are not product tests. They exist to prevent the refactor from silently sliding back into undocumented or overly distributed entry points.
+- required top-level docs
+- required `AGENTS.md` files
+- the mandatory blueprint section headings
+- other small repository-wide policy contracts
+
+These are not product tests. They exist so the refactor does not silently drift into undocumented or contradictory states.
 
 ## Current Known Gaps
 
@@ -75,7 +79,7 @@ The biggest remaining validation gaps are:
 - no dedicated typecheck script
 - no broad browser E2E coverage
 - no routine Rust test workflow documented for frontend refactor slices
-- release automation exists, but it is not the main fast feedback loop for day-to-day refactor work
+- limited audit coverage for medium-term planning and execution/notebook boundaries
 
 ## Expected Build Warnings
 
@@ -86,11 +90,16 @@ Today `npm run build` may still report:
 
 These warnings are not automatically treated as failures, but new warnings or larger regressions should not be ignored.
 
-## Current Practical Rule
+## Practical Rule
 
-For a meaningful refactor slice, the safest normal close-out is:
+For a meaningful code slice, the safest normal close-out is:
 
 1. run targeted tests
 2. run `node --test tests/*.test.mjs`
 3. run `npm run build`
 4. update the blueprint and related docs
+
+For a docs-and-policy slice, at minimum:
+
+1. run the relevant repo audit tests
+2. update the blueprint and related docs

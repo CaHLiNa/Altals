@@ -20,6 +20,7 @@ Current operations are distributed across:
 The most concrete current operation seams are in:
 
 - document preview/build/diagnostic flow
+- notebook/kernel-backed execution flow
 - AI workflow launch/executor flow
 - workspace history and Git bootstrap
 - workspace automation for auto-commit and GitHub sync
@@ -47,6 +48,29 @@ Document read and save behavior is still store-centered, with runtime help in th
 - `src/domains/editor/editorDirtyPersistence.js`
 
 This means Altals can already perform document reads and saves through reusable helpers, but `ReadDocument` and `SaveDocument` are not yet first-class named operations.
+
+### Notebook / Code Execution
+
+The computation loop already exists, but it is still distributed.
+
+Primary paths today include:
+
+- `src/components/editor/NotebookEditor.vue`
+- `src/stores/kernel.js`
+- `src/stores/environment.js`
+- `src/services/chunkKernelBridge.js`
+- `src/services/notebookDocument.js`
+- `src-tauri/src/kernel.rs`
+
+Current behavior includes:
+
+- kernelspec discovery
+- kernel launch / shutdown / interrupt
+- notebook cell execution
+- text-editor chunk execution for runnable surfaces
+- environment detection and kernel installation guidance
+
+This means Altals already has partial `RunNotebookCell`, `RunCodeSelection`, and environment-preparation operations, but they are not yet behind one shared execution domain seam.
 
 ### Build / Preview / Diagnostics
 
@@ -187,6 +211,8 @@ The repository is converging toward the target operation model, but the current 
 | `ListProjectFiles` | Partial | files store + file tree runtimes |
 | `ReadDocument` | Partial | file content runtime |
 | `SaveDocument` | Partial | files store + editor dirty persistence |
+| `RunNotebookCell` | Partial | notebook editor + kernel store + Tauri kernel commands |
+| `RunCodeSelection` | Partial | chunk kernel bridge + editor surfaces |
 | `BuildDocument` | Partial but strongest | document workflow build operation runtime + build runtime |
 | `RevealPreview` | Landed seam | document workflow runtime |
 | `ListProblems` | Landed seam | document workflow build runtime |
@@ -205,6 +231,7 @@ The main missing pieces are:
 
 - no single operation layer shared by UI, AI, and commands
 - save/build/review operations are still split between stores, composables, and services
+- notebook execution is real but still lacks one shared execution/notebook domain boundary
 - workspace snapshot restore currently covers only the current filtered `project-text-set`, not a whole-project rewind
 - that `project-text-set` boundary is broader than the loaded-only path but still narrower than the whole workspace, which keeps workspace restore separate from PDF extraction and other non-document side paths
 - change review is still partly Git-first because file preview/restore remains Git-backed even though workspace save-point review now has local chunk-level apply/restore
@@ -217,6 +244,8 @@ The main missing pieces are:
 The current planned Phase 3, Phase 4, Phase 5, and the current planned Phase 6 documentation/stabilization baseline are complete for their current scopes.
 
 The next operation-oriented refactor should not reopen document workflow extraction or scatter more one-off AI wrappers.
+
+The highest-value next operation slice is the first explicit execution/notebook boundary.
 
 The most useful next operation target is now:
 

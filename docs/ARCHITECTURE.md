@@ -18,21 +18,23 @@ The repository currently has these major layers:
 - `src/composables/*`
 - `src-tauri/src/*`
 
-The frontend has already moved toward domain/runtime seams, but the backend is still comparatively flat.
+The frontend already has meaningful runtime/domain seams.
+The backend is still comparatively flat.
+The execution/notebook stack is real, but it is not yet expressed as one dedicated frontend domain.
 
 ## Frontend Layers
 
 ### `src/app`
 
-`src/app` now carries app-facing orchestration hooks that sit close to the shell:
+This layer now carries app-facing orchestration close to the shell, including:
 
 - workspace lifecycle
-- shell event bridge
+- shell event bridges
 - teardown handling
-- footer status sync
-- workspace snapshot prompt/actions
+- footer/status coordination
+- snapshot prompt and workspace-history entry actions
 
-This layer is much thinner than the old `App.vue`-centric structure, but it is not yet a full operation layer.
+This layer is thinner than the old `App.vue`-centric shape, but it is still not a full operation layer.
 
 ### `src/domains`
 
@@ -50,42 +52,51 @@ The most established runtime seams today are:
 - `src/domains/editor/*`
 - `src/domains/git/*`
 
-These modules now carry most of the extracted orchestration that previously lived in large stores and UI glue.
+These modules carry much of the workflow/runtime logic that previously lived inside large stores and UI glue.
 
 ### `src/services`
 
-`src/services/*` still owns many cross-domain helpers and effectful integrations, especially:
+`src/services/*` still owns many effectful helpers and provider-specific integrations, especially:
 
 - AI launch/session wiring
 - document workflow adapters
-- Latex/Typst integration
-- workspace/system access helpers
+- LaTeX / Typst helpers
+- notebook/document serialization helpers
+- terminal and process helpers
 
-This layer is still broader and flatter than the target architecture, but it now sits under more explicit domain/runtime seams than before.
+This layer is still broader and flatter than the target architecture.
 
 ### `src/stores`
 
 Stores are increasingly migration shells plus UI state holders.
 
-They are still important, but they are no longer the only place where business logic lives.
+They are still important, but they are no longer the only architecture boundary.
 
 Current remaining large store-heavy bottlenecks include:
 
 - `src/stores/latex.js`
+- `src/stores/references.js`
+- `src/stores/editor.js`
+- `src/stores/workspace.js`
 - `src/stores/pdfTranslate.js`
-- `src/stores/reviews.js`
 
 ### `src/components` and `src/composables`
 
-UI code still carries glue and presentation concerns.
+UI code still carries significant glue and several large surfaces, especially:
 
-The most important recent architectural improvement is that major document workflow decisions no longer live primarily inside `src/composables/useEditorPaneWorkflow.js`.
+- `src/components/editor/PdfViewer.vue`
+- `src/components/library/GlobalLibraryWorkbench.vue`
+- `src/components/editor/TextEditor.vue`
+- `src/components/editor/NotebookEditor.vue`
 
-## Current Strongest Landed Seams
+The risk here is no longer only visual complexity.
+The risk is workflow logic drifting back into giant Vue files or heavy composables.
+
+## Strongest Landed Seams
 
 ### Document Loop
 
-The document loop is now split across explicit runtimes:
+The clearest current operation-like seams are in:
 
 - `src/domains/document/documentWorkflowRuntime.js`
 - `src/domains/document/documentWorkflowBuildRuntime.js`
@@ -94,92 +105,84 @@ The document loop is now split across explicit runtimes:
 - `src/domains/document/documentWorkflowActionRuntime.js`
 - `src/domains/document/documentWorkflowAiRuntime.js`
 
-`src/stores/documentWorkflow.js` is now primarily a migration shell exposing those seams to the UI.
+`src/stores/documentWorkflow.js` is now primarily a migration shell over those runtimes.
 
 ### Change / Snapshot / History
 
-The clearest safety-model architecture is now in `src/domains/changes/*`:
+The clearest safety-model architecture is in `src/domains/changes/*`, including:
 
-- explicit history availability, preparation, message, commit, and history-point intent runtimes
-- Git-backed snapshot mapping plus metadata and manifest seams
-- local workspace save-point index and payload runtimes
-- workspace preview/diff/apply/delete runtimes
-- Git-backed file version history runtime kept separate from workspace save-point restore
+- explicit history availability, preparation, message, commit, and history-point intent
+- snapshot record, metadata, and manifest layers
+- local workspace save-point index and payload layers
+- workspace preview/diff/apply/delete behavior
+- file version history runtime kept separate from workspace save-point restore
 
-### Store Reduction Work
+### Files / References / Terminal / Chat
 
-Large slices of `files`, `references`, `chat`, `terminal`, `workspace`, and `editor` have already moved into domain runtimes.
+These areas now have real extracted runtime seams, even if the stores are not yet minimal:
 
-This means the repository now has a real runtime-oriented architecture, even though stores and services still remain broader than the target state.
+- files tree/content/mutation runtimes
+- reference library/load/migration/mutation/asset runtimes
+- terminal lifecycle/execution/hydration/log/session runtimes
+- chat persistence/session/message/title/runtime-config/live-instance runtimes
+
+## Execution / Notebook Status
+
+The computation stack currently spans multiple layers:
+
+- `src/components/editor/NotebookEditor.vue`
+- `src/stores/kernel.js`
+- `src/stores/environment.js`
+- `src/services/chunkKernelBridge.js`
+- `src/services/notebookDocument.js`
+- `src-tauri/src/kernel.rs`
+
+This already provides:
+
+- Jupyter kernelspec discovery
+- Python / R / Julia kernel support
+- notebook cell execution
+- chunk execution from text/code editing surfaces
+- environment detection and kernel installation prompts
+
+What is still missing is one explicit `execution` or `notebook` domain boundary that unifies those flows.
 
 ## Backend Shape
 
 The Rust/Tauri backend is still comparatively flat.
 
-Current modules live directly under `src-tauri/src/`, including:
+Current major modules live directly under `src-tauri/src/`, including:
 
 - `fs_commands.rs`
 - `git.rs`
+- `kernel.rs`
 - `latex.rs`
+- `pdf_translate.rs`
 - `pty.rs`
-- `tinymist.rs`
 - `typst_export.rs`
 - `workspace_access.rs`
 
-`src-tauri/src/lib.rs` still wires many commands and protocol helpers directly from this flat module layout.
+`src-tauri/src/lib.rs` still wires many commands directly from this flat module layout.
 
 The backend has not yet been migrated into the target `commands/core/services/models/errors` layering.
 
-## Main Current Architectural Boundaries
+## Current Architecture Direction
 
-The current practical architecture can be summarized like this:
+The current practical direction is:
 
 - app hooks choose top-level shell actions
-- domain runtimes own the best current orchestration seams
-- services provide effectful helpers and cross-domain integration glue
-- stores bridge UI state into those runtimes
-- components and composables render UI and invoke store/app actions
-- the Rust backend still exposes a flatter command/module surface than the frontend target shape
+- domain runtimes own the best current workflow seams
+- services provide effectful adapters
+- stores bridge reactive state into those runtimes
+- components/composables render UI and invoke thin bridges
+- the backend still needs the first real layering pass
 
-## Remaining Direct AI Launch Surfaces
-
-The document workflow toolbar is now behind `documentWorkflowAiRuntime`, but direct AI launch calls still exist in these files:
-
-- `src/components/ai/AiQuickPanel.vue`
-- `src/components/ai/AiWorkbenchHome.vue`
-- `src/components/chat/ChatSession.vue`
-- `src/components/editor/AiLauncher.vue`
-- `src/components/editor/NotebookEditor.vue`
-- `src/components/editor/ReferenceView.vue`
-- `src/components/sidebar/ReferenceList.vue`
-- `src/services/commentActions.js`
-
-Direct `launchWorkflowTask(...)` callers still exist in:
-
-- `src/components/ai/AiQuickPanel.vue`
-- `src/components/ai/AiWorkbenchHome.vue`
-- `src/components/editor/AiLauncher.vue`
-
-These are the clearest current cleanup targets for the next AI-operation tightening pass.
-
-## Current Migration Shells And Deletion Targets
-
-The main near-term bridge/deletion targets are:
-
-- `src/stores/documentWorkflow.js`
-  It is now a runtime-backed migration shell rather than the real orchestration home.
-- `src/composables/useEditorPaneWorkflow.js`
-  It still carries thin compile-button and toolbar glue even after the major document seams were extracted.
-- remaining direct AI launch callers listed above
-  They should eventually route through clearer app/domain seams instead of constructing launch payloads inline.
-
-These are not all safe to delete immediately, but they are now explicit cleanup targets instead of hidden leftovers.
-
-## Current Architecture Risks
+## Current Risks
 
 The biggest current architecture risks are:
 
-- the backend is still flat while frontend domain seams are multiplying
-- some large stores and UI components remain coupled
-- AI launch entry points are still distributed outside one shared operation seam
-- architecture docs can become stale again if future refactor slices land without updating them
+- the backend is still flat while frontend seams multiply
+- notebook/kernel logic is spread across component, store, service, and Rust layers
+- some large components remain highly coupled
+- AI launch entry points are still distributed
+- docs can drift if architecture changes land without doc updates

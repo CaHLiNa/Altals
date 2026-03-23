@@ -1,80 +1,152 @@
 <template>
-  <header class="header-root grid items-center select-none shrink-0 relative"
+  <header
+    class="header-root"
     data-tauri-drag-region
     :style="headerStyle"
   >
-    <div class="header-surface-slot" data-tauri-drag-region>
-      <div
-        v-if="workspace.isOpen"
-        class="header-surface-switcher"
-      >
+    <div class="header-nav-cluster" data-tauri-drag-region>
+      <div class="header-brand-mark">
+        <span class="header-brand-kicker">Altals</span>
+        <span class="header-brand-copy">{{ workspace.isOpen ? t('Research workspace') : t('Local-first academic workspace') }}</span>
+      </div>
+
+      <div v-if="workspace.isOpen" class="header-workflow-nav">
         <button
           type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'workspace' }"
-          :title="t('Open project workspace')"
-          @click="focusWorkspaceSurface"
+          class="header-workflow-button"
+          :class="{ 'is-active': isProjectHomeActive }"
+          :title="t('Open project home')"
+          @click="openProjectHome"
         >
-          <span class="header-surface-label">{{ t('Project') }}</span>
+          <IconFolderOpen :size="13" :stroke-width="1.7" />
+          <span>{{ t('Project') }}</span>
         </button>
         <button
           type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'library' }"
-          :title="t('Open global library')"
+          class="header-workflow-button"
+          :class="{ 'is-active': isWritingActive }"
+          :title="t('Return to the current writing context')"
+          @click="focusWritingWorkspace"
+        >
+          <IconFileText :size="13" :stroke-width="1.7" />
+          <span>{{ t('Writing') }}</span>
+        </button>
+        <button
+          type="button"
+          class="header-workflow-button"
+          :class="{ 'is-active': workspace.isLibrarySurface }"
+          :title="t('Open evidence and references')"
           @click="openLibrary"
         >
-          <IconBook2 :size="11" :stroke-width="1.7" />
-          <span class="header-surface-label">{{ t('Library') }}</span>
+          <IconBook2 :size="13" :stroke-width="1.7" />
+          <span>{{ t('Evidence') }}</span>
         </button>
         <button
           type="button"
-          class="header-surface-button"
-          :class="{ 'is-active': workspace.primarySurface === 'ai' }"
-          :title="t('Open AI workspace')"
+          class="header-workflow-button"
+          :class="{ 'is-active': workspace.isAiSurface || aiDrawer.open }"
+          :title="t('Open assist workspace')"
           @click="openAiWorkbench"
         >
-          <IconSparkles :size="11" :stroke-width="1.7" />
-          <span class="header-surface-label">{{ t('AI') }}</span>
+          <IconSparkles :size="13" :stroke-width="1.7" />
+          <span>{{ t('Assist') }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Right: sidebar toggles + settings -->
-      <div class="flex items-center gap-0.5 justify-self-end" data-tauri-drag-region>
+    <button
+      v-if="workspace.isOpen"
+      type="button"
+      class="header-context-card"
+      :title="t('Quick open ({shortcut})', { shortcut: `${modKey}+P` })"
+      @click="focusSearch"
+    >
+      <div class="header-context-kicker">{{ workspaceName }}</div>
+      <div class="header-context-title-row">
+        <span class="header-context-title">{{ activeContextTitle }}</span>
+        <span
+          v-if="buildSummaryLabel"
+          class="header-state-pill"
+          :class="`is-${buildSummaryTone}`"
+        >
+          {{ buildSummaryLabel }}
+        </span>
+      </div>
+      <div class="header-context-meta">
+        <span class="truncate">{{ activeContextMeta }}</span>
+        <span class="header-context-shortcut">{{ modKey }}+P</span>
+      </div>
+    </button>
+
+    <div v-else class="header-context-card is-launcher" data-tauri-drag-region>
+      <div class="header-context-kicker">{{ t('Project-first workflow') }}</div>
+      <div class="header-context-title-row">
+        <span class="header-context-title">{{ t('Open a local project and continue the work.') }}</span>
+      </div>
+      <div class="header-context-meta">
+        <span>{{ t('Writing, evidence, build, recovery, and assist stay in one local workspace.') }}</span>
+      </div>
+    </div>
+
+    <div class="header-controls" data-tauri-drag-region>
+      <div v-if="workspace.isOpen" class="header-status-strip">
+        <button
+          type="button"
+          class="header-status-button"
+          :class="`is-${changeSummaryTone}`"
+          :title="changeSummaryTooltip"
+          @click="$emit('open-workspace-snapshots')"
+        >
+          <span class="header-status-label">{{ t('Changes') }}</span>
+          <span class="header-status-value">{{ changeSummaryLabel }}</span>
+        </button>
+        <button
+          type="button"
+          class="header-status-button is-neutral"
+          :title="t('Open saved versions')"
+          @click="$emit('open-workspace-snapshots')"
+        >
+          <span class="header-status-label">{{ t('Recovery') }}</span>
+          <span class="header-status-value">{{ t('Saved versions') }}</span>
+        </button>
+      </div>
+
       <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: workspace.leftSidebarOpen ? 'var(--fg-primary)' : 'var(--fg-muted)' }"
+        v-if="workspace.isOpen"
+        class="header-chrome-button"
+        :class="{ 'is-active': workspace.leftSidebarOpen }"
         @click="workspace.toggleLeftSidebar()"
         :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
       >
         <component
           :is="workspace.leftSidebarOpen ? IconLayoutSidebarFilled : IconLayoutSidebar"
-          :size="HEADER_ICON_SIZE" :stroke-width="1.5"
+          :size="15"
+          :stroke-width="1.5"
         />
       </button>
       <button
-        v-if="!workspace.isAiSurface"
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        :style="{ color: aiLauncherOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
+        v-if="workspace.isOpen && !workspace.isAiSurface"
+        class="header-chrome-button"
+        :class="{ 'is-accent': aiLauncherOpen }"
         @click="handleOpenAi"
         :title="aiButtonTitle"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-        @mouseout="$event.currentTarget.style.background='transparent'"
       >
-        <IconSparkles :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
+        <IconSparkles :size="15" :stroke-width="1.5" />
       </button>
       <button
-        class="header-chrome-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-        style="color: var(--fg-muted);"
+        v-if="workspace.isOpen"
+        class="header-chrome-button"
+        @click="focusSearch"
+        :title="t('Quick open ({shortcut})', { shortcut: `${modKey}+P` })"
+      >
+        <IconSearch :size="15" :stroke-width="1.5" />
+      </button>
+      <button
+        class="header-chrome-button"
         @click="$emit('open-settings')"
         :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
-        @mouseover="$event.currentTarget.style.background='var(--bg-hover)';$event.currentTarget.style.color='var(--fg-primary)'"
-        @mouseout="$event.currentTarget.style.background='transparent';$event.currentTarget.style.color='var(--fg-muted)'"
       >
-        <IconSettings :size="HEADER_ICON_SIZE" :stroke-width="1.5" />
+        <IconSettings :size="15" :stroke-width="1.5" />
       </button>
     </div>
   </header>
@@ -82,7 +154,7 @@
   <Teleport to="body">
     <template v-if="showResults">
       <div class="header-command-overlay" @click="closeSearchPalette"></div>
-      <div class="header-command-shell">
+      <div class="header-command-shell" :style="{ top: `${HEADER_HEIGHT + 12}px` }">
         <div class="header-command-panel">
           <div
             class="header-command-input-wrap"
@@ -110,7 +182,7 @@
               @blur="onBlur"
               @keydown="onSearchKeydown"
             />
-            <kbd class="shrink-0" style="padding: 0 4px; line-height: 16px;">
+            <kbd class="header-command-kbd">
               {{ modKey }}+P
             </kbd>
           </div>
@@ -141,10 +213,29 @@ import { useAiDrawerStore } from '../../stores/aiDrawer'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
+import { useReviewsStore } from '../../stores/reviews'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
+import { useLatexStore } from '../../stores/latex'
+import { useTypstStore } from '../../stores/typst'
 import {
-  IconLayoutSidebar, IconLayoutSidebarFilled,
-  IconBook2, IconSettings, IconSearch, IconSparkles,
+  IconBook2,
+  IconFileText,
+  IconFolderOpen,
+  IconLayoutSidebar,
+  IconLayoutSidebarFilled,
+  IconSearch,
+  IconSettings,
+  IconSparkles,
 } from '@tabler/icons-vue'
+import {
+  isAiWorkbenchPath,
+  isChatTab,
+  isLibraryPath,
+  isNewTab,
+  isPreviewPath,
+  isReferencePath,
+  previewSourcePathFromPath,
+} from '../../utils/fileTypes'
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
@@ -152,7 +243,7 @@ import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
 
-const emit = defineEmits(['open-settings'])
+const emit = defineEmits(['open-settings', 'open-workspace-snapshots'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
@@ -160,24 +251,47 @@ const aiDrawer = useAiDrawerStore()
 const aiWorkbench = useAiWorkbenchStore()
 const toastStore = useToastStore()
 const referencesStore = useReferencesStore()
+const reviews = useReviewsStore()
+const workflowStore = useDocumentWorkflowStore()
+const latexStore = useLatexStore()
+const typstStore = useTypstStore()
 const { t } = useI18n()
 const isMacDesktop = isMac
   && typeof window !== 'undefined'
   && !!window.__TAURI_INTERNALS__
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
-const HEADER_HEIGHT = 30
-const HEADER_ICON_SIZE = 12
-const HEADER_SEARCH_HEIGHT = 24
-const HEADER_SEARCH_INPUT_HEIGHT = 22
-const HEADER_SEARCH_ICON_SIZE = 12
-const DEFAULT_HEADER_SIDE_PADDING = 12
-const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
+const HEADER_HEIGHT = 56
+const HEADER_SEARCH_INPUT_HEIGHT = 24
+const HEADER_SEARCH_ICON_SIZE = 14
+const DEFAULT_HEADER_SIDE_PADDING = 14
+const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 78
 const EDITOR_WAIT_TIMEOUT_MS = 1500
-const FULLSCREEN_HEADER_LEFT_PADDING = 12
+const FULLSCREEN_HEADER_LEFT_PADDING = 14
 
 function toPx(value) {
   return `${Math.round(value * 100) / 100}px`
+}
+
+function fileName(path = '') {
+  return String(path || '').split('/').pop() || path
+}
+
+function isContextCandidate(path) {
+  return !!path
+    && !isChatTab(path)
+    && !isLibraryPath(path)
+    && !isAiWorkbenchPath(path)
+    && !isReferencePath(path)
+    && !isNewTab(path)
+}
+
+function countProblemsBySeverity(problems = []) {
+  const entries = Array.isArray(problems) ? problems : []
+  return {
+    errorCount: entries.filter((entry) => entry?.severity === 'error').length,
+    warningCount: entries.filter((entry) => entry?.severity === 'warning').length,
+  }
 }
 
 const appZoomScale = computed(() => {
@@ -196,15 +310,14 @@ const macHeaderLeftPadding = computed(() => {
 })
 
 const headerStyle = computed(() => ({
-  gridTemplateColumns: '1fr auto',
-  background: 'var(--bg-secondary)',
-  borderBottom: '1px solid var(--border)',
+  gridTemplateColumns: 'auto minmax(320px, 1fr) auto',
+  background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 92%, transparent), color-mix(in srgb, var(--bg-primary) 88%, transparent))',
+  borderBottom: '1px solid color-mix(in srgb, var(--border) 88%, transparent)',
   paddingLeft: isMac ? toPx(macHeaderLeftPadding.value) : toPx(DEFAULT_HEADER_SIDE_PADDING),
-  paddingRight: '8px',
+  paddingRight: '12px',
   height: `${HEADER_HEIGHT}px`,
 }))
 
-// Search
 const searchInputRef = ref(null)
 const searchResultsRef = ref(null)
 const query = ref('')
@@ -215,7 +328,124 @@ const showResults = computed(() => searchOpen.value)
 const aiLauncherOpen = computed(() => aiDrawer.open)
 const aiButtonTitle = computed(() => (aiDrawer.open ? t('Close Quick AI') : t('Open Quick AI')))
 
-const searchPlaceholder = computed(() => t('Go to file...'))
+const searchPlaceholder = computed(() => t('Open document, citation, or AI conversation...'))
+
+const workspaceName = computed(() => {
+  const path = workspace.path || ''
+  return path ? fileName(path) : t('No project open')
+})
+
+const activeContextPath = computed(() => {
+  const activeTab = editorStore.activeTab
+  if (isPreviewPath(activeTab)) {
+    return previewSourcePathFromPath(activeTab) || ''
+  }
+  if (isContextCandidate(activeTab)) {
+    return activeTab
+  }
+  return editorStore.preferredContextPath || ''
+})
+
+const activeContextTitle = computed(() => (
+  activeContextPath.value
+    ? fileName(activeContextPath.value)
+    : t('Project home and recent work')
+))
+
+const activeContextMeta = computed(() => {
+  if (!activeContextPath.value) {
+    return t('Continue recent documents, build review, recovery, and assist from one place.')
+  }
+  if (!workspace.path || !activeContextPath.value.startsWith(`${workspace.path}/`)) {
+    return activeContextPath.value
+  }
+  return activeContextPath.value.slice(workspace.path.length + 1)
+})
+
+const workflowOptions = computed(() => ({
+  editorStore,
+  workspace,
+  latexStore,
+  typstStore,
+  referencesStore,
+  t,
+}))
+
+const activeWorkflowState = computed(() => (
+  activeContextPath.value
+    ? workflowStore.getUiStateForFile(activeContextPath.value, workflowOptions.value)
+    : null
+))
+
+const activeWorkflowProblems = computed(() => (
+  activeContextPath.value
+    ? workflowStore.getProblemsForFile(activeContextPath.value, workflowOptions.value)
+    : []
+))
+
+const buildSummaryTone = computed(() => {
+  const uiState = activeWorkflowState.value
+  const { errorCount, warningCount } = countProblemsBySeverity(activeWorkflowProblems.value)
+  if (uiState?.phase === 'compiling' || uiState?.phase === 'rendering') return 'running'
+  if (errorCount > 0) return 'error'
+  if (warningCount > 0) return 'warning'
+  if (uiState?.phase === 'ready') return 'success'
+  return 'neutral'
+})
+
+const buildSummaryLabel = computed(() => {
+  const uiState = activeWorkflowState.value
+  const { errorCount, warningCount } = countProblemsBySeverity(activeWorkflowProblems.value)
+  if (uiState?.phase === 'compiling' || uiState?.phase === 'rendering') {
+    return t('Building')
+  }
+  if (errorCount > 0) {
+    return t('Needs attention')
+  }
+  if (warningCount > 0) {
+    return t('Warnings')
+  }
+  if (uiState?.phase === 'ready') {
+    return t('Ready')
+  }
+  return ''
+})
+
+const changeSummaryTone = computed(() => {
+  if (reviews.pendingCount > 0) return 'warning'
+  if (activeContextPath.value && editorStore.dirtyFiles.has(activeContextPath.value)) return 'accent'
+  if (editorStore.dirtyFiles.size > 0) return 'accent'
+  return 'neutral'
+})
+
+const changeSummaryLabel = computed(() => {
+  if (reviews.pendingCount > 0) {
+    return t('{count} proposal(s)', { count: reviews.pendingCount })
+  }
+  if (activeContextPath.value && editorStore.dirtyFiles.has(activeContextPath.value)) {
+    return t('Draft changed')
+  }
+  if (editorStore.dirtyFiles.size > 0) {
+    return t('{count} unsaved', { count: editorStore.dirtyFiles.size })
+  }
+  return t('Saved')
+})
+
+const changeSummaryTooltip = computed(() => {
+  if (reviews.pendingCount > 0) {
+    return t('Open saved versions and review workspace changes')
+  }
+  return t('Open saved versions and recovery tools')
+})
+
+const isProjectHomeActive = computed(() => (
+  workspace.isWorkspaceSurface
+  && (!editorStore.activeTab || isNewTab(editorStore.activeTab))
+))
+
+const isWritingActive = computed(() => (
+  workspace.isWorkspaceSurface && !isProjectHomeActive.value
+))
 
 function onFocus() {
   searchFocused.value = true
@@ -227,26 +457,25 @@ function onBlur() {
   }, 80)
 }
 
-function onSearchKeydown(e) {
-  if (e.key === 'Escape') {
+function onSearchKeydown(event) {
+  if (event.key === 'Escape') {
     closeSearchPalette()
-    e.preventDefault()
+    event.preventDefault()
     return
   }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
     searchResultsRef.value?.moveSelection(1)
     return
   }
-  if (e.key === 'ArrowUp') {
-    e.preventDefault()
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
     searchResultsRef.value?.moveSelection(-1)
     return
   }
-  if (e.key === 'Enter') {
-    e.preventDefault()
+  if (event.key === 'Enter') {
+    event.preventDefault()
     searchResultsRef.value?.confirmSelection()
-    return
   }
 }
 
@@ -287,10 +516,21 @@ function handleOpenAi() {
   aiDrawer.toggle()
 }
 
-function focusWorkspaceSurface() {
+function openProjectHome() {
   if (!workspace.isOpen) return
   workspace.openWorkspaceSurface()
-  const targetPath = editorStore.preferredContextPath || ''
+  const paneId = editorStore.activePaneId || 'pane-root'
+  const activePane = editorStore.activePane
+  if (activePane?.activeTab && isNewTab(activePane.activeTab)) {
+    return
+  }
+  editorStore.openNewTab(paneId)
+}
+
+function focusWritingWorkspace() {
+  if (!workspace.isOpen) return
+  workspace.openWorkspaceSurface()
+  const targetPath = editorStore.preferredContextPath || activeContextPath.value
   if (targetPath) {
     const existingPane = editorStore.findPaneWithTab(targetPath)
     if (existingPane) {
@@ -307,12 +547,7 @@ function focusWorkspaceSurface() {
     return
   }
 
-  const activePaneId = editorStore.activePaneId
-  if (activePaneId) {
-    editorStore.openNewTab(activePaneId)
-    return
-  }
-  editorStore.openNewTab()
+  openProjectHome()
 }
 
 function openAiWorkbench() {
@@ -406,104 +641,310 @@ defineExpose({ focusSearch })
 </script>
 
 <style scoped>
-.header-surface-slot {
+.header-root {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  position: relative;
+  backdrop-filter: blur(18px);
+}
+
+.header-nav-cluster {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  gap: 14px;
   min-width: 0;
-  height: 100%;
 }
 
-.header-surface-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: auto;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  flex-wrap: nowrap;
+.header-brand-mark {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.header-surface-button {
-  width: clamp(56px, 5.6vw, 68px);
-  height: 22px;
-  padding: 0 clamp(6px, 0.8vw, 10px);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-primary) 90%, var(--bg-secondary));
-  color: var(--fg-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
-  position: relative;
-  box-sizing: border-box;
-}
-
-.header-surface-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 70%, var(--bg-primary));
-  color: var(--fg-secondary);
-}
-
-.header-surface-button.is-active {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--accent) 11%, var(--bg-primary));
+.header-brand-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--fg-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-.header-surface-label {
-  font-size: clamp(10px, 0.92vw, 11px);
+.header-brand-copy {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.header-workflow-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+}
+
+.header-workflow-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+  white-space: nowrap;
+}
+
+.header-workflow-button:hover {
+  color: var(--fg-secondary);
+  background: color-mix(in srgb, var(--bg-hover) 78%, transparent);
+}
+
+.header-workflow-button.is-active {
+  color: var(--fg-primary);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-primary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.header-workflow-button span {
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-.header-chrome-button {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+.header-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, transparent), transparent 42%),
+    color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease, background-color 140ms ease;
+  min-height: 40px;
 }
 
-.header-root {
+.header-context-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
+.header-context-card.is-launcher {
+  cursor: default;
+}
+
+.header-context-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.header-context-title-row {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-context-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.header-context-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-secondary);
+}
+
+.header-context-shortcut {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  color: var(--fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.header-state-pill,
+.header-status-button {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.header-state-pill {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.header-state-pill.is-success {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.header-state-pill.is-warning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.header-state-pill.is-error {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.header-state-pill.is-running {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  background: color-mix(in srgb, var(--bg-primary) 62%, transparent);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.header-status-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+  color: var(--fg-primary);
+}
+
+.header-status-button.is-accent {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.header-status-button.is-warning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.header-status-button.is-neutral {
+  color: var(--fg-secondary);
+}
+
+.header-status-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.82;
+}
+
+.header-status-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.header-chrome-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 56%, transparent);
+  color: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.header-chrome-button:hover {
+  color: var(--fg-primary);
+  background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
+}
+
+.header-chrome-button.is-active,
+.header-chrome-button.is-accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .header-command-overlay {
   position: fixed;
   inset: 0;
   z-index: 9998;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
 }
 
 .header-command-shell {
   position: fixed;
-  top: 38px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(560px, calc(100vw - 28px));
+  width: min(680px, calc(100vw - 28px));
   z-index: 9999;
 }
 
 .header-command-panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .header-command-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 10px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-primary);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-primary) 96%, transparent);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.22);
 }
 
 .header-command-input {
@@ -513,28 +954,22 @@ defineExpose({ focusSearch })
   outline: none;
   background: transparent;
   color: var(--fg-primary);
-  font-size: var(--ui-font-label);
+  font-size: var(--ui-font-body);
   font-family: inherit;
+}
+
+.header-command-kbd {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 22px;
+  white-space: nowrap;
 }
 
 .header-command-results {
   position: relative;
-}
-
-@media (max-width: 980px) {
-  .header-surface-switcher {
-    gap: 3px;
-  }
-
-  .header-surface-button {
-    width: 56px;
-    padding: 0 7px;
-    gap: 3px;
-  }
-
-  .header-surface-button svg {
-    display: none;
-  }
 }
 
 .header-command-results :deep(.search-results-dropdown) {
@@ -543,8 +978,68 @@ defineExpose({ focusSearch })
   left: auto;
   transform: none;
   width: 100%;
-  max-height: min(62vh, 460px);
-  border-radius: 10px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  max-height: min(62vh, 520px);
+  border-radius: 14px;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 1180px) {
+  .header-root {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .header-context-card {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .header-controls {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 880px) {
+  .header-root {
+    gap: 10px;
+    padding-right: 10px !important;
+  }
+
+  .header-workflow-nav {
+    overflow-x: auto;
+    max-width: min(100%, 420px);
+  }
+
+  .header-workflow-button span,
+  .header-status-label {
+    display: none;
+  }
+
+  .header-brand-copy,
+  .header-context-shortcut {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-root {
+    grid-template-columns: 1fr auto;
+    height: auto !important;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .header-nav-cluster {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .header-status-strip {
+    display: none;
+  }
+
+  .header-context-card {
+    padding: 10px 12px;
+  }
 }
 </style>

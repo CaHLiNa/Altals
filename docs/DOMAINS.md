@@ -4,7 +4,7 @@
 
 This document records the current domain map in Altals.
 
-It focuses on the domain/runtime boundaries that already exist in the repository today.
+It focuses on the domain/runtime boundaries that already exist today and the major missing ones.
 
 ## Current Frontend Domain Map
 
@@ -27,17 +27,8 @@ Current responsibility:
 - preview/open/reconcile
 - build execution
 - diagnostics/status visibility
-- typst preview/pdf shared-pane state
+- Typst preview/pdf shared-pane state
 - document-toolbar AI diagnose/fix launch
-
-Key files:
-
-- `documentWorkflowRuntime.js`
-- `documentWorkflowBuildRuntime.js`
-- `documentWorkflowBuildOperationRuntime.js`
-- `documentWorkflowTypstPaneRuntime.js`
-- `documentWorkflowActionRuntime.js`
-- `documentWorkflowAiRuntime.js`
 
 ### `src/domains/changes`
 
@@ -55,7 +46,7 @@ This is the strongest current safety-model domain.
 
 Current responsibility:
 
-- file tree cache, refresh, hydration, watch, flat-file index
+- file tree cache, refresh, hydration, watch, and flat-file index
 - file content read/save and PDF handling
 - create/import/rename/move/delete coordination
 - shared workspace text-file limits used by save-point capture
@@ -132,12 +123,12 @@ Current file:
 This layer still contains:
 
 - AI launch and workflow services
-- document workflow adapters
-- Latex/Typst helpers
-- terminal helpers
+- compiler/build adapters
+- notebook/chunk execution helpers
+- filesystem/process helpers
 - other effectful integrations
 
-`src/services` is still broader than the target architecture and still contains some de facto subdomains.
+It is broader than the target architecture and still contains several de facto subdomains.
 
 ### `src/stores`
 
@@ -151,9 +142,11 @@ They still matter, but they are no longer the only architecture boundary.
 
 ### `src/components` and `src/composables`
 
-This is still where UI surfaces live, but more orchestration has now moved behind domain runtimes.
+This is where UI surfaces live, but too much workflow logic can still leak back in if the domains are not strengthened.
 
-## Current Missing Domain Boundary
+## Current Missing Domain Boundaries
+
+### Missing `src/domains/ai`
 
 There is still no landed `src/domains/ai` family.
 
@@ -161,10 +154,21 @@ AI behavior currently spans:
 
 - `src/services/ai/*`
 - `src/stores/aiWorkflowRuns.js`
-- a few UI entry surfaces
+- several UI entry surfaces
 - `src/domains/document/documentWorkflowAiRuntime.js`
 
-This is one of the clearest remaining domain-shape gaps.
+### Missing `src/domains/execution` or `src/domains/notebook`
+
+Notebook and computation behavior currently spans:
+
+- `src/components/editor/NotebookEditor.vue`
+- `src/stores/kernel.js`
+- `src/stores/environment.js`
+- `src/services/chunkKernelBridge.js`
+- `src/services/notebookDocument.js`
+- `src-tauri/src/kernel.rs`
+
+That means Altals already supports notebook/kernel-backed computation, but it does not yet expose it through one explicit frontend domain boundary.
 
 ## Backend Domain Status
 
@@ -177,5 +181,6 @@ Current backend modules are still flat under `src-tauri/src/`.
 Current important migration truths:
 
 - many stores are now thinner shells around `src/domains/*`
-- document workflow and workspace save points are the clearest current examples of extracted runtime seams
-- AI launch entry points remain split across multiple surfaces, so AI is only partially domainized today
+- document workflow and workspace save points are the clearest extracted runtime seams
+- terminal is better domainized than notebook execution today
+- AI and notebook/execution are the clearest missing domain-shape gaps

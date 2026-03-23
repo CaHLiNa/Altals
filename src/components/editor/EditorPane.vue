@@ -34,14 +34,23 @@
       class="document-header-stack"
       :class="{
         'document-header-stack-with-subbar': pdfToolbarTargetSelector,
-        'document-header-stack-subbar-only': !toolbarUiState && pdfToolbarTargetSelector,
+        'document-header-stack-subbar-only': !showDocumentContextHeader && pdfToolbarTargetSelector,
       }"
     >
-      <DocumentWorkflowBar
-        v-if="toolbarUiState"
-        :ui-state="toolbarUiState"
+      <DocumentContextHeader
+        v-if="showDocumentContextHeader"
+        :active-path="activeTab"
+        :source-path="activeDocumentPath"
+        :workspace-path="workspace.path || ''"
+        :viewer-type="viewerType"
+        :ui-state="workflowUiState"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
+        :problems="workflowProblems"
+        :dirty="isActiveDocumentDirty"
+        :pending-review-count="activeDocumentPendingReviewCount"
+        :unresolved-comment-count="commentToolbarBadgeCount"
+        :project-reference-count="referencesStore.refCount || 0"
         :show-run-buttons="showToolbarRunButtons"
         :show-comment-toggle="showCommentToolbar"
         :comment-active="isCommentToolbarActive"
@@ -54,12 +63,15 @@
         @diagnose-with-ai="handleWorkflowDiagnoseWithAi"
         @fix-with-ai="handleWorkflowFixWithAi"
         @toggle-comments="toggleCommentToolbar"
+        @open-version-history="openActiveDocumentVersionHistory"
+        @create-save-point="createWorkspaceSavePoint"
+        @open-assist="openContextualAssist"
       />
       <div
         v-if="pdfToolbarTargetSelector"
         :id="pdfToolbarTargetId"
         class="document-header-subbar"
-        :class="{ 'document-header-subbar-standalone': !toolbarUiState }"
+        :class="{ 'document-header-subbar-standalone': !showDocumentContextHeader }"
       />
     </div>
 
@@ -173,9 +185,10 @@ import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
+import { useReviewsStore } from '../../stores/reviews'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useReferencesStore } from '../../stores/references'
-import { getViewerType, isAiWorkbenchPath, isLibraryPath, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable } from '../../utils/fileTypes'
+import { getViewerType, isAiWorkbenchPath, isLibraryPath, isReferencePath, referenceKeyFromPath, isChatTab, getChatSessionId, isRunnable, previewSourcePathFromPath } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -194,7 +207,7 @@ const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue')
 const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
-const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
+const DocumentContextHeader = defineAsyncComponent(() => import('./DocumentContextHeader.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
@@ -218,6 +231,7 @@ const latexStore = useLatexStore()
 const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
+const reviewsStore = useReviewsStore()
 const workflowStore = useDocumentWorkflowStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
@@ -241,13 +255,38 @@ const isCommentToolbarActive = computed(() => (
 const commentToolbarBadgeCount = computed(() => (
   props.activeTab ? commentsStore.unresolvedCount(props.activeTab) : 0
 ))
-const toolbarUiState = computed(() => {
-  if (workflowUiState.value) return workflowUiState.value
-  if (showCommentToolbar.value) return { kind: 'text' }
-  return null
+const activeDocumentPath = computed(() => {
+  if (!props.activeTab) return ''
+  if (viewerType.value === 'markdown-preview' || viewerType.value === 'typst-native-preview') {
+    return previewSourcePathFromPath(props.activeTab) || props.activeTab
+  }
+  return props.activeTab
 })
+const workflowProblems = computed(() => (
+  activeDocumentPath.value
+    ? workflowStore.getProblemsForFile(activeDocumentPath.value, {
+      editorStore,
+      filesStore,
+      workspace,
+      latexStore,
+      typstStore,
+      referencesStore,
+      t,
+    })
+    : []
+))
+const isActiveDocumentDirty = computed(() => (
+  !!activeDocumentPath.value && editorStore.dirtyFiles.has(activeDocumentPath.value)
+))
+const activeDocumentPendingReviewCount = computed(() => (
+  activeDocumentPath.value ? reviewsStore.editsForFile(activeDocumentPath.value).length : 0
+))
+const showDocumentContextHeader = computed(() => (
+  !!props.activeTab
+  && !['chat', 'ai-launcher', 'newtab', 'reference'].includes(viewerType.value)
+))
 const showEditorHeader = computed(() => (
-  !!toolbarUiState.value || !!pdfToolbarTargetSelector.value
+  showDocumentContextHeader.value || !!pdfToolbarTargetSelector.value
 ))
 const TEXT_EDITOR_CACHE_MAX = 4
 
@@ -301,7 +340,6 @@ const {
 const {
   pdfToolbarTargetId,
   pdfToolbarTargetSelector,
-  showDocumentHeader,
   workflowUiState,
   workflowStatusText,
   workflowStatusTone,
@@ -390,6 +428,23 @@ async function closePane() {
 function toggleCommentToolbar() {
   if (!props.activeTab || viewerType.value !== 'text') return
   commentsStore.toggleMargin(props.activeTab)
+}
+
+function openActiveDocumentVersionHistory() {
+  const path = activeDocumentPath.value || props.activeTab
+  if (!path) return
+  window.dispatchEvent(new CustomEvent('open-file-version-history', {
+    detail: { path },
+  }))
+}
+
+function createWorkspaceSavePoint() {
+  window.dispatchEvent(new CustomEvent('app:create-snapshot'))
+}
+
+function openContextualAssist() {
+  editorStore.setActivePane(props.paneId)
+  editorStore.openAiLauncherBeside()
 }
 
 defineExpose({ startComment })

@@ -73,7 +73,7 @@
       <button
         class="flex items-center justify-center w-6 h-6 mx-0.5 shrink-0 rounded-md hover:bg-[var(--bg-hover)]"
         style="color: var(--fg-muted);"
-        :title="t('New Tab')"
+        :title="t('Open project home')"
         @click="$emit('new-tab')"
         @mousedown.stop
       >
@@ -220,7 +220,7 @@ const ghostY = ref(0)
 const ghostLabel = ref('')
 
 function fileName(path) {
-  if (isNewTab(path)) return t('New Tab')
+  if (isNewTab(path)) return t('Project Home')
   if (isAiWorkbenchPath(path)) return t('AI Workspace')
   if (isAiLauncher(path)) return t('AI')
   if (isLibraryPath(path)) return t('Library')

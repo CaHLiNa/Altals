@@ -2,7 +2,7 @@
 
 ## Overview
 
-Altals is being refactored from a broad, feature-heavy research desktop application into a focused, local-first academic writing workspace centered on project-based document editing, references, builds, changes, and AI-assisted patch workflows.
+Altals is being refactored from a broad, feature-heavy research desktop application into a focused, local-first research and academic operating system centered on project-based writing, notebook-backed computation, references, builds, history, optional Git sync, and AI-assisted patch workflows.
 
 This file is the living execution plan for the refactor. It must always reflect the real repository state, not an aspirational plan.
 
@@ -15,28 +15,34 @@ Current overall assessment:
 - Phase 4 is complete for the current planned scope: explicit history-point intent, Git-backed snapshot metadata/manifest seams, local workspace-save-point indexing, app-managed payload restore, project-text-set capture, preview/diff/apply flows, and in-scope added-file removal are all landed and validated.
 - Phase 5 is complete for the current planned scope: document-scoped AI launch routing is now behind an explicit runtime seam, the existing TeX/Typst proposal-first workflows are documented truthfully, and no broader direct-action AI path was expanded.
 - Phase 6 is complete for the current planned scope: the missing core docs baseline now exists, remaining direct AI launch/deletion targets are documented, and repo-level audit tests now guard the docs baseline plus the current direct AI launch inventory.
-- Repository state was re-audited on 2026-03-22; the current in-flight refactor state includes landed `editor`, `documentWorkflow`, and the current planned Phase 4 safety-model runtime/service extractions plus targeted tests.
+- Repository state was re-audited on 2026-03-23; active docs and agent instructions are now aligned with the broader research-operating-system definition, while the biggest remaining product-shape gap is the missing execution/notebook domain boundary.
+- The active user-directed slice has temporarily shifted to a UI OS redesign track because the shell still feels older and more IDE-like than the underlying research-workspace model.
+- The first UI OS redesign slice is now landed: the shell header is workflow-oriented, the project continue surface is no longer a thin launcher, the active document has a real context header, and the footer is visually demoted without changing the underlying safety model.
 
 ## Product Direction
 
 Target product definition:
 
-> A local-first, project-directory-centered academic writing workspace.
+> A local-first, project-directory-centered research and academic operating system.
 
 Primary workflow:
 
 1. Open project
-2. Browse files
-3. Edit document
-4. Manage references
-5. Build / preview
-6. Review changes
-7. Use AI through auditable proposals
+2. Browse files and references
+3. Draft in Markdown and notebooks
+4. Author in LaTeX / Typst and related project files
+5. Run code through notebook and terminal-backed execution flows
+6. Build / preview outputs
+7. Review changes and restore points
+8. Optionally sync with Git
+9. Use AI through auditable proposals
 
 First-class product objects:
 
 - Project
 - Document
+- Notebook
+- Computation
 - Reference
 - Build
 - Change
@@ -46,12 +52,11 @@ Secondary/supporting systems:
 
 - Git
 - remote sync
-- terminal
 - AI chat
 - experimental panels
 - legacy migration shims
 
-If there is tension between the writing workflow and support systems, the writing workflow wins.
+If there is tension between the core research workflow and support systems, the research workflow wins.
 
 ## Architectural Principles
 
@@ -69,14 +74,15 @@ If there is tension between the writing workflow and support systems, the writin
 Target frontend direction:
 
 - `src/app`
-- `src/domains/project`
+- `src/domains/workspace`
+- `src/domains/files`
 - `src/domains/document`
+- `src/domains/execution`
 - `src/domains/reference`
 - `src/domains/build`
 - `src/domains/changes`
 - `src/domains/ai`
 - `src/domains/git`
-- `src/domains/terminal`
 - `src/shared`
 
 Target Rust direction:
@@ -93,6 +99,9 @@ Target Rust direction:
 
 The repository has already moved away from a fully App-centric structure, but it has not yet reached a stable domain-oriented architecture.
 
+The writing/build/history loop is the strongest landed product path.
+The notebook/kernel/terminal-backed computation loop is real, but still fragmented across components, stores, services, and flat Rust modules.
+
 The current strongest signs of progress are:
 
 - `src/app` entry-layer boundaries have been established.
@@ -103,12 +112,32 @@ The current strongest signs of progress are:
 - `files` and `workspace` have both gone through repeated runtime extraction cycles and are no longer the clearest Phase 2 bottlenecks.
 - `src/domains/document/documentWorkflowRuntime.js` now marks the first concrete Phase 3 main-loop boundary.
 - `src/services/workspaceHistoryRepo.js` now marks the first concrete Phase 4 safety-model boundary, separating history repo bootstrap from auto-commit execution.
+- Notebook execution, kernel discovery, and environment setup are all present in the codebase, but they still lack one explicit `execution` / `notebook` domain family.
 
 ### Frontend current state
 
 #### App/root layer
 
 The root app component has already been reduced through extraction of several orchestration modules, including workspace lifecycle, shell event bridge, workspace history actions, teardown handling, and footer status sync.
+
+#### Shell / IA reality
+
+The biggest remaining frontend product-shape issue is now interaction hierarchy rather than missing shell plumbing.
+
+Current shell symptoms:
+
+- `Header.vue` still centers a tool/surface switcher (`Project` / `Library` / `AI`) instead of a workflow shell
+- `WorkspaceStarter.vue` exists, but still behaves more like a thin empty-state launcher than a true project continue surface
+- `EditorPane.vue` still leads with tabs and sub-bars, so documents read as pane content rather than first-class research objects
+- `Footer.vue` still carries too much product-level meaning through dense status controls and low-level utility affordances
+- the combined effect still reads as a multi-pane IDE with research features attached
+
+The first redesign pass has now started changing that shape:
+
+- `Header.vue` now frames the app around workflow navigation plus project/document context instead of only tool surfaces
+- `WorkspaceStarter.vue` now acts as a project continue surface with recent documents, attention items, saved versions, and contextual workbench entry points
+- `EditorPane.vue` now uses a document context header so build/change/recovery/assist actions attach to the active document instead of only to tabs and narrow toolbars
+- `Footer.vue` is now calmer and more secondary while still preserving save/sync/terminal/recovery hooks
 
 #### Large store reduction progress
 
@@ -750,6 +779,7 @@ Exit criteria:
 - post-extraction stabilization after `editor` first-round split
 - transition of store-boundary reduction focus toward `files`
 - `files` detailed audit completed; first narrow slice selected as tree cache / workspace snapshot runtime
+- UI OS redesign now continues beyond the first shell pass; the next remaining product-shape gap is the still IDE-like left sidebar / evidence / build / changes hierarchy
 - `files` first runtime extraction has landed; focus remains on `files` for at least one more slice before reevaluating `workspace`
 - 2026-03-22 execution cycle: re-auditing `files` post-watch state, docs truthfulness, and validation gaps before the next code slice lands
 - `files` refresh/runtime orchestration has now been extracted into a dedicated domain runtime module; next decision is whether to continue with watch/poll orchestration in the same domain
@@ -1466,13 +1496,14 @@ Exit criteria:
 - Workspace save-point preview/restore now models captured-file replay, chunk-level apply/restore, and in-scope added-file removal inside the filtered `project-text-set`, but it still is not a whole-workspace rewind and does not delete files outside that explicit scope
 - Backend flattening is still untouched and could become harder if frontend assumptions harden further
 - The docs baseline now exists, but it can become stale again if later refactor slices land without updating the architecture/testing/product docs alongside the blueprint
+- The repository now describes itself more accurately as a research-and-academic workspace, but the code still lacks a first-class execution/notebook boundary to match that broader product definition
 
 ## Next Recommended Slice
 
-1. The current planned Phase 6 scope is complete; do not reopen it with docs-only churn or cosmetic cleanup
-2. Start backend planning by auditing `src-tauri/src/latex.rs` and `src-tauri/src/fs_commands.rs` for the first safe command/core/service split opportunity
-3. Use `docs/ARCHITECTURE.md` and `docs/BUILD_SYSTEM.md` to record the exact first backend layering target and what will intentionally remain flat for now
-4. Validate the next slice with the narrowest Rust-facing verification available plus `node --test tests/*.test.mjs` and `npm run build`
+1. Do not reopen the first shell/header/project-home/document-header slice as cosmetic churn unless product reality changes or a concrete usability issue appears
+2. Continue the UI OS redesign by reworking the left sidebar and evidence/build/changes hierarchy so files, references, outline, and recovery stop feeling like equal-weight IDE panels
+3. Move more build and changes language to summary-first writer-facing affordances before exposing raw logs or low-level mechanics
+4. After the UI track reaches a stable shell and sidebar hierarchy, return to execution/notebook boundary planning by auditing `src/components/editor/NotebookEditor.vue`, `src/stores/kernel.js`, `src/stores/environment.js`, `src/services/chunkKernelBridge.js`, and `src-tauri/src/kernel.rs`
 5. Keep workspace snapshot restore separate from Git-backed file-history restore, and keep AI mutation flowing through reviewable workflow/checkpoint paths rather than direct mutation entry points
 
 ## Validation Checklist
@@ -1481,6 +1512,9 @@ Exit criteria:
 - [x] architecture docs baseline exists
 - [x] testing docs baseline exists
 - [x] required top-level docs presence is guarded by an audit test
+- [x] medium-term plan exists under `docs/plan/README.md`
+- [x] directory-scoped `AGENTS.md` files exist for the main work surfaces
+- [x] active docs now describe Altals as a broader research-and-academic operating system rather than only a paper-writing workspace
 - [x] remaining direct AI launch callers are documented and guarded by an audit test
 - [x] App-layer boundary extraction is documented
 - [x] `App.vue` responsibility has materially shrunk
