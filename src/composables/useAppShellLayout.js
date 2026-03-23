@@ -13,8 +13,14 @@ const leftSidebarWidth = ref(readNumberFromStorage('leftSidebarWidth', DEFAULT_L
 const rightSidebarWidth = ref(readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH))
 const bottomPanelHeight = ref(readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT))
 const rightSidebarPreSnapWidth = ref(null)
+const isLeftSidebarResizing = ref(false)
+const isRightSidebarResizing = ref(false)
 
 let sidebarWidthSaveTimer = null
+let leftSidebarFrame = null
+let rightSidebarFrame = null
+let pendingLeftSidebarWidth = leftSidebarWidth.value
+let pendingRightSidebarWidth = rightSidebarWidth.value
 
 function readNumberFromStorage(key, fallback) {
   try {
@@ -96,8 +102,8 @@ export function resolveMinimumLeftSidebarWidth(measurements = {}) {
 
 export function resolveMinimumRightSidebarWidth(measurements = {}) {
   const viewportWidth = Number(measurements.viewportWidth)
-  const currentSidebarWidth = Number(measurements.currentSidebarWidth)
-  const rightmostPanelRight = Number(measurements.rightmostPanelRight)
+  const leftmostPanelLeft = Number(measurements.leftmostPanelLeft)
+  const collapseButtonWidth = Number(measurements.collapseButtonWidth)
   const panelGap = Number(measurements.panelGap)
   const currentPanelCount = Number(measurements.currentPanelCount)
   const maxPanelCount = Number(measurements.maxPanelCount)
@@ -105,15 +111,10 @@ export function resolveMinimumRightSidebarWidth(measurements = {}) {
 
   if (
     !Number.isFinite(viewportWidth)
-    || !Number.isFinite(currentSidebarWidth)
-    || !Number.isFinite(rightmostPanelRight)
+    || !Number.isFinite(leftmostPanelLeft)
+    || !Number.isFinite(collapseButtonWidth)
     || !Number.isFinite(panelGap)
   ) {
-    return FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH
-  }
-
-  const sidebarLeftBoundary = viewportWidth - currentSidebarWidth
-  if (!Number.isFinite(sidebarLeftBoundary)) {
     return FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH
   }
 
@@ -125,13 +126,18 @@ export function resolveMinimumRightSidebarWidth(measurements = {}) {
     ? Math.max(maxPanelCount, normalizedCurrentPanelCount)
     : normalizedCurrentPanelCount
   const extraPanels = Math.max(0, normalizedMaxPanelCount - normalizedCurrentPanelCount)
-  const effectiveRightmostPanelRight = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
-    ? rightmostPanelRight + extraPanels * (panelButtonWidth + normalizedPanelGap)
-    : rightmostPanelRight
+  const effectiveLeftmostPanelLeft = Number.isFinite(panelButtonWidth) && panelButtonWidth > 0
+    ? leftmostPanelLeft - extraPanels * (panelButtonWidth + normalizedPanelGap)
+    : leftmostPanelLeft
 
   return Math.max(
     0,
-    Math.ceil(effectiveRightmostPanelRight - sidebarLeftBoundary),
+    Math.ceil(
+      viewportWidth
+      - effectiveLeftmostPanelLeft
+      + normalizedPanelGap
+      + collapseButtonWidth,
+    ),
   )
 }
 
@@ -179,29 +185,32 @@ function readLeftSidebarChromeMeasurements() {
 function readRightSidebarChromeMeasurements() {
   if (typeof document === 'undefined') return null
 
+  const collapseButtonEl = document.querySelector('.header-inspector-collapse-button')
   const panelTabsEl = document.querySelector('.header-sidebar-panel-tabs.is-right')
   const panelButtonEls = Array.from(document.querySelectorAll('.header-inspector-panel-button'))
 
-  if (!panelTabsEl || panelButtonEls.length === 0) {
+  if (!collapseButtonEl || !panelTabsEl || panelButtonEls.length === 0) {
     return null
   }
 
+  const leftmostPanelRect = panelButtonEls.at(0)?.getBoundingClientRect()
   const rightmostPanelRect = panelButtonEls.at(-1)?.getBoundingClientRect()
   const adjacentPanelRect = panelButtonEls.at(-2)?.getBoundingClientRect()
+  const collapseButtonRect = collapseButtonEl.getBoundingClientRect()
   const panelTabsStyle = window.getComputedStyle(panelTabsEl)
   const rawGap = parseFloat(panelTabsStyle.columnGap || panelTabsStyle.gap || '0')
   const panelGap = rightmostPanelRect && adjacentPanelRect
     ? rightmostPanelRect.left - adjacentPanelRect.right
     : (Number.isFinite(rawGap) ? rawGap : 0)
 
-  if (!rightmostPanelRect) {
+  if (!leftmostPanelRect || !rightmostPanelRect || !collapseButtonRect) {
     return null
   }
 
   return {
     viewportWidth: window.innerWidth,
-    currentSidebarWidth: rightSidebarWidth.value,
-    rightmostPanelRight: rightmostPanelRect.right,
+    leftmostPanelLeft: leftmostPanelRect.left,
+    collapseButtonWidth: collapseButtonRect.width,
     panelGap,
     currentPanelCount: panelButtonEls.length,
     maxPanelCount: MAX_WORKBENCH_INSPECTOR_PANEL_COUNT,
@@ -217,17 +226,51 @@ function resolveDynamicRightSidebarMinWidth() {
   return resolveMinimumRightSidebarWidth(readRightSidebarChromeMeasurements() || {})
 }
 
-function setLeftSidebarWidth(value) {
+function commitLeftSidebarWidth(value) {
   const minWidth = resolveDynamicLeftSidebarMinWidth()
   leftSidebarWidth.value = Math.max(minWidth, Math.min(MAX_LEFT_SIDEBAR_WIDTH, value))
   debounceSidebarWidthSave()
 }
 
-function setRightSidebarWidth(value) {
+function scheduleLeftSidebarWidth(value) {
+  pendingLeftSidebarWidth = value
+  if (leftSidebarFrame !== null) return
+
+  leftSidebarFrame = window.requestAnimationFrame(() => {
+    leftSidebarFrame = null
+    commitLeftSidebarWidth(pendingLeftSidebarWidth)
+  })
+}
+
+function commitRightSidebarWidth(value) {
   const maxWidth = Math.floor(window.innerWidth * 0.8)
   const minWidth = resolveDynamicRightSidebarMinWidth()
   rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, value))
   debounceSidebarWidthSave()
+}
+
+function scheduleRightSidebarWidth(value) {
+  pendingRightSidebarWidth = value
+  if (rightSidebarFrame !== null) return
+
+  rightSidebarFrame = window.requestAnimationFrame(() => {
+    rightSidebarFrame = null
+    commitRightSidebarWidth(pendingRightSidebarWidth)
+  })
+}
+
+function flushScheduledSidebarWidths() {
+  if (leftSidebarFrame !== null) {
+    window.cancelAnimationFrame(leftSidebarFrame)
+    leftSidebarFrame = null
+    commitLeftSidebarWidth(pendingLeftSidebarWidth)
+  }
+
+  if (rightSidebarFrame !== null) {
+    window.cancelAnimationFrame(rightSidebarFrame)
+    rightSidebarFrame = null
+    commitRightSidebarWidth(pendingRightSidebarWidth)
+  }
 }
 
 function setBottomPanelHeight(value) {
@@ -236,7 +279,7 @@ function setBottomPanelHeight(value) {
 }
 
 function onLeftResize(event) {
-  setLeftSidebarWidth(event.x)
+  scheduleLeftSidebarWidth(event.x)
 }
 
 function onBottomResize(event) {
@@ -244,32 +287,51 @@ function onBottomResize(event) {
 }
 
 function onRightResize(event) {
-  setRightSidebarWidth(window.innerWidth - event.x)
+  scheduleRightSidebarWidth(window.innerWidth - event.x)
   rightSidebarPreSnapWidth.value = null
 }
 
 function onRightResizeSnap() {
   const halfWindow = Math.floor(window.innerWidth / 2)
   if (rightSidebarPreSnapWidth.value !== null) {
-    setRightSidebarWidth(rightSidebarPreSnapWidth.value)
+    commitRightSidebarWidth(rightSidebarPreSnapWidth.value)
     rightSidebarPreSnapWidth.value = null
     return
   }
 
   rightSidebarPreSnapWidth.value = rightSidebarWidth.value
-  setRightSidebarWidth(halfWindow)
+  commitRightSidebarWidth(halfWindow)
+}
+
+function startLeftSidebarResize() {
+  isLeftSidebarResizing.value = true
+}
+
+function endLeftSidebarResize() {
+  isLeftSidebarResizing.value = false
+  flushScheduledSidebarWidths()
+}
+
+function startRightSidebarResize() {
+  isRightSidebarResizing.value = true
+}
+
+function endRightSidebarResize() {
+  isRightSidebarResizing.value = false
+  flushScheduledSidebarWidths()
 }
 
 function cleanupAppShellLayout() {
   clearTimeout(sidebarWidthSaveTimer)
   sidebarWidthSaveTimer = null
+  flushScheduledSidebarWidths()
 }
 
 export function useAppShellLayout() {
   onMounted(() => {
     window.requestAnimationFrame(() => {
-      setLeftSidebarWidth(leftSidebarWidth.value)
-      setRightSidebarWidth(rightSidebarWidth.value)
+      commitLeftSidebarWidth(leftSidebarWidth.value)
+      commitRightSidebarWidth(rightSidebarWidth.value)
     })
   })
 
@@ -277,9 +339,15 @@ export function useAppShellLayout() {
     leftSidebarWidth,
     rightSidebarWidth,
     bottomPanelHeight,
+    isLeftSidebarResizing,
+    isRightSidebarResizing,
     onLeftResize,
+    startLeftSidebarResize,
+    endLeftSidebarResize,
     onBottomResize,
     onRightResize,
+    startRightSidebarResize,
+    endRightSidebarResize,
     onRightResizeSnap,
     cleanupAppShellLayout,
   }

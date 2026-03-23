@@ -14,12 +14,13 @@ const props = defineProps({
   direction: { type: String, default: 'vertical' }, // 'vertical' (left/right) or 'horizontal' (top/bottom)
 })
 
-const emit = defineEmits(['resize', 'dblclick'])
+const emit = defineEmits(['resize', 'resize-start', 'resize-end', 'dblclick'])
 
 const dragging = ref(false)
 
 function startDrag(e) {
   dragging.value = true
+  emit('resize-start')
   const startX = e.clientX
   const startY = e.clientY
 
@@ -42,6 +43,7 @@ function startDrag(e) {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.getElementById('resize-drag-iframe-block')?.remove()
+    emit('resize-end')
   }
 
   document.addEventListener('mousemove', onMouseMove)

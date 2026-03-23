@@ -511,7 +511,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setRightSidebarPanel(panel) {
-      const next = normalizeWorkbenchInspectorPanel(panel)
+      const next = normalizeWorkbenchInspectorPanel(this.primarySurface, panel)
       this.rightSidebarPanel = persistStoredString('rightSidebarPanel', next)
     },
 
@@ -520,6 +520,8 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.primarySurface = persistStoredString('primarySurface', next)
       const nextPanel = normalizeWorkbenchSidebarPanel(next, this.leftSidebarPanel)
       this.leftSidebarPanel = persistStoredString('leftSidebarPanel', nextPanel)
+      const nextInspectorPanel = normalizeWorkbenchInspectorPanel(next, this.rightSidebarPanel)
+      this.rightSidebarPanel = persistStoredString('rightSidebarPanel', nextInspectorPanel)
     },
 
     openWorkspaceSurface() {

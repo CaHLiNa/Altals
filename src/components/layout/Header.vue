@@ -1,12 +1,17 @@
 <template>
-  <header class="header-root grid items-center select-none shrink-0 relative"
+  <header
+    class="header-root grid items-center select-none shrink-0 relative"
+    :class="{
+      'is-resizing': props.leftSidebarResizing || props.rightSidebarResizing,
+      'is-resizing-left': props.leftSidebarResizing,
+      'is-resizing-right': props.rightSidebarResizing,
+    }"
     data-tauri-drag-region
     :style="headerStyle"
   >
     <div
       v-if="showSidebarPanelTabs"
       class="header-sidebar-panel-tabs is-left"
-      :style="sidebarPanelTabsStyle"
     >
       <button
         v-for="entry in sidebarPanelEntries"
@@ -25,11 +30,8 @@
     <button
       v-if="workspace.isOpen"
       class="header-chrome-button header-sidebar-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-      :style="sidebarCollapseButtonStyle"
       :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
       @click="workspace.toggleLeftSidebar()"
-      @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-      @mouseout="$event.currentTarget.style.background='transparent'"
     >
       <component
         :is="workspace.leftSidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebar"
@@ -43,14 +45,13 @@
     <div
       v-if="showInspectorPanelTabs"
       class="header-sidebar-panel-tabs is-right"
-      :style="inspectorPanelTabsStyle"
     >
       <button
         v-for="entry in inspectorPanelEntries"
         :key="entry.key"
         type="button"
         class="header-chrome-button header-inspector-panel-button flex items-center justify-center border-none cursor-pointer"
-        :class="{ 'is-active': workspace.rightSidebarPanel === entry.key }"
+        :class="{ 'is-active': activeInspectorPanel === entry.key }"
         :title="entry.title"
         :aria-label="entry.label"
         @click="handleSelectRightSidebarPanel(entry.key)"
@@ -60,13 +61,10 @@
     </div>
 
     <button
-      v-if="workspace.isOpen && workspace.isWorkspaceSurface"
+      v-if="workspace.isOpen && inspectorPanelEntries.length > 0"
       class="header-chrome-button header-inspector-collapse-button flex items-center justify-center border-none bg-transparent cursor-pointer transition-colors"
-      :style="inspectorCollapseButtonStyle"
       :title="t('Toggle right sidebar')"
       @click="workspace.toggleRightSidebar()"
-      @mouseover="$event.currentTarget.style.background='var(--bg-hover)'"
-      @mouseout="$event.currentTarget.style.background='transparent'"
     >
       <component
         :is="workspace.rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
@@ -142,6 +140,7 @@ import { useToastStore } from '../../stores/toast'
 import { useReferencesStore } from '../../stores/references'
 import {
   IconBook2,
+  IconFileDescription,
   IconFolder,
   IconLayoutList,
   IconLayoutSidebarRight,
@@ -157,6 +156,10 @@ import {
 import { isMac, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 import { insertCitationWithAssist } from '../../services/latexCitationAssist'
+import {
+  resolveHeaderChromeLayout,
+} from '../../shared/headerChromeGeometry.js'
+import { normalizeWorkbenchInspectorPanel } from '../../shared/workbenchInspectorPanels.js'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
@@ -165,6 +168,8 @@ const props = defineProps({
   leftSidebarWidth: { type: Number, default: 0 },
   leftRailWidth: { type: Number, default: 44 },
   rightSidebarWidth: { type: Number, default: 0 },
+  leftSidebarResizing: { type: Boolean, default: false },
+  rightSidebarResizing: { type: Boolean, default: false },
 })
 
 const workspace = useWorkspaceStore()
@@ -177,7 +182,6 @@ const isMacDesktop = isMac
   && typeof window !== 'undefined'
   && !!window.__TAURI_INTERNALS__
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
-const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
 
 const HEADER_HEIGHT = 30
 const HEADER_ICON_SIZE = 18
@@ -186,7 +190,7 @@ const HEADER_SEARCH_INPUT_HEIGHT = 22
 const HEADER_SEARCH_ICON_SIZE = 12
 const HEADER_BUTTON_SIZE = 30
 const HEADER_BUTTON_INSET = 8
-const SIDEBAR_PANEL_GROUP_GAP = 8
+const HEADER_RIGHT_PADDING = 8
 const DEFAULT_HEADER_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 72
 const EDITOR_WAIT_TIMEOUT_MS = 1500
@@ -213,14 +217,21 @@ const macHeaderLeftPadding = computed(() => {
 })
 
 const hasVisibleTrafficLights = computed(() => isMacDesktop && !isNativeFullscreen.value)
+const headerLeftPadding = computed(() => (
+  isMac ? macHeaderLeftPadding.value : DEFAULT_HEADER_SIDE_PADDING
+))
 
 const headerStyle = computed(() => ({
   gridTemplateColumns: '1fr auto',
   background: 'var(--bg-secondary)',
   borderBottom: '1px solid var(--border)',
-  paddingLeft: isMac ? toPx(macHeaderLeftPadding.value) : toPx(DEFAULT_HEADER_SIDE_PADDING),
-  paddingRight: '8px',
+  paddingLeft: toPx(headerLeftPadding.value),
+  paddingRight: toPx(HEADER_RIGHT_PADDING),
   height: `${HEADER_HEIGHT}px`,
+  '--header-left-panel-tabs-left': toPx(headerChromeLayout.value.leftPanelTabsLeft),
+  '--header-left-collapse-left': toPx(headerChromeLayout.value.leftCollapseLeft),
+  '--header-right-panel-tabs-right': toPx(headerChromeLayout.value.rightPanelTabsRight),
+  '--header-right-collapse-right': toPx(headerChromeLayout.value.rightCollapseRight),
 }))
 
 const showSidebarPanelTabs = computed(() => workspace.isOpen && workspace.leftSidebarOpen)
@@ -267,92 +278,58 @@ const sidebarPanelEntries = computed(() => {
       title: t('References'),
       icon: IconBook2,
     },
+  ]
+})
+
+const headerChromeLayout = computed(() => resolveHeaderChromeLayout({
+    hasVisibleTrafficLights: hasVisibleTrafficLights.value,
+    macSafePadding: macHeaderLeftPadding.value,
+    railBoundary: Number(props.leftRailWidth) || 44,
+    leftSidebarWidth: Number(props.leftSidebarWidth) || 0,
+    leftSidebarOpen: workspace.leftSidebarOpen,
+    rightSidebarWidth: Number(props.rightSidebarWidth) || 0,
+    rightSidebarOpen: workspace.rightSidebarOpen,
+    buttonWidth: HEADER_BUTTON_SIZE,
+    buttonInset: HEADER_BUTTON_INSET,
+}))
+
+const showInspectorPanelTabs = computed(() => (
+  workspace.isOpen
+  && inspectorPanelEntries.value.length > 0
+  && workspace.rightSidebarOpen
+))
+
+const inspectorPanelEntries = computed(() => {
+  if (workspace.isLibrarySurface) {
+    return [
+      {
+        key: 'library-details',
+        label: t('Details'),
+        title: t('Details'),
+        icon: IconFileDescription,
+      },
+    ]
+  }
+
+  if (!workspace.isWorkspaceSurface) {
+    return []
+  }
+
+  return [
     {
       key: 'outline',
       label: t('Outline'),
       title: t('Outline'),
       icon: IconListTree,
     },
+    {
+      key: 'backlinks',
+      label: t('Backlinks'),
+      title: t('Backlinks'),
+      icon: IconLink,
+    },
   ]
 })
-
-const sidebarPanelAnchorLeft = computed(() => {
-  const railBoundary = (Number(props.leftRailWidth) || 44) + SIDEBAR_PANEL_GROUP_GAP
-  return hasVisibleTrafficLights.value
-    ? Math.max(macHeaderLeftPadding.value, railBoundary)
-    : railBoundary
-})
-
-const sidebarPanelTabsStyle = computed(() => {
-  return {
-    left: toPx(sidebarPanelAnchorLeft.value),
-  }
-})
-
-const sidebarCollapseButtonStyle = computed(() => {
-  const expandedBoundary = (Number(props.leftRailWidth) || 44)
-    + Math.max(Number(props.leftSidebarWidth) || 0, 0)
-    - HEADER_BUTTON_SIZE
-    - HEADER_BUTTON_INSET
-  const leftBoundary = Math.max(
-    workspace.leftSidebarOpen ? expandedBoundary : sidebarPanelAnchorLeft.value,
-    0,
-  )
-
-  return {
-    left: toPx(leftBoundary),
-    color: 'var(--fg-muted)',
-  }
-})
-
-const showInspectorPanelTabs = computed(() => (
-  workspace.isOpen
-  && workspace.isWorkspaceSurface
-  && workspace.rightSidebarOpen
-))
-
-const inspectorPanelEntries = computed(() => ([
-  {
-    key: 'outline',
-    label: t('Outline'),
-    title: t('Outline'),
-    icon: IconListTree,
-  },
-  {
-    key: 'backlinks',
-    label: t('Backlinks'),
-    title: t('Backlinks'),
-    icon: IconLink,
-  },
-]))
-
-const inspectorExpandedAnchorLeft = computed(() => (
-  Math.max(
-    viewportWidth.value - Math.max(Number(props.rightSidebarWidth) || 0, 0) + HEADER_BUTTON_INSET,
-    0,
-  )
-))
-
-const inspectorCollapsedAnchorLeft = computed(() => (
-  Math.max(viewportWidth.value - HEADER_BUTTON_SIZE - HEADER_BUTTON_INSET, 0)
-))
-
-const inspectorPanelTabsStyle = computed(() => ({
-  left: toPx(
-    inspectorExpandedAnchorLeft.value
-      + HEADER_BUTTON_SIZE
-      + SIDEBAR_PANEL_GROUP_GAP,
-  ),
-}))
-
-const inspectorCollapseButtonStyle = computed(() => ({
-  left: toPx(
-    workspace.rightSidebarOpen
-      ? inspectorExpandedAnchorLeft.value
-      : inspectorCollapsedAnchorLeft.value,
-  ),
-  color: 'var(--fg-muted)',
-}))
 
 // Search
 const searchInputRef = ref(null)
@@ -363,6 +340,9 @@ const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
 const searchPlaceholder = computed(() => t('Go to file...'))
+const activeInspectorPanel = computed(() => (
+  normalizeWorkbenchInspectorPanel(workspace.primarySurface, workspace.rightSidebarPanel)
+))
 
 function onFocus() {
   searchFocused.value = true
@@ -487,9 +467,6 @@ function closeSearchPalette() {
 }
 
 async function syncNativeWindowChromeState() {
-  if (typeof window !== 'undefined') {
-    viewportWidth.value = window.innerWidth
-  }
   if (!isTauriDesktop) return
   try {
     isNativeFullscreen.value = await getCurrentWindow().isFullscreen()
@@ -542,16 +519,42 @@ defineExpose({ focusSearch })
   position: absolute;
   top: 50%;
   z-index: 2;
+  left: var(--header-left-collapse-left);
   transform: translateY(-50%);
-  transition: background-color 140ms ease, color 140ms ease;
+  background: transparent;
+  color: var(--fg-muted);
+  transition:
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease,
+    color 140ms ease;
+  will-change: left;
 }
 
 .header-inspector-collapse-button {
   position: absolute;
   top: 50%;
   z-index: 2;
+  left: auto;
+  right: var(--header-right-collapse-right);
   transform: translateY(-50%);
-  transition: background-color 140ms ease, color 140ms ease;
+  background: transparent;
+  color: var(--fg-muted);
+  transition:
+    right 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease,
+    color 140ms ease;
+  will-change: right;
+}
+
+.header-sidebar-collapse-button:hover,
+.header-inspector-collapse-button:hover {
+  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
+}
+
+.header-sidebar-collapse-button:focus-visible,
+.header-inspector-collapse-button:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--bg-hover) 24%, transparent);
 }
 
 .header-sidebar-panel-tabs {
@@ -562,6 +565,17 @@ defineExpose({ focusSearch })
   align-items: center;
   gap: 4px;
   transform: translateY(-50%);
+  will-change: left, right;
+}
+
+.header-sidebar-panel-tabs.is-left {
+  left: var(--header-left-panel-tabs-left);
+  transition: left 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.header-sidebar-panel-tabs.is-right {
+  right: var(--header-right-panel-tabs-right);
+  transition: right 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .header-sidebar-panel-button {
@@ -604,6 +618,13 @@ defineExpose({ focusSearch })
 
 .header-root {
   align-items: center;
+}
+
+.header-root.is-resizing .header-sidebar-collapse-button,
+.header-root.is-resizing .header-inspector-collapse-button,
+.header-root.is-resizing .header-sidebar-panel-button,
+.header-root.is-resizing .header-inspector-panel-button {
+  transition: none !important;
 }
 
 .header-command-overlay {

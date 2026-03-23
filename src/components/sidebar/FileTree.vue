@@ -21,14 +21,6 @@
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
-          ref="workspaceMenuBtnEl"
-          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted);"
-          @click.stop="toggleWorkspaceMenu"
-          :title="t('Workspace Menu')">
-          <IconMenu2 :size="14" :stroke-width="1.5" />
-        </button>
-        <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
           style="color: var(--fg-muted);"
           @click.stop="collapseAllFolders"
@@ -150,6 +142,21 @@
       </div>
     </div>
 
+    <div class="workspace-footer-action">
+      <button
+        ref="workspaceMenuAnchorEl"
+        type="button"
+        class="workspace-footer-action-button"
+        :title="t('Workspace Menu')"
+        @click.stop="toggleWorkspaceMenu"
+      >
+        <span class="workspace-footer-action-label">{{ t('Open Folder...') }}</span>
+        <span class="workspace-footer-action-kebab">
+          <IconDotsVertical :size="16" :stroke-width="1.7" />
+        </span>
+      </button>
+    </div>
+
     <!-- Context menu -->
     <ContextMenu
       v-if="contextMenu.show"
@@ -188,11 +195,6 @@
               {{ recent.name }}
             </div>
           </template>
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="handleWorkspaceMenuSettings">
-            {{ t('Settings...') }}
-            <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+,</span>
-          </div>
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="handleWorkspaceMenuCloseFolder">
             {{ t('Close Folder') }}
@@ -269,7 +271,7 @@ import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
 import {
   IconSearch, IconX, IconPlus, IconFileText, IconNotebook, IconMath,
-  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconMenu2,
+  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconDotsVertical,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
@@ -298,7 +300,7 @@ const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0,
 const treeContainer = ref(null)
 const renameInput = ref(null)
 const filterInputEl = ref(null)
-const workspaceMenuBtnEl = ref(null)
+const workspaceMenuAnchorEl = ref(null)
 const newBtnEl = ref(null)
 const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
@@ -393,16 +395,21 @@ function showContextMenuOnEmpty(event) {
 }
 
 const workspaceMenuStyle = computed(() => {
-  if (!workspaceMenuBtnEl.value) return {}
-  const rect = workspaceMenuBtnEl.value.getBoundingClientRect()
-  const menuWidth = 220
-  const estimatedHeight = 180 + recentWorkspaces.value.length * 28
-  const maxX = window.innerWidth - menuWidth - 8
-  const maxY = window.innerHeight - estimatedHeight - 8
+  if (!workspaceMenuAnchorEl.value) return {}
+  const rect = workspaceMenuAnchorEl.value.getBoundingClientRect()
+  const menuWidth = Math.max(220, Math.round(rect.width))
+  const viewportPadding = 8
+  const menuGap = 1
+  const maxX = window.innerWidth - menuWidth - viewportPadding
+  const bottom = Math.max(viewportPadding, window.innerHeight - rect.top + menuGap)
+  const maxHeight = Math.max(120, rect.top - viewportPadding - menuGap)
   return {
     left: Math.min(rect.left, maxX) + 'px',
-    top: Math.min(rect.bottom + 2, maxY) + 'px',
+    top: 'auto',
+    bottom: `${bottom}px`,
     minWidth: `${menuWidth}px`,
+    maxHeight: `${maxHeight}px`,
+    overflowY: 'auto',
   }
 })
 
@@ -453,11 +460,6 @@ function handleWorkspaceMenuOpenRecent(path) {
 function handleWorkspaceMenuCloseFolder() {
   closeWorkspaceMenu()
   emit('close-folder')
-}
-
-function handleWorkspaceMenuSettings() {
-  closeWorkspaceMenu()
-  workspace.openSettings()
 }
 
 // Unified creation handler — creates a typed file and starts inline rename
@@ -682,3 +684,58 @@ defineExpose({
   },
 })
 </script>
+
+<style scoped>
+.workspace-footer-action {
+  flex-shrink: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary) 6%);
+}
+
+.workspace-footer-action-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+  padding: 0 36px;
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.workspace-footer-action-button:hover {
+  background: color-mix(in srgb, var(--bg-hover) 42%, transparent);
+  color: var(--fg-primary);
+}
+
+.workspace-footer-action-label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: var(--ui-font-md);
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.workspace-footer-action-kebab {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--fg-muted);
+  transform: translateY(-50%);
+}
+</style>

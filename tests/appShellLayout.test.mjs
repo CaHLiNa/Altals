@@ -6,17 +6,17 @@ import {
   resolveMinimumRightSidebarWidth,
 } from '../src/composables/useAppShellLayout.js'
 
-test('left sidebar minimum width matches the outline-to-references gap on standard chrome', () => {
+test('left sidebar minimum width matches the references-to-files gap on standard chrome', () => {
   const width = resolveMinimumLeftSidebarWidth({
     railWidth: 44,
     currentSidebarWidth: 240,
     collapseButtonLeft: 246,
     collapseButtonWidth: 30,
-    rightmostPanelRight: 150,
+    rightmostPanelRight: 108,
     panelGap: 4,
   })
 
-  assert.equal(width, 148)
+  assert.equal(width, 106)
 })
 
 test('left sidebar minimum width expands when the fixed panel group starts after mac traffic lights', () => {
@@ -25,11 +25,11 @@ test('left sidebar minimum width expands when the fixed panel group starts after
     currentSidebarWidth: 240,
     collapseButtonLeft: 246,
     collapseButtonWidth: 30,
-    rightmostPanelRight: 170,
+    rightmostPanelRight: 136,
     panelGap: 4,
   })
 
-  assert.equal(width, 168)
+  assert.equal(width, 134)
 })
 
 test('left sidebar minimum width stays pinned to the shared maximum when the current surface only has one sidebar button', () => {
@@ -38,14 +38,14 @@ test('left sidebar minimum width stays pinned to the shared maximum when the cur
     currentSidebarWidth: 240,
     collapseButtonLeft: 246,
     collapseButtonWidth: 30,
-    rightmostPanelRight: 82,
+    rightmostPanelRight: 74,
     panelGap: 4,
     currentPanelCount: 1,
-    maxPanelCount: 3,
+    maxPanelCount: 2,
     panelButtonWidth: 30,
   })
 
-  assert.equal(width, 148)
+  assert.equal(width, 106)
 })
 
 test('left sidebar minimum width stays pinned to the shared maximum when the current surface has two sidebar buttons', () => {
@@ -54,14 +54,14 @@ test('left sidebar minimum width stays pinned to the shared maximum when the cur
     currentSidebarWidth: 240,
     collapseButtonLeft: 246,
     collapseButtonWidth: 30,
-    rightmostPanelRight: 116,
+    rightmostPanelRight: 108,
     panelGap: 4,
     currentPanelCount: 2,
-    maxPanelCount: 3,
+    maxPanelCount: 2,
     panelButtonWidth: 30,
   })
 
-  assert.equal(width, 148)
+  assert.equal(width, 106)
 })
 
 test('left sidebar minimum width falls back when chrome measurements are incomplete', () => {
@@ -80,33 +80,36 @@ test('left sidebar minimum width falls back when chrome measurements are incompl
 test('right sidebar minimum width mirrors the workspace inspector chrome width', () => {
   const width = resolveMinimumRightSidebarWidth({
     viewportWidth: 1000,
-    currentSidebarWidth: 360,
-    rightmostPanelRight: 750,
+    leftmostPanelLeft: 928,
+    collapseButtonWidth: 30,
     panelGap: 4,
+    currentPanelCount: 2,
+    maxPanelCount: 2,
+    panelButtonWidth: 30,
   })
 
-  assert.equal(width, 110)
+  assert.equal(width, 106)
 })
 
 test('right sidebar minimum width stays pinned to the shared maximum when the current surface only has one inspector button', () => {
   const width = resolveMinimumRightSidebarWidth({
     viewportWidth: 1000,
-    currentSidebarWidth: 360,
-    rightmostPanelRight: 716,
+    leftmostPanelLeft: 962,
+    collapseButtonWidth: 30,
     panelGap: 4,
     currentPanelCount: 1,
     maxPanelCount: 2,
     panelButtonWidth: 30,
   })
 
-  assert.equal(width, 110)
+  assert.equal(width, 106)
 })
 
 test('right sidebar minimum width falls back when inspector chrome measurements are incomplete', () => {
   const width = resolveMinimumRightSidebarWidth({
     viewportWidth: NaN,
-    currentSidebarWidth: 360,
-    rightmostPanelRight: 750,
+    leftmostPanelLeft: 928,
+    collapseButtonWidth: 30,
     panelGap: 4,
   })
 

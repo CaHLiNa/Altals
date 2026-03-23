@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden bg-[var(--bg-secondary)]">
-    <template v-if="workspace.isWorkspaceSurface && activePanel === 'files'">
+    <template v-if="workspace.isWorkspaceSurface && activePanel !== 'references'">
       <FileTree
         ref="fileTreeRef"
         :collapsed="false"
@@ -13,17 +13,13 @@
       />
     </template>
 
-    <template v-else-if="workspace.isWorkspaceSurface && activePanel === 'references'">
+    <template v-else-if="workspace.isWorkspaceSurface">
       <ReferenceList
         :collapsed="false"
         :heading-collapsible="false"
         :heading-label="referencesHeadingLabel"
       />
     </template>
-
-    <div v-else-if="workspace.isWorkspaceSurface" class="flex-1 min-h-0 overflow-hidden">
-      <OutlinePanel embedded />
-    </div>
 
     <LibrarySidebar v-else-if="workspace.isLibrarySurface" />
 
@@ -39,7 +35,6 @@ import { normalizeWorkbenchSidebarPanel } from '../../shared/workbenchSidebarPan
 import FileTree from './FileTree.vue'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
-const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
 const AiWorkbenchSidebar = defineAsyncComponent(() => import('./AiWorkbenchSidebar.vue'))
 

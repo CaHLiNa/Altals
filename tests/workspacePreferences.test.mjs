@@ -61,9 +61,13 @@ test('left sidebar panel preference defaults to files and restores valid saved m
     const defaults = createWorkspacePreferenceState()
     assert.equal(defaults.leftSidebarPanel, 'files')
 
-    persistStoredString('leftSidebarPanel', 'outline')
+    persistStoredString('leftSidebarPanel', 'references')
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.leftSidebarPanel, 'outline')
+    assert.equal(restored.leftSidebarPanel, 'references')
+
+    persistStoredString('leftSidebarPanel', 'outline')
+    const restoredLegacyOutline = createWorkspacePreferenceState()
+    assert.equal(restoredLegacyOutline.leftSidebarPanel, 'files')
 
     persistStoredString('primarySurface', 'library')
     persistStoredString('leftSidebarPanel', 'library-tags')
@@ -130,18 +134,31 @@ test('right sidebar panel preference defaults to outline and restores valid save
     persistStoredString('rightSidebarPanel', 'backlinks')
     const restored = createWorkspacePreferenceState()
     assert.equal(restored.rightSidebarPanel, 'backlinks')
+
+    persistStoredString('primarySurface', 'library')
+    persistStoredString('rightSidebarPanel', 'library-details')
+    const restoredLibraryPanel = createWorkspacePreferenceState()
+    assert.equal(restoredLibraryPanel.primarySurface, 'library')
+    assert.equal(restoredLibraryPanel.rightSidebarPanel, 'library-details')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
 })
 
-test('invalid right sidebar panel preference falls back to outline', () => {
+test('invalid right sidebar panel preference falls back to the active surface default', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage({ rightSidebarPanel: 'invalid' })
 
   try {
     const restored = createWorkspacePreferenceState()
     assert.equal(restored.rightSidebarPanel, 'outline')
+
+    globalThis.localStorage = createMockStorage({
+      primarySurface: 'library',
+      rightSidebarPanel: 'invalid',
+    })
+    const restoredLibraryPanel = createWorkspacePreferenceState()
+    assert.equal(restoredLibraryPanel.rightSidebarPanel, 'library-details')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }

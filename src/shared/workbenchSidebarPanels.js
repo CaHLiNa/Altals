@@ -1,4 +1,4 @@
-export const WORKSPACE_SIDEBAR_PANELS = ['files', 'references', 'outline']
+export const WORKSPACE_SIDEBAR_PANELS = ['files', 'references']
 export const LIBRARY_SIDEBAR_PANELS = ['library-views', 'library-tags']
 export const AI_SIDEBAR_PANELS = ['ai-chats']
 

@@ -1,20 +1,5 @@
 <template>
-  <div
-    ref="workbenchEl"
-    class="library-workbench h-full min-h-0"
-    :class="{
-      'is-compact-pane': isCompactPane,
-      'is-detail-drawer-open': isCompactPane && compactDetailOpen && !!activeRef,
-    }"
-  >
-    <button
-      v-if="showCompactBackdrop"
-      type="button"
-      class="library-compact-backdrop"
-      :aria-label="t('Close')"
-      @click="closeCompactPanels"
-    ></button>
-
+  <div class="library-workbench h-full min-h-0">
     <div class="library-shell h-full min-h-0" :class="{ 'is-editing': isEditing }">
       <template v-if="isEditing && activeRef">
         <section class="library-editor-stage">
@@ -39,18 +24,6 @@
       <template v-else>
         <main class="library-main" @contextmenu="openTableEmptyContextMenu">
           <div class="library-toolbar">
-            <div v-if="isCompactPane" class="library-compact-toolbar">
-              <button
-                type="button"
-                class="library-quiet-button"
-                :class="{ 'is-active': compactDetailOpen }"
-                :disabled="!activeRef"
-                @click="toggleCompactDetail"
-              >
-                {{ t('Details') }}
-              </button>
-            </div>
-
             <div class="library-toolbar-row">
               <div class="library-search-shell">
                 <input
@@ -217,113 +190,6 @@
             </div>
           </div>
         </main>
-
-        <aside class="library-detail">
-          <div v-if="isCompactPane" class="library-detail-compact-head">
-            <div class="library-section-label">{{ t('Details') }}</div>
-            <button
-              type="button"
-              class="library-icon-button"
-              :aria-label="t('Close')"
-              @click="compactDetailOpen = false"
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-
-          <div
-            v-if="activeRef"
-            class="library-detail-inner"
-            @contextmenu.prevent.stop="openDetailContextMenu($event, activeRef._key)"
-          >
-            <div class="library-detail-primary">
-              <div class="library-detail-title">{{ activeRef.title || `@${activeRef._key}` }}</div>
-              <div class="library-detail-subtitle">
-                {{ formatAuthors(activeRef) || t('Unknown author') }}
-                <span v-if="extractYear(activeRef)"> · {{ extractYear(activeRef) }}</span>
-                <span v-if="containerLabel(activeRef)"> · {{ containerLabel(activeRef) }}</span>
-              </div>
-              <div class="library-detail-pill-row">
-                <span class="library-state-pill" :class="{ active: isInCurrentProject(activeRef._key) }">
-                  {{ isInCurrentProject(activeRef._key) ? t('In current project') : t('Global only') }}
-                </span>
-                <span v-if="activeRef._needsReview" class="library-state-pill warning">{{ t('Needs review') }}</span>
-                <span v-if="activeRef._pdfFile" class="library-state-pill">{{ t('PDF') }}</span>
-              </div>
-            </div>
-
-            <div class="library-detail-section">
-              <div class="library-detail-grid">
-                <template v-for="row in activeDetailRows" :key="row.label">
-                  <div class="library-detail-label">{{ row.label }}</div>
-                  <div class="library-detail-value">{{ row.value }}</div>
-                </template>
-              </div>
-
-              <div class="library-detail-actions">
-                <button type="button" class="library-inline-button" @click="toggleProjectMembership(activeRef._key)">
-                  {{ isInCurrentProject(activeRef._key) ? t('Remove from this project') : t('Add to project') }}
-                </button>
-                <button
-                  v-if="activePdfPath"
-                  type="button"
-                  class="library-quiet-button"
-                  @click="openReferencePdf(activeRef._key)"
-                >
-                  {{ t('Open PDF') }}
-                </button>
-                <button type="button" class="library-quiet-button" @click="enterEditMode(activeRef._key)">
-                  {{ t('Edit metadata') }}
-                </button>
-              </div>
-            </div>
-
-            <div class="library-detail-section">
-              <div class="library-sidebar-row">
-                <div class="library-section-label">{{ t('Tags') }}</div>
-              </div>
-              <div class="library-tags-cell detail">
-                <span
-                  v-for="tag in activeRef._tags || []"
-                  :key="tag"
-                  class="library-tag-chip"
-                >
-                  {{ tag }}
-                </span>
-                <span v-if="!activeRef._tags || activeRef._tags.length === 0" class="library-muted-copy">
-                  {{ t('Untagged') }}
-                </span>
-              </div>
-            </div>
-
-            <div class="library-detail-section">
-              <div class="library-section-label">
-                {{ activeRef._summary ? t('Summary') : t('Abstract') }}
-              </div>
-              <div class="library-detail-copy">
-                {{ activeSummaryText || t('No abstract available.') }}
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="isLibraryLoading"
-            class="library-empty-state detail"
-            @contextmenu.prevent="openDetailEmptyContextMenu"
-          >
-            <div class="library-empty-title">{{ t('Loading references...') }}</div>
-            <div class="library-empty-copy">{{ t('Global library is loading for this project context.') }}</div>
-          </div>
-
-          <div
-            v-else
-            class="library-empty-state detail"
-            @contextmenu.prevent="openDetailEmptyContextMenu"
-          >
-            <div class="library-empty-title">{{ t('No reference selected') }}</div>
-            <div class="library-empty-copy">{{ t('Select a reference to inspect and manage it for the current project.') }}</div>
-          </div>
-        </aside>
       </template>
     </div>
 
@@ -344,10 +210,11 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useLibraryWorkbenchUi } from '../../composables/useLibraryWorkbenchUi'
 import AddReferenceDialog from '../sidebar/AddReferenceDialog.vue'
@@ -357,6 +224,7 @@ const LibraryReferenceEditor = defineAsyncComponent(() => import('./LibraryRefer
 
 const referencesStore = useReferencesStore()
 const editorStore = useEditorStore()
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const {
   activeView,
@@ -369,13 +237,8 @@ const {
   showImportDialog,
   allRefs,
   selectedKeySet,
-  projectKeySet,
   activeKey,
   activeRef,
-  activePdfPath,
-  activeSummaryText,
-  activeCitedCount,
-  activeDetailRows,
   isLibraryLoading,
   hasBatchSelection,
   hasSelection,
@@ -397,9 +260,6 @@ const {
   isInCurrentProject,
 } = useLibraryWorkbenchUi()
 
-const workbenchEl = ref(null)
-const paneWidth = ref(0)
-const compactDetailOpen = ref(false)
 const contextMenu = ref({
   visible: false,
   x: 0,
@@ -409,8 +269,6 @@ const contextMenu = ref({
 })
 
 const isEditing = computed(() => referencesStore.libraryDetailMode === 'edit' && !!activeRef.value)
-const isCompactPane = computed(() => paneWidth.value > 0 && paneWidth.value <= 1080)
-const showCompactBackdrop = computed(() => isCompactPane.value && compactDetailOpen.value)
 
 const contextMenuRef = computed(() => {
   if (!contextMenu.value.refKey) return null
@@ -502,31 +360,6 @@ const contextMenuGroups = computed(() => {
   return groups
 })
 
-function syncPaneWidth() {
-  paneWidth.value = Math.round(workbenchEl.value?.clientWidth || 0)
-}
-
-let resizeObserver = null
-
-onMounted(() => {
-  syncPaneWidth()
-
-  if (typeof ResizeObserver !== 'undefined' && workbenchEl.value) {
-    resizeObserver = new ResizeObserver(() => {
-      syncPaneWidth()
-    })
-    resizeObserver.observe(workbenchEl.value)
-  }
-
-  window.addEventListener('resize', syncPaneWidth)
-})
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect?.()
-  resizeObserver = null
-  window.removeEventListener('resize', syncPaneWidth)
-})
-
 watch(filteredRefs, (refs) => {
   closeContextMenu()
   const visibleKeys = new Set(refs.map((item) => item._key))
@@ -550,16 +383,8 @@ watch(allRefs, (refs) => {
   }
 }, { deep: true })
 
-watch(isCompactPane, (compact) => {
-  closeContextMenu()
-  if (!compact) {
-    compactDetailOpen.value = false
-  }
-})
-
 watch(isEditing, (editing) => {
   closeContextMenu()
-  if (editing) closeCompactPanels()
 })
 
 function closeContextMenu() {
@@ -569,7 +394,7 @@ function closeContextMenu() {
 function shouldIgnoreEmptyContextMenuTarget(event) {
   const target = event?.target
   if (!(target instanceof Element)) return false
-  return !!target.closest('button, input, textarea, select, a, label, .library-table-row, .library-detail-inner')
+  return !!target.closest('button, input, textarea, select, a, label, .library-table-row')
 }
 
 function openContextMenu(event, scope, refKey = null) {
@@ -591,18 +416,9 @@ function openRowContextMenu(event, key) {
   openContextMenu(event, 'row', key)
 }
 
-function openDetailContextMenu(event, key) {
-  if (!key) return
-  openContextMenu(event, 'detail', key)
-}
-
 function openTableEmptyContextMenu(event) {
   if (shouldIgnoreEmptyContextMenuTarget(event)) return
   openContextMenu(event, 'table-empty')
-}
-
-function openDetailEmptyContextMenu(event) {
-  openContextMenu(event, 'detail-empty')
 }
 
 function focusReference(key) {
@@ -610,7 +426,6 @@ function focusReference(key) {
 }
 
 function enterEditMode(key) {
-  closeCompactPanels()
   referencesStore.focusReferenceInLibrary(key, { mode: 'edit' })
 }
 
@@ -702,6 +517,7 @@ async function handleContextMenuSelect(actionKey) {
   switch (actionKey) {
     case 'open-details':
       focusReference(key)
+      workspace.openRightSidebar()
       break
     case 'edit-metadata':
       enterEditMode(key)
@@ -738,16 +554,6 @@ async function handleContextMenuSelect(actionKey) {
   }
 }
 
-function closeCompactPanels() {
-  compactDetailOpen.value = false
-}
-
-function toggleCompactDetail() {
-  if (!isCompactPane.value || !activeRef.value) return
-  const next = !compactDetailOpen.value
-  compactDetailOpen.value = next
-}
-
 </script>
 
 <style scoped>
@@ -767,7 +573,7 @@ function toggleCompactDetail() {
 
 .library-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr);
   background: var(--bg-secondary);
 }
 
@@ -1558,7 +1364,7 @@ function toggleCompactDetail() {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   background: var(--bg-primary);
 }
 
@@ -1612,10 +1418,6 @@ function toggleCompactDetail() {
 }
 
 @container (max-width: 1180px) {
-  .library-shell {
-    grid-template-columns: minmax(0, 1fr) 268px;
-  }
-
   .library-toolbar-row {
     gap: 6px;
   }

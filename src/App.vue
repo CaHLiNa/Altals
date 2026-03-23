@@ -1,11 +1,20 @@
 <template>
-  <div class="flex flex-col h-screen w-screen overflow-hidden">
+  <div
+    class="app-shell-root flex flex-col h-screen w-screen overflow-hidden"
+    :class="{
+      'is-left-resizing': isLeftSidebarResizing,
+      'is-right-resizing': isRightSidebarResizing,
+      'is-shell-resizing': isLeftSidebarResizing || isRightSidebarResizing,
+    }"
+  >
     <!-- Header (always visible) -->
     <Header
       ref="headerRef"
       :left-sidebar-width="leftSidebarWidth"
       :left-rail-width="WORKBENCH_RAIL_WIDTH"
       :right-sidebar-width="rightSidebarWidth"
+      :left-sidebar-resizing="isLeftSidebarResizing"
+      :right-sidebar-resizing="isRightSidebarResizing"
     />
 
     <!-- Launcher (no workspace open) -->
@@ -17,15 +26,23 @@
 
     <!-- Main content area (workspace open) -->
     <template v-if="workspace.isOpen">
-      <div class="flex flex-1 overflow-hidden">
+      <div class="app-shell-workbench flex flex-1 overflow-hidden">
         <WorkbenchRail class="shrink-0" @open-settings="workspace.openSettings()" />
 
         <!-- Left sidebar: active project panel -->
         <div
-          v-if="workspace.leftSidebarOpen"
+          class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden border-r"
+          :class="{
+            'is-open': workspace.leftSidebarOpen,
+            'is-collapsed': !workspace.leftSidebarOpen,
+            'is-resizing': isLeftSidebarResizing,
+          }"
           data-sidebar="left"
-          class="shrink-0 overflow-hidden border-r"
-          :style="{ width: leftSidebarWidth + 'px', borderColor: 'var(--border)' }"
+          :aria-hidden="workspace.leftSidebarOpen ? 'false' : 'true'"
+          :style="{
+            width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
+            borderColor: workspace.leftSidebarOpen ? 'var(--border)' : 'transparent',
+          }"
         >
           <LeftSidebar
             ref="leftSidebarRef"
@@ -41,10 +58,12 @@
           v-if="workspace.leftSidebarOpen"
           direction="vertical"
           @resize="onLeftResize"
+          @resize-start="startLeftSidebarResize"
+          @resize-end="endLeftSidebarResize"
         />
 
         <!-- Center: Editor panes + bottom panel -->
-        <div class="flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
+        <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
           <div class="flex-1 overflow-hidden relative">
             <template v-if="workspace.isWorkspaceSurface">
               <PaneContainer
@@ -79,17 +98,29 @@
           </template>
         </div>
 
-        <template v-if="showRightSidebar">
+        <template v-if="supportsRightSidebar">
           <ResizeHandle
+            v-if="workspace.rightSidebarOpen"
             direction="vertical"
             @resize="onRightResize"
+            @resize-start="startRightSidebarResize"
+            @resize-end="endRightSidebarResize"
             @dblclick="onRightResizeSnap"
           />
 
           <div
+            class="app-shell-sidebar app-shell-sidebar-right shrink-0 overflow-hidden border-l"
+            :class="{
+              'is-open': workspace.rightSidebarOpen,
+              'is-collapsed': !workspace.rightSidebarOpen,
+              'is-resizing': isRightSidebarResizing,
+            }"
             data-sidebar="right"
-            class="shrink-0 overflow-hidden border-l"
-            :style="{ width: rightSidebarWidth + 'px', borderColor: 'var(--border)' }"
+            :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
+            :style="{
+              width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
+              borderColor: workspace.rightSidebarOpen ? 'var(--border)' : 'transparent',
+            }"
           >
             <RightSidebar />
           </div>
@@ -189,17 +220,22 @@ const workspaceSnapshotBrowserVisible = ref(false)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
-const showRightSidebar = computed(() => (
+const supportsRightSidebar = computed(() => (
   workspace.isOpen
-  && workspace.isWorkspaceSurface
-  && workspace.rightSidebarOpen
+  && !workspace.isAiSurface
 ))
 const {
   leftSidebarWidth,
   rightSidebarWidth,
   bottomPanelHeight,
+  isLeftSidebarResizing,
+  isRightSidebarResizing,
   onLeftResize,
+  startLeftSidebarResize,
+  endLeftSidebarResize,
   onRightResize,
+  startRightSidebarResize,
+  endRightSidebarResize,
   onRightResizeSnap,
   onBottomResize,
   cleanupAppShellLayout,
@@ -260,3 +296,52 @@ useAppTeardown({
   researchArtifactsStore,
 })
 </script>
+
+<style scoped>
+.app-shell-sidebar {
+  contain: layout paint;
+  will-change: width;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition:
+    width 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms ease;
+}
+
+.app-shell-sidebar > * {
+  min-width: 100%;
+  height: 100%;
+  opacity: 1;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease;
+}
+
+.app-shell-sidebar-left.is-collapsed > * {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.app-shell-sidebar-right.is-collapsed > * {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.app-shell-sidebar.is-collapsed {
+  pointer-events: none;
+}
+
+.app-shell-sidebar.is-resizing {
+  pointer-events: none;
+  user-select: none;
+  transition: none;
+}
+
+.app-shell-sidebar.is-resizing :deep(*) {
+  transition: none !important;
+}
+
+.app-shell-main {
+  min-width: 0;
+}
+</style>

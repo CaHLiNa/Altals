@@ -4,7 +4,10 @@ import {
   normalizeWorkbenchSidebarPanel,
   normalizeWorkbenchSurface,
 } from '../shared/workbenchSidebarPanels.js'
-import { normalizeWorkbenchInspectorPanel } from '../shared/workbenchInspectorPanels.js'
+import {
+  ALL_WORKBENCH_INSPECTOR_PANELS,
+  normalizeWorkbenchInspectorPanel,
+} from '../shared/workbenchInspectorPanels.js'
 
 const THEME_CLASSES = [
   'theme-light',
@@ -119,7 +122,8 @@ export function createWorkspacePreferenceState() {
   const primarySurface = normalizeWorkbenchSurface(readString('primarySurface', 'workspace'))
   const storedLeftSidebarPanel = readEnum('leftSidebarPanel', ALL_WORKBENCH_SIDEBAR_PANELS, 'files')
   const leftSidebarPanel = normalizeWorkbenchSidebarPanel(primarySurface, storedLeftSidebarPanel)
-  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(readString('rightSidebarPanel', 'outline'))
+  const storedRightSidebarPanel = readEnum('rightSidebarPanel', ALL_WORKBENCH_INSPECTOR_PANELS, 'outline')
+  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(primarySurface, storedRightSidebarPanel)
 
   return {
     primarySurface,
