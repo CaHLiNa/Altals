@@ -120,6 +120,8 @@ The root app component has already been reduced through extraction of several or
 
 A narrow persistent left rail for `Project` / `Library` / `AI` navigation has now also landed as a shell-level component, replacing the previous header-level primary-surface switcher without reintroducing broader orchestration into `App.vue`; the left-sidebar toggle affordance now lives as one persistent control in the global header, tracking the live left-sidebar edge while expanded and snapping back to the traffic-light/left-rail anchor when collapsed instead of duplicating a second toggle in the top-right chrome, while a fixed three-button mode group for `Project files` / `References` / `Outline` now sits just to the right of the rail and switches the left sidebar between single-panel content modes instead of stacking all three sections inside one resizable column.
 
+The empty-pane / new-tab workspace starter has also been reframed from a generic welcome surface into a restrained academic dashboard that reuses existing project metrics, recent-material history, and workbench entry points instead of inventing a synthetic system-status layer.
+
 #### Large store reduction progress
 
 Two major store reductions have already happened:
