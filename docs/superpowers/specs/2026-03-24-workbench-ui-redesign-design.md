@@ -404,6 +404,9 @@ Status colors must remain explicit and operational:
 - clearer distinction between hover, active, selected, and focused states
 - separators should provide structural rhythm, not merely decoration
 - navigation surfaces and inspector surfaces must not look interchangeable
+- use cards sparingly; cards should not become the default layout primitive
+- avoid card stacks inside card stacks; multi-layer nested cards are explicitly disallowed
+- prefer direct panel sections, list rows, split regions, toolbars, and inspectors over dashboard-style boxed grouping
 
 ### 8.6 Motion
 
@@ -475,6 +478,7 @@ This creates the structural foundation needed for the rest of the redesign witho
   - footer is a status bar plus expandable workbench
   - rollout uses phased replacement
   - the product axis follows the academic workflow from literature through writing and computation with AI throughout
+  - the visual system should use cards sparingly and must avoid nested card layouts
 
 ## 13. Open Items For Implementation Planning
 
