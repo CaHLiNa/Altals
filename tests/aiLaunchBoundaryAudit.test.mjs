@@ -50,15 +50,29 @@ test('remaining direct launchAiTask callers stay explicit and the document workf
     'src/components/ai/AiWorkbenchHome.vue',
     'src/components/chat/ChatSession.vue',
     'src/components/editor/AiLauncher.vue',
-    'src/components/editor/NotebookEditor.vue',
     'src/components/editor/ReferenceView.vue',
-    'src/components/sidebar/ReferenceList.vue',
+    'src/services/ai/workbenchTaskLaunchers.js',
     'src/services/commentActions.js',
   ])
 
+  const notebookEditor = readFileSync(
+    path.join(repoRoot, 'src/components/editor/NotebookEditor.vue'),
+    'utf8'
+  )
+  assert.equal(notebookEditor.includes('launchAiTask('), false)
+  assert.equal(notebookEditor.includes('launchNotebookAssistantTask('), true)
+
+  const referenceList = readFileSync(
+    path.join(repoRoot, 'src/components/sidebar/ReferenceList.vue'),
+    'utf8'
+  )
+  assert.equal(referenceList.includes('launchAiTask('), false)
+  assert.equal(referenceList.includes('launchReferenceMaintenanceTask('), true)
+  assert.equal(referenceList.includes('launchReferenceCompareTask('), true)
+
   const workflowComposable = readFileSync(
     path.join(repoRoot, 'src/composables/useEditorPaneWorkflow.js'),
-    'utf8',
+    'utf8'
   )
   assert.equal(workflowComposable.includes('launchAiTask('), false)
   assert.equal(workflowComposable.includes('createTexTypFixTask'), false)

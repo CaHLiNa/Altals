@@ -61,7 +61,7 @@
         />
 
         <!-- Center: Editor panes + bottom panel -->
-        <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px;">
+        <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px">
           <div class="flex-1 overflow-hidden relative">
             <KeepAlive :max="3">
               <component
@@ -115,7 +115,6 @@
             <RightSidebar />
           </div>
         </template>
-
       </div>
 
       <!-- Footer -->
@@ -139,7 +138,11 @@
     />
 
     <!-- Settings Modal -->
-    <Settings :visible="workspace.settingsOpen" :initialSection="workspace.settingsSection" @close="workspace.closeSettings()" />
+    <Settings
+      :visible="workspace.settingsOpen"
+      :initialSection="workspace.settingsSection"
+      @close="workspace.closeSettings()"
+    />
 
     <UnsavedChangesDialog />
 
@@ -152,7 +155,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, KeepAlive } from 'vue'
+import { ref, computed, defineAsyncComponent, onUnmounted, watch } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -178,17 +181,31 @@ import { useWorkspaceSnapshotActions } from './app/changes/useWorkspaceSnapshotA
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
+import { hasVisiblePdfPane } from './domains/editor/paneTreeViewerRuntime'
+import {
+  SIDEBAR_TOGGLE_RESIZE_PULSE_MS,
+  shouldPulseShellResizeForSidebarToggle,
+} from './domains/editor/pdfViewerRuntime'
+import { setShellResizeActive } from './shared/shellResizeSignals'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
 const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
-const WorkspaceSnapshotBrowser = defineAsyncComponent(() => import('./components/WorkspaceSnapshotBrowser.vue'))
+const WorkspaceSnapshotBrowser = defineAsyncComponent(
+  () => import('./components/WorkspaceSnapshotBrowser.vue')
+)
 const FileVersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
-const AiWorkbenchSurface = defineAsyncComponent(() => import('./components/ai/AiWorkbenchSurface.vue'))
-const GlobalLibraryWorkbench = defineAsyncComponent(() => import('./components/library/GlobalLibraryWorkbench.vue'))
-const UnsavedChangesDialog = defineAsyncComponent(() => import('./components/UnsavedChangesDialog.vue'))
+const AiWorkbenchSurface = defineAsyncComponent(
+  () => import('./components/ai/AiWorkbenchSurface.vue')
+)
+const GlobalLibraryWorkbench = defineAsyncComponent(
+  () => import('./components/library/GlobalLibraryWorkbench.vue')
+)
+const UnsavedChangesDialog = defineAsyncComponent(
+  () => import('./components/UnsavedChangesDialog.vue')
+)
 
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
@@ -210,26 +227,40 @@ const workspaceSnapshotBrowserVisible = ref(false)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
-const supportsRightSidebar = computed(() => (
-  workspace.isOpen
-  && !workspace.isAiSurface
-))
+const supportsRightSidebar = computed(() => workspace.isOpen && !workspace.isAiSurface)
 const activeWorkbenchComponent = computed(() => {
   if (workspace.isLibrarySurface) return GlobalLibraryWorkbench
   if (workspace.isAiSurface) return AiWorkbenchSurface
   return PaneContainer
 })
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
-const activeWorkbenchProps = computed(() => (
-  workspace.isWorkspaceSurface
-    ? { node: editorStore.paneTree }
-    : {}
-))
-const activeWorkbenchClass = computed(() => (
-  workspace.isWorkspaceSurface
-    ? 'h-full min-h-0 w-full'
-    : 'h-full min-h-0 w-full'
-))
+const activeWorkbenchProps = computed(() =>
+  workspace.isWorkspaceSurface ? { node: editorStore.paneTree } : {}
+)
+const activeWorkbenchClass = computed(() =>
+  workspace.isWorkspaceSurface ? 'h-full min-h-0 w-full' : 'h-full min-h-0 w-full'
+)
+let sidebarToggleResizePulseTimer = null
+
+function clearSidebarToggleResizePulse() {
+  if (sidebarToggleResizePulseTimer !== null) {
+    window.clearTimeout(sidebarToggleResizePulseTimer)
+    sidebarToggleResizePulseTimer = null
+  }
+  setShellResizeActive(false, { source: 'sidebar-toggle' })
+}
+
+function pulseShellResizeForSidebarToggle(side) {
+  if (typeof window === 'undefined') return
+  setShellResizeActive(true, { source: 'sidebar-toggle', side })
+  if (sidebarToggleResizePulseTimer !== null) {
+    window.clearTimeout(sidebarToggleResizePulseTimer)
+  }
+  sidebarToggleResizePulseTimer = window.setTimeout(() => {
+    sidebarToggleResizePulseTimer = null
+    setShellResizeActive(false, { source: 'sidebar-toggle', side })
+  }, SIDEBAR_TOGGLE_RESIZE_PULSE_MS)
+}
 const {
   leftSidebarWidth,
   rightSidebarWidth,
@@ -246,28 +277,20 @@ const {
   onBottomResize,
   cleanupAppShellLayout,
 } = useAppShellLayout()
-const {
-  closeWorkspace,
-  handleVisibilityChange,
-  openWorkspace,
-  pickWorkspace,
-  setupWizardVisible,
-} = useWorkspaceLifecycle()
-const {
-  createSnapshot,
-  openWorkspaceSnapshots,
-  openFileVersionHistory,
-} = useWorkspaceSnapshotActions({
-  workspace,
-  filesStore,
-  editorStore,
-  footerRef,
-  toastStore,
-  workspaceSnapshotBrowserVisible,
-  fileVersionHistoryVisible,
-  fileVersionHistoryFile,
-  t,
-})
+const { closeWorkspace, handleVisibilityChange, openWorkspace, pickWorkspace, setupWizardVisible } =
+  useWorkspaceLifecycle()
+const { createSnapshot, openWorkspaceSnapshots, openFileVersionHistory } =
+  useWorkspaceSnapshotActions({
+    workspace,
+    filesStore,
+    editorStore,
+    footerRef,
+    toastStore,
+    workspaceSnapshotBrowserVisible,
+    fileVersionHistoryVisible,
+    fileVersionHistoryFile,
+    t,
+  })
 const { onCursorChange, onEditorStats } = useFooterStatusSync({
   footerRef,
   editorStore,
@@ -300,6 +323,44 @@ useAppTeardown({
   commentsStore,
   referencesStore,
   researchArtifactsStore,
+})
+
+watch(
+  () => workspace.leftSidebarOpen,
+  (nextOpen, previousOpen) => {
+    if (
+      !shouldPulseShellResizeForSidebarToggle({
+        previousOpen,
+        nextOpen,
+        hasVisiblePdfPane: hasVisiblePdfPane(editorStore.paneTree),
+      })
+    ) {
+      return
+    }
+    pulseShellResizeForSidebarToggle('left')
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => workspace.rightSidebarOpen,
+  (nextOpen, previousOpen) => {
+    if (
+      !shouldPulseShellResizeForSidebarToggle({
+        previousOpen,
+        nextOpen,
+        hasVisiblePdfPane: hasVisiblePdfPane(editorStore.paneTree),
+      })
+    ) {
+      return
+    }
+    pulseShellResizeForSidebarToggle('right')
+  },
+  { flush: 'sync' }
+)
+
+onUnmounted(() => {
+  clearSidebarToggleResizePulse()
 })
 </script>
 

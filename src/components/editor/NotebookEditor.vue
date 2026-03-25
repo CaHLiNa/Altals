@@ -3,10 +3,12 @@
     <!-- Toolbar -->
     <div class="notebook-toolbar shrink-0">
       <div class="notebook-toolbar-inner">
-
         <!-- Status chip (replaces kernel dropdown) -->
-        <button
+        <UiButton
           ref="statusChipRef"
+          variant="secondary"
+          size="sm"
+          content-mode="raw"
           class="nb-status-chip"
           :class="statusChipClass"
           @click="toggleStatusPopover"
@@ -16,16 +18,22 @@
           <span class="nb-status-dot" :class="statusDotClass"></span>
           {{ statusChipLabel }}
           <IconChevronDown :size="12" :stroke-width="1.8" class="nb-status-chip-caret" />
-        </button>
+        </UiButton>
 
         <!-- Kernel status (when Jupyter mode and kernel active) -->
-        <span v-if="mode === 'jupyter' && kernelId" class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
-          :style="kernelStatusStyle">
+        <span
+          v-if="mode === 'jupyter' && kernelId"
+          class="ui-text-micro px-1.5 py-0.5 rounded font-medium"
+          :style="kernelStatusStyle"
+        >
           {{ kernelStatusLabel }}
         </span>
 
         <div class="nb-toolbar-actions">
-          <button
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             class="nb-toolbar-btn nb-toolbar-btn-primary"
             @click="runAllCells"
             :disabled="mode === 'none'"
@@ -33,9 +41,12 @@
             :aria-label="t('Run all cells')"
           >
             <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="mode === 'jupyter'"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             class="nb-toolbar-btn nb-toolbar-btn-muted"
             @click="restartKernel"
             :disabled="!kernelId"
@@ -43,29 +54,32 @@
             :aria-label="t('Restart kernel')"
           >
             <IconRefresh :size="14" :stroke-width="1.8" />
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             class="nb-toolbar-btn nb-toolbar-btn-muted"
             @click="clearAllOutputs"
             :title="t('Clear all outputs')"
             :aria-label="t('Clear all outputs')"
           >
             <IconClearAll :size="14" :stroke-width="1.8" />
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             class="nb-toolbar-btn nb-toolbar-btn-accent"
             @click="handleAskAi"
             :title="t('Ask AI about this notebook')"
             :aria-label="t('Ask AI about this notebook')"
           >
             <IconSparkles :size="14" :stroke-width="1.8" />
-          </button>
+          </UiButton>
         </div>
 
-        <span
-          class="nb-toolbar-meta ml-auto"
-          :title="t('{count} cells', { count: cells.length })"
-        >
+        <span class="nb-toolbar-meta ml-auto" :title="t('{count} cells', { count: cells.length })">
           <IconLayoutList :size="13" :stroke-width="1.8" />
           <span>{{ cells.length }}</span>
           <template v-if="saving"> &middot; {{ t('Saving...') }}</template>
@@ -75,7 +89,11 @@
 
     <!-- Status popover (Teleported to body to avoid overflow-hidden clipping) -->
     <Teleport to="body">
-      <div v-if="showStatusPopover" class="fixed inset-0 z-[9999]" @click="showStatusPopover = false">
+      <div
+        v-if="showStatusPopover"
+        class="fixed inset-0 z-[9999]"
+        @click="showStatusPopover = false"
+      >
         <div
           class="nb-status-popover"
           :style="{ left: popoverX + 'px', top: popoverY + 'px' }"
@@ -104,14 +122,16 @@
           <!-- Jupyter info -->
           <div v-if="envStore.jupyter.found" class="nb-pop-section">
             <div class="nb-pop-label">{{ t('Jupyter') }}</div>
-            <div class="nb-pop-value" style="font-size: var(--ui-font-micro); font-family: var(--font-mono); color: var(--fg-muted);">
+            <div class="nb-pop-value nb-pop-path">
               {{ envStore.jupyter.path }}
             </div>
           </div>
 
           <div class="nb-pop-section">
             <div class="nb-pop-label">{{ t('Environment Health') }}</div>
-            <div v-if="environmentHealthLoading" class="nb-health-empty">{{ t('Checking environment health...') }}</div>
+            <div v-if="environmentHealthLoading" class="nb-health-empty">
+              {{ t('Checking environment health...') }}
+            </div>
             <div v-else class="nb-health-list">
               <div v-for="entry in environmentHealth" :key="entry.id" class="nb-health-row">
                 <div class="nb-health-main">
@@ -126,21 +146,24 @@
           <!-- Kernel picker (jupyter mode) -->
           <div v-if="mode === 'jupyter'" class="nb-pop-section">
             <div class="nb-pop-label">{{ t('Kernel') }}</div>
-            <select
-              v-model="selectedSpec"
-              class="nb-pop-select"
-            >
+            <UiSelect v-model="selectedSpec" size="sm" class="nb-pop-select">
               <option v-for="k in kernelspecs" :key="k.name" :value="k.name">
                 {{ k.display_name }}
               </option>
-            </select>
+            </UiSelect>
           </div>
 
           <!-- Re-detect link -->
           <div class="nb-pop-footer">
-            <button class="nb-pop-link" @click="redetect" :disabled="envStore.detecting">
+            <UiButton
+              variant="ghost"
+              size="sm"
+              class="nb-pop-link"
+              @click="redetect"
+              :disabled="envStore.detecting"
+            >
               {{ envStore.detecting ? t('Detecting...') : t('Re-detect languages') }}
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>
@@ -149,12 +172,26 @@
     <!-- Setup prompt (when no kernel available) -->
     <div v-if="mode === 'none' && envStore.detected" class="nb-setup-prompt">
       <div class="nb-setup-icon">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-          <path d="M7 8l3 3-3 3" opacity="0.7"/><line x1="13" y1="14" x2="17" y2="14" opacity="0.7"/>
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+          <path d="M7 8l3 3-3 3" opacity="0.7" />
+          <line x1="13" y1="14" x2="17" y2="14" opacity="0.7" />
         </svg>
       </div>
-      <div class="nb-setup-title">{{ t('Set up {language} for notebooks', { language: langDisplayName }) }}</div>
+      <div class="nb-setup-title">
+        {{ t('Set up {language} for notebooks', { language: langDisplayName }) }}
+      </div>
       <div class="nb-setup-desc">
         {{ t('Running notebook cells requires a Jupyter kernel.') }}
         {{ envStore.jupyter.found ? '' : t('Jupyter was not found on your system.') }}
@@ -171,27 +208,44 @@
         <div class="nb-setup-step">
           <span class="nb-setup-step-num">{{ envStore.jupyter.found ? '1' : '2' }}</span>
           <div>
-            <div class="nb-setup-step-title">{{ t('Install the {language} kernel', { language: langDisplayName }) }}</div>
+            <div class="nb-setup-step-title">
+              {{ t('Install the {language} kernel', { language: langDisplayName }) }}
+            </div>
             <code class="nb-setup-code">{{ envStore.installCommand(notebookLanguage) }}</code>
           </div>
         </div>
       </div>
 
       <div class="nb-setup-actions">
-        <button
+        <UiButton
+          variant="primary"
+          size="md"
           class="nb-setup-install-btn"
           :disabled="envStore.installing === notebookLanguage"
           @click="handleInstallKernel"
         >
-          {{ envStore.installing === notebookLanguage ? t('Installing...') : t('Install {package} now', { package: kernelPackageName }) }}
-        </button>
-        <button class="nb-setup-redetect" @click="redetect" :disabled="envStore.detecting">
+          {{
+            envStore.installing === notebookLanguage
+              ? t('Installing...')
+              : t('Install {package} now', { package: kernelPackageName })
+          }}
+        </UiButton>
+        <UiButton
+          variant="secondary"
+          size="md"
+          class="nb-setup-redetect"
+          @click="redetect"
+          :disabled="envStore.detecting"
+        >
           {{ envStore.detecting ? t('Checking...') : t('Re-check') }}
-        </button>
+        </UiButton>
       </div>
 
       <div v-if="envStore.installError" class="nb-setup-error">{{ envStore.installError }}</div>
-      <div v-if="envStore.installOutput && envStore.installing === notebookLanguage" class="nb-setup-output">
+      <div
+        v-if="envStore.installOutput && envStore.installing === notebookLanguage"
+        class="nb-setup-output"
+      >
         <pre>{{ envStore.installOutput.slice(-500) }}</pre>
       </div>
     </div>
@@ -202,7 +256,7 @@
         <NotebookCell
           v-for="(cell, idx) in displayCells"
           :key="cell.id"
-          :ref="el => setCellRef(idx, el)"
+          :ref="(el) => setCellRef(idx, el)"
           :cell="cell"
           :index="idx"
           :active="activeCell === idx"
@@ -235,8 +289,20 @@
 
         <!-- Add cell button -->
         <div class="flex gap-2 justify-center mt-3">
-          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'code')">{{ t('+ Code') }}</button>
-          <button class="nb-add-cell-btn" @click="addCell(cells.length, 'markdown')">{{ t('+ Markdown') }}</button>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            class="nb-add-cell-btn"
+            @click="addCell(cells.length, 'code')"
+            >{{ t('+ Code') }}</UiButton
+          >
+          <UiButton
+            variant="ghost"
+            size="sm"
+            class="nb-add-cell-btn"
+            @click="addCell(cells.length, 'markdown')"
+            >{{ t('+ Markdown') }}</UiButton
+          >
         </div>
       </div>
     </div>
@@ -252,13 +318,14 @@ import {
   IconRefresh,
   IconSparkles,
 } from '@tabler/icons-vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 import NotebookCell from './NotebookCell.vue'
 import { useNotebookEditor } from '../../composables/useNotebookEditor'
 import { useI18n } from '../../i18n'
 import { useChatStore } from '../../stores/chat'
 import { useEditorStore } from '../../stores/editor'
-import { launchAiTask } from '../../services/ai/launch'
-import { createNotebookAssistantTask } from '../../services/ai/taskCatalog'
+import { launchNotebookAssistantTask } from '../../services/ai/workbenchTaskLaunchers'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -313,16 +380,11 @@ const {
 
 async function handleAskAi() {
   if (!props.filePath) return
-  await launchAiTask({
+  await launchNotebookAssistantTask({
     editorStore,
     chatStore,
     paneId: props.paneId,
-    beside: true,
-    task: createNotebookAssistantTask({
-      filePath: props.filePath,
-      source: 'notebook-toolbar',
-      entryContext: 'notebook-toolbar',
-    }),
+    filePath: props.filePath,
   })
 }
 
@@ -416,8 +478,13 @@ function healthStatusClass(status) {
   flex-shrink: 0;
 }
 
-.nb-status-dot.good { background: var(--success, #50fa7b); }
-.nb-status-dot.none { background: var(--fg-muted); opacity: 0.5; }
+.nb-status-dot.good {
+  background: var(--success, #50fa7b);
+}
+.nb-status-dot.none {
+  background: var(--fg-muted);
+  opacity: 0.5;
+}
 
 /* Status popover */
 .nb-status-popover {
@@ -454,6 +521,12 @@ function healthStatusClass(status) {
   font-weight: 500;
 }
 
+.nb-pop-path {
+  font-size: var(--ui-font-micro);
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+}
+
 .nb-pop-status {
   font-size: var(--ui-font-caption);
   padding: 6px 8px;
@@ -482,8 +555,12 @@ function healthStatusClass(status) {
   margin-top: 4px;
 }
 
-.nb-pop-dot.good { background: var(--success, #50fa7b); }
-.nb-pop-dot.none { background: var(--fg-muted); }
+.nb-pop-dot.good {
+  background: var(--success, #50fa7b);
+}
+.nb-pop-dot.none {
+  background: var(--fg-muted);
+}
 
 .nb-pop-hint {
   width: 100%;
@@ -541,17 +618,15 @@ function healthStatusClass(status) {
 }
 
 .nb-pop-link {
-  font-size: var(--ui-font-micro);
-  color: var(--fg-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
   padding: 0;
-  transition: color 0.1s;
+  min-height: auto;
+  border: none;
+  background: transparent;
+  font-size: var(--ui-font-micro);
 }
 
-.nb-pop-link:hover {
-  color: var(--accent);
+.nb-pop-link:deep(.ui-button-label) {
+  white-space: nowrap;
 }
 
 .nb-pop-link:disabled {
@@ -587,9 +662,15 @@ function healthStatusClass(status) {
   flex-shrink: 0;
 }
 
-.nb-health-dot.good { background: var(--success, #50fa7b); }
-.nb-health-dot.warn { background: var(--warning, #e2b93d); }
-.nb-health-dot.bad { background: var(--error, #f7768e); }
+.nb-health-dot.good {
+  background: var(--success, #50fa7b);
+}
+.nb-health-dot.warn {
+  background: var(--warning, #e2b93d);
+}
+.nb-health-dot.bad {
+  background: var(--error, #f7768e);
+}
 
 .nb-health-detail {
   margin-top: 4px;
@@ -764,18 +845,10 @@ function healthStatusClass(status) {
 }
 
 .nb-toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
   width: 24px;
   height: 22px;
-  padding: 0;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
   color: var(--fg-muted);
-  cursor: pointer;
   transition:
     background-color 0.14s ease,
     border-color 0.14s ease,
@@ -839,14 +912,13 @@ function healthStatusClass(status) {
 }
 
 .nb-add-cell-btn {
-  padding: 4px 16px;
   border: 1px dashed var(--border);
-  background: transparent;
   color: var(--fg-muted);
-  cursor: pointer;
   border-radius: 4px;
   font-size: var(--ui-font-caption);
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .nb-add-cell-btn:hover {

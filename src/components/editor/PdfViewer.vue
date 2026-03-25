@@ -9,58 +9,73 @@
         <div class="pdf-toolbar">
           <div class="pdf-toolbar-left">
             <div class="pdf-toolbar-group">
-              <button
-                type="button"
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :class="{ 'pdf-toolbar-btn-active': pdfUi.sidebarOpen }"
                 :title="pdfUi.sidebarOpen ? t('Hide sidebar') : t('Show sidebar')"
+                :aria-label="pdfUi.sidebarOpen ? t('Hide sidebar') : t('Show sidebar')"
                 :disabled="!pdfUi.ready"
                 @click="toggleSidebar"
               >
                 <component :is="sidebarIcon" :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
               <div class="pdf-toolbar-separator"></div>
-              <button
-                type="button"
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :class="{ 'pdf-toolbar-btn-active': searchOpen }"
                 :title="t('Search')"
+                :aria-label="t('Search')"
                 :disabled="!pdfUi.ready"
                 @click="toggleSearch"
               >
                 <IconSearch :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
               <div class="pdf-toolbar-separator"></div>
-              <button
-                type="button"
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :class="{ 'pdf-toolbar-btn-active': pdfTranslationBusy }"
                 :title="pdfTranslationBusy ? t('Translating...') : t('Translate this PDF')"
+                :aria-label="pdfTranslationBusy ? t('Translating...') : t('Translate this PDF')"
                 :disabled="!pdfUi.ready"
                 @click="translateCurrentPdf"
                 @contextmenu.prevent.stop="openPdfTranslationMenu"
               >
                 <IconLanguage :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
               <div class="pdf-toolbar-separator"></div>
-              <button
-                type="button"
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :title="t('Previous page')"
+                :aria-label="t('Previous page')"
                 :disabled="!pdfUi.canGoPrevious"
                 @click="goToPreviousPage"
               >
                 <IconChevronLeft :size="13" :stroke-width="1.8" />
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :title="t('Next page')"
+                :aria-label="t('Next page')"
                 :disabled="!pdfUi.canGoNext"
                 @click="goToNextPage"
               >
                 <IconChevronRight :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
               <div class="pdf-toolbar-separator"></div>
               <div class="pdf-toolbar-group pdf-page-indicator">
                 <input
@@ -74,31 +89,39 @@
                   @keydown.enter.prevent="submitPageNumber"
                   @blur="submitPageNumber"
                 />
-                <span class="pdf-toolbar-label">{{ t('of {count}', { count: pdfUi.pagesCount || 0 }) }}</span>
+                <span class="pdf-toolbar-label">{{
+                  t('of {count}', { count: pdfUi.pagesCount || 0 })
+                }}</span>
               </div>
             </div>
           </div>
 
           <div class="pdf-toolbar-center">
             <div class="pdf-toolbar-group">
-              <button
-                type="button"
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :title="t('Zoom out')"
+                :aria-label="t('Zoom out')"
                 :disabled="!pdfUi.canZoomOut"
                 @click="zoomOut"
               >
                 <IconMinus :size="13" :stroke-width="1.8" />
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :title="t('Zoom in')"
+                :aria-label="t('Zoom in')"
                 :disabled="!pdfUi.canZoomIn"
                 @click="zoomIn"
               >
                 <IconPlus :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
             </div>
 
             <div class="pdf-toolbar-group pdf-toolbar-group-scale">
@@ -109,11 +132,7 @@
                 @focus="markPaneActive"
                 @change="handleScaleSelectChange"
               >
-                <option
-                  v-for="option in scaleOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
+                <option v-for="option in scaleOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
               </select>
@@ -128,81 +147,106 @@
                 :class="{ 'pdf-toolbar-group-collapsible-open': editorToolsExpanded }"
               >
                 <div class="pdf-toolbar-collapsible-tools">
-                  <button
+                  <UiButton
                     v-if="toolbarButtons.editorFreeTextButton.visible"
-                    type="button"
                     class="pdf-toolbar-btn"
-                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorFreeTextButton.active || activeToolbarPanel === 'freetext' }"
+                    variant="ghost"
+                    size="icon-sm"
+                    icon-only
+                    :class="{
+                      'pdf-toolbar-btn-active':
+                        toolbarButtons.editorFreeTextButton.active ||
+                        activeToolbarPanel === 'freetext',
+                    }"
                     :title="t('Text')"
+                    :aria-label="t('Text')"
                     :disabled="toolbarButtons.editorFreeTextButton.disabled"
                     @click="activateEditorTool('editorFreeTextButton', 'freetext')"
                   >
                     <IconLetterT :size="13" :stroke-width="1.8" />
-                  </button>
-                  <button
+                  </UiButton>
+                  <UiButton
                     v-if="toolbarButtons.editorInkButton.visible"
-                    type="button"
                     class="pdf-toolbar-btn"
-                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorInkButton.active || activeToolbarPanel === 'ink' }"
+                    variant="ghost"
+                    size="icon-sm"
+                    icon-only
+                    :class="{
+                      'pdf-toolbar-btn-active':
+                        toolbarButtons.editorInkButton.active || activeToolbarPanel === 'ink',
+                    }"
                     :title="t('Ink')"
+                    :aria-label="t('Ink')"
                     :disabled="toolbarButtons.editorInkButton.disabled"
                     @click="activateEditorTool('editorInkButton', 'ink')"
                   >
                     <IconPencil :size="13" :stroke-width="1.8" />
-                  </button>
-                  <button
+                  </UiButton>
+                  <UiButton
                     v-if="toolbarButtons.editorStampButton.visible"
-                    type="button"
                     class="pdf-toolbar-btn"
-                    :class="{ 'pdf-toolbar-btn-active': toolbarButtons.editorStampButton.active || activeToolbarPanel === 'stamp' }"
+                    variant="ghost"
+                    size="icon-sm"
+                    icon-only
+                    :class="{
+                      'pdf-toolbar-btn-active':
+                        toolbarButtons.editorStampButton.active || activeToolbarPanel === 'stamp',
+                    }"
                     :title="t('Stamp')"
+                    :aria-label="t('Stamp')"
                     :disabled="toolbarButtons.editorStampButton.disabled"
                     @click="activateEditorTool('editorStampButton', 'stamp')"
                   >
                     <IconPhoto :size="13" :stroke-width="1.8" />
-                  </button>
+                  </UiButton>
                 </div>
-                <button
-                  type="button"
+                <UiButton
                   class="pdf-toolbar-btn"
+                  variant="ghost"
+                  size="icon-sm"
+                  icon-only
                   :class="{ 'pdf-toolbar-btn-active': editorToolGroupActive }"
                   :title="editorToolsToggleTitle"
+                  :aria-label="editorToolsToggleTitle"
                   @click="toggleEditorToolsExpanded"
                 >
                   <IconChevronRight v-if="editorToolsExpanded" :size="13" :stroke-width="1.8" />
                   <IconChevronLeft v-else :size="13" :stroke-width="1.8" />
-                </button>
+                </UiButton>
               </div>
-              <div
-                v-if="hasEditorTools"
-                class="pdf-toolbar-separator"
-              ></div>
-              <button
+              <div v-if="hasEditorTools" class="pdf-toolbar-separator"></div>
+              <UiButton
                 v-if="toolbarButtons.secondaryToolbarToggleButton.visible"
-                type="button"
                 class="pdf-toolbar-btn"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :class="{ 'pdf-toolbar-btn-active': activeToolbarPanel === 'tools' }"
                 :title="t('Tools')"
+                :aria-label="t('Tools')"
                 :disabled="toolbarButtons.secondaryToolbarToggleButton.disabled"
                 @click="toggleToolsMenu"
               >
                 <IconTool :size="13" :stroke-width="1.8" />
-              </button>
+              </UiButton>
             </div>
           </div>
         </div>
 
         <div v-if="searchOpen" class="pdf-search-popover">
           <div class="pdf-search-popover-row pdf-search-popover-row-main">
-            <button
-              type="button"
+            <UiButton
               class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+              variant="ghost"
+              size="icon-sm"
+              icon-only
               :disabled="!searchDraft.trim()"
               :title="t('Previous match')"
+              :aria-label="t('Previous match')"
               @click="runSearch(true)"
             >
               <IconChevronUp :size="12" :stroke-width="1.8" />
-            </button>
+            </UiButton>
             <input
               ref="searchInputRef"
               v-model="searchDraft"
@@ -212,54 +256,70 @@
               @focus="markPaneActive"
               @keydown.enter.prevent="runSearch(false)"
             />
-            <button
-              type="button"
+            <UiButton
               class="pdf-toolbar-btn pdf-toolbar-btn-sm"
+              variant="ghost"
+              size="icon-sm"
+              icon-only
               :disabled="!searchDraft.trim()"
               :title="t('Next match')"
+              :aria-label="t('Next match')"
               @click="runSearch(false)"
             >
               <IconChevronDown :size="12" :stroke-width="1.8" />
-            </button>
+            </UiButton>
           </div>
           <div class="pdf-search-popover-row pdf-search-popover-row-options">
-            <button
-              type="button"
+            <UiButton
               class="pdf-search-toggle"
+              variant="ghost"
+              size="sm"
+              :active="pdfUi.searchHighlightAll"
               :class="{ 'pdf-search-toggle-active': pdfUi.searchHighlightAll }"
               @click="toggleSearchOption('searchHighlightAll')"
             >
               {{ t('Highlight all') }}
-            </button>
-            <button
-              type="button"
+            </UiButton>
+            <UiButton
               class="pdf-search-toggle"
+              variant="ghost"
+              size="sm"
+              :active="pdfUi.searchCaseSensitive"
               :class="{ 'pdf-search-toggle-active': pdfUi.searchCaseSensitive }"
               @click="toggleSearchOption('searchCaseSensitive')"
             >
               {{ t('Match case') }}
-            </button>
-            <button
-              type="button"
+            </UiButton>
+            <UiButton
               class="pdf-search-toggle"
+              variant="ghost"
+              size="sm"
+              :active="pdfUi.searchMatchDiacritics"
               :class="{ 'pdf-search-toggle-active': pdfUi.searchMatchDiacritics }"
               @click="toggleSearchOption('searchMatchDiacritics')"
             >
               {{ t('Match diacritics') }}
-            </button>
-            <button
-              type="button"
+            </UiButton>
+            <UiButton
               class="pdf-search-toggle"
+              variant="ghost"
+              size="sm"
+              :active="pdfUi.searchEntireWord"
               :class="{ 'pdf-search-toggle-active': pdfUi.searchEntireWord }"
               @click="toggleSearchOption('searchEntireWord')"
             >
               {{ t('Whole words') }}
-            </button>
-            <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint pdf-search-result-hint">{{ pdfUi.searchResultText }}</span>
+            </UiButton>
+            <span v-if="pdfUi.searchResultText" class="pdf-toolbar-hint pdf-search-result-hint">{{
+              pdfUi.searchResultText
+            }}</span>
           </div>
         </div>
 
-        <div v-if="activeToolbarPanel === 'freetext'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+        <div
+          v-if="activeToolbarPanel === 'freetext'"
+          class="pdf-toolbar-popover pdf-toolbar-popover-right"
+        >
           <div class="pdf-toolbar-popover-title">{{ t('Text') }}</div>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
@@ -268,7 +328,7 @@
               class="pdf-color-input"
               :value="editorParams.freeTextColor"
               @input="setPdfInputValue('editorFreeTextColor', $event.target.value)"
-            >
+            />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Font size') }}</span>
@@ -279,11 +339,14 @@
               step="1"
               :value="editorParams.freeTextFontSize"
               @input="setPdfInputValue('editorFreeTextFontSize', $event.target.value)"
-            >
+            />
           </label>
         </div>
 
-        <div v-if="activeToolbarPanel === 'ink'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+        <div
+          v-if="activeToolbarPanel === 'ink'"
+          class="pdf-toolbar-popover pdf-toolbar-popover-right"
+        >
           <div class="pdf-toolbar-popover-title">{{ t('Ink') }}</div>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Color') }}</span>
@@ -292,7 +355,7 @@
               class="pdf-color-input"
               :value="editorParams.inkColor"
               @input="setPdfInputValue('editorInkColor', $event.target.value)"
-            >
+            />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Thickness') }}</span>
@@ -303,7 +366,7 @@
               step="1"
               :value="editorParams.inkThickness"
               @input="setPdfInputValue('editorInkThickness', $event.target.value)"
-            >
+            />
           </label>
           <label class="pdf-toolbar-field">
             <span class="pdf-toolbar-hint">{{ t('Opacity') }}</span>
@@ -314,55 +377,266 @@
               step="0.05"
               :value="editorParams.inkOpacity"
               @input="setPdfInputValue('editorInkOpacity', $event.target.value)"
-            >
+            />
           </label>
         </div>
 
-        <div v-if="activeToolbarPanel === 'stamp'" class="pdf-toolbar-popover pdf-toolbar-popover-right">
+        <div
+          v-if="activeToolbarPanel === 'stamp'"
+          class="pdf-toolbar-popover pdf-toolbar-popover-right"
+        >
           <div class="pdf-toolbar-popover-title">{{ t('Stamp') }}</div>
-          <button
-            type="button"
+          <UiButton
             class="pdf-toolbar-menu-item"
+            variant="ghost"
+            size="sm"
             @click="runToolMenuCommand('editorStampAddImage')"
           >
             {{ editorParams.stampAddLabel || t('Add image') }}
-          </button>
+          </UiButton>
         </div>
 
-        <div v-if="activeToolbarPanel === 'tools'" class="pdf-toolbar-popover pdf-toolbar-popover-menu">
-          <button v-if="toolMenuItems.secondaryOpenFile.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryOpenFile.disabled" @click="runToolMenuCommand('secondaryOpenFile')">{{ toolMenuItems.secondaryOpenFile.label }}</button>
-          <button v-if="toolMenuItems.secondaryPrint.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryPrint.disabled" @click="runToolMenuCommand('secondaryPrint')">{{ toolMenuItems.secondaryPrint.label }}</button>
-          <button v-if="toolMenuItems.secondaryDownload.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.secondaryDownload.disabled" @click="runToolMenuCommand('secondaryDownload')">{{ toolMenuItems.secondaryDownload.label }}</button>
-          <div v-if="toolMenuItems.secondaryOpenFile.visible || toolMenuItems.secondaryPrint.visible || toolMenuItems.secondaryDownload.visible" class="pdf-toolbar-menu-separator"></div>
+        <div
+          v-if="activeToolbarPanel === 'tools'"
+          class="pdf-toolbar-popover pdf-toolbar-popover-menu"
+        >
+          <UiButton
+            v-if="toolMenuItems.secondaryOpenFile.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.secondaryOpenFile.disabled"
+            @click="runToolMenuCommand('secondaryOpenFile')"
+            >{{ toolMenuItems.secondaryOpenFile.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.secondaryPrint.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.secondaryPrint.disabled"
+            @click="runToolMenuCommand('secondaryPrint')"
+            >{{ toolMenuItems.secondaryPrint.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.secondaryDownload.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.secondaryDownload.disabled"
+            @click="runToolMenuCommand('secondaryDownload')"
+            >{{ toolMenuItems.secondaryDownload.label }}</UiButton
+          >
+          <div
+            v-if="
+              toolMenuItems.secondaryOpenFile.visible ||
+              toolMenuItems.secondaryPrint.visible ||
+              toolMenuItems.secondaryDownload.visible
+            "
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.presentationMode.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.presentationMode.disabled" @click="runToolMenuCommand('presentationMode')">{{ toolMenuItems.presentationMode.label }}</button>
-          <button v-if="toolMenuItems.viewBookmark.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.viewBookmark.disabled" @click="runToolMenuCommand('viewBookmark')">{{ toolMenuItems.viewBookmark.label }}</button>
-          <div v-if="toolMenuItems.presentationMode.visible || toolMenuItems.viewBookmark.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.presentationMode.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.presentationMode.disabled"
+            @click="runToolMenuCommand('presentationMode')"
+            >{{ toolMenuItems.presentationMode.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.viewBookmark.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.viewBookmark.disabled"
+            @click="runToolMenuCommand('viewBookmark')"
+            >{{ toolMenuItems.viewBookmark.label }}</UiButton
+          >
+          <div
+            v-if="toolMenuItems.presentationMode.visible || toolMenuItems.viewBookmark.visible"
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.firstPage.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.firstPage.disabled" @click="runToolMenuCommand('firstPage')">{{ toolMenuItems.firstPage.label }}</button>
-          <button v-if="toolMenuItems.lastPage.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.lastPage.disabled" @click="runToolMenuCommand('lastPage')">{{ toolMenuItems.lastPage.label }}</button>
-          <div v-if="toolMenuItems.firstPage.visible || toolMenuItems.lastPage.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.firstPage.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.firstPage.disabled"
+            @click="runToolMenuCommand('firstPage')"
+            >{{ toolMenuItems.firstPage.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.lastPage.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.lastPage.disabled"
+            @click="runToolMenuCommand('lastPage')"
+            >{{ toolMenuItems.lastPage.label }}</UiButton
+          >
+          <div
+            v-if="toolMenuItems.firstPage.visible || toolMenuItems.lastPage.visible"
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.pageRotateCw.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.pageRotateCw.disabled" @click="runToolMenuCommand('pageRotateCw')">{{ toolMenuItems.pageRotateCw.label }}</button>
-          <button v-if="toolMenuItems.pageRotateCcw.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.pageRotateCcw.disabled" @click="runToolMenuCommand('pageRotateCcw')">{{ toolMenuItems.pageRotateCcw.label }}</button>
-          <div v-if="toolMenuItems.pageRotateCw.visible || toolMenuItems.pageRotateCcw.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.pageRotateCw.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.pageRotateCw.disabled"
+            @click="runToolMenuCommand('pageRotateCw')"
+            >{{ toolMenuItems.pageRotateCw.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.pageRotateCcw.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.pageRotateCcw.disabled"
+            @click="runToolMenuCommand('pageRotateCcw')"
+            >{{ toolMenuItems.pageRotateCcw.label }}</UiButton
+          >
+          <div
+            v-if="toolMenuItems.pageRotateCw.visible || toolMenuItems.pageRotateCcw.visible"
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.cursorSelectTool.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorSelectTool.active }" :disabled="toolMenuItems.cursorSelectTool.disabled" @click="runToolMenuCommand('cursorSelectTool')">{{ toolMenuItems.cursorSelectTool.label }}</button>
-          <button v-if="toolMenuItems.cursorHandTool.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorHandTool.active }" :disabled="toolMenuItems.cursorHandTool.disabled" @click="runToolMenuCommand('cursorHandTool')">{{ toolMenuItems.cursorHandTool.label }}</button>
-          <div v-if="toolMenuItems.cursorSelectTool.visible || toolMenuItems.cursorHandTool.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.cursorSelectTool.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.cursorSelectTool.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorSelectTool.active }"
+            :disabled="toolMenuItems.cursorSelectTool.disabled"
+            @click="runToolMenuCommand('cursorSelectTool')"
+            >{{ toolMenuItems.cursorSelectTool.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.cursorHandTool.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.cursorHandTool.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.cursorHandTool.active }"
+            :disabled="toolMenuItems.cursorHandTool.disabled"
+            @click="runToolMenuCommand('cursorHandTool')"
+            >{{ toolMenuItems.cursorHandTool.label }}</UiButton
+          >
+          <div
+            v-if="toolMenuItems.cursorSelectTool.visible || toolMenuItems.cursorHandTool.visible"
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.scrollPage.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollPage.active }" :disabled="toolMenuItems.scrollPage.disabled" @click="runToolMenuCommand('scrollPage')">{{ toolMenuItems.scrollPage.label }}</button>
-          <button v-if="toolMenuItems.scrollVertical.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollVertical.active }" :disabled="toolMenuItems.scrollVertical.disabled" @click="runToolMenuCommand('scrollVertical')">{{ toolMenuItems.scrollVertical.label }}</button>
-          <button v-if="toolMenuItems.scrollHorizontal.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollHorizontal.active }" :disabled="toolMenuItems.scrollHorizontal.disabled" @click="runToolMenuCommand('scrollHorizontal')">{{ toolMenuItems.scrollHorizontal.label }}</button>
-          <button v-if="toolMenuItems.scrollWrapped.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollWrapped.active }" :disabled="toolMenuItems.scrollWrapped.disabled" @click="runToolMenuCommand('scrollWrapped')">{{ toolMenuItems.scrollWrapped.label }}</button>
-          <div v-if="toolMenuItems.scrollPage.visible || toolMenuItems.scrollVertical.visible || toolMenuItems.scrollHorizontal.visible || toolMenuItems.scrollWrapped.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.scrollPage.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.scrollPage.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollPage.active }"
+            :disabled="toolMenuItems.scrollPage.disabled"
+            @click="runToolMenuCommand('scrollPage')"
+            >{{ toolMenuItems.scrollPage.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.scrollVertical.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.scrollVertical.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollVertical.active }"
+            :disabled="toolMenuItems.scrollVertical.disabled"
+            @click="runToolMenuCommand('scrollVertical')"
+            >{{ toolMenuItems.scrollVertical.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.scrollHorizontal.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.scrollHorizontal.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollHorizontal.active }"
+            :disabled="toolMenuItems.scrollHorizontal.disabled"
+            @click="runToolMenuCommand('scrollHorizontal')"
+            >{{ toolMenuItems.scrollHorizontal.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.scrollWrapped.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.scrollWrapped.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.scrollWrapped.active }"
+            :disabled="toolMenuItems.scrollWrapped.disabled"
+            @click="runToolMenuCommand('scrollWrapped')"
+            >{{ toolMenuItems.scrollWrapped.label }}</UiButton
+          >
+          <div
+            v-if="
+              toolMenuItems.scrollPage.visible ||
+              toolMenuItems.scrollVertical.visible ||
+              toolMenuItems.scrollHorizontal.visible ||
+              toolMenuItems.scrollWrapped.visible
+            "
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.spreadNone.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadNone.active }" :disabled="toolMenuItems.spreadNone.disabled" @click="runToolMenuCommand('spreadNone')">{{ toolMenuItems.spreadNone.label }}</button>
-          <button v-if="toolMenuItems.spreadOdd.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadOdd.active }" :disabled="toolMenuItems.spreadOdd.disabled" @click="runToolMenuCommand('spreadOdd')">{{ toolMenuItems.spreadOdd.label }}</button>
-          <button v-if="toolMenuItems.spreadEven.visible" type="button" class="pdf-toolbar-menu-item" :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadEven.active }" :disabled="toolMenuItems.spreadEven.disabled" @click="runToolMenuCommand('spreadEven')">{{ toolMenuItems.spreadEven.label }}</button>
-          <div v-if="toolMenuItems.spreadNone.visible || toolMenuItems.spreadOdd.visible || toolMenuItems.spreadEven.visible" class="pdf-toolbar-menu-separator"></div>
+          <UiButton
+            v-if="toolMenuItems.spreadNone.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.spreadNone.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadNone.active }"
+            :disabled="toolMenuItems.spreadNone.disabled"
+            @click="runToolMenuCommand('spreadNone')"
+            >{{ toolMenuItems.spreadNone.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.spreadOdd.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.spreadOdd.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadOdd.active }"
+            :disabled="toolMenuItems.spreadOdd.disabled"
+            @click="runToolMenuCommand('spreadOdd')"
+            >{{ toolMenuItems.spreadOdd.label }}</UiButton
+          >
+          <UiButton
+            v-if="toolMenuItems.spreadEven.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :active="toolMenuItems.spreadEven.active"
+            :class="{ 'pdf-toolbar-menu-item-active': toolMenuItems.spreadEven.active }"
+            :disabled="toolMenuItems.spreadEven.disabled"
+            @click="runToolMenuCommand('spreadEven')"
+            >{{ toolMenuItems.spreadEven.label }}</UiButton
+          >
+          <div
+            v-if="
+              toolMenuItems.spreadNone.visible ||
+              toolMenuItems.spreadOdd.visible ||
+              toolMenuItems.spreadEven.visible
+            "
+            class="pdf-toolbar-menu-separator"
+          ></div>
 
-          <button v-if="toolMenuItems.documentProperties.visible" type="button" class="pdf-toolbar-menu-item" :disabled="toolMenuItems.documentProperties.disabled" @click="runToolMenuCommand('documentProperties')">{{ toolMenuItems.documentProperties.label }}</button>
+          <UiButton
+            v-if="toolMenuItems.documentProperties.visible"
+            variant="ghost"
+            size="sm"
+            class="pdf-toolbar-menu-item"
+            :disabled="toolMenuItems.documentProperties.disabled"
+            @click="runToolMenuCommand('documentProperties')"
+            >{{ toolMenuItems.documentProperties.label }}</UiButton
+          >
         </div>
       </div>
     </Teleport>
@@ -377,20 +651,18 @@
             <div v-if="pendingSelection" class="pdf-annotation-pending">
               <div class="pdf-annotation-pending-label">{{ t('Selection ready') }}</div>
               <div class="pdf-annotation-pending-quote">{{ pendingSelection.quote }}</div>
-              <button
-                type="button"
+              <UiButton
                 class="pdf-annotation-primary"
+                variant="primary"
+                size="sm"
                 @mousedown.prevent
                 @click="createAnnotationFromSelection"
               >
                 {{ t('Create highlight on page {page}', { page: pendingSelection.page }) }}
-              </button>
+              </UiButton>
             </div>
 
-            <div
-              v-if="currentPdfAnnotations.length === 0"
-              class="pdf-annotation-empty"
-            >
+            <div v-if="currentPdfAnnotations.length === 0" class="pdf-annotation-empty">
               <div>{{ t('No highlights yet') }}</div>
               <div class="pdf-annotation-empty-hint">
                 {{ t('Select text in the PDF, then save it as a highlight.') }}
@@ -408,30 +680,37 @@
               @keydown.enter.prevent="focusAnnotation(annotation)"
             >
               <div class="pdf-annotation-item-header">
-                <span class="pdf-annotation-page">{{ t('Page {page}', { page: annotation.page }) }}</span>
-                <span class="pdf-annotation-date">{{ formatAnnotationTimestamp(annotation.updatedAt || annotation.createdAt) }}</span>
+                <span class="pdf-annotation-page">{{
+                  t('Page {page}', { page: annotation.page })
+                }}</span>
+                <span class="pdf-annotation-date">{{
+                  formatAnnotationTimestamp(annotation.updatedAt || annotation.createdAt)
+                }}</span>
               </div>
               <div class="pdf-annotation-quote">{{ annotation.quote }}</div>
               <div class="pdf-annotation-actions">
                 <span class="pdf-annotation-open">{{ t('Jump to quote') }}</span>
-                <button
-                  type="button"
+                <UiButton
                   class="pdf-annotation-delete"
+                  variant="danger"
+                  size="sm"
                   :title="t('Delete highlight')"
+                  :aria-label="t('Delete highlight')"
                   @click.stop="deleteAnnotation(annotation)"
                 >
                   {{ t('Delete') }}
-                </button>
+                </UiButton>
               </div>
               <div class="pdf-annotation-note-shell" @click.stop>
-                <button
+                <UiButton
                   v-if="!noteForAnnotation(annotation.id)"
-                  type="button"
                   class="pdf-annotation-note-create"
+                  variant="secondary"
+                  size="sm"
                   @click="createNoteFromAnnotation(annotation)"
                 >
                   {{ t('Create note') }}
-                </button>
+                </UiButton>
                 <ResearchNoteCard
                   v-else
                   :note="noteForAnnotation(annotation.id)"
@@ -462,17 +741,20 @@
         >
           <div class="pdf-translate-menu-block">
             <div class="pdf-translate-menu-label">{{ translationMenuStatusLabel }}</div>
-            <div v-if="translationMenuStatusDetail" class="pdf-translate-menu-detail">{{ translationMenuStatusDetail }}</div>
+            <div v-if="translationMenuStatusDetail" class="pdf-translate-menu-detail">
+              {{ translationMenuStatusDetail }}
+            </div>
           </div>
           <div v-if="canCancelPdfTranslation" class="context-menu-separator"></div>
-          <button
+          <UiButton
             v-if="canCancelPdfTranslation"
-            type="button"
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="cancelCurrentPdfTranslation"
           >
             {{ t('Cancel translation') }}
-          </button>
+          </UiButton>
         </div>
       </Teleport>
 
@@ -489,102 +771,113 @@
           :style="pdfContextMenuStyle"
           @mousedown.prevent
         >
-          <button
+          <UiButton
             v-if="pdfContextMenu.hasPendingSelection"
-            type="button"
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="createAnnotationFromContextMenu"
           >
             {{ t('Add highlight') }}
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="pdfContextMenu.selectedText"
-            type="button"
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="copyPdfSelection"
           >
             {{ t('Copy') }}
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="pdfContextMenu.hasPendingSelection"
-            type="button"
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="searchSelectedTextInPdf"
           >
             {{ t('Search selected text in PDF') }}
-          </button>
+          </UiButton>
           <div
             v-if="pdfContextMenu.hasPendingSelection || pdfContextMenu.selectedText"
             class="context-menu-separator"
           ></div>
 
-          <button
-            type="button"
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="openAnnotationsPanelFromMenu"
           >
             {{ t('Highlights') }}
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="openSearchFromContextMenu"
           >
             {{ t('Search in PDF') }}
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             @click="toggleSidebarFromContextMenu"
           >
             {{ pdfUi.sidebarOpen ? t('Hide sidebar') : t('Show sidebar') }}
-          </button>
+          </UiButton>
           <div class="context-menu-separator"></div>
 
-          <button
-            type="button"
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             :disabled="!pdfUi.canGoPrevious"
             @click="runPdfContextCommand(goToPreviousPage)"
           >
             {{ t('Previous page') }}
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             :disabled="!pdfUi.canGoNext"
             @click="runPdfContextCommand(goToNextPage)"
           >
             {{ t('Next page') }}
-          </button>
+          </UiButton>
           <div class="context-menu-separator"></div>
 
-          <button
-            type="button"
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             :disabled="!pdfUi.canZoomOut"
             @click="runPdfContextCommand(zoomOut)"
           >
             {{ t('Zoom out') }}
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
             class="context-menu-item pdf-context-menu-item"
+            variant="ghost"
+            size="sm"
             :disabled="!pdfUi.canZoomIn"
             @click="runPdfContextCommand(zoomIn)"
           >
             {{ t('Zoom in') }}
-          </button>
+          </UiButton>
         </div>
       </Teleport>
 
       <iframe
         v-if="viewerSrc"
+        :key="viewerFrameToken"
         ref="iframeRef"
         :src="viewerSrc"
         class="pdf-viewer-frame w-full h-full border-0"
         tabindex="0"
-        style="display: block;"
+        style="display: block"
         @focus="markPaneActive"
         @load="onIframeLoad"
       />
@@ -598,18 +891,18 @@
       <div
         v-if="loading"
         class="absolute inset-0 flex items-center justify-center text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary);"
+        style="color: var(--fg-muted); background: var(--bg-primary)"
       >
         {{ t('Loading PDF...') }}
       </div>
       <div
         v-else-if="error"
         class="absolute inset-0 flex items-center justify-center px-6 text-sm"
-        style="color: var(--fg-muted); background: var(--bg-primary);"
+        style="color: var(--fg-muted); background: var(--bg-primary)"
       >
         <div class="max-w-xl text-center">
           <div>{{ t('Could not load PDF') }}</div>
-          <div v-if="error" class="mt-2 text-xs" style="word-break: break-word;">{{ error }}</div>
+          <div v-if="error" class="mt-2 text-xs" style="word-break: break-word">{{ error }}</div>
         </div>
       </div>
     </div>
@@ -617,7 +910,18 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, toRef, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  toRef,
+  watch,
+} from 'vue'
 import {
   IconChevronLeft,
   IconChevronDown,
@@ -634,6 +938,7 @@ import {
   IconSearch,
   IconTool,
 } from '@tabler/icons-vue'
+import UiButton from '../shared/ui/UiButton.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
@@ -648,6 +953,10 @@ import {
   SHELL_RESIZE_END_EVENT,
   SHELL_RESIZE_START_EVENT,
 } from '../../shared/shellResizeSignals'
+import {
+  isPdfViewerRenderReady,
+  shouldRebuildPdfViewerOnActivation,
+} from '../../domains/editor/pdfViewerRuntime'
 import ResearchNoteCard from './ResearchNoteCard.vue'
 
 const emit = defineEmits(['dblclick-page'])
@@ -665,6 +974,8 @@ const PDF_EMBEDDED_ANNOTATIONS_VIEW_ID = 'altalsAnnotationsView'
 const PDF_SYNC_HIGHLIGHT_DURATION_MS = 1400
 const PDF_SYNC_HIGHLIGHT_HEIGHT_PX = 26
 const PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX = 16
+const PDF_INITIAL_RENDER_TIMEOUT_MS = 1200
+const PDF_INITIAL_RENDER_RETRY_LIMIT = 1
 const EDITOR_TOOL_BUTTON_TO_PANEL = Object.freeze({
   editorFreeTextButton: 'freetext',
   editorInkButton: 'ink',
@@ -685,6 +996,7 @@ const pageInputRef = ref(null)
 const toolbarShellRef = ref(null)
 const annotationsSidebarTarget = ref(null)
 const viewerSrc = ref(null)
+const viewerFrameToken = ref('pdf-viewer:0')
 const loading = ref(true)
 const error = ref(null)
 const pendingSelection = ref(null)
@@ -721,7 +1033,8 @@ const pdfContextMenuStyle = computed(() => {
     1,
     1,
   ].reduce((sum, value) => sum + value, 0)
-  const separatorCount = 3 + ((pdfContextMenu.hasPendingSelection || pdfContextMenu.selectedText) ? 1 : 0)
+  const separatorCount =
+    3 + (pdfContextMenu.hasPendingSelection || pdfContextMenu.selectedText ? 1 : 0)
   const menuHeight = Math.min(360, 12 + itemCount * 30 + separatorCount * 9)
   const x = Math.min(pdfContextMenu.x, window.innerWidth - menuWidth - 8)
   const y = Math.min(pdfContextMenu.y, window.innerHeight - menuHeight - 8)
@@ -766,21 +1079,23 @@ const sidebarTabs = reactive({
 })
 
 const usingExternalToolbar = computed(() => !!props.toolbarTargetSelector)
-const sidebarIcon = computed(() => (
+const sidebarIcon = computed(() =>
   pdfUi.sidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebarLeftExpand
-))
-const hasEditorTools = computed(() => (
-  toolbarButtons.editorFreeTextButton.visible
-  || toolbarButtons.editorInkButton.visible
-  || toolbarButtons.editorStampButton.visible
-))
-const editorToolGroupActive = computed(() => (
-  editorToolsExpanded.value
-  || toolbarButtons.editorFreeTextButton.active
-  || toolbarButtons.editorInkButton.active
-  || toolbarButtons.editorStampButton.active
-  || ['freetext', 'ink', 'stamp'].includes(activeToolbarPanel.value)
-))
+)
+const hasEditorTools = computed(
+  () =>
+    toolbarButtons.editorFreeTextButton.visible ||
+    toolbarButtons.editorInkButton.visible ||
+    toolbarButtons.editorStampButton.visible
+)
+const editorToolGroupActive = computed(
+  () =>
+    editorToolsExpanded.value ||
+    toolbarButtons.editorFreeTextButton.active ||
+    toolbarButtons.editorInkButton.active ||
+    toolbarButtons.editorStampButton.active ||
+    ['freetext', 'ink', 'stamp'].includes(activeToolbarPanel.value)
+)
 const editorToolsToggleTitle = computed(() => `${t('Text')} / ${t('Ink')} / ${t('Stamp')}`)
 const toolbarButtons = reactive({
   editorFreeTextButton: createToolbarButtonState(),
@@ -817,22 +1132,26 @@ let sidebarStateObserver = null
 let sidebarInitialViewResolved = false
 let sidebarEverOpened = false
 let sidebarViewOverride = ''
+let viewerFrameRevision = 0
+let activationRestoreToken = 0
 
 const LIGHT_THEMES = new Set(['light', 'one-light', 'humane', 'solarized'])
 const isDark = computed(() => !LIGHT_THEMES.has(workspace.theme))
-const currentPdfAnnotations = computed(() => (
+const currentPdfAnnotations = computed(() =>
   filePathRef.value ? researchArtifactsStore.annotationsForPdf(filePathRef.value) : []
-))
+)
 const activeAnnotationId = computed(() => researchArtifactsStore.activeAnnotationId || null)
 const activeNoteId = computed(() => researchArtifactsStore.activeNoteId || null)
-const currentPdfTranslationTask = computed(() => (
+const currentPdfTranslationTask = computed(() =>
   filePathRef.value ? pdfTranslateStore.latestTaskForInput(filePathRef.value) : null
-))
+)
 const pdfTranslationBusy = computed(() => {
   const status = String(currentPdfTranslationTask.value?.status || '')
-  return ['pending', 'queued', 'running'].includes(status)
-    || pdfTranslateStore.setupInProgress
-    || pdfTranslateStore.warmupInProgress
+  return (
+    ['pending', 'queued', 'running'].includes(status) ||
+    pdfTranslateStore.setupInProgress ||
+    pdfTranslateStore.warmupInProgress
+  )
 })
 const canCancelPdfTranslation = computed(() => {
   const status = String(currentPdfTranslationTask.value?.status || '')
@@ -866,7 +1185,11 @@ function localizeScaleLabel(label) {
 }
 
 function fileNameFromPath(path = '') {
-  return String(path || '').split(/[\\/]/).pop() || path
+  return (
+    String(path || '')
+      .split(/[\\/]/)
+      .pop() || path
+  )
 }
 
 function closePdfTranslationMenu() {
@@ -874,7 +1197,9 @@ function closePdfTranslationMenu() {
 }
 
 function getPdfViewerLocaleParam() {
-  const normalized = String(locale.value || 'en-US').trim().toLowerCase()
+  const normalized = String(locale.value || 'en-US')
+    .trim()
+    .toLowerCase()
   return normalized || 'en-us'
 }
 
@@ -1042,6 +1367,7 @@ function handleShellResizeStart() {
 
 function handleShellResizeEnd() {
   setPdfShellResizeActive(false)
+  requestPdfViewerResizeFrames(2)
 }
 
 function clearSyncHighlight() {
@@ -1110,7 +1436,7 @@ function ensureEmbeddedSidebarShell() {
       createEmbeddedSidebarButton(doc, 'outlines', 'Outline'),
       createEmbeddedSidebarButton(doc, 'thumbnails', 'Thumbnails'),
       createEmbeddedSidebarButton(doc, 'attachments', 'Attachments'),
-      createEmbeddedSidebarButton(doc, 'annotations', 'Highlights'),
+      createEmbeddedSidebarButton(doc, 'annotations', 'Highlights')
     )
 
     const action = createEmbeddedSidebarActionButton(doc)
@@ -1224,6 +1550,28 @@ function getPdfApp() {
   return getPdfWindow()?.PDFViewerApplication || null
 }
 
+function waitForNextAnimationFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
+async function waitForPdfAppBootstrap(maxFrames = 18) {
+  for (let attempt = 0; attempt < maxFrames; attempt += 1) {
+    const win = getPdfWindow()
+    const app = getPdfApp()
+    if (win && app) {
+      return { win, app }
+    }
+    await waitForNextAnimationFrame()
+  }
+
+  return {
+    win: getPdfWindow(),
+    app: getPdfApp(),
+  }
+}
+
 function getPdfElement(...ids) {
   const doc = getPdfDocument()
   if (!doc) return null
@@ -1236,6 +1584,164 @@ function getPdfElement(...ids) {
 
 function getViewerRoot() {
   return getPdfElement('viewer') || getPdfDocument()?.querySelector('.pdfViewer') || null
+}
+
+function getPdfRenderMetrics() {
+  const app = getPdfApp()
+  const viewerRoot = getViewerRoot()
+  const pageElements = Array.from(viewerRoot?.querySelectorAll?.('.page') || [])
+  const firstVisiblePage =
+    pageElements.find((pageElement) => {
+      const rectHeight = Number(pageElement?.getBoundingClientRect?.().height || 0)
+      return rectHeight > 0 || Number(pageElement?.offsetHeight || 0) > 0
+    }) || pageElements[0]
+
+  return {
+    pagesCount: Number(app?.pagesCount || 0),
+    pageElementCount: pageElements.length,
+    firstPageHeight: Number(
+      firstVisiblePage?.getBoundingClientRect?.().height || firstVisiblePage?.offsetHeight || 0
+    ),
+  }
+}
+
+function buildPdfViewerSrc(requestId) {
+  const params = new URLSearchParams({
+    instance: String(requestId),
+    frame: String(viewerFrameRevision),
+    locale: getPdfViewerLocaleParam(),
+  })
+  return `/pdfjs-viewer/web/viewer.html?${params.toString()}`
+}
+
+function dispatchPdfViewerResizeSignal() {
+  const win = getPdfWindow()
+  const app = getPdfApp()
+  const viewer = app?.pdfViewer
+
+  try {
+    if (win && typeof win.dispatchEvent === 'function') {
+      const EventCtor = win.Event || globalThis.Event
+      if (typeof EventCtor === 'function') {
+        win.dispatchEvent(new EventCtor('resize'))
+      } else {
+        win.dispatchEvent({ type: 'resize' })
+      }
+    }
+  } catch {
+    // Ignore iframe resize dispatch failures and keep the embedded viewer usable.
+  }
+
+  try {
+    app?.eventBus?.dispatch?.('resize', { source: 'altals-embedded-viewer' })
+  } catch {
+    // Ignore viewer event bus resize dispatch failures from older builds.
+  }
+
+  try {
+    viewer?.update?.()
+  } catch {
+    // Ignore viewer update failures and fall back to forceRendering below.
+  }
+
+  try {
+    viewer?.forceRendering?.()
+  } catch {
+    // Ignore force-render failures when the viewer does not expose this hook.
+  }
+}
+
+function requestPdfViewerResizeFrames(frameCount = 2) {
+  dispatchPdfViewerResizeSignal()
+  if (frameCount <= 1) return
+
+  let remainingFrames = frameCount - 1
+  const pump = () => {
+    if (remainingFrames <= 0) return
+    window.requestAnimationFrame(() => {
+      dispatchPdfViewerResizeSignal()
+      remainingFrames -= 1
+      pump()
+    })
+  }
+  pump()
+}
+
+async function recreateViewerFrame(requestId) {
+  const previousApp = getPdfApp()
+  if (previousApp?.close) {
+    await previousApp.close().catch(() => {})
+  }
+
+  viewerSrc.value = null
+  viewerFrameToken.value = ''
+  await nextTick()
+  if (requestId !== loadRequestId) return null
+
+  iframeListenersAttached = false
+  clearIframePointerGuards()
+  viewerFrameRevision += 1
+  viewerFrameToken.value = `pdf-viewer:${requestId}:${viewerFrameRevision}`
+  resetViewerReadyPromise()
+  viewerSrc.value = buildPdfViewerSrc(requestId)
+  const app = await viewerReadyPromise
+  if (requestId !== loadRequestId) {
+    await app?.close?.().catch(() => {})
+    return null
+  }
+  return app
+}
+
+async function waitForPdfInitialRender(requestId) {
+  const deadline = Date.now() + PDF_INITIAL_RENDER_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    if (requestId !== loadRequestId) return false
+    requestPdfViewerResizeFrames(1)
+    syncPdfUi()
+    if (isPdfViewerRenderReady(getPdfRenderMetrics())) {
+      return true
+    }
+    await waitForNextAnimationFrame()
+  }
+
+  return isPdfViewerRenderReady(getPdfRenderMetrics())
+}
+
+async function restorePdfViewerAfterActivation() {
+  const restoreToken = ++activationRestoreToken
+  shellResizeActive.value = isShellResizeActive()
+  clearIframePointerGuards()
+  await nextTick()
+  await waitForNextAnimationFrame()
+  if (restoreToken !== activationRestoreToken) return
+
+  if (!viewerSrc.value || !iframeRef.value) {
+    await loadPdf()
+    return
+  }
+
+  requestPdfViewerResizeFrames(3)
+  syncPdfUi()
+  await waitForNextAnimationFrame()
+  if (restoreToken !== activationRestoreToken) return
+
+  const metrics = getPdfRenderMetrics()
+  if (
+    shouldRebuildPdfViewerOnActivation({
+      pagesCount: metrics.pagesCount,
+      pageElementCount: metrics.pageElementCount,
+      firstPageHeight: metrics.firstPageHeight,
+    })
+  ) {
+    console.warn('[pdf] cached viewer failed activation health check; rebuilding iframe', {
+      filePath: filePathRef.value,
+      metrics,
+    })
+    await loadPdf()
+    return
+  }
+
+  schedulePdfUiSync({ force: true })
 }
 
 function enableTightEmbeddedPageLayout() {
@@ -1282,10 +1788,10 @@ function isPdfElementVisible(element) {
 
 function getPdfViewportWidth() {
   return Number(
-    getPdfDocument()?.documentElement?.clientWidth
-    || getPdfDocument()?.body?.clientWidth
-    || iframeRef.value?.clientWidth
-    || 0
+    getPdfDocument()?.documentElement?.clientWidth ||
+      getPdfDocument()?.body?.clientWidth ||
+      iframeRef.value?.clientWidth ||
+      0
   )
 }
 
@@ -1297,10 +1803,14 @@ function isPdfResponsiveVisible(element) {
   const viewportWidth = getPdfViewportWidth()
   if (!viewportWidth) return true
 
-  const isHiddenMedium = element.classList?.contains('hiddenMediumView') || !!element.closest?.('.hiddenMediumView')
-  const isVisibleMedium = element.classList?.contains('visibleMediumView') || !!element.closest?.('.visibleMediumView')
-  const isHiddenSmall = element.classList?.contains('hiddenSmallView') || !!element.closest?.('.hiddenSmallView')
-  const isScaleSelect = element.id === 'scaleSelectContainer' || !!element.closest?.('#scaleSelectContainer')
+  const isHiddenMedium =
+    element.classList?.contains('hiddenMediumView') || !!element.closest?.('.hiddenMediumView')
+  const isVisibleMedium =
+    element.classList?.contains('visibleMediumView') || !!element.closest?.('.visibleMediumView')
+  const isHiddenSmall =
+    element.classList?.contains('hiddenSmallView') || !!element.closest?.('.hiddenSmallView')
+  const isScaleSelect =
+    element.id === 'scaleSelectContainer' || !!element.closest?.('#scaleSelectContainer')
 
   if (viewportWidth <= 750 && isHiddenMedium) return false
   if (viewportWidth > 750 && isVisibleMedium) return false
@@ -1317,7 +1827,8 @@ function syncToolbarButtonState(id) {
 
   state.visible = isPdfElementVisible(element)
   state.disabled = !element || !!element.disabled
-  state.active = !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-pressed') === 'true'
+  state.active =
+    !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-pressed') === 'true'
   state.expanded = element?.getAttribute?.('aria-expanded') === 'true'
 }
 
@@ -1327,17 +1838,26 @@ function syncMenuItemState(id) {
   if (!state) return
 
   state.visible = isPdfResponsiveVisible(element)
-  state.disabled = !element || element.getAttribute?.('aria-disabled') === 'true' || !!element.disabled || element.getAttribute?.('href') === '#'
-  state.active = !!element?.classList?.contains('toggled') || element?.getAttribute?.('aria-checked') === 'true' || element?.getAttribute?.('aria-pressed') === 'true'
+  state.disabled =
+    !element ||
+    element.getAttribute?.('aria-disabled') === 'true' ||
+    !!element.disabled ||
+    element.getAttribute?.('href') === '#'
+  state.active =
+    !!element?.classList?.contains('toggled') ||
+    element?.getAttribute?.('aria-checked') === 'true' ||
+    element?.getAttribute?.('aria-pressed') === 'true'
   const translatedLabelKey = PDF_TOOL_MENU_LABEL_KEYS[id]
   state.label = translatedLabelKey
     ? t(translatedLabelKey)
-    : (element?.textContent?.trim?.() || state.label || id)
+    : element?.textContent?.trim?.() || state.label || id
 }
 
 function syncActiveEditorToolPanel() {
-  const activeEditorPanel = Object.entries(EDITOR_TOOL_BUTTON_TO_PANEL)
-    .find(([buttonId]) => toolbarButtons[buttonId]?.active)?.[1] || ''
+  const activeEditorPanel =
+    Object.entries(EDITOR_TOOL_BUTTON_TO_PANEL).find(
+      ([buttonId]) => toolbarButtons[buttonId]?.active
+    )?.[1] || ''
 
   if (activeEditorPanel) {
     activeToolbarPanel.value = activeEditorPanel
@@ -1358,11 +1878,14 @@ function syncExternalControlState() {
   const stampAddImage = getPdfElement('editorStampAddImage')
 
   editorParams.freeTextColor = freeTextColor?.value || editorParams.freeTextColor
-  editorParams.freeTextFontSize = Number(freeTextFontSize?.valueAsNumber || freeTextFontSize?.value || 10)
+  editorParams.freeTextFontSize = Number(
+    freeTextFontSize?.valueAsNumber || freeTextFontSize?.value || 10
+  )
   editorParams.inkColor = inkColor?.value || editorParams.inkColor
   editorParams.inkThickness = Number(inkThickness?.valueAsNumber || inkThickness?.value || 1)
   editorParams.inkOpacity = Number(inkOpacity?.valueAsNumber || inkOpacity?.value || 1)
-  editorParams.stampAddLabel = stampAddImage?.textContent?.trim?.() || editorParams.stampAddLabel || t('Add image')
+  editorParams.stampAddLabel =
+    stampAddImage?.textContent?.trim?.() || editorParams.stampAddLabel || t('Add image')
 }
 
 function resolveSidebarView(viewsManager) {
@@ -1391,11 +1914,12 @@ function syncSidebarTabState(viewKey) {
   const buttonId = PDF_SIDEBAR_VIEW_BUTTON_IDS[viewKey]
   const element = getPdfElement(buttonId)
   if (!sidebarTabs[viewKey]) return
-  sidebarTabs[viewKey].disabled = !element
-    || !!element.hidden
-    || !!element.closest?.('[hidden]')
-    || !!element.disabled
-    || element.getAttribute?.('aria-disabled') === 'true'
+  sidebarTabs[viewKey].disabled =
+    !element ||
+    !!element.hidden ||
+    !!element.closest?.('[hidden]') ||
+    !!element.disabled ||
+    element.getAttribute?.('aria-disabled') === 'true'
 }
 
 function maybeResolveInitialSidebarViewPreference() {
@@ -1448,10 +1972,14 @@ function getViewsManagerActiveLabel() {
   const attachmentsView = getPdfElement('attachmentsView')
   const layersView = getPdfElement('layersView')
 
-  if (thumbnailsView && !thumbnailsView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.thumbnails)
-  if (outlinesView && !outlinesView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.outlines)
-  if (attachmentsView && !attachmentsView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.attachments)
-  if (layersView && !layersView.classList.contains('hidden')) return t(PDF_VIEWS_MANAGER_LABELS.layers)
+  if (thumbnailsView && !thumbnailsView.classList.contains('hidden'))
+    return t(PDF_VIEWS_MANAGER_LABELS.thumbnails)
+  if (outlinesView && !outlinesView.classList.contains('hidden'))
+    return t(PDF_VIEWS_MANAGER_LABELS.outlines)
+  if (attachmentsView && !attachmentsView.classList.contains('hidden'))
+    return t(PDF_VIEWS_MANAGER_LABELS.attachments)
+  if (layersView && !layersView.classList.contains('hidden'))
+    return t(PDF_VIEWS_MANAGER_LABELS.layers)
   return t(PDF_VIEWS_MANAGER_LABELS.outlines)
 }
 
@@ -1518,14 +2046,14 @@ function focusCurrentOutlineItem() {
 
 function normalizeScaleOptions(select) {
   const options = Array.from(select?.options || [])
-    .filter(option => option.value)
-    .map(option => ({
+    .filter((option) => option.value)
+    .map((option) => ({
       value: option.value,
       label: localizeScaleLabel(option.textContent),
     }))
-  const customOption = options.find(option => option.value === 'custom')
+  const customOption = options.find((option) => option.value === 'custom')
   if (customOption && customOption.label) return options
-  return options.filter(option => option.value !== 'custom')
+  return options.filter((option) => option.value !== 'custom')
 }
 
 function clearIframePointerGuards() {
@@ -1548,8 +2076,14 @@ function createToolbarStyleText() {
   const bgPrimary = readAppCssVar('--bg-primary', isDark.value ? '#2c313c' : '#ffffff')
   const bgSecondary = readAppCssVar('--bg-secondary', isDark.value ? '#343b47' : '#f3f6fb')
   const bgTertiary = readAppCssVar('--bg-tertiary', isDark.value ? '#3b4452' : '#edf1f6')
-  const bgHover = readAppCssVar('--bg-hover', isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)')
-  const border = readAppCssVar('--border', isDark.value ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.26)')
+  const bgHover = readAppCssVar(
+    '--bg-hover',
+    isDark.value ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.06)'
+  )
+  const border = readAppCssVar(
+    '--border',
+    isDark.value ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.26)'
+  )
   const fgPrimary = readAppCssVar('--fg-primary', isDark.value ? '#f7f9fc' : '#1f2937')
   const fgSecondary = readAppCssVar('--fg-secondary', isDark.value ? '#c7d0dc' : '#4b5563')
   const fgMuted = readAppCssVar('--fg-muted', isDark.value ? '#8b98ab' : '#6b7280')
@@ -1594,7 +2128,7 @@ function createToolbarStyleText() {
     `
 
   const pageThemeCss = workspace.pdfThemedPages
-    ? (isDark.value
+    ? isDark.value
       ? `
       #viewerContainer {
         background: color-mix(in srgb, #0f172a 76%, #111827) !important;
@@ -1620,7 +2154,7 @@ function createToolbarStyleText() {
       .page {
         box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.24), 0 8px 18px rgba(15, 23, 42, 0.06) !important;
       }
-    `)
+    `
     : `
       #viewerContainer,
       #thumbnailView,
@@ -2452,23 +2986,26 @@ function syncPdfUi() {
   const toggleButton = doc.getElementById('viewsManagerToggleButton')
   const viewsManager = app.viewsManager
   const currentOutlineButton = doc.getElementById('viewsManagerCurrentOutlineButton')
+  const pagesCount = Number(app.pagesCount || 0)
 
-  pdfUi.ready = true
+  pdfUi.ready = pagesCount > 0
   pdfUi.pageNumber = Number(app.page || 1)
-  pdfUi.pagesCount = Number(app.pagesCount || 0)
+  pdfUi.pagesCount = pagesCount
   pdfUi.canGoPrevious = !!previousButton && !previousButton.disabled
   pdfUi.canGoNext = !!nextButton && !nextButton.disabled
   pdfUi.canZoomOut = !!zoomOutButton && !zoomOutButton.disabled
   pdfUi.canZoomIn = !!zoomInButton && !zoomInButton.disabled
-  pdfUi.sidebarOpen = typeof viewsManager?.isOpen === 'boolean'
-    ? viewsManager.isOpen
-    : toggleButton?.getAttribute('aria-expanded') === 'true'
+  pdfUi.sidebarOpen =
+    typeof viewsManager?.isOpen === 'boolean'
+      ? viewsManager.isOpen
+      : toggleButton?.getAttribute('aria-expanded') === 'true'
   if (pdfUi.sidebarOpen) {
     sidebarEverOpened = true
   }
   const resolvedSidebarView = resolveSidebarView(viewsManager)
   pdfUi.sidebarView = sidebarViewOverride || resolvedSidebarView
-  pdfUi.sidebarCanFocusCurrentOutline = !!currentOutlineButton && !currentOutlineButton.hidden && !currentOutlineButton.disabled
+  pdfUi.sidebarCanFocusCurrentOutline =
+    !!currentOutlineButton && !currentOutlineButton.hidden && !currentOutlineButton.disabled
   if (!usingExternalToolbar.value) {
     pdfUi.searchOpen = !!findbar && !findbar.classList.contains('hidden')
     pdfUi.searchQuery = findInput?.value || ''
@@ -2482,13 +3019,15 @@ function syncPdfUi() {
     pdfUi.searchQuery = searchDraft.value
   }
   pdfUi.searchResultText = [findResultsCount?.textContent, findMsg?.textContent]
-    .map(value => (value || '').trim())
+    .map((value) => (value || '').trim())
     .filter(Boolean)
     .join(' ')
 
   if (scaleSelect) {
     pdfUi.scaleValue = scaleSelect.value || 'auto'
-    pdfUi.scaleLabel = localizeScaleLabel(scaleSelect.options[scaleSelect.selectedIndex]?.textContent) || pdfUi.scaleLabel
+    pdfUi.scaleLabel =
+      localizeScaleLabel(scaleSelect.options[scaleSelect.selectedIndex]?.textContent) ||
+      pdfUi.scaleLabel
     scaleOptions.value = normalizeScaleOptions(scaleSelect)
   } else {
     scaleOptions.value = []
@@ -2667,17 +3206,20 @@ async function translateCurrentPdf() {
   if (!filePathRef.value || pdfTranslationBusy.value) return
   try {
     await pdfTranslateStore.startTranslation(filePathRef.value)
-    toastStore.show(t('Started translating {name}', {
-      name: fileNameFromPath(filePathRef.value),
-    }), {
-      type: 'success',
-      duration: 2400,
-    })
-  } catch (translateError) {
     toastStore.show(
-      translateError?.message || String(translateError),
-      { type: 'error', duration: 4200 },
+      t('Started translating {name}', {
+        name: fileNameFromPath(filePathRef.value),
+      }),
+      {
+        type: 'success',
+        duration: 2400,
+      }
     )
+  } catch (translateError) {
+    toastStore.show(translateError?.message || String(translateError), {
+      type: 'error',
+      duration: 4200,
+    })
   }
 }
 
@@ -2701,10 +3243,7 @@ async function cancelCurrentPdfTranslation() {
       duration: 2200,
     })
   } catch (cancelError) {
-    toastStore.show(
-      cancelError?.message || String(cancelError),
-      { type: 'error', duration: 4200 },
-    )
+    toastStore.show(cancelError?.message || String(cancelError), { type: 'error', duration: 4200 })
   } finally {
     closePdfTranslationMenu()
   }
@@ -2914,26 +3453,29 @@ function buildSelectionRect(range, pageElement, pageNumber) {
 
   if (normalizedRects.length === 0) return null
 
-  const bounds = normalizedRects.reduce((acc, rect) => {
-    const right = rect.left + rect.width
-    const bottom = rect.top + rect.height
-    return {
-      left: Math.min(acc.left, rect.left),
-      top: Math.min(acc.top, rect.top),
-      right: Math.max(acc.right, right),
-      bottom: Math.max(acc.bottom, bottom),
+  const bounds = normalizedRects.reduce(
+    (acc, rect) => {
+      const right = rect.left + rect.width
+      const bottom = rect.top + rect.height
+      return {
+        left: Math.min(acc.left, rect.left),
+        top: Math.min(acc.top, rect.top),
+        right: Math.max(acc.right, right),
+        bottom: Math.max(acc.bottom, bottom),
+      }
+    },
+    {
+      left: Number.POSITIVE_INFINITY,
+      top: Number.POSITIVE_INFINITY,
+      right: 0,
+      bottom: 0,
     }
-  }, {
-    left: Number.POSITIVE_INFINITY,
-    top: Number.POSITIVE_INFINITY,
-    right: 0,
-    bottom: 0,
-  })
+  )
 
   const pageWidth = Math.max(Number(pageRect.width || 0), 1)
   const pageHeight = Math.max(Number(pageRect.height || 0), 1)
-  const localX = ((bounds.left + (bounds.right - bounds.left) / 2) * pageWidth)
-  const localY = ((bounds.top + (bounds.bottom - bounds.top) / 2) * pageHeight)
+  const localX = (bounds.left + (bounds.right - bounds.left) / 2) * pageWidth
+  const localY = (bounds.top + (bounds.bottom - bounds.top) / 2) * pageHeight
   const focusPoint = convertPageOffsetToSyncTexPoint(pageNumber, localX, localY)
 
   return {
@@ -2946,9 +3488,9 @@ function buildSelectionRect(range, pageElement, pageNumber) {
     },
     focusPoint: focusPoint
       ? {
-        x: focusPoint.x,
-        y: focusPoint.y,
-      }
+          x: focusPoint.x,
+          y: focusPoint.y,
+        }
       : null,
   }
 }
@@ -2958,7 +3500,9 @@ function clearPendingSelection({ clearDomSelection = false } = {}) {
   if (!clearDomSelection) return
   try {
     getViewerSelection()?.removeAllRanges?.()
-  } catch {}
+  } catch {
+    // Ignore DOM selection cleanup failures from embedded viewers.
+  }
 }
 
 function capturePendingSelection(showFeedback = true) {
@@ -2969,9 +3513,10 @@ function capturePendingSelection(showFeedback = true) {
   }
 
   const range = selection.getRangeAt(0)
-  const commonNode = range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
-    ? range.commonAncestorContainer
-    : range.commonAncestorContainer?.parentElement
+  const commonNode =
+    range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer?.parentElement
   if (!commonNode || !getViewerRoot()?.contains(commonNode)) {
     clearPendingSelection()
     return
@@ -2993,7 +3538,7 @@ function capturePendingSelection(showFeedback = true) {
         `pdf-selection:${filePathRef.value}:single-page`,
         t('Please keep PDF highlights within a single page.'),
         { type: 'error', duration: 3500 },
-        5000,
+        5000
       )
     }
     return
@@ -3023,9 +3568,10 @@ function handleViewerSelectionChange() {
   }
 
   const range = selection.getRangeAt(0)
-  const commonNode = range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
-    ? range.commonAncestorContainer
-    : range.commonAncestorContainer?.parentElement
+  const commonNode =
+    range.commonAncestorContainer?.nodeType === Node.ELEMENT_NODE
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer?.parentElement
   if (!commonNode || !getViewerRoot()?.contains(commonNode)) {
     clearPendingSelection()
   }
@@ -3045,7 +3591,9 @@ function handleViewerContextMenu(event) {
   try {
     event.preventDefault()
     event.stopPropagation()
-  } catch {}
+  } catch {
+    // Ignore synthetic-context-menu events that cannot be canceled.
+  }
 
   closePdfTranslationMenu()
   capturePendingSelection(false)
@@ -3113,7 +3661,9 @@ async function copyTextToClipboard(text) {
   try {
     await navigator.clipboard.writeText(value)
     return
-  } catch {}
+  } catch {
+    // Fall back to the textarea copy path below when clipboard APIs are unavailable.
+  }
 
   if (typeof document === 'undefined') return
   const textarea = document.createElement('textarea')
@@ -3165,9 +3715,10 @@ function showSyncHighlight(pageNumber, x, y, options = {}) {
   clearSyncHighlight()
 
   const coordinateSpace = options.coordinateSpace === 'page' ? 'page' : 'synctex'
-  const pageOffset = coordinateSpace === 'page'
-    ? convertPagePointToPageOffset(pageNumber, x, y)
-    : convertSyncTexPointToPageOffset(pageNumber, x, y)
+  const pageOffset =
+    coordinateSpace === 'page'
+      ? convertPagePointToPageOffset(pageNumber, x, y)
+      : convertSyncTexPointToPageOffset(pageNumber, x, y)
   const pageElement = pageOffset?.pageElement
   if (!pageElement) return false
 
@@ -3175,18 +3726,15 @@ function showSyncHighlight(pageNumber, x, y, options = {}) {
   const pageHeightPx = Math.max(0, Number(pageElement.clientHeight || 0))
   if (pageWidthPx === 0 || pageHeightPx === 0) return false
 
-  const width = Math.max(
-    0,
-    pageWidthPx - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX * 2,
-  )
+  const width = Math.max(0, pageWidthPx - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX * 2)
   const height = Math.min(PDF_SYNC_HIGHLIGHT_HEIGHT_PX, Math.max(12, pageHeightPx - 12))
   const top = Math.min(
     Math.max(6, pageOffset.y - height / 2),
-    Math.max(6, pageHeightPx - height - 6),
+    Math.max(6, pageHeightPx - height - 6)
   )
   const anchorX = Math.max(
     0,
-    Math.min(width, pageOffset.x - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX),
+    Math.min(width, pageOffset.x - PDF_SYNC_HIGHLIGHT_HORIZONTAL_PADDING_PX)
   )
 
   const highlight = getPdfDocument()?.createElement('div')
@@ -3199,8 +3747,10 @@ function showSyncHighlight(pageNumber, x, y, options = {}) {
   highlight.style.width = `${width}px`
   highlight.style.height = `${height}px`
   highlight.style.borderRadius = '999px'
-  highlight.style.background = 'linear-gradient(90deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.26) 22%, rgba(251, 191, 36, 0.38) 50%, rgba(251, 191, 36, 0.18) 78%, rgba(251, 191, 36, 0.06) 100%)'
-  highlight.style.boxShadow = '0 0 0 1px rgba(251, 191, 36, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.16)'
+  highlight.style.background =
+    'linear-gradient(90deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.26) 22%, rgba(251, 191, 36, 0.38) 50%, rgba(251, 191, 36, 0.18) 78%, rgba(251, 191, 36, 0.06) 100%)'
+  highlight.style.boxShadow =
+    '0 0 0 1px rgba(251, 191, 36, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.16)'
   highlight.style.zIndex = '30'
   highlight.style.setProperty('--sync-highlight-anchor-x', `${anchorX}px`)
   pageElement.appendChild(highlight)
@@ -3218,9 +3768,11 @@ function shouldQueueSyncHighlight(x, y) {
 function applyPendingSyncHighlight() {
   if (!pendingSyncHighlight) return
   const nextHighlight = pendingSyncHighlight
-  if (showSyncHighlight(nextHighlight.pageNumber, nextHighlight.x, nextHighlight.y, {
-    coordinateSpace: nextHighlight.coordinateSpace,
-  })) {
+  if (
+    showSyncHighlight(nextHighlight.pageNumber, nextHighlight.x, nextHighlight.y, {
+      coordinateSpace: nextHighlight.coordinateSpace,
+    })
+  ) {
     pendingSyncHighlight = null
   }
 }
@@ -3292,10 +3844,10 @@ function insertNoteIntoManuscript(annotation) {
 
   const result = editorStore.insertResearchNoteIntoManuscript(note, annotation)
   if (!result?.ok) {
-    toastStore.show(
-      t('Open a text manuscript in another pane to insert this note.'),
-      { type: 'error', duration: 4200 },
-    )
+    toastStore.show(t('Open a text manuscript in another pane to insert this note.'), {
+      type: 'error',
+      duration: 4200,
+    })
     return
   }
 
@@ -3308,12 +3860,15 @@ function insertNoteIntoManuscript(annotation) {
     },
   })
   researchArtifactsStore.setActiveNote(note.id)
-  toastStore.show(t('Inserted note into {name}', {
-    name: result.path.split('/').pop() || result.path,
-  }), {
-    type: 'success',
-    duration: 2600,
-  })
+  toastStore.show(
+    t('Inserted note into {name}', {
+      name: result.path.split('/').pop() || result.path,
+    }),
+    {
+      type: 'success',
+      duration: 2600,
+    }
+  )
 }
 
 function deleteAnnotation(annotation) {
@@ -3397,7 +3952,8 @@ function renderAnnotationHighlights() {
         !Number.isFinite(rect?.top) ||
         !Number.isFinite(rect?.width) ||
         !Number.isFinite(rect?.height)
-      ) return
+      )
+        return
       const highlight = doc.createElement('div')
       highlight.className = 'altals-pdf-annotation-highlight'
       if (annotation.id === activeAnnotationId.value) {
@@ -3423,13 +3979,15 @@ function scheduleRenderAnnotationHighlights() {
 }
 
 function isHighlightOnlyMutation(record) {
-  const nodes = [
-    ...Array.from(record.addedNodes || []),
-    ...Array.from(record.removedNodes || []),
-  ]
-  return nodes.length > 0 && nodes.every((node) => (
-    node?.nodeType === Node.ELEMENT_NODE && node.classList?.contains('altals-pdf-annotation-highlight')
-  ))
+  const nodes = [...Array.from(record.addedNodes || []), ...Array.from(record.removedNodes || [])]
+  return (
+    nodes.length > 0 &&
+    nodes.every(
+      (node) =>
+        node?.nodeType === Node.ELEMENT_NODE &&
+        node.classList?.contains('altals-pdf-annotation-highlight')
+    )
+  )
 }
 
 function attachAnnotationMutationObserver() {
@@ -3503,9 +4061,10 @@ function scrollToLocation(pageNumber, x, y, options = {}) {
   }
 
   pendingScrollLocation = null
-  const pageOffset = coordinateSpace === 'page'
-    ? convertPagePointToPageOffset(targetPage, x, y)
-    : convertSyncTexPointToPageOffset(targetPage, x, y)
+  const pageOffset =
+    coordinateSpace === 'page'
+      ? convertPagePointToPageOffset(targetPage, x, y)
+      : convertSyncTexPointToPageOffset(targetPage, x, y)
   if (pageOffset?.pageElement) {
     const targetTop = pageOffset.pageElement.offsetTop + pageOffset.y - container.clientHeight / 2
     const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
@@ -3527,8 +4086,7 @@ function scrollToLocation(pageNumber, x, y, options = {}) {
 }
 
 async function onIframeLoad() {
-  const win = getPdfWindow()
-  const app = getPdfApp()
+  const { win, app } = await waitForPdfAppBootstrap()
   if (!win || !app) {
     rejectViewerReady?.(new Error('PDF viewer failed to initialize'))
     return
@@ -3549,6 +4107,7 @@ async function onIframeLoad() {
   clearIframePointerGuards()
   ensureEmbeddedSidebarShell()
   syncPdfUi()
+  requestPdfViewerResizeFrames(2)
   attachSidebarStateObserver()
   clearSyncTimer()
   clearSyncHighlight()
@@ -3556,8 +4115,8 @@ async function onIframeLoad() {
   if (!iframeListenersAttached) {
     try {
       const doc = win.document
-      const bindPdfEvent = app.eventBus?.on?.bind(app.eventBus)
-        || app.eventBus?._on?.bind(app.eventBus)
+      const bindPdfEvent =
+        app.eventBus?.on?.bind(app.eventBus) || app.eventBus?._on?.bind(app.eventBus)
       const scheduleUiSyncFromViewerEvent = () => {
         schedulePdfUiSync()
       }
@@ -3597,16 +4156,18 @@ async function onIframeLoad() {
 
         if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
           event.preventDefault()
-          document.dispatchEvent(new KeyboardEvent('keydown', {
-            key: event.key,
-            code: event.code,
-            metaKey: event.metaKey,
-            ctrlKey: event.ctrlKey,
-            shiftKey: event.shiftKey,
-            altKey: event.altKey,
-            bubbles: true,
-            cancelable: true,
-          }))
+          document.dispatchEvent(
+            new KeyboardEvent('keydown', {
+              key: event.key,
+              code: event.code,
+              metaKey: event.metaKey,
+              ctrlKey: event.ctrlKey,
+              shiftKey: event.shiftKey,
+              altKey: event.altKey,
+              bubbles: true,
+              cancelable: true,
+            })
+          )
           return
         }
 
@@ -3646,7 +4207,9 @@ async function onIframeLoad() {
         }
       })
       iframeListenersAttached = true
-    } catch {}
+    } catch {
+      // Ignore embedded viewer listener setup failures and keep the fallback UI alive.
+    }
   }
 
   attachAnnotationMutationObserver()
@@ -3674,21 +4237,41 @@ async function loadPdf() {
     const bytes = await invoke('read_file_binary', { path: filePathRef.value })
     if (requestId !== loadRequestId) return
     const uint8Array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-    resetViewerReadyPromise()
-    const params = new URLSearchParams({
-      instance: String(requestId),
-      locale: getPdfViewerLocaleParam(),
-    })
-    viewerSrc.value = `/pdfjs-viewer/web/viewer.html?${params.toString()}`
-    const app = await viewerReadyPromise
-    if (requestId !== loadRequestId) return
-    await app.open({ data: uint8Array })
-    if (requestId !== loadRequestId) {
-      await app.close().catch(() => {})
-      return
+    let app = await recreateViewerFrame(requestId)
+    if (!app) return
+    let didRender = false
+
+    for (let attempt = 0; attempt <= PDF_INITIAL_RENDER_RETRY_LIMIT; attempt += 1) {
+      await app.open({ data: uint8Array })
+      if (requestId !== loadRequestId) {
+        await app.close().catch(() => {})
+        return
+      }
+
+      enableTightEmbeddedPageLayout()
+      syncPdfUi()
+      requestPdfViewerResizeFrames(2)
+      didRender = await waitForPdfInitialRender(requestId)
+      if (didRender) {
+        break
+      }
+
+      if (attempt < PDF_INITIAL_RENDER_RETRY_LIMIT) {
+        console.warn('[pdf] embedded viewer stalled before first render; retrying open once', {
+          filePath: filePathRef.value,
+          requestId,
+          attempt,
+          metrics: getPdfRenderMetrics(),
+        })
+        app = await recreateViewerFrame(requestId)
+        if (!app) return
+      }
     }
-    enableTightEmbeddedPageLayout()
-    syncPdfUi()
+
+    if (!didRender) {
+      throw new Error(t('PDF viewer did not finish rendering the document.'))
+    }
+
     attachAnnotationMutationObserver()
     scheduleRenderAnnotationHighlights()
     applyPendingScrollLocation()
@@ -3720,7 +4303,20 @@ onMounted(() => {
   loadPdf()
 })
 
+onActivated(() => {
+  void restorePdfViewerAfterActivation()
+})
+
+onDeactivated(() => {
+  activationRestoreToken += 1
+  clearSyncTimer()
+  clearSyncHighlight()
+  closePdfContextMenu()
+  closePdfTranslationMenu()
+})
+
 onUnmounted(() => {
+  activationRestoreToken += 1
   loadRequestId += 1
   annotationsSidebarTarget.value = null
   sidebarViewOverride = ''
@@ -3757,20 +4353,27 @@ watch(
   ],
   () => {
     scheduleRenderAnnotationHighlights()
-  },
+  }
 )
 
-watch(currentPdfAnnotations, () => {
-  scheduleRenderAnnotationHighlights()
-}, { deep: true })
+watch(
+  currentPdfAnnotations,
+  () => {
+    scheduleRenderAnnotationHighlights()
+  },
+  { deep: true }
+)
 
 watch(filePathRef, () => {
   loadPdf()
 })
 
-watch(() => locale.value, () => {
-  loadPdf()
-})
+watch(
+  () => locale.value,
+  () => {
+    loadPdf()
+  }
+)
 
 defineExpose({
   getCurrentPageNumber: () => Number(pdfUi.pageNumber || 1),
@@ -3795,12 +4398,11 @@ defineExpose({
 .pdf-resize-overlay {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--bg-primary) 96%, transparent),
-      color-mix(in srgb, var(--bg-secondary) 88%, transparent)
-    );
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg-primary) 96%, transparent),
+    color-mix(in srgb, var(--bg-secondary) 88%, transparent)
+  );
   pointer-events: none;
 }
 
@@ -3890,7 +4492,10 @@ defineExpose({
   opacity: 0;
   transform: translateX(4px);
   pointer-events: none;
-  transition: max-width 0.18s ease, opacity 0.14s ease, transform 0.18s ease;
+  transition:
+    max-width 0.18s ease,
+    opacity 0.14s ease,
+    transform 0.18s ease;
 }
 
 .pdf-toolbar-group-collapsible-open .pdf-toolbar-collapsible-tools {
@@ -3918,7 +4523,10 @@ defineExpose({
   background: transparent;
   color: var(--fg-muted);
   padding: 0;
-  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .pdf-toolbar-btn:hover:not(:disabled) {
@@ -3965,9 +4573,15 @@ defineExpose({
 .pdf-toolbar-select {
   min-width: 120px;
   padding: 0 24px 0 8px;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: calc(100% - 11px) calc(50% - 1px), calc(100% - 7px) calc(50% - 1px);
-  background-size: 4px 4px, 4px 4px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 11px) calc(50% - 1px),
+    calc(100% - 7px) calc(50% - 1px);
+  background-size:
+    4px 4px,
+    4px 4px;
   background-repeat: no-repeat;
 }
 
@@ -4105,7 +4719,7 @@ defineExpose({
   gap: 6px;
 }
 
-.pdf-toolbar-field input[type="range"] {
+.pdf-toolbar-field input[type='range'] {
   width: 100%;
   accent-color: var(--accent);
 }
@@ -4126,7 +4740,9 @@ defineExpose({
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  transition: background-color 0.16s ease, border-color 0.16s ease;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .pdf-color-swatch-btn:hover {

@@ -10,7 +10,14 @@
     >
       <div class="version-modal">
         <!-- Modal-level close button -->
-        <UiButton class="version-close-btn" variant="ghost" size="icon-sm" icon-only :title="t('Close (Esc)')" @click="$emit('close')">
+        <UiButton
+          class="version-close-btn"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Close (Esc)')"
+          @click="$emit('close')"
+        >
           <IconX :size="18" :stroke-width="1.5" />
         </UiButton>
 
@@ -29,12 +36,26 @@
             v-for="(snapshot, idx) in snapshots"
             :key="snapshot.id"
             class="version-item"
-            :class="{ active: idx === selectedIndex, 'version-item-named': isNamedSnapshot(snapshot) }"
+            :class="{
+              active: idx === selectedIndex,
+              'version-item-named': isNamedSnapshot(snapshot),
+            }"
             @click="selectVersion(idx)"
           >
             <div class="timestamp">{{ formatDisplayDate(snapshot.createdAt) }}</div>
             <div class="message" :class="{ 'version-named-message': isNamedSnapshot(snapshot) }">
-              <svg v-if="isNamedSnapshot(snapshot)" class="version-bookmark-icon" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"/></svg>
+              <svg
+                v-if="isNamedSnapshot(snapshot)"
+                class="version-bookmark-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path
+                  d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"
+                />
+              </svg>
               {{ getSnapshotMessage(snapshot) }}
             </div>
           </div>
@@ -46,7 +67,10 @@
             <div class="version-preview-headline">
               <span class="version-preview-meta text-xs">
                 {{ formatDisplayDate(selectedSnapshot.createdAt) }}
-                <span v-if="selectedSnapshotMetadata.title" class="version-preview-meta version-preview-meta-muted">
+                <span
+                  v-if="selectedSnapshotMetadata.title"
+                  class="version-preview-meta version-preview-meta-muted"
+                >
                   {{ selectedSnapshotMetadata.title }}
                 </span>
               </span>
@@ -58,15 +82,28 @@
             <div class="version-empty-copy text-xs">{{ t('Loading preview...') }}</div>
           </div>
           <div v-else-if="selectedSnapshot && isUnsupportedBinary" class="version-empty-state">
-            <div class="version-empty-copy">{{ t('Version preview is not available for this file type.') }}</div>
+            <div class="version-empty-copy">
+              {{ t('Version preview is not available for this file type.') }}
+            </div>
             <div class="version-empty-detail">
-              {{ t('DOCX files remain in history, but Altals no longer previews or restores them.') }}
+              {{
+                t('DOCX files remain in history, but Altals no longer previews or restores them.')
+              }}
             </div>
           </div>
-          <div v-else-if="selectedSnapshot && !canPreviewSelectedSnapshot" class="version-empty-state">
-            <div class="version-empty-copy">{{ t('This saved version is not previewable from file history.') }}</div>
+          <div
+            v-else-if="selectedSnapshot && !canPreviewSelectedSnapshot"
+            class="version-empty-state"
+          >
+            <div class="version-empty-copy">
+              {{ t('This saved version is not previewable from file history.') }}
+            </div>
             <div class="version-empty-detail">
-              {{ t('Workspace-level save points remain Git-backed, but this view only restores file-level history.') }}
+              {{
+                t(
+                  'Workspace-level save points remain Git-backed, but this view only restores file-level history.'
+                )
+              }}
             </div>
           </div>
           <!-- Empty state -->
@@ -118,6 +155,10 @@ import { useWorkspaceStore } from '../stores/workspace'
 import { useFilesStore } from '../stores/files'
 import { useToastStore } from '../stores/toast'
 import {
+  shouldLoadFileVersionHistoryView,
+  shouldResetFileVersionHistoryView,
+} from '../domains/changes/fileVersionHistoryViewRuntime.js'
+import {
   getWorkspaceSnapshotMetadata,
   isNamedWorkspaceSnapshot,
   listFileVersionHistory,
@@ -160,14 +201,14 @@ const selectedSnapshot = computed(() =>
   selectedIndex.value >= 0 ? snapshots.value[selectedIndex.value] : null
 )
 const selectedSnapshotMetadata = computed(() => getSnapshotMetadata(selectedSnapshot.value))
-const canPreviewSelectedSnapshot = computed(() =>
-  !!selectedSnapshotMetadata.value?.capabilities?.canPreview
+const canPreviewSelectedSnapshot = computed(
+  () => !!selectedSnapshotMetadata.value?.capabilities?.canPreview
 )
-const canCopySelectedSnapshot = computed(() =>
-  canPreviewSelectedSnapshot.value && !isUnsupportedBinary.value
+const canCopySelectedSnapshot = computed(
+  () => canPreviewSelectedSnapshot.value && !isUnsupportedBinary.value
 )
-const canRestoreSelectedSnapshot = computed(() =>
-  !!selectedSnapshotMetadata.value?.capabilities?.canRestore && !isUnsupportedBinary.value
+const canRestoreSelectedSnapshot = computed(
+  () => !!selectedSnapshotMetadata.value?.capabilities?.canRestore && !isUnsupportedBinary.value
 )
 
 function destroyPreview() {
@@ -178,6 +219,16 @@ function destroyPreview() {
   if (previewContainer.value) {
     previewContainer.value.innerHTML = ''
   }
+}
+
+function resetHistoryState() {
+  loading.value = false
+  previewLoading.value = false
+  snapshots.value = []
+  selectedIndex.value = -1
+  previewContent.value = ''
+  copyFeedback.value = false
+  destroyPreview()
 }
 
 async function createMarkdownPreviewState(content) {
@@ -193,18 +244,32 @@ async function createMarkdownPreviewState(content) {
   })
 }
 
-watch(() => props.visible, async (v) => {
-  if (v && props.filePath) {
-    await loadHistory()
-    await nextTick()
-    overlayEl.value?.focus()
-  } else {
-    snapshots.value = []
-    selectedIndex.value = -1
-    previewLoading.value = false
-    destroyPreview()
-  }
-})
+watch(
+  () => [props.visible, props.filePath],
+  async ([visible, filePath], previous = []) => {
+    const [previousVisible, previousFilePath] = Array.isArray(previous) ? previous : []
+    if (
+      shouldLoadFileVersionHistoryView({
+        visible,
+        filePath,
+        previousVisible,
+        previousFilePath,
+      })
+    ) {
+      clearTimeout(copyTimer)
+      await loadHistory()
+      await nextTick()
+      overlayEl.value?.focus()
+      return
+    }
+
+    if (shouldResetFileVersionHistoryView({ visible })) {
+      clearTimeout(copyTimer)
+      resetHistoryState()
+    }
+  },
+  { immediate: true }
+)
 
 async function loadHistory() {
   if (!workspace.path) return
@@ -293,7 +358,7 @@ async function restoreVersion() {
       fileName: fileName.value,
       date: formatDisplayDate(snapshot.createdAt),
     }),
-    { title: t('Confirm Restore'), kind: 'warning' },
+    { title: t('Confirm Restore'), kind: 'warning' }
   )
   if (!yes) {
     return
@@ -309,7 +374,10 @@ async function restoreVersion() {
     emit('close')
   } catch (e) {
     console.error('Failed to restore:', e)
-    toastStore.show(formatFileError('restore', props.filePath, e), { type: 'error', duration: 5000 })
+    toastStore.show(formatFileError('restore', props.filePath, e), {
+      type: 'error',
+      duration: 5000,
+    })
   }
 }
 

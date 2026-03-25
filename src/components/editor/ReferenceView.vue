@@ -1,15 +1,22 @@
 <template>
   <div v-if="ref" class="flex flex-col h-full min-h-0">
     <!-- Metadata header -->
-    <div class="shrink-0" style="border-bottom: 1px solid var(--border);">
+    <div class="shrink-0" style="border-bottom: 1px solid var(--border)">
       <!-- Needs review banner (always visible) -->
       <div
         v-if="ref._needsReview"
         class="px-3 py-1.5 ui-text-xs flex items-center gap-2"
         :style="{ background: 'rgba(224, 175, 104, 0.1)', color: 'var(--warning)' }"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M8 1l7 13H1L8 1zM8 6v3M8 11h0"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M8 1l7 13H1L8 1zM8 6v3M8 11h0" />
         </svg>
         <span>{{ t('Unverified — review metadata before citing') }}</span>
         <button
@@ -27,15 +34,30 @@
         @click="detailsOpen = !detailsOpen"
       >
         <svg
-          width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"
-          :style="{ color: 'var(--fg-muted)', transform: detailsOpen ? 'rotate(90deg)' : '', transition: 'transform 0.1s' }"
+          width="10"
+          height="10"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          :style="{
+            color: 'var(--fg-muted)',
+            transform: detailsOpen ? 'rotate(90deg)' : '',
+            transition: 'transform 0.1s',
+          }"
         >
-          <path d="M6 4l4 4-4 4"/>
+          <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium" :style="{ color: 'var(--fg-secondary)' }">{{ t('Details') }}</span>
+        <span class="ui-text-xs font-medium" :style="{ color: 'var(--fg-secondary)' }">{{
+          t('Details')
+        }}</span>
         <span class="ref-key-badge ui-text-micro ml-1">@{{ ref._key }}</span>
         <!-- Collapsed summary -->
-        <span v-if="!detailsOpen" class="ref-header-summary ui-text-xs ml-2 truncate flex-1" :style="{ color: 'var(--fg-muted)' }">
+        <span
+          v-if="!detailsOpen"
+          class="ref-header-summary ui-text-xs ml-2 truncate flex-1"
+          :style="{ color: 'var(--fg-muted)' }"
+        >
           {{ authorLine }}{{ year ? ` (${year})` : '' }}
         </span>
         <div class="ref-header-spacer flex-1" v-if="detailsOpen"></div>
@@ -67,7 +89,10 @@
             </button>
             <button
               class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-              :style="{ borderColor: copyFlash ? 'var(--success)' : 'var(--border)', color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)' }"
+              :style="{
+                borderColor: copyFlash ? 'var(--success)' : 'var(--border)',
+                color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)',
+              }"
               @click="handleCopyAs(copyFormat)"
             >
               {{ copyFlash ? t('Copied!') : t('Copy') }}
@@ -75,7 +100,7 @@
             <select
               :value="copyFormat"
               class="ref-type-select ref-header-select"
-              @change="copyFormat = $event.target.value; handleCopyAs($event.target.value)"
+              @change="handleCopyFormatChange"
             >
               <option value="apa">APA</option>
               <option value="chicago">Chicago</option>
@@ -103,7 +128,6 @@
           </button>
         </template>
       </div>
-
     </div>
 
     <!-- Details -->
@@ -185,19 +209,35 @@
           <div class="flex gap-2">
             <div class="w-16">
               <label class="ref-detail-label">{{ t('Vol') }}</label>
-              <input :value="ref.volume" class="ref-detail-input" @change="update('volume', $event.target.value)" />
+              <input
+                :value="ref.volume"
+                class="ref-detail-input"
+                @change="update('volume', $event.target.value)"
+              />
             </div>
             <div class="w-16">
               <label class="ref-detail-label">{{ t('Issue') }}</label>
-              <input :value="ref.issue" class="ref-detail-input" @change="update('issue', $event.target.value)" />
+              <input
+                :value="ref.issue"
+                class="ref-detail-input"
+                @change="update('issue', $event.target.value)"
+              />
             </div>
             <div class="w-20">
               <label class="ref-detail-label">{{ t('Pages') }}</label>
-              <input :value="ref.page" class="ref-detail-input" @change="update('page', $event.target.value)" />
+              <input
+                :value="ref.page"
+                class="ref-detail-input"
+                @change="update('page', $event.target.value)"
+              />
             </div>
             <div class="flex-1">
               <label class="ref-detail-label">DOI</label>
-              <input :value="ref.DOI" class="ref-detail-input" @change="update('DOI', $event.target.value)" />
+              <input
+                :value="ref.DOI"
+                class="ref-detail-input"
+                @change="update('DOI', $event.target.value)"
+              />
             </div>
           </div>
 
@@ -217,7 +257,11 @@
             <label class="ref-detail-label">{{ t('Other fields') }}</label>
             <div class="space-y-1">
               <div v-for="f in extraFields" :key="f.key" class="flex gap-1.5 items-start">
-                <span class="ui-text-micro w-20 shrink-0 text-right pt-[3px]" :style="{ color: 'var(--fg-muted)' }">{{ f.label }}</span>
+                <span
+                  class="ui-text-micro w-20 shrink-0 text-right pt-[3px]"
+                  :style="{ color: 'var(--fg-muted)' }"
+                  >{{ f.label }}</span
+                >
                 <input
                   :value="f.value"
                   class="ref-detail-input flex-1"
@@ -233,16 +277,16 @@
               class="ui-text-micro hover:underline"
               :style="{ color: 'var(--fg-muted)' }"
               @click="addingField = true"
-            >{{ t('+ Add field') }}</button>
+            >
+              {{ t('+ Add field') }}
+            </button>
           </div>
           <div v-else class="flex gap-1.5 items-center">
-            <select
-              v-model="newFieldKey"
-              class="ref-type-select ui-text-xs"
-              style="width: 100px;"
-            >
+            <select v-model="newFieldKey" class="ref-type-select ui-text-xs" style="width: 100px">
               <option value="" disabled>{{ t('Field...') }}</option>
-              <option v-for="opt in addableFields" :key="opt.key" :value="opt.key">{{ opt.label }}</option>
+              <option v-for="opt in addableFields" :key="opt.key" :value="opt.key">
+                {{ opt.label }}
+              </option>
             </select>
             <input
               v-model="newFieldValue"
@@ -255,12 +299,16 @@
               :style="{ color: 'var(--accent)' }"
               :disabled="!newFieldKey || !newFieldValue"
               @click="confirmAddField"
-            >{{ t('Add') }}</button>
+            >
+              {{ t('Add') }}
+            </button>
             <button
               class="ui-text-micro px-1 py-0.5 rounded hover:bg-[var(--bg-hover)]"
               :style="{ color: 'var(--fg-muted)' }"
-              @click="addingField = false; newFieldKey = ''; newFieldValue = ''"
-            >{{ t('Cancel') }}</button>
+              @click="cancelAddField"
+            >
+              {{ t('Cancel') }}
+            </button>
           </div>
 
           <!-- Abstract (collapsible) -->
@@ -274,7 +322,9 @@
                   class="ui-text-micro ml-1 hover:underline"
                   :style="{ color: 'var(--accent)' }"
                   @click="abstractExpanded = true"
-                >{{ t('read more') }}</button>
+                >
+                  {{ t('read more') }}
+                </button>
               </template>
               <template v-else>
                 <span>{{ ref.abstract }}</span>
@@ -282,7 +332,9 @@
                   class="ui-text-micro ml-1 hover:underline"
                   :style="{ color: 'var(--accent)' }"
                   @click="abstractExpanded = false"
-                >{{ t('collapse') }}</button>
+                >
+                  {{ t('collapse') }}
+                </button>
               </template>
             </div>
           </div>
@@ -325,12 +377,28 @@
 
             <template v-else>
               <div class="ref-audit-summary">
-                <span class="ref-audit-chip">{{ t('{count} files checked', { count: auditSummary.checkedFileCount || 0 }) }}</span>
-                <span class="ref-audit-chip" :class="{ 'ref-audit-chip-warn': (auditSummary.missingReferenceCount || 0) > 0 }">
-                  {{ t('{count} missing citations', { count: auditSummary.missingReferenceCount || 0 }) }}
+                <span class="ref-audit-chip">{{
+                  t('{count} files checked', { count: auditSummary.checkedFileCount || 0 })
+                }}</span>
+                <span
+                  class="ref-audit-chip"
+                  :class="{ 'ref-audit-chip-warn': (auditSummary.missingReferenceCount || 0) > 0 }"
+                >
+                  {{
+                    t('{count} missing citations', {
+                      count: auditSummary.missingReferenceCount || 0,
+                    })
+                  }}
                 </span>
-                <span class="ref-audit-chip" :class="{ 'ref-audit-chip-warn': (auditSummary.bibliographyIssueCount || 0) > 0 }">
-                  {{ t('{count} bibliography issues', { count: auditSummary.bibliographyIssueCount || 0 }) }}
+                <span
+                  class="ref-audit-chip"
+                  :class="{ 'ref-audit-chip-warn': (auditSummary.bibliographyIssueCount || 0) > 0 }"
+                >
+                  {{
+                    t('{count} bibliography issues', {
+                      count: auditSummary.bibliographyIssueCount || 0,
+                    })
+                  }}
                 </span>
               </div>
 
@@ -359,12 +427,17 @@
                   {{ t('Missing reference keys in this project') }}
                 </div>
                 <div class="ref-audit-key-list">
-                  <span v-for="key in auditSummary.missingKeys" :key="key" class="ref-key-badge">@{{ key }}</span>
+                  <span v-for="key in auditSummary.missingKeys" :key="key" class="ref-key-badge"
+                    >@{{ key }}</span
+                  >
                 </div>
               </div>
 
               <div
-                v-if="(auditSummary.missingReferenceCount || 0) === 0 && (auditSummary.bibliographyIssueCount || 0) === 0"
+                v-if="
+                  (auditSummary.missingReferenceCount || 0) === 0 &&
+                  (auditSummary.bibliographyIssueCount || 0) === 0
+                "
                 class="ui-text-xs"
                 :style="{ color: 'var(--success)' }"
               >
@@ -375,34 +448,44 @@
           <div
             v-if="!pdfPath"
             class="rounded-lg border px-3 py-2 ui-text-xs"
-            :style="{ borderColor: 'var(--border)', color: 'var(--fg-muted)', background: 'color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary))' }"
+            :style="{
+              borderColor: 'var(--border)',
+              color: 'var(--fg-muted)',
+              background: 'color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary))',
+            }"
           >
             {{ t('No PDF attached') }}
           </div>
         </div>
       </div>
-      <div v-else class="flex items-center justify-center h-full ui-text-xs" :style="{ color: 'var(--fg-muted)' }">
+      <div
+        v-else
+        class="flex items-center justify-center h-full ui-text-xs"
+        :style="{ color: 'var(--fg-muted)' }"
+      >
         {{ t('Details') }}
       </div>
     </div>
   </div>
 
   <!-- Deleted / not found -->
-  <div v-else class="flex items-center justify-center h-full ui-text-xs" :style="{ color: 'var(--fg-muted)' }">
+  <div
+    v-else
+    class="flex items-center justify-center h-full ui-text-xs"
+    :style="{ color: 'var(--fg-muted)' }"
+  >
     {{ t('Reference not found') }}
   </div>
 </template>
 
 <script setup>
 import { ref as vRef, computed, watch, onMounted, nextTick } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useToastStore } from '../../stores/toast'
-import { formatReference } from '../../services/citationFormatter'
 import { getFormatter } from '../../services/citationStyleRegistry'
 import { launchAiTask } from '../../services/ai/launch'
 import { createReferenceAuditTask } from '../../services/ai/taskCatalog'
@@ -461,7 +544,7 @@ const ADDABLE_FIELDS = [
 
 const addableFields = computed(() => {
   if (!ref.value) return ADDABLE_FIELDS
-  return ADDABLE_FIELDS.filter(f => ref.value[f.key] == null || ref.value[f.key] === '')
+  return ADDABLE_FIELDS.filter((f) => ref.value[f.key] == null || ref.value[f.key] === '')
 })
 
 const ref = computed(() => referencesStore.getByKey(props.refKey))
@@ -469,13 +552,15 @@ const ref = computed(() => referencesStore.getByKey(props.refKey))
 const pdfPath = computed(() => {
   return referencesStore.pdfPathForKey(props.refKey)
 })
-const citedInLabel = computed(() => t(citedInFiles.value.length === 1 ? 'Cited in {count} file' : 'Cited in {count} files', { count: citedInFiles.value.length }))
+const citedInLabel = computed(() =>
+  t(citedInFiles.value.length === 1 ? 'Cited in {count} file' : 'Cited in {count} files', {
+    count: citedInFiles.value.length,
+  })
+)
 
 const authorsString = computed(() => {
   if (!ref.value?.author) return ''
-  return ref.value.author.map(a =>
-    a.given ? `${a.family}, ${a.given}` : a.family
-  ).join(' and ')
+  return ref.value.author.map((a) => (a.given ? `${a.family}, ${a.given}` : a.family)).join(' and ')
 })
 
 const year = computed(() => {
@@ -493,8 +578,24 @@ const authorLine = computed(() => {
 
 // Fields already shown in the main form
 const MAIN_FIELDS = new Set([
-  'id', '_key', '_addedAt', '_matchMethod', '_needsReview', '_pdfFile', '_textFile', '_tags',
-  'type', 'title', 'author', 'issued', 'container-title', 'volume', 'issue', 'page', 'DOI', 'abstract',
+  'id',
+  '_key',
+  '_addedAt',
+  '_matchMethod',
+  '_needsReview',
+  '_pdfFile',
+  '_textFile',
+  '_tags',
+  'type',
+  'title',
+  'author',
+  'issued',
+  'container-title',
+  'volume',
+  'issue',
+  'page',
+  'DOI',
+  'abstract',
 ])
 
 const EXTRA_LABELS = {
@@ -502,7 +603,7 @@ const EXTRA_LABELS = {
   URL: 'URL',
   ISBN: 'ISBN',
   ISSN: 'ISSN',
-  editor: t('Editor'),
+  editor: t('Reference editor'),
   edition: t('Edition'),
   note: t('Note'),
   language: t('Language'),
@@ -514,8 +615,8 @@ const EXTRA_LABELS = {
 const extraFields = computed(() => {
   if (!ref.value) return []
   return Object.keys(ref.value)
-    .filter(k => !MAIN_FIELDS.has(k) && ref.value[k] != null && ref.value[k] !== '')
-    .map(k => ({
+    .filter((k) => !MAIN_FIELDS.has(k) && ref.value[k] != null && ref.value[k] !== '')
+    .map((k) => ({
       key: k,
       label: EXTRA_LABELS[k] || k,
       value: typeof ref.value[k] === 'object' ? JSON.stringify(ref.value[k]) : String(ref.value[k]),
@@ -527,11 +628,13 @@ const citedInFiles = computed(() => {
   return referencesStore.citedIn[ref.value._key] || []
 })
 
-const auditVisible = computed(() => citedInFiles.value.length > 0 || (auditSummary.value.missingKeys?.length || 0) > 0)
+const auditVisible = computed(
+  () => citedInFiles.value.length > 0 || (auditSummary.value.missingKeys?.length || 0) > 0
+)
 const currentRefAuditIssues = computed(() => {
   if (citedInFiles.value.length === 0) return []
   const citedSet = new Set(citedInFiles.value)
-  return (auditSummary.value.issues || []).filter(issue => citedSet.has(issue.filePath))
+  return (auditSummary.value.issues || []).filter((issue) => citedSet.has(issue.filePath))
 })
 
 // Sync activeKey
@@ -551,18 +654,28 @@ watch(ref, (val) => {
   }
 })
 
-watch(() => props.refKey, (nextKey) => {
-  referencesStore.activeKey = nextKey
-  refreshAudit()
-})
+watch(
+  () => props.refKey,
+  (nextKey) => {
+    referencesStore.activeKey = nextKey
+    refreshAudit()
+  }
+)
 
-watch(() => filesStore.fileContents, () => {
-  refreshAudit()
-}, { deep: true })
+watch(
+  () => filesStore.fileContents,
+  () => {
+    refreshAudit()
+  },
+  { deep: true }
+)
 
-watch(() => referencesStore.library.length, () => {
-  refreshAudit()
-})
+watch(
+  () => referencesStore.library.length,
+  () => {
+    refreshAudit()
+  }
+)
 
 function update(field, value) {
   if (!ref.value) return
@@ -607,25 +720,30 @@ async function refreshAudit() {
 }
 
 function issueLabel(issue) {
-  if (issue.type === 'missing-bibliography') return t('Bibliography has not been generated for this file yet')
+  if (issue.type === 'missing-bibliography')
+    return t('Bibliography has not been generated for this file yet')
   if (issue.type === 'stale-bibliography') return t('Generated bibliography is out of date')
-  if (issue.type === 'missing-reference') return t('This file cites keys that are missing from the library')
+  if (issue.type === 'missing-reference')
+    return t('This file cites keys that are missing from the library')
   return issue.type
 }
 
 function updateAuthors(value) {
-  const authors = value.split(/\s+and\s+/i).map(part => {
-    part = part.trim()
-    if (part.includes(',')) {
-      const [family, ...rest] = part.split(',')
-      return { family: family.trim(), given: rest.join(',').trim() }
-    }
-    const words = part.split(/\s+/)
-    return {
-      family: words[words.length - 1],
-      given: words.slice(0, -1).join(' '),
-    }
-  }).filter(a => a.family)
+  const authors = value
+    .split(/\s+and\s+/i)
+    .map((part) => {
+      part = part.trim()
+      if (part.includes(',')) {
+        const [family, ...rest] = part.split(',')
+        return { family: family.trim(), given: rest.join(',').trim() }
+      }
+      const words = part.split(/\s+/)
+      return {
+        family: words[words.length - 1],
+        given: words.slice(0, -1).join(' '),
+      }
+    })
+    .filter((a) => a.family)
   referencesStore.updateReference(ref.value._key, { author: authors })
 }
 
@@ -639,12 +757,25 @@ function updateYear(value) {
 }
 
 function updateTags(value) {
-  const tags = value.split(',').map(s => s.trim()).filter(Boolean)
+  const tags = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   referencesStore.updateReference(ref.value._key, { _tags: tags })
 }
 
 function confirmRef() {
   referencesStore.updateReference(ref.value._key, { _needsReview: false })
+}
+
+function handleCopyFormatChange(event) {
+  handleCopyAs(event?.target?.value)
+}
+
+function cancelAddField() {
+  addingField.value = false
+  newFieldKey.value = ''
+  newFieldValue.value = ''
 }
 
 async function handleCopyAs(style) {
@@ -662,7 +793,9 @@ async function handleCopyAs(style) {
   localStorage.setItem('refCopyFormat', style)
   copyFlash.value = true
   clearTimeout(copyFlashTimer)
-  copyFlashTimer = setTimeout(() => { copyFlash.value = false }, 1500)
+  copyFlashTimer = setTimeout(() => {
+    copyFlash.value = false
+  }, 1500)
 }
 
 function confirmAddField() {
@@ -678,7 +811,7 @@ async function askAiAboutReference() {
   await launchAiTask({
     editorStore,
     chatStore,
-    paneId: props.embedded ? (editorStore.activePaneId || null) : props.paneId,
+    paneId: props.embedded ? editorStore.activePaneId || null : props.paneId,
     beside: true,
     task: createReferenceAuditTask({
       refKey: ref.value._key,
@@ -695,7 +828,10 @@ function openPdf() {
 
 async function deleteRef() {
   if (!ref.value) return
-  const yes = await ask(t('Remove reference @{key} from this project?', { key: ref.value._key }), { title: t('Confirm Remove'), kind: 'warning' })
+  const yes = await ask(t('Remove reference @{key} from this project?', { key: ref.value._key }), {
+    title: t('Confirm Remove'),
+    kind: 'warning',
+  })
   if (yes) {
     const removed = referencesStore.removeReference(ref.value._key)
     if (removed) {
@@ -712,10 +848,10 @@ async function deleteRef() {
 async function deleteRefGlobally() {
   if (!ref.value) return
   const key = ref.value._key
-  const yes = await ask(
-    t('Delete reference @{key} from the global library?', { key }),
-    { title: t('Confirm Global Delete'), kind: 'warning' },
-  )
+  const yes = await ask(t('Delete reference @{key} from the global library?', { key }), {
+    title: t('Confirm Global Delete'),
+    kind: 'warning',
+  })
   if (!yes) return
 
   const removed = await referencesStore.removeReferenceFromGlobal(key)
@@ -873,6 +1009,8 @@ function relativePath(path) {
 }
 
 .ref-detail-input-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
 }
 </style>

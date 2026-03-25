@@ -18,124 +18,150 @@
 
     <div class="workflow-controls">
       <template v-if="showPrimaryAction && uiState?.kind === 'markdown'">
-        <button
+        <UiButton
           class="workflow-primary-btn"
-          type="button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
           :title="t('Preview')"
           :aria-label="t('Preview')"
           @click="$emit('primary-action')"
         >
           <IconEye :size="14" :stroke-width="1.8" />
-        </button>
+        </UiButton>
       </template>
 
-      <button
+      <UiButton
         v-else-if="showPrimaryAction"
         class="workflow-primary-btn"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
         :title="primaryLabel"
         :aria-label="primaryLabel"
         @click="$emit('primary-action')"
       >
         <component :is="primaryIcon" :size="14" :stroke-width="1.8" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="uiState.kind !== 'markdown' && showPreviewButton"
         class="workflow-secondary-btn"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
         :title="previewButtonLabel"
         :aria-label="previewButtonLabel"
         @click="$emit('reveal-preview')"
       >
         <IconEye :size="14" :stroke-width="1.8" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="showPdfButton"
         class="workflow-secondary-btn"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
         title="PDF"
         aria-label="PDF"
         @click="$emit('reveal-pdf')"
       >
         <IconFileTypePdf :size="14" :stroke-width="1.8" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="showRunButtons"
         class="workflow-primary-btn"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
         :title="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
         :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
         @click="$emit('run-code')"
       >
         <IconPlayerPlay :size="14" :stroke-width="1.8" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="showRunButtons"
         class="workflow-primary-btn"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
         :title="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
         :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
         @click="$emit('run-file')"
       >
         <IconPlayerTrackNext :size="14" :stroke-width="1.8" />
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="showCommentToggle"
         class="workflow-secondary-btn workflow-comment-btn"
-        :class="{ 'workflow-comment-btn-active': commentActive }"
-        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        :active="commentActive"
         :title="t('Toggle comments')"
         :aria-label="t('Toggle comments')"
         @click="$emit('toggle-comments')"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"/>
-        </svg>
-        <span
-          v-if="commentBadgeCount > 0"
-          class="workflow-comment-badge"
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
         >
+          <path
+            d="M3 2.5h10a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5H9.414l-2.707 2.707a.5.5 0 01-.854-.354V11.5H3A1.5 1.5 0 011.5 10V4A1.5 1.5 0 013 2.5z"
+          />
+        </svg>
+        <span v-if="commentBadgeCount > 0" class="workflow-comment-badge">
           {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
         </span>
-      </button>
+      </UiButton>
       <div
         v-if="showAiGroup"
         class="workflow-ai-group"
         :class="{ 'workflow-ai-group-open': aiToolsExpanded }"
       >
         <div class="workflow-ai-group-tools">
-          <button
+          <UiButton
             v-if="showAiDiagnoseButton"
             class="workflow-secondary-btn"
-            type="button"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             :title="t('Diagnose with AI')"
             :aria-label="t('Diagnose with AI')"
             @click="handleDiagnoseClick"
           >
             <IconSearch :size="14" :stroke-width="1.8" />
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="showAiFixButton"
             class="workflow-secondary-btn workflow-secondary-btn-accent"
-            type="button"
+            variant="ghost"
+            size="icon-sm"
+            icon-only
             :title="t('Fix with AI')"
             :aria-label="t('Fix with AI')"
             @click="handleFixClick"
           >
             <IconSparkles :size="14" :stroke-width="1.8" />
-          </button>
+          </UiButton>
         </div>
-        <button
+        <UiButton
           class="workflow-secondary-btn workflow-ai-toggle-btn"
-          :class="{ 'workflow-ai-toggle-btn-active': aiToolsExpanded }"
-          type="button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :active="aiToolsExpanded"
           :title="t(aiToolsExpanded ? 'Hide AI tools' : 'Show AI tools')"
           :aria-label="t(aiToolsExpanded ? 'Hide AI tools' : 'Show AI tools')"
           @click="toggleAiToolsExpanded"
         >
           <IconChevronRight v-if="aiToolsExpanded" :size="14" :stroke-width="1.8" />
           <IconChevronLeft v-else :size="14" :stroke-width="1.8" />
-        </button>
+        </UiButton>
       </div>
     </div>
   </div>
@@ -153,6 +179,7 @@ import {
   IconSearch,
   IconSparkles,
 } from '@tabler/icons-vue'
+import UiButton from '../shared/ui/UiButton.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
@@ -204,13 +231,11 @@ const phaseLabel = computed(() => {
   return t('Idle')
 })
 
-const showMeta = computed(() => (
-  !!kindLabel.value || !!previewLabel.value || !!phaseLabel.value || !!props.statusText
-))
+const showMeta = computed(
+  () => !!kindLabel.value || !!previewLabel.value || !!phaseLabel.value || !!props.statusText
+)
 
-const showPrimaryAction = computed(() => (
-  !!props.uiState && props.uiState.kind !== 'text'
-))
+const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
 const primaryLabel = computed(() => {
   if (props.uiState.kind === 'latex' || props.uiState.kind === 'typst') {
@@ -226,31 +251,26 @@ const primaryIcon = computed(() => {
   return IconEye
 })
 
-const showPreviewButton = computed(() => (
-  props.uiState.kind === 'latex'
-  || props.uiState.kind === 'typst'
-  || props.uiState.previewKind === 'pdf'
-))
+const showPreviewButton = computed(
+  () =>
+    props.uiState.kind === 'latex' ||
+    props.uiState.kind === 'typst' ||
+    props.uiState.previewKind === 'pdf'
+)
 
-const previewButtonLabel = computed(() => (
-  t('Preview')
-))
+const previewButtonLabel = computed(() => t('Preview'))
 
-const showPdfButton = computed(() => (
-  props.uiState.kind === 'typst'
-))
+const showPdfButton = computed(() => props.uiState.kind === 'typst')
 
-const showAiFixButton = computed(() => (
-  props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
-))
+const showAiFixButton = computed(
+  () => props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
+)
 
-const showAiDiagnoseButton = computed(() => (
-  props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
-))
+const showAiDiagnoseButton = computed(
+  () => props.uiState.kind === 'latex' || props.uiState.kind === 'typst'
+)
 
-const showAiGroup = computed(() => (
-  showAiDiagnoseButton.value || showAiFixButton.value
-))
+const showAiGroup = computed(() => showAiDiagnoseButton.value || showAiFixButton.value)
 
 const aiToolsExpanded = ref(false)
 
@@ -258,9 +278,12 @@ watch(showAiGroup, (visible) => {
   if (!visible) aiToolsExpanded.value = false
 })
 
-watch(() => props.uiState?.kind, () => {
-  aiToolsExpanded.value = false
-})
+watch(
+  () => props.uiState?.kind,
+  () => {
+    aiToolsExpanded.value = false
+  }
+)
 
 function toggleAiToolsExpanded() {
   aiToolsExpanded.value = !aiToolsExpanded.value
@@ -361,51 +384,26 @@ const statusClass = computed(() => ({
 
 .workflow-primary-btn,
 .workflow-secondary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
   height: 22px;
   width: 24px;
-  padding: 0;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: transparent;
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
   white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.14s ease,
-    border-color 0.14s ease,
-    color 0.14s ease,
-    transform 0.1s ease,
-    box-shadow 0.14s ease;
+  color: var(--text-muted);
+  border-radius: 6px;
 }
 
 .workflow-primary-btn {
-  color: var(--success, #4ade80);
+  color: var(--success);
 }
 
-.workflow-primary-btn:hover {
+.workflow-primary-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
   border-color: color-mix(in srgb, var(--success, #4ade80) 28%, var(--border));
 }
 
-.workflow-secondary-btn:hover {
+.workflow-secondary-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-}
-
-.workflow-primary-btn:active,
-.workflow-secondary-btn:active {
-  transform: translateY(0.5px) scale(0.98);
-}
-
-.workflow-primary-btn:focus-visible,
-.workflow-secondary-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .workflow-secondary-btn {
@@ -432,7 +430,10 @@ const statusClass = computed(() => ({
   overflow: hidden;
   transform: translateX(6px);
   pointer-events: none;
-  transition: max-width 0.16s ease, opacity 0.14s ease, transform 0.16s ease;
+  transition:
+    max-width 0.16s ease,
+    opacity 0.14s ease,
+    transform 0.16s ease;
 }
 
 .workflow-ai-group-open .workflow-ai-group-tools {
@@ -446,17 +447,17 @@ const statusClass = computed(() => ({
   color: var(--accent);
 }
 
-.workflow-ai-toggle-btn-active {
+.workflow-ai-toggle-btn.is-active {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .workflow-comment-btn {
   position: relative;
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
-.workflow-comment-btn-active {
+.workflow-comment-btn.is-active {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
   background: color-mix(in srgb, var(--accent) 12%, transparent);

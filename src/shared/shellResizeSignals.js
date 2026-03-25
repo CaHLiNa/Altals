@@ -2,6 +2,8 @@ export const SHELL_RESIZE_BODY_CLASS = 'altals-shell-resizing'
 export const SHELL_RESIZE_START_EVENT = 'altals-shell-resize-start'
 export const SHELL_RESIZE_END_EVENT = 'altals-shell-resize-end'
 
+const activeShellResizeSources = new Set()
+
 function resolveBodyClassList() {
   return globalThis?.document?.body?.classList || null
 }
@@ -35,12 +37,36 @@ function dispatchResizeEvent(type, detail) {
   targetWindow.dispatchEvent({ type, detail })
 }
 
+function resolveSourceKey(detail = {}) {
+  const source = String(detail?.source || 'default').trim() || 'default'
+  const direction = String(detail?.direction || '').trim()
+  const side = String(detail?.side || '').trim()
+  return [source, direction, side].filter(Boolean).join(':')
+}
+
 export function setShellResizeActive(active, detail = {}) {
-  toggleBodyClass(active)
-  dispatchResizeEvent(active ? SHELL_RESIZE_START_EVENT : SHELL_RESIZE_END_EVENT, detail)
+  const sourceKey = resolveSourceKey(detail)
+  const wasActive = activeShellResizeSources.size > 0
+
+  if (active) {
+    activeShellResizeSources.add(sourceKey)
+  } else {
+    activeShellResizeSources.delete(sourceKey)
+  }
+
+  const nextActive = activeShellResizeSources.size > 0
+  toggleBodyClass(nextActive)
+
+  if (wasActive === nextActive) return
+  dispatchResizeEvent(nextActive ? SHELL_RESIZE_START_EVENT : SHELL_RESIZE_END_EVENT, detail)
 }
 
 export function isShellResizeActive() {
   const classList = resolveBodyClassList()
   return !!classList?.contains?.(SHELL_RESIZE_BODY_CLASS)
+}
+
+export function __resetShellResizeSignalsForTests() {
+  activeShellResizeSources.clear()
+  toggleBodyClass(false)
 }

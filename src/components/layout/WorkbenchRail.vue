@@ -4,30 +4,32 @@
     :aria-label="t('Project navigation')"
   >
     <div class="flex w-full flex-col items-center gap-1.5">
-      <button
+      <UiButton
         v-for="entry in entries"
         :key="entry.key"
-        type="button"
         class="workbench-rail-button"
-        :class="{ 'is-active': activeKey === entry.key }"
+        variant="ghost"
+        size="icon-sm"
+        :active="activeKey === entry.key"
         :title="entry.title"
         :aria-label="entry.label"
         @click="activate(entry.key)"
       >
         <component :is="entry.icon" :size="18" :stroke-width="1.7" />
-      </button>
+      </UiButton>
     </div>
 
     <div class="mt-auto flex w-full flex-col items-center">
-      <button
-        type="button"
+      <UiButton
         class="workbench-rail-button"
+        variant="ghost"
+        size="icon-sm"
         :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
         :aria-label="t('Settings')"
         @click="$emit('open-settings')"
       >
         <IconSettings :size="18" :stroke-width="1.7" />
-      </button>
+      </UiButton>
     </div>
   </nav>
 </template>
@@ -35,6 +37,7 @@
 <script setup>
 import { computed } from 'vue'
 import { IconBook2, IconHome, IconSettings, IconSparkles } from '@tabler/icons-vue'
+import UiButton from '../shared/ui/UiButton.vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -44,7 +47,7 @@ defineEmits(['open-settings'])
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
-const entries = computed(() => ([
+const entries = computed(() => [
   {
     key: 'workspace',
     label: t('Project'),
@@ -63,7 +66,7 @@ const entries = computed(() => ([
     title: t('Open AI workspace'),
     icon: IconSparkles,
   },
-]))
+])
 
 const activeKey = computed(() => {
   if (workspace.isAiSurface) return 'ai'
@@ -96,26 +99,19 @@ function activate(key) {
   position: relative;
   width: 30px;
   height: 30px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fg-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
   opacity: 0.88;
 }
 
-.workbench-rail-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 38%, transparent);
-  color: var(--fg-secondary);
+.workbench-rail-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
+  color: var(--text-secondary);
   opacity: 1;
 }
 
 .workbench-rail-button.is-active {
-  color: var(--fg-primary);
+  color: var(--text-primary);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   opacity: 1;
 }

@@ -8,19 +8,19 @@
     </div>
 
     <div class="ai-shell-sidebar-list">
-      <div
-        v-for="item in recentChats"
-        :key="item.id"
-        class="ai-shell-sidebar-chat-row"
-      >
+      <div v-for="item in recentChats" :key="item.id" class="ai-shell-sidebar-chat-row">
         <button
           type="button"
           class="ai-shell-sidebar-chat"
           :class="{ 'is-active': aiWorkbench.sessionId === item.id && aiWorkbench.view === 'chat' }"
           @click="openRecentChat(item.id)"
         >
-          <span class="ai-shell-sidebar-chat-label">{{ chatMeta(item)?.workflowLabel || chatMeta(item)?.label || t('AI') }}</span>
-          <span class="ai-shell-sidebar-chat-meta">{{ formatRelativeFromNow(item.updatedAt) }}</span>
+          <span class="ai-shell-sidebar-chat-label">{{
+            chatMeta(item)?.workflowLabel || chatMeta(item)?.label || t('AI')
+          }}</span>
+          <span class="ai-shell-sidebar-chat-meta">{{
+            formatRelativeFromNow(item.updatedAt)
+          }}</span>
         </button>
         <button
           type="button"
@@ -96,16 +96,19 @@ async function deleteChat(sessionId) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 10px 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  height: 26px;
+  min-height: 26px;
+  box-sizing: border-box;
+  gap: 4px;
+  padding: 0 3px 0 6px;
+  border-bottom: 1px solid var(--border);
 }
 
 .ai-shell-sidebar-kicker {
-  font-size: 0.68rem;
+  font-size: 0.63rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  line-height: 1.3;
+  letter-spacing: 0.06em;
+  line-height: 1;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--fg-muted) 92%, var(--fg-primary));
 }
@@ -115,9 +118,10 @@ async function deleteChat(sessionId) {
   border-radius: 5px;
   background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary));
   color: var(--accent);
-  height: 22px;
-  padding: 0 7px;
-  font-size: 0.76rem;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -152,7 +156,7 @@ async function deleteChat(sessionId) {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-  padding: 10px 8px;
+  padding: 8px 8px;
   overflow: auto;
 }
 

@@ -158,6 +158,13 @@ defineExpose({
   border-radius: var(--radius-sm);
 }
 
+.ui-button--icon-xs {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+
 .ui-button--icon-md {
   width: 32px;
   height: 32px;

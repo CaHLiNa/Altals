@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch, KeepAlive } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { normalizeWorkbenchInspectorPanel } from '../../shared/workbenchInspectorPanels.js'
@@ -37,12 +37,12 @@ const { t } = useI18n()
 
 const lastDocumentTab = ref(null)
 
-const activePanel = computed(() => (
+const activePanel = computed(() =>
   normalizeWorkbenchInspectorPanel(workspace.primarySurface, workspace.rightSidebarPanel)
-))
-const inspectorEntries = computed(() => (
+)
+const inspectorEntries = computed(() =>
   getWorkbenchInspectorChromeEntries(t, workspace.primarySurface)
-))
+)
 const activeSidebarView = computed(() => {
   if (workspace.isLibrarySurface) {
     return {
@@ -67,6 +67,7 @@ const activeSidebarView = computed(() => {
     component: Backlinks,
     key: 'workspace-backlinks',
     props: {
+      embedded: true,
       overrideActiveFile: documentTab.value,
     },
   }
@@ -75,11 +76,11 @@ const activeSidebarView = computed(() => {
 const documentTab = computed(() => {
   const active = editorStore.activeTab
   if (
-    active
-    && !isChatTab(active)
-    && !isAiLauncher(active)
-    && !isNewTab(active)
-    && !isLibraryPath(active)
+    active &&
+    !isChatTab(active) &&
+    !isAiLauncher(active) &&
+    !isNewTab(active) &&
+    !isLibraryPath(active)
   ) {
     return active
   }
@@ -89,17 +90,11 @@ const documentTab = computed(() => {
 watch(
   () => editorStore.activeTab,
   (tab) => {
-    if (
-      tab
-      && !isChatTab(tab)
-      && !isAiLauncher(tab)
-      && !isNewTab(tab)
-      && !isLibraryPath(tab)
-    ) {
+    if (tab && !isChatTab(tab) && !isAiLauncher(tab) && !isNewTab(tab) && !isLibraryPath(tab)) {
       lastDocumentTab.value = tab
     }
   },
-  { flush: 'post', immediate: true },
+  { flush: 'post', immediate: true }
 )
 
 function selectInspectorPanel(panel) {

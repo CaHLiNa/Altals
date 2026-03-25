@@ -1,9 +1,13 @@
 <template>
-  <div ref="rootEl" data-ref-drop-zone class="flex flex-col h-full overflow-hidden" :style="{ background: 'var(--bg-primary)' }">
+  <div
+    ref="rootEl"
+    data-ref-drop-zone
+    class="reference-list-shell flex flex-col h-full overflow-hidden"
+  >
     <!-- Header -->
     <div
-      class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
-      :style="{ color: 'var(--fg-muted)', }"
+      v-if="!props.embedded"
+      class="reference-list-header flex items-center h-7 shrink-0 px-2 gap-1 select-none"
     >
       <div
         class="flex items-center gap-1"
@@ -12,51 +16,74 @@
       >
         <svg
           v-if="headingCollapsible"
-          width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
-          :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
+          class="reference-heading-caret"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          :class="{ 'is-open': !collapsed }"
         >
-          <path d="M6 4l4 4-4 4"/>
+          <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider">{{ headingLabel || t('References') }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider">{{
+          headingLabel || t('References')
+        }}</span>
       </div>
       <span
         v-if="referencesStore.refCount > 0"
-        class="ui-text-xs px-1.5 py-0.5 rounded-full"
-        :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-muted)' }"
+        class="reference-count-badge ui-text-xs px-1.5 py-0.5 rounded-full"
       >
         {{ referencesStore.refCount }}
       </span>
       <div class="flex-1"></div>
 
       <div v-if="!collapsed" class="flex items-center gap-0.5">
-        <button
+        <UiButton
           v-if="referencesStore.refCount > 0"
           ref="exportBtnEl"
-          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="reference-toolbar-button"
           :title="t('Export references')"
+          :aria-label="t('Export references')"
           @click.stop="toggleExportMenu"
         >
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M8 10V2M4 6l4-4 4 4M2 13h12"/>
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M8 10V2M4 6l4-4 4 4M2 13h12" />
           </svg>
-        </button>
-        <button
-          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
+        </UiButton>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="reference-toolbar-button"
           :title="t('Add reference')"
+          :aria-label="t('Add reference')"
           @click.stop="showAddDialog = true"
         >
           <IconPlus :size="11" :stroke-width="2" />
-        </button>
-        <button
-          class="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
-          :style="{ color: 'var(--fg-muted)' }"
+        </UiButton>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="reference-toolbar-button"
           :title="t('Reference maintenance')"
+          :aria-label="t('Reference maintenance')"
           @click.stop="openReferenceAi"
         >
           <IconSparkles :size="11" :stroke-width="1.8" />
-        </button>
+        </UiButton>
       </div>
 
       <!-- Export menu (Teleported) -->
@@ -68,13 +95,25 @@
             <div class="context-menu-item" @click="saveExport('bib', null)">
               {{ t('All ({count})', { count: referencesStore.refCount }) }}
             </div>
-            <div v-if="citedCount > 0" class="context-menu-item" @click="saveExport('bib', [...referencesStore.citedKeys])">
+            <div
+              v-if="citedCount > 0"
+              class="context-menu-item"
+              @click="saveExport('bib', [...referencesStore.citedKeys])"
+            >
               {{ t('Cited only ({count})', { count: citedCount }) }}
             </div>
-            <div v-if="searchQuery.trim()" class="context-menu-item" @click="saveExport('bib', filteredRefs.map(r => r._key))">
+            <div
+              v-if="searchQuery.trim()"
+              class="context-menu-item"
+              @click="saveFilteredExport('bib')"
+            >
               {{ t('Filtered ({count})', { count: filteredRefs.length }) }}
             </div>
-            <div v-if="referencesStore.selectedKeys.size > 0" class="context-menu-item" @click="saveExport('bib', [...referencesStore.selectedKeys])">
+            <div
+              v-if="referencesStore.selectedKeys.size > 0"
+              class="context-menu-item"
+              @click="saveExport('bib', [...referencesStore.selectedKeys])"
+            >
               {{ t('Selected ({count})', { count: referencesStore.selectedKeys.size }) }}
             </div>
             <div class="context-menu-separator"></div>
@@ -82,13 +121,25 @@
             <div class="context-menu-item" @click="saveExport('ris', null)">
               {{ t('All ({count})', { count: referencesStore.refCount }) }}
             </div>
-            <div v-if="citedCount > 0" class="context-menu-item" @click="saveExport('ris', [...referencesStore.citedKeys])">
+            <div
+              v-if="citedCount > 0"
+              class="context-menu-item"
+              @click="saveExport('ris', [...referencesStore.citedKeys])"
+            >
               {{ t('Cited only ({count})', { count: citedCount }) }}
             </div>
-            <div v-if="searchQuery.trim()" class="context-menu-item" @click="saveExport('ris', filteredRefs.map(r => r._key))">
+            <div
+              v-if="searchQuery.trim()"
+              class="context-menu-item"
+              @click="saveFilteredExport('ris')"
+            >
               {{ t('Filtered ({count})', { count: filteredRefs.length }) }}
             </div>
-            <div v-if="referencesStore.selectedKeys.size > 0" class="context-menu-item" @click="saveExport('ris', [...referencesStore.selectedKeys])">
+            <div
+              v-if="referencesStore.selectedKeys.size > 0"
+              class="context-menu-item"
+              @click="saveExport('ris', [...referencesStore.selectedKeys])"
+            >
               {{ t('Selected ({count})', { count: referencesStore.selectedKeys.size }) }}
             </div>
           </div>
@@ -100,19 +151,20 @@
     <template v-if="!collapsed">
       <!-- Search row -->
       <div class="px-2 py-1 shrink-0">
-        <div class="w-full min-w-0 flex items-center rounded border px-1 overflow-hidden"
-          :style="{ background: 'var(--bg-tertiary)', borderColor: searchFocused ? 'var(--accent)' : 'var(--border)' }">
-          <IconSearch :size="12" :stroke-width="1.5" style="color: var(--fg-muted); flex-shrink: 0;" />
-          <input
-            v-model="searchQuery"
-            class="flex-1 px-1 py-0.5 ui-text-micro outline-none bg-transparent"
-            style="color: var(--fg-primary);"
-            :placeholder="t('Search references...')"
-            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-            @focus="searchFocused = true"
-            @blur="searchFocused = false"
-          />
-        </div>
+        <UiInput
+          v-model="searchQuery"
+          size="sm"
+          class="reference-search-input"
+          :placeholder="t('Search references...')"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        >
+          <template #prefix>
+            <IconSearch :size="12" :stroke-width="1.5" />
+          </template>
+        </UiInput>
       </div>
 
       <!-- Style picker dropdown (Teleported) -->
@@ -122,17 +174,20 @@
           <div
             class="context-menu z-50 pt-0"
             :style="styleMenuPos"
-            style="width: 240px; max-height: 320px; overflow-y: auto;"
+            style="width: 240px; max-height: 320px; overflow-y: auto"
           >
             <!-- Search input (sticky, z-index to stay above scrolling items) -->
-            <div class="sticky top-0 z-10 px-2 py-1.5" style="background: var(--bg-primary); border-bottom: 1px solid var(--border);">
-              <input
+            <div class="reference-style-search-shell sticky top-0 z-10 px-2 py-1.5">
+              <UiInput
                 ref="styleSearchEl"
                 v-model="styleSearchQuery"
-                class="w-full px-1.5 py-0.5 ui-text-micro rounded border outline-none"
-                :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-primary)', borderColor: 'var(--border)' }"
+                size="sm"
+                class="reference-style-search"
                 :placeholder="t('Search styles...')"
-                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
                 @keydown.escape.stop="showStyleMenu = false"
               />
             </div>
@@ -141,13 +196,22 @@
               v-for="style in filteredStyles"
               :key="style.id"
               class="context-menu-item"
-              :style="{ color: referencesStore.citationStyle === style.id ? 'var(--accent)' : undefined, fontWeight: referencesStore.citationStyle === style.id ? '500' : undefined }"
+              :style="{
+                color: referencesStore.citationStyle === style.id ? 'var(--accent)' : undefined,
+                fontWeight: referencesStore.citationStyle === style.id ? '500' : undefined,
+              }"
               @click="selectStyle(style.id)"
             >
               <span class="flex-1 ui-text-micro">{{ style.name }}</span>
-              <span v-if="style.category" class="ui-text-micro ml-2 opacity-50">{{ style.category }}</span>
+              <span v-if="style.category" class="ui-text-micro ml-2 opacity-50">{{
+                style.category
+              }}</span>
             </div>
-            <div v-if="filteredStyles.length === 0" class="px-3 py-2 ui-text-micro" style="color: var(--fg-muted);">
+            <div
+              v-if="filteredStyles.length === 0"
+              class="px-3 py-2 ui-text-micro"
+              style="color: var(--fg-muted)"
+            >
               {{ t('No matching styles') }}
             </div>
             <!-- Add custom style -->
@@ -156,8 +220,16 @@
               :style="{ borderTop: '1px solid var(--border)', color: 'var(--fg-muted)' }"
               @click="addCustomStyle"
             >
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink: 0;">
-                <path d="M8 3v10M3 8h10"/>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                style="flex-shrink: 0"
+              >
+                <path d="M8 3v10M3 8h10" />
               </svg>
               <span class="ml-1 ui-text-micro">{{ t('Add custom style (.csl)...') }}</span>
             </div>
@@ -166,42 +238,68 @@
       </Teleport>
 
       <!-- Sort + filter | compare | style -->
-      <div v-if="referencesStore.refCount > 0" class="flex items-center gap-1 px-2 pt-1 pb-0.5 shrink-0">
+      <div
+        v-if="referencesStore.refCount > 0"
+        class="flex items-center gap-1 px-2 pt-1 pb-0.5 shrink-0"
+      >
         <!-- Sort button -->
-        <button
+        <UiButton
           ref="sortBtnEl"
-          class="w-5 h-5 flex items-center justify-center rounded shrink-0 hover:opacity-80"
-          :style="{ color: 'var(--fg-muted)' }"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="reference-toolbar-button shrink-0"
           :title="t('Sort references')"
+          :aria-label="t('Sort references')"
           @click.stop="toggleSortMenu"
         >
           <IconArrowsSort :size="13" :stroke-width="1.5" />
-        </button>
+        </UiButton>
 
         <!-- Filter dropdown -->
-        <button
+        <UiButton
           ref="filterBtnEl"
-          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-micro hover:opacity-80"
-          :style="{ color: citedFilter !== 'all' ? 'var(--accent)' : 'var(--fg-muted)' }"
+          variant="ghost"
+          size="sm"
+          class="reference-filter-button shrink-0 ui-text-micro"
+          :active="citedFilter !== 'all'"
           :title="t('Filter references')"
+          :aria-label="t('Filter references')"
           @click.stop="toggleFilterMenu"
         >
-          {{ filterLabel }}
-          <svg width="6" height="4" viewBox="0 0 8 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="flex-shrink: 0;">
-            <path d="M1 1l3 3 3-3"/>
-          </svg>
-        </button>
+          <template #default>
+            {{ filterLabel }}
+          </template>
+          <template #trailing>
+            <svg
+              width="6"
+              height="4"
+              viewBox="0 0 8 5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              class="reference-toolbar-caret"
+            >
+              <path d="M1 1l3 3 3-3" />
+            </svg>
+          </template>
+        </UiButton>
 
-        <button
+        <UiButton
           v-if="canCompareSelected"
-          class="h-5 px-1.5 flex items-center gap-1 rounded shrink-0 ui-text-micro hover:opacity-80"
-          :style="{ color: 'var(--fg-muted)' }"
+          variant="ghost"
+          size="sm"
+          class="reference-compare-button shrink-0 ui-text-micro"
           :title="t('Compare selected')"
+          :aria-label="t('Compare selected')"
           @click.stop="compareSelectedReferences"
         >
-          <IconGitCompare :size="11" :stroke-width="1.8" />
+          <template #leading>
+            <IconGitCompare :size="11" :stroke-width="1.8" />
+          </template>
           {{ t('Compare selected') }}
-        </button>
+        </UiButton>
 
         <!-- Filter menu (Teleported) -->
         <Teleport to="body">
@@ -213,7 +311,7 @@
                 :key="f.value"
                 class="context-menu-item"
                 :style="{ color: citedFilter === f.value ? 'var(--accent)' : undefined }"
-                @click="citedFilter = f.value; showFilterMenu = false"
+                @click="applyCitedFilter(f.value)"
               >
                 {{ f.label }}
               </div>
@@ -224,40 +322,47 @@
         <div class="flex-1"></div>
 
         <!-- Citation style (separate concern, right-aligned) -->
-        <button
+        <UiButton
           ref="styleBtnEl"
-          class="h-5 px-1.5 flex items-center gap-0.5 rounded shrink-0 ui-text-micro hover:opacity-80"
-          :style="{ color: 'var(--fg-muted)' }"
+          variant="ghost"
+          size="sm"
+          class="reference-style-button shrink-0 ui-text-micro"
           :title="t('Citation style')"
+          :aria-label="t('Citation style')"
           @click.stop="toggleStyleMenu"
         >
-          <span
-            class="block truncate"
-            style="max-width: 100px;"
-            :title="activeStyleName"
-          >
-            {{ activeStyleName }}
-          </span>
-          <svg width="6" height="4" viewBox="0 0 8 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="flex-shrink: 0;">
-            <path d="M1 1l3 3 3-3"/>
-          </svg>
-        </button>
+          <template #default>
+            <span class="reference-style-label block truncate" :title="activeStyleName">
+              {{ activeStyleName }}
+            </span>
+          </template>
+          <template #trailing>
+            <svg
+              width="6"
+              height="4"
+              viewBox="0 0 8 5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              class="reference-toolbar-caret"
+            >
+              <path d="M1 1l3 3 3-3" />
+            </svg>
+          </template>
+        </UiButton>
 
         <!-- Sort menu -->
         <Teleport to="body">
           <template v-if="showSortMenu">
             <div class="fixed inset-0 z-50" @click="showSortMenu = false"></div>
-            <div
-              ref="sortMenuEl"
-              class="context-menu z-50"
-              :style="sortMenuPos"
-            >
+            <div ref="sortMenuEl" class="context-menu z-50" :style="sortMenuPos">
               <div
                 v-for="opt in sortOptions"
                 :key="opt.value"
                 class="context-menu-item"
                 :style="{ color: currentSortKey === opt.value ? 'var(--accent)' : undefined }"
-                @click="applySortOption(opt.value); showSortMenu = false"
+                @click="selectSortOption(opt.value)"
               >
                 {{ opt.label }}
               </div>
@@ -272,8 +377,16 @@
         class="flex items-center gap-1.5 mx-2 mb-1 px-2 py-1 rounded ui-text-micro shrink-0"
         :style="{ background: 'var(--bg-tertiary)', color: 'var(--fg-secondary)' }"
       >
-        <svg v-if="importToast.hasAdded" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--success)" stroke-width="2">
-          <path d="M3 8l3 3 7-7"/>
+        <svg
+          v-if="importToast.hasAdded"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="var(--success)"
+          stroke-width="2"
+        >
+          <path d="M3 8l3 3 7-7" />
         </svg>
         {{ importToast.text }}
       </div>
@@ -281,18 +394,19 @@
       <!-- Reference list -->
       <div class="flex-1 overflow-y-auto relative py-1">
         <!-- Importing placeholders -->
-        <div
-          v-for="imp in importing"
-          :key="imp.id"
-          class="py-1.5 px-2"
-        >
+        <div v-for="imp in importing" :key="imp.id" class="py-1.5 px-2">
           <div class="flex items-center gap-1">
-            <div class="flex-1 min-w-0 ui-text-xs truncate" :style="{ color: 'var(--fg-muted)', lineHeight: 1.25 }">
+            <div
+              class="flex-1 min-w-0 ui-text-xs truncate"
+              :style="{ color: 'var(--fg-muted)', lineHeight: 1.25 }"
+            >
               {{ imp.name }}
             </div>
             <div class="ref-import-spinner shrink-0"></div>
           </div>
-          <div class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">{{ t('Importing...') }}</div>
+          <div class="ui-text-micro mt-0.5" :style="{ color: 'var(--fg-muted)' }">
+            {{ t('Importing...') }}
+          </div>
         </div>
 
         <ReferenceItem
@@ -321,10 +435,11 @@
         <!-- Drop zone overlay -->
         <div
           v-if="dropActive"
-          class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-          :style="{ background: 'rgba(122, 162, 247, 0.1)', border: '2px dashed var(--accent)' }"
+          class="reference-drop-overlay absolute inset-0 flex items-center justify-center pointer-events-none z-10"
         >
-          <span class="ui-text-xs" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
+          <span class="reference-drop-overlay-label ui-text-xs">{{
+            t('Drop files to import')
+          }}</span>
         </div>
       </div>
     </template>
@@ -349,15 +464,14 @@
     />
 
     <!-- Add dialog -->
-    <AddReferenceDialog
-      v-if="showAddDialog"
-      @close="showAddDialog = false"
-    />
+    <AddReferenceDialog v-if="showAddDialog" @close="showAddDialog = false" />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
 import { useReferencesStore } from '../../stores/references'
 import { useEditorStore } from '../../stores/editor'
 import { useChatStore } from '../../stores/chat'
@@ -367,11 +481,19 @@ import { getAvailableStyles, getStyleName } from '../../services/citationStyleRe
 import { saveReferenceExport } from '../../services/referenceFiles'
 import { useReferenceListUi } from '../../composables/useReferenceListUi'
 import { useReferenceImports } from '../../composables/useReferenceImports'
-import { launchAiTask } from '../../services/ai/launch'
-import { createReferenceCompareTask, createReferenceMaintenanceTask } from '../../services/ai/taskCatalog'
+import {
+  launchReferenceCompareTask,
+  launchReferenceMaintenanceTask,
+} from '../../services/ai/workbenchTaskLaunchers'
 import { isMod } from '../../platform'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { IconSearch, IconArrowsSort, IconSparkles, IconGitCompare, IconPlus } from '@tabler/icons-vue'
+import {
+  IconSearch,
+  IconArrowsSort,
+  IconSparkles,
+  IconGitCompare,
+  IconPlus,
+} from '@tabler/icons-vue'
 import ReferenceItem from './ReferenceItem.vue'
 import ReferenceContextMenu from './ReferenceContextMenu.vue'
 import AddReferenceDialog from './AddReferenceDialog.vue'
@@ -380,6 +502,7 @@ import { buildCitationText } from '../../editor/citationSyntax'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  embedded: { type: Boolean, default: false },
   headingCollapsible: { type: Boolean, default: true },
   headingLabel: { type: String, default: '' },
 })
@@ -408,15 +531,12 @@ const searchedRefs = computed(() => {
   return referencesStore.searchGlobalRefs(searchQuery.value)
 })
 
-const citedCount = computed(() =>
-  searchedRefs.value.filter(r => referencesStore.citedKeys.has(r._key)).length
+const citedCount = computed(
+  () => searchedRefs.value.filter((r) => referencesStore.citedKeys.has(r._key)).length
 )
-const notCitedCount = computed(() =>
-  searchedRefs.value.length - citedCount.value
-)
+const notCitedCount = computed(() => searchedRefs.value.length - citedCount.value)
 
 const {
-  searchFocused,
   showAddDialog,
   showSortMenu,
   sortBtnEl,
@@ -461,10 +581,10 @@ const {
 
 const filteredRefs = computed(() => {
   if (citedFilter.value === 'cited') {
-    return searchedRefs.value.filter(r => referencesStore.citedKeys.has(r._key))
+    return searchedRefs.value.filter((r) => referencesStore.citedKeys.has(r._key))
   }
   if (citedFilter.value === 'notCited') {
-    return searchedRefs.value.filter(r => !referencesStore.citedKeys.has(r._key))
+    return searchedRefs.value.filter((r) => !referencesStore.citedKeys.has(r._key))
   }
   return searchedRefs.value
 })
@@ -486,39 +606,26 @@ async function addCustomStyle() {
 }
 
 async function openReferenceAi() {
-  await launchAiTask({
+  await launchReferenceMaintenanceTask({
     editorStore,
     chatStore,
-    paneId: editorStore.activePaneId || null,
-    beside: true,
-    task: createReferenceMaintenanceTask({
-      source: 'reference-list',
-      entryContext: 'reference-list',
-      focusKeys: selectedReferenceKeys.value,
-    }),
+    focusKeys: selectedReferenceKeys.value,
   })
 }
 
 async function compareSelectedReferences() {
   if (!canCompareSelected.value) return
-  await launchAiTask({
+  await launchReferenceCompareTask({
     editorStore,
     chatStore,
-    paneId: editorStore.activePaneId || null,
-    beside: true,
-    task: createReferenceCompareTask({
-      refKeys: selectedReferenceKeys.value,
-      source: 'reference-list',
-      entryContext: 'reference-list',
-    }),
+    refKeys: selectedReferenceKeys.value,
   })
 }
 
 async function saveExport(format, keys) {
   showExportMenu.value = false
-  const content = format === 'ris'
-    ? referencesStore.exportRis(keys)
-    : referencesStore.exportBibTeX(keys)
+  const content =
+    format === 'ris' ? referencesStore.exportRis(keys) : referencesStore.exportBibTeX(keys)
   const ext = format === 'ris' ? 'ris' : 'bib'
   await saveReferenceExport({
     format,
@@ -527,13 +634,30 @@ async function saveExport(format, keys) {
   })
 }
 
+async function saveFilteredExport(format) {
+  await saveExport(
+    format,
+    filteredRefs.value.map((reference) => reference._key)
+  )
+}
+
+function applyCitedFilter(value) {
+  citedFilter.value = value
+  showFilterMenu.value = false
+}
+
+function selectSortOption(value) {
+  applySortOption(value)
+  showSortMenu.value = false
+}
+
 // --- Selection ---
 
 const lastClickedIndex = ref(null)
 
 function handleItemClick({ key, event }) {
   const refs = filteredRefs.value
-  const clickedIndex = refs.findIndex(r => r._key === key)
+  const clickedIndex = refs.findIndex((r) => r._key === key)
 
   if (event.shiftKey && lastClickedIndex.value !== null) {
     // Shift+click: range select
@@ -620,14 +744,14 @@ function copyFormatted(key) {
 
 async function deleteRef(key) {
   contextMenu.show = false
-  const keys = (referencesStore.selectedKeys.size > 1
-    ? [...referencesStore.selectedKeys]
-    : [key]
+  const keys = (
+    referencesStore.selectedKeys.size > 1 ? [...referencesStore.selectedKeys] : [key]
   ).filter((item) => referencesStore.hasKeyInWorkspace(item))
   if (keys.length === 0) return
-  const msg = keys.length === 1
-    ? t('Remove reference @{key} from this project?', { key: keys[0] })
-    : t('Remove {count} references from this project?', { count: keys.length })
+  const msg =
+    keys.length === 1
+      ? t('Remove reference @{key} from this project?', { key: keys[0] })
+      : t('Remove {count} references from this project?', { count: keys.length })
   const yes = await ask(msg, { title: t('Confirm Remove'), kind: 'warning' })
   if (yes) {
     referencesStore.removeReferences(keys)
@@ -637,28 +761,36 @@ async function deleteRef(key) {
 
 async function deleteGlobalRef(key) {
   contextMenu.show = false
-  const keys = referencesStore.selectedKeys.size > 1
-    ? [...referencesStore.selectedKeys]
-    : [key]
-  const msg = keys.length === 1
-    ? t('Delete reference @{key} from the global library?', { key: keys[0] })
-    : t('Delete {count} references from the global library?', { count: keys.length })
+  const keys = referencesStore.selectedKeys.size > 1 ? [...referencesStore.selectedKeys] : [key]
+  const msg =
+    keys.length === 1
+      ? t('Delete reference @{key} from the global library?', { key: keys[0] })
+      : t('Delete {count} references from the global library?', { count: keys.length })
   const yes = await ask(msg, { title: t('Confirm Global Delete'), kind: 'warning' })
   if (yes) {
     await referencesStore.removeReferencesFromGlobal(keys)
   }
 }
 
+defineExpose({
+  openAddReferenceDialog() {
+    showAddDialog.value = true
+  },
+  toggleExportMenuFrom(anchorEl = null) {
+    if (anchorEl) {
+      exportBtnEl.value = anchorEl
+    }
+    toggleExportMenu()
+  },
+  openReferenceAi,
+})
+
 // --- Drag to editor ---
 
 function handleDragStart({ key, event }) {
-  const selected = referencesStore.selectedKeys.size > 1
-    ? [...referencesStore.selectedKeys]
-    : [key]
+  const selected = referencesStore.selectedKeys.size > 1 ? [...referencesStore.selectedKeys] : [key]
 
-  const ghostLabel = selected.length === 1
-    ? `@${selected[0]}`
-    : `${selected.length} refs`
+  const ghostLabel = selected.length === 1 ? `@${selected[0]}` : `${selected.length} refs`
 
   const ghost = document.createElement('div')
   ghost.className = 'tab-ghost'
@@ -667,9 +799,11 @@ function handleDragStart({ key, event }) {
   ghost.style.top = event.clientY + 'px'
   document.body.appendChild(ghost)
   document.body.classList.add('tab-dragging')
-  window.dispatchEvent(new CustomEvent('reference-drag-start', {
-    detail: { keys: [...selected] },
-  }))
+  window.dispatchEvent(
+    new CustomEvent('reference-drag-start', {
+      detail: { keys: [...selected] },
+    })
+  )
 
   const onMouseMove = (ev) => {
     ghost.style.left = ev.clientX + 'px'
@@ -681,12 +815,79 @@ function handleDragStart({ key, event }) {
     document.body.classList.remove('tab-dragging')
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
-    window.dispatchEvent(new CustomEvent('reference-drag-end', {
-      detail: { keys: [...selected], x: ev.clientX, y: ev.clientY },
-    }))
+    window.dispatchEvent(
+      new CustomEvent('reference-drag-end', {
+        detail: { keys: [...selected], x: ev.clientX, y: ev.clientY },
+      })
+    )
   }
 
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
 </script>
+
+<style scoped>
+.reference-list-shell {
+  background: var(--bg-primary);
+}
+
+.reference-list-header {
+  color: var(--fg-muted);
+}
+
+.reference-heading-caret {
+  transition: transform 0.1s ease;
+}
+
+.reference-heading-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.reference-count-badge {
+  background: var(--bg-tertiary);
+  color: var(--fg-muted);
+}
+
+.reference-toolbar-button {
+  color: var(--fg-muted);
+}
+
+.reference-search-input {
+  background: var(--bg-tertiary);
+}
+
+.reference-search-input :deep(.ui-input-control) {
+  font-size: var(--ui-font-micro);
+}
+
+.reference-style-search-shell {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.reference-style-search {
+  background: var(--bg-tertiary);
+}
+
+.reference-style-search :deep(.ui-input-control) {
+  font-size: var(--ui-font-micro);
+}
+
+.reference-toolbar-caret {
+  flex-shrink: 0;
+}
+
+.reference-style-label {
+  max-width: 100px;
+}
+
+.reference-drop-overlay {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 2px dashed var(--accent);
+}
+
+.reference-drop-overlay-label {
+  color: var(--accent);
+}
+</style>

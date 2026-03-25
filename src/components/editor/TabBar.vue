@@ -1,25 +1,26 @@
 <template>
-  <div class="flex items-center h-8 shrink-0 relative"
+  <div
+    class="tab-bar-shell flex items-center h-8 shrink-0 relative"
     data-tab-bar
     :data-pane-id="paneId"
-    style="background: var(--bg-primary); border-bottom: 1px solid var(--border);">
+  >
     <!-- Tabs -->
-    <div ref="tabsContainer" class="flex-1 flex items-center h-full overflow-x-auto relative" data-tabs-area>
+    <div
+      ref="tabsContainer"
+      class="flex-1 flex items-center h-full overflow-x-auto overflow-y-hidden relative"
+      data-tabs-area
+    >
       <div
         v-for="(tab, idx) in tabs"
         :key="tab"
-        :ref="el => tabEls[idx] = el"
+        :ref="(el) => (tabEls[idx] = el)"
         data-tab-el
-        class="flex items-center h-full px-4 text-xs cursor-pointer shrink-0 group border-r"
-        :title="tabTitle(tab)"
-        :style="{
-          borderColor: 'var(--border)',
-          background: tab === activeTab ? 'var(--bg-primary)' : 'var(--bg-primary)',
-          color: tab === activeTab ? 'var(--fg-primary)' : 'var(--fg-muted)',
-          boxShadow: tab === activeTab ? 'inset 0 -2px 0 var(--accent)' : 'none',
-          opacity: dragIdx === idx ? 0.3 : (tab === activeTab ? 1 : 0.7),
-          transition: 'opacity 0.15s, color 0.14s ease, box-shadow 0.14s ease',
+        class="tab-bar-item flex items-center h-full px-4 text-xs cursor-pointer shrink-0 group border-r"
+        :class="{
+          'is-active': tab === activeTab,
+          'is-dragging': dragIdx === idx,
         }"
+        :title="tabTitle(tab)"
         @mousedown="onMouseDown(idx, $event)"
         @mouseenter="onMouseEnter(idx)"
         @mousedown.middle.prevent="$emit('close-tab', tab)"
@@ -29,116 +30,218 @@
           <line x1="8" y1="3" x2="8" y2="13"/>
           <line x1="3" y1="8" x2="13" y2="8"/>
         </svg> -->
-        <svg v-if="isLibraryPath(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent);">
-          <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v8a.5.5 0 0 1-.8.4L8 9.75l-4.2 3.15a.5.5 0 0 1-.8-.4z"/>
-          <path d="M5.5 6.25h5M5.5 8h3.5"/>
+        <svg
+          v-if="isLibraryPath(tab)"
+          class="tab-bar-icon tab-bar-icon-accent shrink-0 mr-1"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path
+            d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v8a.5.5 0 0 1-.8.4L8 9.75l-4.2 3.15a.5.5 0 0 1-.8-.4z"
+          />
+          <path d="M5.5 6.25h5M5.5 8h3.5" />
         </svg>
         <!-- Chat tab sparkle icon -->
-        <svg v-if="isChatTab(tab) || isAiWorkbenchPath(tab)" class="shrink-0 mr-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
-          <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
+        <svg
+          v-if="isChatTab(tab) || isAiWorkbenchPath(tab)"
+          class="tab-bar-icon tab-bar-icon-accent shrink-0 mr-1"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"
+          />
         </svg>
         <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
         <span
           v-if="isChatTab(tab) && chatSessionMeta(tab)"
-          class="ml-1 rounded-sm px-1 ui-text-tiny uppercase shrink-0"
-          style="background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);"
+          class="tab-role-badge ml-1 rounded-sm px-1 ui-text-tiny uppercase shrink-0"
         >
           {{ chatSessionMeta(tab).roleBadge }}
         </span>
 
         <!-- Chat streaming indicator -->
-        <span v-if="isChatTab(tab) && isChatStreaming(tab)" class="ml-1.5 w-2 h-2 rounded-full shrink-0 chat-streaming-dot"></span>
+        <span
+          v-if="isChatTab(tab) && isChatStreaming(tab)"
+          class="ml-1.5 w-2 h-2 rounded-full shrink-0 chat-streaming-dot"
+        ></span>
 
         <!-- Unsaved indicator (not for chat tabs) -->
-        <span v-else-if="!isChatTab(tab) && dirtyFiles.has(tab)" class="ml-1.5 w-2 h-2 rounded-full shrink-0" style="background: var(--fg-muted);"></span>
+        <span
+          v-else-if="!isChatTab(tab) && dirtyFiles.has(tab)"
+          class="tab-dirty-indicator ml-1.5 w-2 h-2 rounded-full shrink-0"
+        ></span>
 
         <!-- Close button -->
-        <button
-          class="ml-2 w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
-          style="color: var(--fg-muted);"
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          class="tab-close-button ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          :title="t('Close tab')"
+          :aria-label="t('Close tab')"
           @click.stop="$emit('close-tab', tab)"
           @mousedown.stop
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M2 2l6 6M8 2l-6 6"/>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M2 2l6 6M8 2l-6 6" />
           </svg>
-        </button>
+        </UiButton>
       </div>
 
       <!-- Drop indicator line -->
-      <div v-if="dropIndicatorLeft !== null" class="tab-drop-indicator" :style="{ left: dropIndicatorLeft + 'px' }"></div>
+      <div
+        v-if="dropIndicatorLeft !== null"
+        class="tab-drop-indicator"
+        :style="{ left: dropIndicatorLeft + 'px' }"
+      ></div>
 
       <!-- New tab button -->
-      <button
-        class="flex items-center justify-center w-6 h-6 mx-0.5 shrink-0 rounded-md hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
+      <UiButton
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        class="tab-toolbar-button mx-0.5 shrink-0"
         :title="t('New Tab')"
+        :aria-label="t('New Tab')"
         @click="$emit('new-tab')"
         @mousedown.stop
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <line x1="8" y1="3" x2="8" y2="13"/>
-          <line x1="3" y1="8" x2="13" y2="8"/>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <line x1="8" y1="3" x2="8" y2="13" />
+          <line x1="3" y1="8" x2="13" y2="8" />
         </svg>
-      </button>
+      </UiButton>
     </div>
 
     <!-- Run actions (for renderable files) -->
-    <div v-if="showRenderButton" class="flex items-center gap-0.5 px-1 shrink-0 border-l ml-1" style="border-color: var(--border);">
-      <button
-        class="h-6 px-2 flex items-center gap-1 rounded-md ui-text-xs hover:bg-[var(--bg-hover)]"
-        style="color: var(--accent);"
+    <div
+      v-if="showRenderButton"
+      class="tab-bar-actions flex items-center gap-0.5 px-1 shrink-0 border-l ml-1"
+    >
+      <UiButton
+        variant="primary"
+        size="sm"
+        class="tab-render-button"
         @click="$emit('render-document')"
         :title="t('Render document')"
+        :aria-label="t('Render document')"
       >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="2" y="2" width="12" height="12" rx="1"/>
-          <path d="M5 5h6M5 8h6M5 11h3"/>
-        </svg>
+        <template #leading>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="2" y="2" width="12" height="12" rx="1" />
+            <path d="M5 5h6M5 8h6M5 11h3" />
+          </svg>
+        </template>
         {{ t('Render') }}
-      </button>
+      </UiButton>
     </div>
 
     <!-- Pane actions -->
-    <div class="flex items-center gap-0.5 px-1 shrink-0 border-l ml-1" style="border-color: var(--border);">
-      <button
-        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
+    <div class="tab-bar-actions flex items-center gap-0.5 px-1 shrink-0 border-l ml-1">
+      <UiButton
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        class="tab-toolbar-button"
         @click="$emit('split-vertical')"
         :title="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
+        :aria-label="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="2" width="14" height="12" rx="1.5"/>
-          <line x1="8" y1="2" x2="8" y2="14"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <rect x="1" y="2" width="14" height="12" rx="1.5" />
+          <line x1="8" y1="2" x2="8" y2="14" />
         </svg>
-      </button>
-      <button
-        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
+      </UiButton>
+      <UiButton
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        class="tab-toolbar-button"
         @click="$emit('split-horizontal')"
         :title="t('Split horizontal')"
+        :aria-label="t('Split horizontal')"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="2" width="14" height="12" rx="1.5"/>
-          <line x1="1" y1="8" x2="15" y2="8"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <rect x="1" y="2" width="14" height="12" rx="1.5" />
+          <line x1="1" y1="8" x2="15" y2="8" />
         </svg>
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         v-if="paneId !== 'pane-root'"
-        class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-hover)]"
-        style="color: var(--fg-muted);"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        class="tab-toolbar-button"
         @click="$emit('close-pane')"
         :title="t('Close pane')"
+        :aria-label="t('Close pane')"
       >
-        <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2 2l6 6M8 2l-6 6"/>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M2 2l6 6M8 2l-6 6" />
         </svg>
-      </button>
+      </UiButton>
     </div>
 
     <!-- Ghost tab (teleported to body during drag) -->
     <Teleport to="body">
-      <div v-if="ghostVisible" class="tab-ghost" :style="{ left: ghostX + 'px', top: ghostY + 'px' }">
+      <div
+        v-if="ghostVisible"
+        class="tab-ghost"
+        :style="{ left: ghostX + 'px', top: ghostY + 'px' }"
+      >
         {{ ghostLabel }}
       </div>
     </Teleport>
@@ -147,6 +250,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
+import UiButton from '../shared/ui/UiButton.vue'
 import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
@@ -160,7 +264,6 @@ import {
   getChatSessionId,
   isAiLauncher,
   isNewTab,
-  getViewerType,
   isPreviewPath,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
@@ -173,7 +276,19 @@ const props = defineProps({
   paneId: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-tab', 'close-tab', 'split-vertical', 'split-horizontal', 'close-pane', 'render-document', 'compile-tex', 'compile-typst', 'preview-pdf', 'preview-markdown', 'new-tab'])
+const emit = defineEmits([
+  'select-tab',
+  'close-tab',
+  'split-vertical',
+  'split-horizontal',
+  'close-pane',
+  'render-document',
+  'compile-tex',
+  'compile-typst',
+  'preview-pdf',
+  'preview-markdown',
+  'new-tab',
+])
 
 const aiWorkbench = useAiWorkbenchStore()
 const chatStore = useChatStore()
@@ -204,10 +319,13 @@ function scrollActiveTabIntoView() {
   el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
 }
 
-watch(() => props.activeTab, (tab) => {
-  if (!tab) return
-  nextTick(scrollActiveTabIntoView)
-})
+watch(
+  () => props.activeTab,
+  (tab) => {
+    if (!tab) return
+    nextTick(scrollActiveTabIntoView)
+  }
+)
 const dragIdx = ref(-1)
 const dragOverIdx = ref(-1)
 const dropIndicatorLeft = ref(null)
@@ -225,12 +343,12 @@ function fileName(path) {
   if (isLibraryPath(path)) return t('Library')
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
-    const session = chatStore.sessions.find(s => s.id === sid)
+    const session = chatStore.sessions.find((s) => s.id === sid)
     if (session?.label) {
       const label = session.label
       return label.length > 28 ? label.slice(0, 26) + '...' : label
     }
-    const meta = chatStore.allSessionsMeta.find(m => m.id === sid)
+    const meta = chatStore.allSessionsMeta.find((m) => m.id === sid)
     if (meta?.label) {
       const label = meta.label
       return label.length > 28 ? label.slice(0, 26) + '...' : label
@@ -255,8 +373,9 @@ function fileName(path) {
 function chatSessionMeta(path) {
   if (!isChatTab(path)) return null
   const sid = getChatSessionId(path)
-  const session = chatStore.sessions.find((item) => item.id === sid)
-    || chatStore.allSessionsMeta.find((item) => item.id === sid)
+  const session =
+    chatStore.sessions.find((item) => item.id === sid) ||
+    chatStore.allSessionsMeta.find((item) => item.id === sid)
   return session ? aiWorkbench.describeSession(session) : null
 }
 
@@ -270,10 +389,10 @@ function tabTitle(path) {
 // Mouse-based drag reorder with ghost tab + cross-pane support
 let mouseDownStart = null
 let isDragging = false
-let crossPaneTarget = null      // { paneId, tabBarEl }
+let crossPaneTarget = null // { paneId, tabBarEl }
 let crossPaneInsertIdx = -1
-let remoteIndicatorEl = null     // injected drop indicator in remote TabBar
-let dragStartPaneId = null       // capture at drag start (pane may be destroyed)
+let remoteIndicatorEl = null // injected drop indicator in remote TabBar
+let dragStartPaneId = null // capture at drag start (pane may be destroyed)
 
 function cleanupRemoteIndicator() {
   if (remoteIndicatorEl && remoteIndicatorEl.parentNode) {
@@ -291,7 +410,12 @@ function findTargetPane(clientX, clientY) {
   const tabBars = document.querySelectorAll('[data-tab-bar]')
   for (const bar of tabBars) {
     const rect = bar.getBoundingClientRect()
-    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
       return { paneId: bar.dataset.paneId, tabBarEl: bar, isEmptyPane: false }
     }
   }
@@ -300,7 +424,12 @@ function findTargetPane(clientX, clientY) {
   for (const pane of panes) {
     if (pane.hasAttribute('data-tab-bar')) continue // already checked
     const rect = pane.getBoundingClientRect()
-    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
       return { paneId: pane.dataset.paneId, tabBarEl: null, isEmptyPane: true }
     }
   }
@@ -352,7 +481,7 @@ function updateRemoteDropIndicator(tabBarEl, mouseX) {
     remoteIndicatorEl.style.zIndex = '100'
     tabsArea.appendChild(remoteIndicatorEl)
   }
-  remoteIndicatorEl.style.left = (bestEdgeX - containerRect.left - 1) + 'px'
+  remoteIndicatorEl.style.left = bestEdgeX - containerRect.left - 1 + 'px'
 
   return bestIdx
 }
@@ -435,7 +564,12 @@ function onMouseDown(idx, e) {
 
       if (crossPaneTarget && crossPaneTarget.paneId !== originPaneId) {
         // Cross-pane move
-        editorStore.moveTabToPane(originPaneId, tabPath, crossPaneTarget.paneId, crossPaneInsertIdx >= 0 ? crossPaneInsertIdx : 0)
+        editorStore.moveTabToPane(
+          originPaneId,
+          tabPath,
+          crossPaneTarget.paneId,
+          crossPaneInsertIdx >= 0 ? crossPaneInsertIdx : 0
+        )
       } else if (dragOverIdx.value !== -1 && dragIdx.value !== dragOverIdx.value) {
         // Same-pane reorder
         editorStore.reorderTabs(originPaneId, dragIdx.value, dragOverIdx.value)
@@ -513,13 +647,83 @@ function updateDropIndicator(mouseX) {
 </script>
 
 <style scoped>
+.tab-bar-shell {
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-bar-item {
+  border-color: var(--border);
+  background: var(--bg-primary);
+  color: var(--fg-muted);
+  opacity: 0.7;
+  transition:
+    opacity 0.15s,
+    color 0.14s ease,
+    box-shadow 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.tab-bar-item:hover {
+  color: var(--fg-primary);
+  opacity: 0.92;
+}
+
+.tab-bar-item.is-active {
+  color: var(--fg-primary);
+  box-shadow: inset 0 -2px 0 var(--accent);
+  opacity: 1;
+}
+
+.tab-bar-item.is-dragging {
+  opacity: 0.3;
+}
+
+.tab-bar-icon-accent {
+  color: var(--accent);
+}
+
+.tab-role-badge {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.tab-dirty-indicator {
+  background: var(--fg-muted);
+}
+
+.tab-close-button,
+.tab-toolbar-button {
+  color: var(--fg-muted);
+}
+
+.tab-close-button {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+}
+
+.tab-bar-actions {
+  border-color: var(--border);
+}
+
+.tab-render-button {
+  min-height: 24px;
+}
+
 .chat-streaming-dot {
   background: var(--accent);
   animation: chat-pulse 1.5s ease-in-out infinite;
 }
 @keyframes chat-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 .tex-spinner {
   display: inline-block;
@@ -531,6 +735,8 @@ function updateDropIndicator(mouseX) {
   animation: tex-spin 0.8s linear infinite;
 }
 @keyframes tex-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -1,9 +1,13 @@
 <template>
-  <div class="flex flex-col h-full" style="background: var(--bg-primary);">
+  <div class="flex flex-col h-full" style="background: var(--bg-primary)">
     <!-- Header -->
     <div
+      v-if="!props.embedded"
       class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
-      :style="{ color: 'var(--fg-muted)', borderBottom: collapsed ? 'none' : '1px solid var(--border)' }"
+      :style="{
+        color: 'var(--fg-muted)',
+        borderBottom: collapsed || props.embedded ? 'none' : '1px solid var(--border)',
+      }"
     >
       <div
         class="flex items-center gap-1 min-w-0 flex-1"
@@ -12,251 +16,315 @@
       >
         <svg
           v-if="headingCollapsible"
-          width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
           :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
         >
-          <path d="M6 4l4 4-4 4"/>
+          <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{ headingLabel || workspaceName }}</span>
+        <span class="ui-text-xs font-medium uppercase tracking-wider truncate min-w-0">{{
+          headingLabel || workspaceName
+        }}</span>
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted);"
+          style="color: var(--fg-muted)"
           @click.stop="collapseAllFolders"
-          :title="t('Collapse All Folders')">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"/><path fill-rule="evenodd" d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z" clip-rule="evenodd"/></svg>
+          :title="t('Collapse All Folders')"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path
+              d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"
+            />
+            <path
+              fill-rule="evenodd"
+              d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z"
+              clip-rule="evenodd"
+            />
+          </svg>
         </button>
         <button
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted);"
+          style="color: var(--fg-muted)"
           @click.stop="activateFilter"
-          :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })">
+          :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
+        >
           <IconSearch :size="14" :stroke-width="1.5" />
         </button>
         <button
           ref="newBtnEl"
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted);"
+          style="color: var(--fg-muted)"
           @click.stop="toggleNewMenu"
-          :title="t('New File or Folder')">
+          :title="t('New File or Folder')"
+        >
           <IconPlus :size="12" :stroke-width="2" />
         </button>
       </div>
     </div>
 
     <template v-if="!collapsed">
-    <!-- Filter input -->
-    <div v-if="filterActive" class="flex items-center gap-1 px-2 pb-1">
-      <div class="flex-1 flex items-center rounded border px-1"
-        style="background: var(--bg-tertiary); border-color: var(--accent);">
-        <IconSearch :size="12" :stroke-width="1.5" style="color: var(--fg-muted); flex-shrink: 0;" />
-        <input
-          ref="filterInputEl"
-          v-model="filterQuery"
-          class="flex-1 px-1 py-0.5 ui-text-xs outline-none bg-transparent"
-          style="color: var(--fg-primary);"
-          :placeholder="t('Filter files...')"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          @keydown="handleFilterKeydown"
-        />
-        <span v-if="filterQuery" class="ui-text-micro tabular-nums shrink-0 mr-0.5" style="color: var(--fg-muted);">
-          {{ filterMatches.length }}
-        </span>
-        <button class="w-4 h-4 flex items-center justify-center shrink-0 rounded hover:opacity-80"
-          style="color: var(--fg-muted);"
-          @click="closeFilter">
-          <IconX :size="12" :stroke-width="1.5" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Tree -->
-    <div
-      ref="treeContainer"
-      class="flex-1 overflow-y-auto overflow-x-hidden py-1 outline-none"
-      tabindex="0"
-      @contextmenu.prevent="showContextMenuOnEmpty"
-      @keydown="handleTreeKeydown"
-      @mouseup="onTreeMouseUp"
-      @scroll="onTreeScroll"
-    >
-      <!-- Inline input for new file at root level -->
-      <div v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
-        class="flex items-center py-0.5 px-1" style="padding-left: 28px;">
-        <input
-          ref="renameInput"
-          v-model="renaming.value"
-          class="w-full px-1 py-0.5 rounded border outline-none"
-          style="background: var(--bg-tertiary); color: var(--fg-primary); border-color: var(--accent); font-size: var(--ui-font-label);"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          @keydown.enter.stop="finishRename"
-          @keydown.escape.stop="cancelRename"
-          @blur="finishRename"
-        />
+      <!-- Filter input -->
+      <div v-if="filterActive" class="flex items-center gap-1 px-2 pb-1">
+        <div
+          class="flex-1 flex items-center rounded border px-1"
+          style="background: var(--bg-tertiary); border-color: var(--accent)"
+        >
+          <IconSearch
+            :size="12"
+            :stroke-width="1.5"
+            style="color: var(--fg-muted); flex-shrink: 0"
+          />
+          <input
+            ref="filterInputEl"
+            v-model="filterQuery"
+            class="flex-1 px-1 py-0.5 ui-text-xs outline-none bg-transparent"
+            style="color: var(--fg-primary)"
+            :placeholder="t('Filter files...')"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            @keydown="handleFilterKeydown"
+          />
+          <span
+            v-if="filterQuery"
+            class="ui-text-micro tabular-nums shrink-0 mr-0.5"
+            style="color: var(--fg-muted)"
+          >
+            {{ filterMatches.length }}
+          </span>
+          <button
+            class="w-4 h-4 flex items-center justify-center shrink-0 rounded hover:opacity-80"
+            style="color: var(--fg-muted)"
+            @click="closeFilter"
+          >
+            <IconX :size="12" :stroke-width="1.5" />
+          </button>
+        </div>
       </div>
 
-      <div v-if="visibleRows.length > 0" class="relative" :style="{ height: totalTreeHeight + 'px' }">
-        <div :style="{ transform: `translateY(${virtualOffset}px)` }">
-          <FileTreeItem
-            v-for="row in virtualRows"
-            :key="row.entry.path"
-            :entry="row.entry"
-            :depth="row.depth"
-            :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
-            :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
-            :newItemValue="renaming.value"
-            :newItemIsDir="renaming.isDir"
-            :selectedPaths="selectedPaths"
-            :dragOverDir="dragOverDir"
-            :filterQuery="filterActive ? filterQuery : ''"
-            :forceExpand="filterActive && !!filterQuery"
-            :filterHighlightPath="filterHighlightPath"
-            :suppressChildren="true"
-            @open-file="openFile"
-            @select-file="onSelectFile"
-            @context-menu="showContextMenu"
-            @start-rename-input="onStartRenameInput"
-            @rename-input-change="(v) => renaming.value = v"
-            @rename-input-submit="finishRename"
-            @rename-input-cancel="cancelRename"
-            @drag-start="onDragStart"
-            @drag-over-dir="(dir) => dragOverDir = dir"
-            @drag-leave-dir="onDragLeaveDir"
-            @drop-on-dir="onDropOnDir"
+      <!-- Tree -->
+      <div
+        ref="treeContainer"
+        class="flex-1 overflow-y-auto overflow-x-hidden py-1 outline-none"
+        tabindex="0"
+        @contextmenu.prevent="showContextMenuOnEmpty"
+        @keydown="handleTreeKeydown"
+        @mouseup="onTreeMouseUp"
+        @scroll="onTreeScroll"
+      >
+        <!-- Inline input for new file at root level -->
+        <div
+          v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
+          class="flex items-center py-0.5 px-1"
+          style="padding-left: 28px"
+        >
+          <input
+            ref="renameInput"
+            v-model="renaming.value"
+            class="w-full px-1 py-0.5 rounded border outline-none"
+            style="
+              background: var(--bg-tertiary);
+              color: var(--fg-primary);
+              border-color: var(--accent);
+              font-size: var(--ui-font-label);
+            "
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            @keydown.enter.stop="finishRename"
+            @keydown.escape.stop="cancelRename"
+            @blur="finishRename"
           />
         </div>
-      </div>
 
-      <!-- External drop zone indicator (root level) -->
-      <div v-if="externalDragOver" class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
-        style="border-color: var(--accent); color: var(--accent); opacity: 0.6;">
-        {{ t('Drop files here') }}
-      </div>
-
-      <div v-if="filterActive && filterQuery && filterMatches.length === 0" class="px-3 py-4 ui-text-xs" style="color: var(--fg-muted);">
-        {{ t('No matches') }}
-      </div>
-      <div v-else-if="visibleRows.length === 0 && !renaming.active" class="px-3 py-4 ui-text-xs" style="color: var(--fg-muted);">
-        {{ t('No files yet') }}
-      </div>
-    </div>
-
-    <div class="workspace-footer-action">
-      <button
-        ref="workspaceMenuAnchorEl"
-        type="button"
-        class="workspace-footer-action-button"
-        :title="t('Workspace Menu')"
-        @click.stop="toggleWorkspaceMenu"
-      >
-        <span class="workspace-footer-action-label">{{ t('Open Folder...') }}</span>
-        <span class="workspace-footer-action-kebab">
-          <IconDotsVertical :size="16" :stroke-width="1.7" />
-        </span>
-      </button>
-    </div>
-
-    <!-- Context menu -->
-    <ContextMenu
-      v-if="contextMenu.show"
-      :x="contextMenu.x"
-      :y="contextMenu.y"
-      :entry="contextMenu.entry"
-      :selectedCount="selectedPaths.size"
-      @close="contextMenu.show = false"
-      @create="handleContextCreate"
-      @rename="handleRename"
-      @duplicate="handleDuplicate"
-      @delete="handleDelete"
-      @delete-selected="handleDeleteSelected"
-      @file-version-history="$emit('file-version-history', $event)"
-      @reveal-in-finder="revealInFinder"
-      @import-to-refs="handleImportToRefs"
-    />
-
-    <!-- Workspace dropdown menu -->
-    <Teleport to="body">
-      <div v-if="workspaceMenuOpen" class="fixed inset-0 z-50" @click="workspaceMenuOpen = false">
-        <div class="context-menu" :style="workspaceMenuStyle">
-          <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
-            {{ t('Open Folder...') }}
-            <span class="context-menu-ext" style="opacity: 1;">{{ modKey }}+O</span>
+        <div
+          v-if="visibleRows.length > 0"
+          class="relative"
+          :style="{ height: totalTreeHeight + 'px' }"
+        >
+          <div :style="{ transform: `translateY(${virtualOffset}px)` }">
+            <FileTreeItem
+              v-for="row in virtualRows"
+              :key="row.entry.path"
+              :entry="row.entry"
+              :depth="row.depth"
+              :renamingPath="renaming.active && !renaming.isNew ? renaming.originalPath : null"
+              :newItemParent="renaming.active && renaming.isNew ? renaming.parentDir : null"
+              :newItemValue="renaming.value"
+              :newItemIsDir="renaming.isDir"
+              :selectedPaths="selectedPaths"
+              :dragOverDir="dragOverDir"
+              :filterQuery="filterActive ? filterQuery : ''"
+              :forceExpand="filterActive && !!filterQuery"
+              :filterHighlightPath="filterHighlightPath"
+              :suppressChildren="true"
+              @open-file="openFile"
+              @select-file="onSelectFile"
+              @context-menu="showContextMenu"
+              @start-rename-input="onStartRenameInput"
+              @rename-input-change="(v) => (renaming.value = v)"
+              @rename-input-submit="finishRename"
+              @rename-input-cancel="cancelRename"
+              @drag-start="onDragStart"
+              @drag-over-dir="(dir) => (dragOverDir = dir)"
+              @drag-leave-dir="onDragLeaveDir"
+              @drop-on-dir="onDropOnDir"
+            />
           </div>
-          <template v-if="recentWorkspaces.length">
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-section">{{ t('Recent') }}</div>
-            <div
-              v-for="recent in recentWorkspaces"
-              :key="recent.path"
-              class="context-menu-item"
-              @click="handleWorkspaceMenuOpenRecent(recent.path)"
-            >
-              {{ recent.name }}
+        </div>
+
+        <!-- External drop zone indicator (root level) -->
+        <div
+          v-if="externalDragOver"
+          class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
+          style="border-color: var(--accent); color: var(--accent); opacity: 0.6"
+        >
+          {{ t('Drop files here') }}
+        </div>
+
+        <div
+          v-if="filterActive && filterQuery && filterMatches.length === 0"
+          class="px-3 py-4 ui-text-xs"
+          style="color: var(--fg-muted)"
+        >
+          {{ t('No matches') }}
+        </div>
+        <div
+          v-else-if="visibleRows.length === 0 && !renaming.active"
+          class="px-3 py-4 ui-text-xs"
+          style="color: var(--fg-muted)"
+        >
+          {{ t('No files yet') }}
+        </div>
+      </div>
+
+      <div class="workspace-footer-action">
+        <button
+          ref="workspaceMenuAnchorEl"
+          type="button"
+          class="workspace-footer-action-button"
+          :title="t('Workspace Menu')"
+          @click.stop="toggleWorkspaceMenu"
+        >
+          <span class="workspace-footer-action-label">{{ t('Open Folder...') }}</span>
+          <span class="workspace-footer-action-kebab">
+            <IconDotsVertical :size="16" :stroke-width="1.7" />
+          </span>
+        </button>
+      </div>
+
+      <!-- Context menu -->
+      <ContextMenu
+        v-if="contextMenu.show"
+        :x="contextMenu.x"
+        :y="contextMenu.y"
+        :entry="contextMenu.entry"
+        :selectedCount="selectedPaths.size"
+        @close="contextMenu.show = false"
+        @create="handleContextCreate"
+        @rename="handleRename"
+        @duplicate="handleDuplicate"
+        @delete="handleDelete"
+        @delete-selected="handleDeleteSelected"
+        @file-version-history="$emit('file-version-history', $event)"
+        @reveal-in-finder="revealInFinder"
+        @import-to-refs="handleImportToRefs"
+      />
+
+      <!-- Workspace dropdown menu -->
+      <Teleport to="body">
+        <div v-if="workspaceMenuOpen" class="fixed inset-0 z-50" @click="workspaceMenuOpen = false">
+          <div class="context-menu" :style="workspaceMenuStyle">
+            <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
+              {{ t('Open Folder...') }}
+              <span class="context-menu-ext" style="opacity: 1">{{ modKey }}+O</span>
             </div>
-          </template>
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="handleWorkspaceMenuCloseFolder">
-            {{ t('Close Folder') }}
+            <template v-if="recentWorkspaces.length">
+              <div class="context-menu-separator"></div>
+              <div class="context-menu-section">{{ t('Recent') }}</div>
+              <div
+                v-for="recent in recentWorkspaces"
+                :key="recent.path"
+                class="context-menu-item"
+                @click="handleWorkspaceMenuOpenRecent(recent.path)"
+              >
+                {{ recent.name }}
+              </div>
+            </template>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" @click="handleWorkspaceMenuCloseFolder">
+              {{ t('Close Folder') }}
+            </div>
           </div>
         </div>
-      </div>
-    </Teleport>
+      </Teleport>
 
-    <!-- "+ New" dropdown menu -->
-    <Teleport to="body">
-      <div v-if="newMenuOpen" class="fixed inset-0 z-50" @click="newMenuOpen = false">
-        <div class="context-menu" :style="newMenuStyle">
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null, isDir: true })">
-            <IconFolderPlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('New Folder') }}</span>
-          </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null })">
-            <IconFilePlus :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('New File...') }}</span>
-          </div>
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.md' })">
-            <IconFileText :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Markdown') }}</span>
-            <span class="context-menu-ext">.md</span>
-          </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.tex' })">
-            <IconMath :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('LaTeX') }}</span>
-            <span class="context-menu-ext">.tex</span>
-          </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.typ' })">
-            <IconMath :size="14" :stroke-width="1.5" />
-            <span class="flex-1">Typst</span>
-            <span class="context-menu-ext">.typ</span>
-          </div>
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.R' })">
-            <IconCode :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('R Script') }}</span>
-            <span class="context-menu-ext">.R</span>
-          </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.py' })">
-            <IconBrandPython :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Python') }}</span>
-            <span class="context-menu-ext">.py</span>
-          </div>
-          <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.ipynb' })">
-            <IconNotebook :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Notebook') }}</span>
-            <span class="context-menu-ext">.ipynb</span>
+      <!-- "+ New" dropdown menu -->
+      <Teleport to="body">
+        <div v-if="newMenuOpen" class="fixed inset-0 z-50" @click="newMenuOpen = false">
+          <div class="context-menu" :style="newMenuStyle">
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null, isDir: true })">
+              <IconFolderPlus :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('New Folder') }}</span>
+            </div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null })">
+              <IconFilePlus :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('New File...') }}</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.md' })">
+              <IconFileText :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('Markdown') }}</span>
+              <span class="context-menu-ext">.md</span>
+            </div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.tex' })">
+              <IconMath :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('LaTeX') }}</span>
+              <span class="context-menu-ext">.tex</span>
+            </div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.typ' })">
+              <IconMath :size="14" :stroke-width="1.5" />
+              <span class="flex-1">Typst</span>
+              <span class="context-menu-ext">.typ</span>
+            </div>
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.R' })">
+              <IconCode :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('R Script') }}</span>
+              <span class="context-menu-ext">.R</span>
+            </div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.py' })">
+              <IconBrandPython :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('Python') }}</span>
+              <span class="context-menu-ext">.py</span>
+            </div>
+            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.ipynb' })">
+              <IconNotebook :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ t('Notebook') }}</span>
+              <span class="context-menu-ext">.ipynb</span>
+            </div>
           </div>
         </div>
-      </div>
-    </Teleport>
+      </Teleport>
 
-    <!-- Drag ghost -->
-    <Teleport to="body">
-      <div v-if="dragGhostVisible" class="tab-ghost" :style="{ left: dragGhostX + 'px', top: dragGhostY + 'px' }">
-        {{ dragGhostLabel }}
-      </div>
-    </Teleport>
+      <!-- Drag ghost -->
+      <Teleport to="body">
+        <div
+          v-if="dragGhostVisible"
+          class="tab-ghost"
+          :style="{ left: dragGhostX + 'px', top: dragGhostY + 'px' }"
+        >
+          {{ dragGhostLabel }}
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>
@@ -270,8 +338,17 @@ import FileTreeItem from './FileTreeItem.vue'
 import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
 import {
-  IconSearch, IconX, IconPlus, IconFileText, IconNotebook, IconMath,
-  IconCode, IconBrandPython, IconFilePlus, IconFolderPlus, IconDotsVertical,
+  IconSearch,
+  IconX,
+  IconPlus,
+  IconFileText,
+  IconNotebook,
+  IconMath,
+  IconCode,
+  IconBrandPython,
+  IconFilePlus,
+  IconFolderPlus,
+  IconDotsVertical,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
@@ -281,10 +358,17 @@ import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
+  embedded: { type: Boolean, default: false },
   headingCollapsible: { type: Boolean, default: true },
   headingLabel: { type: String, default: '' },
 })
-const emit = defineEmits(['file-version-history', 'toggle-collapse', 'open-folder', 'open-workspace', 'close-folder'])
+const emit = defineEmits([
+  'file-version-history',
+  'toggle-collapse',
+  'open-folder',
+  'open-workspace',
+  'close-folder',
+])
 
 const files = useFilesStore()
 const editor = useEditorStore()
@@ -475,10 +559,7 @@ async function createTypedFile(dir, ext) {
   const baseName = t('Untitled')
   let name = `${baseName}${ext}`
   let i = 2
-  while (
-    files.flatFiles.some(f => f.name === name) ||
-    await pathExists(`${dir}/${name}`)
-  ) {
+  while (files.flatFiles.some((f) => f.name === name) || (await pathExists(`${dir}/${name}`))) {
     name = `${baseName} ${i}${ext}`
     i++
   }
@@ -621,7 +702,10 @@ function cancelRename() {
 }
 
 async function handleDelete(entry) {
-  const yes = await ask(t('Delete "{name}"?', { name: entry.name }), { title: t('Confirm Delete'), kind: 'warning' })
+  const yes = await ask(t('Delete "{name}"?', { name: entry.name }), {
+    title: t('Confirm Delete'),
+    kind: 'warning',
+  })
   if (yes) {
     await files.deletePath(entry.path)
   }
@@ -630,9 +714,10 @@ async function handleDelete(entry) {
 async function handleDeleteSelected() {
   const paths = [...selectedPaths]
   if (paths.length === 0) return
-  const msg = paths.length === 1
-    ? t('Delete "{name}"?', { name: paths[0].split('/').pop() })
-    : t('Delete {count} items?', { count: paths.length })
+  const msg =
+    paths.length === 1
+      ? t('Delete "{name}"?', { name: paths[0].split('/').pop() })
+      : t('Delete {count} items?', { count: paths.length })
   const yes = await ask(msg, { title: t('Confirm Delete'), kind: 'warning' })
   if (yes) {
     for (const path of paths) {
@@ -645,7 +730,7 @@ async function handleDeleteSelected() {
 function handleImportToRefs(entry) {
   let paths
   if (selectedPaths.size > 1) {
-    paths = [...selectedPaths].filter(p => isImportableFile(p))
+    paths = [...selectedPaths].filter((p) => isImportableFile(p))
   } else {
     paths = [entry.path]
   }
@@ -664,6 +749,13 @@ async function revealInFinder(entry) {
 
 defineExpose({
   activateFilter,
+  collapseAllFolders,
+  toggleCreateMenuFrom(anchorEl = null) {
+    if (anchorEl) {
+      newBtnEl.value = anchorEl
+    }
+    toggleNewMenu()
+  },
   createNewFile(ext = '.md') {
     let targetDir = workspace.path
 
@@ -705,7 +797,9 @@ defineExpose({
   background: transparent;
   color: var(--fg-secondary);
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .workspace-footer-action-button:hover {

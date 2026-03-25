@@ -1,10 +1,81 @@
 <template>
   <div class="left-shell-sidebar">
-    <SidebarChrome
-      :entries="sidebarEntries"
-      :active-key="activePanel"
-      @select="selectSidebarPanel"
-    />
+    <SidebarChrome :entries="sidebarEntries" :active-key="activePanel" @select="selectSidebarPanel">
+      <template #trailing>
+        <template v-if="workspace.isWorkspaceSurface && activePanel === 'files'">
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Collapse All Folders')"
+            :aria-label="t('Collapse All Folders')"
+            @click="collapseSidebarFolders"
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"
+              />
+              <path
+                fill-rule="evenodd"
+                d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </ShellChromeButton>
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
+            :aria-label="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
+            @click="activateSidebarFilter"
+          >
+            <IconSearch :size="10" :stroke-width="1.5" />
+          </ShellChromeButton>
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('New File or Folder')"
+            :aria-label="t('New File or Folder')"
+            @click="openSidebarCreateMenu"
+          >
+            <IconPlus :size="10" :stroke-width="1.9" />
+          </ShellChromeButton>
+        </template>
+
+        <template v-else-if="workspace.isWorkspaceSurface && activePanel === 'references'">
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Export references')"
+            :aria-label="t('Export references')"
+            @click="toggleSidebarReferenceExport"
+          >
+            <svg
+              width="9"
+              height="9"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <path d="M8 10V2M4 6l4-4 4 4M2 13h12" />
+            </svg>
+          </ShellChromeButton>
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Add reference')"
+            :aria-label="t('Add reference')"
+            @click="openSidebarAddReferenceDialog"
+          >
+            <IconPlus :size="10" :stroke-width="1.9" />
+          </ShellChromeButton>
+          <ShellChromeButton
+            size="icon-xs"
+            :title="t('Reference maintenance')"
+            :aria-label="t('Reference maintenance')"
+            @click="openSidebarReferenceMaintenance"
+          >
+            <IconSparkles :size="10" :stroke-width="1.7" />
+          </ShellChromeButton>
+        </template>
+      </template>
+    </SidebarChrome>
 
     <KeepAlive :max="4">
       <component
@@ -23,30 +94,30 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, computed, nextTick, KeepAlive } from 'vue'
+import { ref, defineAsyncComponent, computed, nextTick } from 'vue'
+import { IconPlus, IconSearch, IconSparkles } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { normalizeWorkbenchSidebarPanel } from '../../shared/workbenchSidebarPanels'
 import { getWorkbenchSidebarChromeEntries } from '../../shared/workbenchChromeEntries'
 import FileTree from './FileTree.vue'
 import SidebarChrome from '../shared/SidebarChrome.vue'
+import ShellChromeButton from '../shared/ShellChromeButton.vue'
+import { modKey } from '../../platform'
 
 const ReferenceList = defineAsyncComponent(() => import('./ReferenceList.vue'))
 const LibrarySidebar = defineAsyncComponent(() => import('./LibrarySidebar.vue'))
 const AiWorkbenchSidebar = defineAsyncComponent(() => import('./AiWorkbenchSidebar.vue'))
 
-const emit = defineEmits(['file-version-history', 'open-folder', 'open-workspace', 'close-folder'])
+defineEmits(['file-version-history', 'open-folder', 'open-workspace', 'close-folder'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const activeSidebarRef = ref(null)
-const activePanel = computed(() => normalizeWorkbenchSidebarPanel(
-  workspace.primarySurface,
-  workspace.leftSidebarPanel,
-))
-const sidebarEntries = computed(() => (
-  getWorkbenchSidebarChromeEntries(t, workspace.primarySurface)
-))
+const activePanel = computed(() =>
+  normalizeWorkbenchSidebarPanel(workspace.primarySurface, workspace.leftSidebarPanel)
+)
+const sidebarEntries = computed(() => getWorkbenchSidebarChromeEntries(t, workspace.primarySurface))
 const activeSidebarView = computed(() => {
   if (workspace.isWorkspaceSurface && activePanel.value !== 'references') {
     return {
@@ -54,6 +125,7 @@ const activeSidebarView = computed(() => {
       key: 'workspace-files',
       props: {
         collapsed: false,
+        embedded: true,
         headingCollapsible: false,
         headingLabel: fileTreeHeadingLabel.value,
       },
@@ -67,6 +139,7 @@ const activeSidebarView = computed(() => {
       key: 'workspace-references',
       props: {
         collapsed: false,
+        embedded: true,
         headingCollapsible: false,
         headingLabel: referencesHeadingLabel.value,
       },
@@ -91,12 +164,12 @@ const activeSidebarView = computed(() => {
   }
 })
 
-const fileTreeHeadingLabel = computed(() => (
+const fileTreeHeadingLabel = computed(() =>
   workspace.primarySurface === 'workspace' ? '' : t('Project files')
-))
-const referencesHeadingLabel = computed(() => (
+)
+const referencesHeadingLabel = computed(() =>
   workspace.primarySurface === 'workspace' ? t('References') : t('Project references')
-))
+)
 
 async function focusFileTree(method, ...args) {
   if (!workspace.isWorkspaceSurface) {
@@ -112,6 +185,34 @@ async function focusFileTree(method, ...args) {
 
 function selectSidebarPanel(panel) {
   workspace.setLeftSidebarPanel(panel)
+}
+
+function actionAnchor(event) {
+  return event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+}
+
+function collapseSidebarFolders() {
+  activeSidebarRef.value?.collapseAllFolders?.()
+}
+
+function activateSidebarFilter() {
+  activeSidebarRef.value?.activateFilter?.()
+}
+
+function openSidebarCreateMenu(event) {
+  activeSidebarRef.value?.toggleCreateMenuFrom?.(actionAnchor(event))
+}
+
+function toggleSidebarReferenceExport(event) {
+  activeSidebarRef.value?.toggleExportMenuFrom?.(actionAnchor(event))
+}
+
+function openSidebarAddReferenceDialog() {
+  activeSidebarRef.value?.openAddReferenceDialog?.()
+}
+
+function openSidebarReferenceMaintenance() {
+  activeSidebarRef.value?.openReferenceAi?.()
 }
 
 // Expose FileTree methods for App.vue
