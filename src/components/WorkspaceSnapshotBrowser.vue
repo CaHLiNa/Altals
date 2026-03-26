@@ -9,25 +9,51 @@
       @keydown.esc="$emit('close')"
     >
       <div class="version-modal">
-        <UiButton class="version-close-btn" variant="ghost" size="icon-sm" icon-only :title="t('Close (Esc)')" @click="$emit('close')">
+        <UiButton
+          class="version-close-btn"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Close (Esc)')"
+          @click="$emit('close')"
+        >
           <IconX :size="18" :stroke-width="1.5" />
         </UiButton>
 
         <div class="version-list">
-          <div class="workspace-version-list-heading px-3 py-2 text-xs font-medium uppercase tracking-wider">
-            {{ t('Saved versions') }}
+          <div class="workspace-version-list-toolbar px-3 py-2">
+            <div
+              class="workspace-version-list-heading text-xs font-medium uppercase tracking-wider"
+            >
+              {{ t('Saved versions') }}
+            </div>
+            <UiButton
+              class="workspace-version-create-btn"
+              variant="secondary"
+              size="sm"
+              :disabled="creatingSnapshot"
+              @click="$emit('create-snapshot')"
+            >
+              {{ creatingSnapshot ? t('Saving...') : t('Add save point') }}
+            </UiButton>
           </div>
           <div v-if="loading" class="workspace-version-list-empty px-3 py-4 text-xs">
             {{ t('Loading...') }}
           </div>
-          <div v-else-if="snapshots.length === 0" class="workspace-version-list-empty px-3 py-4 text-xs">
+          <div
+            v-else-if="snapshots.length === 0"
+            class="workspace-version-list-empty px-3 py-4 text-xs"
+          >
             {{ t('No saved versions yet') }}
           </div>
           <div
             v-for="(snapshot, idx) in snapshots"
             :key="snapshot.id"
             class="version-item"
-            :class="{ active: idx === selectedIndex, 'version-item-named': isNamedSnapshot(snapshot) }"
+            :class="{
+              active: idx === selectedIndex,
+              'version-item-named': isNamedSnapshot(snapshot),
+            }"
             @click="selectedIndex = idx"
           >
             <div class="timestamp">{{ formatDisplayDate(snapshot.createdAt) }}</div>
@@ -40,7 +66,9 @@
                 viewBox="0 0 16 16"
                 fill="currentColor"
               >
-                <path d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"/>
+                <path
+                  d="M3 1.5A1.5 1.5 0 014.5 0h7A1.5 1.5 0 0113 1.5v14a.5.5 0 01-.77.42L8 13.06l-4.23 2.86A.5.5 0 013 15.5V1.5z"
+                />
               </svg>
               {{ getSnapshotMessage(snapshot) }}
             </div>
@@ -67,8 +95,17 @@
               {{ t('No saved versions yet') }}
             </div>
             <div class="workspace-version-empty-detail">
-              {{ t('Create one with Save first, then browse it here.') }}
+              {{ t('Create one here, or use Save and browse it here.') }}
             </div>
+            <UiButton
+              class="workspace-version-empty-action"
+              variant="primary"
+              size="sm"
+              :disabled="creatingSnapshot"
+              @click="$emit('create-snapshot')"
+            >
+              {{ creatingSnapshot ? t('Saving...') : t('Add save point') }}
+            </UiButton>
           </div>
           <div v-else-if="!selectedSnapshot" class="version-empty-state">
             <div class="workspace-version-empty-copy">
@@ -83,55 +120,123 @@
               <div class="workspace-snapshot-kicker">{{ t('Workspace save point') }}</div>
               <div class="workspace-snapshot-title">{{ selectedSnapshotMetadata.title }}</div>
               <div class="workspace-snapshot-meta">
-                {{ isNamedSnapshot(selectedSnapshot) ? t('Named save point') : t('Saved automatically through the normal save flow') }}
+                {{
+                  isNamedSnapshot(selectedSnapshot)
+                    ? t('Named save point')
+                    : isLocalOnlySavePoint
+                      ? t('Saved locally without new file changes')
+                      : t('Saved automatically through the normal save flow')
+                }}
               </div>
               <div v-if="selectedPayloadFileCount > 0" class="workspace-snapshot-meta">
-                {{ t('{count} captured file(s) available for local restore', { count: selectedPayloadFileCount }) }}
+                {{
+                  t('{count} captured file(s) available for local restore', {
+                    count: selectedPayloadFileCount,
+                  })
+                }}
               </div>
               <div v-if="selectedPayloadFileCount > 0" class="workspace-snapshot-meta">
                 {{
                   isProjectTextSetSnapshot
-                    ? t('Capture scope: project text files in the current workspace, excluding binary, preview, and support-only paths.')
+                    ? t(
+                        'Capture scope: project text files in the current workspace, excluding binary, preview, and support-only paths.'
+                      )
                     : isLoadedWorkspaceTextSnapshot
-                    ? t('Capture scope: workspace text files that were open or already loaded in Altals when this save point was created.')
-                    : t('Capture scope: explicitly captured open workspace files.')
+                      ? t(
+                          'Capture scope: workspace text files that were open or already loaded in Altals when this save point was created.'
+                        )
+                      : t('Capture scope: explicitly captured open workspace files.')
                 }}
               </div>
               <div v-if="selectedPayloadSkippedCount > 0" class="workspace-snapshot-meta">
-                {{ t('{count} file(s) were skipped during capture because they could not be read as restorable text at save-point time.', { count: selectedPayloadSkippedCount }) }}
+                {{
+                  t(
+                    '{count} file(s) were skipped during capture because they could not be read as restorable text at save-point time.',
+                    { count: selectedPayloadSkippedCount }
+                  )
+                }}
               </div>
             </div>
 
             <div class="workspace-snapshot-note">
-              {{ t('This browser lists workspace-level save points separately from File Version History.') }}
+              {{
+                t(
+                  'This browser lists workspace-level save points separately from File Version History.'
+                )
+              }}
             </div>
             <div class="workspace-snapshot-note">
-              {{ t('Workspace save points now have a local Altals index while still pointing at Git-backed milestones underneath.') }}
+              {{
+                t(
+                  'Workspace save points use a local Altals index and reuse Git-backed milestones when available.'
+                )
+              }}
+            </div>
+            <div v-if="isLocalOnlySavePoint" class="workspace-snapshot-note">
+              {{
+                t(
+                  'This save point was created locally without a new Git milestone because the workspace had no file changes.'
+                )
+              }}
             </div>
             <div v-if="canRestoreSelectedSnapshot" class="workspace-snapshot-note">
               {{
                 isProjectTextSetSnapshot
-                  ? t('This save point can restore the current project text set captured for the workspace, without rewinding Git history.')
+                  ? t(
+                      'This save point can restore the current project text set captured for the workspace, without rewinding Git history.'
+                    )
                   : isLoadedWorkspaceTextSnapshot
-                  ? t('This save point can restore the workspace text files Altals had loaded when it was created, without rewinding Git history.')
-                  : t('This save point can restore its captured files through the local snapshot payload without rewinding Git history.')
+                    ? t(
+                        'This save point can restore the workspace text files Altals had loaded when it was created, without rewinding Git history.'
+                      )
+                    : t(
+                        'This save point can restore its captured files through the local snapshot payload without rewinding Git history.'
+                      )
               }}
             </div>
             <div v-if="selectedAddedEntries.length > 0" class="workspace-snapshot-note">
-              {{ t('This save point can also remove current project-text files that were added after it was created, still without using Git checkout.') }}
+              {{
+                t(
+                  'This save point can also remove current project-text files that were added after it was created, still without using Git checkout.'
+                )
+              }}
             </div>
-            <div v-if="!canRestoreSelectedSnapshot && selectedAddedEntries.length === 0 && hasSelectedPayload" class="workspace-snapshot-note">
-              {{ t('This save point recorded workspace payload coverage, but no files were captured for local restore. Check the skipped files list below.') }}
+            <div
+              v-if="
+                !canRestoreSelectedSnapshot &&
+                selectedAddedEntries.length === 0 &&
+                hasSelectedPayload
+              "
+              class="workspace-snapshot-note"
+            >
+              {{
+                t(
+                  'This save point recorded workspace payload coverage, but no files were captured for local restore. Check the skipped files list below.'
+                )
+              }}
             </div>
-            <div v-if="!canRestoreSelectedSnapshot && selectedAddedEntries.length === 0 && !hasSelectedPayload" class="workspace-snapshot-note">
-              {{ t('Older workspace save points may appear here without a local payload yet. Use File Version History for per-file restores.') }}
+            <div
+              v-if="
+                !canRestoreSelectedSnapshot &&
+                selectedAddedEntries.length === 0 &&
+                !hasSelectedPayload
+              "
+              class="workspace-snapshot-note"
+            >
+              {{
+                t(
+                  'Older workspace save points may appear here without a local payload yet. Use File Version History for per-file restores.'
+                )
+              }}
             </div>
 
             <div v-if="payloadManifestLoading" class="workspace-snapshot-note">
               {{ t('Loading captured files...') }}
             </div>
             <div v-else-if="selectedPreviewSummary" class="workspace-snapshot-payload-list">
-              <div class="workspace-snapshot-payload-title">{{ t('Current workspace comparison') }}</div>
+              <div class="workspace-snapshot-payload-title">
+                {{ t('Current workspace comparison') }}
+              </div>
               <div class="workspace-snapshot-payload-item">
                 {{ t('{count} unchanged', { count: selectedPreviewCounts.unchanged }) }}
               </div>
@@ -142,13 +247,25 @@
                 {{ t('{count} missing', { count: selectedPreviewCounts.missing }) }}
               </div>
               <div v-if="selectedPreviewCounts.added > 0" class="workspace-snapshot-payload-item">
-                {{ t('{count} added after this save point', { count: selectedPreviewCounts.added }) }}
+                {{
+                  t('{count} added after this save point', { count: selectedPreviewCounts.added })
+                }}
               </div>
-              <div v-if="selectedPreviewCounts.unreadable > 0" class="workspace-snapshot-payload-item">
+              <div
+                v-if="selectedPreviewCounts.unreadable > 0"
+                class="workspace-snapshot-payload-item"
+              >
                 {{ t('{count} unreadable', { count: selectedPreviewCounts.unreadable }) }}
               </div>
-              <div v-if="selectedPreviewCounts.tooLarge > 0" class="workspace-snapshot-payload-item">
-                {{ t('{count} too large to compare as text', { count: selectedPreviewCounts.tooLarge }) }}
+              <div
+                v-if="selectedPreviewCounts.tooLarge > 0"
+                class="workspace-snapshot-payload-item"
+              >
+                {{
+                  t('{count} too large to compare as text', {
+                    count: selectedPreviewCounts.tooLarge,
+                  })
+                }}
               </div>
             </div>
             <div v-if="selectedPreviewEntries.length > 0" class="workspace-snapshot-payload-list">
@@ -159,17 +276,22 @@
                 type="button"
                 class="workspace-snapshot-payload-entry"
                 :class="{
-                  'workspace-snapshot-payload-entry-active': entry.path === selectedPreviewEntryPath,
+                  'workspace-snapshot-payload-entry-active':
+                    entry.path === selectedPreviewEntryPath,
                   'workspace-snapshot-payload-entry-previewable': canLoadPreviewDetail(entry),
                 }"
                 @click="selectPreviewEntry(entry)"
               >
                 <span>{{ entry.relativePath || entry.path }}</span>
-                <span class="workspace-snapshot-payload-status">{{ formatPreviewStatus(entry.status) }}</span>
+                <span class="workspace-snapshot-payload-status">{{
+                  formatPreviewStatus(entry.status)
+                }}</span>
               </button>
             </div>
             <div v-if="selectedAddedEntries.length > 0" class="workspace-snapshot-payload-list">
-              <div class="workspace-snapshot-payload-title">{{ t('Files Added After This Save Point') }}</div>
+              <div class="workspace-snapshot-payload-title">
+                {{ t('Files Added After This Save Point') }}
+              </div>
               <button
                 v-for="entry in selectedAddedEntries"
                 :key="entry.path"
@@ -181,17 +303,25 @@
                 @click="selectAddedEntry(entry)"
               >
                 <span>{{ entry.relativePath || entry.path }}</span>
-                <span class="workspace-snapshot-payload-status">{{ t('added after save point') }}</span>
+                <span class="workspace-snapshot-payload-status">{{
+                  t('added after save point')
+                }}</span>
               </button>
             </div>
-            <div v-else-if="selectedPayloadFiles.length > 0" class="workspace-snapshot-payload-list">
+            <div
+              v-else-if="selectedPayloadFiles.length > 0"
+              class="workspace-snapshot-payload-list"
+            >
               <div class="workspace-snapshot-payload-title">{{ t('Captured files') }}</div>
               <div
                 v-for="file in selectedPayloadFiles"
                 :key="file.path"
                 class="workspace-snapshot-payload-item"
               >
-                {{ file.relativePath || file.path }}<template v-if="previewStatusForPath(file.path)"> · {{ formatPreviewStatus(previewStatusForPath(file.path)) }}</template>
+                {{ file.relativePath || file.path
+                }}<template v-if="previewStatusForPath(file.path)">
+                  · {{ formatPreviewStatus(previewStatusForPath(file.path)) }}</template
+                >
               </div>
             </div>
             <div v-if="selectedSkippedFiles.length > 0" class="workspace-snapshot-payload-list">
@@ -211,13 +341,17 @@
             >
               <div class="workspace-snapshot-payload-title">{{ t('Selected file preview') }}</div>
               <div class="workspace-snapshot-preview-meta">
-                {{ selectedPreviewEntry.relativePath || selectedPreviewEntry.path }} · {{ formatPreviewStatus(selectedPreviewEntry.status) }}
+                {{ selectedPreviewEntry.relativePath || selectedPreviewEntry.path }} ·
+                {{ formatPreviewStatus(selectedPreviewEntry.status) }}
               </div>
               <div v-if="previewDetailLoading" class="workspace-snapshot-note">
                 {{ t('Loading file preview...') }}
               </div>
               <template v-else-if="selectedPreviewDetail">
-                <div v-if="selectedPreviewDetail.summary?.firstChangedLine" class="workspace-snapshot-preview-meta">
+                <div
+                  v-if="selectedPreviewDetail.summary?.firstChangedLine"
+                  class="workspace-snapshot-preview-meta"
+                >
                   {{
                     t('Changed near line {line} across {count} line(s).', {
                       line: selectedPreviewDetail.summary.firstChangedLine,
@@ -229,25 +363,38 @@
                   v-if="selectedPreviewDetail.status === 'missing'"
                   class="workspace-snapshot-preview-meta"
                 >
-                  {{ t('This file is currently missing from the workspace. Restoring the save point will recreate only the captured text content for it.') }}
+                  {{
+                    t(
+                      'This file is currently missing from the workspace. Restoring the save point will recreate only the captured text content for it.'
+                    )
+                  }}
                 </div>
                 <div class="workspace-snapshot-preview-meta">
                   {{ t('Patch/diff editor view: saved version versus current workspace content.') }}
                 </div>
                 <div class="workspace-snapshot-preview-meta">
-                  {{ t('Use the Accept/Reject controls inside each changed block to choose which snapshot chunks to apply.') }}
+                  {{
+                    t(
+                      'Use the Accept/Reject controls inside each changed block to choose which snapshot chunks to apply.'
+                    )
+                  }}
                 </div>
                 <div
                   v-if="selectedPreviewUnresolvedChunkCount > 0"
                   class="workspace-snapshot-preview-meta"
                 >
-                  {{ t('{count} unresolved chunk(s) remain in this diff view.', { count: selectedPreviewUnresolvedChunkCount }) }}
+                  {{
+                    t('{count} unresolved chunk(s) remain in this diff view.', {
+                      count: selectedPreviewUnresolvedChunkCount,
+                    })
+                  }}
                 </div>
-                <div
-                  v-if="selectedPreviewHasMergedChanges"
-                  class="workspace-snapshot-preview-meta"
-                >
-                  {{ t('The merged result below differs from the current workspace file and can be written back without using Git history.') }}
+                <div v-if="selectedPreviewHasMergedChanges" class="workspace-snapshot-preview-meta">
+                  {{
+                    t(
+                      'The merged result below differs from the current workspace file and can be written back without using Git history.'
+                    )
+                  }}
                 </div>
                 <WorkspaceSnapshotDiffEditor
                   :snapshot-content="selectedPreviewDetail.snapshotContent || ''"
@@ -275,19 +422,25 @@
               </template>
             </div>
 
-            <div
-              v-if="selectedAddedEntry"
-              class="workspace-snapshot-preview-card"
-            >
+            <div v-if="selectedAddedEntry" class="workspace-snapshot-preview-card">
               <div class="workspace-snapshot-payload-title">{{ t('Added File Removal') }}</div>
               <div class="workspace-snapshot-preview-meta">
-                {{ selectedAddedEntry.relativePath || selectedAddedEntry.path }} · {{ t('added after save point') }}
+                {{ selectedAddedEntry.relativePath || selectedAddedEntry.path }} ·
+                {{ t('added after save point') }}
               </div>
               <div class="workspace-snapshot-preview-meta">
-                {{ t('This file is currently inside the workspace save-point restore scope, but it did not exist when this save point was created.') }}
+                {{
+                  t(
+                    'This file is currently inside the workspace save-point restore scope, but it did not exist when this save point was created.'
+                  )
+                }}
               </div>
               <div class="workspace-snapshot-preview-meta">
-                {{ t('Removing it here uses Altals file operations rather than Git checkout, and only affects the current project-text-set restore scope.') }}
+                {{
+                  t(
+                    'Removing it here uses Altals file operations rather than Git checkout, and only affects the current project-text-set restore scope.'
+                  )
+                }}
               </div>
               <div class="workspace-snapshot-actions">
                 <button
@@ -301,6 +454,14 @@
             </div>
 
             <div class="workspace-snapshot-actions">
+              <UiButton
+                variant="danger"
+                size="sm"
+                :disabled="!selectedSnapshot || loading || creatingSnapshot"
+                @click="confirmDeleteSelectedSnapshot"
+              >
+                {{ t('Delete this save point') }}
+              </UiButton>
               <button
                 class="workspace-snapshot-action workspace-snapshot-action-restore"
                 :disabled="!canRestoreSelectedSavePoint || restoring || removingAddedEntry"
@@ -311,6 +472,20 @@
             </div>
           </div>
         </div>
+
+        <HistoryActionDialog
+          :visible="historyDialog.visible"
+          :title="historyDialog.title"
+          :description="historyDialog.description"
+          :confirm-label="historyDialog.confirmLabel"
+          :cancel-label="historyDialog.cancelLabel"
+          :busy-label="historyDialog.busyLabel"
+          :confirm-variant="historyDialog.confirmVariant"
+          :busy="historyDialog.busy"
+          :show-cancel="historyDialog.showCancel"
+          @close="closeHistoryDialog"
+          @confirm="handleHistoryDialogConfirm"
+        />
       </div>
     </div>
   </Teleport>
@@ -321,12 +496,14 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { IconX } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import WorkspaceSnapshotDiffEditor from './WorkspaceSnapshotDiffEditor.vue'
+import HistoryActionDialog from './shared/HistoryActionDialog.vue'
 import { useEditorStore } from '../stores/editor'
 import { useFilesStore } from '../stores/files'
 import { useToastStore } from '../stores/toast'
 import { useWorkspaceStore } from '../stores/workspace'
 import {
   applyWorkspaceSavePointFilePreviewContent,
+  deleteWorkspaceSavePoint,
   getWorkspaceSnapshotMetadata,
   isLoadedWorkspaceTextPayload,
   isNamedWorkspaceSnapshot,
@@ -344,9 +521,12 @@ import UiButton from './shared/ui/UiButton.vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
+  creatingSnapshot: { type: Boolean, default: false },
+  createFeedback: { type: Object, default: null },
+  refreshToken: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'create-snapshot'])
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
@@ -370,21 +550,20 @@ const selectedAddedEntryPath = ref('')
 const selectedPreviewDetail = ref(null)
 const selectedPreviewMergedContent = ref('')
 const selectedPreviewUnresolvedChunkCount = ref(0)
+const historyDialog = ref(createEmptyHistoryDialogState())
 
 const selectedSnapshot = computed(() =>
   selectedIndex.value >= 0 ? snapshots.value[selectedIndex.value] : null
 )
 const selectedSnapshotMetadata = computed(() => getSnapshotMetadata(selectedSnapshot.value))
 const selectedPayloadMeta = computed(() => selectedSnapshotMetadata.value?.payload || null)
-const selectedPayloadFileCount = computed(() =>
-  Number.parseInt(selectedPayloadMeta.value?.fileCount, 10) || 0
+const selectedPayloadFileCount = computed(
+  () => Number.parseInt(selectedPayloadMeta.value?.fileCount, 10) || 0
 )
-const selectedPayloadSkippedCount = computed(() =>
-  Number.parseInt(selectedPayloadMeta.value?.skippedCount, 10) || 0
+const selectedPayloadSkippedCount = computed(
+  () => Number.parseInt(selectedPayloadMeta.value?.skippedCount, 10) || 0
 )
-const isProjectTextSetSnapshot = computed(() =>
-  isProjectTextSetPayload(selectedPayloadMeta.value)
-)
+const isProjectTextSetSnapshot = computed(() => isProjectTextSetPayload(selectedPayloadMeta.value))
 const isLoadedWorkspaceTextSnapshot = computed(() =>
   isLoadedWorkspaceTextPayload(selectedPayloadMeta.value)
 )
@@ -393,19 +572,26 @@ const selectedPayloadFiles = computed(() =>
   Array.isArray(selectedPayloadManifest.value?.files) ? selectedPayloadManifest.value.files : []
 )
 const selectedSkippedFiles = computed(() =>
-  Array.isArray(selectedPayloadManifest.value?.skippedFiles) ? selectedPayloadManifest.value.skippedFiles : []
+  Array.isArray(selectedPayloadManifest.value?.skippedFiles)
+    ? selectedPayloadManifest.value.skippedFiles
+    : []
 )
 const selectedPreviewEntries = computed(() =>
   Array.isArray(selectedPreviewSummary.value?.entries) ? selectedPreviewSummary.value.entries : []
 )
 const selectedAddedEntries = computed(() =>
-  Array.isArray(selectedPreviewSummary.value?.addedEntries) ? selectedPreviewSummary.value.addedEntries : []
+  Array.isArray(selectedPreviewSummary.value?.addedEntries)
+    ? selectedPreviewSummary.value.addedEntries
+    : []
 )
-const selectedPreviewEntry = computed(() =>
-  selectedPreviewEntries.value.find((entry) => entry.path === selectedPreviewEntryPath.value) || null
+const selectedPreviewEntry = computed(
+  () =>
+    selectedPreviewEntries.value.find((entry) => entry.path === selectedPreviewEntryPath.value) ||
+    null
 )
-const selectedAddedEntry = computed(() =>
-  selectedAddedEntries.value.find((entry) => entry.path === selectedAddedEntryPath.value) || null
+const selectedAddedEntry = computed(
+  () =>
+    selectedAddedEntries.value.find((entry) => entry.path === selectedAddedEntryPath.value) || null
 )
 const selectedPreviewHasMergedChanges = computed(() => {
   if (!selectedPreviewDetail.value) {
@@ -413,46 +599,74 @@ const selectedPreviewHasMergedChanges = computed(() => {
   }
   return selectedPreviewMergedContent.value !== (selectedPreviewDetail.value.currentContent || '')
 })
-const selectedPreviewCounts = computed(() =>
-  selectedPreviewSummary.value?.counts || {
-    unchanged: 0,
-    modified: 0,
-    missing: 0,
-    unreadable: 0,
-    tooLarge: 0,
-    added: 0,
-  }
+const selectedPreviewCounts = computed(
+  () =>
+    selectedPreviewSummary.value?.counts || {
+      unchanged: 0,
+      modified: 0,
+      missing: 0,
+      unreadable: 0,
+      tooLarge: 0,
+      added: 0,
+    }
 )
-const canRestoreSelectedSnapshot = computed(() =>
-  !!selectedSnapshotMetadata.value?.capabilities?.canRestore
+const canRestoreSelectedSnapshot = computed(
+  () => !!selectedSnapshotMetadata.value?.capabilities?.canRestore
 )
-const canRestoreSelectedSavePoint = computed(() =>
-  canRestoreSelectedSnapshot.value || selectedAddedEntries.value.length > 0
+const canRestoreSelectedSavePoint = computed(
+  () => canRestoreSelectedSnapshot.value || selectedAddedEntries.value.length > 0
+)
+const isLocalOnlySavePoint = computed(
+  () => selectedSnapshot.value?.backend === 'local' && !selectedSnapshot.value?.sourceId
 )
 
-watch(() => props.visible, async (visible) => {
-  if (visible) {
+watch(
+  () => props.createFeedback?.id,
+  (feedbackId) => {
+    if (!props.visible || !feedbackId || !props.createFeedback) {
+      return
+    }
+
+    openHistoryNotice({
+      title: props.createFeedback.title,
+      description: props.createFeedback.message,
+    })
+  }
+)
+
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      await loadWorkspaceSnapshots()
+      await nextTick()
+      overlayEl.value?.focus()
+      return
+    }
+
+    resetBrowserState()
+  }
+)
+
+watch(
+  () => props.refreshToken,
+  async (nextToken, previousToken) => {
+    if (!props.visible || nextToken === previousToken) {
+      return
+    }
+
     await loadWorkspaceSnapshots()
-    await nextTick()
-    overlayEl.value?.focus()
-    return
   }
+)
 
-  snapshots.value = []
-  selectedIndex.value = -1
-  selectedPayloadManifest.value = null
-  selectedPreviewSummary.value = null
-  selectedPreviewEntryPath.value = ''
-  selectedAddedEntryPath.value = ''
-  selectedPreviewDetail.value = null
-  resetSelectedPreviewEditorState()
-})
-
-watch(() => workspace.isOpen, (isOpen) => {
-  if (!isOpen && props.visible) {
-    emit('close')
+watch(
+  () => workspace.isOpen,
+  (isOpen) => {
+    if (!isOpen && props.visible) {
+      emit('close')
+    }
   }
-})
+)
 
 watch(selectedSnapshot, (snapshot) => {
   if (!props.visible) {
@@ -511,6 +725,21 @@ function resetSelectedPreviewEditorState() {
   selectedPreviewUnresolvedChunkCount.value = 0
 }
 
+function resetBrowserState() {
+  snapshots.value = []
+  selectedIndex.value = -1
+  selectedPayloadManifest.value = null
+  selectedPreviewSummary.value = null
+  selectedPreviewEntryPath.value = ''
+  selectedAddedEntryPath.value = ''
+  selectedPreviewDetail.value = null
+  payloadManifestLoading.value = false
+  previewSummaryLoading.value = false
+  previewDetailLoading.value = false
+  resetSelectedPreviewEditorState()
+  historyDialog.value = createEmptyHistoryDialogState()
+}
+
 async function loadSelectedSnapshotPayloadManifest(snapshot) {
   if (!snapshot || !hasSelectedPayload.value) {
     selectedPayloadManifest.value = null
@@ -542,7 +771,10 @@ async function loadSelectedSnapshotPayloadManifest(snapshot) {
     ])
     selectedPayloadManifest.value = manifest
     selectedPreviewSummary.value = previewSummary
-    selectedPreviewEntryPath.value = resolveDefaultPreviewEntryPath(previewSummary, selectedPreviewEntryPath.value)
+    selectedPreviewEntryPath.value = resolveDefaultPreviewEntryPath(
+      previewSummary,
+      selectedPreviewEntryPath.value
+    )
     selectedAddedEntryPath.value = selectedPreviewEntryPath.value
       ? ''
       : resolveDefaultAddedEntryPath(previewSummary, selectedAddedEntryPath.value)
@@ -604,14 +836,16 @@ async function restoreWorkspaceSavePointSelection({
   }
 
   const count = targetPaths.length > 0 ? targetPaths.length : selectedPayloadFileCount.value
-  const addedCount = removeAddedFiles && targetPaths.length === 0 ? selectedAddedEntries.value.length : 0
+  const addedCount =
+    removeAddedFiles && targetPaths.length === 0 ? selectedAddedEntries.value.length : 0
   const confirmed = await ask(
-    confirmationText || buildRestoreConfirmationText({
-      snapshot,
-      restoredCount: count,
-      removedCount: addedCount,
-    }),
-    { title: t('Restore Workspace Save Point'), kind: 'warning' },
+    confirmationText ||
+      buildRestoreConfirmationText({
+        snapshot,
+        restoredCount: count,
+        removedCount: addedCount,
+      }),
+    { title: t('Restore Workspace Save Point'), kind: 'warning' }
   )
   if (!confirmed) {
     return false
@@ -628,20 +862,25 @@ async function restoreWorkspaceSavePointSelection({
       removeAddedFiles,
     })
     if (!result?.restored) {
-      const message = result?.reason === 'missing-payload'
-        ? t('This saved version does not have a local restore payload yet.')
-        : t('Failed to restore the selected workspace save point.')
+      const message =
+        result?.reason === 'missing-payload'
+          ? t('This saved version does not have a local restore payload yet.')
+          : t('Failed to restore the selected workspace save point.')
       toastStore.show(message, { type: 'warning', duration: 5000 })
       return false
     }
 
-    toastStore.show(successText || buildRestoreSuccessText({
-      restoredCount: result.restoredFiles?.length || 0,
-      removedCount: result.removedFiles?.length || 0,
-    }), {
-      type: 'success',
-      duration: 4000,
-    })
+    toastStore.show(
+      successText ||
+        buildRestoreSuccessText({
+          restoredCount: result.restoredFiles?.length || 0,
+          removedCount: result.removedFiles?.length || 0,
+        }),
+      {
+        type: 'success',
+        duration: 4000,
+      }
+    )
     if (closeOnSuccess) {
       emit('close')
       return true
@@ -682,9 +921,9 @@ async function restoreSelectedPreviewEntry() {
       {
         path: relativePath,
         date: formatDisplayDate(snapshot.createdAt),
-      },
+      }
     ),
-    { title: t('Restore Workspace Save Point'), kind: 'warning' },
+    { title: t('Restore Workspace Save Point'), kind: 'warning' }
   )
   if (!confirmed || restoring.value) {
     return
@@ -700,19 +939,23 @@ async function restoreSelectedPreviewEntry() {
       filePath: entry.path,
     })
     if (!result?.restored) {
-      const message = result?.reason === 'missing-payload'
-        ? t('This saved version does not have a local restore payload yet.')
-        : t('Failed to restore the selected workspace save point.')
+      const message =
+        result?.reason === 'missing-payload'
+          ? t('This saved version does not have a local restore payload yet.')
+          : t('Failed to restore the selected workspace save point.')
       toastStore.show(message, { type: 'warning', duration: 5000 })
       return
     }
 
-    toastStore.show(t('Restored the captured content for {path}.', {
-      path: relativePath,
-    }), {
-      type: 'success',
-      duration: 4000,
-    })
+    toastStore.show(
+      t('Restored the captured content for {path}.', {
+        path: relativePath,
+      }),
+      {
+        type: 'success',
+        duration: 4000,
+      }
+    )
     await loadSelectedSnapshotPayloadManifest(snapshot)
   } catch (error) {
     console.error('Failed to restore workspace save point:', error)
@@ -725,11 +968,154 @@ async function restoreSelectedPreviewEntry() {
   }
 }
 
+function createEmptyHistoryDialogState() {
+  return {
+    visible: false,
+    title: '',
+    description: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    busyLabel: 'Working...',
+    confirmVariant: 'primary',
+    showCancel: true,
+    busy: false,
+    onConfirm: null,
+  }
+}
+
+function openHistoryNotice({ title = '', description = '' } = {}) {
+  historyDialog.value = {
+    ...createEmptyHistoryDialogState(),
+    visible: true,
+    title,
+    description,
+    confirmLabel: t('OK'),
+    busyLabel: t('Working...'),
+    showCancel: false,
+  }
+}
+
+function openHistoryConfirm({
+  title = '',
+  description = '',
+  confirmLabel = '',
+  confirmVariant = 'danger',
+  onConfirm = null,
+} = {}) {
+  historyDialog.value = {
+    ...createEmptyHistoryDialogState(),
+    visible: true,
+    title,
+    description,
+    confirmLabel: confirmLabel || t('Delete'),
+    cancelLabel: t('Cancel'),
+    busyLabel: t('Deleting...'),
+    confirmVariant,
+    showCancel: true,
+    onConfirm,
+  }
+}
+
+function closeHistoryDialog() {
+  if (historyDialog.value.busy) {
+    return
+  }
+  historyDialog.value = createEmptyHistoryDialogState()
+}
+
+async function handleHistoryDialogConfirm() {
+  if (!historyDialog.value.visible) {
+    return
+  }
+
+  const onConfirm = historyDialog.value.onConfirm
+  if (typeof onConfirm !== 'function') {
+    closeHistoryDialog()
+    return
+  }
+
+  historyDialog.value = {
+    ...historyDialog.value,
+    busy: true,
+  }
+  await onConfirm()
+}
+
+function confirmDeleteSelectedSnapshot() {
+  const snapshot = selectedSnapshot.value
+  if (!snapshot) {
+    return
+  }
+
+  const date = formatDisplayDate(snapshot.createdAt)
+  const isLocalOnly = snapshot.backend === 'local' && !snapshot.sourceId
+  openHistoryConfirm({
+    title: t('Delete save point'),
+    description: isLocalOnly
+      ? t('Delete the local workspace save point from {date}? This removes it from Altals.', {
+          date,
+        })
+      : t(
+          'Delete the selected save point from Saved Versions? This removes it from Altals without rewriting Git history.'
+        ),
+    confirmLabel: t('Delete save point'),
+    onConfirm: deleteSelectedSnapshot,
+  })
+}
+
+async function deleteSelectedSnapshot() {
+  const snapshot = selectedSnapshot.value
+  if (!snapshot) {
+    closeHistoryDialog()
+    return
+  }
+
+  const previousIndex = selectedIndex.value
+  try {
+    const result = await deleteWorkspaceSavePoint({
+      workspace,
+      snapshot,
+    })
+    if (!result?.deleted) {
+      openHistoryNotice({
+        title: t('Could not delete save point'),
+        description: t('Altals could not remove the selected save point from this history list.'),
+      })
+      return
+    }
+
+    await loadWorkspaceSnapshots()
+    if (snapshots.value.length > 0) {
+      selectedIndex.value = Math.min(previousIndex, snapshots.value.length - 1)
+    }
+    openHistoryNotice({
+      title: t('Save point deleted'),
+      description:
+        snapshot.backend === 'local' && !snapshot.sourceId
+          ? t('Deleted the local workspace save point from Altals.')
+          : t(
+              'Removed the selected save point from Altals Saved Versions without rewriting Git history.'
+            ),
+    })
+  } catch (error) {
+    console.error('Failed to delete workspace save point:', error)
+    openHistoryNotice({
+      title: t('Could not delete save point'),
+      description: t('Altals could not remove the selected save point from this history list.'),
+    })
+  }
+}
+
 async function applySelectedPreviewChunks() {
   const snapshot = selectedSnapshot.value
   const entry = selectedPreviewEntry.value
   const mergedContent = selectedPreviewMergedContent.value
-  if (!snapshot || !canLoadPreviewDetail(entry) || !selectedPreviewHasMergedChanges.value || applyingPreview.value) {
+  if (
+    !snapshot ||
+    !canLoadPreviewDetail(entry) ||
+    !selectedPreviewHasMergedChanges.value ||
+    applyingPreview.value
+  ) {
     return
   }
 
@@ -740,9 +1126,9 @@ async function applySelectedPreviewChunks() {
       {
         path: relativePath,
         date: formatDisplayDate(snapshot.createdAt),
-      },
+      }
     ),
-    { title: t('Apply Snapshot Chunks'), kind: 'warning' },
+    { title: t('Apply Snapshot Chunks'), kind: 'warning' }
   )
   if (!confirmed) {
     return
@@ -766,12 +1152,15 @@ async function applySelectedPreviewChunks() {
       return
     }
 
-    toastStore.show(t('Applied the selected snapshot chunks to {path}.', {
-      path: relativePath,
-    }), {
-      type: 'success',
-      duration: 4000,
-    })
+    toastStore.show(
+      t('Applied the selected snapshot chunks to {path}.', {
+        path: relativePath,
+      }),
+      {
+        type: 'success',
+        duration: 4000,
+      }
+    )
     await loadSelectedSnapshotPayloadManifest(snapshot)
   } catch (error) {
     console.error('Failed to apply workspace snapshot chunks:', error)
@@ -798,9 +1187,9 @@ async function removeSelectedAddedEntry() {
       {
         path: relativePath,
         date: formatDisplayDate(snapshot.createdAt),
-      },
+      }
     ),
-    { title: t('Remove Added File'), kind: 'warning' },
+    { title: t('Remove Added File'), kind: 'warning' }
   )
   if (!confirmed) {
     return
@@ -823,12 +1212,15 @@ async function removeSelectedAddedEntry() {
       return
     }
 
-    toastStore.show(t('Removed {path} to match the selected save point.', {
-      path: relativePath,
-    }), {
-      type: 'success',
-      duration: 4000,
-    })
+    toastStore.show(
+      t('Removed {path} to match the selected save point.', {
+        path: relativePath,
+      }),
+      {
+        type: 'success',
+        duration: 4000,
+      }
+    )
     await loadSelectedSnapshotPayloadManifest(snapshot)
   } catch (error) {
     console.error('Failed to remove workspace snapshot added file:', error)
@@ -854,7 +1246,7 @@ function buildRestoreConfirmationText({
         restoredCount,
         removedCount,
         date,
-      },
+      }
     )
   }
   if (removedCount > 0) {
@@ -863,24 +1255,27 @@ function buildRestoreConfirmationText({
       {
         removedCount,
         date,
-      },
+      }
     )
   }
-  return t('Restore {count} captured file(s) from {date}? This overwrites the current contents of those files.', {
-    count: restoredCount,
-    date,
-  })
+  return t(
+    'Restore {count} captured file(s) from {date}? This overwrites the current contents of those files.',
+    {
+      count: restoredCount,
+      date,
+    }
+  )
 }
 
-function buildRestoreSuccessText({
-  restoredCount = 0,
-  removedCount = 0,
-} = {}) {
+function buildRestoreSuccessText({ restoredCount = 0, removedCount = 0 } = {}) {
   if (restoredCount > 0 && removedCount > 0) {
-    return t('Restored {restoredCount} file(s) and removed {removedCount} added file(s) from the selected workspace save point.', {
-      restoredCount,
-      removedCount,
-    })
+    return t(
+      'Restored {restoredCount} file(s) and removed {removedCount} added file(s) from the selected workspace save point.',
+      {
+        restoredCount,
+        removedCount,
+      }
+    )
   }
   if (removedCount > 0) {
     return t('Removed {removedCount} added file(s) to match the selected workspace save point.', {
@@ -916,7 +1311,10 @@ function canLoadPreviewDetail(entry) {
 
 function resolveDefaultPreviewEntryPath(previewSummary, previousPath = '') {
   const entries = Array.isArray(previewSummary?.entries) ? previewSummary.entries : []
-  if (previousPath && entries.some((entry) => entry.path === previousPath && canLoadPreviewDetail(entry))) {
+  if (
+    previousPath &&
+    entries.some((entry) => entry.path === previousPath && canLoadPreviewDetail(entry))
+  ) {
     return previousPath
   }
   return entries.find((entry) => canLoadPreviewDetail(entry))?.path || ''
@@ -954,9 +1352,8 @@ function updateSelectedPreviewMergedContent(content = '') {
 
 function updateSelectedPreviewChunkState(detail = null) {
   const unresolvedCount = Number.parseInt(detail?.unresolvedCount, 10)
-  selectedPreviewUnresolvedChunkCount.value = Number.isInteger(unresolvedCount) && unresolvedCount >= 0
-    ? unresolvedCount
-    : 0
+  selectedPreviewUnresolvedChunkCount.value =
+    Number.isInteger(unresolvedCount) && unresolvedCount >= 0 ? unresolvedCount : 0
 }
 
 function previewStatusForPath(path) {
@@ -1095,14 +1492,15 @@ function formatPreviewStatus(status) {
   line-height: 1.5;
 }
 
-
 .workspace-snapshot-action {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 8px 14px;
   font-size: var(--ui-font-body);
   font-weight: 500;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .workspace-snapshot-action:disabled {
@@ -1136,6 +1534,14 @@ function formatPreviewStatus(status) {
   transform: translateY(-1px);
 }
 
+.workspace-version-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .workspace-version-list-heading,
 .workspace-version-list-empty,
 .workspace-snapshot-meta,
@@ -1145,7 +1551,11 @@ function formatPreviewStatus(status) {
 }
 
 .workspace-version-list-heading {
-  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.workspace-version-create-btn {
+  flex-shrink: 0;
 }
 
 .workspace-snapshot-title-copy {
@@ -1166,4 +1576,7 @@ function formatPreviewStatus(status) {
   opacity: 0.56;
 }
 
+.workspace-version-empty-action {
+  margin-top: var(--space-3);
+}
 </style>

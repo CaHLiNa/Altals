@@ -1,81 +1,75 @@
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" data-ref-dialog @click.self="$emit('close')">
-      <div
-        class="add-ref-dialog rounded-lg border shadow-2xl overflow-hidden relative"
-        :style="{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', width: '480px', maxHeight: '70vh' }"
-        @keydown.escape="$emit('close')"
-      >
-        <!-- Header -->
-        <div class="flex items-center px-4 py-3" :style="{ borderBottom: '1px solid var(--border)' }">
-          <span class="text-sm font-medium" :style="{ color: 'var(--fg-primary)' }">{{ t('Add Reference') }}</span>
-          <div class="flex-1"></div>
-          <button
-            class="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-hover)]"
-            :style="{ color: 'var(--fg-muted)' }"
-            @click="$emit('close')"
+  <UiModalShell
+    visible
+    close-on-backdrop
+    :body-padding="false"
+    overlay-class="add-ref-dialog-overlay"
+    surface-class="add-ref-dialog-surface"
+    :surface-style="{ width: 'min(480px, calc(100vw - 32px))', maxHeight: '70vh' }"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <div class="add-ref-dialog-header">
+        <span class="add-ref-dialog-title">{{ t('Add Reference') }}</span>
+        <div class="ui-flex-spacer"></div>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Close')"
+          :aria-label="t('Close')"
+          @click="$emit('close')"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
           >
-            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M2 2l6 6M8 2l-6 6"/>
-            </svg>
-          </button>
-        </div>
+            <path d="M2 2l6 6M8 2l-6 6" />
+          </svg>
+        </UiButton>
+      </div>
+    </template>
 
-        <!-- Input area -->
-        <div class="px-4 py-3">
-          <textarea
-            ref="inputEl"
-            v-model="inputText"
-            class="w-full px-3 py-2 text-xs rounded border outline-none resize-none"
-            :style="{
-              background: 'var(--bg-tertiary)',
-              color: 'var(--fg-primary)',
-              borderColor: inputFocused ? 'var(--accent)' : 'var(--border)',
-              minHeight: '80px',
-            }"
-            :placeholder="t('Paste DOI / BibTeX / RIS / citation...')"
-            @focus="inputFocused = true"
-            @blur="inputFocused = false"
-            @keydown.meta.enter="lookup"
-            @keydown.ctrl.enter="lookup"
-          ></textarea>
+    <div class="add-ref-dialog-body" data-ref-dialog>
+      <div class="add-ref-dialog-input-area">
+        <UiTextarea
+          ref="inputEl"
+          v-model="inputText"
+          rows="4"
+          shell-class="add-ref-dialog-textarea"
+          :placeholder="t('Paste DOI / BibTeX / RIS / citation...')"
+          @keydown.meta.enter="lookup"
+          @keydown.ctrl.enter="lookup"
+        />
 
-          <!-- Drop overlay -->
-          <div
-            v-if="dropActive"
-            class="absolute inset-0 flex items-center justify-center pointer-events-none rounded-lg"
-            :style="{ background: 'rgba(122, 162, 247, 0.1)', border: '2px dashed var(--accent)' }"
-          >
-            <span class="text-xs" :style="{ color: 'var(--accent)' }">{{ t('Drop files to import') }}</span>
-          </div>
-
-          <div class="flex items-center mt-2">
-            <span v-if="statusText" class="ui-text-micro" :style="{ color: 'var(--fg-muted)' }">
-              {{ statusText }}
-            </span>
-            <div class="flex-1"></div>
-            <button
-              class="px-3 py-1 text-xs rounded"
-              :style="{
-                background: 'var(--accent)',
-                color: 'var(--bg-primary)',
-                opacity: loading || !inputText.trim() ? 0.5 : 1,
-              }"
-              :disabled="loading || !inputText.trim()"
-              @click="lookup"
-            >
-              {{ loading ? t('Looking up...') : t('Look up') }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Errors -->
-        <div v-if="errors.length > 0" class="px-4 py-2">
-          <div v-for="(err, idx) in errors" :key="idx" class="ui-text-xs" :style="{ color: 'var(--error)' }">{{ err }}</div>
+        <div v-if="dropActive" class="add-ref-dialog-drop-overlay">
+          <span class="ui-text-xs">{{ t('Drop files to import') }}</span>
         </div>
       </div>
+
+      <div class="add-ref-dialog-actions">
+        <span v-if="statusText" class="ui-field-hint">{{ statusText }}</span>
+        <div class="ui-flex-spacer"></div>
+        <UiButton
+          variant="primary"
+          size="sm"
+          :disabled="!inputText.trim()"
+          :loading="loading"
+          @click="lookup"
+        >
+          {{ loading ? t('Looking up...') : t('Look up') }}
+        </UiButton>
+      </div>
+
+      <div v-if="errors.length > 0" class="add-ref-dialog-errors">
+        <div v-for="(err, idx) in errors" :key="idx" class="add-ref-dialog-error">{{ err }}</div>
+      </div>
     </div>
-  </Teleport>
+  </UiModalShell>
 
   <ReferenceImportPreviewDialog
     v-if="previewOpen && previewItems.length > 0"
@@ -107,6 +101,9 @@ import { importFromText, importFromPdf } from '../../services/referenceImport'
 import { useI18n } from '../../i18n'
 import ReferenceImportPreviewDialog from './ReferenceImportPreviewDialog.vue'
 import ReferenceMergeDialog from './ReferenceMergeDialog.vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiModalShell from '../shared/ui/UiModalShell.vue'
+import UiTextarea from '../shared/ui/UiTextarea.vue'
 
 const emit = defineEmits(['close'])
 
@@ -116,7 +113,6 @@ const { t } = useI18n()
 
 const inputEl = ref(null)
 const inputText = ref('')
-const inputFocused = ref(false)
 const loading = ref(false)
 const dropActive = ref(false)
 const statusText = ref('')
@@ -126,7 +122,9 @@ const previewOpen = ref(false)
 const mergeItemId = ref(null)
 let previewIdSeed = 0
 
-const mergeItem = computed(() => previewItems.value.find(item => item.id === mergeItemId.value) || null)
+const mergeItem = computed(
+  () => previewItems.value.find((item) => item.id === mergeItemId.value) || null
+)
 const mergeExistingRef = computed(() => {
   const key = mergeItem.value?.existingKey
   return key ? referencesStore.getByKey(key) : null
@@ -169,8 +167,8 @@ async function onRefFileDrop(event) {
   if (!paths?.length) return
 
   const TEXT_EXTS = ['.bib', '.ris', '.json', '.nbib', '.enw', '.txt']
-  const pdfPaths = paths.filter(p => p.toLowerCase().endsWith('.pdf'))
-  const textPaths = paths.filter(p => TEXT_EXTS.some(ext => p.toLowerCase().endsWith(ext)))
+  const pdfPaths = paths.filter((p) => p.toLowerCase().endsWith('.pdf'))
+  const textPaths = paths.filter((p) => TEXT_EXTS.some((ext) => p.toLowerCase().endsWith(ext)))
   const collectedItems = []
 
   errors.value = []
@@ -181,14 +179,21 @@ async function onRefFileDrop(event) {
     statusText.value = t('Importing {name}...', { name: filePath.split('/').pop() })
     try {
       const content = await invoke('read_file', { path: filePath })
-      const { results: importResults, errors: importErrors } = await importFromText(content, workspace)
+      const { results: importResults, errors: importErrors } = await importFromText(
+        content,
+        workspace
+      )
       collectedItems.push(...decorateImportResults(importResults, filePath.split('/').pop()))
       errors.value.push(...importErrors.map(translateImportError))
       if (importResults.length > 0) {
-        statusText.value = t('Prepared {count} references for review', { count: importResults.length })
+        statusText.value = t('Prepared {count} references for review', {
+          count: importResults.length,
+        })
       }
     } catch (e) {
-      errors.value.push(t('Failed: {name} - {error}', { name: filePath.split('/').pop(), error: e.message }))
+      errors.value.push(
+        t('Failed: {name} - {error}', { name: filePath.split('/').pop(), error: e.message })
+      )
     }
     loading.value = false
   }
@@ -255,13 +260,18 @@ async function lookup() {
   errors.value = []
 
   try {
-    const { results: importResults, errors: importErrors } = await importFromText(inputText.value, workspace)
+    const { results: importResults, errors: importErrors } = await importFromText(
+      inputText.value,
+      workspace
+    )
     const nextItems = decorateImportResults(importResults)
     openPreview(nextItems)
     errors.value = importErrors.map(translateImportError)
 
     if (importResults.length > 0) {
-      statusText.value = t('Prepared {count} references for review', { count: importResults.length })
+      statusText.value = t('Prepared {count} references for review', {
+        count: importResults.length,
+      })
     } else if (importErrors.length > 0) {
       statusText.value = t('Lookup failed')
     } else {
@@ -282,7 +292,7 @@ function viewExisting(existingKey) {
 }
 
 function addPreviewItem(itemId) {
-  const item = previewItems.value.find(entry => entry.id === itemId)
+  const item = previewItems.value.find((entry) => entry.id === itemId)
   if (!item || item.resolution !== 'pending-add') return
 
   const result = referencesStore.addReference({
@@ -320,7 +330,7 @@ function closeMergeDialog() {
 }
 
 function keepExistingItem(itemId) {
-  const item = previewItems.value.find(entry => entry.id === itemId)
+  const item = previewItems.value.find((entry) => entry.id === itemId)
   if (!item) return
   item.resolution = 'kept'
 }
@@ -341,7 +351,8 @@ function translateImportError(message) {
   if (text === 'No valid BibTeX entries found') return t('No valid BibTeX entries found')
   if (text === 'No valid RIS entries found') return t('No valid RIS entries found')
   if (text === 'No valid CSL-JSON entries found') return t('No valid CSL-JSON entries found')
-  if (text === 'Could not extract references from text') return t('Could not extract references from text')
+  if (text === 'Could not extract references from text')
+    return t('Could not extract references from text')
   if (text === 'PDF import failed') return t('PDF import failed')
 
   const doiMatch = text.match(/^DOI not found: (.+)$/)
@@ -357,3 +368,76 @@ function translateImportError(message) {
   return text
 }
 </script>
+
+<style scoped>
+.add-ref-dialog-overlay {
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.add-ref-dialog-surface {
+  position: relative;
+}
+
+.add-ref-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 46px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.add-ref-dialog-title {
+  font-size: var(--ui-font-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.add-ref-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.add-ref-dialog-input-area {
+  position: relative;
+}
+
+.add-ref-dialog-textarea {
+  min-height: 96px;
+}
+
+.add-ref-dialog-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.add-ref-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.add-ref-dialog-errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.add-ref-dialog-error {
+  font-size: var(--ui-font-caption);
+  color: var(--error);
+  line-height: var(--line-height-regular);
+}
+</style>

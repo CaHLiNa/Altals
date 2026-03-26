@@ -1,5 +1,6 @@
 import {
   createNotebookAssistantTask,
+  createReferenceAuditTask,
   createReferenceCompareTask,
   createReferenceMaintenanceTask,
 } from './taskCatalog.js'
@@ -65,6 +66,25 @@ export function buildReferenceCompareLaunchRequest({
   }
 }
 
+export function buildReferenceAuditLaunchRequest({
+  editorStore,
+  chatStore,
+  refKey,
+  paneId = null,
+}) {
+  return {
+    editorStore,
+    chatStore,
+    paneId: resolvePaneId(editorStore, paneId),
+    beside: true,
+    task: createReferenceAuditTask({
+      refKey,
+      source: 'reference-view',
+      entryContext: 'reference-view',
+    }),
+  }
+}
+
 export function launchNotebookAssistantTask(options) {
   return import('./launch.js').then(({ launchAiTask }) =>
     launchAiTask(buildNotebookAssistantLaunchRequest(options))
@@ -80,5 +100,11 @@ export function launchReferenceMaintenanceTask(options) {
 export function launchReferenceCompareTask(options) {
   return import('./launch.js').then(({ launchAiTask }) =>
     launchAiTask(buildReferenceCompareLaunchRequest(options))
+  )
+}
+
+export function launchReferenceAuditTask(options) {
+  return import('./launch.js').then(({ launchAiTask }) =>
+    launchAiTask(buildReferenceAuditLaunchRequest(options))
   )
 }

@@ -81,7 +81,14 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 - March 25, 2026: added `PdfViewer` activation recovery for cached workspace surfaces, so returning from the library or AI workbench now health-checks the cached pdf.js iframe and rebuilds it when the restored viewer comes back with `pagesCount = 0` or a blank first page.
 - March 25, 2026: tightened `TabBar` overflow handling so the tab strip no longer picks up an unwanted vertical scrollbar while still preserving the intended horizontal tab scrollbar for crowded editor panes.
 - March 25, 2026: fixed the async `VersionHistory` first-open path by moving its visibility/file reload decision into a small view runtime and making the modal load immediately on first visible mount, so file version history no longer opens to a false empty state after the app lazy-loads that component.
+- March 25, 2026: added an explicit `Add save point` action inside the workspace saved-versions browser and routed it through the existing workspace snapshot action seam, so manual save-point creation now refreshes the browser without inventing a second history path.
+- March 25, 2026: taught manual workspace save-point creation to fall back to a local-only save point when there are no file changes, so the saved-versions browser can add an explicit restore point without forcing Git to create an empty history milestone.
+- March 25, 2026: moved manual save-point feedback out of the footer and into the saved-versions browser itself, so creating a workspace save point from that surface now returns a modal-local result notice instead of an easy-to-miss footer message.
+- March 25, 2026: added a local hidden-history index plus explicit delete actions for workspace saved versions and file version history, so users can remove entries from Altals history surfaces without rewriting Git history or collapsing local save points into Git semantics.
 - March 25, 2026: hardened `.github/workflows/release.yml` so release dispatches now distinguish between a safe rerun of an existing tag on the same commit and an invalid attempt to reuse the same version tag on a newer commit, with explicit version-bump guidance instead of a generic tag-exists failure.
+- March 26, 2026: expanded the shared UI primitive baseline into `ReferenceView`, `NotebookCell`, `FileTree`, and `AddReferenceDialog`, removing raw form controls from those high-traffic editor/sidebar surfaces and replacing their header/form/dialog chrome with `UiButton` / `UiInput` / `UiSelect` / `UiTextarea` / `UiModalShell`.
+- March 26, 2026: extended `workbenchTaskLaunchers` with a named reference-audit launch seam and rewired `ReferenceView` to use it, so the reference detail surface no longer launches AI directly from presentation code.
+- March 26, 2026: added a focused frontend baseline audit that locks those newly migrated editor/sidebar files against regressing back to raw `button` / `input` / `select` / `textarea` controls, then expanded scoped lint/format coverage to include them.
 
 ## Blocked / Risks
 
@@ -90,18 +97,20 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 - The newly restored docs baseline is intentionally high level; it should only gain detail when backed by current code truth.
 - Backend boundary work still lags behind the frontend direction.
 - The frontend baseline is still partial: deeper editor-heavy surfaces, Notebook cell internals, and PDF viewer-local form controls still use older styling and interaction patterns.
-- Reference detail/edit surfaces, notebook cell-local toolbars, and file-tree/dialog history surfaces still contain many raw form controls and legacy button skins.
+- Deeper child surfaces under the newly migrated reference/file/notebook flows still retain legacy structure, especially `FileTreeItem`, reference import preview/merge dialogs, notebook cell internals beyond the local toolbar, and PDF viewer-local controls.
 - The embedded PDF viewer is more resilient now, but it still depends on pdf.js iframe behavior; deeper viewer-internal render cost and occasional upstream viewer edge cases remain a risk area.
 - The embedded PDF viewer no longer accepts a `pagesCount = 0` shell as "ready", but upstream pdf.js iframe timing can still produce new edge cases that may need deeper event-level instrumentation if blank states continue.
 - Cached workspace surfaces now actively revalidate embedded PDF iframes on re-entry, but pdf.js lifecycle timing inside `KeepAlive` remains a risk area if future viewer updates change what "initialized but blank" looks like.
+- History deletion in Altals is now intentionally UI-local visibility control: removing an entry from saved versions or file history hides it through a workspace-local index, but does not rewrite the underlying Git commit graph.
 - Lint/format enforcement now reaches the main settings/shared surfaces plus the highest-traffic editor/sidebar entry points, but the scope is still intentionally narrower than the full repository.
 - Release automation is still intentionally version-driven: rerunning the workflow on a newer `main` commit without bumping the checked-in version will now fail with clearer guidance, but it still requires an explicit version-bump commit before a new release can be tagged.
 
 ## Next Recommended Slice
 
 - Continue migrating deeper PDF viewer controls, notebook cell-local UI, and additional editor/sidebar surfaces onto the shared UI baseline.
+- Continue migrating deeper child surfaces under references/files/notebooks, especially `FileTreeItem`, reference import preview/merge dialogs, and notebook renderer-local controls, now that the top-level shells for those workflows are on shared primitives.
 - If PDF lag is still noticeable after this slice, profile viewer-internal event churn next, especially repeated `syncPdfUi()` triggers around scale/search/sidebar events and any expensive annotation overlay work.
-- Prioritize `ReferenceView`, `NotebookCell`, `FileTree`, and reference import/add dialogs next, because they still carry the densest cluster of raw buttons/inputs in high-traffic research workflows.
+- Prioritize the remaining reference import/merge dialogs, `FileTreeItem`, and deeper PDF/notebook sub-surfaces next, because the top-level entry components have now been normalized but their child flows still carry the densest cluster of local legacy skins.
 - Expand lint coverage outward from the current settings/shared/editor entry-point baseline once the next batch of legacy frontend rule violations is worth fixing instead of ignoring.
 
 ## Validation Checklist
@@ -131,6 +140,10 @@ Validation status for the current slice:
 - Tightened the PDF render-ready helper to require non-zero document pages before passing first-render checks, and verified the helper with its focused test file before rewiring the viewer retry path.
 - Added a focused runtime helper test for cached PDF activation recovery so the viewer can distinguish a healthy cached iframe from a `pagesCount = 0` restored shell before deciding whether to rebuild.
 - Added a focused file-version-history view-runtime test so the lazily loaded `VersionHistory` modal now explicitly covers its first-visible mount, reopen, file-switch, and hidden reset decisions instead of relying on an untested component watcher edge case.
+- Extended the workspace snapshot action seam with injectable create/history handlers and verified that `createSnapshot()` now returns the downstream save-point result while allowing browser-driven manual creation to bypass the footer's label-prompt wait.
+- Added a focused workspace-snapshot operations test that covers the no-file-changes manual-save path, ensuring the browser can create a local-only save point instead of silently returning `no-changes`.
+- Added focused tests for the new hidden-history index and local save-point removal path, then wired snapshot runtime tests so file-history and workspace-save-point feeds explicitly cover local filtering after an entry has been deleted from Altals history surfaces.
+- Added focused tests for the new reference-audit launcher seam plus a frontend-baseline audit that asserts the newly migrated editor/sidebar surfaces no longer contain raw form controls.
 - Corrected `TabBar` overflow handling to keep horizontal tab scrolling visible while explicitly suppressing vertical overflow, which removes the stray vertical scrollbar without deleting the intended left-right tab scrollbar.
 - Tightened shell chrome geometry again by switching the editor tab strip to `border-box` sizing and matching sidebar chrome separators to the same border token, removing the 1px drift between sidebar top-strip rules and the tab-bar baseline.
 - Embedded workspace sidebar views now suppress their own top divider when mounted under `SidebarChrome`, so the shell shows one aligned top separator instead of stacking a second line below the left sidebar toolbar.
@@ -142,6 +155,7 @@ Validation status for the current slice:
 - `npm run format:check` passes for the scoped frontend baseline files and docs.
 - `node --test tests/workbenchChromeEntries.test.mjs tests/headerChromeGeometry.test.mjs tests/appShellLayout.test.mjs` passes.
 - `node --test tests/shellResizeSignals.test.mjs tests/appShellLayout.test.mjs tests/headerChromeGeometry.test.mjs tests/workbenchChromeEntries.test.mjs` passes.
+- `node --test tests/workbenchTaskLaunchers.test.mjs tests/aiLaunchBoundaryAudit.test.mjs tests/frontendBaselineAudit.test.mjs` passes.
 - `node --test tests/*.test.mjs` passes.
 - `npm run build` passes.
 - Release-workflow tag handling was updated and validated with local git-state checks against the current `v1.0.1` tag/HEAD mismatch scenario plus a YAML syntax parse.

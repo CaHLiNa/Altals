@@ -70,9 +70,7 @@ export function createEmptyWorkspaceSavePointIndex() {
   }
 }
 
-export function createLocalWorkspaceSavePointRecord({
-  snapshot = null,
-} = {}) {
+export function createLocalWorkspaceSavePointRecord({ snapshot = null } = {}) {
   const scope = normalizeSnapshotValue(snapshot?.scope)
   if (scope !== 'workspace') {
     return null
@@ -105,10 +103,7 @@ export function createLocalWorkspaceSavePointRecord({
   }
 }
 
-export function mergeWorkspaceSavePointEntries({
-  localEntries = [],
-  gitEntries = [],
-} = {}) {
+export function mergeWorkspaceSavePointEntries({ localEntries = [], gitEntries = [] } = {}) {
   const merged = []
   const seen = new Set()
 
@@ -134,9 +129,7 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
   writeFileImpl = async (path, content) => invoke('write_file', { path, content }),
   createDirImpl = async (path) => invoke('create_dir', { path }),
 } = {}) {
-  async function readWorkspaceSavePointIndex({
-    workspaceDataDir = '',
-  } = {}) {
+  async function readWorkspaceSavePointIndex({ workspaceDataDir = '' } = {}) {
     const indexPath = resolveWorkspaceSavePointIndexPath(workspaceDataDir)
     if (!indexPath) {
       return createEmptyWorkspaceSavePointIndex()
@@ -147,8 +140,8 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
       const parsed = JSON.parse(raw)
       const entries = Array.isArray(parsed?.entries)
         ? parsed.entries
-          .map((entry) => createLocalWorkspaceSavePointRecord({ snapshot: entry }))
-          .filter(Boolean)
+            .map((entry) => createLocalWorkspaceSavePointRecord({ snapshot: entry }))
+            .filter(Boolean)
         : []
       return {
         version: WORKSPACE_SAVE_POINT_INDEX_VERSION,
@@ -159,10 +152,7 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
     }
   }
 
-  async function writeWorkspaceSavePointIndex({
-    workspaceDataDir = '',
-    entries = [],
-  } = {}) {
+  async function writeWorkspaceSavePointIndex({ workspaceDataDir = '', entries = [] } = {}) {
     const indexDir = resolveWorkspaceSavePointIndexDir(workspaceDataDir)
     const indexPath = resolveWorkspaceSavePointIndexPath(workspaceDataDir)
     if (!indexDir || !indexPath) {
@@ -170,24 +160,26 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
     }
 
     await createDirImpl(indexDir).catch(() => {})
-    await writeFileImpl(indexPath, JSON.stringify({
-      version: WORKSPACE_SAVE_POINT_INDEX_VERSION,
-      entries: sortWorkspaceSavePointsDesc(entries),
-    }, null, 2))
+    await writeFileImpl(
+      indexPath,
+      JSON.stringify(
+        {
+          version: WORKSPACE_SAVE_POINT_INDEX_VERSION,
+          entries: sortWorkspaceSavePointsDesc(entries),
+        },
+        null,
+        2
+      )
+    )
     return true
   }
 
-  async function loadWorkspaceSavePointEntries({
-    workspaceDataDir = '',
-  } = {}) {
+  async function loadWorkspaceSavePointEntries({ workspaceDataDir = '' } = {}) {
     const index = await readWorkspaceSavePointIndex({ workspaceDataDir })
     return index.entries
   }
 
-  async function syncWorkspaceSavePointEntries({
-    workspaceDataDir = '',
-    snapshots = [],
-  } = {}) {
+  async function syncWorkspaceSavePointEntries({ workspaceDataDir = '', snapshots = [] } = {}) {
     if (!workspaceDataDir) {
       return []
     }
@@ -207,10 +199,7 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
     return nextEntries
   }
 
-  async function recordWorkspaceSavePoint({
-    workspaceDataDir = '',
-    snapshot = null,
-  } = {}) {
+  async function recordWorkspaceSavePoint({ workspaceDataDir = '', snapshot = null } = {}) {
     const entry = createLocalWorkspaceSavePointRecord({ snapshot })
     if (!workspaceDataDir || !entry) {
       return null
@@ -219,7 +208,9 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
     const current = await loadWorkspaceSavePointEntries({ workspaceDataDir })
     const nextEntries = sortWorkspaceSavePointsDesc([
       entry,
-      ...current.filter((existing) => buildWorkspaceSavePointKey(existing) !== buildWorkspaceSavePointKey(entry)),
+      ...current.filter(
+        (existing) => buildWorkspaceSavePointKey(existing) !== buildWorkspaceSavePointKey(entry)
+      ),
     ])
     await writeWorkspaceSavePointIndex({
       workspaceDataDir,
@@ -228,9 +219,33 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
     return entry
   }
 
+  async function removeWorkspaceSavePoint({ workspaceDataDir = '', snapshot = null } = {}) {
+    if (!workspaceDataDir || !snapshot) {
+      return false
+    }
+
+    const targetKey = buildWorkspaceSavePointKey(snapshot)
+    if (!targetKey) {
+      return false
+    }
+
+    const current = await loadWorkspaceSavePointEntries({ workspaceDataDir })
+    const nextEntries = current.filter((entry) => buildWorkspaceSavePointKey(entry) !== targetKey)
+    if (nextEntries.length === current.length) {
+      return false
+    }
+
+    await writeWorkspaceSavePointIndex({
+      workspaceDataDir,
+      entries: nextEntries,
+    })
+    return true
+  }
+
   return {
     loadWorkspaceSavePointEntries,
     syncWorkspaceSavePointEntries,
     recordWorkspaceSavePoint,
+    removeWorkspaceSavePoint,
   }
 }

@@ -12,6 +12,8 @@ export function useWorkspaceSnapshotActions({
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
   fileVersionHistoryFile,
+  createWorkspaceSnapshotImpl = createWorkspaceSnapshot,
+  openFileVersionHistoryBrowserImpl = openFileVersionHistoryBrowser,
   t,
 }) {
   function showHistoryUnavailable() {
@@ -25,14 +27,22 @@ export function useWorkspaceSnapshotActions({
     void workspace.startAutoCommit()
   }
 
-  async function createSnapshot() {
-    await createWorkspaceSnapshot({
+  async function createSnapshot({
+    preferredSnapshotLabel = '',
+    requestSnapshotLabel = () => footerRef.value?.beginSnapshotLabelConfirmation(),
+    allowLocalSavePointWhenUnchanged = false,
+    showNoChanges = () => footerRef.value?.showCenterMessage(t('All saved (no changes)')),
+    showCommitFailure = () => footerRef.value?.showSaveMessage(t('Saved (commit failed)')),
+  } = {}) {
+    return await createWorkspaceSnapshotImpl({
       workspace,
       filesStore,
       editorStore,
-      requestSnapshotLabel: () => footerRef.value?.beginSnapshotLabelConfirmation(),
-      showNoChanges: () => footerRef.value?.showCenterMessage(t('All saved (no changes)')),
-      showCommitFailure: () => footerRef.value?.showSaveMessage(t('Saved (commit failed)')),
+      preferredSnapshotLabel,
+      requestSnapshotLabel,
+      allowLocalSavePointWhenUnchanged,
+      showNoChanges,
+      showCommitFailure,
       onUnavailable: showHistoryUnavailable,
       onAutoCommitEnabled: startAutoCommitIfNeeded,
       t,
@@ -48,7 +58,7 @@ export function useWorkspaceSnapshotActions({
   }
 
   function openFileVersionHistory(entry) {
-    openFileVersionHistoryBrowser({
+    openFileVersionHistoryBrowserImpl({
       workspace,
       filePath: entry.path,
       onUnavailable: showHistoryUnavailable,
@@ -62,15 +72,17 @@ export function useWorkspaceSnapshotActions({
         seedMessage: t('Initial history'),
         enableAutoCommit: true,
       },
-    })
-      .catch((error) => {
-        toastStore.show(t('Failed to initialize File Version History: {error}', {
+    }).catch((error) => {
+      toastStore.show(
+        t('Failed to initialize File Version History: {error}', {
           error: error?.message || String(error || ''),
-        }), {
+        }),
+        {
           type: 'error',
           duration: 6000,
-        })
-      })
+        }
+      )
+    })
   }
 
   return {

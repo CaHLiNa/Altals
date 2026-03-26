@@ -16,12 +16,14 @@ These are related, but they are not interchangeable.
 - Workspace save points capture project text state into local payload manifests.
 - They support preview and restore flows without treating Git history as the only recovery mechanism.
 - Save-point restore semantics are explicit and workspace-scoped.
+- Deleting a workspace save point from Altals removes or hides it from the Altals saved-versions surfaces through workspace-local metadata; it does not rewrite Git history.
 
 ## Git History
 
 - Git-backed history is used for explicit change tracking and commits.
 - Auto-commit is a separate capability, not a synonym for autosave.
 - Commit messages and history listings are surfaced through dedicated runtime helpers.
+- Deleting an entry from Altals file-history UI hides it from Altals through a workspace-local index; it does not delete or rewrite the underlying Git commit.
 
 ## Remote Sync
 

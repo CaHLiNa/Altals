@@ -1,13 +1,10 @@
 <template>
-  <div class="flex flex-col h-full" style="background: var(--bg-primary)">
+  <div class="file-tree-shell flex flex-col h-full">
     <!-- Header -->
     <div
       v-if="!props.embedded"
-      class="flex items-center h-7 shrink-0 px-2 gap-1 select-none"
-      :style="{
-        color: 'var(--fg-muted)',
-        borderBottom: collapsed || props.embedded ? 'none' : '1px solid var(--border)',
-      }"
+      class="file-tree-header flex items-center h-7 shrink-0 px-2 gap-1 select-none"
+      :class="{ 'file-tree-header--with-divider': !collapsed && !props.embedded }"
     >
       <div
         class="flex items-center gap-1 min-w-0 flex-1"
@@ -22,7 +19,8 @@
           fill="none"
           stroke="currentColor"
           stroke-width="1.5"
-          :style="{ transform: collapsed ? '' : 'rotate(90deg)', transition: 'transform 0.1s' }"
+          class="file-tree-chevron"
+          :class="{ 'file-tree-chevron-open': !collapsed }"
         >
           <path d="M6 4l4 4-4 4" />
         </svg>
@@ -31,11 +29,14 @@
         }}</span>
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
-        <button
+        <UiButton
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted)"
+          variant="ghost"
+          size="icon-xs"
+          icon-only
           @click.stop="collapseAllFolders"
           :title="t('Collapse All Folders')"
+          :aria-label="t('Collapse All Folders')"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
             <path
@@ -47,66 +48,68 @@
               clip-rule="evenodd"
             />
           </svg>
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted)"
+          variant="ghost"
+          size="icon-xs"
+          icon-only
           @click.stop="activateFilter"
           :title="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
+          :aria-label="t('Filter Files ({shortcut})', { shortcut: `${modKey}+F` })"
         >
           <IconSearch :size="14" :stroke-width="1.5" />
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           ref="newBtnEl"
           class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
-          style="color: var(--fg-muted)"
+          variant="ghost"
+          size="icon-xs"
+          icon-only
           @click.stop="toggleNewMenu"
           :title="t('New File or Folder')"
+          :aria-label="t('New File or Folder')"
         >
           <IconPlus :size="12" :stroke-width="2" />
-        </button>
+        </UiButton>
       </div>
     </div>
 
     <template v-if="!collapsed">
       <!-- Filter input -->
       <div v-if="filterActive" class="flex items-center gap-1 px-2 pb-1">
-        <div
-          class="flex-1 flex items-center rounded border px-1"
-          style="background: var(--bg-tertiary); border-color: var(--accent)"
+        <UiInput
+          ref="filterInputEl"
+          v-model="filterQuery"
+          size="sm"
+          shell-class="file-tree-filter-input"
+          :placeholder="t('Filter files...')"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          @keydown="handleFilterKeydown"
         >
-          <IconSearch
-            :size="12"
-            :stroke-width="1.5"
-            style="color: var(--fg-muted); flex-shrink: 0"
-          />
-          <input
-            ref="filterInputEl"
-            v-model="filterQuery"
-            class="flex-1 px-1 py-0.5 ui-text-xs outline-none bg-transparent"
-            style="color: var(--fg-primary)"
-            :placeholder="t('Filter files...')"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-            @keydown="handleFilterKeydown"
-          />
-          <span
-            v-if="filterQuery"
-            class="ui-text-micro tabular-nums shrink-0 mr-0.5"
-            style="color: var(--fg-muted)"
-          >
-            {{ filterMatches.length }}
-          </span>
-          <button
-            class="w-4 h-4 flex items-center justify-center shrink-0 rounded hover:opacity-80"
-            style="color: var(--fg-muted)"
-            @click="closeFilter"
-          >
-            <IconX :size="12" :stroke-width="1.5" />
-          </button>
-        </div>
+          <template #prefix>
+            <IconSearch :size="12" :stroke-width="1.5" class="file-tree-filter-icon" />
+          </template>
+          <template #suffix>
+            <span v-if="filterQuery" class="file-tree-filter-count ui-text-micro tabular-nums">
+              {{ filterMatches.length }}
+            </span>
+            <UiButton
+              class="file-tree-filter-close"
+              variant="ghost"
+              size="icon-xs"
+              icon-only
+              :title="t('Close')"
+              :aria-label="t('Close')"
+              @click="closeFilter"
+            >
+              <IconX :size="12" :stroke-width="1.5" />
+            </UiButton>
+          </template>
+        </UiInput>
       </div>
 
       <!-- Tree -->
@@ -122,19 +125,13 @@
         <!-- Inline input for new file at root level -->
         <div
           v-if="renaming.active && renaming.isNew && renaming.parentDir === workspace.path"
-          class="flex items-center py-0.5 px-1"
-          style="padding-left: 28px"
+          class="file-tree-root-rename-row flex items-center py-0.5 px-1"
         >
-          <input
+          <UiInput
             ref="renameInput"
             v-model="renaming.value"
-            class="w-full px-1 py-0.5 rounded border outline-none"
-            style="
-              background: var(--bg-tertiary);
-              color: var(--fg-primary);
-              border-color: var(--accent);
-              font-size: var(--ui-font-label);
-            "
+            size="sm"
+            shell-class="file-tree-rename-input"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
@@ -184,41 +181,41 @@
         <!-- External drop zone indicator (root level) -->
         <div
           v-if="externalDragOver"
-          class="mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
-          style="border-color: var(--accent); color: var(--accent); opacity: 0.6"
+          class="file-tree-drop-indicator mx-2 my-1 py-2 rounded border-2 border-dashed text-center ui-text-xs"
         >
           {{ t('Drop files here') }}
         </div>
 
         <div
           v-if="filterActive && filterQuery && filterMatches.length === 0"
-          class="px-3 py-4 ui-text-xs"
-          style="color: var(--fg-muted)"
+          class="file-tree-empty-state px-3 py-4 ui-text-xs"
         >
           {{ t('No matches') }}
         </div>
         <div
           v-else-if="visibleRows.length === 0 && !renaming.active"
-          class="px-3 py-4 ui-text-xs"
-          style="color: var(--fg-muted)"
+          class="file-tree-empty-state px-3 py-4 ui-text-xs"
         >
           {{ t('No files yet') }}
         </div>
       </div>
 
       <div class="workspace-footer-action">
-        <button
+        <UiButton
           ref="workspaceMenuAnchorEl"
-          type="button"
           class="workspace-footer-action-button"
+          variant="ghost"
+          size="sm"
+          block
           :title="t('Workspace Menu')"
+          :aria-label="t('Workspace Menu')"
           @click.stop="toggleWorkspaceMenu"
         >
-          <span class="workspace-footer-action-label">{{ t('Open Folder...') }}</span>
-          <span class="workspace-footer-action-kebab">
+          {{ t('Open Folder...') }}
+          <template #trailing>
             <IconDotsVertical :size="16" :stroke-width="1.7" />
-          </span>
-        </button>
+          </template>
+        </UiButton>
       </div>
 
       <!-- Context menu -->
@@ -245,7 +242,7 @@
           <div class="context-menu" :style="workspaceMenuStyle">
             <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
               {{ t('Open Folder...') }}
-              <span class="context-menu-ext" style="opacity: 1">{{ modKey }}+O</span>
+              <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }}+O</span>
             </div>
             <template v-if="recentWorkspaces.length">
               <div class="context-menu-separator"></div>
@@ -337,6 +334,8 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import FileTreeItem from './FileTreeItem.vue'
 import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
 import {
   IconSearch,
   IconX,
@@ -778,6 +777,62 @@ defineExpose({
 </script>
 
 <style scoped>
+.file-tree-shell {
+  background: var(--bg-primary);
+}
+
+.file-tree-header {
+  color: var(--text-muted);
+}
+
+.file-tree-header--with-divider {
+  border-bottom: 1px solid var(--border);
+}
+
+.file-tree-chevron {
+  transition: transform 0.1s ease;
+}
+
+.file-tree-chevron-open {
+  transform: rotate(90deg);
+}
+
+.file-tree-filter-input {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+
+.file-tree-filter-icon,
+.file-tree-filter-count {
+  color: var(--text-muted);
+}
+
+.file-tree-filter-close {
+  margin-left: var(--space-1);
+}
+
+.file-tree-root-rename-row {
+  padding-left: 28px;
+}
+
+.file-tree-rename-input {
+  font-size: var(--ui-font-label);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+
+.file-tree-drop-indicator {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+.file-tree-empty-state {
+  color: var(--text-muted);
+}
+
+.file-tree-workspace-shortcut {
+  opacity: 1;
+}
+
 .workspace-footer-action {
   flex-shrink: 0;
   padding: 0;
@@ -787,28 +842,14 @@ defineExpose({
 
 .workspace-footer-action-button {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
   min-height: 24px;
-  padding: 0 36px;
+  padding-inline: 36px;
   border: none;
-  background: transparent;
+  border-radius: 0;
   color: var(--fg-secondary);
-  cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
 }
 
-.workspace-footer-action-button:hover {
-  background: color-mix(in srgb, var(--bg-hover) 42%, transparent);
-  color: var(--fg-primary);
-}
-
-.workspace-footer-action-label {
-  display: block;
+.workspace-footer-action-button :deep(.ui-button-label) {
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -819,17 +860,18 @@ defineExpose({
   line-height: 1;
 }
 
-.workspace-footer-action-kebab {
+.workspace-footer-action-button :deep(.ui-button-trailing) {
   position: absolute;
   right: 12px;
   top: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
   width: 18px;
   height: 18px;
   color: var(--fg-muted);
   transform: translateY(-50%);
+}
+
+.workspace-footer-action-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-hover) 42%, transparent);
+  color: var(--fg-primary);
 }
 </style>

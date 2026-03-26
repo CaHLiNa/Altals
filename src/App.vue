@@ -127,7 +127,11 @@
 
     <WorkspaceSnapshotBrowser
       :visible="workspaceSnapshotBrowserVisible"
+      :creating-snapshot="creatingWorkspaceSnapshot"
+      :create-feedback="workspaceSnapshotBrowserFeedback"
+      :refresh-token="workspaceSnapshotBrowserRefreshToken"
       @close="workspaceSnapshotBrowserVisible = false"
+      @create-snapshot="handleCreateWorkspaceSnapshot"
     />
 
     <!-- File Version History Modal -->
@@ -223,7 +227,10 @@ const footerRef = ref(null)
 const headerRef = ref(null)
 const leftSidebarRef = ref(null)
 const bottomPanelRef = ref(null)
+const creatingWorkspaceSnapshot = ref(false)
+const workspaceSnapshotBrowserRefreshToken = ref(0)
 const workspaceSnapshotBrowserVisible = ref(false)
+const workspaceSnapshotBrowserFeedback = ref(null)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
@@ -291,6 +298,61 @@ const { createSnapshot, openWorkspaceSnapshots, openFileVersionHistory } =
     fileVersionHistoryFile,
     t,
   })
+
+async function handleCreateWorkspaceSnapshot() {
+  if (creatingWorkspaceSnapshot.value) {
+    return
+  }
+
+  creatingWorkspaceSnapshot.value = true
+  try {
+    const result = await createSnapshot({
+      requestSnapshotLabel: null,
+      allowLocalSavePointWhenUnchanged: true,
+      showNoChanges: () => {},
+      showCommitFailure: () => {},
+    })
+    if (result?.snapshot) {
+      workspaceSnapshotBrowserRefreshToken.value += 1
+    }
+    workspaceSnapshotBrowserFeedback.value = buildWorkspaceSnapshotBrowserFeedback(result)
+  } finally {
+    creatingWorkspaceSnapshot.value = false
+  }
+}
+
+function buildWorkspaceSnapshotBrowserFeedback(result) {
+  const id = Date.now()
+  if (result?.reason === 'created-local-save-point') {
+    return {
+      id,
+      title: t('Save point added'),
+      message: t('Added a local workspace save point without new file changes.'),
+    }
+  }
+
+  if (result?.snapshot) {
+    return {
+      id,
+      title: t('Save point added'),
+      message: t('Added a new workspace save point to Saved Versions.'),
+    }
+  }
+
+  if (result?.reason === 'no-changes') {
+    return {
+      id,
+      title: t('Nothing new to save'),
+      message: t('There were no file changes to capture for a new workspace save point.'),
+    }
+  }
+
+  return {
+    id,
+    title: t('Could not add save point'),
+    message: t('Altals could not create a new workspace save point this time.'),
+  }
+}
 const { onCursorChange, onEditorStats } = useFooterStatusSync({
   footerRef,
   editorStore,

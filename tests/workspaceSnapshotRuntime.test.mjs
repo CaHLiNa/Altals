@@ -62,9 +62,7 @@ test('workspace snapshot runtime lists file history through the explicit lower g
     versionHistoryRuntime: {
       loadFileHistory: async ({ workspacePath, filePath }) => {
         calls.push(['loadFileHistory', workspacePath, filePath])
-        return [
-          { hash: 'abc123', date: '2026-03-22T10:11:00Z', message: 'Save: 2026-03-22 10:11' },
-        ]
+        return [{ hash: 'abc123', date: '2026-03-22T10:11:00Z', message: 'Save: 2026-03-22 10:11' }]
       },
     },
   })
@@ -74,9 +72,7 @@ test('workspace snapshot runtime lists file history through the explicit lower g
     filePath: '/workspace/demo/draft.md',
   })
 
-  assert.deepEqual(calls, [
-    ['loadFileHistory', '/workspace/demo', '/workspace/demo/draft.md'],
-  ])
+  assert.deepEqual(calls, [['loadFileHistory', '/workspace/demo', '/workspace/demo/draft.md']])
   assert.deepEqual(result, [
     {
       id: 'git:abc123',
@@ -95,6 +91,34 @@ test('workspace snapshot runtime lists file history through the explicit lower g
   ])
 })
 
+test('workspace snapshot runtime filters hidden file-history entries through the local visibility index', async () => {
+  const runtime = createWorkspaceSnapshotRuntime({
+    versionHistoryRuntime: {
+      loadFileHistory: async () => [
+        { hash: 'abc123', date: '2026-03-22T10:11:00Z', message: 'Save: 2026-03-22 10:11' },
+        { hash: 'def456', date: '2026-03-22T10:12:00Z', message: 'Save: 2026-03-22 10:12' },
+      ],
+    },
+    historyVisibilityRuntime: {
+      filterVisibleEntries: async ({ workspaceDataDir, snapshots }) => {
+        assert.equal(workspaceDataDir, '/workspace/.altals')
+        return snapshots.filter((snapshot) => snapshot.sourceId !== 'abc123')
+      },
+    },
+  })
+
+  const result = await runtime.listFileVersionHistoryEntries({
+    workspacePath: '/workspace/demo',
+    workspaceDataDir: '/workspace/.altals',
+    filePath: '/workspace/demo/draft.md',
+  })
+
+  assert.deepEqual(
+    result.map((snapshot) => snapshot.sourceId),
+    ['def456']
+  )
+})
+
 test('workspace snapshot runtime lists only manifest-backed workspace save points in the explicit repo-wide feed', async () => {
   const calls = []
   const runtime = createWorkspaceSnapshotRuntime({
@@ -105,38 +129,44 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
       },
       syncWorkspaceSavePointEntries: async ({ workspaceDataDir, snapshots }) => {
         calls.push(['syncWorkspaceSavePointEntries', workspaceDataDir, snapshots.length])
-        return [{
-          id: 'local:workspace:workspace123',
-          backend: 'local',
-          sourceKind: 'workspace-save-point',
-          sourceId: 'workspace123',
-          scope: 'workspace',
-          filePath: '',
-          kind: 'named',
-          label: 'Draft 3 ready',
-          message: 'Draft 3 ready',
-          rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
-          createdAt: '2026-03-22T10:13:00.000Z',
-          manifest: {
-            version: 1,
+        return [
+          {
+            id: 'local:workspace:workspace123',
+            backend: 'local',
+            sourceKind: 'workspace-save-point',
+            sourceId: 'workspace123',
             scope: 'workspace',
+            filePath: '',
             kind: 'named',
+            label: 'Draft 3 ready',
+            message: 'Draft 3 ready',
+            rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+            createdAt: '2026-03-22T10:13:00.000Z',
+            manifest: {
+              version: 1,
+              scope: 'workspace',
+              kind: 'named',
+            },
+            payload: {
+              manifestPath: '/workspace/.altals/snapshots/payloads/workspace123/manifest.json',
+              fileCount: 2,
+              skippedCount: 1,
+              capturedAt: '2026-03-22T10:13:10Z',
+              captureScope: 'project-text-set',
+            },
           },
-          payload: {
-            manifestPath: '/workspace/.altals/snapshots/payloads/workspace123/manifest.json',
-            fileCount: 2,
-            skippedCount: 1,
-            capturedAt: '2026-03-22T10:13:10Z',
-            captureScope: 'project-text-set',
-          },
-        }]
+        ]
       },
     },
     versionHistoryRuntime: {
       loadWorkspaceHistory: async ({ workspacePath, limit }) => {
         calls.push(['loadWorkspaceHistory', workspacePath, limit])
         return [
-          { hash: 'workspace123', date: '2026-03-22T10:13:00Z', message: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]' },
+          {
+            hash: 'workspace123',
+            date: '2026-03-22T10:13:00Z',
+            message: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+          },
           { hash: 'save456', date: '2026-03-22T10:14:00Z', message: 'Save: 2026-03-22 10:14' },
           { hash: 'custom789', date: '2026-03-22T10:15:00Z', message: 'Manual git commit' },
         ]
@@ -185,6 +215,63 @@ test('workspace snapshot runtime lists only manifest-backed workspace save point
   assert.equal(isWorkspaceFeedWorkspaceSnapshot(result[0]), true)
 })
 
+test('workspace snapshot runtime filters hidden workspace save points after merging local and git entries', async () => {
+  const runtime = createWorkspaceSnapshotRuntime({
+    localSnapshotStoreRuntime: {
+      loadWorkspaceSavePointEntries: async () => [
+        {
+          id: 'local:workspace:workspace123',
+          backend: 'local',
+          sourceKind: 'workspace-save-point',
+          sourceId: 'workspace123',
+          scope: 'workspace',
+          filePath: '',
+          kind: 'named',
+          label: 'Draft 3 ready',
+          message: 'Draft 3 ready',
+          rawMessage: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+          createdAt: '2026-03-22T10:13:00.000Z',
+          manifest: {
+            version: 1,
+            scope: 'workspace',
+            kind: 'named',
+          },
+          payload: null,
+        },
+      ],
+      syncWorkspaceSavePointEntries: async ({ snapshots }) => snapshots,
+    },
+    versionHistoryRuntime: {
+      loadWorkspaceHistory: async () => [
+        {
+          hash: 'workspace123',
+          date: '2026-03-22T10:13:00Z',
+          message: 'Draft 3 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+        },
+        {
+          hash: 'workspace456',
+          date: '2026-03-22T10:12:00Z',
+          message: 'Draft 2 ready [[altals-snapshot:v=1;scope=workspace;kind=named]]',
+        },
+      ],
+    },
+    historyVisibilityRuntime: {
+      filterVisibleEntries: async ({ snapshots }) =>
+        snapshots.filter((snapshot) => snapshot.sourceId !== 'workspace123'),
+    },
+  })
+
+  const result = await runtime.listWorkspaceSavePointEntries({
+    workspacePath: '/workspace/demo',
+    workspaceDataDir: '/workspace/.altals',
+  })
+
+  assert.deepEqual(
+    result.map((snapshot) => snapshot.sourceId),
+    ['workspace456']
+  )
+})
+
 test('workspace snapshot runtime loads previews and restores by snapshot source id through explicit file-history entry points', async () => {
   const calls = []
   const runtime = createWorkspaceSnapshotRuntime({
@@ -214,26 +301,29 @@ test('workspace snapshot runtime loads previews and restores by snapshot source 
     createdAt: '2026-03-22T10:11:00Z',
   }
 
-  assert.deepEqual(createWorkspaceSnapshotRecord({
-    entry: {
-      hash: 'zzz999',
-      date: '2026-03-22T10:13:00Z',
+  assert.deepEqual(
+    createWorkspaceSnapshotRecord({
+      entry: {
+        hash: 'zzz999',
+        date: '2026-03-22T10:13:00Z',
+        message: 'Save: 2026-03-22 10:13',
+      },
+    }),
+    {
+      id: 'git:zzz999',
+      backend: 'git',
+      sourceKind: 'git-commit',
+      sourceId: 'zzz999',
+      scope: 'workspace',
+      filePath: '',
+      kind: 'save',
+      label: '',
       message: 'Save: 2026-03-22 10:13',
-    },
-  }), {
-    id: 'git:zzz999',
-    backend: 'git',
-    sourceKind: 'git-commit',
-    sourceId: 'zzz999',
-    scope: 'workspace',
-    filePath: '',
-    kind: 'save',
-    label: '',
-    message: 'Save: 2026-03-22 10:13',
-    rawMessage: 'Save: 2026-03-22 10:13',
-    createdAt: '2026-03-22T10:13:00Z',
-    manifest: null,
-  })
+      rawMessage: 'Save: 2026-03-22 10:13',
+      createdAt: '2026-03-22T10:13:00Z',
+      manifest: null,
+    }
+  )
 
   assert.equal(
     await runtime.loadFileVersionHistoryPreview({
@@ -241,7 +331,7 @@ test('workspace snapshot runtime loads previews and restores by snapshot source 
       filePath: '/workspace/demo/draft.md',
       snapshot,
     }),
-    '# preview',
+    '# preview'
   )
 
   const result = await runtime.restoreFileVersionHistoryEntry({
@@ -316,18 +406,24 @@ test('workspace snapshot runtime blocks preview and restore for workspace-scoped
   })
 
   assert.equal(isFileWorkspaceSnapshot(snapshot), false)
-  assert.equal(await runtime.loadFileVersionHistoryPreview({
-    workspacePath: '/workspace/demo',
-    filePath: '/workspace/demo/draft.md',
-    snapshot,
-  }), '')
-  assert.deepEqual(await runtime.restoreFileVersionHistoryEntry({
-    workspacePath: '/workspace/demo',
-    filePath: '/workspace/demo/draft.md',
-    snapshot,
-  }), {
-    restored: false,
-    reason: 'unsupported-scope',
-  })
+  assert.equal(
+    await runtime.loadFileVersionHistoryPreview({
+      workspacePath: '/workspace/demo',
+      filePath: '/workspace/demo/draft.md',
+      snapshot,
+    }),
+    ''
+  )
+  assert.deepEqual(
+    await runtime.restoreFileVersionHistoryEntry({
+      workspacePath: '/workspace/demo',
+      filePath: '/workspace/demo/draft.md',
+      snapshot,
+    }),
+    {
+      restored: false,
+      reason: 'unsupported-scope',
+    }
+  )
   assert.deepEqual(calls, [])
 })

@@ -123,6 +123,13 @@
           <!-- Action footer -->
           <div class="version-preview-footer">
             <UiButton
+              variant="danger"
+              :disabled="!selectedSnapshot || loading"
+              @click="confirmDeleteVersion"
+            >
+              {{ t('Delete this version') }}
+            </UiButton>
+            <UiButton
               v-if="!isUnsupportedBinary"
               variant="secondary"
               :disabled="!selectedSnapshot || !canCopySelectedSnapshot"
@@ -140,6 +147,20 @@
             </UiButton>
           </div>
         </div>
+
+        <HistoryActionDialog
+          :visible="historyDialog.visible"
+          :title="historyDialog.title"
+          :description="historyDialog.description"
+          :confirm-label="historyDialog.confirmLabel"
+          :cancel-label="historyDialog.cancelLabel"
+          :busy-label="historyDialog.busyLabel"
+          :confirm-variant="historyDialog.confirmVariant"
+          :busy="historyDialog.busy"
+          :show-cancel="historyDialog.showCancel"
+          @close="closeHistoryDialog"
+          @confirm="handleHistoryDialogConfirm"
+        />
       </div>
     </div>
   </Teleport>
@@ -151,6 +172,7 @@ import { IconX } from '@tabler/icons-vue'
 import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { shouldersTheme, shouldersHighlighting } from '../editor/theme'
+import HistoryActionDialog from './shared/HistoryActionDialog.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useFilesStore } from '../stores/files'
 import { useToastStore } from '../stores/toast'
@@ -159,6 +181,7 @@ import {
   shouldResetFileVersionHistoryView,
 } from '../domains/changes/fileVersionHistoryViewRuntime.js'
 import {
+  deleteFileVersionHistoryEntry,
   getWorkspaceSnapshotMetadata,
   isNamedWorkspaceSnapshot,
   listFileVersionHistory,
@@ -191,6 +214,7 @@ const snapshots = ref([])
 const selectedIndex = ref(-1)
 const previewContent = ref('')
 const copyFeedback = ref(false)
+const historyDialog = ref(createEmptyHistoryDialogState())
 
 let previewView = null // CodeMirror instance
 let copyTimer = null
@@ -228,6 +252,7 @@ function resetHistoryState() {
   selectedIndex.value = -1
   previewContent.value = ''
   copyFeedback.value = false
+  historyDialog.value = createEmptyHistoryDialogState()
   destroyPreview()
 }
 
@@ -277,6 +302,7 @@ async function loadHistory() {
   try {
     snapshots.value = await listFileVersionHistory({
       workspacePath: workspace.path,
+      workspaceDataDir: workspace.workspaceDataDir,
       filePath: props.filePath,
       t,
     })
@@ -286,6 +312,141 @@ async function loadHistory() {
     snapshots.value = []
   }
   loading.value = false
+}
+
+function createEmptyHistoryDialogState() {
+  return {
+    visible: false,
+    title: '',
+    description: '',
+    confirmLabel: 'OK',
+    cancelLabel: 'Cancel',
+    busyLabel: 'Working...',
+    confirmVariant: 'primary',
+    showCancel: true,
+    busy: false,
+    onConfirm: null,
+  }
+}
+
+function openHistoryNotice({ title = '', description = '' } = {}) {
+  historyDialog.value = {
+    ...createEmptyHistoryDialogState(),
+    visible: true,
+    title,
+    description,
+    confirmLabel: t('OK'),
+    busyLabel: t('Working...'),
+    showCancel: false,
+  }
+}
+
+function openHistoryConfirm({
+  title = '',
+  description = '',
+  confirmLabel = '',
+  confirmVariant = 'danger',
+  onConfirm = null,
+} = {}) {
+  historyDialog.value = {
+    ...createEmptyHistoryDialogState(),
+    visible: true,
+    title,
+    description,
+    confirmLabel: confirmLabel || t('Delete'),
+    cancelLabel: t('Cancel'),
+    busyLabel: t('Deleting...'),
+    confirmVariant,
+    showCancel: true,
+    onConfirm,
+  }
+}
+
+function closeHistoryDialog() {
+  if (historyDialog.value.busy) {
+    return
+  }
+  historyDialog.value = createEmptyHistoryDialogState()
+}
+
+async function handleHistoryDialogConfirm() {
+  if (!historyDialog.value.visible) {
+    return
+  }
+
+  const onConfirm = historyDialog.value.onConfirm
+  if (typeof onConfirm !== 'function') {
+    closeHistoryDialog()
+    return
+  }
+
+  historyDialog.value = {
+    ...historyDialog.value,
+    busy: true,
+  }
+  await onConfirm()
+}
+
+function confirmDeleteVersion() {
+  const snapshot = selectedSnapshot.value
+  if (!snapshot) {
+    return
+  }
+
+  openHistoryConfirm({
+    title: t('Delete version'),
+    description: t(
+      'Delete the selected file history entry from Altals? This removes it from File Version History without rewriting Git history.'
+    ),
+    confirmLabel: t('Delete this version'),
+    onConfirm: deleteSelectedVersion,
+  })
+}
+
+async function deleteSelectedVersion() {
+  const snapshot = selectedSnapshot.value
+  if (!snapshot || !workspace.workspaceDataDir) {
+    closeHistoryDialog()
+    return
+  }
+
+  const previousIndex = selectedIndex.value
+  try {
+    const result = await deleteFileVersionHistoryEntry({
+      workspace,
+      filePath: props.filePath,
+      snapshot,
+    })
+    if (!result?.deleted) {
+      openHistoryNotice({
+        title: t('Could not delete version'),
+        description: t(
+          'Altals could not remove the selected file history entry from this history list.'
+        ),
+      })
+      return
+    }
+
+    await loadHistory()
+    if (snapshots.value.length > 0) {
+      selectedIndex.value = Math.min(previousIndex, snapshots.value.length - 1)
+      await selectVersion(selectedIndex.value)
+    }
+    openHistoryNotice({
+      title: t('Version deleted'),
+      description: t(
+        'Removed the selected file history entry from Altals File Version History without rewriting Git history.'
+      ),
+    })
+  } catch (error) {
+    console.error('Failed to delete file history entry:', error)
+    openHistoryNotice({
+      title: t('Could not delete version'),
+      description: t(
+        'Altals could not remove the selected file history entry from this history list.'
+      ),
+    })
+  }
 }
 
 async function selectVersion(idx) {

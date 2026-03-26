@@ -76,7 +76,45 @@ const ZH_MESSAGES = {
   Hide: '隐藏',
   Show: '显示',
   Saved: '已保存',
+  OK: '确定',
+  Cancel: '取消',
+  'Working...': '处理中...',
+  'Deleting...': '删除中...',
   'Saved versions': '已保存版本',
+  'Add save point': '新增保存点',
+  'Save point added': '已新增保存点',
+  'Added a local workspace save point without new file changes.':
+    '已新增一个本地工作区保存点，没有生成新的文件改动。',
+  'Added a new workspace save point to Saved Versions.': '已把新的工作区保存点加入已保存版本。',
+  'Nothing new to save': '没有新的内容可保存',
+  'There were no file changes to capture for a new workspace save point.':
+    '当前没有新的文件改动可供创建新的工作区保存点。',
+  'Could not add save point': '无法新增保存点',
+  'Altals could not create a new workspace save point this time.':
+    '这次 Altals 无法创建新的工作区保存点。',
+  'Delete this save point': '删除这个保存点',
+  'Delete save point': '删除保存点',
+  'Delete the local workspace save point from {date}? This removes it from Altals.':
+    '要删除 {date} 的本地工作区保存点吗？这会把它从 Altals 里移除。',
+  'Delete the selected save point from Saved Versions? This removes it from Altals without rewriting Git history.':
+    '要从已保存版本里删除这个保存点吗？这只会把它从 Altals 里移除，不会改写 Git 历史。',
+  'Could not delete save point': '无法删除保存点',
+  'Altals could not remove the selected save point from this history list.':
+    'Altals 无法从这个历史列表里移除所选保存点。',
+  'Save point deleted': '保存点已删除',
+  'Deleted the local workspace save point from Altals.': '已从 Altals 删除这个本地工作区保存点。',
+  'Removed the selected save point from Altals Saved Versions without rewriting Git history.':
+    '已从 Altals 的已保存版本里移除所选保存点，没有改写 Git 历史。',
+  'Delete this version': '删除这个版本',
+  'Delete version': '删除版本',
+  'Delete the selected file history entry from Altals? This removes it from File Version History without rewriting Git history.':
+    '要从 Altals 删除这个文件历史条目吗？这只会把它从文件历史里移除，不会改写 Git 历史。',
+  'Could not delete version': '无法删除版本',
+  'Altals could not remove the selected file history entry from this history list.':
+    'Altals 无法从这个历史列表里移除所选文件历史条目。',
+  'Version deleted': '版本已删除',
+  'Removed the selected file history entry from Altals File Version History without rewriting Git history.':
+    '已从 Altals 的文件历史里移除所选条目，没有改写 Git 历史。',
   "Don't Save": '不保存',
   'Save Keys': '保存密钥',
   'Restart chat to use new keys': '重启聊天后新密钥才会生效',
@@ -263,15 +301,22 @@ const ZH_MESSAGES = {
   'Jump to Source': '跳到源码',
   'No saved versions yet': '还没有已保存版本',
   'Create one with Save first, then browse it here.': '先执行一次保存，再来这里浏览工作区保存点。',
+  'Create one here, or use Save and browse it here.':
+    '可以直接在这里新增一个保存点，或者先保存后再回来浏览。',
   'Select a saved version': '选择一个已保存版本',
   'Choose a workspace save point on the left.': '在左侧选择一个工作区保存点。',
   'Workspace save point': '工作区保存点',
   'Named save point': '命名保存点',
   'Saved automatically through the normal save flow': '通过正常保存流程创建的保存点',
+  'Saved locally without new file changes': '在没有新文件改动时本地创建的保存点',
   'This browser lists workspace-level save points separately from File Version History.':
     '这里单独列出工作区级保存点，不与文件版本历史混在一起。',
   'Workspace save points are still Git-backed milestones, not a separate local snapshot backend.':
     '这些工作区保存点目前仍然由 Git 支撑，还不是独立的本地 snapshot 后端。',
+  'Workspace save points use a local Altals index and reuse Git-backed milestones when available.':
+    '工作区保存点使用本地 Altals 索引，并在可用时复用底层的 Git 里程碑。',
+  'This save point was created locally without a new Git milestone because the workspace had no file changes.':
+    '这个保存点是在工作区没有新文件改动时本地创建的，因此没有额外生成新的 Git 里程碑。',
   'Restore is not available here yet. Use File Version History for per-file restores.':
     '这里暂时还不能直接恢复。按文件恢复请使用文件版本历史。',
   'Show problems': '展开问题',
@@ -393,7 +438,6 @@ const ZH_MESSAGES = {
   'Open a folder to get started, or clone an existing project.':
     '打开一个文件夹开始使用，或克隆一个已有项目。',
   Clone: '克隆',
-  Cancel: '取消',
   Recent: '最近',
   'Remove from recent': '从最近列表移除',
   'Connect a provider to use AI features': '连接提供商以启用 AI 功能',

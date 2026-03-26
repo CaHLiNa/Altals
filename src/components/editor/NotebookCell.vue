@@ -17,41 +17,138 @@
       <div class="cell-toolbar-left">
         <!-- Execution count (code cells only) -->
         <span v-if="cell.type === 'code'" class="exec-count" :class="{ 'exec-running': running }">
-          [{{ running ? '*' : (cell.executionCount || ' ') }}]
+          [{{ running ? '*' : cell.executionCount || ' ' }}]
         </span>
         <!-- Type badge -->
-        <span class="cell-type-badge">{{ cell.type === 'code' ? t('Code') : (isZh ? '文' : 'Md') }}</span>
+        <span class="cell-type-badge">{{
+          cell.type === 'code' ? t('Code') : isZh ? '文' : 'Md'
+        }}</span>
       </div>
       <div class="cell-toolbar-right" v-if="!hasPendingState">
-        <button v-if="cell.type === 'code'" class="cell-btn cell-btn-run" @click.stop="$emit('run')" :title="t('Run cell ({shortcut})', { shortcut: 'Shift+Enter' })">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>
-        </button>
-        <button class="cell-btn" @click.stop="$emit('add-above')" :title="t('Add cell above')">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
+        <UiButton
+          v-if="cell.type === 'code'"
+          class="cell-toolbar-button cell-toolbar-button-run"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Run cell ({shortcut})', { shortcut: 'Shift+Enter' })"
+          :aria-label="t('Run cell ({shortcut})', { shortcut: 'Shift+Enter' })"
+          @click.stop="$emit('run')"
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <polygon points="4,2 14,8 4,14" />
           </svg>
-          <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor"><path d="M4 1L1 5h6z"/></svg>
-        </button>
-        <button class="cell-btn" @click.stop="$emit('add-below')" :title="t('Add cell below')">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Add cell above')"
+          :aria-label="t('Add cell above')"
+          @click.stop="$emit('add-above')"
+        >
+          <span class="cell-toolbar-button-stack">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <line x1="8" y1="3" x2="8" y2="13" />
+              <line x1="3" y1="8" x2="13" y2="8" />
+            </svg>
+            <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor">
+              <path d="M4 1L1 5h6z" />
+            </svg>
+          </span>
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Add cell below')"
+          :aria-label="t('Add cell below')"
+          @click.stop="$emit('add-below')"
+        >
+          <span class="cell-toolbar-button-stack">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+            >
+              <line x1="8" y1="3" x2="8" y2="13" />
+              <line x1="3" y1="8" x2="13" y2="8" />
+            </svg>
+            <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor">
+              <path d="M4 7L1 3h6z" />
+            </svg>
+          </span>
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button cell-toolbar-button-type"
+          variant="ghost"
+          size="sm"
+          :title="t('Toggle code/markdown')"
+          :aria-label="t('Toggle code/markdown')"
+          @click.stop="$emit('toggle-type')"
+        >
+          {{ cell.type === 'code' ? 'M↓' : markdownToggleLabel }}
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :disabled="index === 0"
+          :title="t('Move up')"
+          :aria-label="t('Move up')"
+          @click.stop="$emit('move-up')"
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 3L3 9h10z" />
           </svg>
-          <svg width="6" height="6" viewBox="0 0 8 8" fill="currentColor"><path d="M4 7L1 3h6z"/></svg>
-        </button>
-        <button class="cell-btn" @click.stop="$emit('toggle-type')" :title="t('Toggle code/markdown')">
-          {{ cell.type === 'code' ? 'M↓' : '</>' }}
-        </button>
-        <button class="cell-btn" @click.stop="$emit('move-up')" :disabled="index === 0" :title="t('Move up')">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3L3 9h10z"/></svg>
-        </button>
-        <button class="cell-btn" @click.stop="$emit('move-down')" :title="t('Move down')">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 13L3 7h10z"/></svg>
-        </button>
-        <button class="cell-btn cell-btn-delete" @click.stop="$emit('delete')" :title="t('Delete cell')">
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Move down')"
+          :aria-label="t('Move down')"
+          @click.stop="$emit('move-down')"
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 13L3 7h10z" />
           </svg>
-        </button>
+        </UiButton>
+        <UiButton
+          class="cell-toolbar-button cell-toolbar-button-delete"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Delete cell')"
+          :aria-label="t('Delete cell')"
+          @click.stop="$emit('delete')"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <line x1="3" y1="3" x2="13" y2="13" />
+            <line x1="13" y1="3" x2="3" y2="13" />
+          </svg>
+        </UiButton>
       </div>
     </div>
 
@@ -68,7 +165,11 @@
 
     <!-- Output area (code cells only) -->
     <ExecutionResultCard
-      v-if="cell.type === 'code' && !pendingAdd && ((cell.outputs && cell.outputs.length > 0) || resultStatus !== 'idle')"
+      v-if="
+        cell.type === 'code' &&
+        !pendingAdd &&
+        ((cell.outputs && cell.outputs.length > 0) || resultStatus !== 'idle')
+      "
       :outputs="cell.outputs"
       :tone="resultTone"
       :status-text="resultStatusText"
@@ -82,17 +183,48 @@
     <!-- Review action bar (visible when any pending state) -->
     <div v-if="hasPendingState" class="cell-review-bar">
       <span class="cell-review-label">
-        {{ pendingAdd ? t('New cell') : pendingDelete ? t('Cell will be deleted') : t('Cell edited') }}
+        {{
+          pendingAdd ? t('New cell') : pendingDelete ? t('Cell will be deleted') : t('Cell edited')
+        }}
       </span>
       <div class="cell-review-actions">
-        <button class="review-bar-btn review-bar-accept" @click.stop="$emit('accept-edit', editId)">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,8 7,12 13,4"/></svg>
+        <UiButton
+          class="cell-review-action cell-review-action-accept"
+          variant="secondary"
+          size="sm"
+          @click.stop="$emit('accept-edit', editId)"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polyline points="3,8 7,12 13,4" />
+          </svg>
           {{ t('Accept') }}
-        </button>
-        <button class="review-bar-btn review-bar-reject" @click.stop="$emit('reject-edit', editId)">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+        </UiButton>
+        <UiButton
+          class="cell-review-action cell-review-action-reject"
+          variant="secondary"
+          size="sm"
+          @click.stop="$emit('reject-edit', editId)"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="3" y1="3" x2="13" y2="13" />
+            <line x1="13" y1="3" x2="3" y2="13" />
+          </svg>
           {{ t('Reject') }}
-        </button>
+        </UiButton>
       </div>
     </div>
   </div>
@@ -110,6 +242,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import ExecutionResultCard from './ExecutionResultCard.vue'
 import { computeMinimalChange } from '../../utils/textDiff'
+import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
   cell: { type: Object, required: true },
@@ -131,15 +264,27 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'focus', 'run', 'delete', 'move-up', 'move-down',
-  'toggle-type', 'add-above', 'add-below', 'content-change',
-  'accept-edit', 'reject-edit', 'insert-result',
+  'focus',
+  'run',
+  'delete',
+  'move-up',
+  'move-down',
+  'toggle-type',
+  'add-above',
+  'add-below',
+  'content-change',
+  'accept-edit',
+  'reject-edit',
+  'insert-result',
 ])
 
-const hasPendingState = computed(() => !!props.pendingEdit || props.pendingDelete || props.pendingAdd)
+const hasPendingState = computed(
+  () => !!props.pendingEdit || props.pendingDelete || props.pendingAdd
+)
 
 const workspace = useWorkspaceStore()
 const { t, isZh } = useI18n()
+const markdownToggleLabel = '</>'
 
 const editorContainer = ref(null)
 const editing = ref(false) // for markdown cells: edit mode
@@ -150,15 +295,12 @@ const renderedMarkdown = computed(() => {
   const c = props.cell
   if (c.type !== 'markdown') return ''
   const src = c.source || ''
-  if (!src.trim()) return `<p style="color: var(--fg-muted); font-style: italic;">${t('Double-click to edit')}</p>`
+  if (!src.trim()) return `<p class="cell-markdown-empty">${t('Double-click to edit')}</p>`
   return renderSimpleMarkdown(src)
 })
 
 function renderSimpleMarkdown(text) {
-  let html = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   // Headers
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
@@ -183,16 +325,15 @@ function renderSimpleMarkdown(text) {
 
 async function loadLanguage() {
   const langName = props.language || 'python'
-  const matched = languages.filter(l =>
-    l.name.toLowerCase() === langName ||
-    (l.extensions && l.extensions.includes(langName))
+  const matched = languages.filter(
+    (l) => l.name.toLowerCase() === langName || (l.extensions && l.extensions.includes(langName))
   )
   if (matched.length > 0) {
     return await matched[0].load()
   }
   // Fallback: try by alias
-  const byAlias = languages.filter(l =>
-    l.alias && l.alias.some(a => a.toLowerCase() === langName)
+  const byAlias = languages.filter(
+    (l) => l.alias && l.alias.some((a) => a.toLowerCase() === langName)
   )
   if (byAlias.length > 0) {
     return await byAlias[0].load()
@@ -210,34 +351,36 @@ async function mountEditor() {
   const langExt = await loadLanguage()
   const extraExtensions = [
     // Shift+Enter / Cmd+Enter = run cell (Prec.highest to beat defaultKeymap's Mod-Enter → insertBlankLine)
-    Prec.highest(keymap.of([
-      {
-        key: 'Shift-Enter',
-        run: () => {
-          syncContent()
-          emit('run')
-          return true
-        },
-      },
-      {
-        key: 'Mod-Enter',
-        run: () => {
-          syncContent()
-          emit('run')
-          return true
-        },
-      },
-      {
-        key: 'Escape',
-        run: () => {
-          if (props.cell.type === 'markdown') {
+    Prec.highest(
+      keymap.of([
+        {
+          key: 'Shift-Enter',
+          run: () => {
             syncContent()
-            editing.value = false
-          }
-          return true
+            emit('run')
+            return true
+          },
         },
-      },
-    ])),
+        {
+          key: 'Mod-Enter',
+          run: () => {
+            syncContent()
+            emit('run')
+            return true
+          },
+        },
+        {
+          key: 'Escape',
+          run: () => {
+            if (props.cell.type === 'markdown') {
+              syncContent()
+              editing.value = false
+            }
+            return true
+          },
+        },
+      ])
+    ),
     // Sync content on blur
     EditorView.domEventHandlers({
       blur: () => {
@@ -251,7 +394,7 @@ async function mountEditor() {
     ghostSuggestionExtension(
       () => workspace,
       () => workspace.systemPrompt,
-      { isEnabled: () => workspace.ghostEnabled, getInstructions: () => workspace.instructions },
+      { isEnabled: () => workspace.ghostEnabled, getInstructions: () => workspace.instructions }
     ),
     // Merge view for review diffs
     mergeViewExtension(),
@@ -315,41 +458,51 @@ onUnmounted(() => {
 })
 
 // Watch for external source changes (e.g., AI tool edits)
-watch(() => props.cell.source, (newSource) => {
-  if (!view) return
-  const current = view.state.doc.toString()
-  const change = computeMinimalChange(current, newSource)
-  if (change) {
-    view.dispatch({ changes: change })
+watch(
+  () => props.cell.source,
+  (newSource) => {
+    if (!view) return
+    const current = view.state.doc.toString()
+    const change = computeMinimalChange(current, newSource)
+    if (change) {
+      view.dispatch({ changes: change })
+    }
   }
-})
+)
 
 // Watch pendingEdit to activate/deactivate merge view
-watch(() => props.pendingEdit, (edit) => {
-  if (!view) return
-  if (edit) {
-    // Show merge view: set editor content to new_source, show diff against old_source
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: edit.new_source },
-    })
-    reconfigureMergeView(view, edit.old_source)
-  } else {
-    reconfigureMergeView(view, null)
-  }
-}, { immediate: true })
+watch(
+  () => props.pendingEdit,
+  (edit) => {
+    if (!view) return
+    if (edit) {
+      // Show merge view: set editor content to new_source, show diff against old_source
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: edit.new_source },
+      })
+      reconfigureMergeView(view, edit.old_source)
+    } else {
+      reconfigureMergeView(view, null)
+    }
+  },
+  { immediate: true }
+)
 
 // Watch cell type changes (toggling code/markdown)
-watch(() => props.cell.type, () => {
-  if (view) {
-    syncContent()
-    view.destroy()
-    view = null
+watch(
+  () => props.cell.type,
+  () => {
+    if (view) {
+      syncContent()
+      view.destroy()
+      view = null
+    }
+    editing.value = false
+    if (props.cell.type === 'code') {
+      nextTick(() => mountEditor())
+    }
   }
-  editing.value = false
-  if (props.cell.type === 'code') {
-    nextTick(() => mountEditor())
-  }
-})
+)
 
 defineExpose({
   focus() {
@@ -357,7 +510,9 @@ defineExpose({
     else if (props.cell.type === 'markdown') startEditing()
   },
   syncContent,
-  getView() { return view },
+  getView() {
+    return view
+  },
   getSelection() {
     if (!view) return null
     const sel = view.state.selection.main
@@ -436,43 +591,39 @@ defineExpose({
   background: var(--bg-secondary);
 }
 
-.cell-btn {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  padding: 2px 4px;
-  border: none;
-  background: transparent;
-  color: var(--fg-muted);
-  cursor: pointer;
-  border-radius: 3px;
-  font-size: var(--ui-font-micro);
-  line-height: 1;
-  transition: background 0.1s, color 0.1s;
+.cell-toolbar-button {
+  color: var(--text-muted);
 }
 
-.cell-btn:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
+.cell-toolbar-button:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
-.cell-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.cell-btn-run {
+.cell-toolbar-button-run {
   color: var(--success, #50fa7b);
 }
 
-.cell-btn-run:hover {
+.cell-toolbar-button-run:hover:not(:disabled) {
   color: var(--success, #50fa7b);
-  background: rgba(80, 250, 123, 0.1);
+  background: color-mix(in srgb, var(--success, #50fa7b) 10%, transparent);
 }
 
-.cell-btn-delete:hover {
+.cell-toolbar-button-delete:hover:not(:disabled) {
   color: var(--error, #ff5555);
-  background: rgba(255, 85, 85, 0.1);
+  background: color-mix(in srgb, var(--error, #ff5555) 10%, transparent);
+}
+
+.cell-toolbar-button-type {
+  min-width: 36px;
+  padding-inline: var(--space-2);
+}
+
+.cell-toolbar-button-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
 }
 
 /* Pending review states */
@@ -521,36 +672,27 @@ defineExpose({
   gap: 6px;
 }
 
-.review-bar-btn {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  font-size: var(--ui-font-caption);
-  cursor: pointer;
-  transition: all 0.15s;
+.cell-review-action {
+  gap: var(--space-1);
 }
 
-.review-bar-accept {
+.cell-review-action-accept {
   color: var(--success, #50fa7b);
-  border-color: rgba(80, 250, 123, 0.3);
+  border-color: color-mix(in srgb, var(--success, #50fa7b) 30%, var(--border));
 }
 
-.review-bar-accept:hover {
-  background: rgba(80, 250, 123, 0.1);
+.cell-review-action-accept:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--success, #50fa7b) 10%, transparent);
   border-color: var(--success, #50fa7b);
 }
 
-.review-bar-reject {
+.cell-review-action-reject {
   color: var(--error, #f7768e);
-  border-color: rgba(247, 118, 142, 0.3);
+  border-color: color-mix(in srgb, var(--error, #f7768e) 30%, var(--border));
 }
 
-.review-bar-reject:hover {
-  background: rgba(247, 118, 142, 0.1);
+.cell-review-action-reject:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error, #f7768e) 10%, transparent);
   border-color: var(--error, #f7768e);
 }
 
@@ -582,10 +724,28 @@ defineExpose({
   border-radius: 4px;
 }
 
-.cell-markdown-rendered :deep(h1) { font-size: 1.5em; font-weight: 600; margin: 0.3em 0; }
-.cell-markdown-rendered :deep(h2) { font-size: 1.3em; font-weight: 600; margin: 0.3em 0; }
-.cell-markdown-rendered :deep(h3) { font-size: 1.1em; font-weight: 600; margin: 0.3em 0; }
-.cell-markdown-rendered :deep(p) { margin: 0.4em 0; }
+.cell-markdown-rendered :deep(h1) {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 0.3em 0;
+}
+.cell-markdown-rendered :deep(h2) {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0.3em 0;
+}
+.cell-markdown-rendered :deep(h3) {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.3em 0;
+}
+.cell-markdown-rendered :deep(p) {
+  margin: 0.4em 0;
+}
+.cell-markdown-rendered :deep(.cell-markdown-empty) {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .cell-markdown-rendered :deep(code) {
   background: var(--bg-secondary);
   padding: 1px 4px;
@@ -598,7 +758,14 @@ defineExpose({
   border-radius: 4px;
   overflow-x: auto;
 }
-.cell-markdown-rendered :deep(li) { margin-left: 1.5em; list-style-type: disc; }
-.cell-markdown-rendered :deep(strong) { font-weight: 600; }
-.cell-markdown-rendered :deep(em) { font-style: italic; }
+.cell-markdown-rendered :deep(li) {
+  margin-left: 1.5em;
+  list-style-type: disc;
+}
+.cell-markdown-rendered :deep(strong) {
+  font-weight: 600;
+}
+.cell-markdown-rendered :deep(em) {
+  font-style: italic;
+}
 </style>

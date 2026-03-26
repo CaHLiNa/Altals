@@ -50,7 +50,6 @@ test('remaining direct launchAiTask callers stay explicit and the document workf
     'src/components/ai/AiWorkbenchHome.vue',
     'src/components/chat/ChatSession.vue',
     'src/components/editor/AiLauncher.vue',
-    'src/components/editor/ReferenceView.vue',
     'src/services/ai/workbenchTaskLaunchers.js',
     'src/services/commentActions.js',
   ])
@@ -69,6 +68,13 @@ test('remaining direct launchAiTask callers stay explicit and the document workf
   assert.equal(referenceList.includes('launchAiTask('), false)
   assert.equal(referenceList.includes('launchReferenceMaintenanceTask('), true)
   assert.equal(referenceList.includes('launchReferenceCompareTask('), true)
+
+  const referenceView = readFileSync(
+    path.join(repoRoot, 'src/components/editor/ReferenceView.vue'),
+    'utf8'
+  )
+  assert.equal(referenceView.includes('launchAiTask('), false)
+  assert.equal(referenceView.includes('launchReferenceAuditTask('), true)
 
   const workflowComposable = readFileSync(
     path.join(repoRoot, 'src/composables/useEditorPaneWorkflow.js'),

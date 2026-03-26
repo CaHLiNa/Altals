@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildNotebookAssistantLaunchRequest,
+  buildReferenceAuditLaunchRequest,
   buildReferenceCompareLaunchRequest,
   buildReferenceMaintenanceLaunchRequest,
 } from '../src/services/ai/workbenchTaskLaunchers.js'
@@ -55,4 +56,19 @@ test('buildReferenceCompareLaunchRequest keeps selected reference keys in compar
   assert.equal(request.task.entryContext, 'reference-list')
   assert.match(request.task.prompt, /@alpha2024/)
   assert.match(request.task.prompt, /@beta2023/)
+})
+
+test('buildReferenceAuditLaunchRequest keeps reference review launches on the named seam', () => {
+  const request = buildReferenceAuditLaunchRequest({
+    editorStore: { activePaneId: 'pane-ref-view' },
+    chatStore: { id: 'chat-store' },
+    refKey: 'wang2019',
+  })
+
+  assert.equal(request.paneId, 'pane-ref-view')
+  assert.equal(request.beside, true)
+  assert.equal(request.task.taskId, 'citation.reference-audit')
+  assert.equal(request.task.source, 'reference-view')
+  assert.equal(request.task.entryContext, 'reference-view')
+  assert.match(request.task.prompt, /@wang2019/)
 })

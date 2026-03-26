@@ -1,12 +1,11 @@
 <template>
   <div v-if="ref" class="flex flex-col h-full min-h-0">
     <!-- Metadata header -->
-    <div class="shrink-0" style="border-bottom: 1px solid var(--border)">
+    <div class="ref-header-shell shrink-0">
       <!-- Needs review banner (always visible) -->
       <div
         v-if="ref._needsReview"
-        class="px-3 py-1.5 ui-text-xs flex items-center gap-2"
-        :style="{ background: 'rgba(224, 175, 104, 0.1)', color: 'var(--warning)' }"
+        class="ref-review-banner px-3 py-1.5 ui-text-xs flex items-center gap-2"
       >
         <svg
           width="14"
@@ -19,13 +18,14 @@
           <path d="M8 1l7 13H1L8 1zM8 6v3M8 11h0" />
         </svg>
         <span>{{ t('Unverified — review metadata before citing') }}</span>
-        <button
-          class="ml-auto px-2 py-0.5 rounded ui-text-micro"
-          :style="{ background: 'var(--warning)', color: 'var(--bg-primary)' }"
+        <UiButton
+          class="ml-auto ref-review-confirm-btn"
+          variant="secondary"
+          size="sm"
           @click="confirmRef"
         >
           {{ t('Confirm') }}
-        </button>
+        </UiButton>
       </div>
 
       <!-- Toggle row -->
@@ -40,23 +40,17 @@
           fill="none"
           stroke="currentColor"
           stroke-width="2"
-          :style="{
-            color: 'var(--fg-muted)',
-            transform: detailsOpen ? 'rotate(90deg)' : '',
-            transition: 'transform 0.1s',
-          }"
+          class="ref-header-chevron"
+          :class="{ 'ref-header-chevron-open': detailsOpen }"
         >
           <path d="M6 4l4 4-4 4" />
         </svg>
-        <span class="ui-text-xs font-medium" :style="{ color: 'var(--fg-secondary)' }">{{
-          t('Details')
-        }}</span>
+        <span class="ref-header-label ui-text-xs font-medium">{{ t('Details') }}</span>
         <span class="ref-key-badge ui-text-micro ml-1">@{{ ref._key }}</span>
         <!-- Collapsed summary -->
         <span
           v-if="!detailsOpen"
-          class="ref-header-summary ui-text-xs ml-2 truncate flex-1"
-          :style="{ color: 'var(--fg-muted)' }"
+          class="ref-header-summary ref-header-summary-text ui-text-xs ml-2 truncate flex-1"
         >
           {{ authorLine }}{{ year ? ` (${year})` : '' }}
         </span>
@@ -64,43 +58,46 @@
         <!-- Actions -->
         <div class="ref-header-actions flex items-center gap-1 ml-auto" @click.stop>
           <template v-if="libraryEmbedded">
-            <button
-              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+            <UiButton
+              class="ref-header-action-button"
+              variant="secondary"
+              size="sm"
               @click="pdfPath ? openPdf() : attachPdf()"
             >
               {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
-            </button>
+            </UiButton>
           </template>
           <template v-else>
-            <button
-              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+            <UiButton
+              class="ref-header-action-button"
+              variant="secondary"
+              size="sm"
               @click="askAiAboutReference"
             >
               {{ t('Ask AI') }}
-            </button>
-            <button
-              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-              :style="{ borderColor: 'var(--border)', color: 'var(--fg-secondary)' }"
+            </UiButton>
+            <UiButton
+              class="ref-header-action-button"
+              variant="secondary"
+              size="sm"
               @click="pdfPath ? openPdf() : attachPdf()"
             >
               {{ pdfPath ? t('Open PDF') : t('Attach PDF...') }}
-            </button>
-            <button
-              class="ref-header-button px-2 py-0.5 ui-text-micro rounded border hover:bg-[var(--bg-hover)] transition-colors"
-              :style="{
-                borderColor: copyFlash ? 'var(--success)' : 'var(--border)',
-                color: copyFlash ? 'var(--success)' : 'var(--fg-secondary)',
-              }"
+            </UiButton>
+            <UiButton
+              class="ref-header-action-button"
+              :class="{ 'ref-header-action-button-success': copyFlash }"
+              variant="secondary"
+              size="sm"
               @click="handleCopyAs(copyFormat)"
             >
               {{ copyFlash ? t('Copied!') : t('Copy') }}
-            </button>
-            <select
-              :value="copyFormat"
-              class="ref-type-select ref-header-select"
-              @change="handleCopyFormatChange"
+            </UiButton>
+            <UiSelect
+              :model-value="copyFormat"
+              size="sm"
+              shell-class="ref-header-select-shell"
+              @update:modelValue="handleCopyAs"
             >
               <option value="apa">APA</option>
               <option value="chicago">Chicago</option>
@@ -108,24 +105,26 @@
               <option value="harvard">Harvard</option>
               <option value="vancouver">Vancouver</option>
               <option value="bibtex">BibTeX</option>
-            </select>
+            </UiSelect>
           </template>
         </div>
         <template v-if="!libraryEmbedded">
-          <button
-            class="ref-header-button px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
-            :style="{ color: 'var(--fg-muted)' }"
+          <UiButton
+            class="ref-header-inline-action"
+            variant="ghost"
+            size="sm"
             @click.stop="deleteRef"
           >
             {{ t('Remove from this project') }}
-          </button>
-          <button
-            class="ref-header-button px-1.5 py-0.5 ui-text-xs rounded hover:bg-[var(--bg-hover)]"
-            :style="{ color: 'var(--error)' }"
+          </UiButton>
+          <UiButton
+            class="ref-header-inline-action ref-header-inline-action-danger"
+            variant="ghost"
+            size="sm"
             @click.stop="deleteRefGlobally"
           >
             {{ t('Delete from global library') }}
-          </button>
+          </UiButton>
         </template>
       </div>
     </div>
@@ -137,20 +136,21 @@
           <!-- Title -->
           <div>
             <label class="ref-detail-label">{{ t('Title') }}</label>
-            <input
-              :value="ref.title"
-              class="ref-detail-input"
-              @change="update('title', $event.target.value)"
+            <UiInput
+              :model-value="ref.title"
+              shell-class="ref-detail-shell"
+              @blur="update('title', $event.target.value)"
             />
           </div>
 
           <div>
             <label class="ref-detail-label">{{ t('Citation Key') }}</label>
-            <input
-              :value="ref._key"
-              class="ref-detail-input ref-detail-input-mono"
+            <UiInput
+              :model-value="ref._key"
+              monospace
+              shell-class="ref-detail-shell"
               :placeholder="t('Example: Wang2019')"
-              @change="updateCitationKey($event.target.value)"
+              @blur="updateCitationKey($event.target.value)"
             />
           </div>
 
@@ -158,20 +158,20 @@
           <div class="flex gap-2">
             <div class="flex-1">
               <label class="ref-detail-label">{{ t('Authors') }}</label>
-              <input
-                :value="authorsString"
-                class="ref-detail-input"
+              <UiInput
+                :model-value="authorsString"
+                shell-class="ref-detail-shell"
                 :placeholder="t('Last, First and Last, First')"
-                @change="updateAuthors($event.target.value)"
+                @blur="updateAuthors($event.target.value)"
               />
             </div>
             <div class="w-20">
               <label class="ref-detail-label">{{ t('Year') }}</label>
-              <input
-                :value="year"
-                class="ref-detail-input"
+              <UiInput
+                :model-value="year"
+                shell-class="ref-detail-shell"
                 type="number"
-                @change="updateYear($event.target.value)"
+                @blur="updateYear($event.target.value)"
               />
             </div>
           </div>
@@ -180,10 +180,10 @@
           <div class="flex gap-2">
             <div class="w-40">
               <label class="ref-detail-label">{{ t('Reference Type') }}</label>
-              <select
-                :value="ref.type"
-                class="ref-detail-input ref-type-select"
-                @change="update('type', $event.target.value)"
+              <UiSelect
+                :model-value="ref.type"
+                shell-class="ref-detail-shell"
+                @update:modelValue="update('type', $event)"
               >
                 <option value="article-journal">{{ t('Journal Article') }}</option>
                 <option value="paper-conference">{{ t('Conference Paper') }}</option>
@@ -193,14 +193,14 @@
                 <option value="report">{{ t('Report') }}</option>
                 <option value="article">{{ t('Preprint / Article') }}</option>
                 <option value="webpage">{{ t('Webpage') }}</option>
-              </select>
+              </UiSelect>
             </div>
             <div class="flex-1">
               <label class="ref-detail-label">{{ t('Journal / Conference') }}</label>
-              <input
-                :value="ref['container-title']"
-                class="ref-detail-input"
-                @change="update('container-title', $event.target.value)"
+              <UiInput
+                :model-value="ref['container-title']"
+                shell-class="ref-detail-shell"
+                @blur="update('container-title', $event.target.value)"
               />
             </div>
           </div>
@@ -209,34 +209,34 @@
           <div class="flex gap-2">
             <div class="w-16">
               <label class="ref-detail-label">{{ t('Vol') }}</label>
-              <input
-                :value="ref.volume"
-                class="ref-detail-input"
-                @change="update('volume', $event.target.value)"
+              <UiInput
+                :model-value="ref.volume"
+                shell-class="ref-detail-shell"
+                @blur="update('volume', $event.target.value)"
               />
             </div>
             <div class="w-16">
               <label class="ref-detail-label">{{ t('Issue') }}</label>
-              <input
-                :value="ref.issue"
-                class="ref-detail-input"
-                @change="update('issue', $event.target.value)"
+              <UiInput
+                :model-value="ref.issue"
+                shell-class="ref-detail-shell"
+                @blur="update('issue', $event.target.value)"
               />
             </div>
             <div class="w-20">
               <label class="ref-detail-label">{{ t('Pages') }}</label>
-              <input
-                :value="ref.page"
-                class="ref-detail-input"
-                @change="update('page', $event.target.value)"
+              <UiInput
+                :model-value="ref.page"
+                shell-class="ref-detail-shell"
+                @blur="update('page', $event.target.value)"
               />
             </div>
             <div class="flex-1">
               <label class="ref-detail-label">DOI</label>
-              <input
-                :value="ref.DOI"
-                class="ref-detail-input"
-                @change="update('DOI', $event.target.value)"
+              <UiInput
+                :model-value="ref.DOI"
+                shell-class="ref-detail-shell"
+                @blur="update('DOI', $event.target.value)"
               />
             </div>
           </div>
@@ -244,11 +244,11 @@
           <!-- Tags -->
           <div>
             <label class="ref-detail-label">{{ t('Tags') }}</label>
-            <input
-              :value="(ref._tags || []).join(', ')"
-              class="ref-detail-input"
+            <UiInput
+              :model-value="(ref._tags || []).join(', ')"
+              shell-class="ref-detail-shell"
               :placeholder="t('comma-separated')"
-              @change="updateTags($event.target.value)"
+              @blur="updateTags($event.target.value)"
             />
           </div>
 
@@ -258,14 +258,13 @@
             <div class="space-y-1">
               <div v-for="f in extraFields" :key="f.key" class="flex gap-1.5 items-start">
                 <span
-                  class="ui-text-micro w-20 shrink-0 text-right pt-[3px]"
-                  :style="{ color: 'var(--fg-muted)' }"
+                  class="ref-extra-field-label ui-text-micro w-20 shrink-0 text-right pt-[3px]"
                   >{{ f.label }}</span
                 >
-                <input
-                  :value="f.value"
-                  class="ref-detail-input flex-1"
-                  @change="update(f.key, $event.target.value)"
+                <UiInput
+                  :model-value="f.value"
+                  shell-class="ref-detail-shell"
+                  @blur="update(f.key, $event.target.value)"
                 />
               </div>
             </div>
@@ -273,68 +272,68 @@
 
           <!-- Add field -->
           <div v-if="!addingField">
-            <button
-              class="ui-text-micro hover:underline"
-              :style="{ color: 'var(--fg-muted)' }"
+            <UiButton
+              class="ref-inline-action"
+              variant="ghost"
+              size="sm"
               @click="addingField = true"
             >
               {{ t('+ Add field') }}
-            </button>
+            </UiButton>
           </div>
           <div v-else class="flex gap-1.5 items-center">
-            <select v-model="newFieldKey" class="ref-type-select ui-text-xs" style="width: 100px">
+            <UiSelect v-model="newFieldKey" size="sm" shell-class="ref-add-field-select-shell">
               <option value="" disabled>{{ t('Field...') }}</option>
               <option v-for="opt in addableFields" :key="opt.key" :value="opt.key">
                 {{ opt.label }}
               </option>
-            </select>
-            <input
+            </UiSelect>
+            <UiInput
               v-model="newFieldValue"
-              class="ref-detail-input flex-1"
+              shell-class="ref-detail-shell"
               :placeholder="t('Value')"
               @keydown.enter="confirmAddField"
             />
-            <button
-              class="ui-text-micro px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)]"
-              :style="{ color: 'var(--accent)' }"
+            <UiButton
+              class="ref-inline-action ref-inline-action-accent"
+              variant="ghost"
+              size="sm"
               :disabled="!newFieldKey || !newFieldValue"
               @click="confirmAddField"
             >
               {{ t('Add') }}
-            </button>
-            <button
-              class="ui-text-micro px-1 py-0.5 rounded hover:bg-[var(--bg-hover)]"
-              :style="{ color: 'var(--fg-muted)' }"
-              @click="cancelAddField"
-            >
+            </UiButton>
+            <UiButton class="ref-inline-action" variant="ghost" size="sm" @click="cancelAddField">
               {{ t('Cancel') }}
-            </button>
+            </UiButton>
           </div>
 
           <!-- Abstract (collapsible) -->
           <div v-if="ref.abstract">
             <label class="ref-detail-label">{{ t('Abstract') }}</label>
-            <div class="ui-text-xs leading-relaxed" :style="{ color: 'var(--fg-secondary)' }">
+            <div class="ref-supporting-copy ui-text-xs leading-relaxed">
               <template v-if="!abstractExpanded">
                 <span class="ref-abstract-clamped">{{ ref.abstract }}</span>
-                <button
+                <UiButton
                   v-if="ref.abstract.length > 200"
-                  class="ui-text-micro ml-1 hover:underline"
-                  :style="{ color: 'var(--accent)' }"
+                  class="ref-inline-action ref-inline-action-accent ml-1"
+                  variant="ghost"
+                  size="sm"
                   @click="abstractExpanded = true"
                 >
                   {{ t('read more') }}
-                </button>
+                </UiButton>
               </template>
               <template v-else>
                 <span>{{ ref.abstract }}</span>
-                <button
-                  class="ui-text-micro ml-1 hover:underline"
-                  :style="{ color: 'var(--accent)' }"
+                <UiButton
+                  class="ref-inline-action ref-inline-action-accent ml-1"
+                  variant="ghost"
+                  size="sm"
                   @click="abstractExpanded = false"
                 >
                   {{ t('collapse') }}
-                </button>
+                </UiButton>
               </template>
             </div>
           </div>
@@ -346,8 +345,7 @@
               <span
                 v-for="file in citedInFiles"
                 :key="file"
-                class="ui-text-xs cursor-pointer hover:underline truncate"
-                :style="{ color: 'var(--hl-link)' }"
+                class="ref-linked-file ui-text-xs cursor-pointer hover:underline truncate"
                 @click="editorStore.openFile(file)"
               >
                 {{ relativePath(file) }}
@@ -358,20 +356,21 @@
           <div v-if="auditVisible" class="ref-audit-panel">
             <div class="ref-audit-header">
               <label class="ref-detail-label">{{ t('Reference Audit') }}</label>
-              <button
-                class="ui-text-micro hover:underline"
-                :style="{ color: 'var(--accent)' }"
+              <UiButton
+                class="ref-inline-action ref-inline-action-accent"
+                variant="ghost"
+                size="sm"
                 @click="refreshAudit"
               >
                 {{ auditLoading ? t('Checking...') : t('Refresh audit') }}
-              </button>
+              </UiButton>
             </div>
 
-            <div v-if="auditLoading" class="ui-text-xs" :style="{ color: 'var(--fg-muted)' }">
+            <div v-if="auditLoading" class="ref-muted-copy ui-text-xs">
               {{ t('Checking citations and bibliography state...') }}
             </div>
 
-            <div v-else-if="auditError" class="ui-text-xs" :style="{ color: 'var(--error)' }">
+            <div v-else-if="auditError" class="ref-error-copy ui-text-xs">
               {{ auditError }}
             </div>
 
@@ -403,7 +402,7 @@
               </div>
 
               <div v-if="currentRefAuditIssues.length > 0" class="ref-audit-list">
-                <div class="ui-text-micro font-medium" :style="{ color: 'var(--fg-secondary)' }">
+                <div class="ref-supporting-label ui-text-micro font-medium">
                   {{ t('Files citing this reference that need attention') }}
                 </div>
                 <div
@@ -412,18 +411,19 @@
                   class="ref-audit-issue"
                 >
                   <div class="ref-audit-issue-title">{{ issueLabel(issue) }}</div>
-                  <button
-                    type="button"
+                  <UiButton
                     class="ref-audit-issue-link"
+                    variant="ghost"
+                    size="sm"
                     @click="editorStore.openFile(issue.filePath)"
                   >
                     {{ relativePath(issue.filePath) }}
-                  </button>
+                  </UiButton>
                 </div>
               </div>
 
               <div v-if="auditSummary.missingKeys?.length > 0" class="ref-audit-list">
-                <div class="ui-text-micro font-medium" :style="{ color: 'var(--fg-secondary)' }">
+                <div class="ref-supporting-label ui-text-micro font-medium">
                   {{ t('Missing reference keys in this project') }}
                 </div>
                 <div class="ref-audit-key-list">
@@ -438,42 +438,25 @@
                   (auditSummary.missingReferenceCount || 0) === 0 &&
                   (auditSummary.bibliographyIssueCount || 0) === 0
                 "
-                class="ui-text-xs"
-                :style="{ color: 'var(--success)' }"
+                class="ref-success-copy ui-text-xs"
               >
                 {{ t('No bibliography issues found for the currently loaded files.') }}
               </div>
             </template>
           </div>
-          <div
-            v-if="!pdfPath"
-            class="rounded-lg border px-3 py-2 ui-text-xs"
-            :style="{
-              borderColor: 'var(--border)',
-              color: 'var(--fg-muted)',
-              background: 'color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary))',
-            }"
-          >
+          <div v-if="!pdfPath" class="ref-empty-pdf rounded-lg border px-3 py-2 ui-text-xs">
             {{ t('No PDF attached') }}
           </div>
         </div>
       </div>
-      <div
-        v-else
-        class="flex items-center justify-center h-full ui-text-xs"
-        :style="{ color: 'var(--fg-muted)' }"
-      >
+      <div v-else class="ref-empty-state flex items-center justify-center h-full ui-text-xs">
         {{ t('Details') }}
       </div>
     </div>
   </div>
 
   <!-- Deleted / not found -->
-  <div
-    v-else
-    class="flex items-center justify-center h-full ui-text-xs"
-    :style="{ color: 'var(--fg-muted)' }"
-  >
+  <div v-else class="ref-empty-state flex items-center justify-center h-full ui-text-xs">
     {{ t('Reference not found') }}
   </div>
 </template>
@@ -487,11 +470,13 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useToastStore } from '../../stores/toast'
 import { getFormatter } from '../../services/citationStyleRegistry'
-import { launchAiTask } from '../../services/ai/launch'
-import { createReferenceAuditTask } from '../../services/ai/taskCatalog'
+import { launchReferenceAuditTask } from '../../services/ai/workbenchTaskLaunchers'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { auditReferenceUsage } from '../../services/referenceAudit'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 
 const props = defineProps({
   refKey: { type: String, required: true },
@@ -768,10 +753,6 @@ function confirmRef() {
   referencesStore.updateReference(ref.value._key, { _needsReview: false })
 }
 
-function handleCopyFormatChange(event) {
-  handleCopyAs(event?.target?.value)
-}
-
 function cancelAddField() {
   addingField.value = false
   newFieldKey.value = ''
@@ -808,16 +789,11 @@ function confirmAddField() {
 
 async function askAiAboutReference() {
   if (!ref.value?._key) return
-  await launchAiTask({
+  await launchReferenceAuditTask({
     editorStore,
     chatStore,
     paneId: props.embedded ? editorStore.activePaneId || null : props.paneId,
-    beside: true,
-    task: createReferenceAuditTask({
-      refKey: ref.value._key,
-      source: 'reference-view',
-      entryContext: 'reference-view',
-    }),
+    refKey: ref.value._key,
   })
 }
 
@@ -883,23 +859,23 @@ function relativePath(path) {
 </script>
 
 <style scoped>
-.ref-type-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding: 2px 20px 2px 6px;
-  font-size: var(--ui-font-caption);
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-tertiary);
-  color: var(--fg-secondary);
-  cursor: pointer;
-  outline: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23888' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
+.ref-header-shell {
+  border-bottom: 1px solid var(--border);
 }
-.ref-type-select:focus {
-  border-color: var(--accent);
+
+.ref-review-banner {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+}
+
+.ref-review-confirm-btn {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border));
+  color: var(--warning);
+}
+
+.ref-review-confirm-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
 }
 
 .ref-header-row {
@@ -907,9 +883,26 @@ function relativePath(path) {
   align-items: flex-start;
 }
 
+.ref-header-chevron {
+  color: var(--text-muted);
+  transition: transform 0.1s ease;
+}
+
+.ref-header-chevron-open {
+  transform: rotate(90deg);
+}
+
+.ref-header-label {
+  color: var(--text-secondary);
+}
+
 .ref-header-summary,
 .ref-header-spacer {
   min-width: 120px;
+}
+
+.ref-header-summary-text {
+  color: var(--text-muted);
 }
 
 .ref-header-actions {
@@ -921,14 +914,64 @@ function relativePath(path) {
   flex: 0 0 auto;
 }
 
-.ref-header-button,
-.ref-header-select {
+.ref-header-action-button,
+.ref-header-inline-action,
+.ref-header-select-shell {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
-.ref-header-select {
+.ref-header-action-button-success {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 32%, var(--border));
+}
+
+.ref-header-inline-action {
+  color: var(--text-muted);
+}
+
+.ref-header-inline-action-danger {
+  color: var(--error);
+}
+
+.ref-header-select-shell {
   max-width: 110px;
+}
+
+.ref-detail-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--ui-font-caption);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ref-detail-shell {
+  width: 100%;
+}
+
+.ref-extra-field-label,
+.ref-supporting-copy,
+.ref-supporting-label {
+  color: var(--text-secondary);
+}
+
+.ref-inline-action {
+  color: var(--text-muted);
+}
+
+.ref-inline-action-accent {
+  color: var(--accent);
+}
+
+.ref-add-field-select-shell {
+  width: 100px;
+}
+
+.ref-linked-file {
+  color: var(--hl-link);
 }
 
 .ref-abstract-clamped {
@@ -1008,9 +1051,22 @@ function relativePath(path) {
   text-decoration: underline;
 }
 
-.ref-detail-input-mono {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+.ref-muted-copy,
+.ref-empty-state,
+.ref-empty-pdf {
+  color: var(--text-muted);
+}
+
+.ref-error-copy {
+  color: var(--error);
+}
+
+.ref-success-copy {
+  color: var(--success);
+}
+
+.ref-empty-pdf {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--bg-primary));
 }
 </style>
