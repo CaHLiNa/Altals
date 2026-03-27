@@ -26,7 +26,9 @@ import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/docu
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
-} from '../services/documentWorkflow/reconcile.js'
+} from '../domains/document/documentWorkflowReconcileRuntime.js'
+import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
+import { createDocumentWorkspacePreviewAction as createWorkspacePreviewAction } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
@@ -67,6 +69,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
     previewBindings: {},
     markdownPreviewState: {},
+    workspacePreviewVisibility: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -98,6 +101,9 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           },
           getEditorStore: () => useEditorStore(),
           getDocumentWorkflowKindImpl: getDocumentWorkflowKind,
+          createWorkspacePreviewAction,
+          getPreferredWorkflowPreviewKind,
+          createWorkflowPreviewPath,
           reconcileDocumentWorkflowImpl: reconcileDocumentWorkflow,
           findWorkflowPreviewPaneImpl: findWorkflowPreviewPane,
           jumpPreviewToCursor: ({ kind, previewKind, sourcePath }) => {
@@ -150,22 +156,15 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._documentWorkflowBuildOperationRuntime
     },
 
-    _getDocumentWorkflowTypstPaneRuntime() {
-      if (!this._documentWorkflowTypstPaneRuntime) {
-        this._documentWorkflowTypstPaneRuntime = createDocumentWorkflowTypstPaneRuntime({
-          getEditorStore: () => useEditorStore(),
-          getWorkflowStore: () => this,
-        })
-      }
-      return this._documentWorkflowTypstPaneRuntime
-    },
-
     _getDocumentWorkflowActionRuntime() {
       if (!this._documentWorkflowActionRuntime) {
         this._documentWorkflowActionRuntime = createDocumentWorkflowActionRuntime({
           getWorkflowStore: () => this,
           getBuildOperationRuntime: () => this._getDocumentWorkflowBuildOperationRuntime(),
-          getTypstPaneRuntime: () => this._getDocumentWorkflowTypstPaneRuntime(),
+          getTypstPaneRuntime: () => createDocumentWorkflowTypstPaneRuntime({
+            getEditorStore: () => useEditorStore(),
+            getWorkflowStore: () => this,
+          }),
         })
       }
       return this._documentWorkflowActionRuntime
@@ -181,7 +180,10 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     persistPrefs() {
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(this.previewPrefs))
-      } catch {}
+      } catch {
+        return false
+      }
+      return true
     },
 
     getPreferredPreviewKind(kind) {
@@ -205,7 +207,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return previewPath ? this.previewBindings[previewPath] || null : null
     },
 
-    bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null }) {
+    bindPreview({ previewPath, sourcePath, previewKind, kind, paneId = null, detachOnClose = true }) {
       if (!previewPath || !sourcePath) return
       this.previewBindings = {
         ...this.previewBindings,
@@ -215,6 +217,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           previewKind,
           kind,
           paneId,
+          detachOnClose,
         },
       }
     },
@@ -270,9 +273,21 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.markdownPreviewState = nextPreview
     },
 
+    isWorkspacePreviewHiddenForFile(filePath) {
+      return this.workspacePreviewVisibility[filePath] === 'hidden'
+    },
+
+    setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
+      if (!filePath) return
+      this.workspacePreviewVisibility = {
+        ...this.workspacePreviewVisibility,
+        [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
+      }
+    },
+
     getSourcePathForPreview(previewPath) {
       const binding = this.getPreviewBinding(previewPath)
-      return binding?.sourcePath || previewSourcePathFromPath(previewPath) || null
+      return binding?.sourcePath || previewSourcePathFromPath(previewPath) || (isDocumentWorkflowSource(previewPath) ? previewPath : null)
     },
 
     findPreviewBindingForSource(sourcePath, previewKind = null) {
@@ -296,11 +311,13 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     handlePreviewClosed(previewPath) {
-      const sourcePath = this.getSourcePathForPreview(previewPath)
-      if (sourcePath) {
-        this.markDetached(sourcePath)
-        this.unbindPreview(previewPath)
+      const effect = resolveDocumentPreviewCloseEffect(previewPath, {
+        previewBinding: this.getPreviewBinding(previewPath),
+      })
+      if (effect.sourcePath && effect.markDetached) {
+        this.markDetached(effect.sourcePath)
       }
+      this.unbindPreview(previewPath)
     },
 
     getOpenPreviewPathForSource(sourcePath, previewKind = null) {
@@ -402,6 +419,42 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getArtifactPathForFile(filePath, options)
     },
 
+    getWorkspacePreviewStateForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getWorkspacePreviewStateForFile(filePath, options)
+    },
+
+    showWorkspacePreviewForFile(filePath, options = {}) {
+      const kind = getDocumentWorkflowKind(filePath)
+      if (!kind) return null
+      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
+      if (previewKind) {
+        this.setPreferredPreviewKind(kind, previewKind)
+      }
+      this.setWorkspacePreviewVisibility(filePath, 'visible')
+      this.clearDetached(filePath)
+      return {
+        type: 'workspace-preview',
+        filePath,
+        previewKind,
+        legacyReadOnly: false,
+      }
+    },
+
+    switchWorkspacePreviewModeForFile(filePath, options = {}) {
+      return this.showWorkspacePreviewForFile(filePath, options)
+    },
+
+    hideWorkspacePreviewForFile(filePath) {
+      const kind = getDocumentWorkflowKind(filePath)
+      if (!kind) return null
+      this.setWorkspacePreviewVisibility(filePath, 'hidden')
+      return {
+        type: 'workspace-preview-hidden',
+        filePath,
+        legacyReadOnly: false,
+      }
+    },
+
     runBuildForFile(filePath, options = {}) {
       return this._getDocumentWorkflowBuildOperationRuntime().runBuildForFile(filePath, options)
     },
@@ -451,6 +504,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
       this.previewBindings = {}
       this.markdownPreviewState = {}
+      this.workspacePreviewVisibility = {}
       this._isReconciling = false
       this._lastTrigger = null
     },

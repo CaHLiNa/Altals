@@ -44,6 +44,14 @@ This blueprint tracks the current refactor truth for Altals as a local-first, pr
 
 ## Completed
 
+- March 26, 2026: reworked the conversion-surface left sidebar into PDF-translation-first chrome with dedicated `PDF Translation`, `Recent tasks`, and `Project files` panels, so the document conversion workbench no longer reuses the generic workspace files/references sidebar on that surface.
+- March 26, 2026: extracted lightweight chat session state so the app shell, editor routing, and workspace lifecycle no longer need a root-level static dependency on the heavy AI chat store just to create or focus chat tabs, which also split a dedicated `chat-*.js` chunk out of the main app bundle.
+- March 26, 2026: split LaTeX citation parsing out of the CodeMirror decoration module and lazy-loaded citation insertion plus comment-scroll editor helpers, reducing editor-only dependencies that were previously leaking into shell-adjacent startup paths even when no editor surface was active yet.
+- March 26, 2026: moved PDF text extraction in the file and reference stores behind lazy `pdfMetadata` imports, which removes `vendor-pdf` from the app shell's initial preload path and keeps PDF parsing code on demand instead of startup-critical.
+- March 26, 2026: converted `environmentPreflight` and `texTypFixer` callers onto explicit lazy imports at the actual user-action boundary, which removed the remaining ineffective Vite dynamic-import warnings without forcing legacy environment-store modules into every startup path.
+- March 26, 2026: moved `@tauri-apps/plugin-shell` command loading behind the actual opencode and Tinymist process-launch paths, so shell process support now loads on demand instead of keeping a mixed static/dynamic plugin boundary.
+- March 26, 2026: restored the missing root `AGENTS.md` contract so the repository-level agent hierarchy matches the enforced docs audit again, instead of leaving the test suite green only for nested scopes.
+- March 26, 2026: rewired `src/stores/aiWorkflowRuns.js` to receive `chat`, `toast`, and AI workbench stores through explicit app bootstrap configuration instead of runtime `import()` fallbacks, which removes a noisy ineffective chunk-splitting path and makes the workflow store boundary more honest.
 - March 24, 2026: restored the missing refactor blueprint file so future slices can update a live execution log instead of referring to a missing path.
 - March 24, 2026: reduced sidebar-toggle jank for visible PDF panes by disabling app-shell sidebar width transitions while a PDF pane is on screen, which avoids repeated PDF viewer relayout during left/right sidebar open-close animations.
 - March 24, 2026: added a focused pane-tree runtime helper and tests that detect whether a visible PDF pane is present from the active tabs in the current pane tree.
@@ -208,6 +216,9 @@ Validation status for the current slice:
 - Fixed the next in-place repair regression by syncing AI text-file writes back into the live editor buffer even in direct-apply mode, so a successful `edit_file` / `write_file` patch now updates the visible TeX / Typst document immediately instead of leaving the open editor stale until a later reload.
 - Reworked the right-sidebar document-run panel into a sidebar-native layout with compact status blocks, condensed workflow metadata, shorter path display, and collapsed raw logs, replacing the previous full-card stacking that read like AI workbench content squeezed into a narrow inspector column.
 - Reduced document-run sidebar toggle jank by only keeping right-sidebar pane content mounted while the inspector is open, limiting sidebar artifact history to the newest outputs, and lazily mounting raw compile logs only after explicit expansion instead of attaching large log DOM during every shell resize.
+- Added a focused `DocumentWorkspaceTab` contract test that locks the v1 document workspace surface to a fixed split with preview-visibility-only configuration and no resize/drag affordance, then re-ran the document-workspace focused suite, `node --test tests/*.test.mjs`, and `npm run build`.
+- Locked `DocumentWorkspaceTab` to the first document-workspace contract as a fixed two-pane shell with no resize props, drag handle, or draggable split affordance, then verified that contract with a focused audit test plus the full node test suite and build.
+
 
 ## Migration Notes
 

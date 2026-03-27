@@ -3,7 +3,15 @@ import { nextTick } from 'vue'
 import { nanoid } from './utils'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
-import { useChatStore } from './chat'
+import {
+  appendChatSession,
+  chatSessions,
+  createChatSessionRecord,
+  setChatActiveSessionId,
+  setChatPendingPrefill,
+  setChatPendingSelection,
+} from './chatSessionState.js'
+import { t } from '../i18n'
 import { isAiLauncher, isAiWorkbenchPath, isChatTab, getChatSessionId, isLibraryPath, isNewTab, isPreviewPath, isReferencePath } from '../utils/fileTypes'
 import { events } from '../services/telemetry'
 import {
@@ -95,6 +103,18 @@ function isResearchInsertableTextPath(path) {
   return ['md', 'markdown', 'txt', 'tex', 'latex', 'typ', 'rmd', 'qmd'].includes(fileExtension(path))
 }
 
+function dropLegacyPreviewPath(legacyPreviewPaths, path) {
+  if (!isPreviewPath(path) || !legacyPreviewPaths.has(path)) return legacyPreviewPaths
+  const next = new Set(legacyPreviewPaths)
+  next.delete(path)
+  return next
+}
+
+async function resolveChatStore() {
+  const { useChatStore } = await import('./chat.js')
+  return useChatStore()
+}
+
 export const useEditorStore = defineStore('editor', {
   state: () => ({
     paneTree: {
@@ -118,6 +138,8 @@ export const useEditorStore = defineStore('editor', {
     lastChatPaneId: null,
     // Invalidate async restore validation work when switching workspaces.
     restoreGeneration: 0,
+    // Legacy preview pseudo-tabs restored from older pane-first persistence.
+    legacyPreviewPaths: new Set(),
   }),
 
   getters: {
@@ -134,7 +156,9 @@ export const useEditorStore = defineStore('editor', {
       const files = new Set()
       const walk = (node) => {
         if (node.type === 'leaf') {
-          node.tabs.forEach((t) => files.add(t))
+          node.tabs.forEach((t) => {
+            files.add(t)
+          })
         } else if (node.children) {
           node.children.forEach(walk)
         }
@@ -167,6 +191,10 @@ export const useEditorStore = defineStore('editor', {
       }
 
       return state.recentFiles.find((entry) => isContextCandidatePath(entry.path))?.path || null
+    },
+
+    isLegacyPreviewTab(state) {
+      return (path) => state.legacyPreviewPaths.has(path)
     },
   },
 
@@ -217,15 +245,20 @@ export const useEditorStore = defineStore('editor', {
           recordFileOpen: (path) => this.recordFileOpen(path),
           revealInTree: (path) => this._revealInTree(path),
           saveEditorState: () => this.saveEditorState(),
-          createChatSession: () => useChatStore().createSession(),
+          createChatSession: () => appendChatSession(createChatSessionRecord({
+            label: t('Chat {number}', { number: chatSessions.value.length + 1 }),
+            modelId: useWorkspaceStore().selectedModelId
+              || useWorkspaceStore().modelsConfig?.models?.find((model) => model.default)?.id
+              || 'sonnet',
+          })),
           setActiveChatSessionId: (sessionId) => {
-            useChatStore().activeSessionId = sessionId
+            setChatActiveSessionId(sessionId)
           },
           setPendingChatPrefill: (value) => {
-            useChatStore().pendingPrefill = value
+            setChatPendingPrefill(value)
           },
           setPendingChatSelection: (value) => {
-            useChatStore().pendingSelection = value
+            setChatPendingSelection(value)
           },
           dispatchChatPrefill: (message) => {
             nextTick(() => {
@@ -385,7 +418,9 @@ export const useEditorStore = defineStore('editor', {
       if (isChatTab(tabPath)) {
         const sid = getChatSessionId(tabPath)
         if (sid) {
-          try { useChatStore().saveSession(sid) } catch {}
+          void resolveChatStore().then((chatStore) => {
+            chatStore.saveSession(sid)
+          }).catch(() => {})
         }
       }
 
@@ -413,12 +448,15 @@ export const useEditorStore = defineStore('editor', {
       if (isChatTab(path)) {
         const sid = getChatSessionId(path)
         if (sid) {
-          try { useChatStore().saveSession(sid) } catch {}
+          void resolveChatStore().then((chatStore) => {
+            chatStore.saveSession(sid)
+          }).catch(() => {})
         }
       }
 
       const result = closePaneTab(pane, path)
       if (!result.closed) return
+      this.legacyPreviewPaths = dropLegacyPreviewPath(this.legacyPreviewPaths, path)
       if (result.activeTab) {
         this._rememberContextPath(result.activeTab)
       }
@@ -496,7 +534,7 @@ export const useEditorStore = defineStore('editor', {
         this._rememberContextPath(pane.activeTab)
         if (isChatTab(pane.activeTab)) {
           const sid = getChatSessionId(pane.activeTab)
-          if (sid) useChatStore().activeSessionId = sid
+          if (sid) setChatActiveSessionId(sid)
         }
       }
       this.saveEditorState()
@@ -512,7 +550,7 @@ export const useEditorStore = defineStore('editor', {
       this._rememberContextPath(path)
       if (isChatTab(path)) {
         const sid = getChatSessionId(path)
-        if (sid) useChatStore().activeSessionId = sid
+        if (sid) setChatActiveSessionId(sid)
       }
     },
 
@@ -692,6 +730,7 @@ export const useEditorStore = defineStore('editor', {
         shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
+        legacyPreviewPaths: this.legacyPreviewPaths,
       })
     },
 
@@ -701,6 +740,7 @@ export const useEditorStore = defineStore('editor', {
         shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
+        legacyPreviewPaths: this.legacyPreviewPaths,
       })
     },
 

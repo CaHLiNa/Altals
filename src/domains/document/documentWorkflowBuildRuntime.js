@@ -2,6 +2,7 @@ import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
 } from '../../services/documentWorkflow/adapters/index.js'
+import { resolveDocumentWorkspacePreviewState } from './documentWorkspacePreviewRuntime.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -22,7 +23,7 @@ function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null
   return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
 }
 
-function resolvePreviewKind(filePath, adapter, options = {}, workflowStore = null) {
+function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowStore = null) {
   if (!adapter) return null
 
   const session = options.session || workflowStore?.session || {}
@@ -33,15 +34,54 @@ function resolvePreviewKind(filePath, adapter, options = {}, workflowStore = nul
   return preferredPreviewKind
 }
 
-function resolvePreviewAvailable(filePath, previewKind, options = {}, workflowStore = null) {
-  if (typeof options.previewAvailable === 'boolean') return options.previewAvailable
-  if (!filePath || !previewKind) return false
+function resolvePreviewTargetPath(filePath, adapter, context, options = {}) {
+  if (options.resolvedTargetPath || options.previewTargetPath) {
+    return options.resolvedTargetPath || options.previewTargetPath || ''
+  }
+  return adapter?.preview?.getTargetPath?.(filePath, context, options) || ''
+}
 
-  const hasPreviewForSource = (
-    options.hasPreviewForSource
-    || workflowStore?.hasPreviewForSource?.bind(workflowStore)
-  )
-  return hasPreviewForSource?.(filePath, previewKind) === true
+function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
+  if (typeof options.nativePreviewSupported === 'boolean') {
+    return options.nativePreviewSupported
+  }
+  if (adapter?.kind !== 'typst') return true
+  if (requestedPreviewKind === 'pdf') return false
+  return adapter?.preview?.isNativeSupported?.(filePath, context, options) !== false
+}
+
+function resolveArtifactReady(filePath, adapter, context) {
+  if (!adapter || !filePath) return false
+  if (adapter.kind === 'latex') {
+    return Boolean(context.latexStore?.stateForFile?.(filePath)?.pdfPath)
+  }
+  if (adapter.kind === 'typst') {
+    return Boolean(context.typstStore?.stateForFile?.(filePath)?.pdfPath)
+  }
+  return false
+}
+
+function resolvePreviewState(filePath, adapter, context, options = {}) {
+  if (!adapter) return null
+
+  const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
+  return resolveDocumentWorkspacePreviewState({
+    path: filePath,
+    workflowUiState: { kind: adapter.kind, previewKind: requestedPreviewKind },
+    previewKind: requestedPreviewKind,
+    resolvedTargetPath: resolvePreviewTargetPath(filePath, adapter, context, options),
+    nativePreviewSupported: resolveNativePreviewSupported(
+      filePath,
+      adapter,
+      context,
+      requestedPreviewKind,
+      options,
+    ),
+    artifactReady: resolveArtifactReady(filePath, adapter, context),
+    hasOpenLegacyPreview: options.hasOpenLegacyPreview === true,
+    preserveOpenLegacy: options.preserveOpenLegacy === true,
+    hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
+  })
 }
 
 export function getDocumentWorkflowStatusTone(uiState = null) {
@@ -91,17 +131,29 @@ export function createDocumentWorkflowBuildRuntime({
       return {
         ...context,
         adapter: null,
+        previewState: null,
+        workspacePreviewState: null,
         previewKind: null,
+        previewMode: null,
         previewAvailable: false,
+        previewVisible: false,
+        previewTargetPath: '',
+        targetResolution: null,
       }
     }
 
-    const previewKind = resolvePreviewKind(filePath, adapter, options, context.workflowStore)
+    const previewState = resolvePreviewState(filePath, adapter, context, options)
     return {
       ...context,
       adapter,
-      previewKind,
-      previewAvailable: resolvePreviewAvailable(filePath, previewKind, options, context.workflowStore),
+      previewState,
+      workspacePreviewState: previewState,
+      previewKind: previewState?.previewKind || null,
+      previewMode: previewState?.previewMode || null,
+      previewAvailable: previewState?.previewVisible === true,
+      previewVisible: previewState?.previewVisible === true,
+      previewTargetPath: previewState?.previewTargetPath || '',
+      targetResolution: previewState?.targetResolution || null,
     }
   }
 
@@ -130,6 +182,10 @@ export function createDocumentWorkflowBuildRuntime({
     return context.adapter?.compile?.getArtifactPath?.(filePath, context) || ''
   }
 
+  function getWorkspacePreviewStateForFile(filePath, options = {}) {
+    return buildAdapterContext(filePath, options).workspacePreviewState
+  }
+
   return {
     buildAdapterContext,
     openLogForFile,
@@ -137,6 +193,7 @@ export function createDocumentWorkflowBuildRuntime({
     getUiStateForFile,
     getStatusTextForFile,
     getArtifactPathForFile,
+    getWorkspacePreviewStateForFile,
     getStatusTone: getDocumentWorkflowStatusTone,
   }
 }
