@@ -1,9 +1,6 @@
 import { computed, watch } from 'vue'
 import { getLanguage, isLatex, isRmdOrQmd, isTypst } from '../utils/fileTypes'
 import { sendCode, runFile, renderDocument } from '../services/codeRunner'
-import {
-  ensureLanguageExecutionReady,
-} from '../services/environmentPreflight'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 
@@ -14,7 +11,6 @@ export function useEditorPaneWorkflow(options) {
     viewerTypeRef,
     editorStore,
     filesStore,
-    chatStore,
     workspace,
     latexStore,
     typstStore,
@@ -28,7 +24,6 @@ export function useEditorPaneWorkflow(options) {
     return {
       editorStore,
       filesStore,
-      chatStore,
       workspace,
       latexStore,
       typstStore,
@@ -44,14 +39,22 @@ export function useEditorPaneWorkflow(options) {
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
+  const workspacePreviewState = computed(() => (
+    activeTabRef.value
+      ? workflowStore.getWorkspacePreviewStateForFile(activeTabRef.value, buildWorkflowOptions())
+      : null
+  ))
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
   const pdfToolbarTargetId = computed(() => (
     `pdf-toolbar-slot-${String(paneIdRef.value || 'pane').replace(/[^a-zA-Z0-9_-]/g, '-')}`
   ))
+  const hasInlinePdfPreview = computed(() => (
+    viewerTypeRef.value === 'text' && workspacePreviewState.value?.previewMode === 'pdf'
+  ))
   const pdfToolbarTargetSelector = computed(() => (
-    viewerTypeRef.value === 'pdf' ? `#${pdfToolbarTargetId.value}` : ''
+    (viewerTypeRef.value === 'pdf' || hasInlinePdfPreview.value) ? `#${pdfToolbarTargetId.value}` : ''
   ))
   const showDocumentHeader = computed(() => (
     !!activeTabRef.value && (!!workflowUiState.value || !!pdfToolbarTargetSelector.value)
@@ -65,6 +68,16 @@ export function useEditorPaneWorkflow(options) {
   })
   const workflowStatusTone = computed(() => getDocumentWorkflowStatusTone(workflowUiState.value))
 
+  async function ensureLanguageReady(language) {
+    const { ensureLanguageExecutionReady } = await import('../services/environmentPreflight.js')
+    return ensureLanguageExecutionReady(language)
+  }
+
+  async function resolveChatStore() {
+    const { useChatStore } = await import('../stores/chat.js')
+    return useChatStore()
+  }
+
   async function handleRunCode() {
     if (!activeTabRef.value) return
     const lang = getLanguage(activeTabRef.value)
@@ -76,7 +89,7 @@ export function useEditorPaneWorkflow(options) {
     const selection = state.selection.main
 
     if (isRmdOrQmd(activeTabRef.value)) {
-      if (!(await ensureLanguageExecutionReady(lang))) return
+      if (!(await ensureLanguageReady(lang))) return
       import('../editor/codeChunks').then(({ chunkField, chunkAtPosition }) => {
         const chunks = state.field(chunkField)
         const chunk = chunkAtPosition(chunks, state.doc, selection.head)
@@ -115,7 +128,7 @@ export function useEditorPaneWorkflow(options) {
     if (!lang) return
 
     if (isRmdOrQmd(activeTabRef.value)) {
-      if (!(await ensureLanguageExecutionReady(lang))) return
+      if (!(await ensureLanguageReady(lang))) return
       const editorView = editorStore.getEditorView(paneIdRef.value, activeTabRef.value)
       if (!editorView) return
       editorView.dom.dispatchEvent(new CustomEvent('chunk-execute-all', { bubbles: true }))
@@ -181,6 +194,7 @@ export function useEditorPaneWorkflow(options) {
     if (!activeTabRef.value) return
     workspace.setRightSidebarPanel('document-run')
     workspace.openRightSidebar()
+    const chatStore = await resolveChatStore()
     await workflowStore.launchWorkflowFixWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
@@ -195,6 +209,7 @@ export function useEditorPaneWorkflow(options) {
     if (!activeTabRef.value) return
     workspace.setRightSidebarPanel('document-run')
     workspace.openRightSidebar()
+    const chatStore = await resolveChatStore()
     await workflowStore.launchWorkflowDiagnoseWithAiForFile(activeTabRef.value, {
       editorStore,
       chatStore,
@@ -242,6 +257,7 @@ export function useEditorPaneWorkflow(options) {
     pdfToolbarTargetSelector,
     showDocumentHeader,
     workflowUiState,
+    workspacePreviewState,
     workflowStatusText,
     workflowStatusTone,
     handleRunCode,

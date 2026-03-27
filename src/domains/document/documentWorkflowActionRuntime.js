@@ -1,18 +1,24 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
-import { createDocumentWorkflowTypstPaneRuntime } from './documentWorkflowTypstPaneRuntime.js'
 
 export function createDocumentWorkflowActionRuntime({
   getWorkflowStore,
   getBuildOperationRuntime = () => createDocumentWorkflowBuildOperationRuntime(),
-  getTypstPaneRuntime = () => createDocumentWorkflowTypstPaneRuntime(),
 } = {}) {
+  function resolveWorkspacePreviewState(filePath, options = {}) {
+    const workflowStore = getWorkflowStore?.() || null
+    return workflowStore?.getWorkspacePreviewStateForFile?.(filePath, options.buildOptions || {}) || null
+  }
+
   function toggleMarkdownPreviewForFile(filePath, options = {}) {
     if (!filePath) return null
 
     const workflowStore = getWorkflowStore?.() || null
-    return workflowStore?.togglePreviewForSource?.(filePath, {
+    const previewState = resolveWorkspacePreviewState(filePath, options)
+    if (previewState?.previewVisible) {
+      return workflowStore?.hideWorkspacePreviewForFile?.(filePath) || null
+    }
+    return workflowStore?.showWorkspacePreviewForFile?.(filePath, {
       previewKind: 'html',
-      activatePreview: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'markdown-preview-toggle',
     }) || null
@@ -22,9 +28,12 @@ export function createDocumentWorkflowActionRuntime({
     if (!filePath) return null
 
     const workflowStore = getWorkflowStore?.() || null
-    return workflowStore?.togglePreviewForSource?.(filePath, {
+    const previewState = resolveWorkspacePreviewState(filePath, options)
+    if (previewState?.previewVisible && previewState?.previewMode === 'pdf') {
+      return workflowStore?.hideWorkspacePreviewForFile?.(filePath) || null
+    }
+    return workflowStore?.switchWorkspacePreviewModeForFile?.(filePath, {
       previewKind: 'pdf',
-      activatePreview: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || `${options.adapterKind || 'document'}-preview-toggle`,
     }) || null
@@ -63,18 +72,13 @@ export function createDocumentWorkflowActionRuntime({
       return toggleMarkdownPreviewForFile(filePath, options)
     }
 
-    if (uiState.kind === 'typst') {
-      const typstPaneRuntime = getTypstPaneRuntime?.() || null
-      return typstPaneRuntime?.revealPreviewForFile?.(filePath, {
-        sourcePaneId: options.sourcePaneId,
-        buildOptions: options.buildOptions || {},
-      }) || null
+    const previewState = resolveWorkspacePreviewState(filePath, options)
+    if (previewState?.previewVisible && previewState?.previewMode === uiState.previewKind) {
+      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
     }
 
-    return workflowStore.togglePreviewForSource?.(filePath, {
+    return workflowStore.showWorkspacePreviewForFile?.(filePath, {
       previewKind: uiState.previewKind,
-      activatePreview: true,
-      jump: true,
       sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'workflow-toggle-preview',
     }) || null
@@ -86,11 +90,11 @@ export function createDocumentWorkflowActionRuntime({
     const uiState = options.uiState || null
     if (uiState?.kind !== 'typst') return null
 
-    const typstPaneRuntime = getTypstPaneRuntime?.() || null
-    return typstPaneRuntime?.revealPdfForFile?.(filePath, {
-      sourcePaneId: options.sourcePaneId,
-      buildOptions: options.buildOptions || {},
-    }) || null
+    return togglePdfPreviewForFile(filePath, {
+      ...options,
+      adapterKind: 'typst',
+      trigger: options.trigger || 'typst-pdf-toggle',
+    })
   }
 
   return {

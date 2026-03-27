@@ -32,14 +32,12 @@
     <div
       v-if="showEditorHeader"
       class="document-header-stack"
-      :class="{
-        'document-header-stack-with-subbar': pdfToolbarTargetSelector,
-        'document-header-stack-subbar-only': !toolbarUiState && pdfToolbarTargetSelector,
-      }"
     >
       <DocumentWorkflowBar
         v-if="toolbarUiState"
         :ui-state="toolbarUiState"
+        :preview-state="workspacePreviewState"
+        :pdf-toolbar-target-id="useDocumentWorkspaceTab ? pdfToolbarTargetId : ''"
         :status-text="workflowStatusText"
         :status-tone="workflowStatusTone"
         :show-run-buttons="showToolbarRunButtons"
@@ -56,7 +54,7 @@
         @toggle-comments="toggleCommentToolbar"
       />
       <div
-        v-if="pdfToolbarTargetSelector"
+        v-else-if="pdfToolbarTargetSelector"
         :id="pdfToolbarTargetId"
         class="document-header-subbar"
         :class="{ 'document-header-subbar-standalone': !toolbarUiState }"
@@ -70,9 +68,21 @@
       :class="{ 'flex flex-col': viewerType === 'text' }"
     >
       <KeepAlive :max="TEXT_EDITOR_CACHE_MAX">
+        <DocumentWorkspaceTab
+          v-if="activeTab && useDocumentWorkspaceTab"
+          :key="`workspace:${activeTab}`"
+          class="flex-1 min-w-0 h-full"
+          :filePath="activeTab"
+          :paneId="paneId"
+          :preview-state="workspacePreviewState"
+          :toolbar-target-selector="pdfToolbarTargetSelector"
+          @cursor-change="(pos) => $emit('cursor-change', pos)"
+          @editor-stats="(stats) => $emit('editor-stats', stats)"
+          @selection-change="onSelectionChange"
+        />
         <component
           :is="TextEditor"
-          v-if="activeTab && viewerType === 'text'"
+          v-else-if="activeTab && viewerType === 'text'"
           :key="`text:${activeTab}`"
           class="flex-1 min-w-0 h-full"
           :filePath="activeTab"
@@ -171,7 +181,6 @@
 import { computed, ref, toRef, defineAsyncComponent, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
-import { useChatStore } from '../../stores/chat'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
@@ -206,6 +215,7 @@ const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
+const DocumentWorkspaceTab = defineAsyncComponent(() => import('./DocumentWorkspaceTab.vue'))
 const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
 const CommentMargin = defineAsyncComponent(() => import('../comments/CommentMargin.vue'))
 const CommentPanel = defineAsyncComponent(() => import('../comments/CommentPanel.vue'))
@@ -219,9 +229,13 @@ const props = defineProps({
   activeTab: { type: String, default: null },
 })
 
+async function resolveChatStore() {
+  const { useChatStore } = await import('../../stores/chat.js')
+  return useChatStore()
+}
+
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
-const chatStore = useChatStore()
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const typstStore = useTypstStore()
@@ -244,6 +258,11 @@ const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value 
 const showToolbarRunButtons = computed(
   () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
 )
+const useDocumentWorkspaceTab = computed(() => (
+  !!props.activeTab
+  && viewerType.value === 'text'
+  && workspacePreviewState.value?.useWorkspace === true
+))
 const isCommentToolbarActive = computed(
   () => !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
 )
@@ -309,6 +328,7 @@ const {
   pdfToolbarTargetId,
   pdfToolbarTargetSelector,
   workflowUiState,
+  workspacePreviewState,
   workflowStatusText,
   workflowStatusTone,
   handleRunCode,
@@ -330,7 +350,6 @@ const {
   viewerTypeRef,
   editorStore,
   filesStore,
-  chatStore,
   workspace,
   latexStore,
   typstStore,
@@ -351,7 +370,10 @@ async function closeTab(path) {
   // Auto-save chat sessions on tab close
   if (isChatTab(path)) {
     const sid = getChatSessionId(path)
-    if (sid) chatStore.saveSession(sid)
+    if (sid) {
+      const chatStore = await resolveChatStore()
+      await chatStore.saveSession(sid)
+    }
   }
   workflowStore.handlePreviewClosed(path)
   editorStore.closeTab(props.paneId, path)
@@ -416,6 +438,7 @@ defineExpose({ startComment })
   width: 100%;
   box-sizing: border-box;
   background: var(--bg-primary);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
 }
 
 .document-header-stack-subbar-only {
@@ -430,6 +453,7 @@ defineExpose({ startComment })
   box-sizing: border-box;
   min-height: 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: var(--bg-primary);
   overflow: visible;
 }
 

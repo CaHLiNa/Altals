@@ -22,7 +22,6 @@ import { createDocumentWorkflowBuildRuntime } from '../domains/document/document
 import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
 import { createDocumentWorkflowAiRuntime } from '../domains/document/documentWorkflowAiRuntime.js'
-import { createDocumentWorkflowTypstPaneRuntime } from '../domains/document/documentWorkflowTypstPaneRuntime.js'
 import {
   findWorkflowPreviewPane,
   reconcileDocumentWorkflow,
@@ -67,6 +66,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
     previewBindings: {},
     markdownPreviewState: {},
+    workspacePreviewVisibility: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -150,22 +150,11 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._documentWorkflowBuildOperationRuntime
     },
 
-    _getDocumentWorkflowTypstPaneRuntime() {
-      if (!this._documentWorkflowTypstPaneRuntime) {
-        this._documentWorkflowTypstPaneRuntime = createDocumentWorkflowTypstPaneRuntime({
-          getEditorStore: () => useEditorStore(),
-          getWorkflowStore: () => this,
-        })
-      }
-      return this._documentWorkflowTypstPaneRuntime
-    },
-
     _getDocumentWorkflowActionRuntime() {
       if (!this._documentWorkflowActionRuntime) {
         this._documentWorkflowActionRuntime = createDocumentWorkflowActionRuntime({
           getWorkflowStore: () => this,
           getBuildOperationRuntime: () => this._getDocumentWorkflowBuildOperationRuntime(),
-          getTypstPaneRuntime: () => this._getDocumentWorkflowTypstPaneRuntime(),
         })
       }
       return this._documentWorkflowActionRuntime
@@ -181,7 +170,10 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     persistPrefs() {
       try {
         localStorage.setItem(PREFS_KEY, JSON.stringify(this.previewPrefs))
-      } catch {}
+      } catch {
+        return false
+      }
+      return true
     },
 
     getPreferredPreviewKind(kind) {
@@ -268,6 +260,18 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const nextPreview = { ...this.markdownPreviewState }
       delete nextPreview[sourcePath]
       this.markdownPreviewState = nextPreview
+    },
+
+    isWorkspacePreviewHiddenForFile(filePath) {
+      return this.workspacePreviewVisibility[filePath] === 'hidden'
+    },
+
+    setWorkspacePreviewVisibility(filePath, visibility = 'visible') {
+      if (!filePath) return
+      this.workspacePreviewVisibility = {
+        ...this.workspacePreviewVisibility,
+        [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
+      }
     },
 
     getSourcePathForPreview(previewPath) {
@@ -402,6 +406,42 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getArtifactPathForFile(filePath, options)
     },
 
+    getWorkspacePreviewStateForFile(filePath, options = {}) {
+      return this._getDocumentWorkflowBuildRuntime().getWorkspacePreviewStateForFile(filePath, options)
+    },
+
+    showWorkspacePreviewForFile(filePath, options = {}) {
+      const kind = getDocumentWorkflowKind(filePath)
+      if (!kind) return null
+      const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
+      if (previewKind) {
+        this.setPreferredPreviewKind(kind, previewKind)
+      }
+      this.setWorkspacePreviewVisibility(filePath, 'visible')
+      this.clearDetached(filePath)
+      return {
+        type: 'workspace-preview',
+        filePath,
+        previewKind,
+        legacyReadOnly: false,
+      }
+    },
+
+    switchWorkspacePreviewModeForFile(filePath, options = {}) {
+      return this.showWorkspacePreviewForFile(filePath, options)
+    },
+
+    hideWorkspacePreviewForFile(filePath) {
+      const kind = getDocumentWorkflowKind(filePath)
+      if (!kind) return null
+      this.setWorkspacePreviewVisibility(filePath, 'hidden')
+      return {
+        type: 'workspace-preview-hidden',
+        filePath,
+        legacyReadOnly: false,
+      }
+    },
+
     runBuildForFile(filePath, options = {}) {
       return this._getDocumentWorkflowBuildOperationRuntime().runBuildForFile(filePath, options)
     },
@@ -451,6 +491,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
       this.previewBindings = {}
       this.markdownPreviewState = {}
+      this.workspacePreviewVisibility = {}
       this._isReconciling = false
       this._lastTrigger = null
     },

@@ -2,6 +2,9 @@ import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
 } from '../../services/documentWorkflow/adapters/index.js'
+import { resolveCachedLatexRootPath } from '../../services/latex/root.js'
+import { resolveCachedTypstRootPath } from '../../services/typst/root.js'
+import { resolveDocumentWorkspacePreviewState } from './documentWorkspacePreviewRuntime.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -33,15 +36,89 @@ function resolvePreviewKind(filePath, adapter, options = {}, workflowStore = nul
   return preferredPreviewKind
 }
 
-function resolvePreviewAvailable(filePath, previewKind, options = {}, workflowStore = null) {
-  if (typeof options.previewAvailable === 'boolean') return options.previewAvailable
-  if (!filePath || !previewKind) return false
+function resolveTargetResolution(filePath, adapter, context = {}) {
+  if (!adapter || !filePath) return null
+  if (adapter.kind === 'markdown') return { status: 'resolved', targetPath: filePath }
+  if (adapter.kind === 'latex') {
+    const compileState = context.latexStore?.stateForFile?.(filePath) || null
+    const targetPath = compileState?.sourcePath || resolveCachedLatexRootPath(filePath) || ''
+    return targetPath ? { status: 'resolved', targetPath } : { status: 'unresolved', targetPath: '' }
+  }
+  if (adapter.kind === 'typst') {
+    const compileState = context.typstStore?.stateForFile?.(filePath) || null
+    const targetPath = (
+      compileState?.compileTargetPath
+      || compileState?.projectRootPath
+      || resolveCachedTypstRootPath(filePath)
+      || filePath
+    )
+    return targetPath ? { status: 'resolved', targetPath } : { status: 'unresolved', targetPath: '' }
+  }
+  return null
+}
 
-  const hasPreviewForSource = (
-    options.hasPreviewForSource
-    || workflowStore?.hasPreviewForSource?.bind(workflowStore)
-  )
-  return hasPreviewForSource?.(filePath, previewKind) === true
+function resolveWorkspacePreviewState(filePath, adapter, context = {}, options = {}) {
+  if (!adapter || !filePath) {
+    return resolveDocumentWorkspacePreviewState({
+      filePath,
+      workflowUiState: null,
+    })
+  }
+
+  const previewKind = resolvePreviewKind(filePath, adapter, options, context.workflowStore)
+  const artifactPath = adapter.compile?.getArtifactPath?.(filePath, context) || ''
+  const latexState = context.latexStore?.stateForFile?.(filePath) || null
+  const typstState = context.typstStore?.stateForFile?.(filePath) || null
+  const typstLiveState = context.typstStore?.liveStateForFile?.(filePath) || null
+  const targetResolution = resolveTargetResolution(filePath, adapter, context)
+  const artifactReady = adapter.kind === 'latex'
+    ? Boolean(latexState?.pdfPath)
+    : adapter.kind === 'typst'
+      ? Boolean(typstState?.pdfPath)
+      : false
+  const hiddenByUser = context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true
+
+  return resolveDocumentWorkspacePreviewState({
+    filePath,
+    workflowUiState: { kind: adapter.kind, previewKind },
+    previewKind,
+    artifactPath,
+    artifactReady,
+    targetResolution,
+    hiddenByUser,
+    typstNativeReady: adapter.kind === 'typst'
+      ? (typstLiveState?.tinymistBacked !== false)
+      : null,
+  })
+}
+
+function resolveWorkspacePreviewAvailability(filePath, adapter, context = {}, options = {}) {
+  if (!adapter || !filePath) return false
+
+  const previewKind = resolvePreviewKind(filePath, adapter, options, context.workflowStore)
+  const artifactPath = adapter.compile?.getArtifactPath?.(filePath, context) || ''
+  const latexState = context.latexStore?.stateForFile?.(filePath) || null
+  const typstState = context.typstStore?.stateForFile?.(filePath) || null
+  const typstLiveState = context.typstStore?.liveStateForFile?.(filePath) || null
+  const targetResolution = resolveTargetResolution(filePath, adapter, context)
+  const artifactReady = adapter.kind === 'latex'
+    ? Boolean(latexState?.pdfPath)
+    : adapter.kind === 'typst'
+      ? Boolean(typstState?.pdfPath)
+      : false
+
+  return resolveDocumentWorkspacePreviewState({
+    filePath,
+    workflowUiState: { kind: adapter.kind, previewKind },
+    previewKind,
+    artifactPath,
+    artifactReady,
+    targetResolution,
+    hiddenByUser: false,
+    typstNativeReady: adapter.kind === 'typst'
+      ? (typstLiveState?.tinymistBacked !== false)
+      : null,
+  }).previewVisible
 }
 
 export function getDocumentWorkflowStatusTone(uiState = null) {
@@ -93,15 +170,20 @@ export function createDocumentWorkflowBuildRuntime({
         adapter: null,
         previewKind: null,
         previewAvailable: false,
+        previewVisible: false,
       }
     }
 
     const previewKind = resolvePreviewKind(filePath, adapter, options, context.workflowStore)
+    const previewAvailable = resolveWorkspacePreviewAvailability(filePath, adapter, context, options)
+    const workspacePreviewState = resolveWorkspacePreviewState(filePath, adapter, context, options)
     return {
       ...context,
       adapter,
       previewKind,
-      previewAvailable: resolvePreviewAvailable(filePath, previewKind, options, context.workflowStore),
+      previewAvailable,
+      previewVisible: workspacePreviewState.previewVisible,
+      workspacePreviewState,
     }
   }
 
@@ -130,6 +212,10 @@ export function createDocumentWorkflowBuildRuntime({
     return context.adapter?.compile?.getArtifactPath?.(filePath, context) || ''
   }
 
+  function getWorkspacePreviewStateForFile(filePath, options = {}) {
+    return buildAdapterContext(filePath, options).workspacePreviewState
+  }
+
   return {
     buildAdapterContext,
     openLogForFile,
@@ -137,6 +223,7 @@ export function createDocumentWorkflowBuildRuntime({
     getUiStateForFile,
     getStatusTextForFile,
     getArtifactPathForFile,
+    getWorkspacePreviewStateForFile,
     getStatusTone: getDocumentWorkflowStatusTone,
   }
 }

@@ -39,6 +39,8 @@ const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
   toolbarTargetSelector: { type: String, default: '' },
+  workflowSourcePath: { type: String, default: '' },
+  workflowPreviewKind: { type: String, default: '' },
 })
 
 const filesStore = useFilesStore()
@@ -49,15 +51,19 @@ const previewBinding = computed(() => workflowStore.getPreviewBinding(props.file
 const previewSourcePath = computed(
   () => workflowStore.getSourcePathForPreview(props.filePath) || ''
 )
+const workflowSourcePath = computed(() => props.workflowSourcePath || previewSourcePath.value)
 const pdfSourceState = computed(() => filesStore.getPdfSourceState(props.filePath))
 const boundSourceKind = computed(() => {
-  if (isLatex(previewSourcePath.value)) return 'latex'
-  if (isTypst(previewSourcePath.value)) return 'typst'
+  if (isLatex(workflowSourcePath.value)) return 'latex'
+  if (isTypst(workflowSourcePath.value)) return 'typst'
   return null
 })
 const canUseTypstWorkflowPdfViewer = computed(
   () =>
-    previewBinding.value?.previewKind === 'pdf' &&
+    (
+      previewBinding.value?.previewKind === 'pdf'
+      || props.workflowPreviewKind === 'pdf'
+    ) &&
     (isTypst(previewBinding.value?.sourcePath || '') || boundSourceKind.value === 'typst')
 )
 const pdfSourceReady = computed(

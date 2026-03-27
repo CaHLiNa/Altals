@@ -19,9 +19,6 @@ function createBuildRuntime(overrides = {}) {
       if (kind === 'markdown') return 'html'
       return null
     },
-    hasPreviewForSource() {
-      return false
-    },
     ...overrides.workflowStore,
   }
 
@@ -95,17 +92,16 @@ function createBuildRuntime(overrides = {}) {
   }
 }
 
-test('document workflow build runtime builds latex adapter context from workflow preview state', () => {
+test('document workflow build runtime builds latex adapter context from workspace preview state', () => {
   const { runtime } = createBuildRuntime({
-    workflowStore: {
-      session: {
-        activeFile: '/workspace/main.tex',
-        previewKind: 'pdf',
+    latexStore: {
+      stateForFile() {
+        return {
+          status: 'success',
+          pdfPath: '/workspace/main.pdf',
+        }
       },
-      hasPreviewForSource(filePath, previewKind) {
-        return filePath === '/workspace/main.tex' && previewKind === 'pdf'
-      },
-    },
+    }
   })
 
   const context = runtime.buildAdapterContext('/workspace/main.tex')
@@ -113,6 +109,8 @@ test('document workflow build runtime builds latex adapter context from workflow
   assert.equal(context.adapter?.kind, 'latex')
   assert.equal(context.previewKind, 'pdf')
   assert.equal(context.previewAvailable, true)
+  assert.equal(context.workspacePreviewState.previewMode, 'pdf')
+  assert.equal(context.workspacePreviewState.previewFilePath, '/workspace/main.pdf')
 })
 
 test('document workflow build runtime preserves adapter-specific compile log opening', () => {
@@ -164,14 +162,12 @@ test('document workflow build runtime preserves markdown draft and preview probl
 
 test('document workflow build runtime exposes queued latex ui state and status tone outside the store shell', () => {
   const { runtime } = createBuildRuntime({
-    workflowStore: {
-      hasPreviewForSource(filePath, previewKind) {
-        return filePath === '/workspace/main.tex' && previewKind === 'pdf'
-      },
-    },
     latexStore: {
       stateForFile() {
-        return { status: 'idle' }
+        return {
+          status: 'success',
+          pdfPath: '/workspace/main.pdf',
+        }
       },
       queueStateForFile() {
         return { phase: 'queued' }
@@ -186,6 +182,29 @@ test('document workflow build runtime exposes queued latex ui state and status t
   assert.equal(uiState?.canRevealPreview, true)
   assert.equal(runtime.getStatusTextForFile('/workspace/main.tex'), 'Queued')
   assert.equal(getDocumentWorkflowStatusTone(uiState), 'warning')
+})
+
+test('document workflow build runtime keeps latex preview action available when preview is hidden', () => {
+  const { runtime, workflowStore } = createBuildRuntime({
+    latexStore: {
+      stateForFile() {
+        return {
+          status: 'success',
+          pdfPath: '/workspace/main.pdf',
+        }
+      },
+    },
+  })
+
+  workflowStore.isWorkspacePreviewHiddenForFile = (filePath) => filePath === '/workspace/main.tex'
+
+  const context = runtime.buildAdapterContext('/workspace/main.tex')
+  const uiState = runtime.getUiStateForFile('/workspace/main.tex')
+
+  assert.equal(context.previewAvailable, true)
+  assert.equal(context.previewVisible, false)
+  assert.equal(context.workspacePreviewState.previewVisible, false)
+  assert.equal(uiState?.canRevealPreview, true)
 })
 
 test('document workflow build runtime exposes adapter-specific artifact paths outside the store shell', () => {
@@ -203,4 +222,24 @@ test('document workflow build runtime exposes adapter-specific artifact paths ou
     runtime.getArtifactPathForFile('/workspace/main.typ'),
     '/workspace/main-built.pdf',
   )
+})
+
+test('document workflow build runtime exposes typst workspace preview state without relying on preview tabs', () => {
+  const { runtime } = createBuildRuntime({
+    typstStore: {
+      stateForFile() {
+        return null
+      },
+      liveStateForFile() {
+        return { tinymistBacked: true }
+      },
+    },
+  })
+
+  const previewState = runtime.getWorkspacePreviewStateForFile('/workspace/main.typ')
+
+  assert.equal(previewState.useWorkspace, true)
+  assert.equal(previewState.previewVisible, true)
+  assert.equal(previewState.previewMode, 'typst-native')
+  assert.equal(previewState.previewFilePath, 'typst-preview:/workspace/main.typ')
 })
