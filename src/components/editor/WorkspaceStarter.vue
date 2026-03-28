@@ -4,7 +4,7 @@
       <div class="workspace-starter-shell">
         <section class="workspace-starter-masthead">
           <div class="workspace-starter-masthead-copy">
-            <div class="workspace-starter-kicker">{{ t('Research dashboard') }}</div>
+            <div class="workspace-starter-kicker">{{ t('Document workspace') }}</div>
             <h1 class="workspace-starter-title">{{ workspaceName }}</h1>
             <p class="workspace-starter-copy">
               {{ t('A focused writing desk for Markdown, LaTeX, and Typst documents.') }}
@@ -38,13 +38,13 @@
                 class="workspace-starter-secondary"
                 @click="createNewFile('.md')"
               >
-                {{ t('New draft') }}
+                {{ t('New document') }}
               </UiButton>
             </div>
           </div>
 
           <aside class="workspace-starter-overview">
-            <div class="workspace-starter-section-kicker">{{ t('Project overview') }}</div>
+            <div class="workspace-starter-section-kicker">{{ t('Workspace overview') }}</div>
             <dl class="workspace-starter-overview-grid">
               <div
                 v-for="item in overviewItems"
@@ -62,11 +62,11 @@
           <section class="workspace-starter-section">
             <div class="workspace-starter-section-head">
               <div class="workspace-starter-section-heading">
-                <div class="workspace-starter-section-kicker">{{ t('Continue working') }}</div>
-                <h2 class="workspace-starter-section-title">{{ t('Recent materials') }}</h2>
+                <div class="workspace-starter-section-kicker">{{ t('Continue writing') }}</div>
+                <h2 class="workspace-starter-section-title">{{ t('Recent documents') }}</h2>
               </div>
               <p class="workspace-starter-section-copy">
-                {{ t('Return to the files you were reading, drafting, or running most recently.') }}
+                {{ t('Return to the files you opened or edited most recently.') }}
               </p>
             </div>
 
@@ -102,10 +102,10 @@
             <div class="workspace-starter-section-head">
               <div class="workspace-starter-section-heading">
                 <div class="workspace-starter-section-kicker">{{ t('Current workspace') }}</div>
-                <h2 class="workspace-starter-section-title">{{ t('Writing focus') }}</h2>
+                <h2 class="workspace-starter-section-title">{{ t('Document formats') }}</h2>
               </div>
               <p class="workspace-starter-section-copy">
-                {{ t('This workspace is now trimmed down to the three core writing formats.') }}
+                {{ t('This workspace now focuses on the three core document formats.') }}
               </p>
             </div>
 
@@ -132,8 +132,8 @@
         <section class="workspace-starter-section">
           <div class="workspace-starter-section-head">
             <div class="workspace-starter-section-heading">
-              <div class="workspace-starter-section-kicker">{{ t('Project workspace') }}</div>
-              <h2 class="workspace-starter-section-title">{{ t('Start new work') }}</h2>
+              <div class="workspace-starter-section-kicker">{{ t('Document workspace') }}</div>
+              <h2 class="workspace-starter-section-title">{{ t('New document') }}</h2>
             </div>
             <p class="workspace-starter-section-copy">
               {{ t('Create a new Markdown, LaTeX, or Typst document inside this project.') }}
@@ -196,7 +196,7 @@ const workspacePathDisplay = computed(() =>
 )
 
 const fileCount = computed(() => filesStore.flatFiles.length)
-const draftCount = computed(() =>
+const documentCount = computed(() =>
   countWorkspaceStarterFilesByExtension(filesStore.flatFiles, WORKSPACE_STARTER_DRAFT_EXTENSIONS)
 )
 
@@ -209,7 +209,7 @@ const latestActivityLabel = computed(() =>
 
 const overviewItems = computed(() => [
   { key: 'files', label: t('Files'), value: fileCount.value },
-  { key: 'drafts', label: t('Drafts'), value: draftCount.value },
+  { key: 'documents', label: t('Documents'), value: documentCount.value },
 ])
 
 const createItems = computed(() => [
@@ -221,7 +221,7 @@ const createItems = computed(() => [
 const focusItems = computed(() => [
   {
     key: 'markdown',
-    label: t('Markdown drafts'),
+    label: t('Markdown documents'),
     meta: t('Notes, outlines, and long-form writing with inline preview.'),
     action: () => createNewFile('.md'),
   },

@@ -1,8 +1,7 @@
 export const DEFAULT_PROJECT_INSTRUCTIONS = `<!-- Project Instructions -->
-<!-- Everything here shapes how AI helps you in this project — -->
-<!-- in chat, inline suggestions, and tasks.                -->
-<!-- Edits take effect immediately. Delete these hints and     -->
-<!-- write your own.                                           -->
+<!-- Use this file to guide writing, review, and edits in this project. -->
+<!-- These notes shape document help, inline suggestions, and review tasks. -->
+<!-- Edits take effect immediately. Delete these hints and write your own. -->
 
 <!-- Example: This is my PhD thesis on marine biodiversity.    -->
 

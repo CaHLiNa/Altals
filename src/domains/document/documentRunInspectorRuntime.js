@@ -82,7 +82,7 @@ function buildCompileDiagnosisCard(artifact, options) {
   }
 }
 
-function buildPatchCard(artifact, options) {
+function buildChangeCard(artifact, options) {
   const { t, maxChanges = 3 } = options
   const changes = Array.isArray(artifact?.changes) ? artifact.changes : []
   const visibleChanges = changes.slice(0, maxChanges).map((change, index) => ({
@@ -94,9 +94,9 @@ function buildPatchCard(artifact, options) {
 
   return {
     id: artifact.cardId || artifact.id || 'patch',
-    badge: t('Patch'),
+    badge: t('Changes'),
     tone: 'accent',
-    title: artifact?.title || t('Patch ready'),
+    title: artifact?.title || t('Changes ready'),
     summary: artifact?.summary || '',
     meta: artifact?.sourceFile
       ? [{
@@ -108,7 +108,7 @@ function buildPatchCard(artifact, options) {
     items: visibleChanges,
     moreCount: Math.max(0, changes.length - visibleChanges.length),
     moreLabel: t('{count} more changes', { count: Math.max(0, changes.length - visibleChanges.length) }),
-    detailsLabel: artifact?.body ? t('Patch details') : '',
+    detailsLabel: artifact?.body ? t('Change details') : '',
     detailsAvailable: !!artifact?.body,
     detailsSourceIndex: artifact.sourceIndex,
   }
@@ -160,7 +160,7 @@ export function buildDocumentRunArtifactCards(artifacts = [], options = {}) {
       }
 
       if (normalized.type === 'patch') {
-        return buildPatchCard(normalized, { ...options, t })
+        return buildChangeCard(normalized, { ...options, t })
       }
 
       return buildGenericCard(normalized, { ...options, t })

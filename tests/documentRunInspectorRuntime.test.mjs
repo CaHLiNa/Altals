@@ -88,10 +88,10 @@ test('buildDocumentRunArtifactCards compacts patch artifacts into short change l
   )
 
   assert.equal(cards.length, 1)
-  assert.equal(cards[0].badge, 'Patch')
+  assert.equal(cards[0].badge, 'Changes')
   assert.equal(cards[0].items.length, 3)
   assert.equal(cards[0].moreCount, 1)
-  assert.equal(cards[0].detailsLabel, 'Patch details')
+  assert.equal(cards[0].detailsLabel, 'Change details')
   assert.equal(cards[0].detailsAvailable, true)
   assert.equal(cards[0].detailsSourceIndex, 0)
 })
