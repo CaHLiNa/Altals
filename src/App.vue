@@ -60,7 +60,7 @@
           @resize-end="endLeftSidebarResize"
         />
 
-        <!-- Center: Editor panes + bottom panel -->
+        <!-- Center: Editor panes -->
         <div class="app-shell-main flex-1 flex flex-col overflow-hidden" style="min-width: 200px">
           <div class="flex-1 overflow-hidden relative">
             <KeepAlive :max="3">
@@ -74,18 +74,6 @@
               />
             </KeepAlive>
           </div>
-
-          <template v-if="workspace.isWorkspaceSurface">
-            <!-- Bottom panel resize handle -->
-            <ResizeHandle
-              v-if="workspace.bottomPanelOpen"
-              direction="horizontal"
-              @resize="onBottomResize"
-            />
-
-            <!-- Bottom panel: Terminals -->
-            <BottomPanel ref="bottomPanelRef" :panel-height="bottomPanelHeight" />
-          </template>
         </div>
 
         <template v-if="supportsRightSidebar">
@@ -163,13 +151,8 @@ import { ref, computed, defineAsyncComponent, onUnmounted, watch } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
-import { useReviewsStore } from './stores/reviews'
 import { useCommentsStore } from './stores/comments'
 import { useLinksStore } from './stores/links'
-import { useAiWorkbenchStore } from './stores/aiWorkbench'
-import { useAiWorkflowRunsStore } from './stores/aiWorkflowRuns'
-import { useReferencesStore } from './stores/references'
-import { useResearchArtifactsStore } from './stores/researchArtifacts'
 import { useToastStore } from './stores/toast'
 
 import Header from './components/layout/Header.vue'
@@ -194,49 +177,28 @@ import { setShellResizeActive } from './shared/shellResizeSignals'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
-const BottomPanel = defineAsyncComponent(() => import('./components/layout/BottomPanel.vue'))
 const PaneContainer = defineAsyncComponent(() => import('./components/editor/PaneContainer.vue'))
-const DocumentConversionWorkbench = defineAsyncComponent(
-  () => import('./components/conversion/DocumentConversionWorkbench.vue')
-)
 const WorkspaceSnapshotBrowser = defineAsyncComponent(
   () => import('./components/WorkspaceSnapshotBrowser.vue')
 )
 const FileVersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
-const AiWorkbenchSurface = defineAsyncComponent(
-  () => import('./components/ai/AiWorkbenchSurface.vue')
-)
-const GlobalLibraryWorkbench = defineAsyncComponent(
-  () => import('./components/library/GlobalLibraryWorkbench.vue')
-)
 const UnsavedChangesDialog = defineAsyncComponent(
   () => import('./components/UnsavedChangesDialog.vue')
 )
 
-async function resolveChatStore() {
-  const { useChatStore } = await import('./stores/chat.js')
-  return useChatStore()
-}
-
 const workspace = useWorkspaceStore()
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
-const reviews = useReviewsStore()
 const commentsStore = useCommentsStore()
 const linksStore = useLinksStore()
-const aiWorkbenchStore = useAiWorkbenchStore()
-const aiWorkflowRuns = useAiWorkflowRunsStore()
-const referencesStore = useReferencesStore()
-const researchArtifactsStore = useResearchArtifactsStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
 
 const footerRef = ref(null)
 const headerRef = ref(null)
 const leftSidebarRef = ref(null)
-const bottomPanelRef = ref(null)
 const creatingWorkspaceSnapshot = ref(false)
 const workspaceSnapshotBrowserRefreshToken = ref(0)
 const workspaceSnapshotBrowserVisible = ref(false)
@@ -245,28 +207,11 @@ const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 const WORKBENCH_RAIL_WIDTH = 44
 
-aiWorkflowRuns.configureExecutor({
-  resolveChatStore,
-  toastStore,
-  aiWorkbenchStore,
-})
-
-const supportsRightSidebar = computed(
-  () => workspace.isOpen && !workspace.isAiSurface && !workspace.isConversionSurface
-)
-const activeWorkbenchComponent = computed(() => {
-  if (workspace.isLibrarySurface) return GlobalLibraryWorkbench
-  if (workspace.isAiSurface) return AiWorkbenchSurface
-  if (workspace.isConversionSurface) return DocumentConversionWorkbench
-  return PaneContainer
-})
+const supportsRightSidebar = computed(() => workspace.isOpen)
+const activeWorkbenchComponent = computed(() => PaneContainer)
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
-const activeWorkbenchProps = computed(() =>
-  workspace.isWorkspaceSurface ? { node: editorStore.paneTree } : {}
-)
-const activeWorkbenchClass = computed(() =>
-  workspace.isWorkspaceSurface ? 'h-full min-h-0 w-full' : 'h-full min-h-0 w-full'
-)
+const activeWorkbenchProps = computed(() => ({ node: editorStore.paneTree }))
+const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 let sidebarToggleResizePulseTimer = null
 
 function clearSidebarToggleResizePulse() {
@@ -291,7 +236,6 @@ function pulseShellResizeForSidebarToggle(side) {
 const {
   leftSidebarWidth,
   rightSidebarWidth,
-  bottomPanelHeight,
   isLeftSidebarResizing,
   isRightSidebarResizing,
   onLeftResize,
@@ -301,7 +245,6 @@ const {
   startRightSidebarResize,
   endRightSidebarResize,
   onRightResizeSnap,
-  onBottomResize,
   cleanupAppShellLayout,
 } = useAppShellLayout()
 const { closeWorkspace, handleVisibilityChange, openWorkspace, pickWorkspace, setupWizardVisible } =
@@ -384,7 +327,6 @@ useAppShellEventBridge({
   commentsStore,
   headerRef,
   leftSidebarRef,
-  bottomPanelRef,
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
   handleVisibilityChange,
@@ -398,11 +340,8 @@ useAppTeardown({
   cleanupAppShellLayout,
   workspace,
   filesStore,
-  reviews,
   linksStore,
   commentsStore,
-  referencesStore,
-  researchArtifactsStore,
 })
 
 watch(

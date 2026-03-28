@@ -50,15 +50,19 @@ const filesStore = useFilesStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
 
-const previewInput = computed(() => resolveDocumentPdfPreviewInput(props.filePath, {
-  sourcePath: props.sourcePath || props.workflowSourcePath,
-  previewTargetPath: props.previewTargetPath,
-  resolvedTargetPath: props.resolvedTargetPath,
-  workflowStore,
-  filesStore,
-}))
+const previewInput = computed(() =>
+  resolveDocumentPdfPreviewInput(props.filePath, {
+    sourcePath: props.sourcePath || props.workflowSourcePath,
+    previewTargetPath: props.previewTargetPath,
+    resolvedTargetPath: props.resolvedTargetPath,
+    workflowStore,
+    filesStore,
+  })
+)
 const pdfSourceReady = computed(
-  () => previewInput.value.resolutionState === 'ready' || previewInput.value.resolutionState === 'resolved-from-source'
+  () =>
+    previewInput.value.resolutionState === 'ready' ||
+    previewInput.value.resolutionState === 'resolved-from-source'
 )
 const pdfSourceKind = computed(() => previewInput.value.resolvedKind)
 const viewerFilePath = computed(

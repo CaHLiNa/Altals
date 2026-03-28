@@ -204,7 +204,6 @@
         @delete-selected="handleDeleteSelected"
         @file-version-history="$emit('file-version-history', $event)"
         @reveal-in-finder="revealInFinder"
-        @import-to-refs="handleImportToRefs"
       />
 
       <!-- Workspace dropdown menu -->
@@ -263,22 +262,6 @@
               <span class="flex-1">Typst</span>
               <span class="context-menu-ext">.typ</span>
             </div>
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.R' })">
-              <IconCode :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('R Script') }}</span>
-              <span class="context-menu-ext">.R</span>
-            </div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.py' })">
-              <IconBrandPython :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('Python') }}</span>
-              <span class="context-menu-ext">.py</span>
-            </div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.ipynb' })">
-              <IconNotebook :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('Notebook') }}</span>
-              <span class="context-menu-ext">.ipynb</span>
-            </div>
           </div>
         </div>
       </Teleport>
@@ -311,10 +294,7 @@ import {
   IconSearch,
   IconPlus,
   IconFileText,
-  IconNotebook,
   IconMath,
-  IconCode,
-  IconBrandPython,
   IconFilePlus,
   IconFolderPlus,
   IconDotsVertical,
@@ -406,7 +386,6 @@ const {
   onDragLeaveDir,
   onDropOnDir,
   onTreeMouseUp,
-  isImportableFile,
 } = useFileTreeDrag({
   files,
   editor,
@@ -691,18 +670,6 @@ async function handleDeleteSelected() {
       await files.deletePath(path)
     }
     selectedPaths.clear()
-  }
-}
-
-function handleImportToRefs(entry) {
-  let paths
-  if (selectedPaths.size > 1) {
-    paths = [...selectedPaths].filter((p) => isImportableFile(p))
-  } else {
-    paths = [entry.path]
-  }
-  if (paths.length > 0) {
-    window.dispatchEvent(new CustomEvent('ref-file-drop', { detail: { paths } }))
   }
 }
 

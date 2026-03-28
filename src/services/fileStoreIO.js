@@ -99,13 +99,7 @@ export async function createWorkspaceFile(dirPath, name) {
   const fullPath = `${dirPath}/${name}`
 
   let content = ''
-  if (name.endsWith('.ipynb')) {
-    content = JSON.stringify({
-      cells: [{ id: 'cell-1', cell_type: 'code', source: [], metadata: {}, outputs: [], execution_count: null }],
-      metadata: { kernelspec: { display_name: 'Python 3', language: 'python', name: 'python3' }, language_info: { name: 'python' } },
-      nbformat: 4, nbformat_minor: 5,
-    }, null, 1) + '\n'
-  } else if (name.endsWith('.tex')) {
+  if (name.endsWith('.tex')) {
     const title = name.replace(/\.tex$/, '').replace(/-/g, ' ')
     content = `\\documentclass{article}\n\\title{${title}}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\n\n\\end{document}\n`
   } else if (name.endsWith('.typ')) {

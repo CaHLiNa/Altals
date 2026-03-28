@@ -3,7 +3,7 @@
     <div class="search-results-list">
       <!-- Title matches -->
       <template v-if="titleMatches.length > 0">
-        <div class="quick-open-section" v-if="query && (contentMatches.length > 0 || chatMatches.length > 0)">{{ t('Files') }}</div>
+        <div class="quick-open-section" v-if="query && contentMatches.length > 0">{{ t('Files') }}</div>
         <div
           v-for="(file, idx) in titleMatches"
           :key="'t-' + file.path"
@@ -56,46 +56,7 @@
         </div>
       </template>
 
-      <!-- Reference matches -->
-      <template v-if="refMatches.length > 0">
-        <div class="quick-open-section">{{ t('References') }}</div>
-        <div
-          v-for="(ref, idx) in refMatches"
-          :key="'r-' + ref._key"
-          class="quick-open-item"
-          :class="{ active: titleMatches.length + contentMatches.length + typstSymbolMatches.length + idx === selectedIndex }"
-          @mousedown.prevent="$emit('select-citation', ref._key)"
-          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + typstSymbolMatches.length + idx"
-        >
-          <span class="ref-key-badge mr-1.5">@{{ ref._key }}</span>
-          <span>{{ refAuthorLine(ref) }}</span>
-          <span class="path">{{ ref.title || '' }}</span>
-        </div>
-      </template>
-
-      <!-- Chat matches -->
-      <template v-if="chatMatches.length > 0">
-        <div class="quick-open-section">{{ t('Chats') }}</div>
-        <div
-          v-for="(chat, idx) in chatMatches"
-          :key="'ch-' + chat.id"
-          class="quick-open-item"
-          :class="{ active: titleMatches.length + contentMatches.length + typstSymbolMatches.length + refMatches.length + idx === selectedIndex }"
-          @mousedown.prevent="$emit('select-chat', chat.id)"
-          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + typstSymbolMatches.length + refMatches.length + idx"
-        >
-          <svg class="shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
-            <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"/>
-          </svg>
-          <span class="truncate">{{ chat.label }}</span>
-          <span class="chat-meta">
-            <span class="chat-msg-count">{{ chat.messageCount }}</span>
-            <span class="chat-time">{{ relativeTime(chat.updatedAt) }}</span>
-          </span>
-        </div>
-      </template>
-
-      <div v-if="titleMatches.length === 0 && contentMatches.length === 0 && typstSymbolMatches.length === 0 && refMatches.length === 0 && chatMatches.length === 0 && query"
+      <div v-if="titleMatches.length === 0 && contentMatches.length === 0 && typstSymbolMatches.length === 0 && query"
         class="quick-open-item" style="color: var(--fg-muted);">
         {{ searching ? t('Searching...') : t('No results found') }}
       </div>
@@ -108,9 +69,7 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useFilesStore } from '../stores/files'
 import { useWorkspaceStore } from '../stores/workspace'
-import { useReferencesStore } from '../stores/references'
-import { useChatStore } from '../stores/chat'
-import { formatRelativeFromNow, useI18n } from '../i18n'
+import { useI18n } from '../i18n'
 import { requestTinymistWorkspaceSymbols } from '../services/tinymist/session'
 import { normalizeTinymistWorkspaceSymbols } from '../services/tinymist/symbols'
 
@@ -118,12 +77,10 @@ const props = defineProps({
   query: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-file', 'select-citation', 'select-chat', 'select-typst-symbol'])
+const emit = defineEmits(['select-file', 'select-typst-symbol'])
 
 const files = useFilesStore()
 const workspace = useWorkspaceStore()
-const referencesStore = useReferencesStore()
-const chatStore = useChatStore()
 const { t } = useI18n()
 
 const selectedIndex = ref(0)
@@ -135,9 +92,7 @@ let searchTimer = null
 let typstSymbolTimer = null
 let typstSymbolRequestId = 0
 
-// Ensure chat session metadata is loaded
 onMounted(() => {
-  chatStore.loadAllSessionsMeta()
   files.ensureFlatFilesReady().catch((error) => {
     console.warn('[search-results] ensureFlatFilesReady failed:', error)
   })
@@ -172,31 +127,10 @@ const titleMatches = computed(() => {
   return list.slice(0, 15)
 })
 
-const refMatches = computed(() => {
-  const q = props.query.trim()
-  if (q.length < 2) return []
-  return referencesStore.searchGlobalRefs(q).slice(0, 8)
-})
-
-const chatMatches = computed(() => {
-  const q = props.query.trim().toLowerCase()
-  if (q.length < 2) return []
-
-  return chatStore.allSessionsMeta
-    .filter(meta => {
-      if (meta.label?.toLowerCase().includes(q)) return true
-      if (meta._keywords?.some(k => k.toLowerCase().includes(q))) return true
-      return false
-    })
-    .slice(0, 5)
-})
-
 const totalItems = computed(() =>
   titleMatches.value.length
   + contentMatches.value.length
   + typstSymbolMatches.value.length
-  + refMatches.value.length
-  + chatMatches.value.length
 )
 
 // Debounced content search
@@ -252,10 +186,6 @@ function relativePath(path) {
   return path
 }
 
-function relativeTime(dateStr) {
-  return formatRelativeFromNow(dateStr)
-}
-
 function moveSelection(delta) {
   const len = totalItems.value
   if (len === 0) return
@@ -271,7 +201,6 @@ function confirmSelection() {
   const fileEnd = titleMatches.value.length
   const contentEnd = fileEnd + contentMatches.value.length
   const typstEnd = contentEnd + typstSymbolMatches.value.length
-  const refEnd = typstEnd + refMatches.value.length
 
   if (selectedIndex.value < fileEnd) {
     const file = titleMatches.value[selectedIndex.value]
@@ -284,24 +213,7 @@ function confirmSelection() {
     const idx = selectedIndex.value - contentEnd
     const symbol = typstSymbolMatches.value[idx]
     if (symbol) emit('select-typst-symbol', symbol)
-  } else if (selectedIndex.value < refEnd) {
-    const idx = selectedIndex.value - typstEnd
-    const r = refMatches.value[idx]
-    if (r) emit('select-citation', r._key)
-  } else {
-    const idx = selectedIndex.value - refEnd
-    const chat = chatMatches.value[idx]
-    if (chat) emit('select-chat', chat.id)
   }
-}
-
-function refAuthorLine(ref) {
-  const authors = ref.author || []
-  if (authors.length === 0) return ''
-  const first = authors[0].family || ''
-  const year = ref.issued?.['date-parts']?.[0]?.[0] || ''
-  if (authors.length === 1) return `${first} (${year})`
-  return `${first} et al. (${year})`
 }
 
 defineExpose({ moveSelection, confirmSelection })

@@ -179,9 +179,6 @@ function _buildParagraphs(lines, medianGap, bodyFontSize) {
 /**
  * Extract metadata from a PDF file.
  * Returns { text, metadata } where metadata has title, authors, doi, etc.
- *
- * Tier 1: PDF document metadata (XMP/Info dict)
- * Tier 2: AI extraction from first ~3000 chars
  */
 export async function extractFromPdf(filePath) {
   const base64 = await invoke('read_file_base64', { path: filePath })
@@ -235,7 +232,3 @@ export async function extractFromPdf(filePath) {
 
   return { text: fullText, firstText, metadata }
 }
-
-// aiExtractMetadata has been moved to src/services/ai/referenceExtraction.js (multi-provider support).
-// The old Anthropic-only chat_stream approach is replaced by non-streaming proxy_api_call
-// with automatic provider fallback: Gemini > Anthropic > OpenAI.

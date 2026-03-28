@@ -34,7 +34,6 @@
         :comment="comment"
         :active="comment.id === commentsStore.activeCommentId"
         @click="handleCardClick(comment)"
-        @ask-ai="handleAskAi(comment)"
       />
 
       <!-- Empty state -->
@@ -64,15 +63,6 @@
       </div>
     </div>
 
-    <!-- Submit footer -->
-    <div v-if="unresolvedCount > 0" class="comment-margin-footer">
-      <button
-        class="comment-btn-primary comment-submit-full"
-        @click="handleSubmit"
-      >
-        {{ t('Submit {count}', { count: unresolvedCount }) }}
-      </button>
-    </div>
   </div>
 </template>
 
@@ -80,7 +70,6 @@
 import { computed } from 'vue'
 import { IconPlus, IconEye, IconEyeOff } from '@tabler/icons-vue'
 import { useCommentsStore } from '../../stores/comments'
-import { submitCommentThreadToChat, submitCommentsToChat } from '../../services/commentActions'
 import CommentCard from './CommentCard.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -103,8 +92,6 @@ const visibleComments = computed(() => {
   return commentsStore.unresolvedForFile(props.filePath)
 })
 
-const unresolvedCount = computed(() => commentsStore.unresolvedCount(props.filePath))
-
 function handleCardClick(comment) {
   commentsStore.setActiveComment(comment.id)
   window.dispatchEvent(new CustomEvent('comment-scroll-to', {
@@ -112,24 +99,11 @@ function handleCardClick(comment) {
   }))
 }
 
-function handleSubmit() {
-  submitCommentsToChat(props.filePath)
-}
-
 function handleAddComment() {
   if (!props.hasSelection) return
   window.dispatchEvent(new CustomEvent('comment-create', {
     detail: { paneId: props.paneId },
   }))
-}
-
-function handleAskAi(comment) {
-  if (!comment?.id) return
-  commentsStore.setActiveComment(comment.id)
-  submitCommentThreadToChat(comment.id, {
-    paneId: props.paneId,
-    beside: true,
-  })
 }
 
 function toggleShowResolved() {

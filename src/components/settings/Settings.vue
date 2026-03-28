@@ -74,28 +74,13 @@ import {
   ref,
   watch,
 } from 'vue'
-import {
-  IconPalette,
-  IconEdit,
-  IconKey,
-  IconTool,
-  IconCpu,
-  IconChartBar,
-  IconBrandGithub,
-  IconRefresh,
-  IconFileTypePdf,
-} from '@tabler/icons-vue'
+import { IconPalette, IconEdit, IconCpu, IconRefresh } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
-const SettingsModels = defineAsyncComponent(() => import('./SettingsModels.vue'))
-const SettingsTools = defineAsyncComponent(() => import('./SettingsTools.vue'))
-const SettingsPdfTranslate = defineAsyncComponent(() => import('./SettingsPdfTranslate.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
-const SettingsUsage = defineAsyncComponent(() => import('./SettingsUsage.vue'))
-const SettingsGitHub = defineAsyncComponent(() => import('./SettingsGitHub.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 
 const props = defineProps({
@@ -118,15 +103,11 @@ const modalStyle = computed(() => ({
 watch(
   () => props.visible,
   async (v) => {
-    if (v && props.initialSection) {
-      activeSection.value = props.initialSection
-    }
-
     if (v) {
+      activeSection.value = sectionComponents[props.initialSection] ? props.initialSection : 'theme'
       await centerModal()
       return
     }
-
     stopModalDrag()
   }
 )
@@ -135,25 +116,14 @@ const sections = [
   { id: 'theme', label: t('Theme'), icon: IconPalette },
   { id: 'editor', label: t('Editor'), icon: IconEdit },
   { separator: true },
-  { id: 'models', label: t('Models'), icon: IconKey },
-  { id: 'tools', label: t('Tools'), icon: IconTool },
-  { id: 'pdf-translate', label: t('PDF Translation'), icon: IconFileTypePdf },
-  { id: 'github', label: 'GitHub', icon: IconBrandGithub },
   { id: 'system', label: t('System'), icon: IconCpu },
-  { separator: true },
-  { id: 'usage', label: t('Usage'), icon: IconChartBar },
   { id: 'updates', label: t('Updates'), icon: IconRefresh },
 ]
 
 const sectionComponents = {
   theme: SettingsTheme,
   editor: SettingsEditor,
-  models: SettingsModels,
-  tools: SettingsTools,
-  'pdf-translate': SettingsPdfTranslate,
-  github: SettingsGitHub,
   system: SettingsEnvironment,
-  usage: SettingsUsage,
   updates: SettingsUpdates,
 }
 

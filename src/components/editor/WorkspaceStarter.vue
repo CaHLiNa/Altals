@@ -7,7 +7,7 @@
             <div class="workspace-starter-kicker">{{ t('Research dashboard') }}</div>
             <h1 class="workspace-starter-title">{{ workspaceName }}</h1>
             <p class="workspace-starter-copy">
-              {{ t('A focused project desk for drafting, computation, references, and review.') }}
+              {{ t('A focused writing desk for Markdown, LaTeX, and Typst documents.') }}
             </p>
 
             <div class="workspace-starter-context-grid">
@@ -102,18 +102,16 @@
             <div class="workspace-starter-section-head">
               <div class="workspace-starter-section-heading">
                 <div class="workspace-starter-section-kicker">{{ t('Current workspace') }}</div>
-                <h2 class="workspace-starter-section-title">{{ t('Research workbenches') }}</h2>
+                <h2 class="workspace-starter-section-title">{{ t('Writing focus') }}</h2>
               </div>
               <p class="workspace-starter-section-copy">
-                {{
-                  t('Move between literature and AI support without leaving the project workflow.')
-                }}
+                {{ t('This workspace is now trimmed down to the three core writing formats.') }}
               </p>
             </div>
 
             <div class="workspace-starter-surface-list">
               <UiButton
-                v-for="item in surfaceItems"
+                v-for="item in focusItems"
                 :key="item.key"
                 type="button"
                 variant="ghost"
@@ -138,9 +136,7 @@
               <h2 class="workspace-starter-section-title">{{ t('Start new work') }}</h2>
             </div>
             <p class="workspace-starter-section-copy">
-              {{
-                t('Create a draft, manuscript, notebook, or analysis script inside this project.')
-              }}
+              {{ t('Create a new Markdown, LaTeX, or Typst document inside this project.') }}
             </p>
           </div>
 
@@ -170,12 +166,10 @@ import { computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
-import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import {
-  WORKSPACE_STARTER_COMPUTATION_EXTENSIONS,
   WORKSPACE_STARTER_DRAFT_EXTENSIONS,
   countWorkspaceStarterFilesByExtension,
   getWorkspaceStarterDirectory,
@@ -189,7 +183,6 @@ const props = defineProps({
 
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
-const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
@@ -206,13 +199,6 @@ const fileCount = computed(() => filesStore.flatFiles.length)
 const draftCount = computed(() =>
   countWorkspaceStarterFilesByExtension(filesStore.flatFiles, WORKSPACE_STARTER_DRAFT_EXTENSIONS)
 )
-const computationCount = computed(() =>
-  countWorkspaceStarterFilesByExtension(
-    filesStore.flatFiles,
-    WORKSPACE_STARTER_COMPUTATION_EXTENSIONS
-  )
-)
-const referenceCount = computed(() => referencesStore.refCount || 0)
 
 const recentFiles = computed(() => editorStore.recentFilesForEmptyState.slice(0, 5))
 const latestActivityLabel = computed(() =>
@@ -224,31 +210,32 @@ const latestActivityLabel = computed(() =>
 const overviewItems = computed(() => [
   { key: 'files', label: t('Files'), value: fileCount.value },
   { key: 'drafts', label: t('Drafts'), value: draftCount.value },
-  { key: 'computation', label: t('Computation'), value: computationCount.value },
-  { key: 'references', label: t('References'), value: referenceCount.value },
 ])
 
 const createItems = computed(() => [
   { ext: '.md', label: t('Markdown') },
   { ext: '.tex', label: 'LaTeX' },
   { ext: '.typ', label: 'Typst' },
-  { ext: '.ipynb', label: t('Jupyter notebook') },
-  { ext: '.py', label: 'Python' },
-  { ext: '.r', label: t('R Script') },
 ])
 
-const surfaceItems = computed(() => [
+const focusItems = computed(() => [
   {
-    key: 'library',
-    label: t('Library'),
-    meta: t('Manage references and project citations.'),
-    action: () => workspace.openLibrarySurface(),
+    key: 'markdown',
+    label: t('Markdown drafts'),
+    meta: t('Notes, outlines, and long-form writing with inline preview.'),
+    action: () => createNewFile('.md'),
   },
   {
-    key: 'ai',
-    label: t('AI'),
-    meta: t('Open long-form AI workflows and research assistance.'),
-    action: () => workspace.openAiSurface(),
+    key: 'latex',
+    label: 'LaTeX',
+    meta: t('Manuscripts with compile output and PDF review in the same workspace.'),
+    action: () => createNewFile('.tex'),
+  },
+  {
+    key: 'typst',
+    label: 'Typst',
+    meta: t('Fast typesetting with native preview and export-ready output.'),
+    action: () => createNewFile('.typ'),
   },
 ])
 
@@ -270,12 +257,6 @@ function fileKindLabel(path) {
       return 'LaTeX'
     case '.typ':
       return 'Typst'
-    case '.ipynb':
-      return t('Jupyter notebook')
-    case '.py':
-      return 'Python'
-    case '.r':
-      return t('R Script')
     default:
       return extension ? extension.slice(1).toUpperCase() : 'FILE'
   }

@@ -13,7 +13,7 @@ const requiredDocs = [
   ['docs/OPERATIONS.md', '# Operations'],
   ['docs/DATA_MODEL.md', '# Data Model'],
   ['docs/BUILD_SYSTEM.md', '# Build System'],
-  ['docs/AI_SYSTEM.md', '# AI System'],
+  ['docs/DOCUMENT_WORKFLOW.md', '# Document Workflow'],
   ['docs/GIT_AND_SNAPSHOTS.md', '# Git And Snapshots'],
   ['docs/REFACTOR_BLUEPRINT.md', '# Refactor Blueprint'],
   ['docs/CONTRIBUTING.md', '# Contributing'],

@@ -13,10 +13,9 @@ Components should present state, collect user input, and emit clear intent.
 
 ## Avoid In Components
 
-- direct `launchAiTask(...)` or `launchWorkflowTask(...)` calls when a shared app/domain seam should exist
-- direct Git/history persistence logic
+- direct compile orchestration that belongs in workflow runtimes
+- direct Git or persistence sequencing
 - raw Tauri invoke chains
-- compile orchestration that belongs in workflow runtimes
-- kernel lifecycle logic that belongs in notebook/execution boundaries
+- restore or migration logic that belongs in services or domains
 
 Use components to make the product clearer, not to hide more logic inside large `.vue` files.

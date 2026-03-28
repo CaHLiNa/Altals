@@ -107,7 +107,6 @@ export function createDocumentWorkflowBuildRuntime({
   getWorkspaceStore,
   getLatexStore,
   getTypstStore,
-  getReferencesStore,
 } = {}) {
   function resolveBaseContext(options = {}) {
     return {
@@ -119,7 +118,6 @@ export function createDocumentWorkflowBuildRuntime({
       latexStore: options.latexStore || getLatexStore?.() || null,
       typstStore: options.typstStore || getTypstStore?.() || null,
       toastStore: options.toastStore || null,
-      referencesStore: options.referencesStore || getReferencesStore?.() || null,
       t: options.t || null,
     }
   }

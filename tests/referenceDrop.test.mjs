@@ -4,7 +4,7 @@ import { buildReferenceDropText } from '../src/editor/referenceDrop.js'
 
 test('buildReferenceDropText uses markdown citation syntax for markdown files', () => {
   assert.equal(buildReferenceDropText('/tmp/paper.md', 'an2026'), '[@an2026]')
-  assert.equal(buildReferenceDropText('/tmp/paper.qmd', ['an2026', 'liu2024']), '[@an2026; @liu2024]')
+  assert.equal(buildReferenceDropText('/tmp/paper.markdown', ['an2026', 'liu2024']), '[@an2026; @liu2024]')
 })
 
 test('buildReferenceDropText uses latex citation syntax for latex files', () => {

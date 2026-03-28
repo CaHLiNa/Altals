@@ -36,7 +36,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { IconBook2, IconFileDescription, IconHome, IconSettings, IconSparkles } from '@tabler/icons-vue'
+import { IconHome, IconSettings } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { modKey } from '../../platform'
@@ -51,51 +51,15 @@ const entries = computed(() => [
   {
     key: 'workspace',
     label: t('Project'),
-    title: t('Open project workspace'),
+    title: t('Open writing workspace'),
     icon: IconHome,
-  },
-  {
-    key: 'conversion',
-    label: t('Conversion'),
-    title: t('Open document conversion workspace'),
-    icon: IconFileDescription,
-  },
-  {
-    key: 'library',
-    label: t('Library'),
-    title: t('Open global library'),
-    icon: IconBook2,
-  },
-  {
-    key: 'ai',
-    label: t('AI'),
-    title: t('Open AI workspace'),
-    icon: IconSparkles,
   },
 ])
 
-const activeKey = computed(() => {
-  if (workspace.isAiSurface) return 'ai'
-  if (workspace.isLibrarySurface) return 'library'
-  if (workspace.isConversionSurface) return 'conversion'
-  return 'workspace'
-})
+const activeKey = computed(() => 'workspace')
 
-function activate(key) {
+function activate(_key) {
   if (!workspace.isOpen) return
-
-  if (key === 'conversion') {
-    workspace.openConversionSurface()
-    return
-  }
-  if (key === 'library') {
-    workspace.openLibrarySurface()
-    return
-  }
-  if (key === 'ai') {
-    workspace.openAiSurface()
-    return
-  }
   workspace.openWorkspaceSurface()
 }
 </script>

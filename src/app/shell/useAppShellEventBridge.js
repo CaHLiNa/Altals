@@ -1,16 +1,15 @@
 import { onMounted, onUnmounted } from 'vue'
 import { isMod } from '../../platform'
-import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
-import {
-  isAiLauncher,
-  isChatTab,
-  isLibraryPath,
-  isNewTab,
-  getViewerType,
-  isPreviewPath,
-} from '../../utils/fileTypes'
+import { getViewerType, isNewTab } from '../../utils/fileTypes'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
+
+function preferredNewFileExtension(path = '') {
+  if (path.endsWith('.tex') || path.endsWith('.latex')) return '.tex'
+  if (path.endsWith('.typ')) return '.typ'
+  if (path.endsWith('.markdown')) return '.markdown'
+  return '.md'
+}
 
 export function useAppShellEventBridge({
   workspace,
@@ -18,7 +17,6 @@ export function useAppShellEventBridge({
   commentsStore,
   headerRef,
   leftSidebarRef,
-  bottomPanelRef,
   workspaceSnapshotBrowserVisible,
   fileVersionHistoryVisible,
   handleVisibilityChange,
@@ -28,13 +26,6 @@ export function useAppShellEventBridge({
   openWorkspaceSnapshots,
   openFileVersionHistory,
 }) {
-  const aiWorkbenchStore = useAiWorkbenchStore()
-
-  async function resolveChatStore() {
-    const { useChatStore } = await import('../../stores/chat.js')
-    return useChatStore()
-  }
-
   async function handleKeydown(event) {
     if (isMod(event) && event.key === 's') {
       event.preventDefault()
@@ -51,13 +42,8 @@ export function useAppShellEventBridge({
     if (isMod(event) && event.key === 'n') {
       event.preventDefault()
       const tab = editorStore.activeTab
-      if (tab && isChatTab(tab)) {
-        editorStore.openChat({ paneId: editorStore.activePaneId })
-      } else if (tab && !isNewTab(tab) && !isAiLauncher(tab) && !isLibraryPath(tab)) {
-        const dot = tab.lastIndexOf('.')
-        const ext = dot > 0 ? tab.substring(dot) : '.md'
-        const nextExt = ext.toLowerCase() === '.docx' ? '.md' : ext
-        leftSidebarRef.value?.createNewFile(nextExt)
+      if (tab && !isNewTab(tab) && getViewerType(tab) === 'text') {
+        leftSidebarRef.value?.createNewFile(preferredNewFileExtension(tab))
       } else {
         leftSidebarRef.value?.createNewFile('.md')
       }
@@ -65,8 +51,6 @@ export function useAppShellEventBridge({
     }
 
     if (isMod(event) && event.key === 'b') {
-      const tab = editorStore.activeTab
-      if (tab?.endsWith('.md')) return
       event.preventDefault()
       workspace.toggleLeftSidebar()
       return
@@ -122,7 +106,6 @@ export function useAppShellEventBridge({
 
       const pane = editorStore.activePane
       if (!pane || !pane.activeTab) return
-
       if (getViewerType(pane.activeTab) !== 'text') return
 
       const view = editorStore.getEditorView(pane.id, pane.activeTab)
@@ -134,15 +117,22 @@ export function useAppShellEventBridge({
         commentsStore.toggleMargin(pane.activeTab)
       }
 
-      window.dispatchEvent(new CustomEvent('comment-create', {
-        detail: { paneId: pane.id },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('comment-create', {
+          detail: { paneId: pane.id },
+        })
+      )
       return
     }
 
-    if (isMod(event) && event.code === 'Backquote') {
+    if (
+      event.altKey &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      (event.code === 'KeyZ' || event.code === 'KeyY' || event.key.toLowerCase() === 'z')
+    ) {
       event.preventDefault()
-      handleToggleTerminal()
+      workspace.toggleSoftWrap()
       return
     }
 
@@ -178,27 +168,6 @@ export function useAppShellEventBridge({
     }
   }
 
-  async function handleChatPrefill(event) {
-    const { message } = event.detail || {}
-    if (!message) return
-    workspace.openAiSurface()
-    aiWorkbenchStore.openLauncher()
-    const chatStore = await resolveChatStore()
-    chatStore.pendingPrefill = message
-  }
-
-  function handleAltZ(event) {
-    if (
-      event.altKey
-      && !event.metaKey
-      && !event.ctrlKey
-      && (event.code === 'KeyZ' || event.code === 'KeyY' || event.key.toLowerCase() === 'z')
-    ) {
-      event.preventDefault()
-      workspace.toggleSoftWrap()
-    }
-  }
-
   function handleFocusSearch() {
     headerRef.value?.focusSearch()
   }
@@ -225,19 +194,6 @@ export function useAppShellEventBridge({
   function handleToggleLeftSidebar() {
     if (!workspace.isOpen) return
     workspace.toggleLeftSidebar()
-  }
-
-  function handleToggleTerminal() {
-    if (!workspace.isOpen) return
-    if (workspace.bottomPanelOpen) {
-      workspace.toggleBottomPanel()
-      return
-    }
-    if (bottomPanelRef.value?.focusTerminal) {
-      bottomPanelRef.value.focusTerminal()
-      return
-    }
-    workspace.openBottomPanel()
   }
 
   function handleOpenFileVersionHistoryEvent(event) {
@@ -276,16 +232,13 @@ export function useAppShellEventBridge({
     document.addEventListener('click', handleExternalLinkActivation)
     document.addEventListener('keydown', handleKeydown)
     document.addEventListener('keydown', handleExternalLinkKeydown)
-    document.addEventListener('keydown', handleAltZ, true)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('chat-prefill', handleChatPrefill)
     window.addEventListener('app:focus-search', handleFocusSearch)
     window.addEventListener('app:new-file', handleNewFile)
     window.addEventListener('app:open-folder', handleOpenFolder)
     window.addEventListener('app:close-folder', handleCloseFolder)
     window.addEventListener('app:open-settings', handleOpenSettings)
     window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-    window.addEventListener('app:toggle-terminal', handleToggleTerminal)
     window.addEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
     window.addEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
@@ -294,16 +247,13 @@ export function useAppShellEventBridge({
     document.removeEventListener('click', handleExternalLinkActivation)
     document.removeEventListener('keydown', handleKeydown)
     document.removeEventListener('keydown', handleExternalLinkKeydown)
-    document.removeEventListener('keydown', handleAltZ, true)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('chat-prefill', handleChatPrefill)
     window.removeEventListener('app:focus-search', handleFocusSearch)
     window.removeEventListener('app:new-file', handleNewFile)
     window.removeEventListener('app:open-folder', handleOpenFolder)
     window.removeEventListener('app:close-folder', handleCloseFolder)
     window.removeEventListener('app:open-settings', handleOpenSettings)
     window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
-    window.removeEventListener('app:toggle-terminal', handleToggleTerminal)
     window.removeEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
     window.removeEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })

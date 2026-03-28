@@ -1,18 +1,14 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
-import { useReviewsStore } from '../../stores/reviews'
 import { useCommentsStore } from '../../stores/comments'
 import { useLinksStore } from '../../stores/links'
-import { useReferencesStore } from '../../stores/references'
-import { useResearchArtifactsStore } from '../../stores/researchArtifacts'
 import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
-import { useKernelStore } from '../../stores/kernel'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
@@ -22,25 +18,16 @@ import {
   captureWorkspaceBookmark,
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
-import {
-  reconcileCriticalWorkspaceState,
-  resetCriticalWorkspaceState,
-} from '../../services/criticalWorkspaceState'
-import { releaseOpencodeWorkspaceInstance } from '../../services/ai/opencodeSidecar'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
   const filesStore = useFilesStore()
   const editorStore = useEditorStore()
-  const reviews = useReviewsStore()
   const commentsStore = useCommentsStore()
   const linksStore = useLinksStore()
-  const referencesStore = useReferencesStore()
-  const researchArtifactsStore = useResearchArtifactsStore()
   const typstStore = useTypstStore()
   const latexStore = useLatexStore()
-  const kernelStore = useKernelStore()
   const toastStore = useToastStore()
   const uxStatusStore = useUxStatusStore()
   const { t } = useI18n()
@@ -54,11 +41,6 @@ export function useWorkspaceLifecycle() {
   let unlistenWindowFocusChange = null
 
   const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
-
-  async function resolveChatStore() {
-    const { useChatStore } = await import('../../stores/chat.js')
-    return useChatStore()
-  }
 
   function normalizeWorkspacePath(path = '') {
     const normalized = String(path || '').replace(/\/+$/, '')
@@ -78,7 +60,7 @@ export function useWorkspaceLifecycle() {
 
   function scheduleWorkspaceBackgroundTask(delayMs, generation, targetPath, task, label) {
     const timer = window.setTimeout(async () => {
-      backgroundWorkspaceTaskTimers = backgroundWorkspaceTaskTimers.filter(value => value !== timer)
+      backgroundWorkspaceTaskTimers = backgroundWorkspaceTaskTimers.filter((value) => value !== timer)
       if (generation !== workspaceLoadGeneration || workspace.path !== targetPath) return
       try {
         await task()
@@ -114,9 +96,7 @@ export function useWorkspaceLifecycle() {
     if (now - lastFocusRefresh < 2000) return
     lastFocusRefresh = now
 
-    filesStore.refreshVisibleTree({ suppressErrors: true, reason, announce: true })
-      .then(() => reconcileCriticalWorkspaceState({ announce: true }))
-      .catch(() => {})
+    void filesStore.refreshVisibleTree({ suppressErrors: true, reason, announce: true })
   }
 
   function handleVisibilityChange() {
@@ -200,47 +180,32 @@ export function useWorkspaceLifecycle() {
           editorStore.openNewTab()
         }
       }, 'editor.restoreEditorState')
+
       scheduleWorkspaceBackgroundTask(hadCachedTree ? 40 : 120, loadGeneration, targetPath, async () => {
         await loadTreePromise.catch(() => {})
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         await filesStore.restoreCachedExpandedDirs(targetPath)
       }, 'files.restoreCachedExpandedDirs')
+
       scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
-      scheduleWorkspaceBackgroundTask(40, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await reviews.startWatching()
-      }, 'reviews.startWatching')
+
       scheduleWorkspaceBackgroundTask(100, loadGeneration, targetPath, async () => {
         await workspace.ensureWorkspaceBootstrapReady(targetPath)
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         await commentsStore.loadComments()
       }, 'comments.loadComments')
-      scheduleWorkspaceBackgroundTask(180, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await researchArtifactsStore.loadResearchArtifacts()
-      }, 'researchArtifacts.loadResearchArtifacts')
-      scheduleWorkspaceBackgroundTask(220, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        const chatStore = await resolveChatStore()
-        await chatStore.loadSessions()
-      }, 'chat.loadSessions')
-      scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await referencesStore.loadLibrary()
-      }, 'references.loadLibrary')
+
       scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
         await workspace.ensureWorkspaceBootstrapReady(targetPath)
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         await typstStore.checkCompiler()
       }, 'typst.checkCompiler')
+
       backgroundWorkspaceLoadTimer = window.setTimeout(() => {
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         backgroundWorkspaceLoadTimer = null
       }, 600)
+
       uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
     } catch (error) {
       console.error('Failed to open workspace:', error)
@@ -272,29 +237,15 @@ export function useWorkspaceLifecycle() {
     workspaceLoadGeneration += 1
     cancelWorkspaceBackgroundTasks()
     const closingWorkspacePath = workspace.path
-    const closingRuntimeEndpoint = workspace.aiRuntime?.opencode?.endpoint || null
 
     await editorStore.saveEditorStateImmediate()
     editorStore.cleanup()
     filesStore.cleanup()
-    reviews.cleanup()
     linksStore.cleanup()
-    const chatStore = await resolveChatStore()
-    chatStore.cleanup()
     commentsStore.cleanup()
-    referencesStore.cleanup({ preserveGlobalLibrary: true })
-    researchArtifactsStore.cleanup()
-    void kernelStore.shutdownAll().catch((error) => {
-      console.warn('[workspace] kernel shutdown failed:', error)
-    })
     latexStore.cleanup()
     typstStore.cleanup()
-    await releaseOpencodeWorkspaceInstance(closingWorkspacePath, {
-      immediate: true,
-      endpoint: closingRuntimeEndpoint,
-    })
     await workspace.closeWorkspace()
-    resetCriticalWorkspaceState(closingWorkspacePath)
     await invoke('workspace_clear_allowed_roots').catch((error) => {
       console.warn('[workspace] failed to clear allowed roots:', error)
     })

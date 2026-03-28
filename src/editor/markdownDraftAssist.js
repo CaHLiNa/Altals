@@ -234,6 +234,7 @@ function findMathAt(view, pos) {
 
 function createCitationHoverExtension(referencesStore, labels) {
   return hoverTooltip((view, pos) => {
+    if (!referencesStore?.getByKey) return null
     const hit = findCitationAt(view, pos)
     if (!hit) return null
 
@@ -298,8 +299,9 @@ function createMathHoverExtension(labels) {
   })
 }
 
-export function createMarkdownDraftEditorExtensions({ referencesStore } = {}) {
-  const t = typeof arguments[0]?.t === 'function' ? arguments[0].t : (value) => value
+export function createMarkdownDraftEditorExtensions(options = {}) {
+  const { referencesStore = null } = options
+  const t = typeof options.t === 'function' ? options.t : (value) => value
   const tooltipConfig = {
     position: 'fixed',
   }
@@ -317,10 +319,15 @@ export function createMarkdownDraftEditorExtensions({ referencesStore } = {}) {
     footnoteNotFound: t('Footnote not found'),
   }
 
-  return [
+  const extensions = [
     tooltips(tooltipConfig),
-    createCitationHoverExtension(referencesStore, labels),
     createFootnoteHoverExtension(labels),
     createMathHoverExtension(labels),
   ]
+
+  if (referencesStore?.getByKey) {
+    extensions.splice(1, 0, createCitationHoverExtension(referencesStore, labels))
+  }
+
+  return extensions
 }

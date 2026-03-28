@@ -642,8 +642,8 @@ const ZH_MESSAGES = {
     '从 r-project.org 安装后，在 R 中执行：install.packages("IRkernel"); IRkernel::installspec()',
   'Install from julialang.org, then in Julia: using Pkg; Pkg.add("IJulia")':
     '从 julialang.org 安装后，在 Julia 中执行：using Pkg; Pkg.add("IJulia")',
-  'Writing, references, and AI — designed as one system.':
-    '写作、参考文献与 AI，被整合为一个系统。',
+  'Markdown, LaTeX, and Typst in one local workspace.':
+    'Markdown、LaTeX 与 Typst，被整合进同一个本地工作区。',
   'Clone into...': '克隆到...',
   'Open Workspace': '打开工作区',
   'Failed to open workspace: {error}': '打开工作区失败：{error}',
@@ -681,7 +681,8 @@ const ZH_MESSAGES = {
   'Source file': '源文件',
   'Use active PDF': '使用当前 PDF',
   Targets: '目标产物',
-  'Use one workspace for current and future output formats': '让当前和后续格式转换都共用同一个工作台',
+  'Use one workspace for current and future output formats':
+    '让当前和后续格式转换都共用同一个工作台',
   'Translated PDF': '已翻译 PDF',
   'Use the current PDF translation runtime to generate bilingual or translated PDF outputs.':
     '使用当前 PDF 翻译运行时生成双语 PDF 或纯译文 PDF。',
@@ -1162,6 +1163,7 @@ const ZH_MESSAGES = {
   'Comment on "{text}"': '评论“{text}”',
   'More actions': '更多操作',
   'Delete comment': '删除评论',
+  Assistant: '助手',
   You: '你',
   'Dismiss edit': '忽略',
   Applied: '已应用',

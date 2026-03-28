@@ -88,7 +88,7 @@ function isEmpty() {
 
 /**
  * Extract { text, fileRefs, context } for sending.
- * Walks the DOM to gather text + pill data without touching the AI format.
+ * Walks the DOM to gather text + pill data without mutating the inline pill markup.
  */
 function extractPayload() {
   const el = editorRef.value

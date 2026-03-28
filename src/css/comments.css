@@ -90,24 +90,8 @@
   color: var(--fg-muted);
   margin-bottom: 2px;
 }
-.comment-card-ai-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--fg-muted);
-  opacity: 0.7;
-}
-.comment-card-ai-btn:hover {
-  background: var(--bg-hover);
-  color: var(--accent);
-  opacity: 1;
+.comment-card-author-icon {
+  flex-shrink: 0;
 }
 .comment-card-text {
   font-size: var(--ui-font-label);
@@ -121,6 +105,9 @@
   font-size: var(--ui-font-caption);
   color: var(--fg-muted);
   margin-top: 3px;
+}
+.comment-card-meta-accent {
+  color: var(--accent);
 }
 .comment-card-resolved {
   opacity: 0.5;

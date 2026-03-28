@@ -26,13 +26,11 @@ import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { normalizeWorkbenchInspectorPanel } from '../../shared/workbenchInspectorPanels.js'
 import { getWorkbenchInspectorChromeEntries } from '../../shared/workbenchChromeEntries.js'
-import { isAiLauncher, isChatTab, isLatex, isLibraryPath, isNewTab, isTypst } from '../../utils/fileTypes'
+import { isLatex, isNewTab, isTypst } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 import SidebarChrome from '../shared/SidebarChrome.vue'
 
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
-const Backlinks = defineAsyncComponent(() => import('../panel/Backlinks.vue'))
-const LibraryInspectorSidebar = defineAsyncComponent(() => import('./LibraryInspectorSidebar.vue'))
 const DocumentRunInspectorSidebar = defineAsyncComponent(() => import('./DocumentRunInspectorSidebar.vue'))
 
 const workflowStore = useDocumentWorkflowStore()
@@ -48,14 +46,6 @@ function resolveDocumentSourcePath(path) {
 }
 
 const activeSidebarView = computed(() => {
-  if (workspace.isLibrarySurface) {
-    return {
-      component: LibraryInspectorSidebar,
-      key: 'library-details',
-      props: {},
-    }
-  }
-
   if (activePanel.value === 'document-run') {
     return {
       component: DocumentRunInspectorSidebar,
@@ -78,8 +68,8 @@ const activeSidebarView = computed(() => {
   }
 
   return {
-    component: Backlinks,
-    key: 'workspace-backlinks',
+    component: OutlinePanel,
+    key: 'workspace-outline',
     props: {
       embedded: true,
       overrideActiveFile: documentTab.value,
@@ -89,13 +79,7 @@ const activeSidebarView = computed(() => {
 
 const documentTab = computed(() => {
   const active = editorStore.activeTab
-  if (
-    active &&
-    !isChatTab(active) &&
-    !isAiLauncher(active) &&
-    !isNewTab(active) &&
-    !isLibraryPath(active)
-  ) {
+  if (active && !isNewTab(active)) {
     return active
   }
   return lastDocumentTab.value
@@ -103,20 +87,13 @@ const documentTab = computed(() => {
 
 const currentWorkspaceDocumentTab = computed(() => {
   const active = editorStore.activeTab
-  if (
-    active &&
-    !isChatTab(active) &&
-    !isAiLauncher(active) &&
-    !isNewTab(active) &&
-    !isLibraryPath(active)
-  ) {
+  if (active && !isNewTab(active)) {
     return active
   }
   return ''
 })
 
 const showDocumentRunEntry = computed(() => {
-  if (workspace.primarySurface !== 'workspace') return false
   const sourcePath = resolveDocumentSourcePath(currentWorkspaceDocumentTab.value)
   if (!sourcePath) return false
   return isLatex(sourcePath) || isTypst(sourcePath)
@@ -135,7 +112,6 @@ const activePanel = computed(() => {
 
 const inspectorEntries = computed(() => {
   const entries = getWorkbenchInspectorChromeEntries(t, workspace.primarySurface)
-  if (workspace.primarySurface !== 'workspace') return entries
   return showDocumentRunEntry.value
     ? entries
     : entries.filter((entry) => entry.key !== 'document-run')
@@ -144,7 +120,7 @@ const inspectorEntries = computed(() => {
 watch(
   () => editorStore.activeTab,
   (tab) => {
-    if (tab && !isChatTab(tab) && !isAiLauncher(tab) && !isNewTab(tab) && !isLibraryPath(tab)) {
+    if (tab && !isNewTab(tab)) {
       lastDocumentTab.value = tab
     }
   },

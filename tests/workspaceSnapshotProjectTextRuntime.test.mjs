@@ -19,7 +19,6 @@ test('workspace snapshot project text runtime filters loaded workspace text path
       fileContents: {
         '/workspace/demo/notes.md': 'notes',
         '/workspace/demo/paper.pdf': 'Extracted PDF text',
-        'ref:@smith2024': 'ignored',
         '/outside/other.md': 'ignored',
       },
     },

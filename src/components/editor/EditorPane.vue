@@ -26,13 +26,7 @@
       @new-tab="editorStore.openNewTab(paneId)"
     />
 
-    <!-- File-specific review bar -->
-    <ReviewBar v-if="activeTab && viewerType === 'text'" :filePath="activeTab" />
-    <NotebookReviewBar v-else-if="activeTab && viewerType === 'notebook'" :filePath="activeTab" />
-    <div
-      v-if="showDocumentHeader"
-      class="document-header-stack"
-    >
+    <div v-if="showDocumentHeader" class="document-header-stack">
       <DocumentWorkflowBar
         v-if="toolbarUiState"
         :ui-state="toolbarUiState"
@@ -49,8 +43,6 @@
         @reveal-pdf="handleWorkflowRevealPdf"
         @run-code="handleRunCode"
         @run-file="handleRunFile"
-        @diagnose-with-ai="handleWorkflowDiagnoseWithAi"
-        @fix-with-ai="handleWorkflowFixWithAi"
         @toggle-comments="toggleCommentToolbar"
       />
       <div
@@ -64,7 +56,9 @@
     <!-- Editor or empty state -->
     <div
       class="editor-pane-surface flex-1 overflow-hidden relative w-full min-w-0"
-      :class="{ 'flex flex-col': viewerType === 'text' && !documentWorkspaceRoute.useWorkspaceSurface }"
+      :class="{
+        'flex flex-col': viewerType === 'text' && !documentWorkspaceRoute.useWorkspaceSurface,
+      }"
     >
       <EditorTextRouteSurface
         v-if="activeTab && viewerType === 'text'"
@@ -121,28 +115,10 @@
         :paneId="paneId"
         :toolbar-target-selector="pdfToolbarTargetSelector"
       />
-      <CsvEditor
-        v-else-if="activeTab && viewerType === 'csv'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-      />
       <UnsupportedFilePane
         v-else-if="activeTab && viewerType === 'unsupported-binary'"
         :key="activeTab"
         :filePath="activeTab"
-      />
-      <ImageViewer
-        v-else-if="activeTab && viewerType === 'image'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
-      />
-      <NotebookEditor
-        v-else-if="activeTab && viewerType === 'notebook'"
-        :key="activeTab"
-        :filePath="activeTab"
-        :paneId="paneId"
       />
       <MarkdownPreview
         v-else-if="activeTab && viewerType === 'markdown-preview'"
@@ -156,20 +132,6 @@
         :filePath="activeTab"
         :paneId="paneId"
       />
-      <ReferenceView
-        v-else-if="activeTab && viewerType === 'reference'"
-        :key="activeTab"
-        :refKey="refKey"
-        :paneId="paneId"
-      />
-      <div v-else-if="activeTab && viewerType === 'chat'" class="h-full" :data-chat-panel="paneId">
-        <ChatPanel :key="activeTab" :filePath="activeTab" :paneId="paneId" />
-      </div>
-      <AiLauncher
-        v-else-if="activeTab && viewerType === 'ai-launcher'"
-        :key="activeTab"
-        :paneId="paneId"
-      />
       <NewTab v-else-if="activeTab && viewerType === 'newtab'" :key="activeTab" :paneId="paneId" />
       <EmptyPane v-else-if="!activeTab" :paneId="paneId" />
     </div>
@@ -177,24 +139,14 @@
 </template>
 
 <script setup>
-import { computed, ref, toRef, defineAsyncComponent, watch } from 'vue'
+import { computed, ref, toRef, defineAsyncComponent } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useCommentsStore } from '../../stores/comments'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
-import { useReferencesStore } from '../../stores/references'
-import {
-  getViewerType,
-  isAiWorkbenchPath,
-  isLibraryPath,
-  isReferencePath,
-  referenceKeyFromPath,
-  isChatTab,
-  getChatSessionId,
-  isRunnable,
-} from '../../utils/fileTypes'
+import { getViewerType, isRunnable } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
@@ -203,20 +155,12 @@ import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { resolveDocumentWorkspaceTextRoute } from '../../domains/document/documentWorkspacePreviewRuntime'
 import TabBar from './TabBar.vue'
-import ReviewBar from './ReviewBar.vue'
 const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRouteSurface.vue'))
 const DocumentPdfViewer = defineAsyncComponent(() => import('./DocumentPdfViewer.vue'))
-const CsvEditor = defineAsyncComponent(() => import('./CsvEditor.vue'))
-const ImageViewer = defineAsyncComponent(() => import('./ImageViewer.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
-const ReferenceView = defineAsyncComponent(() => import('./ReferenceView.vue'))
-const NotebookEditor = defineAsyncComponent(() => import('./NotebookEditor.vue'))
-const NotebookReviewBar = defineAsyncComponent(() => import('./NotebookReviewBar.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
 const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
-const ChatPanel = defineAsyncComponent(() => import('../chat/ChatPanel.vue'))
-const AiLauncher = defineAsyncComponent(() => import('./AiLauncher.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
 const EmptyPane = defineAsyncComponent(() => import('./EmptyPane.vue'))
 
@@ -226,11 +170,6 @@ const props = defineProps({
   activeTab: { type: String, default: null },
 })
 
-async function resolveChatStore() {
-  const { useChatStore } = await import('../../stores/chat.js')
-  return useChatStore()
-}
-
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const workspace = useWorkspaceStore()
@@ -239,7 +178,6 @@ const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const commentsStore = useCommentsStore()
 const workflowStore = useDocumentWorkflowStore()
-const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const paneIdRef = toRef(props, 'paneId')
 const tabsRef = toRef(props, 'tabs')
@@ -248,18 +186,16 @@ const activeTabRef = toRef(props, 'activeTab')
 const isActive = computed(() => editorStore.activePaneId === props.paneId)
 const viewerType = computed(() => (props.activeTab ? getViewerType(props.activeTab) : null))
 const viewerTypeRef = viewerType
-const refKey = computed(() =>
-  props.activeTab && isReferencePath(props.activeTab) ? referenceKeyFromPath(props.activeTab) : null
-)
 const showCommentToolbar = computed(() => !!props.activeTab && viewerType.value === 'text')
 const showToolbarRunButtons = computed(
   () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
 )
-const useDocumentWorkspaceTab = computed(() => (
-  !!props.activeTab
-  && viewerType.value === 'text'
-  && workspacePreviewState.value?.useWorkspace === true
-))
+const useDocumentWorkspaceTab = computed(
+  () =>
+    !!props.activeTab &&
+    viewerType.value === 'text' &&
+    workspacePreviewState.value?.useWorkspace === true
+)
 const isCommentToolbarActive = computed(
   () => !!props.activeTab && commentsStore.isMarginVisible(props.activeTab)
 )
@@ -273,30 +209,6 @@ const toolbarUiState = computed(() => {
 })
 
 const editorContainerRef = ref(null)
-
-function redirectLegacySurfaceTab(path) {
-  if (!path) return
-  if (isLibraryPath(path)) {
-    workspace.openLibrarySurface()
-  } else if (isAiWorkbenchPath(path)) {
-    workspace.openAiSurface()
-  } else {
-    return
-  }
-
-  queueMicrotask(() => {
-    editorStore.closeTab(props.paneId, path)
-  })
-}
-
-watch(
-  () => props.activeTab,
-  (path) => {
-    if (!path) return
-    redirectLegacySurfaceTab(path)
-  },
-  { immediate: true }
-)
 
 const {
   hasEditorSelection,
@@ -338,8 +250,6 @@ const {
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,
-  handleWorkflowDiagnoseWithAi,
-  handleWorkflowFixWithAi,
 } = useEditorPaneWorkflow({
   paneIdRef,
   tabsRef,
@@ -352,15 +262,16 @@ const {
   typstStore,
   toastStore,
   workflowStore,
-  referencesStore,
   t,
 })
 
-const documentWorkspaceRoute = computed(() => resolveDocumentWorkspaceTextRoute({
-  activeTab: props.activeTab,
-  viewerType: viewerType.value,
-  documentPreviewState: documentPreviewState.value,
-}))
+const documentWorkspaceRoute = computed(() =>
+  resolveDocumentWorkspaceTextRoute({
+    activeTab: props.activeTab,
+    viewerType: viewerType.value,
+    documentPreviewState: documentPreviewState.value,
+  })
+)
 
 function selectTab(path) {
   editorStore.setActiveTab(props.paneId, path)
@@ -369,15 +280,6 @@ function selectTab(path) {
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])
   if (result.choice === 'cancel') return
-
-  // Auto-save chat sessions on tab close
-  if (isChatTab(path)) {
-    const sid = getChatSessionId(path)
-    if (sid) {
-      const chatStore = await resolveChatStore()
-      await chatStore.saveSession(sid)
-    }
-  }
   workflowStore.handlePreviewClosed(path)
   editorStore.closeTab(props.paneId, path)
 }

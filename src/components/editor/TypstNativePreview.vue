@@ -65,9 +65,7 @@ const loadError = ref('')
 const iframeLoaded = ref(false)
 let unsubscribeScrollSource = null
 
-const resolvedSourcePath = computed(
-  () => resolvedPreviewInput.value.sourcePath
-)
+const resolvedSourcePath = computed(() => resolvedPreviewInput.value.sourcePath)
 const resolvedPreviewInput = ref({ sourcePath: '', rootPath: '' })
 
 const preferredSourcePaneId = computed(

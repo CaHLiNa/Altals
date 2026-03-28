@@ -3,18 +3,11 @@ import {
   getDocumentAdapterForWorkflow,
 } from './adapters/index.js'
 
-import { isLibraryPath, isPreviewPath } from '../../utils/fileTypes.js'
+import { isNewTab, isPreviewPath } from '../../utils/fileTypes.js'
 
 export function getDocumentWorkflowKind(path) {
   if (!path || typeof path !== 'string') return null
-  if (
-    isPreviewPath(path)
-    || isLibraryPath(path)
-    || path.startsWith('chat:')
-    || path.startsWith('newtab:')
-    || path.startsWith('ai-launcher:')
-    || path.startsWith('ref:@')
-  ) {
+  if (isPreviewPath(path) || isNewTab(path)) {
     return null
   }
 

@@ -5,9 +5,7 @@
       ref="createInputRef"
       :placeholder="t('Type your comment...')"
       :autofocus="true"
-      :show-submit="true"
       @save="handleCreate"
-      @save-and-submit="handleCreateAndSubmit"
       @cancel="$emit('close')"
     />
   </div>
@@ -67,7 +65,7 @@
       <!-- Original comment -->
       <div class="comment-panel-reply">
         <div class="comment-panel-reply-author">
-          {{ comment.author === 'ai' ? 'AI' : t('You') }}
+          {{ authorLabel(comment.author) }}
         </div>
         <div class="comment-panel-reply-text">{{ comment.text }}</div>
         <div class="comment-panel-reply-time">{{ formatTime(comment.createdAt) }}</div>
@@ -90,7 +88,7 @@
       <!-- Replies -->
       <div v-for="reply in comment.replies" :key="reply.id" class="comment-panel-reply">
         <div class="comment-panel-reply-author">
-          {{ reply.author === 'ai' ? 'AI' : t('You') }}
+          {{ authorLabel(reply.author) }}
         </div>
         <div class="comment-panel-reply-text">{{ reply.text }}</div>
         <div class="comment-panel-reply-time">{{ formatTime(reply.timestamp) }}</div>
@@ -113,14 +111,6 @@
 
     <!-- Resolve action -->
     <div class="comment-panel-resolve flex items-center justify-between gap-2" style="padding: 4px 12px; border-top: 1px solid var(--border);">
-      <button
-        class="comment-btn-secondary"
-        type="button"
-        :title="t('Ask AI about this comment')"
-        @click="handleAskAi"
-      >
-        {{ t('Ask AI') }}
-      </button>
       <button
         class="comment-resolve-btn"
         :class="{ 'comment-resolve-btn-resolved': comment.status === 'resolved' }"
@@ -149,7 +139,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useCommentsStore } from '../../stores/comments'
-import { applyCommentProposedEdit, submitCommentThreadToChat, submitCommentsToChat } from '../../services/commentActions'
+import { applyCommentProposedEdit } from '../../services/commentActions'
 import CommentInput from './CommentInput.vue'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 
@@ -233,6 +223,14 @@ const rootEditStatus = computed(() => {
   return commentsStore.getEditStatus(props.comment.id)
 })
 
+function isAssistantAuthor(author) {
+  return author === 'ai' || author === 'assistant'
+}
+
+function authorLabel(author) {
+  return isAssistantAuthor(author) ? t('Assistant') : t('You')
+}
+
 function getReplyEditStatus(replyId) {
   if (!props.comment) return null
   return commentsStore.getEditStatus(props.comment.id, replyId)
@@ -254,21 +252,6 @@ function handleCreate({ text, fileRefs }) {
   emit('close')
 }
 
-function handleCreateAndSubmit({ text, fileRefs }) {
-  if (!props.selectionRange) return
-  const comment = commentsStore.createComment(
-    props.filePath,
-    props.selectionRange,
-    props.selectionText,
-    text,
-    'user',
-    fileRefs.length > 0 ? fileRefs : null,
-  )
-  emit('comment-created', comment)
-  submitCommentsToChat(props.filePath)
-  emit('close')
-}
-
 function handleReply({ text, fileRefs }) {
   if (!props.comment) return
   commentsStore.addReply(props.comment.id, {
@@ -286,14 +269,6 @@ function handleResolve() {
     commentsStore.resolveComment(props.comment.id)
   }
   emit('close')
-}
-
-function handleAskAi() {
-  if (!props.comment) return
-  submitCommentThreadToChat(props.comment.id, {
-    paneId: props.paneId,
-    beside: true,
-  })
 }
 
 function handleDelete() {

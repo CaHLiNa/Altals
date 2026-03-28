@@ -57,23 +57,6 @@
           <span class="editor-context-menu-shortcut ml-auto">&#x21E7;&#x2318;L</span>
         </div>
         <div class="context-menu-separator"></div>
-        <div class="context-menu-item" @click="askAI">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" />
-            <path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z" />
-          </svg>
-          {{ t('Ask AI') }}
-        </div>
-        <div class="context-menu-separator"></div>
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
         <div class="context-menu-item" @click="paste">{{ t('Paste') }}</div>
@@ -112,10 +95,8 @@
 import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
-import { useChatStore } from '../../stores/chat'
 import { useCommentsStore } from '../../stores/comments'
 import { useI18n } from '../../i18n'
-import { launchSelectionAsk } from '../../services/ai/launch'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -139,7 +120,6 @@ const emit = defineEmits([
   'apply-typst-code-action',
 ])
 const editorStore = useEditorStore()
-const chatStore = useChatStore()
 const commentsStore = useCommentsStore()
 const { t } = useI18n()
 
@@ -261,22 +241,6 @@ function addComment() {
       detail: { paneId: pane?.id },
     })
   )
-  emit('close')
-}
-
-async function askAI() {
-  const launched = await launchSelectionAsk({
-    editorStore,
-    chatStore,
-    filePath: props.filePath,
-    view: props.view,
-  })
-
-  if (!launched) {
-    emit('close')
-    return
-  }
-
   emit('close')
 }
 

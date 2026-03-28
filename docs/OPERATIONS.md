@@ -1,36 +1,28 @@
 # Operations
 
-Altals is moving toward an explicit operation model so major product actions are understandable, testable, and auditable.
+This document describes the main user-facing operations that still exist in the document-only product.
 
-## Target Operations
+## Core Operations
 
-- `OpenProject`
-- `ListProjectFiles`
-- `ReadDocument`
-- `SaveDocument`
-- `RunNotebookCell`
-- `RunCodeSelection`
-- `BuildDocument`
-- `BuildProject`
-- `SearchReferences`
-- `InsertCitation`
-- `CreateSnapshot`
-- `RestoreSnapshot`
-- `ListChanges`
-- `CommitChanges`
-- `PushRemote`
-- `PullRemote`
-- `RunAiWorkflow`
+- Open a workspace folder
+- Restore file tree, recent files, and editor layout
+- Open a document or create a new document tab
+- Autosave edited text buffers back to disk
+- Render Markdown preview
+- Compile LaTeX or Typst documents
+- Reveal generated PDF output
+- Inspect outline and document-run status
+- Prepare workspace files before snapshots or history capture
 
-## Current Reality
+## Operational Rules
 
-- Some operations already have named runtime seams, especially around document workflow, snapshots, references, terminals, and AI workflow runs.
-- Other operations are still distributed across stores, services, and composables.
-- The refactor direction is to keep reducing component-local side effects and hidden cross-domain behavior.
+- Operations should route through named runtimes or services instead of large component-local side effects.
+- Preview routes are derived from a source document and should not become their own source of truth.
+- Compile failures must remain visible in the document run surface.
+- Persistence and recovery paths should stay explicit and auditable.
 
-## Operation Rules
+## Validation
 
-- Mutating operations should be explicit.
-- Recovery and history operations should not be confused with autosave or remote sync.
-- AI-triggered work should route through reviewable workflow or patch seams rather than invisible mutation.
-- UI surfaces should invoke operations, not become the operation boundary themselves.
+- Verify source edits persist correctly.
+- Verify preview routes resolve back to the correct source file.
+- Verify compile and PDF reveal flows handle missing tools and failing builds cleanly.

@@ -28,22 +28,6 @@
             <span class="flex-1">Typst</span>
             <span class="context-menu-ext">.typ</span>
           </div>
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="$emit('create', { ext: '.R' })">
-            <IconCode :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('R Script') }}</span>
-            <span class="context-menu-ext">.R</span>
-          </div>
-          <div class="context-menu-item" @click="$emit('create', { ext: '.py' })">
-            <IconBrandPython :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Python') }}</span>
-            <span class="context-menu-ext">.py</span>
-          </div>
-          <div class="context-menu-item" @click="$emit('create', { ext: '.ipynb' })">
-            <IconNotebook :size="14" :stroke-width="1.5" />
-            <span class="flex-1">{{ t('Notebook') }}</span>
-            <span class="context-menu-ext">.ipynb</span>
-          </div>
         </template>
 
         <!-- Actions section -->
@@ -77,13 +61,6 @@
           </div>
         </template>
 
-        <template v-if="isImportable">
-          <div class="context-menu-item" @click="$emit('import-to-refs', entry)">
-            <IconBook2 :size="14" :stroke-width="1.5" />
-            {{ t('Import to References') }}
-          </div>
-        </template>
-
         <template v-if="entry">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('reveal-in-finder', entry)">
@@ -99,9 +76,15 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  IconFileText, IconNotebook, IconMath, IconCode, IconBrandPython,
-  IconFilePlus, IconFolderPlus, IconPencil, IconCopy, IconTrash, IconClock,
-  IconExternalLink, IconBook2,
+  IconFileText,
+  IconMath,
+  IconFilePlus,
+  IconFolderPlus,
+  IconPencil,
+  IconCopy,
+  IconTrash,
+  IconClock,
+  IconExternalLink,
 } from '@tabler/icons-vue'
 import { isMac } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -117,15 +100,7 @@ const props = defineProps({
   selectedCount: { type: Number, default: 0 },
 })
 
-defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'file-version-history', 'reveal-in-finder', 'import-to-refs'])
-
-const IMPORTABLE_EXTS = ['.bib', '.ris', '.json', '.pdf', '.csl', '.nbib', '.enw']
-
-const isImportable = computed(() => {
-  if (!props.entry || props.entry.is_dir) return false
-  const lower = props.entry.name.toLowerCase()
-  return IMPORTABLE_EXTS.some(ext => lower.endsWith(ext))
-})
+defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'file-version-history', 'reveal-in-finder'])
 
 // Keep menu within viewport
 const menuStyle = computed(() => {

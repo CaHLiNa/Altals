@@ -53,7 +53,7 @@ test('pdf themed pages preference is restored and persisted through the shared b
   }
 })
 
-test('left sidebar panel preference defaults to files and restores valid saved modes', () => {
+test('left sidebar panel preference defaults to files and restores the current valid mode', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage()
 
@@ -61,19 +61,9 @@ test('left sidebar panel preference defaults to files and restores valid saved m
     const defaults = createWorkspacePreferenceState()
     assert.equal(defaults.leftSidebarPanel, 'files')
 
-    persistStoredString('leftSidebarPanel', 'references')
+    persistStoredString('leftSidebarPanel', 'files')
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.leftSidebarPanel, 'references')
-
-    persistStoredString('leftSidebarPanel', 'outline')
-    const restoredLegacyOutline = createWorkspacePreferenceState()
-    assert.equal(restoredLegacyOutline.leftSidebarPanel, 'files')
-
-    persistStoredString('primarySurface', 'library')
-    persistStoredString('leftSidebarPanel', 'library-tags')
-    const restoredLibraryPanel = createWorkspacePreferenceState()
-    assert.equal(restoredLibraryPanel.primarySurface, 'library')
-    assert.equal(restoredLibraryPanel.leftSidebarPanel, 'library-tags')
+    assert.equal(restored.leftSidebarPanel, 'files')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
@@ -91,39 +81,23 @@ test('invalid left sidebar panel preference falls back to files', () => {
   }
 })
 
-test('workspace preferences normalize stored surface and sidebar panel together', () => {
+test('workspace preferences normalize any removed shell state onto the document workspace', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage({
-    primarySurface: 'library',
-    leftSidebarPanel: 'files',
+    primarySurface: 'removed-surface',
+    leftSidebarPanel: 'removed-panel',
   })
 
   try {
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.primarySurface, 'library')
-    assert.equal(restored.leftSidebarPanel, 'library-views')
+    assert.equal(restored.primarySurface, 'workspace')
+    assert.equal(restored.leftSidebarPanel, 'files')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
 })
 
-test('workspace preferences collapse removed ai sidebar modes onto recent chats', () => {
-  const previousLocalStorage = globalThis.localStorage
-  globalThis.localStorage = createMockStorage({
-    primarySurface: 'ai',
-    leftSidebarPanel: 'ai-context',
-  })
-
-  try {
-    const restored = createWorkspacePreferenceState()
-    assert.equal(restored.primarySurface, 'ai')
-    assert.equal(restored.leftSidebarPanel, 'ai-chats')
-  } finally {
-    globalThis.localStorage = previousLocalStorage
-  }
-})
-
-test('right sidebar panel preference defaults to outline and restores valid saved modes', () => {
+test('right sidebar panel preference defaults to outline and restores the current valid mode', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage()
 
@@ -131,21 +105,15 @@ test('right sidebar panel preference defaults to outline and restores valid save
     const defaults = createWorkspacePreferenceState()
     assert.equal(defaults.rightSidebarPanel, 'outline')
 
-    persistStoredString('rightSidebarPanel', 'backlinks')
+    persistStoredString('rightSidebarPanel', 'document-run')
     const restored = createWorkspacePreferenceState()
-    assert.equal(restored.rightSidebarPanel, 'backlinks')
-
-    persistStoredString('primarySurface', 'library')
-    persistStoredString('rightSidebarPanel', 'library-details')
-    const restoredLibraryPanel = createWorkspacePreferenceState()
-    assert.equal(restoredLibraryPanel.primarySurface, 'library')
-    assert.equal(restoredLibraryPanel.rightSidebarPanel, 'library-details')
+    assert.equal(restored.rightSidebarPanel, 'document-run')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }
 })
 
-test('invalid right sidebar panel preference falls back to the active surface default', () => {
+test('invalid right sidebar panel preference falls back to outline', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage({ rightSidebarPanel: 'invalid' })
 
@@ -154,11 +122,11 @@ test('invalid right sidebar panel preference falls back to the active surface de
     assert.equal(restored.rightSidebarPanel, 'outline')
 
     globalThis.localStorage = createMockStorage({
-      primarySurface: 'library',
+      primarySurface: 'removed-surface',
       rightSidebarPanel: 'invalid',
     })
-    const restoredLibraryPanel = createWorkspacePreferenceState()
-    assert.equal(restoredLibraryPanel.rightSidebarPanel, 'library-details')
+    const restoredWorkspacePanel = createWorkspacePreferenceState()
+    assert.equal(restoredWorkspacePanel.rightSidebarPanel, 'outline')
   } finally {
     globalThis.localStorage = previousLocalStorage
   }

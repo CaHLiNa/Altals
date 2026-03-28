@@ -38,18 +38,6 @@
     @insert-markdown-table="handleInsertMarkdownTable"
     @format-markdown-table="handleFormatMarkdownTable"
   />
-  <CitationPalette
-    v-if="citPalette.show"
-    :mode="citPalette.mode"
-    :pos-x="citPalette.x"
-    :pos-y="citPalette.y"
-    :query="citPalette.query"
-    :cites="citPalette.cites"
-    :latex-command="citPalette.latexCommand"
-    @insert="onCitInsert"
-    @update="onCitUpdate"
-    @close="onCitClose"
-  />
 </template>
 
 <script setup>
@@ -66,6 +54,7 @@ import {
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { languages } from '@codemirror/language-data'
+import { autocompletion } from '@codemirror/autocomplete'
 import {
   createEditorExtensions,
   createEditorState,
@@ -78,8 +67,6 @@ import {
   getZoomCompensatedClientPoint,
   zoomAwareMouseSelectionExtension,
 } from '../../editor/zoomCompensation'
-import { ghostSuggestionExtension } from '../../editor/ghostSuggestion'
-import { mergeViewExtension } from '../../editor/diffOverlay'
 import { commentsExtension } from '../../editor/comments'
 import {
   createRevealHighlightExtension,
@@ -90,9 +77,7 @@ import {
   normalizeContextMenuClickPos,
   resolveContextMenuSelection,
 } from '../../editor/contextMenuPolicy'
-import { useCommentsStore } from '../../stores/comments'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
-import { citationsExtension } from '../../editor/citations'
 import { createMarkdownDraftEditorExtensions } from '../../editor/markdownDraftAssist'
 import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
 import {
@@ -100,19 +85,17 @@ import {
   hasMarkdownTableAtCursor,
   insertMarkdownTable,
 } from '../../editor/markdownTables'
-import { supportsCitationInsertion } from '../../editor/citationSyntax'
-import { resultProvenanceBadgesExtension } from '../../editor/resultProvenanceBadges'
-import CitationPalette from './CitationPalette.vue'
-import { autocompletion } from '@codemirror/autocomplete'
+import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
+import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useReviewsStore } from '../../stores/reviews'
+import { useCommentsStore } from '../../stores/comments'
 import { useLinksStore } from '../../stores/links'
-import { useReferencesStore } from '../../stores/references'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
-import { sendCode, runFile } from '../../services/codeRunner'
+import { useTypstStore } from '../../stores/typst'
+import { useLatexStore } from '../../stores/latex'
 import {
   requestTinymistCodeActions,
   requestTinymistFormatting,
@@ -127,19 +110,7 @@ import {
   buildTinymistCodeActionRange,
   normalizeTinymistCodeActions,
 } from '../../services/tinymist/codeActions'
-import { useTypstStore } from '../../stores/typst'
-import {
-  isMarkdown,
-  isLatex,
-  isTypst,
-  isRunnable,
-  getLanguage,
-  isRmdOrQmd,
-  isBibFile,
-} from '../../utils/fileTypes'
-import { useLatexStore } from '../../stores/latex'
-import { latexCitationsExtension } from '../../editor/latexCitations'
-import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
+import { isMarkdown, isLatex, isTypst } from '../../utils/fileTypes'
 import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
 import {
   supportsTinymistTypstEditor as supportsTypstEditorSupport,
@@ -148,9 +119,7 @@ import {
 import { rememberPendingMarkdownForwardSync } from '../../services/markdown/previewSync.js'
 import { rememberPendingTypstForwardSync } from '../../services/typst/previewSync.js'
 import { resolveCachedTypstRootPath, resolveTypstCompileTarget } from '../../services/typst/root.js'
-import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import EditorContextMenu from './EditorContextMenu.vue'
-import { useTextEditorCitations } from '../../composables/useTextEditorCitations'
 import { useTypstDiagnostics } from '../../composables/useTypstDiagnostics'
 import { useTypstEditorNavigation } from '../../composables/useTypstEditorNavigation'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
@@ -168,9 +137,7 @@ const files = useFilesStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
-const reviews = useReviewsStore()
 const linksStore = useLinksStore()
-const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const typstStore = useTypstStore()
 const latexStore = useLatexStore()
@@ -179,10 +146,6 @@ const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
 let view = null
-let rmdKernelBridge = null
-let chunkExecuteHandler = null
-let chunkExecuteAllHandler = null
-let syncChunkProvenance = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
@@ -202,13 +165,8 @@ let lastPersistedContent = ''
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
-const isBib = isBibFile(props.filePath)
 const isTyp = isTypst(props.filePath)
-const supportsCitations = supportsCitationInsertion(props.filePath)
 const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
-const fileIsRunnable = isRunnable(props.filePath)
-const fileLanguage = getLanguage(props.filePath)
-const fileIsRmdOrQmd = isRmdOrQmd(props.filePath)
 const isMacPlatform =
   typeof navigator !== 'undefined' &&
   /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
@@ -226,26 +184,6 @@ const ctxMenu = reactive({
 const getView = () => view
 
 const {
-  citPalette,
-  openCitationPaletteAtSelection,
-  onCitInsert,
-  onCitUpdate,
-  onCitClose,
-  handleCitationClick,
-  handleLatexCitationClick,
-  handleTypstCitationClick,
-  createMarkdownCitationHandlers,
-  createLatexCitationHandlers,
-} = useTextEditorCitations({
-  filePath: props.filePath,
-  getView,
-  isLatexFile: isTex,
-  isTypstFile: isTyp,
-  t,
-  toastStore,
-})
-
-const {
   typstUi,
   connectTinymistDocument,
   disconnectTinymistDocument,
@@ -259,7 +197,6 @@ const {
   typstStore,
   editorStore,
   filesStore: files,
-  referencesStore,
   getWorkspacePath: () => workspace.path,
   t,
 })
@@ -290,12 +227,9 @@ const {
   editorContainer,
   getView,
   files,
-  reviews,
   commentsStore,
   isMarkdownFile: isMd,
   isLatexFile: isTex,
-  t,
-  toastStore,
 })
 
 function isContextMenuMouseGesture(event) {
@@ -355,21 +289,19 @@ function handleContextMenuMouseDown(event) {
   }
 
   pendingContextMenuState = captureContextMenuState(view.state, resolveContextMenuClickPos(event))
-
-  // Block browser and CodeMirror mouse-selection handling for context-menu gestures.
-  // We restore the intended caret/selection from the captured snapshot in onContextMenu.
   event.preventDefault()
   event.stopPropagation()
 }
 
-function onContextMenu(e) {
-  ctxMenu.x = e.clientX
-  ctxMenu.y = e.clientY
+function onContextMenu(event) {
+  ctxMenu.x = event.clientX
+  ctxMenu.y = event.clientY
 
   if (view) {
     view.focus()
     const decision = resolveContextMenuSelection(
-      pendingContextMenuState || captureContextMenuState(view.state, resolveContextMenuClickPos(e))
+      pendingContextMenuState ||
+        captureContextMenuState(view.state, resolveContextMenuClickPos(event))
     )
     if (decision.nextSelection && !decision.nextSelection.eq(view.state.selection)) {
       view.dispatch({ selection: decision.nextSelection })
@@ -419,7 +351,6 @@ async function loadTypstContextMenuCodeActions() {
   try {
     const result = await requestTinymistCodeActions(props.filePath, request.range, request.context)
     if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
-
     ctxMenu.typstCodeActions = normalizeTinymistCodeActions(result).slice(0, 5)
   } catch {
     if (!ctxMenu.show || requestId !== ctxMenu.requestId) return
@@ -477,10 +408,7 @@ async function handleApplyTypstCodeAction(action) {
       t('Typst code action failed: {error}', {
         error: error?.message || String(error || ''),
       }),
-      {
-        type: 'error',
-        duration: 5000,
-      },
+      { type: 'error', duration: 5000 },
       3000
     )
   }
@@ -494,10 +422,7 @@ async function handleFormatDocument() {
       toastStore.showOnce(
         'tinymist-format-unavailable',
         t('Tinymist is not available for formatting.'),
-        {
-          type: 'error',
-          duration: 4000,
-        },
+        { type: 'error', duration: 4000 },
         5000
       )
       return
@@ -516,10 +441,7 @@ async function handleFormatDocument() {
         t('Typst formatting failed: {error}', {
           error: error?.message || String(error || ''),
         }),
-        {
-          type: 'error',
-          duration: 5000,
-        },
+        { type: 'error', duration: 5000 },
         3000
       )
     }
@@ -531,10 +453,7 @@ async function handleFormatDocument() {
     toastStore.showOnce(
       'latex-format-unavailable',
       t('LaTeX formatter is not available.'),
-      {
-        type: 'error',
-        duration: 4000,
-      },
+      { type: 'error', duration: 4000 },
       5000
     )
     return
@@ -556,10 +475,7 @@ async function handleFormatDocument() {
       t('LaTeX formatting failed: {error}', {
         error: error?.message || String(error || ''),
       }),
-      {
-        type: 'error',
-        duration: 5000,
-      },
+      { type: 'error', duration: 5000 },
       3000
     )
   }
@@ -581,10 +497,7 @@ async function requestFormattedTypstContent(content, options = {}) {
       toastStore.showOnce(
         'tinymist-format-unavailable',
         t('Tinymist is not available for formatting.'),
-        {
-          type: 'error',
-          duration: 4000,
-        },
+        { type: 'error', duration: 4000 },
         5000
       )
     }
@@ -640,10 +553,7 @@ async function persistEditorContent(content) {
           t('LaTeX format on save failed: {error}', {
             error: error?.message || String(error || ''),
           }),
-          {
-            type: 'error',
-            duration: 5000,
-          },
+          { type: 'error', duration: 5000 },
           3000
         )
       } finally {
@@ -698,10 +608,7 @@ async function persistEditorContent(content) {
           t('Typst format on save failed: {error}', {
             error: error?.message || String(error || ''),
           }),
-          {
-            type: 'error',
-            duration: 5000,
-          },
+          { type: 'error', duration: 5000 },
           3000
         )
       } finally {
@@ -723,10 +630,6 @@ async function persistEditorContent(content) {
   if (!saved) return false
   lastPersistedContent = currentContent
   editorStore.clearFileDirty(props.filePath)
-
-  if (isBib) {
-    void latexStore.scheduleAutoBuildForPath(props.filePath)
-  }
   return true
 }
 
@@ -749,13 +652,10 @@ async function loadLanguageExtension() {
     return altalsLatexLanguage
   }
   if (isTyp) {
-    // Typst support is provided by our dedicated editor bundle instead of
-    // the generic language-data registry fallback.
     return null
   }
-  // Try to match by filename from the language-data registry
+
   const matched = languages.filter((lang) => {
-    // LanguageDescription has filename patterns and extensions
     const name = props.filePath.split('/').pop() || ''
     if (lang.filename && lang.filename.test(name)) return true
     if (lang.extensions) {
@@ -767,9 +667,9 @@ async function loadLanguageExtension() {
     }
     return false
   })
+
   if (matched.length > 0) {
-    const loaded = await matched[0].load()
-    return loaded
+    return matched[0].load()
   }
   return null
 }
@@ -777,17 +677,16 @@ async function loadLanguageExtension() {
 onMounted(async () => {
   if (!editorContainer.value) return
 
-  // Load file content
   let content = files.fileContents[props.filePath]
   if (content === undefined) {
     content = await files.readFile(props.filePath)
   }
-  if (content === null && loadError.value) {
-    return
-  }
+  if (content === null && loadError.value) return
   if (content === null) content = ''
+
   lastPersistedContent = content
   editorStore.clearFileDirty(props.filePath)
+
   if (isTex) {
     void latexStore.checkTools().catch(() => {})
     void latexStore
@@ -797,46 +696,28 @@ onMounted(async () => {
       .catch(() => {})
     void resolveLatexProjectGraph(props.filePath, {
       filesStore: files,
-      referencesStore,
       workspacePath: workspace.path,
     })
   }
 
-  // Load language
   const langExt = await loadLanguageExtension()
-
-  // Build extra extensions
   const extraExtensions = [
     Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
-    ...resultProvenanceBadgesExtension(),
     ...createRevealHighlightExtension(),
-    // Ghost suggestions (all file types)
-    ghostSuggestionExtension(
-      () => workspace,
-      () => workspace.systemPrompt,
-      { isEnabled: () => workspace.ghostEnabled, getInstructions: () => workspace.instructions }
-    ),
-    // Merge view for inline diffs (always available)
-    mergeViewExtension(),
-    // Comments (always available)
     ...commentsExtension(),
-    // Track doc changes for comment position mapping, and selection changes
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         pushCommentPositionsToStore(update.view)
       }
       if (update.selectionSet || update.docChanged) {
-        const sel = update.state.selection.main
-        emit('selection-change', sel.from !== sel.to)
+        const selection = update.state.selection.main
+        emit('selection-change', selection.from !== selection.to)
       }
       if (isTyp && update.docChanged) {
         scheduleTinymistSync(update.state.doc.toString())
         if (!tinymistNavUi.jumpInFlight) {
           handleNavigationSelectionChange()
         }
-      }
-      if (fileIsRmdOrQmd && update.docChanged) {
-        syncChunkProvenance?.(update.view)
       }
       if (isTyp && update.selectionSet && !typstUi.jumpInFlight && !tinymistNavUi.jumpInFlight) {
         handleEditorSelectionChange(update.state.selection.main.head)
@@ -853,299 +734,8 @@ onMounted(async () => {
     extraExtensions.push(...createTypstDiagnosticsExtension())
   }
 
-  if (supportsCitations) {
-    extraExtensions.push(
-      Prec.highest(
-        keymap.of([
-          {
-            key: 'Mod-Shift-c',
-            run: (editorView) => openCitationPaletteAtSelection(editorView),
-          },
-        ])
-      )
-    )
-  }
-
-  // Code runner keybindings for runnable files
-  if (fileIsRunnable) {
-    if (fileIsRmdOrQmd) {
-      // .Rmd/.qmd: chunk-aware execution with inline outputs
-      const { chunkField: cf, chunkAtPosition } = await import('../../editor/codeChunks')
-      const {
-        chunkOutputsExtension,
-        setChunkOutput,
-        chunkKey: getChunkKey,
-        chunkOutputField,
-      } = await import('../../editor/chunkOutputs')
-      const { ChunkKernelBridge } = await import('../../services/chunkKernelBridge')
-      const {
-        buildChunkProvenance,
-        buildSourceSignature,
-        classifyExecutionFailure,
-        markLiveProvenanceStatus,
-        registerLiveProvenance,
-      } = await import('../../services/resultProvenance')
-
-      // Load inline output widgets
-      extraExtensions.push(...chunkOutputsExtension())
-
-      // Jupyter kernel bridge — no subprocess fallback
-      const kernelBridge = new ChunkKernelBridge(workspace.path)
-      rmdKernelBridge = kernelBridge
-
-      syncChunkProvenance = (editorView) => {
-        const chunks = editorView.state.field(cf)
-        const outputMap = editorView.state.field(chunkOutputField)
-        for (const chunk of chunks) {
-          const key = getChunkKey(chunk, editorView.state.doc)
-          const entry = outputMap.get(key)
-          if (!entry?.provenance || entry.status === 'running') continue
-          const source = editorView.state.sliceDoc(chunk.contentFrom, chunk.contentTo).trim()
-          const currentSignature = buildSourceSignature(source)
-          if (entry.sourceSignature && entry.sourceSignature !== currentSignature) {
-            markLiveProvenanceStatus(entry.provenance, 'stale')
-          } else {
-            registerLiveProvenance({
-              ...entry.provenance,
-              status: entry.status,
-            })
-          }
-        }
-      }
-
-      /**
-       * Execute a chunk inline via Jupyter kernel.
-       * Shows setup error if no kernel is available.
-       */
-      async function executeChunk(editorView, chunk) {
-        const code = editorView.state.sliceDoc(chunk.contentFrom, chunk.contentTo).trim()
-        if (!code) return
-
-        const key = getChunkKey(chunk, editorView.state.doc)
-        const sourceSignature = buildSourceSignature(code)
-
-        editorView.dispatch({
-          effects: setChunkOutput.of({
-            chunkKey: key,
-            outputs: [],
-            status: 'running',
-            sourceSignature,
-          }),
-        })
-
-        const result = await kernelBridge.execute(code, chunk.language)
-        const failure =
-          result.success === false
-            ? classifyExecutionFailure(
-                (result.outputs || [])
-                  .filter((output) => output.output_type === 'error')
-                  .map((output) => `${output.ename}: ${output.evalue}`)
-                  .join('\n'),
-                result.outputs
-              )
-            : null
-        const provenance = buildChunkProvenance({
-          filePath: props.filePath,
-          chunkKey: key,
-          language: chunk.language,
-          source: code,
-          outputs: result.outputs,
-          status: result.success ? 'fresh' : 'error',
-          errorHint: failure?.hintKey ? t(failure.hintKey) : '',
-        })
-        registerLiveProvenance(provenance)
-        editorView.dispatch({
-          effects: setChunkOutput.of({
-            chunkKey: key,
-            outputs: result.outputs,
-            status: result.success ? 'fresh' : 'error',
-            sourceSignature,
-            provenance,
-            hint: failure?.hintKey ? t(failure.hintKey) : '',
-          }),
-        })
-        syncChunkProvenance?.(editorView)
-      }
-
-      extraExtensions.push(
-        Prec.highest(
-          keymap.of([
-            {
-              key: 'Mod-Enter',
-              run: (editorView) => {
-                const state = editorView.state
-                const sel = state.selection.main
-                const chunks = state.field(cf)
-                const chunk = chunkAtPosition(chunks, state.doc, sel.head)
-                if (!chunk) return true // In prose/YAML → do nothing
-
-                if (sel.from !== sel.to) {
-                  // Selection → run only selected text, show output under this chunk
-                  const selCode = state.sliceDoc(sel.from, sel.to).trim()
-                  if (selCode) {
-                    const key = getChunkKey(chunk, state.doc)
-                    const sourceSignature = buildSourceSignature(selCode)
-                    editorView.dispatch({
-                      effects: setChunkOutput.of({
-                        chunkKey: key,
-                        outputs: [],
-                        status: 'running',
-                        sourceSignature,
-                      }),
-                    })
-                    kernelBridge.execute(selCode, chunk.language).then((result) => {
-                      const failure =
-                        result.success === false
-                          ? classifyExecutionFailure(
-                              (result.outputs || [])
-                                .filter((output) => output.output_type === 'error')
-                                .map((output) => `${output.ename}: ${output.evalue}`)
-                                .join('\n'),
-                              result.outputs
-                            )
-                          : null
-                      const provenance = buildChunkProvenance({
-                        filePath: props.filePath,
-                        chunkKey: key,
-                        language: chunk.language,
-                        source: selCode,
-                        outputs: result.outputs,
-                        status: result.success ? 'fresh' : 'error',
-                        errorHint: failure?.hintKey ? t(failure.hintKey) : '',
-                      })
-                      registerLiveProvenance(provenance)
-                      editorView.dispatch({
-                        effects: setChunkOutput.of({
-                          chunkKey: key,
-                          outputs: result.outputs,
-                          status: result.success ? 'fresh' : 'error',
-                          sourceSignature,
-                          provenance,
-                          hint: failure?.hintKey ? t(failure.hintKey) : '',
-                        }),
-                      })
-                      syncChunkProvenance?.(editorView)
-                    })
-                  }
-                  return true
-                }
-
-                executeChunk(editorView, chunk)
-
-                // Advance cursor to next chunk header
-                const idx = chunks.indexOf(chunk)
-                if (idx >= 0 && idx + 1 < chunks.length) {
-                  const nextChunk = chunks[idx + 1]
-                  const nextLine = state.doc.line(nextChunk.headerLine)
-                  editorView.dispatch({
-                    selection: { anchor: nextLine.from },
-                    scrollIntoView: true,
-                  })
-                }
-                return true
-              },
-            },
-            {
-              key: 'Shift-Mod-Enter',
-              run: (editorView) => {
-                const totalChunks = editorView.state.field(cf).length
-
-                // Run all chunks sequentially, re-reading live state each iteration
-                ;(async () => {
-                  for (let i = 0; i < totalChunks; i++) {
-                    const chunks = editorView.state.field(cf)
-                    const chunk = chunks[i]
-                    if (!chunk || !chunk.endLine) continue
-                    const code = editorView.state
-                      .sliceDoc(chunk.contentFrom, chunk.contentTo)
-                      .trim()
-                    if (!code) continue
-                    await executeChunk(editorView, chunk)
-                  }
-                })()
-                return true
-              },
-            },
-          ])
-        )
-      )
-
-      // Listen for chunk-execute events from gutter play buttons
-      chunkExecuteHandler = (event) => {
-        if (!view) return
-        const { chunkIdx } = event.detail || {}
-        const chunks = view.state.field(cf)
-        if (chunkIdx >= 0 && chunkIdx < chunks.length) {
-          executeChunk(view, chunks[chunkIdx])
-        }
-      }
-
-      // Listen for chunk-execute-all (Run All button) — sequential execution
-      // Re-reads chunks on each iteration so offsets stay fresh after output widgets shift lines
-      chunkExecuteAllHandler = async () => {
-        if (!view) return
-        const totalChunks = view.state.field(cf).length
-        for (let i = 0; i < totalChunks; i++) {
-          const chunks = view.state.field(cf)
-          const chunk = chunks[i]
-          if (!chunk || !chunk.endLine) continue
-          const code = view.state.sliceDoc(chunk.contentFrom, chunk.contentTo).trim()
-          if (!code) continue
-          await executeChunk(view, chunk)
-        }
-      }
-    } else {
-      // Plain .r/.py/.jl: line-by-line execution
-      extraExtensions.push(
-        Prec.highest(
-          keymap.of([
-            {
-              key: 'Mod-Enter',
-              run: (editorView) => {
-                const state = editorView.state
-                const sel = state.selection.main
-                let code
-                if (sel.from !== sel.to) {
-                  code = state.sliceDoc(sel.from, sel.to)
-                } else {
-                  const line = state.doc.lineAt(sel.head)
-                  code = line.text
-                  if (line.number < state.doc.lines) {
-                    const nextLine = state.doc.line(line.number + 1)
-                    editorView.dispatch({
-                      selection: { anchor: nextLine.from },
-                      scrollIntoView: true,
-                    })
-                  }
-                }
-                if (code) sendCode(code, fileLanguage)
-                return true
-              },
-            },
-            {
-              key: 'Shift-Mod-Enter',
-              run: () => {
-                runFile(props.filePath, fileLanguage)
-                return true
-              },
-            },
-          ])
-        )
-      )
-    }
-  }
-
-  // Code chunk gutter play buttons for .Rmd/.qmd files
-  if (fileIsRmdOrQmd) {
-    const { codeChunksExtension } = await import('../../editor/codeChunks')
-    extraExtensions.push(...codeChunksExtension())
-  }
-
-  // Markdown-only extensions
   if (isMd) {
-    const completionSources = []
-    completionSources.push(createMarkdownDraftSnippetSource(t))
-
+    const completionSources = [createMarkdownDraftSnippetSource(t)]
     const wikiLinks = wikiLinksExtension({
       resolveLink: (target, fromPath) => linksStore.resolveLink(target, fromPath),
       getFiles: () => linksStore.allFileNames,
@@ -1159,14 +749,6 @@ onMounted(async () => {
     extraExtensions.push(...wikiLinks.extensions)
     completionSources.push(wikiLinks.completionSource)
 
-    const citations = citationsExtension(referencesStore, {
-      isOpen: () => citPalette.show,
-      ...createMarkdownCitationHandlers(),
-    })
-    extraExtensions.push(...citations.extensions)
-
-    // Single autocompletion instance with markdown draft snippets + wiki links.
-    // Citations still use the palette flow.
     extraExtensions.push(
       autocompletion({
         override: completionSources,
@@ -1176,40 +758,21 @@ onMounted(async () => {
       })
     )
 
-    // Formatting shortcuts (Cmd+B, Cmd+I, etc.)
     const { markdownShortcuts } = await import('../../editor/markdownShortcuts')
     extraExtensions.push(markdownShortcuts())
-
-    extraExtensions.push(
-      ...createMarkdownDraftEditorExtensions({
-        referencesStore,
-        t,
-      })
-    )
+    extraExtensions.push(...createMarkdownDraftEditorExtensions({ t }))
   }
 
-  // LaTeX-only extensions
   if (isTex) {
-    const completionSources = []
-
-    const latexCitations = latexCitationsExtension(referencesStore, {
-      isOpen: () => citPalette.show,
-      ...createLatexCitationHandlers(),
-    })
-    extraExtensions.push(...latexCitations.extensions)
-
-    completionSources.push(
-      createLatexCompletionSource({
-        filePath: props.filePath,
-        filesStore: files,
-        referencesStore,
-        workspacePath: workspace.path,
-      })
-    )
-
     extraExtensions.push(
       autocompletion({
-        override: completionSources,
+        override: [
+          createLatexCompletionSource({
+            filePath: props.filePath,
+            filesStore: files,
+            workspacePath: workspace.path,
+          }),
+        ],
         activateOnTyping: true,
         activateOnTypingDelay: 0,
         defaultKeymap: true,
@@ -1238,21 +801,19 @@ onMounted(async () => {
     )
   }
 
-  // Typst-only extensions
   if (supportsTypstSupport) {
     extraExtensions.push(
       ...createTypstEditorSupport({
         filePath: props.filePath,
         filesStore: files,
-        getReferenceByKey: (key) => referencesStore.getByKey(key),
         isEnabled: () => typstStore.inlayHints,
         openFile: (path) => editorStore.openFile(path),
-        referencesStore,
         toastStore,
         t,
         workspacePath: workspace.path,
       })
     )
+
     extraExtensions.push(
       Prec.highest(
         keymap.of([
@@ -1282,24 +843,19 @@ onMounted(async () => {
     languageExtension: langExt,
     autoSaveEnabled: workspace.autoSave,
     onDocChanged: handleDocumentChanged,
-    onSave: (content) => {
-      void persistEditorContent(content)
+    onSave: (nextContent) => {
+      void persistEditorContent(nextContent)
     },
-    onCursorChange: (pos) => {
-      emit('cursor-change', pos)
-    },
-    onStats: (stats) => {
-      emit('editor-stats', stats)
-    },
+    onCursorChange: (pos) => emit('cursor-change', pos),
+    onStats: (stats) => emit('editor-stats', stats),
     extraExtensions,
   })
 
-  const state = createEditorState(content, extensions)
-
   view = new EditorView({
-    state,
+    state: createEditorState(content, extensions),
     parent: editorContainer.value,
   })
+
   view.altalsPersist = async () => persistEditorContent(view?.state.doc.toString() || '')
   view.altalsGetContent = () => view?.state.doc.toString() || ''
   view.altalsApplyExternalContent = async (nextContent = '') => {
@@ -1333,6 +889,7 @@ onMounted(async () => {
 
 function ensureLatexWindowHandlers() {
   if (!isTex) return
+
   if (!backwardSyncHandler) {
     backwardSyncHandler = (event) => {
       const { file, line } = event.detail || {}
@@ -1342,6 +899,7 @@ function ensureLatexWindowHandlers() {
       }
     }
   }
+
   if (!latexCursorRequestHandler) {
     latexCursorRequestHandler = (event) => {
       if (!view || event.detail?.texPath !== props.filePath) return
@@ -1354,44 +912,44 @@ function ensureLatexWindowHandlers() {
 }
 
 function ensureMarkdownWindowHandlers() {
-  if (!isMd) return
-  if (!markdownCursorRequestHandler) {
-    markdownCursorRequestHandler = (event) => {
-      if (!view || event.detail?.sourcePath !== props.filePath) return
-      const pos = view.state.selection.main.head
-      const location = getMarkdownSyncLocation(pos)
-      if (!location) return
-      rememberPendingMarkdownForwardSync({
-        sourcePath: props.filePath,
-        line: location.line,
-        offset: location.offset,
+  if (!isMd || markdownCursorRequestHandler) return
+
+  markdownCursorRequestHandler = (event) => {
+    if (!view || event.detail?.sourcePath !== props.filePath) return
+    const pos = view.state.selection.main.head
+    const location = getMarkdownSyncLocation(pos)
+    if (!location) return
+
+    rememberPendingMarkdownForwardSync({
+      sourcePath: props.filePath,
+      line: location.line,
+      offset: location.offset,
+    })
+
+    window.dispatchEvent(
+      new CustomEvent('markdown-forward-sync-location', {
+        detail: {
+          sourcePath: props.filePath,
+          line: location.line,
+          offset: location.offset,
+        },
       })
-      window.dispatchEvent(
-        new CustomEvent('markdown-forward-sync-location', {
-          detail: {
-            sourcePath: props.filePath,
-            line: location.line,
-            offset: location.offset,
-          },
-        })
-      )
-    }
+    )
   }
 }
 
 function ensureTypstWindowHandlers() {
-  if (!isTyp) return
-  if (!typstCursorRequestHandler) {
-    typstCursorRequestHandler = (event) => {
-      if (!view || event.detail?.sourcePath !== props.filePath) return
-      const pos = view.state.selection.main.head
-      const location = getTypstSyncLocation(pos)
-      if (!location) return
-      void dispatchTypstForwardSyncFromLocation(location, {
-        revealPreview: false,
-        trigger: 'typst-request-cursor',
-      })
-    }
+  if (!isTyp || typstCursorRequestHandler) return
+
+  typstCursorRequestHandler = (event) => {
+    if (!view || event.detail?.sourcePath !== props.filePath) return
+    const pos = view.state.selection.main.head
+    const location = getTypstSyncLocation(pos)
+    if (!location) return
+    void dispatchTypstForwardSyncFromLocation(location, {
+      revealPreview: false,
+      trigger: 'typst-request-cursor',
+    })
   }
 }
 
@@ -1399,24 +957,20 @@ function attachEditorRuntimeListeners() {
   editorContainer.value?.addEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
-    editorContainer.value?.addEventListener('click', handleCitationClick)
   }
   if (isTex) {
-    editorContainer.value?.addEventListener('click', handleLatexCitationClick)
     editorContainer.value?.addEventListener('dblclick', handleLatexSourceDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
-    editorContainer.value?.addEventListener('click', handleTypstCitationClick)
   }
+
   editorContainer.value?.addEventListener('comment-click', handleCommentClick)
-  if (chunkExecuteHandler) {
-    editorContainer.value?.addEventListener('chunk-execute', chunkExecuteHandler)
-    editorContainer.value?.addEventListener('chunk-execute-all', chunkExecuteAllHandler)
-  }
+
   if (isTyp && !cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
   }
+
   if (isMd) {
     ensureMarkdownWindowHandlers()
     window.addEventListener('markdown-request-cursor', markdownCursorRequestHandler)
@@ -1436,21 +990,16 @@ function detachEditorRuntimeListeners() {
   editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
   if (isMd) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
-    editorContainer.value?.removeEventListener('click', handleCitationClick)
   }
   if (isTex) {
-    editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
     editorContainer.value?.removeEventListener('dblclick', handleLatexSourceDoubleClick)
   }
   if (isTyp) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
-    editorContainer.value?.removeEventListener('click', handleTypstCitationClick)
   }
+
   editorContainer.value?.removeEventListener('comment-click', handleCommentClick)
-  if (chunkExecuteHandler) {
-    editorContainer.value?.removeEventListener('chunk-execute', chunkExecuteHandler)
-    editorContainer.value?.removeEventListener('chunk-execute-all', chunkExecuteAllHandler)
-  }
+
   if (cleanupTypstWindowListeners) {
     cleanupTypstWindowListeners()
     cleanupTypstWindowListeners = null
@@ -1489,7 +1038,6 @@ function deactivateEditorRuntime() {
   if (!editorRuntimeActive) return
   editorRuntimeActive = false
   ctxMenu.show = false
-  citPalette.show = false
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   detachEditorRuntimeListeners()
@@ -1504,7 +1052,6 @@ onDeactivated(() => {
   deactivateEditorRuntime()
 })
 
-// Wiki link click navigation (plain click navigates, like Obsidian)
 function handleWikiLinkClick(event) {
   if (!view) return
 
@@ -1513,39 +1060,37 @@ function handleWikiLinkClick(event) {
 
   const line = view.state.doc.lineAt(pos)
   const lineText = line.text
-
-  const re = /\[\[([^\]]+)\]\]/g
+  const wikiLinkPattern = /\[\[([^\]]+)\]\]/g
   let match
-  while ((match = re.exec(lineText)) !== null) {
-    const mFrom = line.from + match.index
-    const mTo = mFrom + match[0].length
-    if (pos >= mFrom && pos < mTo) {
-      let target = match[1]
-      const pipeIdx = target.indexOf('|')
-      if (pipeIdx !== -1) target = target.substring(0, pipeIdx)
 
-      const hashIdx = target.indexOf('#')
-      if (hashIdx !== -1) {
-        target = target.substring(0, hashIdx)
-      }
-      target = target.trim()
-      if (!target) return
+  while ((match = wikiLinkPattern.exec(lineText)) !== null) {
+    const matchFrom = line.from + match.index
+    const matchTo = matchFrom + match[0].length
+    if (pos < matchFrom || pos >= matchTo) continue
 
-      const resolved = linksStore.resolveLink(target, props.filePath)
-      if (resolved) {
-        editorStore.openFile(resolved.path)
-      } else {
-        // Create new file in same directory
-        const dir = props.filePath.split('/').slice(0, -1).join('/')
-        const newName = target.endsWith('.md') ? target : target + '.md'
-        files.createFile(dir, newName).then((newPath) => {
-          if (newPath) editorStore.openFile(newPath)
-        })
-      }
-      event.preventDefault()
-      event.stopPropagation()
-      return
+    let target = match[1]
+    const pipeIndex = target.indexOf('|')
+    if (pipeIndex !== -1) target = target.substring(0, pipeIndex)
+
+    const hashIndex = target.indexOf('#')
+    if (hashIndex !== -1) target = target.substring(0, hashIndex)
+    target = target.trim()
+    if (!target) return
+
+    const resolved = linksStore.resolveLink(target, props.filePath)
+    if (resolved) {
+      editorStore.openFile(resolved.path)
+    } else {
+      const dir = props.filePath.split('/').slice(0, -1).join('/')
+      const newName = target.endsWith('.md') ? target : `${target}.md`
+      files.createFile(dir, newName).then((newPath) => {
+        if (newPath) editorStore.openFile(newPath)
+      })
     }
+
+    event.preventDefault()
+    event.stopPropagation()
+    return
   }
 }
 
@@ -1683,7 +1228,6 @@ function getLatexSyncLocation(pos) {
   if (!line?.number || line.number < 1) return null
   return {
     line: line.number,
-    // SyncTeX accepts 1-based columns; use 0 only when unavailable.
     column: Math.max(1, pos - line.from + 1),
   }
 }
@@ -1708,7 +1252,6 @@ function getTypstSyncLocation(pos) {
   }
 }
 
-// Watch for soft wrap toggle
 watch(
   () => workspace.softWrap,
   (wrap) => {
@@ -1719,13 +1262,12 @@ watch(
   }
 )
 
-// Watch for wrap column change
 watch(
   () => workspace.wrapColumn,
-  (col) => {
+  (column) => {
     if (!view) return
     view.dispatch({
-      effects: columnWidthCompartment.reconfigure(columnWidthExtension(col)),
+      effects: columnWidthCompartment.reconfigure(columnWidthExtension(column)),
     })
   }
 )
@@ -1753,10 +1295,6 @@ onUnmounted(() => {
   if (isTyp) {
     void disconnectTinymistDocument()
   }
-  if (rmdKernelBridge) {
-    rmdKernelBridge.shutdown()
-    rmdKernelBridge = null
-  }
   if (view) {
     view.destroy()
     view = null
@@ -1779,129 +1317,7 @@ onUnmounted(() => {
   background: var(--bg-primary);
 }
 
-.typst-diagnostics-banner {
-  flex-shrink: 0;
-  border-bottom: 1px solid rgba(239, 68, 68, 0.22);
-  background:
-    linear-gradient(180deg, rgba(120, 20, 20, 0.2), rgba(120, 20, 20, 0.08)), var(--bg-secondary);
-}
-
-.typst-diagnostics-banner-warning {
-  border-bottom-color: rgba(245, 158, 11, 0.22);
-  background:
-    linear-gradient(180deg, rgba(120, 82, 18, 0.2), rgba(120, 82, 18, 0.08)), var(--bg-secondary);
-}
-
-.typst-diagnostics-banner-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-}
-
-.typst-diagnostics-banner-copy {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.typst-diagnostics-pill {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fecaca;
-  font-size: var(--ui-font-label);
-  font-weight: 700;
-}
-
-.typst-diagnostics-pill-warning {
-  background: rgba(245, 158, 11, 0.16);
-  color: #fde68a;
-}
-
-.typst-diagnostics-message {
-  min-width: 0;
-  color: var(--fg-primary);
-  font-size: var(--ui-font-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.typst-diagnostics-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.typst-diagnostics-btn {
-  border: 0;
-  background: transparent;
-  color: var(--fg-muted);
-  cursor: pointer;
-  font-size: var(--ui-font-label);
-  line-height: 1.2;
-}
-
-.typst-diagnostics-btn:hover {
-  color: var(--fg-primary);
-}
-
-.typst-diagnostics-btn-accent {
-  color: var(--accent);
-}
-
-.typst-diagnostics-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 0 8px 8px;
-}
-
-.typst-diagnostic-item {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 10px;
-  width: 100%;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--fg-secondary);
-  cursor: pointer;
-  padding: 7px 8px;
-  text-align: left;
-}
-
-.typst-diagnostic-item:hover,
-.typst-diagnostic-item-active {
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--fg-primary);
-}
-
-.typst-diagnostic-item-warning .typst-diagnostic-item-line {
-  color: #fcd34d;
-}
-
-.typst-diagnostic-item-line {
-  color: var(--fg-muted);
-  font-size: var(--ui-font-caption);
-}
-
-.typst-diagnostic-item-message {
-  min-width: 0;
-  font-size: var(--ui-font-label);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .text-editor-load-error {
-  color: var(--text-muted);
+  color: var(--fg-secondary);
 }
 </style>

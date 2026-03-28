@@ -84,7 +84,6 @@ function outlineTypeForPath(path) {
   if (vt === 'text' && isMarkdown(path)) return 'markdown'
   if (vt === 'text' && isLatex(path)) return 'latex'
   if (vt === 'text' && isTypst(path)) return 'typst'
-  if (vt === 'notebook') return 'notebook'
   return null
 }
 
@@ -237,12 +236,6 @@ const outlineItems = computed(() => {
     })
   }
 
-  if (ft === 'notebook') {
-    const content = filesStore.fileContents[path]
-    if (!content) return []
-    return parseNotebookHeadings(content)
-  }
-
   return []
 })
 
@@ -323,38 +316,6 @@ function parseLatexHeadings(content) {
   }))
 }
 
-function parseNotebookHeadings(content) {
-  let nb
-  try {
-    nb = JSON.parse(content)
-  } catch {
-    return []
-  }
-  if (!nb.cells) return []
-
-  const result = []
-  let charOffset = 0
-  for (let ci = 0; ci < nb.cells.length; ci++) {
-    const cell = nb.cells[ci]
-    if (cell.cell_type === 'markdown') {
-      const src = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
-      const re = /^(#{1,6})\s+(.+)$/gm
-      let m
-      while ((m = re.exec(src)) !== null) {
-        result.push({
-          text: m[2].trim(),
-          level: m[1].length,
-          offset: charOffset + m.index,
-          cellIndex: ci,
-        })
-      }
-    }
-    const cellSrc = Array.isArray(cell.source) ? cell.source.join('') : cell.source || ''
-    charOffset += cellSrc.length + 1
-  }
-  return result
-}
-
 // --- Navigation ---
 
 function focusTextOffset(path, offset, attempts = 0) {
@@ -385,16 +346,6 @@ function navigateToOutlineItem(item) {
     const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
     editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
     focusTextOffset(targetPath, item.offset)
-  }
-
-  if (ft === 'notebook') {
-    if (item.cellIndex != null) {
-      window.dispatchEvent(
-        new CustomEvent('notebook-scroll-to-cell', {
-          detail: { path, cellIndex: item.cellIndex },
-        })
-      )
-    }
   }
 }
 

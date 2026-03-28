@@ -1,17 +1,10 @@
 export const WORKSPACE_STARTER_DRAFT_EXTENSIONS = Object.freeze([
   '.md',
-  '.qmd',
-  '.rmd',
   '.tex',
   '.typ',
 ])
 
-export const WORKSPACE_STARTER_COMPUTATION_EXTENSIONS = Object.freeze([
-  '.ipynb',
-  '.py',
-  '.r',
-  '.jl',
-])
+export const WORKSPACE_STARTER_COMPUTATION_EXTENSIONS = Object.freeze([])
 
 export function normalizeWorkspaceStarterPath(path = '') {
   return String(path || '').replace(/\\/g, '/')

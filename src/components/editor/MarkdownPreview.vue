@@ -1,14 +1,5 @@
 <template>
   <div class="md-preview-container" ref="containerEl">
-    <!-- Knitting indicator for .Rmd/.qmd -->
-    <div v-if="knitting" class="md-preview-knitting">
-      <div class="md-preview-knitting-dots">
-        <div class="chunk-spinner-dot"></div>
-        <div class="chunk-spinner-dot"></div>
-        <div class="chunk-spinner-dot"></div>
-      </div>
-      <span>Knitting{{ knittingProgress ? ` (${knittingProgress})` : '' }}...</span>
-    </div>
     <div
       v-if="loadError"
       class="md-preview-error"
@@ -30,9 +21,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
-import { useReferencesStore } from '../../stores/references'
 import { useLinksStore } from '../../stores/links'
 import { renderPreview } from '../../utils/markdownPreview'
 import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
@@ -42,7 +31,6 @@ import {
   rememberPendingMarkdownForwardSync,
   takePendingMarkdownForwardSync,
 } from '../../services/markdown/previewSync.js'
-import { isRmdOrQmd } from '../../utils/fileTypes'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -52,9 +40,7 @@ const props = defineProps({
 
 const filesStore = useFilesStore()
 const editorStore = useEditorStore()
-const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
-const referencesStore = useReferencesStore()
 const linksStore = useLinksStore()
 const containerEl = ref(null)
 
@@ -65,12 +51,6 @@ const resolvedSourcePath = computed(
   }).sourcePath
 )
 const loadError = computed(() => filesStore.getFileLoadError(resolvedSourcePath.value))
-const isRmd = computed(() => isRmdOrQmd(resolvedSourcePath.value))
-
-// Knitting state
-const knitting = ref(false)
-const knittingProgress = ref('')
-let knittedMarkdown = null  // Cache of last knitted output
 
 // Debounced render
 let renderTimer = null
@@ -192,18 +172,8 @@ async function doRender() {
     problems: [],
   })
 
-  // For .Rmd/.qmd: use knitted markdown if available, otherwise preprocess (strip {r} headers)
-  if (isRmd.value) {
-    if (knittedMarkdown) {
-      md = knittedMarkdown
-    } else {
-      const { preprocessRmd } = await import('../../services/rmdKnit')
-      md = preprocessRmd(md)
-    }
-  }
-
   try {
-    const result = renderPreview(md, referencesStore, referencesStore.citationStyle)
+    const result = renderPreview(md)
     renderedHtml.value = result instanceof Promise ? await result : result
     await nextTick()
     flushPendingForwardSync()
@@ -230,49 +200,9 @@ async function doRender() {
   }
 }
 
-/**
- * Knit the .Rmd: execute all chunks and embed outputs in the preview.
- */
-async function doKnit() {
-  if (loadError.value) return
-  const md = filesStore.fileContents[resolvedSourcePath.value]
-  if (!md) return
-
-  knitting.value = true
-  knittingProgress.value = ''
-  try {
-    const { knitRmd } = await import('../../services/rmdKnit')
-    knittedMarkdown = await knitRmd(md, workspace.path, {
-      onProgress: (idx, total) => { knittingProgress.value = `${idx + 1}/${total}` },
-    })
-    await doRender()
-  } catch (e) {
-    console.error('Knit failed:', e)
-    workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
-      status: 'error',
-      problems: [{
-        id: `markdown-knit:${resolvedSourcePath.value}`,
-        sourcePath: resolvedSourcePath.value,
-        line: null,
-        column: null,
-        severity: 'error',
-        message: e?.message || String(e),
-        origin: 'preview',
-        actionable: true,
-        raw: e?.stack || String(e),
-      }],
-    })
-  } finally {
-    knitting.value = false
-    knittingProgress.value = ''
-  }
-}
-
 watch(
   () => filesStore.fileContents[resolvedSourcePath.value],
   () => {
-    // On edits, clear knitted cache (stale) and re-render preprocessed
-    knittedMarkdown = null
     clearTimeout(renderTimer)
     renderTimer = setTimeout(doRender, 300)
   }
@@ -284,24 +214,14 @@ watch(loadError, (nextError) => {
   }
 })
 
-// Re-render when citation style changes
-watch(() => referencesStore.citationStyle, doRender)
-
 onMounted(async () => {
-  // Ensure content is loaded
-   let content = filesStore.fileContents[resolvedSourcePath.value]
-   if (content === undefined) {
-     content = await filesStore.readFile(resolvedSourcePath.value)
-   }
+  let content = filesStore.fileContents[resolvedSourcePath.value]
+  if (content === undefined) {
+    content = await filesStore.readFile(resolvedSourcePath.value)
+  }
   if (content === null && loadError.value) return
 
-  if (isRmd.value) {
-    // For .Rmd: auto-knit on open (execute chunks, show outputs)
-    await doKnit()
-  } else {
-    doRender()
-  }
-
+  doRender()
   window.addEventListener('markdown-forward-sync-location', handleForwardSyncRequest)
 })
 
@@ -315,7 +235,7 @@ onUnmounted(() => {
 
 function handleForwardSyncRequest(event) {
   const detail = event.detail || {}
-   if (detail.sourcePath !== resolvedSourcePath.value) return
+  if (detail.sourcePath !== resolvedSourcePath.value) return
   void nextTick(() => {
     if (scrollToSourceLocation(detail)) {
       clearPendingMarkdownForwardSync(detail)
@@ -331,21 +251,10 @@ function handleClick(e) {
   if (wikiLink) {
     const target = wikiLink.dataset.target
     if (target) {
-       const resolved = linksStore.resolveLink(target, resolvedSourcePath.value)
+      const resolved = linksStore.resolveLink(target, resolvedSourcePath.value)
       if (resolved) {
         editorStore.openFile(resolved.path)
       }
-    }
-    e.preventDefault()
-    return
-  }
-
-  // Citation click → open reference detail
-  const citation = e.target.closest('.md-preview-citation')
-  if (citation) {
-    const keys = citation.dataset.keys?.split(',')
-    if (keys?.[0]) {
-      referencesStore.focusReferenceInLibrary(keys[0], { mode: 'browse' })
     }
     e.preventDefault()
     return
@@ -365,8 +274,8 @@ async function handleDoubleClick(e) {
   e.stopPropagation()
 
   const preferredSourcePaneId = (
-     editorStore.findPaneWithTab(resolvedSourcePath.value)?.id
-     || (workflowStore.session.previewSourcePath === resolvedSourcePath.value ? workflowStore.session.sourcePaneId : null)
+    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id
+    || (workflowStore.session.previewSourcePath === resolvedSourcePath.value ? workflowStore.session.sourcePaneId : null)
     || null
   )
 
@@ -421,26 +330,6 @@ async function handleDoubleClick(e) {
 .md-preview-error-detail {
   margin-top: 8px;
   font-size: 12px;
-}
-
-.md-preview-knitting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  margin-bottom: 12px;
-  max-width: 860px;
-  margin-left: auto;
-  margin-right: auto;
-  font-size: var(--ui-font-label);
-  color: var(--fg-muted);
-  background: var(--bg-secondary);
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-.md-preview-knitting-dots {
-  display: flex;
-  gap: 3px;
 }
 
 @media (max-width: 900px) {

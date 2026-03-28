@@ -10,7 +10,7 @@ test('filterRelevantFileWatchPaths excludes .git paths and keeps workspace metad
   const paths = filterRelevantFileWatchPaths([
     '/ws/chapter1.md',
     '/ws/.git/index',
-    '/ws/.altals/project/references/workspace-library.json',
+    '/ws/.altals/project/state/workspace-index.json',
     '/outside/file.txt',
   ], {
     workspacePath: '/ws',
@@ -19,7 +19,7 @@ test('filterRelevantFileWatchPaths excludes .git paths and keeps workspace metad
 
   assert.deepEqual(paths, [
     '/ws/chapter1.md',
-    '/ws/.altals/project/references/workspace-library.json',
+    '/ws/.altals/project/state/workspace-index.json',
   ])
 })
 

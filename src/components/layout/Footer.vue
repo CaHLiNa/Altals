@@ -1,67 +1,25 @@
 <template>
-  <footer class="grid items-center px-3 ui-text-xs select-none shrink-0"
-    style="grid-template-columns: 1fr auto 1fr; background: var(--bg-primary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;">
-
-    <!-- LEFT: word count + sync status -->
+  <footer
+    class="grid items-center px-3 ui-text-xs select-none shrink-0"
+    style="grid-template-columns: 1fr auto 1fr; background: var(--bg-primary); border-top: 1px solid var(--border); color: var(--fg-muted); height: 26px; font-variant-numeric: tabular-nums;"
+  >
     <div class="flex items-center gap-2 justify-self-start whitespace-nowrap">
-      <!-- Word count -->
       <template v-if="stats.words > 0">
         <span :style="{ color: stats.selWords > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
-          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selWords > 0 ? stats.selWords : stats.words).toLocaleString() }}</span> {{ t('words') }}
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ activeWords.toLocaleString() }}</span>
+          {{ t('words') }}
         </span>
         <span :style="{ color: stats.selChars > 0 ? 'var(--accent)' : 'var(--fg-muted)' }">
-          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ (stats.selChars > 0 ? stats.selChars : stats.chars).toLocaleString() }}</span> {{ t('chars') }}
+          <span style="display:inline-block;min-width:3ch;text-align:right;">{{ activeChars.toLocaleString() }}</span>
+          {{ t('chars') }}
         </span>
       </template>
-
-      <!-- Separator -->
-      <div v-if="workspace.githubUser && stats.words > 0" class="w-px h-3 shrink-0" style="background: var(--border);"></div>
-
-      <!-- Sync status (only when GitHub connected) -->
-      <span
-        v-if="workspace.githubUser"
-        ref="syncTriggerRef"
-        class="flex items-center gap-1 cursor-pointer hover:opacity-80"
-        :style="{ color: syncColor }"
-        @click="toggleSyncPopover"
-        :title="syncTooltip"
-      >
-        <!-- Cloud icon variations -->
-        <svg v-if="workspace.syncStatus === 'synced'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
-        </svg>
-        <svg v-else-if="workspace.syncStatus === 'syncing'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sync-pulse">
-          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
-          <path d="M11 13l-2 2 2 2M13 11l2-2-2-2"/>
-        </svg>
-        <svg v-else-if="workspace.syncStatus === 'error' || workspace.syncStatus === 'conflict'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
-          <path d="M12 9v4M12 17h.01"/>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4;">
-          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
-          <path d="M4 20L20 4"/>
-        </svg>
-        <span v-if="syncLabel" class="ui-text-xs">{{ syncLabel }}</span>
-      </span>
-
-      <!-- Pending changes -->
-      <span v-if="reviews.pendingCount > 0"
-        ref="pendingTriggerRef"
-        class="flex items-center gap-1 cursor-pointer hover:opacity-80"
-        style="color: var(--warning);"
-        @click="togglePendingPopover">
-        {{ reviews.pendingCount }} {{ t('Pending Changes') }}
-      </span>
     </div>
 
-    <!-- CENTER: snapshot-label prompt or transient status messaging -->
     <div class="footer-center justify-self-center">
       <div class="footer-center-layer" :class="{ 'footer-center-hidden': snapshotLabelPromptActive || centerMessage || uxStatusEntry }"></div>
 
-      <!-- Snapshot-label prompt (shown during 8s window) -->
       <div class="footer-center-layer flex items-center gap-1" :class="{ 'footer-center-hidden': !snapshotLabelPromptActive }">
-      
         <IconCheck width="12" height="12" style="color: var(--success);" />
         <div class="font-medium ui-text-sm pe-2" style="color: var(--success);">
           {{ t('Saved') }}
@@ -70,10 +28,11 @@
           class="cursor-pointer underline hover:opacity-80 ui-text-sm font-medium"
           style="color: var(--accent);"
           @click="openSnapshotLabelDialog"
-        >{{ t('Name this version?') }}</div>
+        >
+          {{ t('Name this version?') }}
+        </div>
       </div>
 
-      <!-- Transient center message (e.g. "All saved (no changes)") -->
       <div class="footer-center-layer" :class="{ 'footer-center-hidden': !centerMessage }">
         <span class="flex items-center gap-1.5 ui-text-sm" style="color: var(--success);">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5 6.5-7"/></svg>
@@ -99,23 +58,12 @@
       </div>
     </div>
 
-    <!-- Snapshot-label naming dialog -->
     <SnapshotDialog
       :visible="snapshotLabelDialogVisible"
       @resolve="resolveSnapshotLabelDialog"
     />
 
-    <!-- RIGHT: tools + editor info -->
     <div class="flex items-center gap-2 justify-self-end whitespace-nowrap">
-      <!-- Tools -->
-      <button
-        class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
-        :style="{ color: workspace.bottomPanelOpen ? 'var(--accent)' : 'var(--fg-muted)' }"
-        @click="toggleTerminalPanel"
-        :title="t('Toggle terminal ({shortcut})', { shortcut: `${modKey}+\`` })"
-      >
-        <IconTerminal2 width="14" height="14" :stroke-width="1.5" />
-      </button>
       <button
         class="w-6 h-6 flex items-center justify-center rounded hover:opacity-80 bg-transparent border-none cursor-pointer"
         style="color: var(--fg-muted);"
@@ -152,39 +100,33 @@
         </svg>
       </button>
 
-      <!-- Separator -->
-      <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
+      <div v-if="cursorPos.line > 0" class="w-px h-3 shrink-0" style="background: var(--border);"></div>
 
-      <!-- Billing context display -->
-      <template v-if="usageStore.showInFooter && footerBillingVisible">
-        <span
-          v-if="billingRoute?.route === 'direct'"
-          class="cursor-pointer hover:opacity-80"
-          :style="{ color: usageStore.isOverBudget ? 'var(--error)' : usageStore.isNearBudget ? 'var(--warning)' : 'var(--fg-muted)' }"
-          :title="t('Estimated API cost this month - check provider dashboards for actual charges')"
-          @click="$emit('open-settings', 'models')">
-          {{ t('{cost} this month', { cost: `~${formatCost(usageStore.directCost)}` }) }}
-        </span>
-        <div class="w-px h-3 shrink-0" style="background: var(--border);"></div>
-      </template>
+      <span v-if="cursorPos.line > 0">
+        {{ t('Ln {line}, Col {col}', { line: cursorPos.line, col: cursorPos.col }) }}
+      </span>
 
-      <!-- Save message -->
-      <span v-if="saveMessage"
+      <span
+        v-if="saveMessage"
         class="transition-opacity"
-        :style="{ color: 'var(--success)', opacity: saveMessageFading ? 0 : 1 }">
+        :style="{ color: 'var(--success)', opacity: saveMessageFading ? 0 : 1 }"
+      >
         {{ saveMessage }}
       </span>
     </div>
   </footer>
 
-  <!-- Shortcuts popover -->
   <Teleport to="body">
     <div v-if="showShortcuts" class="fixed inset-0 z-50" @click="showShortcuts = false">
-      <div class="fixed z-50 rounded-lg border overflow-hidden"
+      <div
+        class="fixed z-50 rounded-lg border overflow-hidden"
         style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4); width: 300px; bottom: 44px; right: 12px;"
-        @click.stop>
-        <div class="px-3 py-2 ui-text-xs font-medium uppercase tracking-wider"
-          style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
+        @click.stop
+      >
+        <div
+          class="px-3 py-2 ui-text-xs font-medium uppercase tracking-wider"
+          style="color: var(--fg-muted); border-bottom: 1px solid var(--border);"
+        >
           {{ t('Keyboard shortcuts') }}
         </div>
         <div class="px-3 py-2 space-y-1.5 ui-text-sm" style="color: var(--fg-secondary);">
@@ -192,11 +134,9 @@
           <div class="flex justify-between"><span>{{ t('Quick open') }}</span><kbd>{{ modKey }}+P</kbd></div>
           <div class="flex justify-between"><span>{{ t('Save') }}</span><kbd>{{ modKey }}+S</kbd></div>
           <div class="flex justify-between"><span>{{ t('Close tab') }}</span><kbd>{{ modKey }}+W</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Split vertical') }}</span><kbd>{{ modKey }}+\</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Split horizontal') }}</span><kbd>{{ modKey }}+Shift+\</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Split vertical') }}</span><kbd>{{ modKey }}+\\</kbd></div>
+          <div class="flex justify-between"><span>{{ t('Split horizontal') }}</span><kbd>{{ modKey }}+Shift+\\</kbd></div>
           <div class="flex justify-between"><span>{{ t('Add comment') }}</span><kbd>{{ modKey }}+Shift+L</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Insert citation') }}</span><kbd>{{ modKey }}+Shift+C</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Toggle terminal') }}</span><kbd>{{ modKey }}+`</kbd></div>
           <div class="flex justify-between"><span>{{ t('Toggle word wrap') }}</span><kbd>{{ altKey }}+Z</kbd></div>
           <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">{{ t('File Explorer') }}</div>
           <div class="flex justify-between"><span>{{ t('Navigate') }}</span><kbd>↑ / ↓</kbd></div>
@@ -204,92 +144,25 @@
           <div class="flex justify-between"><span>{{ t('Collapse / parent') }}</span><kbd>←</kbd></div>
           <div class="flex justify-between"><span>{{ t('Open') }}</span><kbd>Space</kbd></div>
           <div class="flex justify-between"><span>{{ t('Rename') }}</span><kbd>Enter</kbd></div>
-          <div class="mt-2 pt-2" style="border-top: 1px solid var(--border); color: var(--fg-muted);">{{ t('Ghost Suggestions') }}</div>
-          <div class="flex justify-between"><span>{{ t('Trigger') }}</span><kbd>++</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Accept') }}</span><kbd>Tab / Enter / Right</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Cycle') }}</span><kbd>Up / Down</kbd></div>
-          <div class="flex justify-between"><span>{{ t('Cancel') }}</span><kbd>Esc / Left / click</kbd></div>
         </div>
       </div>
     </div>
   </Teleport>
-
-  <!-- Pending changes popover -->
-  <Teleport to="body">
-    <div v-if="showPendingPopover" class="fixed inset-0 z-50" @click="showPendingPopover = false">
-      <div class="fixed z-50 rounded-lg border overflow-hidden"
-        :style="pendingPopoverPos"
-        style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4); min-width: 200px; max-width: 360px;"
-        @click.stop>
-        <div class="px-3 py-2 ui-text-xs font-medium uppercase tracking-wider"
-          style="color: var(--fg-muted); border-bottom: 1px solid var(--border);">
-          {{ t('Pending Changes') }}
-        </div>
-        <div class="py-1 max-h-48 overflow-y-auto">
-          <div v-for="file in reviews.filesWithEdits" :key="file"
-            class="px-3 py-1.5 ui-text-sm cursor-pointer flex items-center gap-2 hover:bg-[var(--bg-hover)]"
-            style="color: var(--fg-secondary);"
-            :title="file"
-            @click="openPendingFile(file)">
-            <span class="truncate">{{ file.split('/').pop() }}</span>
-            <span class="ml-auto ui-text-xs shrink-0 px-1.5 rounded-full"
-              style="background: rgba(224, 175, 104, 0.2); color: var(--warning);">
-              {{ reviews.editsForFile(file).length }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <!-- Sync popover -->
-  <Teleport to="body">
-    <div v-if="showSyncPopover" class="fixed inset-0 z-50" @click="showSyncPopover = false">
-      <div class="fixed z-50 rounded-lg border overflow-hidden"
-        :style="syncPopoverPos"
-        style="background: var(--bg-secondary); border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.4);"
-        @click.stop>
-        <SyncPopover
-          @sync-now="handleSyncNow"
-          @refresh="handleSyncRefresh"
-          @open-settings="handleOpenGitHubSettings"
-        />
-      </div>
-    </div>
-  </Teleport>
-
-  <!-- Conflict dialog -->
-  <GitHubConflictDialog
-    :visible="showConflictDialog"
-    @close="showConflictDialog = false"
-  />
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { computed, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useReviewsStore } from '../../stores/reviews'
-import { useEditorStore } from '../../stores/editor'
-import { useUsageStore } from '../../stores/usage'
-import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
-import { getBillingRoute } from '../../services/apiClient'
 import { useSnapshotLabelPrompt } from '../../app/changes/useSnapshotLabelPrompt.js'
 import { modKey, altKey } from '../../platform'
 import { useI18n } from '../../i18n'
-import SyncPopover from './SyncPopover.vue'
 import SnapshotDialog from './SnapshotDialog.vue'
-import GitHubConflictDialog from '../GitHubConflictDialog.vue'
-import { IconTerminal2 } from '@tabler/icons-vue'
 import { IconCheck } from '@tabler/icons-vue'
 
 const emit = defineEmits(['open-settings', 'open-workspace-snapshots'])
 
 const workspace = useWorkspaceStore()
-const reviews = useReviewsStore()
-const editorStore = useEditorStore()
-const usageStore = useUsageStore()
-const toastStore = useToastStore()
 const uxStatusStore = useUxStatusStore()
 const { t } = useI18n()
 
@@ -297,15 +170,12 @@ const stats = ref({ words: 0, chars: 0, selWords: 0, selChars: 0 })
 const cursorPos = ref({ line: 0, col: 0 })
 const saveMessage = ref('')
 const saveMessageFading = ref(false)
-let saveTimer = null
 const showShortcuts = ref(false)
-const showPendingPopover = ref(false)
-const pendingTriggerRef = ref(null)
-const pendingPopoverPos = ref({})
-const showSyncPopover = ref(false)
-const syncTriggerRef = ref(null)
-const syncPopoverPos = ref({})
-const showConflictDialog = ref(false)
+const centerMessage = ref('')
+
+let saveTimer = null
+let centerMessageTimer = null
+
 const {
   beginSnapshotLabelConfirmation,
   snapshotLabelDialogVisible,
@@ -314,24 +184,9 @@ const {
   resolveSnapshotLabelDialog,
 } = useSnapshotLabelPrompt()
 
-// Transient center message (e.g. "All saved (no changes)")
-const centerMessage = ref('')
-let centerMessageTimer = null
 const uxStatusEntry = computed(() => uxStatusStore.current)
-
-// Model-aware billing route
-const billingRoute = computed(() => {
-  if (!workspace.selectedModelId) return null
-  return getBillingRoute(workspace.selectedModelId, workspace)
-})
-
-// Footer shows billing when the current model's route has something to show
-const footerBillingVisible = computed(() => {
-  const route = billingRoute.value
-  if (!route) return false
-  if (route.route === 'direct') return usageStore.showCostEstimates && usageStore.directCost > 0
-  return false
-})
+const activeWords = computed(() => (stats.value.selWords > 0 ? stats.value.selWords : stats.value.words))
+const activeChars = computed(() => (stats.value.selChars > 0 ? stats.value.selChars : stats.value.chars))
 
 const uxStatusColor = computed(() => {
   switch (uxStatusEntry.value?.type) {
@@ -340,170 +195,6 @@ const uxStatusColor = computed(() => {
     case 'warning': return 'var(--warning)'
     default: return 'var(--fg-secondary)'
   }
-})
-
-function formatCost(val) {
-  if (!val) return '$0.00'
-  return '$' + val.toFixed(2)
-}
-
-const syncColor = computed(() => {
-  switch (workspace.syncStatus) {
-    case 'synced': return 'var(--fg-muted)'
-    case 'syncing': return 'var(--fg-muted)'
-    case 'error': return 'var(--error)'
-    case 'conflict': return 'var(--warning)'
-    default: return 'var(--fg-muted)'
-  }
-})
-
-const syncTooltip = computed(() => {
-  switch (workspace.syncStatus) {
-    case 'synced': return t('Synced with GitHub')
-    case 'syncing': return t('Syncing with GitHub...')
-    case 'conflict': return t('Needs your input - click for details')
-    case 'error': return t('Needs attention - click for details')
-    case 'idle': return t('GitHub: connected')
-    default: return t('GitHub: not connected')
-  }
-})
-
-const syncLabel = computed(() => {
-  switch (workspace.syncStatus) {
-    case 'synced': return t('Backed up')
-    case 'syncing': return t('Saving...')
-    case 'error':
-    case 'conflict': return t('Sync issue')
-    default: return null
-  }
-})
-
-async function ensureGitHubSyncAvailable() {
-  const { ensureGitHubSyncReady } = await import('../../services/environmentPreflight.js')
-  return ensureGitHubSyncReady()
-}
-
-function toggleSyncPopover() {
-  showSyncPopover.value = !showSyncPopover.value
-  if (showSyncPopover.value) {
-    nextTick(() => {
-      const rect = syncTriggerRef.value?.getBoundingClientRect()
-      if (rect) {
-        syncPopoverPos.value = {
-          bottom: (window.innerHeight - rect.top + 4) + 'px',
-          left: rect.left + 'px',
-        }
-      }
-    })
-  }
-}
-
-async function handleSyncNow() {
-  showSyncPopover.value = false
-  if (!(await ensureGitHubSyncAvailable())) {
-    return
-  }
-  const statusId = uxStatusStore.show(t('Syncing with GitHub...'), {
-    type: 'info',
-    duration: 0,
-  })
-  try {
-    const result = await workspace.syncNow()
-    if (result?.ok) {
-      uxStatusStore.update(statusId, t('Synced with GitHub'), {
-        type: 'success',
-        duration: 3000,
-      })
-    } else if (workspace.syncStatus === 'conflict') {
-      uxStatusStore.update(statusId, t('Sync conflict needs attention'), {
-        type: 'warning',
-        duration: 5000,
-      })
-    } else if (workspace.syncStatus === 'error') {
-      uxStatusStore.update(statusId, workspace.syncError || t('Sync failed. Click for details.'), {
-        type: 'error',
-        duration: 5000,
-      })
-    } else {
-      uxStatusStore.update(statusId, t('GitHub sync finished'), {
-        type: 'success',
-        duration: 3000,
-      })
-    }
-  } catch (e) {
-    uxStatusStore.update(statusId, String(e?.message || e || t('Sync failed. Click for details.')), {
-      type: 'error',
-      duration: 5000,
-    })
-  }
-}
-
-async function handleSyncRefresh() {
-  showSyncPopover.value = false
-  await workspace.fetchRemoteChanges()
-}
-
-function handleOpenGitHubSettings() {
-  showSyncPopover.value = false
-  emit('open-settings', 'github')
-}
-
-// Show conflict dialog and toasts when sync status changes
-watch(() => workspace.syncStatus, (status) => {
-  if (status === 'conflict') {
-    showConflictDialog.value = true
-    toastStore.showOnce('sync-conflict', t('Your changes conflict with updates on GitHub. Click to resolve.'), {
-      type: 'warning',
-      duration: 8000,
-      action: { label: t('Resolve'), onClick: () => { showConflictDialog.value = true } },
-    })
-  } else if (status === 'error') {
-    const errorType = workspace.syncErrorType
-    if (errorType === 'auth') {
-      toastStore.showOnce('sync-auth', t('GitHub connection expired. Reconnect in Settings.'), {
-        type: 'error',
-        duration: 8000,
-        action: { label: t('Settings'), onClick: () => emit('open-settings', 'github') },
-      })
-    } else if (errorType === 'network') {
-      // Network errors are quiet — no toast, just icon change
-    } else {
-      toastStore.showOnce('sync-error', workspace.syncError || t('Sync failed. Click for details.'), {
-        type: 'error',
-        duration: 6000,
-        action: { label: t('Details'), onClick: () => { toggleSyncPopover() } },
-      })
-    }
-  }
-})
-
-function togglePendingPopover() {
-  showPendingPopover.value = !showPendingPopover.value
-  if (showPendingPopover.value) {
-    nextTick(() => {
-      const rect = pendingTriggerRef.value?.getBoundingClientRect()
-      if (rect) {
-        pendingPopoverPos.value = {
-          bottom: (window.innerHeight - rect.top + 4) + 'px',
-          left: rect.left + 'px',
-        }
-      }
-    })
-  }
-}
-
-function toggleTerminalPanel() {
-  window.dispatchEvent(new CustomEvent('app:toggle-terminal'))
-}
-
-function openPendingFile(file) {
-  editorStore.openFile(file)
-  showPendingPopover.value = false
-}
-
-// Auto-close popover when no more pending edits
-watch(() => reviews.pendingCount, (count) => {
-  if (count === 0) showPendingPopover.value = false
 })
 
 function showSaveMessage(msg) {
@@ -536,10 +227,9 @@ function handleUxStatusAction() {
   uxStatusStore.clear(uxStatusEntry.value?.id)
 }
 
-// Expose methods for editor to call
 defineExpose({
-  setEditorStats(s) {
-    stats.value = s
+  setEditorStats(nextStats) {
+    stats.value = nextStats
   },
   setCursorPos(pos) {
     cursorPos.value = pos
@@ -548,15 +238,4 @@ defineExpose({
   showCenterMessage,
   beginSnapshotLabelConfirmation,
 })
-
 </script>
-
-<style scoped>
-.sync-pulse {
-  animation: syncPulse 2s ease-in-out infinite;
-}
-@keyframes syncPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-</style>

@@ -36,18 +36,6 @@ export function deriveRestoredEditorRuntimeState({
   }
 }
 
-export function restoreLegacyEditorSurface(workspace, legacyPrimarySurface) {
-  if (legacyPrimarySurface === 'library') {
-    workspace.openLibrarySurface()
-    return true
-  }
-  if (legacyPrimarySurface === 'ai') {
-    workspace.openAiSurface()
-    return true
-  }
-  return false
-}
-
 export async function validateRestoredEditorTabs({
   shouldersDir,
   paneTree,

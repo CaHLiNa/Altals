@@ -1,16 +1,16 @@
 <template>
   <div class="unsupported-file-root">
     <div class="unsupported-file-card">
-      <div class="unsupported-file-badge">{{ t('Legacy file') }}</div>
+      <div class="unsupported-file-badge">{{ t('Removed surface') }}</div>
       <div class="unsupported-file-title">{{ fileName }}</div>
       <div class="unsupported-file-copy">
-        {{ t('DOCX support has been removed from Altals.') }}
+        {{ t('Altals now only opens Markdown, LaTeX, and Typst documents in the main workspace.') }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
-        {{ t('This legacy Word document can stay in your workspace, but it can no longer be opened, edited, or reviewed inside Altals.') }}
+        {{ t('This file can stay in your project, but this trimmed build no longer opens or edits this file type inside Altals.') }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
-        {{ t('Open it in an external app if you still need to work with it.') }}
+        {{ t('Keep it as a project asset or open it in another app when you still need it.') }}
       </div>
     </div>
   </div>

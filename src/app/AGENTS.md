@@ -8,18 +8,17 @@ This layer is for top-level shell orchestration close to the application surface
 
 - workspace lifecycle wiring
 - shell event bridges
-- prompt/dialog coordination
+- prompt and dialog coordination
 - high-level action composition
 - teardown and visibility handling
 
 ## Not Allowed Here
 
-- deep document/build business logic
-- notebook execution engines
-- kernel protocol handling
-- Git/history persistence details
-- raw AI task construction when it belongs in a domain operation
+- deep document workflow logic
+- compile pipeline details
+- file persistence internals
+- broad product policy that belongs in a domain runtime
 
 ## Rule Of Thumb
 
-If code in `src/app/` starts carrying product logic that would also be useful from another surface, extract it into `src/domains/*` and keep the app hook as a thin bridge.
+If code in `src/app/` starts carrying logic that would also be useful from another entry point, extract it into `src/domains/*` and keep the app hook as a thin bridge.

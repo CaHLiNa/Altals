@@ -80,8 +80,6 @@
               ref="searchResultsRef"
               :query="query"
               @select-file="onSelectFile"
-              @select-citation="onSelectCitation"
-              @select-chat="onSelectChat"
               @select-typst-symbol="onSelectTypstSymbol"
               @mousedown.prevent
             />
@@ -97,9 +95,6 @@ import { ref, computed, nextTick, defineAsyncComponent, onMounted, onUnmounted }
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
-import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
-import { useToastStore } from '../../stores/toast'
-import { useReferencesStore } from '../../stores/references'
 import {
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
@@ -127,9 +122,6 @@ const props = defineProps({
 
 const workspace = useWorkspaceStore()
 const editorStore = useEditorStore()
-const aiWorkbench = useAiWorkbenchStore()
-const toastStore = useToastStore()
-const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const isMacDesktop = isMac
   && typeof window !== 'undefined'
@@ -228,34 +220,6 @@ function onSearchKeydown(e) {
 function onSelectFile(path) {
   workspace.openWorkspaceSurface()
   editorStore.openFile(path)
-  closeSearchPalette()
-}
-
-async function onSelectCitation(key) {
-  const target = editorStore.findPreferredResearchInsertTarget()
-  if (target?.path) {
-    workspace.openWorkspaceSurface()
-    referencesStore.addKeyToWorkspace(key)
-    editorStore.openFileInPane(target.path, target.paneId, { activatePane: true, replaceNewTab: false })
-    const view = editorStore.getEditorView(target.paneId, target.path)
-    if (view) {
-      const { insertCitationWithAssist } = await import('../../services/latexCitationAssist.js')
-      insertCitationWithAssist({
-        view,
-        filePath: target.path,
-        keys: key,
-        t,
-        toastStore,
-      })
-      view.focus()
-    }
-  }
-  closeSearchPalette()
-}
-
-function onSelectChat(sessionId) {
-  workspace.openAiSurface()
-  aiWorkbench.openSession(sessionId)
   closeSearchPalette()
 }
 

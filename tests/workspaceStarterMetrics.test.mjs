@@ -14,7 +14,7 @@ import {
 test('workspace starter metrics normalizes paths and resolves extensions', () => {
   assert.equal(
     normalizeWorkspaceStarterPath('C:\\Research\\paper\\draft.tex'),
-    'C:/Research/paper/draft.tex',
+    'C:/Research/paper/draft.tex'
   )
   assert.equal(getWorkspaceStarterFileExtension('/workspace/notes/intro.MD'), '.md')
   assert.equal(getWorkspaceStarterFileExtension('/workspace/archive'), '')
@@ -24,32 +24,27 @@ test('workspace starter metrics counts draft and computation artifacts by extens
   const files = [
     { path: '/workspace/intro.md' },
     { path: '/workspace/paper/main.tex' },
-    { path: '/workspace/notebooks/analysis.ipynb' },
-    { path: '/workspace/scripts/model.py' },
+    { path: '/workspace/slides/main.typ' },
+    { path: '/workspace/archive/draft.pdf' },
+    { path: '/workspace/assets/figure.png' },
     { path: '/workspace/data/table.csv' },
   ]
 
-  assert.equal(
-    countWorkspaceStarterFilesByExtension(files, WORKSPACE_STARTER_DRAFT_EXTENSIONS),
-    2,
-  )
+  assert.equal(countWorkspaceStarterFilesByExtension(files, WORKSPACE_STARTER_DRAFT_EXTENSIONS), 3)
   assert.equal(
     countWorkspaceStarterFilesByExtension(files, WORKSPACE_STARTER_COMPUTATION_EXTENSIONS),
-    2,
+    0
   )
 })
 
 test('workspace starter metrics resolves relative paths and project-root directories', () => {
   assert.equal(
     getWorkspaceStarterRelativePath('/workspace/sections/intro.md', '/workspace'),
-    'sections/intro.md',
+    'sections/intro.md'
   )
   assert.equal(
     getWorkspaceStarterDirectory('/workspace/sections/intro.md', '/workspace'),
-    'sections',
+    'sections'
   )
-  assert.equal(
-    getWorkspaceStarterDirectory('/workspace/intro.md', '/workspace'),
-    '',
-  )
+  assert.equal(getWorkspaceStarterDirectory('/workspace/intro.md', '/workspace'), '')
 })

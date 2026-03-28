@@ -43,12 +43,8 @@ test('workspace history preparation runtime persists dirty editors before saving
       allOpenFiles: new Set([
         '/workspace/chapter.md',
         '/workspace/notes.md',
-        'ref:@smith2024',
-        'chat:session-1',
         'preview:/workspace/chapter.md',
         'newtab:1',
-        'ai-launcher:workspace',
-        'library:global',
       ]),
       getDirtyFiles(paths) {
         return paths.filter((path) => path === '/workspace/chapter.md')
@@ -104,7 +100,7 @@ test('workspace history preparation runtime reports file save failures after eli
       allOpenFiles: new Set([
         '/workspace/chapter.md',
         '/workspace/notes.md',
-        'chat:session-1',
+        'preview:/workspace/chapter.md',
       ]),
       getDirtyFiles() {
         return []
@@ -114,7 +110,7 @@ test('workspace history preparation runtime reports file save failures after eli
       fileContents: {
         '/workspace/chapter.md': '# Chapter',
         '/workspace/notes.md': '# Notes',
-        'chat:session-1': 'ignore me',
+        'preview:/workspace/chapter.md': 'ignore me',
       },
       async saveFile(path, content) {
         this.saveCalls.push({ path, content })

@@ -8,7 +8,7 @@ import {
   resolveMinimumRightSidebarWidth,
 } from '../src/composables/useAppShellLayout.js'
 
-test('left sidebar minimum width matches the references-to-files gap on standard chrome', () => {
+test('left sidebar minimum width matches the current file-workspace chrome gap', () => {
   const width = resolveMinimumLeftSidebarWidth()
 
   assert.equal(width, 220)

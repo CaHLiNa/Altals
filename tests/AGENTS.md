@@ -6,9 +6,9 @@ Tests are part of the refactor boundary work.
 
 ## Expectations
 
-- add focused tests for new runtime/domain seams
+- add focused tests for new runtime and domain seams
 - prefer contract tests over implementation-detail coupling
-- keep safety-critical behavior covered: history, snapshots, build flow, notebook execution, AI approvals, and sync boundaries
+- keep safety-critical behavior covered: history, snapshots, document build flow, restore behavior, and sync boundaries
 
 ## Repo Policy Audits
 

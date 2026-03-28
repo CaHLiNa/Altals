@@ -1,330 +1,54 @@
 # Frontend Spec
 
-## 1. Scope
+Altals 的前端现在只服务一个目标：把 Markdown、LaTeX、Typst 的本地写作流程做成清晰、稳定、可恢复的桌面工作台。
 
-本文档描述 Altals 当前仓库里已经落地、并要求后续前端代码继续遵守的最小前端规范。它描述的是当前真实代码，不是理想化终态。
+## Shell Layout
 
-Altals 的前端首先服务于本地研究工作流：打开项目、浏览文件、编辑文档、运行与预览、查看历史、引用资料、发起可审计 AI 工作流。
+- 启动页：打开本地目录或克隆仓库
+- 左侧栏：项目文件树
+- 中间区：文本编辑、Markdown 预览、Typst 原生预览、PDF 查看、不支持文件提示
+- 右侧栏：大纲、文档运行状态
+- 底部与设置：围绕字体、主题、预览、文档工具检查
 
-## 2. Tech Stack
+## Supported Document Routes
 
-- Vue 3 + Vite
-- Pinia
-- Tauri desktop shell
-- 全局 CSS variables + scoped CSS
-- Tailwind utilities 只作为补充，不作为主要设计系统
+- Markdown 源文件
+- LaTeX 源文件
+- Typst 源文件
+- Markdown 预览
+- Typst 原生预览
+- PDF 查看
+- 新标签占位页
+- 不支持文件兜底页
 
-当前主样式方案仍然是“全局 token + 组件局部样式”。不要在同一块功能里再混入新的 CSS-in-JS、组件库主题系统或另一套原子化规范。
+## Component Responsibility
 
-## 3. Directory Rules
+- 页面与壳层组件负责组装布局和入口切换
+- 文档组件负责编辑、预览、运行反馈
+- shared 组件负责复用控件与基础交互
+- 运行决策放在 `src/domains/document/*`
+- 文件、编译、持久化等副作用放在 `src/services/*`
 
-- `src/app`
-  顶层壳层编排与 surface 连接
-- `src/domains/*`
-  工作流与运行时决策
-- `src/services/*`
-  effectful integrations / provider adapters
-- `src/components/*`
-  渲染与用户输入收集
-- `src/composables/*`
-  可复用 UI glue
-- `src/stores/*`
-  响应式状态与薄封装
-- `src/shared/*`
-  跨 surface 共享的 UI/runtime 元数据
-- `src/css/*`
-  全局样式入口、主题 token、跨组件共享样式
+## UI Rules
 
-新增前端基础能力时优先落在：
+- 优先复用 shared primitives，不要在业务组件里重复造按钮、输入框、状态条
+- 样式值优先走现有 tokens 与 CSS 变量
+- 新界面必须覆盖空状态、错误态、加载态、不可用态
+- 原生表单控件默认只允许出现在 shared primitives 内；确实需要直接接第三方运行时的场景，要像 PDF viewer 一样明确收口
 
-- token：`src/css/themes.css`
-- 共享结构样式：`src/css/ui.css`
-- 共享 primitive：`src/components/shared/ui/*`
+## Current Important Files
 
-## 4. Naming
+- `src/App.vue`
+- `src/components/editor/*`
+- `src/components/sidebar/*`
+- `src/components/settings/*`
+- `src/domains/document/*`
+- `src/services/documentWorkflow/*`
+- `scripts/frontendBaselineTooling.mjs`
 
-- 组件：PascalCase，例如 `UiButton.vue`
-- 变量/函数：camelCase
-- 常量：UPPER_SNAKE_CASE
-- CSS class：kebab-case
-- 文件夹：保持现有目录风格，新增共享 UI primitive 放在 `shared/ui`
+## Verification Baseline
 
-不要在同一层里混用 `snake_case`、`PascalCase` 和无意义缩写类名。
-
-## 5. Design Tokens
-
-主题主色仍然来自 `src/css/themes.css` 里的现有变量，例如：
-
-- `--bg-primary`
-- `--bg-secondary`
-- `--fg-primary`
-- `--accent`
-- `--success`
-- `--warning`
-- `--error`
-
-新代码优先使用语义 token：
-
-- 文字：`--text-primary` / `--text-secondary` / `--text-muted`
-- 背景：`--surface-base` / `--surface-raised` / `--surface-muted` / `--surface-hover`
-- 边框：`--border-subtle` / `--border-strong`
-- 交互：`--focus-ring` / `--overlay-backdrop`
-- 间距：`--space-1` ~ `--space-6`
-- 圆角：`--radius-sm` / `--radius-md` / `--radius-lg`
-- 阴影：`--shadow-sm` / `--shadow-md` / `--shadow-lg`
-- 层级：`--z-dropdown` / `--z-modal` / `--z-toast`
-
-禁止直接新增硬编码颜色、阴影和 z-index，例如：
-
-- `color: #333`
-- `background: rgba(...)`
-- `z-index: 9999`
-
-如果当前 token 不够用，先补 token，再写样式。
-
-## 6. Typography
-
-当前 UI 基线保持克制的桌面端排版：
-
-- 正文优先 `var(--ui-font-body)`
-- 次级信息优先 `var(--ui-font-caption)`
-- 小标题优先 `var(--ui-font-title)`
-- 字重只用 `400 / 500 / 600`
-- 行高优先 `--line-height-compact / regular / relaxed`
-
-不要在组件里随意堆 `11px / 13px / 15px / 17px` 之类的离散尺寸。
-
-## 7. Primitive Components
-
-当前共享 primitive：
-
-- `src/components/shared/ui/UiButton.vue`
-- `src/components/shared/ui/UiColorInput.vue`
-- `src/components/shared/ui/UiInput.vue`
-- `src/components/shared/ui/UiCheckbox.vue`
-- `src/components/shared/ui/UiRangeInput.vue`
-- `src/components/shared/ui/UiSelect.vue`
-- `src/components/shared/ui/UiTextarea.vue`
-- `src/components/shared/ui/UiModalShell.vue`
-- `src/components/shared/ui/UiSwitch.vue`
-- `src/components/shared/ShellChromeButton.vue`
-
-使用规则：
-
-- 标准操作按钮优先 `UiButton`
-- 颜色选择优先 `UiColorInput`
-- 文本/密钥/轻量表单输入优先 `UiInput`
-- 滑杆输入优先 `UiRangeInput`
-- 下拉选择优先 `UiSelect`
-- 多行文本输入优先 `UiTextarea`
-- 普通弹窗优先 `UiModalShell`
-- 设置类开关优先 `UiSwitch`
-- 工作台壳层图标按钮继续用 `ShellChromeButton`
-
-`UiButton` 变体：
-
-- `primary`
-- `secondary`
-- `danger`
-- `ghost`
-
-`UiButton` 额外约定：
-
-- 需要选中态时用 `active`
-- 需要承载卡片/多行内容时用 `contentMode="raw"`，不要为了多行文案重新回退到裸 `button`
-
-`UiButton` 尺寸：
-
-- `icon-xs`
-- `sm`
-- `md`
-- `lg`
-- `icon-sm`
-- `icon-md`
-
-规则：
-
-- 一个局部区域通常只有一个主按钮
-- 危险操作必须用 `danger`
-- `loading` 时不可重复提交
-- 图标按钮必须有 `title` 或 `aria-label`
-
-补充约定：
-
-- 需要数字输入时优先用 `v-model.number` 搭配 `UiInput`
-- 设置页里的次级操作优先用 `UiButton` 的 `secondary` 或 `ghost`
-- 设置页里的布尔开关不再新增 `tool-toggle-switch` 这类局部历史样式
-- 设置页里的表单控件不再新增原生 `input / select / textarea` 的局部视觉壳，统一走共享 primitive
-- 设置页里的选择卡片、分段切换、展开/收起入口也继续复用 `UiButton`，只允许在共享 settings 样式层补布局差异
-- `src/components/settings/**/*.vue` 不再直接写原生 `button / input / select / textarea`
-- `src/components/editor/TabBar.vue`、`src/components/editor/NotebookEditor.vue`、`src/components/sidebar/ReferenceList.vue`、`src/components/editor/PdfViewer.vue` 的高频 toolbar / menu / search / annotation tool 控件已经开始复用 shared primitive，后续 editor-adjacent surface 不应再回到页面私有按钮皮肤
-- `src/components/editor/DocumentWorkflowBar.vue`、`src/components/layout/WorkbenchRail.vue`、`src/components/layout/SyncPopover.vue`、`src/components/layout/ToastContainer.vue` 这类高频工作台入口也已经进入共享 primitive 基线，后续同类 rail / popover / workflow 工具条不应再新写裸按钮皮肤
-- `src/components/editor/ReferenceView.vue`、`src/components/editor/NotebookCell.vue`、`src/components/sidebar/FileTree.vue`、`src/components/sidebar/AddReferenceDialog.vue` 已经从原生 `button / input / select / textarea` 切到 shared primitive，后续这些 surface 的新增控件不应再回退到局部表单壳
-- `src/components/editor/ExecutionResultCard.vue`、`src/components/editor/ReviewBar.vue`、`src/components/editor/NotebookReviewBar.vue`、`src/components/editor/ResearchNoteCard.vue`、`src/components/editor/WorkspaceStarter.vue` 现在也进入 shared primitive 基线，说明 editor helper cards、review bars 和 workspace starter 的局部按钮/textarea 皮肤开始统一收敛
-- `src/components/editor/AiLauncher.vue`、`src/components/editor/CitationPalette.vue`、`src/components/editor/ImageViewer.vue`、`src/components/sidebar/AiWorkbenchSidebar.vue` 现在也进入 shared primitive 基线，说明 AI launcher、引用弹出面、图片查看工具条和 AI 工作台侧栏入口开始共享同一套按钮/输入语言，而不是继续保留各自的裸控件皮肤
-- `src/components/sidebar/FileTreeItem.vue`、`src/components/sidebar/ReferenceImportPreviewDialog.vue`、`src/components/sidebar/ReferenceMergeDialog.vue` 也已经并入 shared primitive 基线，说明文件树行内输入和引用导入流程的弹窗/操作按钮开始共享同一套控件语言
-- `src/components/library/GlobalLibraryWorkbench.vue`、`src/components/library/LibraryReferenceEditor.vue` 现在也进入 shared primitive 基线，文献库主工作台、批量标签操作、元数据编辑表单与表格勾选不应再回退到页面私有按钮/输入/checkbox 壳
-- `src/components/sidebar/LibraryInspectorSidebar.vue`、`src/components/sidebar/LibrarySidebar.vue`、`src/components/sidebar/ReferenceItem.vue` 现在也进入 shared primitive 基线，文献库侧边栏、引用行项和文献详情检查面板不应再新写局部按钮皮肤或固定 inline 颜色样式
-- 当前 `src/components/editor`、`src/components/sidebar`、`src/components/library` 这三块已纳入审计的主路径 surface 在模板层不再直接写原生 `button / input / select / textarea`，原生控件只允许留在 shared primitive 内部实现
-- `src/components/editor/CsvEditor.vue`、`src/components/editor/DocumentPdfViewer.vue`、`src/components/editor/LatexPdfViewer.vue`、`src/components/editor/TypstPdfViewer.vue`、`src/components/editor/TypstNativePreview.vue`、`src/components/editor/TextEditor.vue` 这组 viewer/helper surface 已经开始用 token + scoped CSS 承接状态页和工具条样式，不再继续保留固定颜色/间距的静态 inline style
-- `src/components/sidebar/ReferenceList.vue`、`src/components/editor/EditorContextMenu.vue`、`src/components/editor/NotebookEditor.vue` 的富菜单/状态弹层 chrome 也已经继续收口：静态颜色、边框、hover/meta 文案和 kernel 状态色不再写成局部 inline style 或 composable 直接吐 style 对象，而是回到 class + token + scoped CSS
-- `src/components/editor/EditorPane.vue`、`src/components/editor/TabBar.vue` 和 `src/components/editor/CellOutput.vue` 这类主工作台/renderer surface 也已经继续收口：`EditorPane` 和 `TabBar` 清掉了最后的模板静态 `style="..."`，`CellOutput` 的 ANSI 富文本着色也改成 runtime class map，不再拼 `<span style="...">`
-
-## 8. Layout Rules
-
-主工作台继续使用：
-
-- Header
-- Left sidebar
-- Main work area
-- Optional right sidebar
-- Footer / bottom panel
-
-布局规则：
-
-- 头部只放全局 chrome，不把 panel 选择堆回 Header
-- 侧边栏 panel 入口留在 sidebar chrome 内
-- 侧边栏宽度统一受布局 runtime clamp 控制
-- 弹窗统一使用 token 化 overlay、surface、radius、shadow
-- 设置弹窗采用左导航 + 右内容的固定结构
-
-## 9. Styling Rules
-
-允许：
-
-- 基于 token 的 scoped CSS
-- 少量必须依赖运行时尺寸的 `:style`
-- Tailwind utilities 作为布局补充
-
-不允许：
-
-- 用 `inline style` 写固定颜色、固定间距、固定边框
-- 在多个组件复制相同按钮/输入/弹窗样式
-- 新增另一套按钮或开关视觉系统
-- 新增硬编码 `z-index`、硬编码阴影或状态色透明度，尤其不要再写 `9999`、`rgba(...)` 这种局部悬浮层样式
-- 无规则的 `!important`
-
-`inline style` 只应保留在这些场景：
-
-- 宽高/位置来自运行时数值
-- SVG/chart 几何参数
-- 主题预览这类由数据驱动的展示色块
-- `PdfViewer`、context menu、pane layout 这类确实依赖定位/尺寸计算的动态 `:style`，但状态页、toolbar、错误态、空态等静态 chrome 不应再写成 `style="..."`
-- 对 menu / popover / toast / kernel 状态 badge 这类固定视觉壳，优先用 class + token 表达；不要把“选中态颜色”“分隔线”“状态背景”继续塞进模板内联 style
-- `CellOutput` 这类运行时生成富文本 HTML 的场景也优先输出 class map，而不是继续拼接 `style="..."`；只有确实无法通过 class 表达的运行时几何/展示数据才保留程序生成样式
-
-## 10. State And Data Rules
-
-- 组件内部局部交互：组件内状态或 composable
-- 跨页面 / 跨 surface 状态：Pinia store
-- 工作流决策：`domains/*`
-- 外部调用与进程/平台交互：`services/*`
-
-不要把 UI 规范实现塞进 store，也不要把业务流转埋进组件样式层。
-
-补充约定：
-
-- 组件不要直接 `launchAiTask(...)` / `launchWorkflowTask(...)`，优先走命名好的共享 launcher seam
-- 当前 editor/sidebar 已经开始使用 `src/services/ai/workbenchTaskLaunchers.js` 这类命名入口，后续新的 AI 入口也应沿着这条边界扩展
-- `ReferenceView` 的引用审查入口现在也走 `workbenchTaskLaunchers`，说明 reference surface 不应再新增 presentation-layer 直接 AI launcher
-- shell 级重布局信号继续复用 `src/shared/shellResizeSignals.js`，新的 PDF-sensitive 开关/拖拽行为不要再各写一套 viewer 降载逻辑
-
-## 11. Interaction Rules
-
-- 所有可点击控件必须有 hover / focus-visible / disabled 状态
-- 危险操作文案必须说明后果
-- 关闭类弹窗必须支持 `Esc`
-- loading、empty、error 状态必须可见，不要留白屏
-- 图标按钮必须有 tooltip 或 `aria-label`
-
-## 12. Accessibility Rules
-
-- 焦点态必须可见，统一走 `--focus-ring`
-- 颜色不能只靠红绿区分
-- 图标按钮点击区不能过小
-- 辅助文案不要只写“失败了”，应尽量说明原因
-
-## 13. I18n Rules
-
-- 前端可见文案必须优先通过 `t('...')` 输出，不要继续新增裸英文 UI 文案
-- 新增 `t('...')` 键时，必须在 `src/i18n/index.js` 的 `ZH_MESSAGES` 里同步补齐中文
-- 新增配置数组时，像 `labelKey / hintKey / placeholderKey / titleKey / descriptionKey` 这类动态 i18n 键也必须同步补齐中文
-- `title`、`aria-label`、按钮文案、空态/错误提示、toast 文案都算前端可见文案，不能只翻正文
-- 当前仓库已经收敛到“字面量 `t('...')` 键 + 常见动态 key 字段在中文包里无缺失”，后续新增改动不能把这个状态打破
-
-## 14. Current Gaps
-
-当前还没有完全收敛的部分：
-
-- 虽然 `TabBar`、`EditorPane`、`ReferenceList`、`NotebookEditor`、`EditorContextMenu`、`CellOutput`、`PdfViewer` 的高频控件入口和富菜单 chrome 已经继续迁移，但 editor-heavy surface 仍保留不少历史样式和局部结构
-- `PdfViewer` 仍然有更深层的局部表单/viewer-internal 控件没有完全切到 shared primitive
-- `PdfViewer` 的加载稳定性和开关侧栏性能已经补了一层首屏渲染握手与 shell-resize 复用保护，但 viewer 内核本身仍然偏重，后续仍应优先减小其内部 resize / render churn
-- `ReferenceView`、`NotebookCell`、`CellOutput`、`ExecutionResultCard`、`ReviewBar`、`NotebookReviewBar`、`ResearchNoteCard`、`WorkspaceStarter`、`FileTree`、`AddReferenceDialog`、`FileTreeItem`、引用导入预览/合并对话框、Global Library 主工作台和元数据编辑器、Library sidebar/inspector/reference item，再加上 `ReferenceList` / `EditorContextMenu` / `NotebookEditor` 的富菜单与状态弹层，都已经进入共享基线；但 notebook cell 更深层的渲染区、library child views 和 PDF viewer-local panels 仍保留历史样式结构
-- lint / format 目前只覆盖当前前端基线范围，还没有扩展到整个仓库
-- 仓库还没有 Stylelint，样式层规则仍主要依赖 token 约束和代码评审
-
-这些属于后续切片，不代表可以继续无规则新增旧写法。
-
-## 15. Engineering Baseline
-
-当前仓库已经落地：
-
-- `eslint.config.js`
-- `.prettierrc.json`
-- `.prettierignore`
-- `npm run lint`
-- `npm run lint:fix`
-- `npm run format`
 - `npm run format:check`
-
-当前 `lint` 的覆盖范围是这轮已经切到新基线的前端面：
-
-- `src/components/settings/**/*.vue`
-- `src/components/shared/**/*.vue`
-- `src/components/editor/TabBar.vue`
-- `src/components/editor/NotebookEditor.vue`
-- `src/components/editor/PdfViewer.vue`
-- `src/components/editor/DocumentWorkflowBar.vue`
-- `src/components/editor/ReferenceView.vue`
-- `src/components/editor/NotebookCell.vue`
-- `src/components/editor/ExecutionResultCard.vue`
-- `src/components/editor/ReviewBar.vue`
-- `src/components/editor/NotebookReviewBar.vue`
-- `src/components/editor/ResearchNoteCard.vue`
-- `src/components/editor/WorkspaceStarter.vue`
-- `src/components/editor/EditorContextMenu.vue`
-- `src/components/editor/EditorPane.vue`
-- `src/components/editor/CellOutput.vue`
-- `src/components/sidebar/ReferenceList.vue`
-- `src/components/sidebar/FileTree.vue`
-- `src/components/sidebar/FileTreeItem.vue`
-- `src/components/sidebar/AddReferenceDialog.vue`
-- `src/components/sidebar/ReferenceImportPreviewDialog.vue`
-- `src/components/sidebar/ReferenceMergeDialog.vue`
-- `src/components/sidebar/LibraryInspectorSidebar.vue`
-- `src/components/sidebar/LibrarySidebar.vue`
-- `src/components/sidebar/ReferenceItem.vue`
-- `src/components/library/GlobalLibraryWorkbench.vue`
-- `src/components/library/LibraryReferenceEditor.vue`
-- `src/components/layout/WorkbenchRail.vue`
-- `src/components/layout/ToastContainer.vue`
-- `src/components/layout/SyncPopover.vue`
-- `src/composables/useNotebookEditor.js`
-- `src/shared/**/*.js`
-- `src/domains/editor/cellOutputAnsiRuntime.js`
-- `src/services/ai/workbenchTaskLaunchers.js`
-- `tests/workbenchTaskLaunchers.test.mjs`
-- `tests/aiLaunchBoundaryAudit.test.mjs`
-- `tests/cellOutputAnsiRuntime.test.mjs`
-- `tests/frontendBaselineAudit.test.mjs`
-- `tests/frontendInlineStyleAudit.test.mjs`
-
-这样做是为了先把新基线钉稳，不把整个历史仓库一次性卷进规则迁移。后续可以随着旧债清理逐步外扩到更多 editor / sidebar / layout surface。
-
-## 16. Next Recommended Slice
-
-- 继续迁移 PDF deeper controls、更深层的 reference/library 子表面和 notebook renderer-local surface 的历史按钮/输入/toolbar 写法
-- 优先清 notebook renderer-local UI 和更深层的 PDF/reference 局部弹层，因为主工作台的 menu/popover chrome 与 ANSI output 基线已经开始收平
-- 逐步把 `lint` 范围从当前 `settings/shared + editor workbench entry points` 继续外扩到更多主工作台 surface
-- 如果设置页之外开始重复出现选择卡片或分段按钮，优先扩展现有 `UiButton` + 共享样式，不要回到页面私有按钮皮肤
-- 下一轮 i18n 更值得做的是继续审计“还没包进 `t()` 的裸可见文案”，而不是只补语言包缺失键
+- `npm run lint`
+- `node --test tests/*.test.mjs`
+- `npm run build`

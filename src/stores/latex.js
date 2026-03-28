@@ -1,13 +1,11 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { ensureBibFile } from '../services/latexBib'
 import { useFilesStore } from './files'
-import { useReferencesStore } from './references'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
 import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
-import { resolveLatexAffectedRootTargets, resolveLatexProjectGraph } from '../services/latex/projectGraph'
+import { resolveLatexProjectGraph } from '../services/latex/projectGraph'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -310,7 +308,6 @@ export const useLatexStore = defineStore('latex', {
 
     async resolveCompileRequest(texPath, options = {}) {
       const filesStore = useFilesStore()
-      const referencesStore = useReferencesStore()
       const workspaceStore = useWorkspaceStore()
       const contentOverrides = options.sourceContent === undefined
         ? options.contentOverrides
@@ -321,20 +318,17 @@ export const useLatexStore = defineStore('latex', {
 
       const project = await resolveLatexProjectGraph(texPath, {
         filesStore,
-        referencesStore,
         workspacePath: workspaceStore.path,
         contentOverrides,
       }).catch(() => null)
       const compileTargetPath = await resolveLatexCompileTarget(texPath, {
         filesStore,
-        referencesStore,
         workspacePath: workspaceStore.path,
         contentOverrides,
       }).catch(() => texPath)
 
       return {
         filesStore,
-        referencesStore,
         workspaceStore,
         project,
         compileTargetPath: compileTargetPath || texPath,
@@ -432,13 +426,6 @@ export const useLatexStore = defineStore('latex', {
             buildExtraArgs: buildOptions.buildExtraArgs,
           }
         }
-
-        // Keep references.bib in sync only when this LaTeX file is actually using bibliography flow.
-        try {
-          await ensureBibFile(compileTargetPath, {
-            sourceContent: filesStore.fileContents?.[compileTargetPath],
-          })
-        } catch {}
 
         const result = await invoke('compile_latex', {
           texPath: compileTargetPath,
@@ -638,29 +625,7 @@ export const useLatexStore = defineStore('latex', {
         return [filePath]
       }
 
-      if (!lowerPath.endsWith('.bib')) {
-        return []
-      }
-
-      if (!this.autoCompile) return []
-
-      const filesStore = useFilesStore()
-      const referencesStore = useReferencesStore()
-      const workspaceStore = useWorkspaceStore()
-      const affectedRoots = await resolveLatexAffectedRootTargets(filePath, {
-        filesStore,
-        referencesStore,
-        workspacePath: workspaceStore.path,
-      }).catch(() => [])
-
-      for (const target of affectedRoots) {
-        if (!target?.rootPath) continue
-        await this.scheduleAutoCompile(target.rootPath, {
-          reason: 'dependency',
-        })
-      }
-
-      return affectedRoots
+      return []
     },
 
     openCompileLog(texPath) {

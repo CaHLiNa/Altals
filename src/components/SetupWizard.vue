@@ -2,67 +2,20 @@
   <Teleport to="body">
     <div v-if="visible" class="wizard-overlay">
       <div class="wizard-modal">
-        <!-- Step 1: AI Setup -->
-        <div v-if="step === 1" class="wizard-step">
-          <!-- Brand header (centered) -->
+        <div class="wizard-step">
           <div class="wizard-brand">
             <img src="/icon.png" alt="" class="wizard-icon" draggable="false" />
             <div class="wizard-wordmark">Altals</div>
           </div>
 
-          <h2 class="wizard-step-title">{{ t('Connect a provider to use AI features') }}</h2>
+          <h2 class="wizard-step-title">{{ t('Choose a theme for your writing workspace') }}</h2>
+          <p class="wizard-step-hint">
+            {{ t('This trimmed build focuses on Markdown, LaTeX, and Typst only.') }}
+          </p>
+          <p class="wizard-step-hint wizard-step-hint-secondary">
+            {{ t('You can change this any time in Settings.') }}
+          </p>
 
-          <div class="wizard-options">
-            <button
-              class="wizard-option"
-              :class="{ selected: aiChoice === 'keys' }"
-              @click="aiChoice = 'keys'"
-            >
-              <div class="wizard-option-title">{{ t('I have API keys') }}</div>
-              <div class="wizard-option-desc">{{ t('Anthropic, OpenAI, Google, DeepSeek, Kimi, Qwen, MiniMax, or GLM') }}</div>
-            </button>
-
-            <button
-              class="wizard-option"
-              :class="{ selected: aiChoice === 'skip' }"
-              @click="aiChoice = 'skip'"
-            >
-              <div class="wizard-option-title">{{ t('Set up later') }}</div>
-              <div class="wizard-option-desc">{{ t('You can configure this any time in Settings') }}</div>
-            </button>
-          </div>
-
-          <!-- Expanded: API keys -->
-          <div v-if="aiChoice === 'keys'" class="wizard-expand">
-            <div class="wizard-key-field">
-              <label>Anthropic</label>
-              <input v-model="keyAnthropic" type="password" class="wizard-input" placeholder="sk-ant-..." spellcheck="false" />
-            </div>
-            <div class="wizard-key-field">
-              <label>OpenAI</label>
-              <input v-model="keyOpenAI" type="password" class="wizard-input" placeholder="sk-..." spellcheck="false" />
-            </div>
-            <div class="wizard-key-field">
-              <label>Google</label>
-              <input v-model="keyGoogle" type="password" class="wizard-input" placeholder="AIza..." spellcheck="false" />
-            </div>
-          </div>
-
-          <div class="wizard-nav">
-            <div class="wizard-dots">
-              <button class="wizard-dot active" disabled></button>
-              <button class="wizard-dot" @click="continueFromAI"></button>
-            </div>
-            <button class="wizard-btn primary" @click="continueFromAI">{{ t('Continue') }}</button>
-          </div>
-        </div>
-
-        <!-- Step 2: Theme -->
-        <div v-if="step === 2" class="wizard-step">
-          <h2 class="wizard-step-title">{{ t('Choose a theme') }}</h2>
-          <p class="wizard-step-hint">{{ t('You can change this any time in Settings') }}</p>
-
-          <!-- Light themes -->
           <div class="wizard-theme-group-label">{{ t('Light') }}</div>
           <div class="wizard-theme-grid">
             <button
@@ -85,8 +38,7 @@
             </button>
           </div>
 
-          <!-- Dark themes -->
-          <div class="wizard-theme-group-label" style="margin-top: 12px;">{{ t('Dark') }}</div>
+          <div class="wizard-theme-group-label wizard-theme-group-label-spaced">{{ t('Dark') }}</div>
           <div class="wizard-theme-grid">
             <button
               v-for="theme in darkThemes"
@@ -109,10 +61,6 @@
           </div>
 
           <div class="wizard-nav">
-            <div class="wizard-dots">
-              <button class="wizard-dot" @click="step = 1"></button>
-              <button class="wizard-dot active" disabled></button>
-            </div>
             <button class="wizard-btn primary" @click="finish">{{ t('Start Writing') }}</button>
           </div>
         </div>
@@ -122,67 +70,33 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
 
-const props = defineProps({
+defineProps({
   visible: { type: Boolean, default: false },
 })
+
 const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
-
-const step = ref(1)
-const aiChoice = ref(null)
-
-// API keys
-const keyAnthropic = ref('')
-const keyOpenAI = ref('')
-const keyGoogle = ref('')
-
-// Theme
 const selectedTheme = ref(workspace.theme || 'default')
 
 const themes = [
-  // Light
   { id: 'light', label: 'Light', group: 'light', colors: { bgPrimary: '#ffffff', bgSecondary: '#f5f6f8', fgMuted: '#999999', accent: '#5f9ea0', accentSecondary: '#4a7c7e' } },
   { id: 'solarized', label: 'Solarized', group: 'light', colors: { bgPrimary: '#fdf6e3', bgSecondary: '#eee8d5', fgMuted: '#93a1a1', accent: '#268bd2', accentSecondary: '#6c71c4' } },
   { id: 'one-light', label: 'One Light', group: 'light', colors: { bgPrimary: '#fafafa', bgSecondary: '#f0f0f1', fgMuted: '#a0a1a7', accent: '#4078f2', accentSecondary: '#a626a4' } },
   { id: 'humane', label: 'Humane', group: 'light', colors: { bgPrimary: '#faf9f5', bgSecondary: '#f2f0e7', fgMuted: '#9a9389', accent: '#b5623a', accentSecondary: '#6b8065' } },
-  // Dark
   { id: 'default', label: 'Tokyo Night', group: 'dark', colors: { bgPrimary: '#1a1b26', bgSecondary: '#1f2335', fgMuted: '#565f89', accent: '#7aa2f7', accentSecondary: '#bb9af7' } },
   { id: 'dracula', label: 'Dracula', group: 'dark', colors: { bgPrimary: '#282a36', bgSecondary: '#21222c', fgMuted: '#6272a4', accent: '#bd93f9', accentSecondary: '#ff79c6' } },
   { id: 'monokai', label: 'Monokai', group: 'dark', colors: { bgPrimary: '#272822', bgSecondary: '#1e1f1c', fgMuted: '#75715e', accent: '#fd971f', accentSecondary: '#f92672' } },
   { id: 'nord', label: 'Nord', group: 'dark', colors: { bgPrimary: '#2e3440', bgSecondary: '#3b4252', fgMuted: '#616e88', accent: '#88c0d0', accentSecondary: '#81a1c1' } },
 ]
 
-const lightThemes = computed(() => themes.filter(t => t.group === 'light'))
-const darkThemes = computed(() => themes.filter(t => t.group === 'dark'))
-
-async function continueFromAI() {
-  if (aiChoice.value === 'keys') {
-    await saveKeys()
-  }
-  step.value = 2
-}
-
-async function saveKeys() {
-  const keys = {}
-  if (keyAnthropic.value) keys.ANTHROPIC_API_KEY = keyAnthropic.value
-  if (keyOpenAI.value) keys.OPENAI_API_KEY = keyOpenAI.value
-  if (keyGoogle.value) keys.GOOGLE_API_KEY = keyGoogle.value
-  if (Object.keys(keys).length === 0) return
-
-  try {
-    const existing = await workspace.loadGlobalKeys()
-    await workspace.saveGlobalKeys({ ...existing, ...keys })
-    await workspace.loadSettings()
-  } catch (e) {
-    console.error('Failed to save keys:', e)
-  }
-}
+const lightThemes = computed(() => themes.filter((theme) => theme.group === 'light'))
+const darkThemes = computed(() => themes.filter((theme) => theme.group === 'dark'))
 
 function selectTheme(id) {
   selectedTheme.value = id
@@ -201,25 +115,24 @@ function finish() {
   inset: 0;
   z-index: 1000;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   background: rgba(0, 0, 0, 0.6);
 }
 
 .wizard-modal {
   width: 520px;
-  background: var(--bg-secondary);
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
+  background: var(--bg-secondary);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
 }
 
 .wizard-step {
   padding: 28px 36px 32px;
 }
 
-/* Brand header (centered) */
 .wizard-brand {
   display: flex;
   flex-direction: column;
@@ -235,211 +148,41 @@ function finish() {
 }
 
 .wizard-wordmark {
-  font-family: 'Crimson Text','Lora', 'Georgia', serif;
+  font-family: 'Crimson Text', 'Lora', 'Georgia', serif;
   font-size: var(--ui-font-hero-md);
   font-weight: 500;
-  color: var(--fg-primary);
   letter-spacing: -0.01em;
+  color: var(--fg-primary);
 }
 
-/* Step title + hint */
 .wizard-step-title {
+  margin: 0 0 16px;
   font-size: var(--ui-font-title);
   font-weight: 500;
   color: var(--fg-secondary);
-  margin: 0 0 16px;
 }
 
 .wizard-step-hint {
+  margin: 0 0 8px;
   font-size: var(--ui-font-label);
   color: var(--fg-muted);
-  margin: 0 0 16px;
 }
 
-/* AI options */
-.wizard-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.wizard-step-hint-secondary {
+  margin-bottom: 16px;
 }
 
-.wizard-option {
-  text-align: left;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.wizard-option:hover {
-  border-color: var(--fg-muted);
-}
-
-.wizard-option.selected {
-  border-color: var(--accent);
-}
-
-.wizard-option.loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.wizard-option-title {
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  color: var(--fg-primary);
-}
-
-.wizard-option-desc {
-  font-size: var(--ui-font-caption);
-  color: var(--fg-secondary);
-  margin-top: 1px;
-}
-
-/* Expanded sections */
-.wizard-expand {
-  margin-top: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.wizard-key-field label {
-  display: block;
-  font-size: var(--ui-font-caption);
-  font-weight: 500;
-  color: var(--fg-muted);
-  margin-bottom: 3px;
-}
-
-.wizard-input {
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  font-size: var(--ui-font-label);
-  font-family: var(--font-mono);
-  outline: none;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
-}
-
-.wizard-input:focus {
-  border-color: var(--accent);
-}
-
-.wizard-auth-hint {
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
-  margin: 0;
-}
-
-/* Feedback */
-.wizard-error {
-  margin-top: 10px;
-  padding: 6px 10px;
-  border-radius: 5px;
-  background: rgba(247, 118, 142, 0.1);
-  color: var(--error);
-  font-size: var(--ui-font-caption);
-}
-
-.wizard-success {
-  margin-top: 10px;
-  padding: 6px 10px;
-  border-radius: 5px;
-  background: rgba(158, 206, 106, 0.1);
-  color: var(--success);
-  font-size: var(--ui-font-caption);
-}
-
-/* Buttons */
-.wizard-btn {
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s;
-}
-
-.wizard-btn.primary {
-  background: var(--accent);
-  color: var(--bg-primary);
-  border-color: var(--accent);
-}
-
-.wizard-btn.primary:hover {
-  opacity: 0.9;
-}
-
-.wizard-btn.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.wizard-btn.secondary {
-  background: var(--bg-tertiary);
-  color: var(--fg-secondary);
-  border-color: var(--border);
-}
-
-.wizard-btn.secondary:hover {
-  border-color: var(--fg-muted);
-}
-
-.wizard-btn.secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Navigation */
-.wizard-nav {
-  margin-top: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Progress dots (clickable) */
-.wizard-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.wizard-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--border);
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.wizard-dot:hover:not(.active) {
-  background: var(--fg-muted);
-}
-
-.wizard-dot.active {
-  background: var(--accent);
-  cursor: default;
-}
-
-/* Theme grid */
 .wizard-theme-group-label {
+  margin-bottom: 6px;
   font-size: var(--ui-font-caption);
   font-weight: 500;
-  color: var(--fg-muted);
-  margin-bottom: 6px;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.wizard-theme-group-label-spaced {
+  margin-top: 12px;
 }
 
 .wizard-theme-grid {
@@ -449,13 +192,13 @@ function finish() {
 }
 
 .wizard-theme-card {
-  background: var(--bg-primary);
   border: 2px solid var(--border);
   border-radius: 8px;
   padding: 6px;
+  background: var(--bg-primary);
+  text-align: left;
   cursor: pointer;
   transition: border-color 0.15s;
-  text-align: left;
 }
 
 .wizard-theme-card:hover {
@@ -467,11 +210,11 @@ function finish() {
 }
 
 .wizard-theme-preview {
-  height: 48px;
-  border-radius: 4px;
   display: flex;
-  overflow: hidden;
+  height: 48px;
   margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: 4px;
 }
 
 .wizard-theme-sidebar {
@@ -479,12 +222,12 @@ function finish() {
 }
 
 .wizard-theme-editor {
-  flex: 1;
-  padding: 5px 6px;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 3px;
   justify-content: center;
+  gap: 3px;
+  padding: 5px 6px;
 }
 
 .wizard-theme-line {
@@ -494,11 +237,37 @@ function finish() {
 }
 
 .wizard-theme-label {
+  overflow: hidden;
   font-size: var(--ui-font-micro);
   font-weight: 500;
-  color: var(--fg-primary);
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--fg-primary);
+}
+
+.wizard-nav {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.wizard-btn {
+  padding: 8px 20px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: var(--ui-font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.wizard-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.wizard-btn.primary:hover {
+  opacity: 0.92;
 }
 </style>

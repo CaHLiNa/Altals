@@ -1,85 +1,57 @@
 <template>
   <div class="env-page env-page-compact">
-    <h3 class="settings-section-title">{{ t('System') }}</h3>
+    <h3 class="settings-section-title">{{ t('Document Tooling') }}</h3>
 
     <div class="env-languages">
-      <div
-        v-for="lang in envLanguages"
-        :key="lang.key"
-        class="env-lang-card"
-        :class="envLangCardClass(lang)"
-      >
+      <div class="env-lang-card env-card-span-full">
         <div class="env-lang-header">
-          <span class="env-lang-dot" :class="envLangDotClass(lang)"></span>
-          <span class="env-lang-name">{{ lang.label }}</span>
-          <span v-if="lang.info.found" class="env-lang-version">{{ lang.info.version || '' }}</span>
+          <span class="env-lang-dot good"></span>
+          <span class="env-lang-name">Markdown</span>
+          <span class="env-lang-version">Built in</span>
+        </div>
+        <div class="env-hint-inline">
+          Plain text editing and preview are available without extra setup.
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="gitInstalled ? 'good' : 'none'"></span>
+          <span class="env-lang-name">Git</span>
+          <span v-if="gitInstalled" class="env-lang-version">{{ t('Installed') }}</span>
           <span v-else class="env-lang-missing">{{ t('Not found') }}</span>
         </div>
-
-        <div v-if="lang.info.found" class="env-lang-details">
-          <template v-if="lang.key === 'python'">
-            <div class="env-python-stack">
-              <div v-if="lang.info.candidates?.length" class="env-compact-block">
-                <UiSelect
-                  v-model="selectedPythonPath"
-                  shell-class="env-select-shell env-select-shell-full"
-                >
-                  <option
-                    v-for="candidate in lang.info.candidates"
-                    :key="candidate.path"
-                    :value="candidate.path"
-                  >
-                    {{ formatPythonCandidateTitle(candidate) }}
-                  </option>
-                </UiSelect>
-              </div>
-
-              <div class="env-lang-kernel-row env-lang-kernel-row-soft">
-                <span>{{ t('Jupyter kernel') }}</span>
-                <span v-if="kernelInstalledFor(lang)" class="env-kernel-badge env-kernel-yes">{{
-                  t('Installed')
-                }}</span>
-                <template v-else>
-                  <span class="env-kernel-badge env-kernel-no">{{ t('Not installed') }}</span>
-                  <UiButton
-                    class="env-action-btn"
-                    variant="primary"
-                    size="sm"
-                    type="button"
-                    :loading="envStore.installing === lang.key"
-                    @click="envStore.installKernel(lang.key)"
-                  >
-                    {{ envStore.installing === lang.key ? t('Installing...') : t('Install') }}
-                  </UiButton>
-                </template>
-              </div>
-            </div>
-          </template>
-          <div v-else class="env-lang-kernel-row">
-            <span>{{ t('Jupyter kernel') }}</span>
-            <span v-if="kernelInstalledFor(lang)" class="env-kernel-badge env-kernel-yes">{{
-              t('Installed')
-            }}</span>
-            <template v-else>
-              <span class="env-kernel-badge env-kernel-no">{{ t('Not installed') }}</span>
-              <UiButton
-                class="env-action-btn"
-                variant="primary"
-                size="sm"
-                :loading="envStore.installing === lang.key"
-                @click="envStore.installKernel(lang.key)"
-              >
-                {{ envStore.installing === lang.key ? t('Installing...') : t('Install') }}
-              </UiButton>
-            </template>
-          </div>
+        <div class="env-hint-inline">
+          {{ gitInstalled ? gitPath || 'git' : 'Git powers history, snapshots, and remote sync.' }}
         </div>
+      </div>
 
-        <div
-          v-if="envStore.lastInstallLanguage === lang.key && envStore.installError"
-          class="env-install-error"
-        >
-          {{ envStore.installError }}
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span
+            class="env-lang-dot"
+            :class="latexStore.hasAvailableCompiler ? 'good' : 'warn'"
+          ></span>
+          <span class="env-lang-name">{{ t('LaTeX Compiler') }}</span>
+          <span class="env-lang-version">{{
+            latexStore.hasAvailableCompiler ? latexStore.availableCompilerName : t('Needs setup')
+          }}</span>
+        </div>
+        <div class="env-hint-inline">
+          {{ t('Choose System TeX or Tectonic below.') }}
+        </div>
+      </div>
+
+      <div class="env-lang-card">
+        <div class="env-lang-header">
+          <span class="env-lang-dot" :class="typstStore.available ? 'good' : 'warn'"></span>
+          <span class="env-lang-name">{{ t('Typst Compiler') }}</span>
+          <span class="env-lang-version">{{
+            typstStore.available ? t('Installed') : t('Needs setup')
+          }}</span>
+        </div>
+        <div class="env-hint-inline">
+          {{ t('Install Typst and Tinymist below for live preview and sync.') }}
         </div>
       </div>
     </div>
@@ -90,7 +62,7 @@
         variant="secondary"
         size="sm"
         :loading="
-          envStore.detecting ||
+          gitChecking ||
           latexStore.checkingCompilers ||
           typstStore.checkingCompiler ||
           typstStore.downloading ||
@@ -100,7 +72,7 @@
         @click="redetectSystem"
       >
         {{
-          envStore.detecting ||
+          gitChecking ||
           latexStore.checkingCompilers ||
           typstStore.checkingCompiler ||
           typstStore.downloading ||
@@ -110,7 +82,7 @@
             : t('Re-detect')
         }}
       </UiButton>
-      <span v-if="!envStore.detected" class="env-hint-text">{{ t('Not yet detected') }}</span>
+      <span v-if="!toolingChecked" class="env-hint-text">{{ t('Not yet detected') }}</span>
       <span v-else class="env-hint-text">{{ t('Last detected this session') }}</span>
     </div>
 
@@ -403,8 +375,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useEnvironmentStore } from '../../stores/environment'
+import { computed, onMounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import {
   LATEX_BUILD_RECIPE_OPTIONS,
   formatLatexBuildRecipeLabel,
@@ -416,17 +388,14 @@ import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
-const envStore = useEnvironmentStore()
 const latexStore = useLatexStore()
 const tinymistStore = useTinymistStore()
 const typstStore = useTypstStore()
 const { t } = useI18n()
-
-const envLanguages = computed(() => [
-  { key: 'python', label: 'Python', info: envStore.languages.python },
-  { key: 'r', label: 'R', info: envStore.languages.r },
-  { key: 'julia', label: 'Julia', info: envStore.languages.julia },
-])
+const gitInstalled = ref(false)
+const gitPath = ref('')
+const gitChecking = ref(false)
+const toolingChecked = ref(false)
 
 const latexPreferenceLabel = computed(() => {
   if (latexStore.compilerPreference === 'system') return t('System TeX (latexmk)')
@@ -470,13 +439,6 @@ const latexBuildRecipeOptions = computed(() =>
   }))
 )
 
-const selectedPythonPath = computed({
-  get: () => envStore.languages.python.selectedPath || '',
-  set: (value) => {
-    void envStore.selectPythonInterpreter(value)
-  },
-})
-
 const compilerPreference = computed({
   get: () => latexStore.compilerPreference,
   set: (value) => latexStore.setCompilerPreference(value),
@@ -492,32 +454,22 @@ const buildRecipe = computed({
   set: (value) => latexStore.setBuildRecipe(value),
 })
 
-function envLangCardClass(lang) {
-  return {
-    'env-card-span-full': lang.key === 'python' && lang.info.found,
+async function detectGit() {
+  if (gitChecking.value) return
+  gitChecking.value = true
+  try {
+    const resolved = await invoke('resolve_command_path', { command: 'git' }).catch(() => '')
+    gitPath.value = String(resolved || '').trim()
+    gitInstalled.value = !!gitPath.value
+    toolingChecked.value = true
+  } finally {
+    gitChecking.value = false
   }
-}
-
-function envLangDotClass(lang) {
-  if (kernelInstalledFor(lang)) return 'good'
-  if (lang.info.found) return 'warn'
-  return 'none'
-}
-
-function kernelInstalledFor(lang) {
-  return lang.key === 'python' ? lang.info.selectedHasKernel : lang.info.hasKernel
-}
-
-function formatPythonCandidateTitle(candidate) {
-  if (!candidate) return 'Python'
-  const version = candidate.version ? `Python ${candidate.version}` : 'Python'
-  const kernel = candidate.has_ipykernel ? t('Installed') : t('Not installed')
-  return `${version} · ${kernel}`
 }
 
 async function redetectSystem() {
   await Promise.all([
-    envStore.detect(true),
+    detectGit(),
     latexStore.checkCompilers(true),
     latexStore.checkTools(true),
     typstStore.checkCompiler(true),
@@ -547,7 +499,7 @@ function scheduleAfterFirstPaint(task) {
 function warmSystemChecks() {
   scheduleAfterFirstPaint(() =>
     Promise.all([
-      envStore.detect(),
+      detectGit(),
       latexStore.checkCompilers(),
       latexStore.checkTools(),
       typstStore.checkCompiler(),

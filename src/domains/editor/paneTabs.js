@@ -1,7 +1,7 @@
-import { isAiLauncher, isNewTab } from '../../utils/fileTypes.js'
+import { isNewTab } from '../../utils/fileTypes.js'
 
 function isLauncherTab(path) {
-  return isNewTab(path) || isAiLauncher(path)
+  return isNewTab(path)
 }
 
 export function activateOrOpenPaneTab(pane, path, options = {}) {

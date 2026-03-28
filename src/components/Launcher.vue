@@ -5,7 +5,7 @@
       <div class="launcher-hero">
         <div class="launcher-logo">A</div>
         <div class="launcher-title">Altals</div>
-        <p class="launcher-tagline">{{ t('Writing, references, and AI — designed as one system.') }}</p>
+        <p class="launcher-tagline">{{ t('Markdown, LaTeX, and Typst in one local workspace.') }}</p>
       </div>
 
       <!-- Action buttons -->

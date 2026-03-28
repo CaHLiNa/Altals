@@ -1,7 +1,6 @@
 import { useDocumentWorkflowStore } from '../stores/documentWorkflow.js'
 import { useEditorStore } from '../stores/editor.js'
 import { useLinksStore } from '../stores/links.js'
-import { useReviewsStore } from '../stores/reviews.js'
 
 export function getWorkflowSourcePathForPreview(previewPath) {
   return useDocumentWorkflowStore().getSourcePathForPreview(previewPath)
@@ -49,5 +48,4 @@ export async function handleMovedPathEffects(srcPath, destPath) {
 export function handleDeletedPathEffects(path) {
   useEditorStore().closeFileFromAllPanes(path)
   useLinksStore().handleDelete(path)
-  useReviewsStore().discardAllForFile(path)
 }

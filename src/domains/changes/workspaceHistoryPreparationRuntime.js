@@ -1,28 +1,13 @@
-import {
-  isAiLauncher,
-  isChatTab,
-  isLibraryPath,
-  isNewTab,
-  isPreviewPath,
-  isReferencePath,
-} from '../../utils/fileTypes.js'
+import { isNewTab, isPreviewPath } from '../../utils/fileTypes.js'
 
 export function createWorkspaceHistoryPreparationRuntime({
-  isAiLauncherImpl = isAiLauncher,
-  isChatTabImpl = isChatTab,
-  isLibraryPathImpl = isLibraryPath,
   isNewTabImpl = isNewTab,
   isPreviewPathImpl = isPreviewPath,
-  isReferencePathImpl = isReferencePath,
 } = {}) {
   function isPersistableHistoryPath(filePath = '') {
     return !!filePath
-      && !isReferencePathImpl(filePath)
-      && !isChatTabImpl(filePath)
       && !isPreviewPathImpl(filePath)
       && !isNewTabImpl(filePath)
-      && !isAiLauncherImpl(filePath)
-      && !isLibraryPathImpl(filePath)
   }
 
   async function prepareWorkspaceHistoryFiles({

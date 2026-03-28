@@ -7,9 +7,8 @@ Services wrap effectful integrations. They are not the product architecture.
 ## Service Responsibilities
 
 - Tauri invoke wrappers
-- filesystem/process helpers
-- compiler/build adapters
-- provider SDK integration
+- filesystem and process helpers
+- compiler and preview adapters
 - transport and serialization helpers
 
 ## Constraints
@@ -20,5 +19,3 @@ Services wrap effectful integrations. They are not the product architecture.
 - do not let one service file absorb multiple domains indefinitely
 
 If a service starts deciding when or why a workflow should run, move that logic into `src/domains/*` or `src/app/*`.
-
-Prefer smaller adapter files over expanding broad hubs such as task catalogs, chat helpers, or build helpers without extraction.

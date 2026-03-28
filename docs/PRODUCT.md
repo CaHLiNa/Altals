@@ -1,50 +1,45 @@
 # Product
 
-Altals is a local-first, project-directory-centered research and academic operating system.
+Altals is a local-first document workspace centered on Markdown, LaTeX, and Typst projects.
 
 ## Core Loop
 
-The product is centered on one integrated loop:
-
-- open a local project directory
-- browse files, notes, and references
-- draft in Markdown and notebooks
-- author papers in LaTeX and Typst
-- run code through terminal and notebook-backed flows
-- build and preview outputs
-- review changes, history, and save points
-- optionally sync through Git
-- use AI through auditable proposal and patch workflows
+- open a local project folder
+- browse project files
+- write or revise Markdown, LaTeX, and Typst documents
+- compile or preview outputs
+- inspect outline, run status, and generated PDF results
+- save, snapshot, and review changes safely
 
 ## First-Class Objects
 
-- Project
+- Workspace
 - Document
-- Notebook
-- Computation
-- Reference
-- Build
-- Change
-- Workflow
+- Preview
+- Build Run
+- Save Point
+- Comment Thread
 
 ## Supporting Systems
 
-- Git sync and remote linking
-- global and workspace settings
-- generic chat surfaces
-- packaging and release automation
+- autosave and local save points
+- Git and GitHub sync
+- editor, theme, and preview preferences
+- PDF viewing and document compile services
 
-These systems matter, but they do not replace the core research loop.
+These systems support the document loop. They are not separate products.
 
 ## Current Product Reality
 
-- The strongest landed experience is still document-heavy: file browsing, editing, references, build/preview, history, and patch-first AI.
-- Notebook, terminal, and computation flows exist, but their boundaries are less even than the document path.
-- The desktop Tauri app is the primary product surface today.
-- The `web/` directory is a separate web project, not the main desktop shell.
+- The desktop shell is intentionally reduced to one document workbench.
+- The left sidebar is for project files only.
+- The center surface is for text editing, Markdown preview, Typst preview, PDF viewing, and unsupported-file fallback.
+- The right sidebar is for outline and document-run feedback.
+- The desktop Tauri app is the main product surface today.
+- The `web/` directory is a separate web project, not the main shell.
 
 ## Product Guardrails
 
-- Keep safety boundaries explicit between autosave, local save points, Git history, and remote sync.
-- Keep AI conservative, reviewable, and mutation-aware.
-- Prefer product clarity and operational safety over feature count.
+- Keep autosave, manual save points, and Git sync as explicit safety boundaries.
+- Keep the product workspace-centered and local-first.
+- Prefer a smaller truthful scope over reviving removed product surfaces.

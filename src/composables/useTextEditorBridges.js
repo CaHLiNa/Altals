@@ -1,11 +1,7 @@
-import { nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { addComment, removeComment, updateComment, setActiveComment, commentField } from '../editor/comments'
-import { reconfigureMergeView, computeOriginalContent } from '../editor/diffOverlay'
 import { buildInsertText } from '../editor/textEditorInteractions'
-import { buildReferenceDropText } from '../editor/referenceDrop'
-import { insertCitationWithAssist } from '../services/latexCitationAssist'
 import { computeMinimalChange } from '../utils/textDiff'
-import { useReferencesStore } from '../stores/references'
 
 export function useTextEditorBridges(options) {
   const {
@@ -13,20 +9,14 @@ export function useTextEditorBridges(options) {
     editorContainer,
     getView,
     files,
-    reviews,
     commentsStore,
     isMarkdownFile,
     isLatexFile,
-    t,
-    toastStore,
   } = options
 
-  let mergeViewActive = false
   let dropOverlay = null
   let dropCursor = null
   let draggedFilePaths = []
-  let draggedReferenceKeys = []
-  const referencesStore = useReferencesStore()
 
   function handleCommentClick(event) {
     const commentId = event.detail?.commentId
@@ -92,35 +82,7 @@ export function useTextEditorBridges(options) {
     }
   }
 
-  function showMergeViewIfNeeded() {
-    const view = getView()
-    if (!view) return
-
-    const edits = reviews.editsForFile(filePath)
-    if (edits.length > 0) {
-      const currentContent = view.state.doc.toString()
-      const original = computeOriginalContent(currentContent, edits)
-
-      if (original !== currentContent) {
-        mergeViewActive = true
-        reconfigureMergeView(view, original, () => {
-          mergeViewActive = false
-          reconfigureMergeView(view, null)
-          const finalContent = view.state.doc.toString()
-          files.saveFile(filePath, finalContent)
-          for (const edit of reviews.editsForFile(filePath)) {
-            reviews.acceptEdit(edit.id)
-          }
-        })
-      } else if (mergeViewActive) {
-        mergeViewActive = false
-        reconfigureMergeView(view, null)
-      }
-    } else if (mergeViewActive) {
-      mergeViewActive = false
-      reconfigureMergeView(view, null)
-    }
-  }
+  function showMergeViewIfNeeded() {}
 
   function cleanupDropOverlay() {
     if (dropOverlay) {
@@ -151,15 +113,7 @@ export function useTextEditorBridges(options) {
 
   function onFileTreeDragStart(event) {
     draggedFilePaths = event.detail?.paths || []
-    draggedReferenceKeys = []
     if (!draggedFilePaths.length) return
-    ensureDropOverlay()
-  }
-
-  function onReferenceDragStart(event) {
-    draggedReferenceKeys = event.detail?.keys || []
-    draggedFilePaths = []
-    if (!buildReferenceDropText(filePath, draggedReferenceKeys)) return
     ensureDropOverlay()
   }
 
@@ -193,43 +147,22 @@ export function useTextEditorBridges(options) {
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
     if (pos === null) return
 
-    const text = draggedReferenceKeys.length > 0
-      ? buildReferenceDropText(filePath, draggedReferenceKeys)
-      : buildInsertText(draggedFilePaths, {
-        filePath,
-        isMarkdownFile,
-        isLatexFile,
-      })
+    const text = buildInsertText(draggedFilePaths, {
+      filePath,
+      isMarkdownFile,
+      isLatexFile,
+    })
     if (!text) return
 
-    if (draggedReferenceKeys.length > 0) {
-      for (const key of draggedReferenceKeys) {
-        referencesStore.addKeyToWorkspace(key)
-      }
-      insertCitationWithAssist({
-        view,
-        filePath,
-        keys: draggedReferenceKeys,
-        selection: { from: pos, to: pos },
-        t,
-        toastStore,
-      })
-    } else {
-      view.dispatch({
-        changes: { from: pos, to: pos, insert: text },
-        selection: { anchor: pos + text.length },
-      })
-    }
+    view.dispatch({
+      changes: { from: pos, to: pos, insert: text },
+      selection: { anchor: pos + text.length },
+    })
     view.focus()
   }
 
   function onFileTreeDragEnd() {
     draggedFilePaths = []
-    cleanupDropOverlay()
-  }
-
-  function onReferenceDragEnd() {
-    draggedReferenceKeys = []
     cleanupDropOverlay()
   }
 
@@ -253,15 +186,6 @@ export function useTextEditorBridges(options) {
   )
 
   watch(
-    () => reviews.editsForFile(filePath),
-    async () => {
-      await nextTick()
-      showMergeViewIfNeeded()
-    },
-    { deep: true },
-  )
-
-  watch(
     () => files.fileContents[filePath],
     (newContent) => {
       const view = getView()
@@ -270,30 +194,20 @@ export function useTextEditorBridges(options) {
       const currentContent = view.state.doc.toString()
       const change = computeMinimalChange(currentContent, newContent)
       if (change) {
-        if (mergeViewActive) {
-          mergeViewActive = false
-          reconfigureMergeView(view, null)
-        }
         view.dispatch({ changes: change })
       }
-      showMergeViewIfNeeded()
     },
   )
 
   onMounted(() => {
     window.addEventListener('filetree-drag-start', onFileTreeDragStart)
     window.addEventListener('filetree-drag-end', onFileTreeDragEnd)
-    window.addEventListener('reference-drag-start', onReferenceDragStart)
-    window.addEventListener('reference-drag-end', onReferenceDragEnd)
   })
 
   onUnmounted(() => {
     window.removeEventListener('filetree-drag-start', onFileTreeDragStart)
     window.removeEventListener('filetree-drag-end', onFileTreeDragEnd)
-    window.removeEventListener('reference-drag-start', onReferenceDragStart)
-    window.removeEventListener('reference-drag-end', onReferenceDragEnd)
     onFileTreeDragEnd()
-    onReferenceDragEnd()
   })
 
   return {

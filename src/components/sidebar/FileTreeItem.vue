@@ -69,12 +69,6 @@
           <template v-else>{{ entry.name }}</template>
         </span>
       </template>
-
-      <!-- Review badge -->
-      <span
-        v-if="hasPendingEdits"
-        class="file-tree-item-review-dot ml-auto mr-1 w-2 h-2 rounded-full shrink-0"
-      ></span>
     </div>
 
     <!-- Inline new item input (inside folder, before children) -->
@@ -170,7 +164,6 @@ import {
 } from '@tabler/icons-vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
-import { useReviewsStore } from '../../stores/reviews'
 import { isMod } from '../../platform'
 import { getFileIconName } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
@@ -208,7 +201,6 @@ const emit = defineEmits([
 
 const files = useFilesStore()
 const editor = useEditorStore()
-const reviews = useReviewsStore()
 const { t } = useI18n()
 
 const renameInputEl = ref(null)
@@ -220,7 +212,6 @@ const isFilterHighlighted = computed(
 )
 const isActive = computed(() => editor.activeTab === props.entry.path)
 const isSelected = computed(() => props.selectedPaths.has(props.entry.path))
-const hasPendingEdits = computed(() => reviews.filesWithEdits.includes(props.entry.path))
 const isRenaming = computed(() => props.renamingPath === props.entry.path)
 
 const ICON_COMPONENTS = {

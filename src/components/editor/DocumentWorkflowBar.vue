@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="workflow-bar"
-    :class="{ 'workflow-bar-split': showSplitLayout }"
-  >
+  <div class="workflow-bar" :class="{ 'workflow-bar-split': showSplitLayout }">
     <div class="workflow-left">
       <div class="workflow-doc-tools">
         <template v-if="showPrimaryAction && uiState?.kind !== 'markdown'">
@@ -69,35 +66,6 @@
             {{ commentBadgeCount > 9 ? '9+' : commentBadgeCount }}
           </span>
         </UiButton>
-        <div
-          v-if="showAiGroup"
-          class="workflow-ai-group"
-        >
-          <UiButton
-            v-if="showAiDiagnoseButton"
-            class="workflow-secondary-btn"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            :title="t('Diagnose with AI')"
-            :aria-label="t('Diagnose with AI')"
-            @click="handleDiagnoseClick"
-          >
-            <IconSearch :size="14" :stroke-width="1.8" />
-          </UiButton>
-          <UiButton
-            v-if="showAiFixButton"
-            class="workflow-secondary-btn workflow-secondary-btn-accent"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            :title="t('Fix with AI')"
-            :aria-label="t('Fix with AI')"
-            @click="handleFixClick"
-          >
-            <IconSparkles :size="14" :stroke-width="1.8" />
-          </UiButton>
-        </div>
       </div>
 
       <div v-if="showMeta" class="workflow-meta">
@@ -154,14 +122,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import {
-  IconEye,
-  IconFileTypePdf,
-  IconPlayerPlay,
-  IconPlayerTrackNext,
-  IconSearch,
-  IconSparkles,
-} from '@tabler/icons-vue'
+import { IconEye, IconFileTypePdf, IconPlayerPlay, IconPlayerTrackNext } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { modKey } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -178,14 +139,12 @@ const props = defineProps({
   commentBadgeCount: { type: Number, default: 0 },
 })
 
-const emit = defineEmits([
+defineEmits([
   'primary-action',
   'reveal-preview',
   'reveal-pdf',
   'run-code',
   'run-file',
-  'diagnose-with-ai',
-  'fix-with-ai',
   'toggle-comments',
 ])
 
@@ -209,9 +168,7 @@ const phaseLabel = computed(() => {
   return t('Idle')
 })
 
-const showMeta = computed(
-  () => !!kindLabel.value || !!phaseLabel.value || !!props.statusText
-)
+const showMeta = computed(() => !!kindLabel.value || !!phaseLabel.value || !!props.statusText)
 
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
@@ -229,57 +186,34 @@ const primaryIcon = computed(() => {
   return IconEye
 })
 
-const showPreviewButton = computed(
-  () =>
-    !!props.uiState?.kind
-    && props.uiState.kind !== 'text'
-)
+const showPreviewButton = computed(() => !!props.uiState?.kind && props.uiState.kind !== 'text')
 
-const previewButtonLabel = computed(() => (
+const previewButtonLabel = computed(() =>
   props.uiState?.kind === 'markdown' ? t('Toggle preview') : t('Preview')
-))
+)
 
 const showPdfButton = computed(() => props.uiState?.kind === 'typst')
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
-const isPreviewButtonActive = computed(() => (
-  activePreviewMode.value === 'markdown' || activePreviewMode.value === 'typst-native'
-))
+const isPreviewButtonActive = computed(
+  () => activePreviewMode.value === 'markdown' || activePreviewMode.value === 'typst-native'
+)
 
 const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf')
 
-const showPreviewSection = computed(() => (
-  showPreviewButton.value
-  || showPdfButton.value
-  || !!props.previewState?.previewVisible
-))
+const showPreviewSection = computed(
+  () => showPreviewButton.value || showPdfButton.value || !!props.previewState?.previewVisible
+)
 
 const showSplitLayout = computed(() => !!props.previewState?.previewVisible)
 
-const showPdfToolbarSlot = computed(() => (
-  props.previewState?.previewVisible
-  && props.previewState?.previewMode === 'pdf'
-  && !!props.pdfToolbarTargetId
-))
-
-const showAiFixButton = computed(
-  () => props.uiState?.kind === 'latex' || props.uiState?.kind === 'typst'
+const showPdfToolbarSlot = computed(
+  () =>
+    props.previewState?.previewVisible &&
+    props.previewState?.previewMode === 'pdf' &&
+    !!props.pdfToolbarTargetId
 )
-
-const showAiDiagnoseButton = computed(
-  () => props.uiState?.kind === 'latex' || props.uiState?.kind === 'typst'
-)
-
-const showAiGroup = computed(() => showAiDiagnoseButton.value || showAiFixButton.value)
-
-function handleDiagnoseClick() {
-  emit('diagnose-with-ai')
-}
-
-function handleFixClick() {
-  emit('fix-with-ai')
-}
 
 const statusClass = computed(() => ({
   'workflow-status-success': props.statusTone === 'success',

@@ -1,22 +1,24 @@
 # Testing
 
-Altals uses focused node:test coverage plus a required production build check.
+The repository baseline should prove that the document workspace still formats, lint-checks, tests, and builds successfully.
 
-## Default Validation Loop
+## Default Verification Commands
 
-- run targeted tests for the files or runtime helpers you changed
-- run `node --test tests/*.test.mjs`
-- run `npm run build`
+- `npm run format:check`
+- `npm run lint`
+- `node --test tests/*.test.mjs`
+- `npm run build`
 
-## What The Full Test Suite Covers
+## What The Suite Covers
 
-- frontend runtime helpers and workflow runtimes
-- persistence and history behavior
-- reference, document, terminal, and AI workflow seams
-- repo policy audits, including required documentation and AGENTS coverage
+- document workflow runtimes
+- editor routing and persistence
+- workspace preferences and restore behavior
+- preview and document-run helpers
+- repository policy audits for docs and `AGENTS.md`
 
-## Testing Guidance
+## Expectations
 
-- Add focused tests when you extract or simplify runtime logic.
-- Prefer tests at explicit runtime/helper seams instead of UI-only snapshots.
-- When the suite is not fully green, state the exact failing tests and whether they are pre-existing.
+- When behavior changes, update the matching tests in the same slice.
+- When docs or repo policy change, update the audit tests in the same slice.
+- If the full suite is not green, report the exact failing command and the real failure count.

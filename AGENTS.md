@@ -6,23 +6,23 @@ Read `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, and `docs/REFACTOR_BLUEPRINT.md`
 
 ## Mission
 
-Altals must stay a local-first, project-directory-centered research and academic operating system.
+Altals must stay a local-first, project-directory-centered document workspace.
 
 Every meaningful change should strengthen the same core loop:
 
 - open a local project
-- browse files and references
-- draft and edit documents
-- run builds, notebooks, and terminal tasks
-- inspect outputs, history, and AI-assisted changes
+- browse project files
+- draft and edit Markdown, LaTeX, and Typst documents
+- run previews or document builds
+- inspect outputs, history, and save points
 
 ## Repository Rules
 
-- Keep autosave, snapshots, Git history, remote sync, and AI mutation as explicit safety boundaries.
-- Prefer small validated slices over broad speculative rewrites.
+- Keep autosave, snapshots, Git history, and remote sync as explicit safety boundaries.
+- Prefer small validated slices over speculative rewrites.
 - Follow the existing `app -> domains -> services -> stores/components` direction instead of adding new glue in random layers.
 - Update tests and docs in the same slice when behavior, architecture, or repo policy changes.
-- Keep the desktop research workflow as the primary product surface; do not optimize the separate `web/` project at the expense of the main app.
+- Keep the desktop document workflow as the primary product surface; do not optimize the separate `web/` project at the expense of the main app.
 
 ## Expected Change Shape
 

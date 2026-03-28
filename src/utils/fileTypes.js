@@ -3,13 +3,8 @@ const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const CSV_EXTS = ['csv', 'tsv']
 const PDF_EXTS = ['pdf']
 const DOCX_EXTS = ['docx']
-
-const RUNNABLE_MAP = {
-  r: 'r', R: 'r',
-  py: 'python', pyw: 'python',
-  jl: 'julia',
-  rmd: 'r', Rmd: 'r', qmd: 'r',
-}
+const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'tex', 'latex', 'typ']
+const RUNNABLE_MAP = {}
 
 function getExt(path) {
   const name = path.split('/').pop() || ''
@@ -19,38 +14,6 @@ function getExt(path) {
 
 export function isNewTab(path) {
   return path?.startsWith('newtab:')
-}
-
-export function isAiLauncher(path) {
-  return path?.startsWith('ai-launcher:')
-}
-
-export function isAiWorkbenchPath(path) {
-  return path === 'ai-launcher:workspace'
-}
-
-export function isLibraryPath(path) {
-  return path?.startsWith('library:')
-}
-
-export function libraryViewIdFromPath(path) {
-  return path?.startsWith('library:') ? path.slice('library:'.length) : null
-}
-
-export function isChatTab(path) {
-  return path && path.startsWith('chat:')
-}
-
-export function getChatSessionId(path) {
-  return path?.startsWith('chat:') ? path.slice(5) : null
-}
-
-export function isReferencePath(path) {
-  return path.startsWith('ref:@')
-}
-
-export function referenceKeyFromPath(path) {
-  return path.startsWith('ref:@') ? path.slice(5) : ''
 }
 
 export function isPreviewPath(path) {
@@ -72,25 +35,18 @@ export function previewSourcePathFromPath(path) {
 }
 
 export function getViewerType(path) {
-  if (isAiLauncher(path)) return 'ai-launcher'
-  if (isLibraryPath(path)) return 'library'
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   if (isTypstPreviewPath(path)) return 'typst-native-preview'
-  if (isReferencePath(path)) return 'reference'
-  if (isChatTab(path)) return 'chat'
   const ext = getExt(path)
   if (PDF_EXTS.includes(ext)) return 'pdf'
-  if (CSV_EXTS.includes(ext)) return 'csv'
-  if (DOCX_EXTS.includes(ext)) return 'unsupported-binary'
-  if (IMAGE_EXTS.includes(ext)) return 'image'
-  if (ext === 'ipynb') return 'notebook'
-  return 'text'
+  if (SUPPORTED_TEXT_EXTS.includes(ext)) return 'text'
+  return 'unsupported-binary'
 }
 
 export function isMarkdown(path) {
   const ext = getExt(path)
-  return ext === 'md' || ext === 'rmd' || ext === 'qmd'
+  return ext === 'md' || ext === 'markdown'
 }
 
 export function isLatex(path) {
@@ -99,7 +55,7 @@ export function isLatex(path) {
 }
 
 export function isBibFile(path) {
-  return getExt(path) === 'bib'
+  return false
 }
 
 export function isTypst(path) {
@@ -136,11 +92,7 @@ export function relativePath(fromFile, toFile) {
 }
 
 export function isBinaryFile(path) {
-  if (isAiLauncher(path)) return false
-  if (isLibraryPath(path)) return false
   if (isNewTab(path)) return false
-  if (isReferencePath(path)) return false
-  if (isChatTab(path)) return false
   const ext = getExt(path)
   return IMAGE_EXTS.includes(ext) || PDF_EXTS.includes(ext) || DOCX_EXTS.includes(ext)
 }
@@ -210,8 +162,6 @@ const ICON_MAP = {
 }
 
 export function getFileIconName(fileName) {
-  if (isLibraryPath(fileName)) return 'IconBook2'
-  if (isReferencePath(fileName)) return 'IconBook2'
   const name = fileName.toLowerCase()
   // Check full filename first (e.g. ".gitignore", ".env")
   if (ICON_MAP[name]) return ICON_MAP[name]
@@ -228,8 +178,6 @@ export function getFileIconName(fileName) {
 }
 
 export function isRunnable(path) {
-  if (isLibraryPath(path)) return false
-  if (isReferencePath(path)) return false
   const ext = getExt(path)
   return ext in RUNNABLE_MAP
 }
@@ -240,8 +188,7 @@ export function getLanguage(path) {
 }
 
 export function isRmdOrQmd(path) {
-  const ext = getExt(path)
-  return ext === 'rmd' || ext === 'qmd'
+  return false
 }
 
 export function getMimeType(path) {

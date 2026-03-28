@@ -5,11 +5,6 @@ function isMarkdownWorkflowSource(filePath = '') {
   return isMarkdown(filePath)
 }
 
-function defaultCitationText(keys) {
-  const joined = keys.map(key => `@${key}`).join('; ')
-  return `[${joined}]`
-}
-
 function summarizeProblems(problems = []) {
   const errorCount = problems.filter(problem => problem.severity === 'error').length
   const warningCount = problems.filter(problem => problem.severity === 'warning').length
@@ -102,17 +97,6 @@ const markdownPreviewAdapter = {
   },
 }
 
-const markdownCitationSyntax = {
-  supportsInsertion(filePath) {
-    return isMarkdown(filePath)
-  },
-
-  buildText(_filePath, keys) {
-    const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean)
-    return list.length > 0 ? defaultCitationText(list) : ''
-  },
-}
-
 export const markdownDocumentAdapter = {
   kind: 'markdown',
 
@@ -125,14 +109,13 @@ export const markdownDocumentAdapter = {
   },
 
   preview: markdownPreviewAdapter,
-  citationSyntax: markdownCitationSyntax,
   compile: null,
 
   getProblems(filePath, context = {}) {
     const draftProblems = buildMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
-      { referenceKeys: context.referencesStore?.allKeys || [] },
+      { referenceKeys: [] },
     )
     return [
       ...draftProblems,
@@ -144,7 +127,7 @@ export const markdownDocumentAdapter = {
     const draftProblems = buildMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
-      { referenceKeys: context.referencesStore?.allKeys || [] },
+      { referenceKeys: [] },
     )
     return buildMarkdownWorkflowUiState({
       previewAvailable: !!context.previewAvailable,

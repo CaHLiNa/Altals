@@ -25,55 +25,9 @@
         @mouseenter="onMouseEnter(idx)"
         @mousedown.middle.prevent="$emit('close-tab', tab)"
       >
-        <svg
-          v-if="isLibraryPath(tab)"
-          class="tab-bar-icon tab-bar-icon-accent shrink-0 mr-1"
-          width="12"
-          height="12"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        >
-          <path
-            d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v8a.5.5 0 0 1-.8.4L8 9.75l-4.2 3.15a.5.5 0 0 1-.8-.4z"
-          />
-          <path d="M5.5 6.25h5M5.5 8h3.5" />
-        </svg>
-        <!-- Chat tab sparkle icon -->
-        <svg
-          v-if="isChatTab(tab) || isAiWorkbenchPath(tab)"
-          class="tab-bar-icon tab-bar-icon-accent shrink-0 mr-1"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275z"
-          />
-        </svg>
         <span class="truncate max-w-[120px]">{{ fileName(tab) }}</span>
         <span
-          v-if="isChatTab(tab) && chatSessionMeta(tab)"
-          class="tab-role-badge ml-1 rounded-sm px-1 ui-text-tiny uppercase shrink-0"
-        >
-          {{ chatSessionMeta(tab).roleBadge }}
-        </span>
-
-        <!-- Chat streaming indicator -->
-        <span
-          v-if="isChatTab(tab) && isChatStreaming(tab)"
-          class="ml-1.5 w-2 h-2 rounded-full shrink-0 chat-streaming-dot"
-        ></span>
-
-        <!-- Unsaved indicator (not for chat tabs) -->
-        <span
-          v-else-if="!isChatTab(tab) && dirtyFiles.has(tab)"
+          v-if="dirtyFiles.has(tab)"
           class="tab-dirty-indicator ml-1.5 w-2 h-2 rounded-full shrink-0"
         ></span>
 
@@ -132,37 +86,6 @@
         </svg>
       </UiButton>
     </div>
-
-    <!-- Run actions (for renderable files) -->
-    <div
-      v-if="showRenderButton"
-      class="tab-bar-actions flex items-center gap-0.5 px-1 shrink-0 border-l ml-1"
-    >
-      <UiButton
-        variant="primary"
-        size="sm"
-        class="tab-render-button"
-        @click="$emit('render-document')"
-        :title="t('Render document')"
-        :aria-label="t('Render document')"
-      >
-        <template #leading>
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <rect x="2" y="2" width="12" height="12" rx="1" />
-            <path d="M5 5h6M5 8h6M5 11h3" />
-          </svg>
-        </template>
-        {{ t('Render') }}
-      </UiButton>
-    </div>
-
     <!-- Pane actions -->
     <div class="tab-bar-actions flex items-center gap-0.5 px-1 shrink-0 border-l ml-1">
       <UiButton
@@ -244,25 +167,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, reactive, watch, nextTick } from 'vue'
 import UiButton from '../shared/ui/UiButton.vue'
-import { useAiWorkbenchStore } from '../../stores/aiWorkbench'
 import { useEditorStore } from '../../stores/editor'
-import { useReferencesStore } from '../../stores/references'
-import { chatAllSessionsMeta, chatSessions } from '../../stores/chatSessionState.js'
-import {
-  isReferencePath,
-  referenceKeyFromPath,
-  isAiWorkbenchPath,
-  isLibraryPath,
-  isRmdOrQmd,
-  isChatTab,
-  getChatSessionId,
-  isAiLauncher,
-  isNewTab,
-  isPreviewPath,
-  previewSourcePathFromPath,
-} from '../../utils/fileTypes'
+import { isNewTab, isPreviewPath, previewSourcePathFromPath } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -285,27 +193,8 @@ const emit = defineEmits([
   'new-tab',
 ])
 
-const aiWorkbench = useAiWorkbenchStore()
 const { t } = useI18n()
-const liveChatStore = ref(null)
-
-onMounted(async () => {
-  const { useChatStore } = await import('../../stores/chat.js')
-  liveChatStore.value = useChatStore()
-})
-
-function isChatStreaming(path) {
-  if (!isChatTab(path)) return false
-  const sid = getChatSessionId(path)
-  const chat = liveChatStore.value?.getChatInstance?.(sid)
-  if (!chat) return false
-  const status = chat.state.statusRef.value
-  return status === 'submitted' || status === 'streaming'
-}
-
-const showRenderButton = computed(() => props.activeTab && isRmdOrQmd(props.activeTab))
 const editorStore = useEditorStore()
-const referencesStore = useReferencesStore()
 const dirtyFiles = editorStore.dirtyFiles
 
 const tabsContainer = ref(null)
@@ -338,31 +227,6 @@ const ghostLabel = ref('')
 
 function fileName(path) {
   if (isNewTab(path)) return t('New Tab')
-  if (isAiWorkbenchPath(path)) return t('AI Workspace')
-  if (isAiLauncher(path)) return t('AI')
-  if (isLibraryPath(path)) return t('Library')
-  if (isChatTab(path)) {
-    const sid = getChatSessionId(path)
-    const session = chatSessions.value.find((s) => s.id === sid)
-    if (session?.label) {
-      const label = session.label
-      return label.length > 28 ? label.slice(0, 26) + '...' : label
-    }
-    const meta = chatAllSessionsMeta.value.find((m) => m.id === sid)
-    if (meta?.label) {
-      const label = meta.label
-      return label.length > 28 ? label.slice(0, 26) + '...' : label
-    }
-    return t('New chat')
-  }
-  if (isReferencePath(path)) {
-    const key = referenceKeyFromPath(path)
-    const r = referencesStore.getByKey(key)
-    if (r?.title) {
-      return r.title.length > 30 ? r.title.slice(0, 28) + '...' : r.title
-    }
-    return `@${key}`
-  }
   if (isPreviewPath(path)) {
     const name = previewSourcePathFromPath(path).split('/').pop()
     return `${name} (Preview)`
@@ -370,20 +234,8 @@ function fileName(path) {
   return path.split('/').pop()
 }
 
-function chatSessionMeta(path) {
-  if (!isChatTab(path)) return null
-  const sid = getChatSessionId(path)
-  const session =
-    chatSessions.value.find((item) => item.id === sid) ||
-    chatAllSessionsMeta.value.find((item) => item.id === sid)
-  return session ? aiWorkbench.describeSession(session) : null
-}
-
 function tabTitle(path) {
-  const base = fileName(path)
-  const meta = chatSessionMeta(path)
-  if (!meta) return base
-  return `${base} · ${meta.roleTitle} · ${meta.runtimeTitle}`
+  return fileName(path)
 }
 
 // Mouse-based drag reorder with ghost tab + cross-pane support
@@ -680,15 +532,6 @@ function updateDropIndicator(mouseX) {
   opacity: 0.3;
 }
 
-.tab-bar-icon-accent {
-  color: var(--accent);
-}
-
-.tab-role-badge {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-}
-
 .tab-dirty-indicator {
   background: var(--fg-muted);
 }
@@ -706,37 +549,5 @@ function updateDropIndicator(mouseX) {
 
 .tab-bar-actions {
   border-color: var(--border);
-}
-
-.tab-render-button {
-  min-height: 24px;
-}
-
-.chat-streaming-dot {
-  background: var(--accent);
-  animation: chat-pulse 1.5s ease-in-out infinite;
-}
-@keyframes chat-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-.tex-spinner {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid var(--fg-muted);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: tex-spin 0.8s linear infinite;
-}
-@keyframes tex-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
