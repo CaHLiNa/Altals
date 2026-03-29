@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   createWorkspacePreferenceState,
   persistStoredString,
+  restoreWorkspaceTheme,
+  setWorkspaceTheme,
   toggleStoredBoolean,
 } from '../src/services/workspacePreferences.js'
 
@@ -25,6 +27,48 @@ function createMockStorage(initial = {}) {
   }
 }
 
+function createMockClassList() {
+  const values = new Set()
+  return {
+    add(...tokens) {
+      tokens.forEach((token) => values.add(token))
+    },
+    remove(...tokens) {
+      tokens.forEach((token) => values.delete(token))
+    },
+    contains(token) {
+      return values.has(token)
+    },
+  }
+}
+
+function createMockDocument() {
+  return {
+    documentElement: {
+      classList: createMockClassList(),
+      dataset: {},
+    },
+  }
+}
+
+function createMockMatchMedia(matches = false) {
+  const listeners = new Set()
+
+  return {
+    matches,
+    addEventListener(type, listener) {
+      if (type === 'change') listeners.add(listener)
+    },
+    removeEventListener(type, listener) {
+      if (type === 'change') listeners.delete(listener)
+    },
+    dispatchChange(nextMatches) {
+      this.matches = nextMatches
+      listeners.forEach((listener) => listener({ matches: nextMatches }))
+    },
+  }
+}
+
 test('createWorkspacePreferenceState defaults pdf themed pages to disabled', () => {
   const previousLocalStorage = globalThis.localStorage
   globalThis.localStorage = createMockStorage()
@@ -34,6 +78,67 @@ test('createWorkspacePreferenceState defaults pdf themed pages to disabled', () 
     assert.equal(state.pdfThemedPages, false)
   } finally {
     globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('workspace theme defaults to system and normalizes legacy theme ids', () => {
+  const previousLocalStorage = globalThis.localStorage
+
+  try {
+    globalThis.localStorage = createMockStorage()
+    assert.equal(createWorkspacePreferenceState().theme, 'system')
+
+    globalThis.localStorage = createMockStorage({ theme: 'humane' })
+    assert.equal(createWorkspacePreferenceState().theme, 'light')
+
+    globalThis.localStorage = createMockStorage({ theme: 'dracula' })
+    assert.equal(createWorkspacePreferenceState().theme, 'dark')
+
+    globalThis.localStorage = createMockStorage({ theme: 'unknown-theme' })
+    assert.equal(createWorkspacePreferenceState().theme, 'system')
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+  }
+})
+
+test('system theme follows device appearance changes and explicit themes stay fixed', () => {
+  const previousLocalStorage = globalThis.localStorage
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const mediaQuery = createMockMatchMedia(false)
+
+  globalThis.localStorage = createMockStorage()
+  globalThis.document = createMockDocument()
+  globalThis.window = {
+    matchMedia: () => mediaQuery,
+  }
+
+  try {
+    assert.equal(setWorkspaceTheme('system'), 'system')
+    assert.equal(globalThis.localStorage.getItem('theme'), 'system')
+    assert.equal(globalThis.document.documentElement.dataset.themePreference, 'system')
+    assert.equal(globalThis.document.documentElement.dataset.themeResolved, 'light')
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-system'), true)
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-light'), true)
+
+    mediaQuery.dispatchChange(true)
+    assert.equal(globalThis.document.documentElement.dataset.themeResolved, 'dark')
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-light'), false)
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-dark'), true)
+
+    assert.equal(setWorkspaceTheme('dracula'), 'dark')
+    mediaQuery.dispatchChange(false)
+    assert.equal(globalThis.document.documentElement.dataset.themePreference, 'dark')
+    assert.equal(globalThis.document.documentElement.dataset.themeResolved, 'dark')
+
+    assert.equal(restoreWorkspaceTheme('light'), 'light')
+    assert.equal(globalThis.document.documentElement.dataset.themePreference, 'light')
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-light'), true)
+    assert.equal(globalThis.document.documentElement.classList.contains('theme-system'), false)
+  } finally {
+    globalThis.localStorage = previousLocalStorage
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
   }
 })
 

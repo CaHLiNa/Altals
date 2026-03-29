@@ -33,7 +33,6 @@ import {
   scheduleEditorStateSave,
 } from '../domains/editor/editorPersistenceRuntime'
 import {
-  findPreferredTextInsertTarget,
   getAnyRegisteredEditorView,
   getRegisteredEditorView,
   getRegisteredEditorViewsForPath,
@@ -48,10 +47,6 @@ import {
   persistEditorPath,
   persistEditorPaths,
 } from '../domains/editor/editorDirtyPersistence'
-import {
-  insertExecutionResultIntoEditor,
-  insertResearchNoteIntoEditor,
-} from '../domains/editor/editorInsertActions'
 import {
   createEmptyEditorRuntimeState,
   destroyEditorRuntimeViews,
@@ -76,10 +71,6 @@ function fileExtension(path) {
   const name = String(path || '').split('/').pop() || ''
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
-}
-
-function isResearchInsertableTextPath(path) {
-  return ['md', 'markdown', 'tex', 'latex', 'typ'].includes(fileExtension(path))
 }
 
 function createNewTabPath() {
@@ -454,37 +445,6 @@ export const useEditorStore = defineStore('editor', {
 
     getEditorViewsForPath(path) {
       return getRegisteredEditorViewsForPath(this.editorViews, path)
-    },
-
-    findPreferredResearchInsertTarget() {
-      return findPreferredTextInsertTarget({
-        paneTree: this.paneTree,
-        activePaneId: this.activePaneId,
-        editorViews: this.editorViews,
-        isInsertablePath: isResearchInsertableTextPath,
-      })
-    },
-
-    findPreferredExecutionResultTarget() {
-      return this.findPreferredResearchInsertTarget()
-    },
-
-    insertResearchNoteIntoManuscript(note, annotation = null) {
-      return insertResearchNoteIntoEditor({
-        target: this.findPreferredResearchInsertTarget(),
-        editorViews: this.editorViews,
-        note,
-        annotation,
-      })
-    },
-
-    async insertExecutionResultIntoManuscript({ outputs = [], provenance = {} } = {}) {
-      return insertExecutionResultIntoEditor({
-        target: this.findPreferredExecutionResultTarget(),
-        editorViews: this.editorViews,
-        outputs,
-        provenance,
-      })
     },
 
     recordFileOpen(path) {

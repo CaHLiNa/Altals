@@ -46,6 +46,7 @@
         </div>
         <!-- Label -->
         <div class="theme-label">{{ t(theme.label) }}</div>
+        <div class="theme-description">{{ t(theme.description) }}</div>
         <!-- Color dots -->
         <div class="theme-dots">
           <span class="theme-dot" :style="{ background: theme.colors.accent }"></span>
@@ -78,126 +79,19 @@
 <script setup>
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import { WORKSPACE_THEME_OPTIONS } from '../../shared/workspaceThemeOptions.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
-
-const themes = [
-  // Light themes
-  {
-    id: 'light',
-    label: 'Light',
-    colors: {
-      bgPrimary: '#ffffff',
-      bgSecondary: '#f5f6f8',
-      fgMuted: '#999999',
-      accent: '#5f9ea0',
-      accentSecondary: '#4a7c7e',
-      success: '#2e7d32',
-      error: '#c62828',
-    },
-  },
-  {
-    id: 'solarized',
-    label: 'Solarized Light',
-    colors: {
-      bgPrimary: '#fdf6e3',
-      bgSecondary: '#eee8d5',
-      fgMuted: '#93a1a1',
-      accent: '#268bd2',
-      accentSecondary: '#6c71c4',
-      success: '#859900',
-      error: '#dc322f',
-    },
-  },
-  {
-    id: 'one-light',
-    label: 'One Light',
-    colors: {
-      bgPrimary: '#fafafa',
-      bgSecondary: '#f0f0f1',
-      fgMuted: '#a0a1a7',
-      accent: '#4078f2',
-      accentSecondary: '#a626a4',
-      success: '#50a14f',
-      error: '#e45649',
-    },
-  },
-  {
-    id: 'humane',
-    label: 'Humane',
-    colors: {
-      bgPrimary: '#faf9f5',
-      bgSecondary: '#f2f0e7',
-      fgMuted: '#9a9389',
-      accent: '#b5623a',
-      accentSecondary: '#6b8065',
-      success: '#5a7d3a',
-      error: '#b84a3c',
-    },
-  },
-  // Dark themes
-  {
-    id: 'default',
-    label: 'Tokyo Night',
-    colors: {
-      bgPrimary: '#1a1b26',
-      bgSecondary: '#1f2335',
-      fgMuted: '#565f89',
-      accent: '#7aa2f7',
-      accentSecondary: '#bb9af7',
-      success: '#9ece6a',
-      error: '#f7768e',
-    },
-  },
-  {
-    id: 'dracula',
-    label: 'Dracula',
-    colors: {
-      bgPrimary: '#282a36',
-      bgSecondary: '#21222c',
-      fgMuted: '#6272a4',
-      accent: '#bd93f9',
-      accentSecondary: '#ff79c6',
-      success: '#50fa7b',
-      error: '#ff5555',
-    },
-  },
-  {
-    id: 'monokai',
-    label: 'Monokai',
-    colors: {
-      bgPrimary: '#272822',
-      bgSecondary: '#1e1f1c',
-      fgMuted: '#75715e',
-      accent: '#fd971f',
-      accentSecondary: '#f92672',
-      success: '#a6e22e',
-      error: '#f92672',
-    },
-  },
-  {
-    id: 'nord',
-    label: 'Nord',
-    colors: {
-      bgPrimary: '#2e3440',
-      bgSecondary: '#3b4252',
-      fgMuted: '#616e88',
-      accent: '#88c0d0',
-      accentSecondary: '#81a1c1',
-      success: '#a3be8c',
-      error: '#bf616a',
-    },
-  },
-]
+const themes = WORKSPACE_THEME_OPTIONS
 </script>
 
 <style scoped>
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -243,6 +137,14 @@ const themes = [
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin-bottom: 3px;
+}
+
+.theme-description {
+  min-height: 34px;
+  margin-bottom: 6px;
+  font-size: var(--ui-font-caption);
+  line-height: 1.45;
+  color: var(--text-muted);
 }
 
 .theme-dots {
@@ -294,5 +196,11 @@ const themes = [
 
 .theme-page-compact :deep(.env-lang-version) {
   font-size: var(--ui-font-micro);
+}
+
+@media (max-width: 980px) {
+  .theme-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

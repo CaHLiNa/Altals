@@ -16,47 +16,40 @@
             {{ t('You can change this any time in Settings.') }}
           </p>
 
-          <div class="wizard-theme-group-label">{{ t('Light') }}</div>
           <div class="wizard-theme-grid">
             <button
-              v-for="theme in lightThemes"
+              v-for="theme in themes"
               :key="theme.id"
               class="wizard-theme-card"
               :class="{ active: selectedTheme === theme.id }"
               @click="selectTheme(theme.id)"
             >
               <div class="wizard-theme-preview" :style="{ background: theme.colors.bgPrimary }">
-                <div class="wizard-theme-sidebar" :style="{ background: theme.colors.bgSecondary }"></div>
+                <div
+                  class="wizard-theme-sidebar"
+                  :style="{ background: theme.colors.bgSecondary }"
+                ></div>
                 <div class="wizard-theme-editor">
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.fgMuted, width: '60%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.accent, width: '45%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.fgMuted, width: '70%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.accentSecondary, width: '35%' }"></div>
+                  <div
+                    class="wizard-theme-line"
+                    :style="{ background: theme.colors.fgMuted, width: '60%' }"
+                  ></div>
+                  <div
+                    class="wizard-theme-line"
+                    :style="{ background: theme.colors.accent, width: '45%' }"
+                  ></div>
+                  <div
+                    class="wizard-theme-line"
+                    :style="{ background: theme.colors.fgMuted, width: '70%' }"
+                  ></div>
+                  <div
+                    class="wizard-theme-line"
+                    :style="{ background: theme.colors.accentSecondary, width: '35%' }"
+                  ></div>
                 </div>
               </div>
-              <div class="wizard-theme-label">{{ theme.label }}</div>
-            </button>
-          </div>
-
-          <div class="wizard-theme-group-label wizard-theme-group-label-spaced">{{ t('Dark') }}</div>
-          <div class="wizard-theme-grid">
-            <button
-              v-for="theme in darkThemes"
-              :key="theme.id"
-              class="wizard-theme-card"
-              :class="{ active: selectedTheme === theme.id }"
-              @click="selectTheme(theme.id)"
-            >
-              <div class="wizard-theme-preview" :style="{ background: theme.colors.bgPrimary }">
-                <div class="wizard-theme-sidebar" :style="{ background: theme.colors.bgSecondary }"></div>
-                <div class="wizard-theme-editor">
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.fgMuted, width: '60%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.accent, width: '45%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.fgMuted, width: '70%' }"></div>
-                  <div class="wizard-theme-line" :style="{ background: theme.colors.accentSecondary, width: '35%' }"></div>
-                </div>
-              </div>
-              <div class="wizard-theme-label">{{ theme.label }}</div>
+              <div class="wizard-theme-label">{{ t(theme.label) }}</div>
+              <div class="wizard-theme-description">{{ t(theme.description) }}</div>
             </button>
           </div>
 
@@ -70,9 +63,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
+import { WORKSPACE_THEME_OPTIONS } from '../shared/workspaceThemeOptions.js'
 
 defineProps({
   visible: { type: Boolean, default: false },
@@ -82,21 +76,8 @@ const emit = defineEmits(['close'])
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
-const selectedTheme = ref(workspace.theme || 'default')
-
-const themes = [
-  { id: 'light', label: 'Light', group: 'light', colors: { bgPrimary: '#ffffff', bgSecondary: '#f5f6f8', fgMuted: '#999999', accent: '#5f9ea0', accentSecondary: '#4a7c7e' } },
-  { id: 'solarized', label: 'Solarized', group: 'light', colors: { bgPrimary: '#fdf6e3', bgSecondary: '#eee8d5', fgMuted: '#93a1a1', accent: '#268bd2', accentSecondary: '#6c71c4' } },
-  { id: 'one-light', label: 'One Light', group: 'light', colors: { bgPrimary: '#fafafa', bgSecondary: '#f0f0f1', fgMuted: '#a0a1a7', accent: '#4078f2', accentSecondary: '#a626a4' } },
-  { id: 'humane', label: 'Humane', group: 'light', colors: { bgPrimary: '#faf9f5', bgSecondary: '#f2f0e7', fgMuted: '#9a9389', accent: '#b5623a', accentSecondary: '#6b8065' } },
-  { id: 'default', label: 'Tokyo Night', group: 'dark', colors: { bgPrimary: '#1a1b26', bgSecondary: '#1f2335', fgMuted: '#565f89', accent: '#7aa2f7', accentSecondary: '#bb9af7' } },
-  { id: 'dracula', label: 'Dracula', group: 'dark', colors: { bgPrimary: '#282a36', bgSecondary: '#21222c', fgMuted: '#6272a4', accent: '#bd93f9', accentSecondary: '#ff79c6' } },
-  { id: 'monokai', label: 'Monokai', group: 'dark', colors: { bgPrimary: '#272822', bgSecondary: '#1e1f1c', fgMuted: '#75715e', accent: '#fd971f', accentSecondary: '#f92672' } },
-  { id: 'nord', label: 'Nord', group: 'dark', colors: { bgPrimary: '#2e3440', bgSecondary: '#3b4252', fgMuted: '#616e88', accent: '#88c0d0', accentSecondary: '#81a1c1' } },
-]
-
-const lightThemes = computed(() => themes.filter((theme) => theme.group === 'light'))
-const darkThemes = computed(() => themes.filter((theme) => theme.group === 'dark'))
+const selectedTheme = ref(workspace.theme || 'system')
+const themes = WORKSPACE_THEME_OPTIONS
 
 function selectTheme(id) {
   selectedTheme.value = id
@@ -172,37 +153,27 @@ function finish() {
   margin-bottom: 16px;
 }
 
-.wizard-theme-group-label {
-  margin-bottom: 6px;
-  font-size: var(--ui-font-caption);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
-.wizard-theme-group-label-spaced {
-  margin-top: 12px;
-}
-
 .wizard-theme-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .wizard-theme-card {
   border: 2px solid var(--border);
   border-radius: 8px;
-  padding: 6px;
+  padding: 8px;
   background: var(--bg-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition:
+    border-color 0.15s,
+    transform 0.15s ease;
 }
 
 .wizard-theme-card:hover {
   border-color: var(--fg-muted);
+  transform: translateY(-1px);
 }
 
 .wizard-theme-card.active {
@@ -237,12 +208,16 @@ function finish() {
 }
 
 .wizard-theme-label {
-  overflow: hidden;
-  font-size: var(--ui-font-micro);
+  margin-bottom: 4px;
+  font-size: var(--ui-font-caption);
   font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--fg-primary);
+}
+
+.wizard-theme-description {
+  font-size: var(--ui-font-micro);
+  line-height: 1.45;
+  color: var(--fg-muted);
 }
 
 .wizard-nav {
@@ -269,5 +244,19 @@ function finish() {
 
 .wizard-btn.primary:hover {
   opacity: 0.92;
+}
+
+@media (max-width: 760px) {
+  .wizard-modal {
+    width: min(92vw, 520px);
+  }
+
+  .wizard-step {
+    padding: 24px 20px 24px;
+  }
+
+  .wizard-theme-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

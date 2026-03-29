@@ -43,12 +43,16 @@ async function bootstrapWorkspaceDirs(store) {
 
   await invoke('write_file', {
     path: `${store.workspaceDataDir}/workspace.json`,
-    content: JSON.stringify({
-      id: store.workspaceId,
-      path: store.path,
-      name: store.path?.split('/').pop() || '',
-      lastOpenedAt: new Date().toISOString(),
-    }, null, 2),
+    content: JSON.stringify(
+      {
+        id: store.workspaceId,
+        path: store.path,
+        name: store.path?.split('/').pop() || '',
+        lastOpenedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
   }).catch(() => {})
 }
 
@@ -73,14 +77,16 @@ export const useWorkspaceStore = defineStore('workspace', {
     primarySurface: (state) => state.primarySurface || 'workspace',
     shouldersDir: (state) => state.workspaceDataDir || null,
     altalsDir: (state) => state.workspaceDataDir || null,
-    projectDir: (state) => state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null,
+    projectDir: (state) => (state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null),
     claudeDir: (state) => state.claudeConfigDir || null,
-    claudeHooksDir: (state) => state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
-    legacyShouldersDir: (state) => state.path ? `${state.path}/.shoulders` : null,
-    legacyProjectDir: (state) => state.path ? `${state.path}/.project` : null,
-    legacyClaudeDir: (state) => state.path ? `${state.path}/.claude` : null,
-    instructionsFilePath: (state) => state.path ? `${state.path}/_instructions.md` : null,
-    internalInstructionsPath: (state) => state.workspaceDataDir ? `${state.workspaceDataDir}/project/instructions.md` : null,
+    claudeHooksDir: (state) =>
+      state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
+    legacyShouldersDir: (state) => (state.path ? `${state.path}/.shoulders` : null),
+    legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
+    legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
+    instructionsFilePath: (state) => (state.path ? `${state.path}/_instructions.md` : null),
+    internalInstructionsPath: (state) =>
+      state.workspaceDataDir ? `${state.workspaceDataDir}/project/instructions.md` : null,
   },
 
   actions: {
@@ -270,15 +276,11 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setTheme(name) {
-      this.theme = name
-      setWorkspaceTheme(name)
+      this.theme = setWorkspaceTheme(name)
     },
 
     restoreTheme() {
-      const fallbackTheme = restoreWorkspaceTheme(this.theme)
-      if (fallbackTheme) {
-        this.setTheme(fallbackTheme)
-      }
+      this.theme = restoreWorkspaceTheme(this.theme)
     },
 
     async cleanup() {

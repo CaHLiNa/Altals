@@ -1,14 +1,7 @@
 import { getViewerType } from '../../utils/fileTypes'
-import { findPane } from './paneTreeLayout'
 
 function buildEditorViewKey(paneId, path) {
   return `${paneId}:${path}`
-}
-
-function hasInsertableTextView(editorViews, paneId, path, isInsertablePath) {
-  if (!path || !isInsertablePath?.(path)) return false
-  if (getViewerType(path) !== 'text') return false
-  return !!editorViews?.[buildEditorViewKey(paneId, path)]
 }
 
 export function registerEditorView(editorViews, paneId, path, view) {
@@ -45,43 +38,4 @@ export function getRegisteredEditorViewsForPath(editorViews, path) {
     }
   }
   return views
-}
-
-export function findPreferredTextInsertTarget({
-  paneTree,
-  activePaneId,
-  editorViews,
-  isInsertablePath,
-} = {}) {
-  const activePane = findPane(paneTree, activePaneId)
-  const activePath = activePane?.activeTab || null
-  if (hasInsertableTextView(editorViews, activePaneId, activePath, isInsertablePath)) {
-    return {
-      paneId: activePaneId,
-      path: activePath,
-      viewerType: 'text',
-    }
-  }
-
-  const candidates = []
-  const walk = (node) => {
-    if (!node) return
-    if (node.type === 'leaf') {
-      const path = node.activeTab
-      if (hasInsertableTextView(editorViews, node.id, path, isInsertablePath)) {
-        candidates.push({
-          paneId: node.id,
-          path,
-          viewerType: 'text',
-        })
-      }
-      return
-    }
-    if (node.type === 'split' && Array.isArray(node.children)) {
-      node.children.forEach(walk)
-    }
-  }
-
-  walk(paneTree)
-  return candidates[0] || null
 }

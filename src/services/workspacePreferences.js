@@ -8,9 +8,12 @@ import {
   ALL_WORKBENCH_INSPECTOR_PANELS,
   normalizeWorkbenchInspectorPanel,
 } from '../shared/workbenchInspectorPanels.js'
+import { normalizeWorkspaceThemeId } from '../shared/workspaceThemeOptions.js'
 
 const THEME_CLASSES = [
   'theme-light',
+  'theme-dark',
+  'theme-system',
   'theme-monokai',
   'theme-nord',
   'theme-solarized',
@@ -29,8 +32,13 @@ const DEFAULT_EDITOR_FONT_SIZE = 14
 const DEFAULT_UI_FONT_SIZE = 13
 const DEFAULT_APP_ZOOM_PERCENT = 100
 const APP_ZOOM_KEY = 'appZoomPercent'
+const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
 
 export const APP_ZOOM_PRESETS = [100]
+
+let activeWorkspaceTheme = 'system'
+let systemThemeQuery = null
+let removeSystemThemeListener = null
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -99,9 +107,15 @@ export function normalizeAppZoomPercent(value) {
 
 function nearestAppZoomPreset(value) {
   const normalized = normalizeAppZoomPercent(value)
-  return APP_ZOOM_PRESETS.reduce((closest, preset) => (
-    Math.abs(preset - normalized) < Math.abs(closest - normalized) ? preset : closest
-  ), APP_ZOOM_PRESETS[0])
+  return APP_ZOOM_PRESETS.reduce(
+    (closest, preset) =>
+      Math.abs(preset - normalized) < Math.abs(closest - normalized) ? preset : closest,
+    APP_ZOOM_PRESETS[0]
+  )
+}
+
+function readWorkspaceThemePreference() {
+  return normalizeWorkspaceThemeId(readString('theme', 'system'))
 }
 
 function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
@@ -122,8 +136,15 @@ export function createWorkspacePreferenceState() {
   const primarySurface = normalizeWorkbenchSurface(readString('primarySurface', 'workspace'))
   const storedLeftSidebarPanel = readEnum('leftSidebarPanel', ALL_WORKBENCH_SIDEBAR_PANELS, 'files')
   const leftSidebarPanel = normalizeWorkbenchSidebarPanel(primarySurface, storedLeftSidebarPanel)
-  const storedRightSidebarPanel = readEnum('rightSidebarPanel', ALL_WORKBENCH_INSPECTOR_PANELS, 'outline')
-  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(primarySurface, storedRightSidebarPanel)
+  const storedRightSidebarPanel = readEnum(
+    'rightSidebarPanel',
+    ALL_WORKBENCH_INSPECTOR_PANELS,
+    'outline'
+  )
+  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(
+    primarySurface,
+    storedRightSidebarPanel
+  )
 
   return {
     primarySurface,
@@ -145,7 +166,7 @@ export function createWorkspacePreferenceState() {
     appZoomPercent: zoomState.appZoomPercent,
     proseFont: readString('proseFont', 'inter'),
     pdfThemedPages: readTrueOnlyBoolean('pdfThemedPages'),
-    theme: readString('theme', 'default'),
+    theme: readWorkspaceThemePreference(),
   }
 }
 
@@ -168,7 +189,10 @@ export function setWrapColumnPreference(value) {
 
 export function increaseWorkspaceZoom(currentPercent) {
   const normalized = normalizeAppZoomPercent(currentPercent)
-  return APP_ZOOM_PRESETS.find(preset => preset > normalized) || APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1]
+  return (
+    APP_ZOOM_PRESETS.find((preset) => preset > normalized) ||
+    APP_ZOOM_PRESETS[APP_ZOOM_PRESETS.length - 1]
+  )
 }
 
 export function decreaseWorkspaceZoom(currentPercent) {
@@ -195,8 +219,7 @@ function isAppleWebKitPlatform() {
   if (typeof navigator === 'undefined') return false
   const platform = String(navigator.platform || '').toLowerCase()
   const userAgent = String(navigator.userAgent || '').toLowerCase()
-  return /(mac|iphone|ipad|ipod)/.test(platform)
-    || /(mac os x|iphone|ipad|ipod)/.test(userAgent)
+  return /(mac|iphone|ipad|ipod)/.test(platform) || /(mac os x|iphone|ipad|ipod)/.test(userAgent)
 }
 
 export async function applyWorkspaceAppZoom(percent) {
@@ -208,7 +231,8 @@ export async function applyWorkspaceAppZoom(percent) {
   const root = document.documentElement
   root.style.removeProperty('zoom')
 
-  const isTauriWebview = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
+  const isTauriWebview =
+    typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
   if (isTauriWebview) {
     try {
       await getCurrentWebview().setZoom(1)
@@ -227,27 +251,87 @@ export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
 
 export function setWorkspaceProseFont(name) {
   writeValue('proseFont', name)
-  document.documentElement.style.setProperty('--font-prose', PROSE_FONT_STACKS[name] || PROSE_FONT_STACKS.inter)
+  document.documentElement.style.setProperty(
+    '--font-prose',
+    PROSE_FONT_STACKS[name] || PROSE_FONT_STACKS.inter
+  )
+}
+
+function resolveSystemTheme() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'dark'
+  }
+  return window.matchMedia(SYSTEM_THEME_MEDIA).matches ? 'dark' : 'light'
+}
+
+function applyWorkspaceThemeClasses(theme) {
+  if (typeof document === 'undefined') return
+
+  const normalizedTheme = normalizeWorkspaceThemeId(theme)
+  const resolvedTheme = normalizedTheme === 'system' ? resolveSystemTheme() : normalizedTheme
+
+  const root = document.documentElement
+  root.classList.remove(...THEME_CLASSES)
+  root.classList.add(`theme-${resolvedTheme}`)
+  if (normalizedTheme === 'system') {
+    root.classList.add('theme-system')
+  }
+  root.dataset.themePreference = normalizedTheme
+  root.dataset.themeResolved = resolvedTheme
+}
+
+function detachSystemThemeListener() {
+  if (typeof removeSystemThemeListener === 'function') {
+    removeSystemThemeListener()
+  }
+  removeSystemThemeListener = null
+  systemThemeQuery = null
+}
+
+function attachSystemThemeListener() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+  if (systemThemeQuery) return
+
+  systemThemeQuery = window.matchMedia(SYSTEM_THEME_MEDIA)
+  const handleChange = () => {
+    if (activeWorkspaceTheme === 'system') {
+      applyWorkspaceThemeClasses('system')
+    }
+  }
+
+  if (typeof systemThemeQuery.addEventListener === 'function') {
+    systemThemeQuery.addEventListener('change', handleChange)
+    removeSystemThemeListener = () => systemThemeQuery?.removeEventListener('change', handleChange)
+    return
+  }
+
+  if (typeof systemThemeQuery.addListener === 'function') {
+    systemThemeQuery.addListener(handleChange)
+    removeSystemThemeListener = () => systemThemeQuery?.removeListener(handleChange)
+  }
+}
+
+function syncSystemThemeListener(theme) {
+  activeWorkspaceTheme = normalizeWorkspaceThemeId(theme)
+  if (activeWorkspaceTheme === 'system') {
+    attachSystemThemeListener()
+    return
+  }
+  detachSystemThemeListener()
 }
 
 export function setWorkspaceTheme(name) {
-  writeValue('theme', name)
-  const root = document.documentElement
-  root.classList.remove(...THEME_CLASSES)
-  if (name !== 'default') {
-    root.classList.add(`theme-${name}`)
-  }
+  const nextTheme = normalizeWorkspaceThemeId(name)
+  writeValue('theme', nextTheme)
+  syncSystemThemeListener(nextTheme)
+  applyWorkspaceThemeClasses(nextTheme)
+  return nextTheme
 }
 
 export function restoreWorkspaceTheme(currentTheme) {
-  const savedTheme = readString('theme')
-  if (!savedTheme) {
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
-    return prefersDark ? 'monokai' : 'humane'
-  }
-
-  if (currentTheme !== 'default') {
-    document.documentElement.classList.add(`theme-${currentTheme}`)
-  }
-  return null
+  const nextTheme = normalizeWorkspaceThemeId(currentTheme || 'system')
+  writeValue('theme', nextTheme)
+  syncSystemThemeListener(nextTheme)
+  applyWorkspaceThemeClasses(nextTheme)
+  return nextTheme
 }

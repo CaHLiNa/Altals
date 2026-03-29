@@ -31,10 +31,7 @@
   white-space: pre-wrap;
   font-style: italic;
 }
-.theme-light .ghost-text,
-.theme-solarized .ghost-text,
-.theme-humane .ghost-text,
-.theme-one-light .ghost-text {
+.theme-light .ghost-text {
   color: var(--fg-muted);
   opacity: 0.6;
 }
