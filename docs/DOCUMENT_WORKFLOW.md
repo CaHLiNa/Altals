@@ -12,14 +12,14 @@ Altals currently supports one document workflow family: Markdown, LaTeX, and Typ
 
 - Markdown preview
 - Typst native preview
-- PDF viewer output for generated documents
+- Generated document outputs opened through the system default app
 
 ## Workflow Rules
 
 - Source files stay editable in the text editor surface.
 - Preview paths are derived from a source file and must resolve back to that source.
 - LaTeX and Typst compile actions should expose missing-tool and build-failure states clearly.
-- PDF viewing should stay focused on reading, search, outline, thumbnails, and source-position sync.
+- Generated output opening should stay explicit and never replace the source editing surface.
 
 ## Tooling Dependencies
 

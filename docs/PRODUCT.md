@@ -8,7 +8,7 @@ Altals is a local-first document workspace centered on Markdown, LaTeX, and Typs
 - browse project files
 - write or revise Markdown, LaTeX, and Typst documents
 - compile or preview outputs
-- inspect outline, run status, and generated PDF results
+- inspect outline, run status, and generated document outputs
 - save, snapshot, and review changes safely
 
 ## First-Class Objects
@@ -25,7 +25,7 @@ Altals is a local-first document workspace centered on Markdown, LaTeX, and Typs
 - autosave and local save points
 - Git and GitHub sync
 - editor, theme, and preview preferences
-- PDF viewing and document compile services
+- document compile services and external output opening
 
 These systems support the document loop. They are not separate products.
 
@@ -33,7 +33,7 @@ These systems support the document loop. They are not separate products.
 
 - The desktop shell is intentionally reduced to one document workbench.
 - The left sidebar is for project files only.
-- The center surface is for text editing, Markdown preview, Typst preview, PDF viewing, and unsupported-file fallback.
+- The center surface is for text editing, Markdown preview, Typst preview, and unsupported-file fallback.
 - The right sidebar is for outline and document-run feedback.
 - The desktop Tauri app is the main product surface today.
 - The `web/` directory is a separate web project, not the main shell.

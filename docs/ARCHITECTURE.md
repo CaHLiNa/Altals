@@ -34,7 +34,7 @@ The Tauri backend is still flatter than the frontend, but the target split is:
 - The shell already behaves like a single document workspace.
 - Document preview and compile logic are mostly behind named runtime or service seams.
 - Editor restore and preference loading still carry a small amount of migration code for old saved state.
-- Some backend modules and bundle-heavy viewer paths are still broader than ideal.
+- Some backend modules and editor-heavy paths are still broader than ideal.
 
 ## Architectural Direction
 

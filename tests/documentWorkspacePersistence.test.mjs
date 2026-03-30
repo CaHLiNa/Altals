@@ -22,7 +22,6 @@ function createWorkflowStore() {
   return {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      latex: { preferredPreview: 'pdf' },
       typst: { preferredPreview: 'native' },
     },
     session: {
@@ -40,8 +39,8 @@ function createWorkflowStore() {
 }
 
 test('document workspace persistence round-trip restores source-first workspace semantics instead of pane-first preview tabs', () => {
-  const sourcePath = '/workspace/main.tex'
-  const previewPath = `preview:${sourcePath}`
+  const sourcePath = '/workspace/main.typ'
+  const previewPath = `typst-preview:${sourcePath}`
   const saved = buildPersistedEditorState({
     activePaneId: 'pane-preview',
     paneTree: {

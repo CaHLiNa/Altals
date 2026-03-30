@@ -21,6 +21,6 @@ Altals uses Vite for the frontend build and Tauri for the desktop application sh
 
 ## Current Build Characteristics
 
-- The frontend bundle includes large editor- and PDF-related chunks.
+- The frontend bundle still includes large editor-related chunks.
 - Vite currently reports some large-chunk warnings, but the production build completes successfully.
 - The desktop app depends on both the Vite asset build and the Tauri native build pipeline.

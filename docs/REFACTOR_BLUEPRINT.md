@@ -21,9 +21,9 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 ## Current State Assessment
 
 - The visible shell has already been reduced to files, editor/preview, outline, and document-run panels.
-- PDF viewing is now document-only and no longer carries research or translation sub-products.
+- PDF viewing has been removed from the desktop shell; generated outputs now open externally.
 - Some migration guards still exist for old saved editor state and retired virtual tabs.
-- Bundle size is still heavier than ideal around PDF and editor tooling.
+- Bundle size is still heavier than ideal around editor tooling.
 
 ## Phase Plan
 
@@ -34,7 +34,7 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 ## Task Backlog
 
 - continue trimming unused runtime helpers and compatibility code
-- reduce bundle weight around PDF and editor dependencies
+- reduce bundle weight around editor dependencies
 - keep docs and audit tests aligned with the actual product
 - continue flattening broad backend modules
 
@@ -45,13 +45,12 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 ## Completed
 
 - March 28, 2026: reduced the shell to a single document workspace for Markdown, LaTeX, and Typst.
-- March 28, 2026: replaced the old PDF stack with a document-only pdf.js viewer that keeps search, outline, thumbnails, zoom, and source sync.
 - March 28, 2026: removed retired AI, notebook, reference, terminal, and conversion modules plus their tests and package dependencies from the active app path.
 - March 28, 2026: removed the remaining retired shell compatibility branches, rewrote active docs to the current product truth, and deleted stale historical planning/spec files from the repository.
+- March 29, 2026: removed the in-app PDF renderer and switched document outputs to external opening from the compile workflow.
 
 ## Blocked / Risks
 
-- `pdf.js` and editor dependencies still produce large chunks at build time.
 - Some backend areas are still broader than the cleaned frontend shell.
 - Old local caches from pre-prune versions may still be encountered in user workspaces, so restore paths need to stay conservative.
 

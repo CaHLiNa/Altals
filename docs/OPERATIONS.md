@@ -10,7 +10,7 @@ This document describes the main user-facing operations that still exist in the 
 - Autosave edited text buffers back to disk
 - Render Markdown preview
 - Compile LaTeX or Typst documents
-- Reveal generated PDF output
+- Open generated document output externally
 - Inspect outline and document-run status
 - Prepare workspace files before snapshots or history capture
 
@@ -25,4 +25,4 @@ This document describes the main user-facing operations that still exist in the 
 
 - Verify source edits persist correctly.
 - Verify preview routes resolve back to the correct source file.
-- Verify compile and PDF reveal flows handle missing tools and failing builds cleanly.
+- Verify compile and external output opening flows handle missing tools and failing builds cleanly.
