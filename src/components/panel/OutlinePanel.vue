@@ -14,7 +14,7 @@
     </div>
 
     <div v-else class="outline-panel-scroll">
-      <div v-for="section in groupedOutlineSections" :key="section.key" class="mb-2 last:mb-0">
+      <div v-for="section in groupedOutlineSections" :key="section.key" class="mb-1 last:mb-0">
         <div class="outline-panel-section-label">
           {{ section.title }}
         </div>
@@ -357,9 +357,9 @@ function getOutlineKindLabel(kind) {
 }
 
 function getOutlineItemPadding(sectionKey, item = {}) {
-  if (sectionKey !== 'contents') return 8
+  if (sectionKey !== 'contents') return 6
   const displayLevel = Math.max(1, Number(item.displayLevel || item.level) || 1)
-  return (displayLevel - 1) * 12 + 8
+  return (displayLevel - 1) * 8 + 6
 }
 
 function outlineItemKey(item = {}) {
@@ -456,17 +456,17 @@ onUnmounted(() => {
 .outline-panel-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 2px 0 6px;
+  padding: 2px 0 4px;
 }
 
 .outline-panel-section-label {
   padding: 6px 8px 3px;
-  font-size: var(--ui-font-tiny);
+  font-size: var(--sidebar-font-meta);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.68;
+  opacity: 0.62;
 }
 
 .outline-panel-row {
@@ -474,19 +474,19 @@ onUnmounted(() => {
   align-items: center;
   position: relative;
   min-height: 24px;
-  padding: 2px 8px 2px 12px;
-  border-radius: 7px;
+  padding: 1px 9px 1px 10px;
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
   font-size: var(--sidebar-font-item);
   line-height: 1.25;
-  opacity: 0.9;
+  opacity: 1;
   transition:
     background-color 140ms ease,
     color 140ms ease,
     box-shadow 140ms ease,
-    opacity 140ms ease;
+    border-color 140ms ease;
 }
 
 .outline-panel-row::before {
@@ -505,29 +505,28 @@ onUnmounted(() => {
 }
 
 .outline-panel-row:hover {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  opacity: 1;
+  background: color-mix(in srgb, var(--workspace-paper) 52%, transparent);
 }
 
 .outline-panel-row.is-active {
-  background: transparent;
+  background: color-mix(in srgb, var(--workspace-paper) 88%, transparent);
   color: var(--text-primary);
-  opacity: 1;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent);
 }
 
 .outline-panel-row.is-active::before {
-  background: color-mix(in srgb, var(--accent) 64%, transparent);
-  opacity: 1;
+  background: transparent;
+  opacity: 0;
 }
 
 .outline-panel-kind {
-  margin-right: 8px;
+  margin-right: 6px;
   flex-shrink: 0;
-  font-size: var(--ui-font-tiny);
+  font-size: var(--sidebar-font-meta);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.76;
+  opacity: 0.62;
 }
 </style>

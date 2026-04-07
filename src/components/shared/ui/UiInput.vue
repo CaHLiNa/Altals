@@ -115,10 +115,11 @@ defineExpose({
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-base);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
   color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease,
@@ -126,7 +127,8 @@ defineExpose({
 }
 
 .ui-input-shell:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface-base) 94%, transparent);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
@@ -135,18 +137,18 @@ defineExpose({
 }
 
 .ui-input-shell--sm {
-  min-height: 28px;
-  padding: 0 var(--space-2);
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .ui-input-shell--md {
-  min-height: 32px;
-  padding: 0 var(--space-3);
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .ui-input-shell--lg {
-  min-height: 36px;
-  padding: 0 var(--space-3);
+  min-height: 42px;
+  padding: 0 14px;
 }
 
 .ui-input-control {

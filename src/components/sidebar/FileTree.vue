@@ -65,21 +65,32 @@
     <template v-if="!collapsed">
       <div class="file-tree-body">
         <!-- Search input -->
-        <div class="px-2 py-0.5 shrink-0">
+        <div class="file-tree-search-row shrink-0">
           <UiInput
             ref="filterInputEl"
             v-model="filterQuery"
             size="sm"
-            class="file-tree-search-input"
+            shell-class="file-tree-search-input"
             :placeholder="t('Filter files...')"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
             spellcheck="false"
-            @keydown="handleFilterKeydown"
+            @keydown="handleFilterInputKeydown"
           >
             <template #prefix>
               <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
+            </template>
+            <template #suffix>
+              <button
+                type="button"
+                class="file-tree-quick-open-trigger"
+                :title="t('Quick open ({shortcut})', { shortcut: `${modKey}+P` })"
+                :aria-label="t('Quick open')"
+                @click.stop="emit('open-search')"
+              >
+                <kbd class="ui-kbd file-tree-quick-open-kbd">{{ modKey }}+P</kbd>
+              </button>
             </template>
           </UiInput>
         </div>
@@ -175,19 +186,40 @@
 
       <div class="workspace-footer-action">
         <UiButton
-          ref="workspaceMenuAnchorEl"
+          class="workspace-footer-icon-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
+          :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
+          :aria-label="t('Settings')"
+          @click.stop="emit('open-settings')"
+        >
+          <IconSettings :size="15" :stroke-width="1.7" />
+        </UiButton>
+
+        <UiButton
           class="workspace-footer-action-button"
           variant="ghost"
           size="sm"
           block
+          :title="t('Open Folder...')"
+          :aria-label="t('Open Folder...')"
+          @click.stop="emit('open-folder')"
+        >
+          {{ t('Open Folder...') }}
+        </UiButton>
+
+        <UiButton
+          ref="workspaceMenuAnchorEl"
+          class="workspace-footer-icon-button"
+          variant="ghost"
+          size="icon-sm"
+          icon-only
           :title="t('Workspace Menu')"
           :aria-label="t('Workspace Menu')"
           @click.stop="toggleWorkspaceMenu"
         >
-          {{ t('Open Folder...') }}
-          <template #trailing>
-            <IconDotsVertical :size="16" :stroke-width="1.7" />
-          </template>
+          <IconDotsVertical :size="15" :stroke-width="1.7" />
         </UiButton>
       </div>
 
@@ -215,6 +247,10 @@
             <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
               {{ t('Open Folder...') }}
               <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }}+O</span>
+            </div>
+            <div class="context-menu-item" @click="handleWorkspaceMenuOpenSettings">
+              {{ t('Settings...') }}
+              <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }},</span>
             </div>
             <template v-if="recentWorkspaces.length">
               <div class="context-menu-separator"></div>
@@ -301,6 +337,7 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconDotsVertical,
+  IconSettings,
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
@@ -316,6 +353,8 @@ const props = defineProps({
 })
 const emit = defineEmits([
   'file-version-history',
+  'open-search',
+  'open-settings',
   'toggle-collapse',
   'open-folder',
   'open-workspace',
@@ -405,6 +444,16 @@ function openFile(path) {
   editor.openFile(path)
 }
 
+function handleFilterInputKeydown(event) {
+  if (isMod(event) && String(event.key || '').toLowerCase() === 'p') {
+    event.preventDefault()
+    emit('open-search')
+    return
+  }
+
+  handleFilterKeydown(event)
+}
+
 async function handleTreeKeydown(e) {
   if (renaming.active) return
   await rawHandleTreeKeydown(e)
@@ -487,6 +536,11 @@ function closeWorkspaceMenu() {
 function handleWorkspaceMenuOpenFolder() {
   closeWorkspaceMenu()
   emit('open-folder')
+}
+
+function handleWorkspaceMenuOpenSettings() {
+  closeWorkspaceMenu()
+  emit('open-settings')
 }
 
 function handleWorkspaceMenuOpenRecent(path) {
@@ -739,7 +793,7 @@ defineExpose({
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-block: 2px;
+  padding: 2px 4px 4px;
 }
 
 .file-tree-header {
@@ -758,30 +812,69 @@ defineExpose({
   transform: rotate(90deg);
 }
 
-.file-tree-search-input {
-  border-color: transparent;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  min-height: var(--sidebar-input-height);
-  padding-inline: 7px;
-  gap: var(--sidebar-inline-gap);
-  box-shadow: none;
-  opacity: 0.86;
+.file-tree-search-row {
+  padding: 8px 6px 4px;
 }
 
-.file-tree-search-input:focus-within {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+:deep(.file-tree-search-input) {
+  border-color: color-mix(in srgb, var(--border-subtle) 14%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--workspace-paper) 60%, var(--surface-hover));
+  min-height: 20px;
+  padding-inline: 6px;
+  gap: var(--sidebar-inline-gap);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 5%, transparent);
+  opacity: 1;
+}
+
+:deep(.file-tree-search-input:focus-within) {
+  border-color: color-mix(in srgb, var(--border) 22%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper) 84%, transparent);
   box-shadow: 0 0 0 2px var(--focus-ring);
   opacity: 1;
 }
 
-.file-tree-search-input :deep(.ui-input-control) {
+:deep(.file-tree-search-input .ui-input-control) {
   font-size: var(--sidebar-font-search);
+  line-height: 1.1;
 }
 
 .file-tree-search-icon {
   color: var(--text-muted);
+}
+
+:deep(.file-tree-search-input.ui-input-shell--sm) {
+  min-height: 20px;
+  padding-inline: 6px;
+}
+
+:deep(.file-tree-search-input .ui-input-affix) {
+  height: 14px;
+}
+
+.file-tree-quick-open-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.file-tree-quick-open-trigger:hover {
+  color: var(--text-primary);
+}
+
+.file-tree-quick-open-kbd {
+  min-width: 18px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  line-height: 1;
 }
 
 .file-tree-root-rename-row {
@@ -790,9 +883,9 @@ defineExpose({
 
 .file-tree-rename-input {
   font-size: var(--sidebar-font-control);
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--border) 48%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 84%, transparent);
 }
 
 .file-tree-drop-indicator {
@@ -810,25 +903,42 @@ defineExpose({
 }
 
 .workspace-footer-action {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 6px 0 0;
+  padding: 8px 2px 0;
   border-top: 0;
   background: transparent;
 }
 
+.workspace-footer-icon-button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
+  opacity: 0.86;
+}
+
+.workspace-footer-icon-button:hover:not(:disabled) {
+  opacity: 1;
+}
+
 .workspace-footer-action-button {
   position: relative;
+  flex: 1 1 auto;
   min-height: var(--sidebar-row-height);
-  justify-content: flex-start;
-  padding-inline: 10px 30px;
+  justify-content: center;
+  padding-inline: 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
+  background: transparent;
   color: var(--fg-secondary);
-  opacity: 0.72;
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    opacity 140ms ease;
+    border-color 140ms ease;
 }
 
 .workspace-footer-action-button :deep(.ui-button-label) {
@@ -836,25 +946,14 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: left;
-  font-size: var(--sidebar-font-control);
+  text-align: center;
+  font-size: var(--sidebar-font-item);
   letter-spacing: 0;
   line-height: 1.1;
 }
 
-.workspace-footer-action-button :deep(.ui-button-trailing) {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  color: var(--fg-muted);
-  transform: translateY(-50%);
-}
-
 .workspace-footer-action-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper) 72%, transparent);
   color: var(--fg-primary);
-  opacity: 1;
 }
 </style>

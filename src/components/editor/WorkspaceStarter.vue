@@ -384,42 +384,48 @@ async function createFromTemplate(template) {
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 28px 28px 40px;
+  padding: 36px 30px 48px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 32px;
   box-sizing: border-box;
 }
 
 .workspace-starter-masthead {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.78fr);
-  gap: 28px;
+  gap: 30px;
   align-items: start;
 }
 
 .workspace-starter-masthead-copy {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 2px 0 0;
+  gap: 12px;
+  padding: 18px 0 0;
 }
 
 .workspace-starter-kicker,
 .workspace-starter-section-kicker,
 .workspace-starter-context-label {
   font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.82;
+  opacity: 0.9;
 }
 
 .workspace-starter-title,
 .workspace-starter-section-title {
   margin: 0;
-  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'Helvetica Neue',
+    system-ui,
+    sans-serif;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -445,15 +451,17 @@ async function createFromTemplate(template) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .workspace-starter-context-item {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 22%, transparent);
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 76%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--shell-muted-surface) 78%, transparent);
 }
 
 .workspace-starter-context-value {
@@ -472,8 +480,8 @@ code.workspace-starter-context-value {
 .workspace-starter-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .workspace-starter-primary,
@@ -495,49 +503,55 @@ code.workspace-starter-context-value {
 }
 
 .workspace-starter-primary {
-  border-color: transparent;
-  background: var(--subtle-fill);
-  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--button-primary-bg) 72%, var(--border));
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 26px color-mix(in srgb, black 12%, transparent);
 }
 
 .workspace-starter-primary:hover:not(:disabled) {
-  border-color: var(--chrome-reveal);
-  background: var(--subtle-fill-strong);
+  border-color: color-mix(in srgb, var(--button-primary-bg-hover) 72%, var(--border));
+  background: var(--button-primary-bg-hover);
 }
 
 .workspace-starter-secondary {
-  border-color: transparent;
-  background: transparent;
+  border-color: color-mix(in srgb, var(--shell-border) 76%, transparent);
+  background: color-mix(in srgb, var(--shell-muted-surface) 72%, transparent);
   color: var(--text-secondary);
 }
 
 .workspace-starter-secondary:hover:not(:disabled) {
   border-color: var(--chrome-reveal);
-  background: var(--subtle-fill);
+  background: color-mix(in srgb, var(--shell-muted-surface) 92%, transparent);
   color: var(--text-primary);
 }
 
 .workspace-starter-overview,
 .workspace-starter-section {
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 78%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--shell-surface) 94%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent),
+    0 12px 24px color-mix(in srgb, black 6%, transparent);
 }
 
 .workspace-starter-overview {
-  padding: 6px 0 0;
+  padding: 22px;
 }
 
 .workspace-starter-overview-grid {
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 22%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--shell-border) 62%, transparent);
 }
 
 .workspace-starter-overview-item {
-  padding: 12px 0 0;
+  padding: 14px 0 0;
   border-bottom: none;
 }
 
@@ -568,13 +582,12 @@ code.workspace-starter-context-value {
 .workspace-starter-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(280px, 0.9fr);
-  gap: 28px;
+  gap: 30px;
   align-items: start;
 }
 
 .workspace-starter-section {
-  padding: 14px 0 0;
-  border-top: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
+  padding: 22px;
 }
 
 .workspace-starter-section-head {
@@ -604,11 +617,11 @@ code.workspace-starter-context-value {
 .workspace-starter-ledger-row,
 .workspace-starter-surface-row {
   width: 100%;
-  padding: 10px 10px;
-  border: 1px solid transparent;
+  padding: 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 48%, transparent);
   border-radius: 10px;
   border-top: 1px solid transparent;
-  background: transparent;
+  background: color-mix(in srgb, var(--shell-muted-surface) 56%, transparent);
   text-align: left;
 }
 
@@ -635,7 +648,7 @@ code.workspace-starter-context-value {
 .workspace-starter-create-item:hover,
 .workspace-starter-template-item:hover {
   border-color: var(--chrome-reveal);
-  background: var(--subtle-fill);
+  background: color-mix(in srgb, var(--shell-muted-surface) 86%, transparent);
 }
 
 .workspace-starter-ledger-kind {
@@ -650,8 +663,8 @@ code.workspace-starter-context-value {
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--subtle-fill);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--shell-accent-surface) 92%, transparent);
   box-sizing: border-box;
 }
 
@@ -706,9 +719,9 @@ code.workspace-starter-context-value {
 .workspace-starter-template-item {
   min-height: 58px;
   padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 56%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--shell-muted-surface) 58%, transparent);
   display: flex;
   gap: 12px;
   text-align: left;
@@ -755,7 +768,7 @@ code.workspace-starter-context-value {
 
 @container (max-width: 980px) {
   .workspace-starter-shell {
-    padding: 22px 18px 32px;
+    padding: 24px 18px 32px;
   }
 
   .workspace-starter-masthead,

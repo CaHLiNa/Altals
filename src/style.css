@@ -21,9 +21,7 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top center, var(--app-canvas-glow), transparent 42%),
-    var(--app-canvas);
+  background: var(--app-canvas);
   color: var(--fg-primary);
   font-family: var(--font-sans);
   font-size: var(--ui-font-size);

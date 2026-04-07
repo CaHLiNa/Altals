@@ -151,8 +151,17 @@ function selectInspectorPanel(panel) {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  padding: 2px 8px 8px 6px;
-  background: transparent;
+  padding: 30px 6px 10px 4px;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--panel-surface) 100%, var(--app-canvas)) 0%,
+      color-mix(in srgb, var(--panel-surface) 94%, var(--app-canvas)) 100%
+    );
+  box-shadow:
+    inset 1px 0 0 var(--workbench-divider),
+    inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
+  backdrop-filter: saturate(1.06) blur(18px);
 }
 
 .right-shell-pane {

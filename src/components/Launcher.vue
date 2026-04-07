@@ -235,13 +235,13 @@ function removeRecent(path) {
 .launcher {
   flex: 1;
   overflow: auto;
-  padding: var(--space-5);
+  padding: 24px 20px 28px;
 }
 
 .launcher-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
-  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1.42fr) minmax(320px, 0.78fr);
+  gap: 16px;
   width: min(100%, var(--shell-hero-width));
   min-height: 100%;
   margin: 0 auto;
@@ -250,18 +250,33 @@ function removeRecent(path) {
 
 .launcher-hero,
 .launcher-recents {
-  border: 1px solid var(--shell-border);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 54%, transparent);
   border-radius: var(--shell-radius-lg);
   background: var(--shell-surface);
-  box-shadow: var(--shell-shadow-soft);
-  backdrop-filter: blur(18px);
+  box-shadow: none;
+  backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.launcher-hero::before,
+.launcher-recents::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg-primary) 2%, transparent),
+    transparent 18%
+  );
 }
 
 .launcher-hero {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: 32px;
+  gap: 22px;
+  padding: 28px 30px 30px;
   justify-content: center;
 }
 
@@ -269,7 +284,7 @@ function removeRecent(path) {
 .launcher-recents-kicker {
   font-size: var(--ui-font-micro);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -277,33 +292,35 @@ function removeRecent(path) {
 .launcher-brand-row {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: 14px;
 }
 
 .launcher-logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 92%, white 8%), var(--accent-secondary));
-  color: white;
-  font-size: var(--ui-font-hero-sm);
-  font-weight: 700;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  width: 56px;
+  height: 56px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-base) 70%, transparent);
+  color: var(--text-primary);
+  font-size: var(--ui-font-hero-xs);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 5%, transparent);
 }
 
 .launcher-brand-copy {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .launcher-title {
   margin: 0;
-  font-family: 'Crimson Text', 'Lora', Georgia, serif;
-  font-size: var(--ui-font-hero-md);
+  font-family: var(--font-sans);
+  font-size: var(--ui-font-hero-sm);
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -313,7 +330,7 @@ function removeRecent(path) {
 .launcher-tagline {
   max-width: 580px;
   margin: 0;
-  font-size: var(--ui-font-display);
+  font-size: var(--ui-font-body);
   line-height: var(--line-height-relaxed);
   color: var(--text-secondary);
 }
@@ -321,17 +338,17 @@ function removeRecent(path) {
 .launcher-principles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: 10px;
 }
 
 .launcher-principle {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
+  padding: 12px 12px 14px;
   border-radius: var(--shell-radius-sm);
-  background: color-mix(in srgb, var(--shell-muted-surface) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 34%, transparent);
 }
 
 .launcher-principle-label {
@@ -349,7 +366,7 @@ function removeRecent(path) {
 .launcher-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: 8px;
 }
 
 .launcher-btn {
@@ -357,38 +374,33 @@ function removeRecent(path) {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 40px;
-  padding: 0 18px;
-  border-radius: 999px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
   border: 1px solid transparent;
   font: inherit;
   font-size: var(--ui-font-body);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
-    transform 140ms ease,
     background-color 140ms ease,
     border-color 140ms ease,
-    color 140ms ease,
-    opacity 140ms ease;
-}
-
-.launcher-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+    color 140ms ease;
 }
 
 .launcher-btn.primary {
-  background: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 80%, white 20%);
-  color: white;
+  background: var(--button-primary-bg);
+  border-color: color-mix(in srgb, var(--button-primary-bg) 72%, var(--border));
+  color: var(--button-primary-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .launcher-btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, white 12%);
+  background: var(--button-primary-bg-hover);
 }
 
 .launcher-btn.secondary {
-  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
   border-color: var(--shell-border);
   color: var(--text-secondary);
 }
@@ -408,7 +420,6 @@ function removeRecent(path) {
 .launcher-btn-text:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  transform: none;
 }
 
 .launcher-btn-text {
@@ -435,10 +446,10 @@ function removeRecent(path) {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: 14px;
   border-radius: var(--shell-radius-sm);
-  background: color-mix(in srgb, var(--shell-accent-surface) 52%, var(--shell-surface));
-  border: 1px solid var(--shell-accent-border);
+  background: color-mix(in srgb, var(--surface-base) 36%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 36%, transparent);
 }
 
 .launcher-clone-heading {
@@ -449,10 +460,10 @@ function removeRecent(path) {
 
 .launcher-input {
   width: 100%;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--shell-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--surface-base) 82%, transparent);
   color: var(--text-primary);
 }
@@ -478,7 +489,7 @@ function removeRecent(path) {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: 24px;
+  padding: 22px 20px 20px;
 }
 
 .launcher-recents-header {
@@ -490,7 +501,7 @@ function removeRecent(path) {
 
 .launcher-recents-title {
   margin: 4px 0 0;
-  font-size: var(--ui-font-display-sm);
+  font-size: var(--ui-font-display);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
@@ -499,12 +510,12 @@ function removeRecent(path) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 30px;
-  height: 30px;
+  min-width: 26px;
+  height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--shell-accent-surface) 72%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--surface-base) 42%, transparent);
+  color: var(--text-secondary);
   font-size: var(--ui-font-caption);
   font-weight: var(--font-weight-semibold);
 }
@@ -512,33 +523,32 @@ function removeRecent(path) {
 .launcher-recent-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .launcher-recent {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: var(--space-3);
+  gap: 10px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 22%, transparent);
   color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
   transition:
-    transform 140ms ease,
     border-color 140ms ease,
     background-color 140ms ease,
     color 140ms ease;
 }
 
 .launcher-recent:hover {
-  transform: translateY(-1px);
-  border-color: var(--shell-border-strong);
-  background: color-mix(in srgb, var(--surface-hover) 78%, transparent);
+  border-color: color-mix(in srgb, var(--shell-border) 30%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 30%, transparent);
   color: var(--text-primary);
 }
 
@@ -546,11 +556,11 @@ function removeRecent(path) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--shell-accent-surface) 56%, transparent);
-  color: var(--accent);
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-base) 28%, transparent);
+  color: var(--text-secondary);
 }
 
 .launcher-recent-text {
@@ -585,14 +595,14 @@ function removeRecent(path) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   color: var(--text-muted);
 }
 
 .launcher-recent-remove:hover {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
   color: var(--error);
 }
 
@@ -602,10 +612,10 @@ function removeRecent(path) {
   flex-direction: column;
   justify-content: center;
   gap: var(--space-2);
-  border: 1px dashed var(--shell-border);
-  border-radius: 16px;
-  padding: 22px;
-  background: color-mix(in srgb, var(--surface-muted) 48%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 28%, transparent);
+  border-radius: 12px;
+  padding: 18px;
+  background: color-mix(in srgb, var(--surface-base) 24%, transparent);
 }
 
 .launcher-empty-title {
@@ -633,12 +643,12 @@ function removeRecent(path) {
 
 @media (max-width: 720px) {
   .launcher {
-    padding: var(--space-4);
+    padding: 22px 18px 24px;
   }
 
   .launcher-hero,
   .launcher-recents {
-    padding: 20px;
+    padding: 22px 20px;
   }
 
   .launcher-brand-row {

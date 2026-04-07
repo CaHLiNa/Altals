@@ -23,19 +23,27 @@
       <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
         <WorkbenchRail
           class="app-shell-topbar shrink-0"
-          tabs-target-id="app-shell-topbar-tabs"
-          workflow-target-id="app-shell-topbar-workflow"
           :left-sidebar-open="workspace.leftSidebarOpen"
           :right-sidebar-open="workspace.rightSidebarOpen"
           :inspector-available="supportsRightSidebar"
-          @open-settings="workspace.openSettings()"
-          @open-search="openQuickSearch"
+          @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
+          @open-left-create-menu="leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)"
           @toggle-left-sidebar="workspace.toggleLeftSidebar()"
           @toggle-right-sidebar="workspace.toggleRightSidebar()"
         />
 
         <div class="app-shell-workbench flex flex-1 overflow-hidden">
-          <div class="app-shell-region app-shell-region-left shrink-0">
+          <div
+            class="app-shell-region app-shell-region-left shrink-0"
+            :class="{
+              'is-open': workspace.leftSidebarOpen,
+              'is-collapsed': !workspace.leftSidebarOpen,
+              'is-resizing': isLeftSidebarResizing,
+            }"
+            :style="{
+              width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
+            }"
+          >
             <div
               class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden"
               :class="{
@@ -46,12 +54,14 @@
               data-sidebar="left"
               :aria-hidden="workspace.leftSidebarOpen ? 'false' : 'true'"
               :style="{
-                width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
+                width: '100%',
               }"
             >
               <LeftSidebar
                 ref="leftSidebarRef"
                 @file-version-history="openFileVersionHistory"
+                @open-search="openQuickSearch"
+                @open-settings="workspace.openSettings()"
                 @open-folder="pickWorkspace"
                 @open-workspace="openWorkspace"
                 @close-folder="closeWorkspace"
@@ -60,13 +70,18 @@
           </div>
 
           <!-- Left resize handle -->
-          <ResizeHandle
-            v-if="workspace.leftSidebarOpen"
-            direction="vertical"
-            @resize="onLeftResize"
-            @resize-start="startLeftSidebarResize"
-            @resize-end="endLeftSidebarResize"
-          />
+          <div
+            class="app-shell-resize-slot"
+            :class="{ 'is-visible': workspace.leftSidebarOpen, 'is-hidden': !workspace.leftSidebarOpen }"
+          >
+            <ResizeHandle
+              class="app-shell-resize-handle"
+              direction="vertical"
+              @resize="onLeftResize"
+              @resize-start="startLeftSidebarResize"
+              @resize-end="endLeftSidebarResize"
+            />
+          </div>
 
           <div
             class="app-shell-region app-shell-region-main app-shell-main app-shell-main-shell flex-1 flex flex-col overflow-hidden"
@@ -78,8 +93,6 @@
                   :key="activeWorkbenchCacheKey"
                   v-bind="activeWorkbenchProps"
                   :class="activeWorkbenchClass"
-                  topbarTabsTargetSelector="#app-shell-topbar-tabs"
-                  topbarWorkflowTargetSelector="#app-shell-topbar-workflow"
                   @cursor-change="onCursorChange"
                 />
               </KeepAlive>
@@ -87,14 +100,19 @@
           </div>
 
           <template v-if="supportsRightSidebar">
-            <ResizeHandle
-              v-if="workspace.rightSidebarOpen"
-              direction="vertical"
-              @resize="onRightResize"
-              @resize-start="startRightSidebarResize"
-              @resize-end="endRightSidebarResize"
-              @dblclick="onRightResizeSnap"
-            />
+            <div
+              class="app-shell-resize-slot"
+              :class="{ 'is-visible': workspace.rightSidebarOpen, 'is-hidden': !workspace.rightSidebarOpen }"
+            >
+              <ResizeHandle
+                class="app-shell-resize-handle"
+                direction="vertical"
+                @resize="onRightResize"
+                @resize-start="startRightSidebarResize"
+                @resize-end="endRightSidebarResize"
+                @dblclick="onRightResizeSnap"
+              />
+            </div>
 
             <div
               class="app-shell-region app-shell-region-right shrink-0 overflow-hidden"
@@ -325,21 +343,28 @@ useAppTeardown({
 
 <style scoped>
 .app-shell-root {
-  background: transparent;
+  background: var(--app-canvas);
 }
 
 .app-shell-workspace {
+  position: relative;
   min-height: 0;
 }
 
 .app-shell-topbar {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  box-shadow: none;
 }
 
 .app-shell-workbench {
   min-height: 0;
   gap: 0;
   padding: 0;
+  background: var(--app-canvas);
 }
 
 .app-shell-region {
@@ -348,15 +373,19 @@ useAppTeardown({
 }
 
 .app-shell-region-left {
-  background: color-mix(in srgb, var(--panel-surface) 62%, transparent);
+  background: transparent;
+  will-change: width;
+  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell-region-main {
-  background: transparent;
+  background: var(--shell-editor-surface);
 }
 
 .app-shell-region-right {
-  background: color-mix(in srgb, var(--panel-surface) 48%, transparent);
+  background: transparent;
+  will-change: width;
+  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell-sidebar {
@@ -366,22 +395,35 @@ useAppTeardown({
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  will-change: opacity, transform;
   transition:
-    opacity 140ms ease,
-    background-color 140ms ease;
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 160ms ease;
 }
 
 .app-shell-sidebar > * {
   min-width: 100%;
   height: 100%;
+  transform: translateX(0);
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell-sidebar-left.is-collapsed > * {
   opacity: 0;
+  transform: translateX(-10px);
 }
 
 .app-shell-sidebar-right.is-collapsed > * {
   opacity: 0;
+  transform: translateX(10px);
+}
+
+.app-shell-sidebar-left.is-open > *,
+.app-shell-sidebar-right.is-open > * {
+  transition-delay: 24ms;
 }
 
 .app-shell-sidebar.is-collapsed {
@@ -408,10 +450,37 @@ useAppTeardown({
 
 .app-shell-main-card {
   min-width: 0;
+  box-sizing: border-box;
+  padding-top: 30px;
   border: none;
   border-radius: 0;
-  background: transparent;
+  background: var(--shell-editor-surface);
   box-shadow: none;
   overflow: hidden;
+}
+
+.app-shell-resize-slot {
+  flex: 0 0 auto;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    width 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 140ms ease;
+}
+
+.app-shell-resize-slot.is-visible {
+  width: 6px;
+  opacity: 1;
+  background: transparent;
+}
+
+.app-shell-resize-slot.is-hidden {
+  pointer-events: none;
+}
+
+.app-shell-resize-handle {
+  width: 6px;
+  height: 100%;
 }
 </style>

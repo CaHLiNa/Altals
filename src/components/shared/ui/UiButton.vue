@@ -108,7 +108,7 @@ defineExpose({
   gap: var(--space-2);
   min-width: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -119,7 +119,6 @@ defineExpose({
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease,
-    opacity 140ms ease,
     box-shadow 140ms ease;
 }
 
@@ -134,62 +133,67 @@ defineExpose({
 }
 
 .ui-button--sm {
-  min-height: 28px;
-  padding: 0 var(--space-3);
+  min-height: 30px;
+  padding: 0 12px;
   font-size: var(--ui-font-caption);
 }
 
 .ui-button--md {
-  min-height: 32px;
-  padding: 0 var(--space-3);
+  min-height: 36px;
+  padding: 0 14px;
   font-size: var(--ui-font-body);
 }
 
 .ui-button--lg {
-  min-height: 36px;
-  padding: 0 var(--space-4);
+  min-height: 42px;
+  padding: 0 18px;
   font-size: var(--ui-font-body);
 }
 
 .ui-button--icon-sm {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
 }
 
 .ui-button--icon-xs {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
 }
 
 .ui-button--icon-md {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
+  border-radius: 12px;
 }
 
 .ui-button--primary {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  color: var(--accent);
+  background: var(--button-primary-bg);
+  border-color: color-mix(in srgb, var(--button-primary-bg) 72%, var(--border));
+  color: var(--button-primary-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 22px color-mix(in srgb, black 12%, transparent);
 }
 
 .ui-button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--button-primary-bg-hover);
 }
 
 .ui-button--secondary {
-  background: var(--surface-base);
-  border-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
+  border-color: color-mix(in srgb, var(--border-subtle) 88%, transparent);
   color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
 }
 
 .ui-button--secondary:hover:not(:disabled) {
   border-color: var(--border-strong);
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
   color: var(--text-primary);
 }
 
@@ -208,7 +212,7 @@ defineExpose({
 }
 
 .ui-button--ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 62%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
   color: var(--text-primary);
 }
 

@@ -226,9 +226,9 @@ onBeforeUnmount(() => {
   max-width: 90vw;
   height: 640px;
   max-height: 90vh;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--panel-elevated) 98%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
+  border-radius: 14px;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
@@ -236,14 +236,14 @@ onBeforeUnmount(() => {
 }
 
 .settings-titlebar {
-  height: 48px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: 0 var(--space-3) 0 var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-raised);
+  padding: 0 18px 0 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
   user-select: none;
   cursor: grab;
 }
@@ -259,12 +259,12 @@ onBeforeUnmount(() => {
   font-size: var(--ui-font-caption);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.14em;
   color: var(--text-muted);
 }
 
 .settings-titlebar-title {
-  font-size: var(--ui-font-title);
+  font-size: var(--ui-font-display);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   white-space: nowrap;
@@ -276,6 +276,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: flex;
+  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
 }
 
 .settings-close {
@@ -284,13 +285,13 @@ onBeforeUnmount(() => {
 
 /* Left nav */
 .settings-nav {
-  width: 160px;
-  border-right: 1px solid var(--border-subtle);
-  padding: var(--space-3) var(--space-2);
+  width: 176px;
+  border-right: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
+  padding: 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: var(--surface-raised);
+  background: color-mix(in srgb, var(--surface-base) 24%, transparent);
 }
 
 .settings-nav-header {
@@ -299,51 +300,54 @@ onBeforeUnmount(() => {
   font-size: var(--ui-font-caption);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.14em;
   color: var(--text-muted);
-  padding: 2px 8px 8px;
+  padding: 6px 10px 6px;
 }
 
 .settings-nav-item {
   justify-content: flex-start;
-  padding: 0 8px;
-  min-height: 32px;
+  padding: 0 10px;
+  min-height: 30px;
   color: var(--text-secondary);
   text-align: left;
   font-size: var(--ui-font-body);
+  border-radius: 7px;
 }
 
 .settings-nav-item:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .settings-nav-item.is-active {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 26%, transparent);
   color: var(--text-primary);
 }
 
 .settings-nav-separator {
   height: 1px;
-  background: var(--border-subtle);
-  margin: 4px 8px;
+  background: color-mix(in srgb, var(--border-subtle) 30%, transparent);
+  margin: 6px 8px;
 }
 
 /* Main content */
 .settings-content {
   flex: 1;
   min-width: 0;
-  padding: var(--space-5);
+  padding: 18px 20px 22px;
   overflow-y: auto;
+  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
 }
 </style>
 
 <!-- Shared styles for all settings sections (scoped under .settings-modal to prevent leakage) -->
 <style>
 .settings-modal .settings-section-title {
-  font-size: var(--ui-font-title);
+  font-size: var(--ui-font-display);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .settings-modal .settings-hint {
@@ -420,18 +424,19 @@ onBeforeUnmount(() => {
 .settings-modal .settings-choice-card {
   justify-content: flex-start;
   align-items: stretch;
-  padding: 10px 12px;
+  padding: 12px 14px;
   text-align: left;
+  border-radius: 10px;
 }
 
 .settings-modal .settings-choice-card:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--border) 34%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 42%, transparent);
 }
 
 .settings-modal .settings-choice-card.is-active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-base));
+  border-color: color-mix(in srgb, var(--border) 32%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
   color: var(--text-primary);
 }
 
@@ -462,7 +467,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   font-size: var(--ui-font-micro);
   color: var(--text-muted);
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-base) 32%, transparent);
 }
 
 .settings-modal .settings-choice-card-meta.is-good {
@@ -475,9 +480,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent);
   border-radius: var(--radius-sm);
-  background: var(--surface-base);
+  background: color-mix(in srgb, var(--surface-base) 42%, transparent);
 }
 
 .settings-modal .settings-segmented-btn {
@@ -488,7 +493,7 @@ onBeforeUnmount(() => {
 }
 
 .settings-modal .settings-segmented-btn.is-active {
-  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
   color: var(--text-primary);
 }
 
@@ -500,7 +505,7 @@ onBeforeUnmount(() => {
 }
 
 .settings-modal .settings-list-button.is-active {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
   color: var(--text-primary);
 }
 
@@ -526,6 +531,7 @@ onBeforeUnmount(() => {
 
 .settings-modal .settings-disclosure-icon {
   transition: transform 0.15s ease;
+  transform-origin: center;
 }
 
 .settings-modal .settings-disclosure-button.is-active .settings-disclosure-icon {
@@ -534,10 +540,10 @@ onBeforeUnmount(() => {
 
 /* Shared card styles */
 .settings-modal .env-lang-card {
-  border: 1px solid var(--border-subtle);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
   border-radius: var(--radius-md);
   padding: 10px 12px;
-  background: var(--surface-base);
+  background: color-mix(in srgb, var(--surface-base) 32%, transparent);
 }
 
 .settings-modal .env-lang-header {

@@ -1,72 +1,72 @@
 /* ===== Dark ===== */
 :root {
   color-scheme: dark;
-  --bg-primary: #1c1c1e;
-  --bg-secondary: #242426;
-  --bg-tertiary: #2c2c2f;
-  --bg-hover: #343438;
-  --fg-primary: #f5f5f7;
-  --fg-secondary: #d6d6db;
-  --fg-muted: #8e8e93;
-  --accent: #4f8cff;
-  --accent-secondary: #7aa2ff;
-  --border: #343438;
-  --success: #32d74b;
-  --error: #ff7575;
-  --warning: #ffb454;
-  --info: #64d2ff;
+  --bg-primary: #0f0f10;
+  --bg-secondary: #171719;
+  --bg-tertiary: #1f2022;
+  --bg-hover: #2a2b2e;
+  --fg-primary: #f4f4f2;
+  --fg-secondary: #d3d3cf;
+  --fg-muted: #8f8f8a;
+  --accent: #f4f4f2;
+  --accent-secondary: #a7a7a1;
+  --border: #2f2f33;
+  --success: #8aa57d;
+  --error: #d68a77;
+  --warning: #d6ab67;
+  --info: #8da7b8;
 
   /* Syntax highlighting — markdown */
-  --hl-heading: #7aa2ff;
-  --hl-heading-minor: #9dc1ff;
-  --hl-emphasis: #7aa2ff;
-  --hl-link: #64d2ff;
-  --hl-code: #79c15b;
-  --hl-number: #ffb86b;
-  --hl-keyword: #8db2ff;
-  --hl-function: #79a7ff;
-  --hl-type: #7cd6ff;
-  --hl-operator: #d2ddf0;
+  --hl-heading: #f0f0ee;
+  --hl-heading-minor: #d5d5d0;
+  --hl-emphasis: #f0f0ee;
+  --hl-link: #c6c6c0;
+  --hl-code: #9dc08f;
+  --hl-number: #d7ab71;
+  --hl-keyword: #c0b0dd;
+  --hl-function: #c6c6c0;
+  --hl-type: #c6c6c0;
+  --hl-operator: #dcd3c9;
 
   /* Syntax highlighting — code tokens */
-  --hl-string: #86cf6a;
-  --hl-comment: #8e8e93;
-  --hl-constant: #ffb86b;
-  --hl-property: #9dc1ff;
-  --hl-tag: #ff8d8d;
-  --hl-attribute: #8db2ff;
-  --hl-regexp: #8fe4ff;
-  --hl-escape: #7cd6ff;
-  --hl-self: #ff8d8d;
-  --hl-def-keyword: #8db2ff;
-  --hl-ctrl-keyword: #8db2ff;
-  --hl-module-keyword: #9dc1ff;
-  --hl-class: #7cd6ff;
-  --hl-decorator: #7aa2ff;
-  --hl-punctuation: #c7d3e5;
-  --hl-bracket: #c7d3e5;
+  --hl-string: #a4bf92;
+  --hl-comment: #948878;
+  --hl-constant: #ddb27d;
+  --hl-property: #d5d5d0;
+  --hl-tag: #daa08f;
+  --hl-attribute: #bfd1db;
+  --hl-regexp: #adc7c7;
+  --hl-escape: #c4d5d1;
+  --hl-self: #daa08f;
+  --hl-def-keyword: #c5b5e1;
+  --hl-ctrl-keyword: #c5b5e1;
+  --hl-module-keyword: #bbc8d0;
+  --hl-class: #b7ccb8;
+  --hl-decorator: #d8b286;
+  --hl-punctuation: #d6cfc5;
+  --hl-bracket: #d6cfc5;
 
   /* Editor */
-  --editor-active-line: rgba(52, 52, 56, 0.5);
-  --editor-selection: rgba(79, 140, 255, 0.24);
-  --editor-selection-match: rgba(79, 140, 255, 0.12);
-  --editor-bracket-match: rgba(79, 140, 255, 0.18);
-  --editor-bracket-border: rgba(79, 140, 255, 0.45);
-  --editor-search-match: rgba(255, 180, 84, 0.24);
+  --editor-active-line: rgba(255, 248, 237, 0.045);
+  --editor-selection: rgba(244, 244, 242, 0.16);
+  --editor-selection-match: rgba(244, 244, 242, 0.08);
+  --editor-bracket-match: rgba(244, 244, 242, 0.12);
+  --editor-bracket-border: rgba(244, 244, 242, 0.24);
+  --editor-search-match: rgba(214, 171, 103, 0.18);
 
   --hl-list: var(--warning);
 
   /* Canvas node colors */
-  --canvas-yellow: #3e3422;
-  --canvas-blue: #243246;
-  --canvas-green: #1f3426;
-  --canvas-pink: #3a252d;
-  --canvas-purple: #2d2a40;
-  --canvas-orange: #3d2c20;
-  --canvas-gray: #313137;
+  --canvas-yellow: #232324;
+  --canvas-blue: #202123;
+  --canvas-green: #202220;
+  --canvas-pink: #232122;
+  --canvas-purple: #222124;
+  --canvas-orange: #24211f;
+  --canvas-gray: #232325;
 
-  --editor-font-size: var(--ui-font-title);
-  --ui-font-size: var(--ui-font-body);
+  --ui-font-size: 13px;
+  --editor-font-size: 13px;
   --ui-font-tiny: calc(var(--ui-font-size) - 5px);
   --ui-font-fine: calc(var(--ui-font-size) - 4px);
   --ui-font-micro: calc(var(--ui-font-size) - 3px);
@@ -83,7 +83,7 @@
   --ui-font-hero-md: calc(var(--ui-font-size) + 15px);
   --ui-font-hero-lg: calc(var(--ui-font-size) + 19px);
   --ui-font-hero-xl: calc(var(--ui-font-size) + 31px);
-  --ui-line-height: 1.4;
+  --ui-line-height: 1.45;
 
   /* Surface workbench typography */
   --surface-font-kicker: var(--ui-font-micro);
@@ -94,23 +94,38 @@
   --surface-font-detail: var(--ui-font-display-md);
   --surface-font-hero: var(--ui-font-hero-sm);
   --surface-font-hero-compact: var(--ui-font-hero-xs);
-  --sidebar-font-kicker: var(--ui-font-micro);
-  --sidebar-font-search: var(--ui-font-micro);
-  --sidebar-font-control: var(--ui-font-caption);
-  --sidebar-font-item: var(--ui-font-caption);
-  --sidebar-font-meta: var(--ui-font-micro);
-  --sidebar-font-body: var(--ui-font-caption);
-  --sidebar-font-title: var(--ui-font-body);
-  --sidebar-font-title-strong: var(--ui-font-title);
+  --sidebar-font-kicker: var(--ui-font-caption);
+  --sidebar-font-search: var(--ui-font-label);
+  --sidebar-font-control: var(--ui-font-label);
+  --sidebar-font-item: var(--ui-font-label);
+  --sidebar-font-meta: var(--ui-font-caption);
+  --sidebar-font-body: var(--ui-font-label);
+  --sidebar-font-title: var(--ui-font-label);
+  --sidebar-font-title-strong: var(--ui-font-body);
   --sidebar-row-height: 24px;
-  --sidebar-row-height-tight: 22px;
+  --sidebar-row-height-tight: 24px;
   --sidebar-input-height: 24px;
   --sidebar-inline-gap: 4px;
+  --chrome-icon-size: 14px;
+  --chrome-sidebar-icon-size: 12px;
+  --content-icon-size: 12px;
 
   /* Font stacks — single source of truth */
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'Helvetica Neue',
+    system-ui,
+    sans-serif;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
-  --font-prose: 'Inter', system-ui, sans-serif;
+  --font-prose:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'Helvetica Neue',
+    system-ui,
+    sans-serif;
   --ui-font: var(--font-sans);
 
   /* Semantic design tokens */
@@ -125,26 +140,46 @@
   --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
   --overlay-backdrop: color-mix(in srgb, black 58%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
-  --app-canvas: #17181b;
-  --app-canvas-glow: rgba(79, 140, 255, 0.045);
-  --chrome-surface: color-mix(in srgb, var(--bg-secondary) 32%, transparent);
-  --chrome-border: color-mix(in srgb, var(--border) 34%, transparent);
-  --panel-surface: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
-  --panel-elevated: color-mix(in srgb, var(--bg-primary) 72%, transparent);
-  --panel-border: color-mix(in srgb, var(--border) 28%, transparent);
-  --panel-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
-  --panel-shadow-active: 0 14px 32px rgba(0, 0, 0, 0.12);
+  --app-canvas: #0c0d0f;
+  --app-canvas-glow: rgba(255, 255, 255, 0.025);
+  --chrome-surface: #1a1f27;
+  --chrome-border: color-mix(in srgb, var(--border) 36%, transparent);
+  --panel-surface: #171d26;
+  --panel-elevated: color-mix(in srgb, #171719 98%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 58%, transparent);
+  --panel-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  --panel-shadow-active: 0 24px 48px rgba(0, 0, 0, 0.3);
   --rail-surface: transparent;
-  --toolbar-surface: color-mix(in srgb, var(--bg-tertiary) 46%, transparent);
-  --toolbar-border: color-mix(in srgb, var(--border) 26%, transparent);
+  --toolbar-surface: #1d232c;
+  --toolbar-border: color-mix(in srgb, var(--border) 30%, transparent);
   --tab-idle-surface: transparent;
-  --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
+  --tab-active-surface: color-mix(in srgb, var(--accent) 10%, transparent);
   --status-surface: transparent;
   --status-border: transparent;
-  --subtle-fill: color-mix(in srgb, var(--bg-secondary) 42%, transparent);
-  --subtle-fill-strong: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
-  --chrome-reveal: color-mix(in srgb, var(--border) 46%, transparent);
-  --chrome-reveal-active: color-mix(in srgb, var(--accent) 22%, var(--chrome-reveal));
+  --subtle-fill: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+  --subtle-fill-strong: color-mix(in srgb, var(--bg-tertiary) 88%, transparent);
+  --chrome-reveal: color-mix(in srgb, var(--border) 56%, transparent);
+  --chrome-reveal-active: color-mix(in srgb, var(--accent) 18%, var(--chrome-reveal));
+  --shell-surface: color-mix(in srgb, var(--panel-elevated) 98%, transparent);
+  --shell-muted-surface: color-mix(in srgb, var(--panel-surface) 88%, transparent);
+  --shell-accent-surface: color-mix(in srgb, var(--accent) 10%, var(--panel-elevated));
+  --shell-border: color-mix(in srgb, var(--border) 82%, transparent);
+  --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
+  --shell-accent-border: color-mix(in srgb, var(--accent) 18%, var(--border));
+  --shell-shadow-soft: 0 18px 36px rgba(0, 0, 0, 0.22);
+  --shell-radius-sm: 10px;
+  --shell-radius-lg: 14px;
+  --shell-hero-width: 1180px;
+  --shell-editor-surface: #111419;
+  --shell-preview-surface: #14161a;
+  --workspace-paper: #17191d;
+  --workspace-paper-muted: #131418;
+  --workspace-ink: #f1f1ee;
+  --workbench-divider: color-mix(in srgb, var(--border) 28%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 16%, transparent);
+  --button-primary-bg: #f4f4f2;
+  --button-primary-bg-hover: #ffffff;
+  --button-primary-text: #111111;
 
   /* Spacing scale */
   --space-1: 4px;
@@ -320,82 +355,102 @@
 /* ===== Light ===== */
 .theme-light {
   color-scheme: light;
-  --canvas-yellow: #fef3c7;
-  --canvas-blue: #dbeafe;
-  --canvas-green: #dcfce7;
-  --canvas-pink: #fce7f3;
-  --canvas-purple: #f3e8ff;
-  --canvas-orange: #ffedd5;
-  --canvas-gray: #e2e8f0;
+  --canvas-yellow: #efe4c8;
+  --canvas-blue: #dde6e8;
+  --canvas-green: #dde5d9;
+  --canvas-pink: #eadfd9;
+  --canvas-purple: #e6e1eb;
+  --canvas-orange: #f0dfcd;
+  --canvas-gray: #e7e0d7;
 
   --bg-primary: #ffffff;
-  --bg-secondary: #f5f6f8;
-  --bg-tertiary: #e8eaed;
-  --bg-hover: #dfe1e5;
-  --fg-primary: #161616;
-  --fg-secondary: #4a4a4a;
-  --fg-muted: #999999;
-  --accent: #5f9ea0;
-  --accent-secondary: #4a7c7e;
-  --border: #d0d3d8;
-  --success: #2e7d32;
-  --error: #c62828;
-  --warning: #9a6700;
-  --info: #0277bd;
+  --bg-secondary: #f6f6f7;
+  --bg-tertiary: #ededee;
+  --bg-hover: #e4e5e7;
+  --fg-primary: #111111;
+  --fg-secondary: #444442;
+  --fg-muted: #7b7b76;
+  --accent: #111111;
+  --accent-secondary: #6d6d68;
+  --border: #d7d7d2;
+  --success: #5f8160;
+  --error: #b76354;
+  --warning: #ae7a2a;
+  --info: #557887;
 
-  --hl-heading: #1a5c8a;
-  --hl-heading-minor: #2d7eb5;
-  --hl-emphasis: #7b5ea7;
-  --hl-link: #1a7f6d;
-  --hl-code: #2e7d32;
-  --hl-number: #0550ae;
-  --hl-keyword: #7b5ea7;
-  --hl-function: #2c5f7c;
-  --hl-type: #00695c;
-  --hl-operator: #5f9ea0;
+  --hl-heading: #111111;
+  --hl-heading-minor: #4a4a47;
+  --hl-emphasis: #111111;
+  --hl-link: #4a4a47;
+  --hl-code: #67815f;
+  --hl-number: #936130;
+  --hl-keyword: #806a9d;
+  --hl-function: #4a4a47;
+  --hl-type: #4a4a47;
+  --hl-operator: #666660;
 
-  --hl-string: #50a14f;
-  --hl-comment: #a0a1a7;
-  --hl-constant: #0550ae;
-  --hl-property: #0550ae;
-  --hl-tag: #e45649;
-  --hl-attribute: #6639ba;
-  --hl-list: #4169e1;
-  --hl-regexp: #0184bc;
-  --hl-escape: #0184bc;
-  --hl-self: #e45649;
-  --hl-def-keyword: #a626a4;
-  --hl-ctrl-keyword: #a626a4;
-  --hl-module-keyword: #a626a4;
-  --hl-class: #c18401;
-  --hl-decorator: #c18401;
-  --hl-punctuation: #383a42;
-  --hl-bracket: #383a42;
+  --hl-string: #6f8a5c;
+  --hl-comment: #97897a;
+  --hl-constant: #986535;
+  --hl-property: #5a5a56;
+  --hl-tag: #bb6e64;
+  --hl-attribute: #7f6aa3;
+  --hl-list: #8a6a47;
+  --hl-regexp: #5c8685;
+  --hl-escape: #5c8685;
+  --hl-self: #bb6e64;
+  --hl-def-keyword: #7f6aa3;
+  --hl-ctrl-keyword: #7f6aa3;
+  --hl-module-keyword: #607b87;
+  --hl-class: #7a8b60;
+  --hl-decorator: #9c7443;
+  --hl-punctuation: #433830;
+  --hl-bracket: #433830;
 
-  --editor-active-line: rgba(95, 158, 160, 0.045);
-  --editor-selection: rgba(95, 158, 160, 0.2);
-  --editor-selection-match: rgba(95, 158, 160, 0.1);
-  --editor-bracket-match: rgba(95, 158, 160, 0.25);
-  --editor-bracket-border: rgba(95, 158, 160, 0.5);
-  --editor-search-match: rgba(239, 108, 0, 0.2);
-  --app-canvas: #f7f3ec;
-  --app-canvas-glow: rgba(95, 158, 160, 0.07);
-  --chrome-surface: color-mix(in srgb, white 42%, transparent);
-  --chrome-border: color-mix(in srgb, var(--border) 38%, transparent);
-  --panel-surface: color-mix(in srgb, white 64%, transparent);
-  --panel-elevated: color-mix(in srgb, white 82%, transparent);
-  --panel-border: color-mix(in srgb, var(--border) 32%, transparent);
-  --panel-shadow: 0 8px 22px rgba(115, 104, 83, 0.05);
-  --panel-shadow-active: 0 14px 32px rgba(115, 104, 83, 0.08);
+  --editor-active-line: rgba(17, 17, 17, 0.035);
+  --editor-selection: rgba(17, 17, 17, 0.12);
+  --editor-selection-match: rgba(17, 17, 17, 0.06);
+  --editor-bracket-match: rgba(17, 17, 17, 0.08);
+  --editor-bracket-border: rgba(17, 17, 17, 0.18);
+  --editor-search-match: rgba(174, 122, 42, 0.16);
+  --app-canvas: #f2f2f3;
+  --app-canvas-glow: rgba(17, 17, 17, 0.018);
+  --chrome-surface: #e7edf5;
+  --chrome-border: color-mix(in srgb, var(--border) 42%, transparent);
+  --panel-surface: #dfe6ef;
+  --panel-elevated: color-mix(in srgb, white 98%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 68%, transparent);
+  --panel-shadow: 0 16px 34px rgba(17, 17, 17, 0.06);
+  --panel-shadow-active: 0 22px 44px rgba(17, 17, 17, 0.1);
   --rail-surface: transparent;
-  --toolbar-surface: color-mix(in srgb, white 58%, transparent);
-  --toolbar-border: color-mix(in srgb, var(--border) 26%, transparent);
+  --toolbar-surface: #edf2f8;
+  --toolbar-border: color-mix(in srgb, var(--border) 28%, transparent);
   --tab-idle-surface: transparent;
   --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
   --status-surface: transparent;
   --status-border: transparent;
-  --subtle-fill: color-mix(in srgb, white 54%, transparent);
-  --subtle-fill-strong: color-mix(in srgb, white 76%, transparent);
-  --chrome-reveal: color-mix(in srgb, var(--border) 42%, transparent);
-  --chrome-reveal-active: color-mix(in srgb, var(--accent) 16%, var(--chrome-reveal));
+  --subtle-fill: color-mix(in srgb, white 84%, transparent);
+  --subtle-fill-strong: color-mix(in srgb, white 92%, transparent);
+  --chrome-reveal: color-mix(in srgb, var(--border) 62%, transparent);
+  --chrome-reveal-active: color-mix(in srgb, var(--accent) 12%, var(--chrome-reveal));
+  --shell-surface: color-mix(in srgb, white 98%, transparent);
+  --shell-muted-surface: color-mix(in srgb, white 88%, var(--surface-muted));
+  --shell-accent-surface: color-mix(in srgb, var(--accent) 6%, white 94%);
+  --shell-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
+  --shell-accent-border: color-mix(in srgb, var(--accent) 14%, var(--border));
+  --shell-shadow-soft: 0 18px 36px rgba(17, 17, 17, 0.08);
+  --shell-radius-sm: 10px;
+  --shell-radius-lg: 14px;
+  --shell-hero-width: 1180px;
+  --shell-editor-surface: #ffffff;
+  --shell-preview-surface: #f4f2ee;
+  --workspace-paper: #fffdfa;
+  --workspace-paper-muted: #f6f3ee;
+  --workspace-ink: #171719;
+  --workbench-divider: color-mix(in srgb, var(--border) 30%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 18%, transparent);
+  --button-primary-bg: #111111;
+  --button-primary-bg-hover: #000000;
+  --button-primary-text: #ffffff;
 }

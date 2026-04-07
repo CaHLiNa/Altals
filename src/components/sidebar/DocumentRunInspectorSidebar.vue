@@ -267,8 +267,8 @@ function openCompileLog() {
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 10px;
-  padding: 8px 8px 12px;
+  gap: 12px;
+  padding: 6px 6px 12px;
   overflow-y: auto;
 }
 
@@ -281,8 +281,8 @@ function openCompileLog() {
 }
 
 .document-run-hero {
-  padding: 2px 0 8px;
-  border-bottom: 0;
+  padding: 2px 2px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent);
 }
 
 .document-run-hero-top {
@@ -316,11 +316,11 @@ function openCompileLog() {
   padding: 0 6px;
   border-radius: 999px;
   border: none;
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   font-size: var(--ui-font-tiny);
   line-height: 1.2;
   color: var(--text-secondary);
-  opacity: 0.84;
+  opacity: 1;
 }
 
 .tone-accent {
@@ -350,16 +350,16 @@ function openCompileLog() {
 .document-run-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-top: 12px;
 }
 
 .document-run-stat-card {
   min-width: 0;
-  border-top: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 48%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 22%, transparent);
+  padding: 8px 10px;
 }
 
 .document-run-stat-label {
@@ -367,7 +367,7 @@ function openCompileLog() {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg-muted);
-  opacity: 0.72;
+  opacity: 0.62;
 }
 
 .document-run-stat-value {
@@ -390,17 +390,16 @@ function openCompileLog() {
   justify-content: flex-start;
   border-radius: 8px;
   color: var(--text-secondary);
-  opacity: 0.72;
+  opacity: 1;
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    opacity 140ms ease;
+    border-color 140ms ease;
 }
 
 .document-run-action:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 2%, transparent);
   color: var(--text-primary);
-  opacity: 1;
 }
 
 .document-run-section {
@@ -415,7 +414,7 @@ function openCompileLog() {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.68;
+  opacity: 0.62;
 }
 
 .document-run-empty,
@@ -444,10 +443,10 @@ function openCompileLog() {
 }
 
 .document-run-problem {
-  border-left: 2px solid color-mix(in srgb, var(--border) 24%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--border) 18%, transparent);
   border-radius: 0;
   background: transparent;
-  padding: 8px 0 8px 10px;
+  padding: 7px 0 7px 10px;
 }
 
 .document-run-problem.is-error {
