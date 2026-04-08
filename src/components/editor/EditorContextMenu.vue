@@ -77,7 +77,6 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -101,7 +100,6 @@ const emit = defineEmits([
   'format-markdown-table',
   'apply-typst-code-action',
 ])
-const editorStore = useEditorStore()
 const { t } = useI18n()
 
 const menuRef = ref(null)

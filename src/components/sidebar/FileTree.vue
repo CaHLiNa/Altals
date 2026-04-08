@@ -82,15 +82,17 @@
               <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
             </template>
             <template #suffix>
-              <button
-                type="button"
+              <UiButton
                 class="file-tree-quick-open-trigger"
+                variant="ghost"
+                size="icon-sm"
+                icon-only
                 :title="t('Quick open ({shortcut})', { shortcut: `${modKey}+P` })"
                 :aria-label="t('Quick open')"
                 @click.stop="emit('open-search')"
               >
                 <kbd class="ui-kbd file-tree-quick-open-kbd">{{ modKey }}+P</kbd>
-              </button>
+              </UiButton>
             </template>
           </UiInput>
         </div>

@@ -58,6 +58,7 @@ This blueprint tracks the active cleanup path for the document-only Altals shell
 - March 28, 2026: removed the remaining retired shell compatibility branches, rewrote active docs to the current product truth, and deleted stale historical planning/spec files from the repository.
 - March 29, 2026: removed the in-app PDF renderer and switched document outputs to external opening from the compile workflow.
 - April 7, 2026: refreshed launcher and workbench chrome, added document-context inspection, introduced adapter/citation/diagnostics runtimes, added starter templates, and extracted backend LaTeX/filesystem helper modules.
+- April 8, 2026: removed the in-app comment system and aligned the active product/docs to the document-only workspace.
 
 ## Blocked / Risks
 

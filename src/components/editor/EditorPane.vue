@@ -283,7 +283,6 @@ const showInlineWorkflowBar = computed(
   () => !!toolbarUiState.value && !showIntegratedWorkflowBar.value
 )
 const showLocalDocumentHeader = computed(() => !!props.activeTab || showInlineWorkflowBar.value)
-const isSplitPane = computed(() => editorStore.paneTree?.type === 'split')
 const showPaneDocumentTitle = computed(() => !!props.activeTab)
 
 const editorContainerRef = ref(null)
@@ -299,11 +298,6 @@ const {
   workflowStatusTone,
   handleRunCode,
   handleRunFile,
-  handleRenderDocument,
-  handleCompileTex,
-  handleCompileTypst,
-  handlePreviewPdf,
-  handlePreviewMarkdown,
   handleWorkflowPrimaryAction,
   handleWorkflowRevealPreview,
   handleWorkflowRevealPdf,

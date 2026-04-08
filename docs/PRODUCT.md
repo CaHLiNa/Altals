@@ -18,7 +18,6 @@ Altals is a local-first document workspace centered on Markdown, LaTeX, and Typs
 - Preview
 - Build Run
 - Save Point
-- Comment Thread
 
 ## Supporting Systems
 
