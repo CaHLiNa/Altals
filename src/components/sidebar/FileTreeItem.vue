@@ -8,7 +8,7 @@
         'is-filter-highlighted': isFilterHighlighted,
         'tree-item-dragover': entry.is_dir && dragOverDir === entry.path,
       }"
-      :style="{ paddingLeft: depth * 10 + 10 + 'px' }"
+      :style="{ paddingLeft: treeRowPadding(depth) + 'px' }"
       :data-dir-path="entry.is_dir ? entry.path : undefined"
       :data-path="entry.path"
       @click="handleClick"
@@ -25,22 +25,22 @@
       <!-- Expand/collapse arrow for dirs -->
       <span
         v-if="entry.is_dir"
-        class="file-tree-item-icon w-[16px] h-[16px] flex items-center justify-center shrink-0"
+        class="file-tree-item-icon w-[14px] h-[14px] flex items-center justify-center shrink-0"
       >
         <IconChevronRight
-          :size="12"
+          :size="11"
           :class="{ 'rotate-90': isExpanded }"
           class="transition-transform duration-100"
         />
       </span>
-      <span v-else class="w-[16px] h-[16px] shrink-0"></span>
+      <span v-else class="w-[14px] h-[14px] shrink-0"></span>
 
       <!-- File icon (files only; dirs use chevron as sole indicator) -->
       <span
         v-if="!entry.is_dir"
-        class="file-tree-item-icon w-[16px] h-[16px] flex items-center justify-center shrink-0 mr-1"
+        class="file-tree-item-icon w-[14px] h-[14px] flex items-center justify-center shrink-0 mr-1"
       >
-        <component :is="fileIconComponent" :size="12" :stroke-width="1.5" />
+        <component :is="fileIconComponent" :size="11" :stroke-width="1.4" />
       </span>
 
       <!-- Name or rename input -->
@@ -77,7 +77,7 @@
     <div
       v-if="entry.is_dir && isExpanded && newItemParent === entry.path"
       class="file-tree-item-new-row flex items-center"
-      :style="{ paddingLeft: (depth + 1) * 10 + 28 + 'px' }"
+      :style="{ paddingLeft: treeNewItemPadding(depth) + 'px' }"
     >
       <UiInput
         ref="newItemInput"
@@ -204,6 +204,10 @@ const emit = defineEmits([
 const files = useFilesStore()
 const editor = useEditorStore()
 const { t } = useI18n()
+
+const TREE_INDENT_STEP = 8
+const TREE_ROOT_OFFSET = 2
+const TREE_NEW_ITEM_OFFSET = 14
 
 const renameInputEl = ref(null)
 const newItemInput = ref(null)
@@ -389,6 +393,14 @@ function handleDblClick() {
 function handleContextMenu(event) {
   emit('context-menu', { event, entry: props.entry })
 }
+
+function treeRowPadding(depth) {
+  return depth * TREE_INDENT_STEP + TREE_ROOT_OFFSET
+}
+
+function treeNewItemPadding(depth) {
+  return (depth + 1) * TREE_INDENT_STEP + TREE_NEW_ITEM_OFFSET
+}
 </script>
 
 <style scoped>
@@ -399,9 +411,9 @@ function handleContextMenu(event) {
 
 .file-tree-item-row {
   position: relative;
-  min-height: 24px;
-  padding-right: 10px;
-  border-radius: 6px;
+  min-height: 26px;
+  padding-right: 8px;
+  border-radius: 7px;
   color: var(--text-secondary);
   opacity: 1;
   transition:
@@ -416,29 +428,29 @@ function handleContextMenu(event) {
 }
 
 .file-tree-item-row:hover {
-  background: color-mix(in srgb, var(--workspace-paper) 54%, transparent);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .file-tree-item-row.is-active-row {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--workspace-paper) 90%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent);
+  background: var(--sidebar-item-active);
+  box-shadow: inset 0 0 0 1px var(--sidebar-item-active-border);
 }
 
 .file-tree-item-row.is-selected-row {
-  background: color-mix(in srgb, var(--workspace-paper) 68%, transparent);
+  background: var(--sidebar-item-selected);
   box-shadow: none;
   color: var(--text-primary);
 }
 
 .file-tree-item-row.is-filter-highlighted:not(.is-active-row):not(.is-selected-row) {
-  background: color-mix(in srgb, var(--workspace-paper) 62%, transparent);
+  background: var(--sidebar-item-hover);
 }
 
 .file-tree-item-icon {
   color: var(--text-muted);
-  opacity: 0.62;
+  opacity: 0.52;
 }
 
 .file-tree-item-new-row {
@@ -449,14 +461,14 @@ function handleContextMenu(event) {
 .file-tree-item-label {
   color: var(--text-secondary);
   font-size: var(--sidebar-font-item);
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
   transition: color 140ms ease;
 }
 
 .file-tree-item-label.is-active {
   color: var(--text-primary);
-  font-weight: var(--font-weight-semibold);
+  font-weight: 560;
 }
 
 .file-tree-item-match {

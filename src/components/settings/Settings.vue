@@ -1,124 +1,35 @@
 <template>
-  <Teleport to="body">
-    <div v-if="visible" class="settings-overlay" @click.self="$emit('close')">
-      <div ref="modalRef" class="settings-modal" :style="modalStyle">
-        <div class="settings-titlebar" @mousedown="startModalDrag">
-          <div class="settings-titlebar-copy">
-            <span class="settings-titlebar-eyebrow">{{ t('Settings') }}</span>
-            <span class="settings-titlebar-title">{{ activeSectionLabel }}</span>
-          </div>
-          <UiButton
-            class="settings-close"
-            variant="ghost"
-            size="icon-sm"
-            icon-only
-            type="button"
-            :title="t('Close')"
-            @mousedown.stop
-            @click="$emit('close')"
-          >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            >
-              <path d="M1 1l8 8M9 1L1 9" />
-            </svg>
-          </UiButton>
-        </div>
+  <div class="settings-surface">
+    <header class="settings-header">
+      <h2 class="settings-header-title">{{ activeSectionLabel }}</h2>
+    </header>
 
-        <div class="settings-shell">
-          <!-- Left nav -->
-          <div class="settings-nav">
-            <div class="settings-nav-header">{{ t('Settings') }}</div>
-            <template v-for="(item, i) in sections" :key="item.id || `sep-${i}`">
-              <div v-if="item.separator" class="settings-nav-separator"></div>
-              <UiButton
-                v-else
-                class="settings-nav-item"
-                variant="ghost"
-                size="sm"
-                block
-                :active="activeSection === item.id"
-                @click="activeSection = item.id"
-              >
-                <template #leading>
-                  <component :is="item.icon" :size="16" :stroke-width="1.5" />
-                </template>
-                {{ item.label }}
-              </UiButton>
-            </template>
-          </div>
-
-          <!-- Main content -->
-          <div class="settings-content">
-            <component :is="activeSectionComponent" :key="activeSection" />
-          </div>
-        </div>
-      </div>
+    <div class="settings-content">
+      <component :is="activeSectionComponent" :key="activeSection" />
     </div>
-  </Teleport>
+  </div>
 </template>
 
 <script setup>
-import {
-  computed,
-  defineAsyncComponent,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from 'vue'
-import { IconPalette, IconEdit, IconCpu, IconRefresh } from '@tabler/icons-vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useI18n } from '../../i18n'
-import UiButton from '../shared/ui/UiButton.vue'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { SETTINGS_SECTION_DEFINITIONS } from './settingsSections.js'
 
 const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 
-const props = defineProps({
-  visible: { type: Boolean, default: false },
-  initialSection: { type: String, default: null },
-})
-defineEmits(['close'])
-
-const activeSection = ref('theme')
-const modalRef = ref(null)
-const modalPosition = ref({ x: 0, y: 0 })
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
-let dragState = null
 
-const modalStyle = computed(() => ({
-  left: `${modalPosition.value.x}px`,
-  top: `${modalPosition.value.y}px`,
-}))
-
-watch(
-  () => props.visible,
-  async (v) => {
-    if (v) {
-      activeSection.value = sectionComponents[props.initialSection] ? props.initialSection : 'theme'
-      await centerModal()
-      return
-    }
-    stopModalDrag()
-  }
+const sections = computed(() =>
+  SETTINGS_SECTION_DEFINITIONS.map((item) => ({
+    ...item,
+    label: t(item.labelKey),
+  }))
 )
-
-const sections = [
-  { id: 'theme', label: t('Theme'), icon: IconPalette },
-  { id: 'editor', label: t('Editor'), icon: IconEdit },
-  { separator: true },
-  { id: 'system', label: t('System'), icon: IconCpu },
-  { id: 'updates', label: t('Updates'), icon: IconRefresh },
-]
 
 const sectionComponents = {
   theme: SettingsTheme,
@@ -127,236 +38,88 @@ const sectionComponents = {
   updates: SettingsUpdates,
 }
 
-const activeSectionLabel = computed(
-  () => sections.find((item) => item.id === activeSection.value)?.label ?? t('Settings')
+const activeSection = computed(() =>
+  sectionComponents[workspace.settingsSection] ? workspace.settingsSection : 'theme'
 )
 
+const activeSectionMeta = computed(
+  () => sections.value.find((item) => item.id === activeSection.value) || sections.value[0]
+)
+
+const activeSectionLabel = computed(() => activeSectionMeta.value?.label ?? t('Settings'))
 const activeSectionComponent = computed(
   () => sectionComponents[activeSection.value] || SettingsTheme
 )
-
-function clampModalPosition(x, y) {
-  const rect = modalRef.value?.getBoundingClientRect()
-  const width = rect?.width ?? 760
-  const height = rect?.height ?? 640
-  const margin = 16
-  const maxX = Math.max(margin, window.innerWidth - width - margin)
-  const maxY = Math.max(margin, window.innerHeight - height - margin)
-
-  return {
-    x: Math.min(Math.max(x, margin), maxX),
-    y: Math.min(Math.max(y, margin), maxY),
-  }
-}
-
-async function centerModal() {
-  await nextTick()
-  if (!modalRef.value) return
-
-  const rect = modalRef.value.getBoundingClientRect()
-  modalPosition.value = clampModalPosition(
-    (window.innerWidth - rect.width) / 2,
-    (window.innerHeight - rect.height) / 2
-  )
-}
-
-function startModalDrag(event) {
-  if (event.button !== 0 || !modalRef.value) return
-
-  const interactiveTarget = event.target.closest('button, input, textarea, select, a')
-  if (interactiveTarget) return
-
-  const rect = modalRef.value.getBoundingClientRect()
-  dragState = {
-    offsetX: event.clientX - rect.left,
-    offsetY: event.clientY - rect.top,
-  }
-
-  document.body.classList.add('settings-dragging')
-  document.addEventListener('mousemove', onModalDragMove)
-  document.addEventListener('mouseup', stopModalDrag)
-  event.preventDefault()
-}
-
-function onModalDragMove(event) {
-  if (!dragState) return
-
-  modalPosition.value = clampModalPosition(
-    event.clientX - dragState.offsetX,
-    event.clientY - dragState.offsetY
-  )
-}
-
-function stopModalDrag() {
-  if (!dragState) return
-
-  dragState = null
-  document.body.classList.remove('settings-dragging')
-  document.removeEventListener('mousemove', onModalDragMove)
-  document.removeEventListener('mouseup', stopModalDrag)
-}
-
-function handleWindowResize() {
-  if (!props.visible) return
-
-  modalPosition.value = clampModalPosition(modalPosition.value.x, modalPosition.value.y)
-}
-
-onMounted(() => {
-  window.addEventListener('resize', handleWindowResize)
-})
-
-onBeforeUnmount(() => {
-  stopModalDrag()
-  window.removeEventListener('resize', handleWindowResize)
-})
 </script>
 
 <style scoped>
-.settings-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
-  background: var(--overlay-backdrop);
-}
-
-.settings-modal {
-  position: absolute;
-  width: 760px;
-  max-width: 90vw;
-  height: 640px;
-  max-height: 90vh;
-  background: color-mix(in srgb, var(--panel-elevated) 98%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
-  border-radius: 14px;
-  box-shadow: var(--shadow-lg);
+.settings-surface {
+  --settings-row-surface: color-mix(in srgb, var(--surface-muted) 74%, transparent);
+  --settings-row-border: color-mix(in srgb, var(--border-subtle) 34%, transparent);
+  --settings-control-surface: color-mix(in srgb, var(--surface-hover) 82%, var(--surface-muted));
+  --settings-control-surface-hover: color-mix(in srgb, var(--surface-hover) 90%, var(--surface-muted));
+  --settings-popover-surface: color-mix(in srgb, var(--surface-muted) 92%, var(--surface-base));
+  --settings-control-border: color-mix(in srgb, var(--border-subtle) 42%, transparent);
+  --settings-control-border-strong: color-mix(in srgb, var(--border-subtle) 58%, transparent);
+  --settings-control-shadow: none;
+  --settings-popover-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  min-height: 100%;
+  padding: 28px 28px 18px 18px;
+  background: transparent;
 }
 
-.settings-titlebar {
-  height: 56px;
+.theme-light .settings-surface {
+  --settings-row-surface: rgba(221, 224, 229, 0.72);
+  --settings-row-border: rgba(160, 166, 176, 0.26);
+  --settings-control-surface: rgba(212, 216, 222, 0.9);
+  --settings-control-surface-hover: rgba(205, 210, 217, 0.96);
+  --settings-popover-surface: rgba(228, 231, 236, 0.98);
+  --settings-control-border: rgba(154, 160, 169, 0.34);
+  --settings-control-border-strong: rgba(136, 143, 153, 0.44);
+}
+
+.settings-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: 0 18px 0 22px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
-  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
-  user-select: none;
-  cursor: grab;
-}
-
-.settings-titlebar-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.settings-titlebar-eyebrow {
-  font-size: var(--ui-font-caption);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
-.settings-titlebar-title {
-  font-size: var(--ui-font-display);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.settings-shell {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
-}
-
-.settings-close {
-  flex-shrink: 0;
-}
-
-/* Left nav */
-.settings-nav {
-  width: 176px;
-  border-right: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
-  padding: 10px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: color-mix(in srgb, var(--surface-base) 24%, transparent);
-}
-
-.settings-nav-header {
-  display: flex;
-  align-items: center;
-  font-size: var(--ui-font-caption);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-  padding: 6px 10px 6px;
-}
-
-.settings-nav-item {
+  align-items: flex-start;
   justify-content: flex-start;
-  padding: 0 10px;
-  min-height: 30px;
-  color: var(--text-secondary);
-  text-align: left;
-  font-size: var(--ui-font-body);
-  border-radius: 7px;
+  padding: 2px 4px 16px;
 }
 
-.settings-nav-item:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
-}
-
-.settings-nav-item.is-active {
-  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 26%, transparent);
+.settings-header-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.06;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
-.settings-nav-separator {
-  height: 1px;
-  background: color-mix(in srgb, var(--border-subtle) 30%, transparent);
-  margin: 6px 8px;
-}
-
-/* Main content */
 .settings-content {
-  flex: 1;
-  min-width: 0;
-  padding: 18px 20px 22px;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-start;
   overflow-y: auto;
-  background: color-mix(in srgb, var(--panel-elevated) 100%, transparent);
+  padding: 0 4px 18px 0;
 }
 </style>
 
-<!-- Shared styles for all settings sections (scoped under .settings-modal to prevent leakage) -->
 <style>
-.settings-modal .settings-section-title {
-  font-size: var(--ui-font-display);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: 18px;
+.settings-surface .settings-section-title {
+  display: none;
 }
 
-.settings-modal .settings-hint {
+.settings-surface .settings-hint {
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
   margin: -8px 0 16px;
 }
 
-.settings-modal .settings-hint code {
+.settings-surface .settings-hint code {
   background: var(--surface-muted);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
@@ -364,101 +127,300 @@ onBeforeUnmount(() => {
   font-size: var(--ui-font-micro);
 }
 
-/* Shared key/form styles */
-.settings-modal .keys-list {
+.settings-surface .keys-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.settings-modal .key-field {
+.settings-surface .key-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.settings-modal .key-label {
+.settings-surface .key-label {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.settings-modal .key-provider {
+.settings-surface .key-provider {
   font-size: var(--ui-font-label);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
-.settings-modal .key-env {
+.settings-surface .key-env {
   font-size: var(--ui-font-micro);
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
-.settings-modal .key-input-row {
+.settings-surface .key-input-row {
   display: flex;
   gap: 4px;
 }
 
-.settings-modal .key-toggle {
+.settings-surface .key-toggle {
   flex-shrink: 0;
 }
 
-.settings-modal .keys-actions {
+.settings-surface .keys-actions {
   margin-top: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.settings-modal .key-saved-hint {
+.settings-surface .key-saved-hint {
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
 }
 
-.settings-modal .settings-choice-grid {
+.settings-surface .settings-choice-grid {
   display: grid;
   gap: var(--space-2);
 }
 
-.settings-modal .settings-choice-card {
+.settings-surface .settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 100%;
+  width: min(100%, 760px);
+}
+
+.settings-surface .settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-surface .settings-group-title {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: color-mix(in srgb, var(--text-secondary) 72%, transparent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-surface .settings-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: visible;
+}
+
+.settings-surface .settings-page::after {
+  content: '';
+  flex: 1 0 20px;
+}
+
+.settings-surface .settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 15px;
+  border-radius: 14px;
+  background: var(--settings-row-surface);
+  border: 1px solid var(--settings-row-border);
+  box-shadow: none;
+}
+
+.settings-surface .settings-row-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-surface .settings-row-title {
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  color: color-mix(in srgb, var(--text-primary) 94%, transparent);
+  line-height: 1.35;
+}
+
+.settings-surface .settings-row-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text-secondary) 76%, transparent);
+}
+
+.settings-surface .settings-row-control {
+  flex: 0 0 auto;
+  align-self: center;
+  min-width: 116px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-surface .settings-row-control.compact {
+  min-width: auto;
+}
+
+.settings-surface .settings-row-control .ui-select-shell {
+  border-radius: 11px;
+  background: transparent;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger {
+  border-radius: 11px;
+  border-color: var(--settings-control-border) !important;
+  background: var(--settings-control-surface) !important;
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent) !important;
+  box-shadow: var(--settings-control-shadow) !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger:hover:not(:disabled) {
+  background: var(--settings-control-surface-hover) !important;
+  border-color: var(--settings-control-border-strong) !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.settings-surface .settings-row-control .ui-select-shell.is-open .ui-select-trigger {
+  background: var(--settings-control-surface-hover) !important;
+  border-color: var(--settings-control-border-strong) !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-value {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-caret {
+  right: 10px;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-menu {
+  margin-top: 6px;
+  padding: 4px;
+  border-color: var(--settings-control-border) !important;
+  border-radius: 12px;
+  background: var(--settings-popover-surface) !important;
+  box-shadow: var(--settings-popover-shadow) !important;
+  backdrop-filter: blur(18px) saturate(0.92);
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-option {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-option:hover:not(:disabled),
+.settings-surface .settings-row-control .ui-select-shell .ui-select-option.is-highlighted:not(:disabled) {
+  background: var(--settings-control-surface) !important;
+  color: var(--text-primary);
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-option.is-selected {
+  background: color-mix(in srgb, var(--settings-control-surface) 92%, white 8%) !important;
+}
+
+.settings-surface .settings-row-control .ui-select-shell .ui-select-option-check {
+  color: color-mix(in srgb, var(--text-primary) 86%, transparent);
+}
+
+.settings-surface .settings-row-control .ui-button.ui-button--secondary {
+  background: var(--settings-control-surface) !important;
+  border-color: var(--settings-control-border) !important;
+  color: color-mix(in srgb, var(--text-primary) 90%, transparent) !important;
+  box-shadow: var(--settings-control-shadow) !important;
+  border-radius: 11px;
+}
+
+.settings-surface .settings-row-control .ui-button.ui-button--secondary:hover:not(:disabled) {
+  background: var(--settings-control-surface-hover) !important;
+  border-color: var(--settings-control-border-strong) !important;
+  color: var(--text-primary);
+}
+
+.settings-surface button.ui-switch.ui-switch--md {
+  width: 38px;
+  height: 22px;
+  background: color-mix(in srgb, var(--text-secondary) 28%, var(--settings-control-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--settings-control-border) 90%, transparent);
+}
+
+.settings-surface button.ui-switch.ui-switch--md.is-on {
+  background: color-mix(in srgb, var(--accent) 28%, var(--settings-control-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.settings-surface button.ui-switch.ui-switch--md:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-secondary) 28%, var(--settings-control-surface-hover));
+}
+
+.settings-surface button.ui-switch.ui-switch--md.is-on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 38%, var(--settings-control-surface-hover));
+}
+
+.settings-surface button.ui-switch.ui-switch--md .ui-switch-knob {
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: color-mix(in srgb, white 88%, var(--surface-base));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--text-muted) 26%, transparent);
+}
+
+.settings-surface button.ui-switch.ui-switch--md.is-on .ui-switch-knob {
+  transform: translateX(16px);
+}
+
+.settings-surface .settings-choice-card {
   justify-content: flex-start;
   align-items: stretch;
   padding: 12px 14px;
   text-align: left;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
-.settings-modal .settings-choice-card:hover:not(:disabled) {
+.settings-surface .settings-choice-card:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--border) 34%, transparent);
   background: color-mix(in srgb, var(--surface-hover) 42%, transparent);
 }
 
-.settings-modal .settings-choice-card.is-active {
-  border-color: color-mix(in srgb, var(--border) 32%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
+.settings-surface .settings-choice-card.is-active {
+  border-color: color-mix(in srgb, var(--border) 36%, transparent);
+  background: color-mix(in srgb, var(--settings-control-surface) 84%, transparent);
   color: var(--text-primary);
 }
 
-.settings-modal .settings-choice-card-copy {
+.settings-surface .settings-choice-card-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.settings-modal .settings-choice-card-title {
+.settings-surface .settings-choice-card-title {
   font-size: var(--ui-font-body);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
-.settings-modal .settings-choice-card-desc {
+.settings-surface .settings-choice-card-desc {
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
 }
 
-.settings-modal .settings-choice-card-meta {
+.settings-surface .settings-choice-card-meta {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
@@ -470,53 +432,62 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--surface-base) 32%, transparent);
 }
 
-.settings-modal .settings-choice-card-meta.is-good {
+.settings-surface .settings-choice-card-meta.is-good {
   color: var(--success);
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
-.settings-modal .settings-segmented {
+.settings-surface .settings-segmented {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-base) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--settings-control-border) 80%, transparent);
+  border-radius: 11px;
+  background: var(--settings-control-surface);
+  box-shadow: var(--settings-control-shadow);
 }
 
-.settings-modal .settings-segmented-btn {
-  min-height: 26px;
+.settings-surface .settings-segmented-btn {
+  min-height: 24px;
   padding: 0 10px;
-  border-radius: calc(var(--radius-sm) - 1px);
-  color: var(--text-muted);
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  font: inherit;
+  cursor: pointer;
 }
 
-.settings-modal .settings-segmented-btn.is-active {
-  background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
+.settings-surface .settings-segmented-btn.is-active {
+  background: var(--settings-control-surface-hover);
   color: var(--text-primary);
 }
 
-.settings-modal .settings-list-button {
+.settings-surface .settings-segmented-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--settings-control-surface) 94%, white 6%);
+}
+
+.settings-surface .settings-list-button {
   justify-content: flex-start;
   width: 100%;
   padding: 6px 8px;
   text-align: left;
 }
 
-.settings-modal .settings-list-button.is-active {
+.settings-surface .settings-list-button.is-active {
   background: color-mix(in srgb, var(--surface-base) 92%, var(--toolbar-surface));
   color: var(--text-primary);
 }
 
-.settings-modal .settings-list-button-copy {
+.settings-surface .settings-list-button-copy {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.settings-modal .settings-disclosure-button {
+.settings-surface .settings-disclosure-button {
   justify-content: flex-start;
   gap: 6px;
   padding: 0;
@@ -524,93 +495,105 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.settings-modal .settings-disclosure-button:hover:not(:disabled) {
+.settings-surface .settings-disclosure-button:hover:not(:disabled) {
   color: var(--text-secondary);
   background: transparent;
 }
 
-.settings-modal .settings-disclosure-icon {
+.settings-surface .settings-disclosure-icon {
   transition: transform 0.15s ease;
   transform-origin: center;
 }
 
-.settings-modal .settings-disclosure-button.is-active .settings-disclosure-icon {
+.settings-surface .settings-disclosure-button.is-active .settings-disclosure-icon {
   transform: rotate(90deg);
 }
 
-/* Shared card styles */
-.settings-modal .env-lang-card {
+.settings-surface .env-lang-card {
   border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   background: color-mix(in srgb, var(--surface-base) 32%, transparent);
 }
 
-.settings-modal .env-lang-header {
+.settings-surface .env-lang-header {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.settings-modal .env-lang-dot {
+.settings-surface .env-lang-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.settings-modal .env-lang-dot.good {
+.settings-surface .env-lang-dot.good {
   background: var(--success, #50fa7b);
 }
-.settings-modal .env-lang-dot.warn {
+
+.settings-surface .env-lang-dot.warn {
   background: var(--warning, #e2b93d);
 }
-.settings-modal .env-lang-dot.none {
+
+.settings-surface .env-lang-dot.none {
   background: var(--fg-muted);
   opacity: 0.4;
 }
 
-.settings-modal .env-lang-name {
+.settings-surface .env-lang-name {
   font-size: var(--ui-font-body);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
-.settings-modal .env-lang-version {
+.settings-surface .env-lang-version {
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
 
-.settings-modal .env-lang-missing {
+.settings-surface .env-lang-missing {
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
   font-style: italic;
 }
 
-.settings-modal .env-lang-hint {
+.settings-surface .env-lang-hint {
   margin-top: 4px;
   padding-left: 16px;
   font-size: var(--ui-font-micro);
   color: var(--fg-muted);
 }
 
-.settings-modal .settings-link {
+.settings-surface .settings-link {
   color: var(--accent);
   cursor: pointer;
   text-decoration: none;
 }
 
-.settings-modal .settings-link:hover {
+.settings-surface .settings-link:hover {
   text-decoration: underline;
 }
 
-body.settings-dragging,
-body.settings-dragging * {
-  user-select: none !important;
-}
+@media (max-width: 720px) {
+  .settings-surface {
+    padding: 28px 18px 18px;
+  }
 
-body.settings-dragging .settings-titlebar {
-  cursor: grabbing;
+  .settings-surface .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-surface .settings-row-control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-surface .settings-page {
+    width: 100%;
+  }
 }
 </style>

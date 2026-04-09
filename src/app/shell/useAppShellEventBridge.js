@@ -80,6 +80,12 @@ export function useAppShellEventBridge({
       return
     }
 
+    if (isMod(event) && event.shiftKey && (event.key === '[' || event.key === ']')) {
+      event.preventDefault()
+      editorStore.switchTab(event.key === '[' ? -1 : 1)
+      return
+    }
+
     if (isMod(event) && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
       event.preventDefault()
       editorStore.switchTab(event.key === 'ArrowLeft' ? -1 : 1)

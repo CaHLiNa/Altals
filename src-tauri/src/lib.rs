@@ -30,6 +30,8 @@ use tauri::{AppHandle, Manager, Runtime};
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
+#[cfg(target_os = "macos")]
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
 /// Enable macOS spellcheck for WKWebView (must run before webview init)
 #[cfg(target_os = "macos")]
@@ -38,6 +40,25 @@ fn enable_macos_spellcheck() {
     let defaults = NSUserDefaults::standardUserDefaults();
     let key = NSString::from_str("WebContinuousSpellCheckingEnabled");
     defaults.setBool_forKey(true, &key);
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_window_vibrancy<R: Runtime>(app: &AppHandle<R>) {
+    let Some(window) = app
+        .get_webview_window("main")
+        .or_else(|| app.webview_windows().into_values().next())
+    else {
+        return;
+    };
+
+    if let Err(error) = apply_vibrancy(
+        &window,
+        NSVisualEffectMaterial::HudWindow,
+        Some(NSVisualEffectState::Active),
+        None,
+    ) {
+        eprintln!("Failed to apply macOS vibrancy: {error}");
+    }
 }
 
 /// Get spelling suggestions for a word via macOS NSSpellChecker
@@ -509,6 +530,10 @@ pub fn run() {
 
     #[cfg(target_os = "macos")]
     let builder = builder
+        .setup(|app| {
+            apply_macos_window_vibrancy(app.handle());
+            Ok(())
+        })
         .menu(|app| build_app_menu(app))
         .on_menu_event(handle_menu_event);
 

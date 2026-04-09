@@ -55,6 +55,56 @@ const ZH_MESSAGES = {
   Usage: '用量',
   Updates: '更新',
   'Behavior and display preferences for the text editor.': '文本编辑器的行为和显示偏好。',
+  Appearance: '外观',
+  'PDF Viewer': 'PDF 查看器',
+  'Tooling Status': '工具状态',
+  'Built in': '内建',
+  'Choose the default reading and drafting face for prose documents.':
+    '选择正文阅读和起草时默认使用的字体。',
+  'Save changes automatically while you work in the current project.':
+    '在当前项目中编辑时自动保存改动。',
+  'Wrap long lines in the editor instead of scrolling horizontally.':
+    '在编辑器里自动换行长段落，而不是横向滚动。',
+  'Preferred line width': '首选行宽',
+  'Used when soft wrap is enabled for long-form writing layouts.':
+    '在启用自动换行时，用作长文写作的默认行宽。',
+  'Underline spelling issues while drafting in supported editors.':
+    '在支持的编辑器里为拼写问题加下划线。',
+  'Refresh Typst output after each save in projects that use Typst.':
+    '在使用 Typst 的项目里，每次保存后刷新输出。',
+  'Apply Typst formatting automatically when the document is saved.':
+    '保存文档时自动应用 Typst 格式化。',
+  'Show inline hints from the Typst language service while editing.':
+    '编辑时显示 Typst 语言服务的内联提示。',
+  'Build LaTeX output automatically after saving supported documents.':
+    '保存支持的文档后自动构建 LaTeX 输出。',
+  'Apply configured LaTeX formatting automatically on save.':
+    '保存时自动应用已配置的 LaTeX 格式化。',
+  'Tint embedded PDF pages to better match the active application theme.':
+    '让嵌入的 PDF 页面更贴合当前应用主题。',
+  'Tooling has not been checked in this session yet.': '本次会话里还没有检查工具链。',
+  'Re-scan system tools and installed compilers.': '重新扫描系统工具和已安装的编译器。',
+  'Pick the preferred backend for LaTeX projects.': '为 LaTeX 项目选择首选后端。',
+  'Used when the selected compiler supports engine selection.':
+    '当所选编译器支持引擎选择时使用。',
+  'Choose the command sequence used for LaTeX builds.': '选择用于 LaTeX 构建的命令方案。',
+  'Uses the TeX distribution already installed on this Mac.':
+    '使用这台 Mac 上已经安装好的 TeX 发行版。',
+  'Bundled Rust-based LaTeX compiler is ready to use.':
+    '内置的 Rust 版 LaTeX 编译器已可用。',
+  'Download Tectonic to run LaTeX without relying on a full TeX installation.':
+    '下载 Tectonic，以便在不依赖完整 TeX 发行版的情况下运行 LaTeX。',
+  'Optional linter used for LaTeX diagnostics.': '用于 LaTeX 诊断的可选检查器。',
+  'Optional formatter used for LaTeX format on save.':
+    '用于 LaTeX 保存时格式化的可选格式化工具。',
+  'The Typst compiler is available for live preview and export.':
+    'Typst 编译器已可用于实时预览和导出。',
+  'Download Typst to enable document builds and native preview.':
+    '下载 Typst 以启用文档构建和原生预览。',
+  'Language service is available for Typst diagnostics and editor assistance.':
+    '语言服务已可用于 Typst 诊断和编辑辅助。',
+  'Download Tinymist to enable advanced Typst language features.':
+    '下载 Tinymist 以启用更完整的 Typst 语言特性。',
   'Auto Save': '自动保存',
   'Writing font': '写作字体',
   'Font for Markdown files. Other files use monospace editor font.':
@@ -462,6 +512,7 @@ const ZH_MESSAGES = {
   'Filter files or quick open...': '筛选文件或快速打开...',
   'Save & commit': '保存并提交',
   'Close tab': '关闭标签页',
+  'Close Current Tab': '关闭当前标签页',
   'Split vertical': '垂直拆分',
   'Split horizontal': '水平拆分',
   'Zoom in': '放大',

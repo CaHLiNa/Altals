@@ -53,8 +53,6 @@ import {
 } from 'vue'
 import { Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
-import { languages } from '@codemirror/language-data'
-import { autocompletion } from '@codemirror/autocomplete'
 import {
   createEditorExtensions,
   createEditorState,
@@ -77,15 +75,12 @@ import {
   resolveContextMenuSelection,
 } from '../../editor/contextMenuPolicy'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
-import { createMarkdownDraftEditorExtensions } from '../../editor/markdownDraftAssist'
 import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
 import {
   formatCurrentMarkdownTable,
   hasMarkdownTableAtCursor,
   insertMarkdownTable,
 } from '../../editor/markdownTables'
-import { createLatexCompletionSource } from '../../editor/latexAutocomplete'
-import { createTypstDiagnosticsExtension } from '../../editor/typstEditorIntegration'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useToastStore } from '../../stores/toast'
@@ -214,9 +209,7 @@ const {
   t,
 })
 
-const {
-  showMergeViewIfNeeded,
-} = useTextEditorBridges({
+const { showMergeViewIfNeeded } = useTextEditorBridges({
   filePath: props.filePath,
   editorContainer,
   getView,
@@ -636,6 +629,7 @@ function handleDocumentChanged(content) {
 }
 
 async function loadLanguageExtension() {
+  const { languages } = await import('@codemirror/language-data')
   if (isMd) {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
     return markdown({ base: markdownLanguage, codeLanguages: languages })
@@ -720,10 +714,15 @@ onMounted(async () => {
   ]
 
   if (isTyp) {
+    const { createTypstDiagnosticsExtension } = await import('../../editor/typstEditorIntegration')
     extraExtensions.push(...createTypstDiagnosticsExtension())
   }
 
   if (isMd) {
+    const [{ autocompletion }, { createMarkdownDraftEditorExtensions }] = await Promise.all([
+      import('@codemirror/autocomplete'),
+      import('../../editor/markdownDraftAssist'),
+    ])
     const completionSources = [createMarkdownDraftSnippetSource(t)]
     const wikiLinks = wikiLinksExtension({
       resolveLink: (target, fromPath) => linksStore.resolveLink(target, fromPath),
@@ -753,6 +752,10 @@ onMounted(async () => {
   }
 
   if (isTex) {
+    const [{ autocompletion }, { createLatexCompletionSource }] = await Promise.all([
+      import('@codemirror/autocomplete'),
+      import('../../editor/latexAutocomplete'),
+    ])
     extraExtensions.push(
       autocompletion({
         override: [
@@ -1269,6 +1272,10 @@ onUnmounted(() => {
 
 <style scoped>
 .typst-editor-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
   background: var(--shell-editor-surface);
 }
 
@@ -1279,19 +1286,5 @@ onUnmounted(() => {
 .text-editor-load-error {
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--workspace-paper) 80%, transparent);
-}
-</style>
-
-<style scoped>
-.typst-editor-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-  background: var(--bg-primary);
-}
-
-.text-editor-load-error {
-  color: var(--fg-secondary);
 }
 </style>

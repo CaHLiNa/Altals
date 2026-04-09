@@ -10,7 +10,7 @@ Altals uses Vite for the frontend build and Tauri for the desktop application sh
 
 ## Desktop Packaging
 
-- `npm run tauri`: forwards to the Tauri CLI
+- `npm run tauri`: forwards to the Tauri CLI and, on macOS, falls back to Command Line Tools if the selected Xcode developer directory cannot resolve build tools
 - `npm run build:macos:app`: builds a macOS app bundle without signing
 - `npm run build:macos:dmg`: builds the app bundle and then packages a DMG
 

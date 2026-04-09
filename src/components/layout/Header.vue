@@ -88,17 +88,17 @@ onUnmounted(() => {
 }
 
 .launcher-header-title {
-  font-family: 'Crimson Text', 'Lora', Georgia, serif;
+  font-family: var(--font-display);
   font-size: var(--ui-font-display);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.015em;
   color: var(--text-primary);
 }
 
 .launcher-header-caption {
-  font-size: var(--ui-font-micro);
+  font-size: var(--ui-font-caption);
   color: var(--text-muted);
-  opacity: 0.9;
+  opacity: 0.82;
   white-space: nowrap;
 }
 
@@ -111,11 +111,11 @@ onUnmounted(() => {
 .launcher-header-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
+  min-height: 28px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid var(--shell-border);
-  background: color-mix(in srgb, var(--shell-surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
+  background: color-mix(in srgb, var(--shell-surface) 92%, transparent);
   color: var(--text-muted);
   font-size: var(--ui-font-caption);
 }

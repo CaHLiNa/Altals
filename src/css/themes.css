@@ -65,7 +65,7 @@
   --canvas-orange: #24211f;
   --canvas-gray: #232325;
 
-  --ui-font-size: 13px;
+  --ui-font-size: 14px;
   --editor-font-size: 13px;
   --ui-font-tiny: calc(var(--ui-font-size) - 5px);
   --ui-font-fine: calc(var(--ui-font-size) - 4px);
@@ -83,7 +83,7 @@
   --ui-font-hero-md: calc(var(--ui-font-size) + 15px);
   --ui-font-hero-lg: calc(var(--ui-font-size) + 19px);
   --ui-font-hero-xl: calc(var(--ui-font-size) + 31px);
-  --ui-line-height: 1.45;
+  --ui-line-height: 1.5;
 
   /* Surface workbench typography */
   --surface-font-kicker: var(--ui-font-micro);
@@ -95,37 +95,28 @@
   --surface-font-hero: var(--ui-font-hero-sm);
   --surface-font-hero-compact: var(--ui-font-hero-xs);
   --sidebar-font-kicker: var(--ui-font-caption);
-  --sidebar-font-search: var(--ui-font-label);
-  --sidebar-font-control: var(--ui-font-label);
-  --sidebar-font-item: var(--ui-font-label);
+  --sidebar-font-search: var(--ui-font-body);
+  --sidebar-font-control: var(--ui-font-body);
+  --sidebar-font-item: var(--ui-font-body);
   --sidebar-font-meta: var(--ui-font-caption);
-  --sidebar-font-body: var(--ui-font-label);
-  --sidebar-font-title: var(--ui-font-label);
-  --sidebar-font-title-strong: var(--ui-font-body);
-  --sidebar-row-height: 24px;
-  --sidebar-row-height-tight: 24px;
-  --sidebar-input-height: 24px;
-  --sidebar-inline-gap: 4px;
-  --chrome-icon-size: 14px;
-  --chrome-sidebar-icon-size: 12px;
-  --content-icon-size: 12px;
+  --sidebar-font-body: var(--ui-font-body);
+  --sidebar-font-title: var(--ui-font-body);
+  --sidebar-font-title-strong: var(--ui-font-title);
+  --sidebar-row-height: 28px;
+  --sidebar-row-height-tight: 26px;
+  --sidebar-input-height: 28px;
+  --sidebar-inline-gap: 6px;
+  --chrome-icon-size: 15px;
+  --chrome-sidebar-icon-size: 13px;
+  --content-icon-size: 13px;
 
   /* Font stacks — single source of truth */
   --font-sans:
-    -apple-system,
-    BlinkMacSystemFont,
-    'SF Pro Text',
-    'Helvetica Neue',
-    system-ui,
+    'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui,
     sans-serif;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
-  --font-prose:
-    -apple-system,
-    BlinkMacSystemFont,
-    'SF Pro Text',
-    'Helvetica Neue',
-    system-ui,
-    sans-serif;
+  --font-prose: 'STIX Two Text', 'Lora', Georgia, serif;
+  --font-display: 'Crimson Text', 'STIX Two Text', 'Lora', Georgia, serif;
   --ui-font: var(--font-sans);
 
   /* Semantic design tokens */
@@ -140,17 +131,17 @@
   --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
   --overlay-backdrop: color-mix(in srgb, black 58%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 34%, transparent);
-  --app-canvas: #0c0d0f;
+  --app-canvas: #111111;
   --app-canvas-glow: rgba(255, 255, 255, 0.025);
-  --chrome-surface: #1a1f27;
+  --chrome-surface: #17181b;
   --chrome-border: color-mix(in srgb, var(--border) 36%, transparent);
-  --panel-surface: #171d26;
-  --panel-elevated: color-mix(in srgb, #171719 98%, transparent);
+  --panel-surface: #171716;
+  --panel-elevated: color-mix(in srgb, #181817 98%, transparent);
   --panel-border: color-mix(in srgb, var(--border) 58%, transparent);
   --panel-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
   --panel-shadow-active: 0 24px 48px rgba(0, 0, 0, 0.3);
   --rail-surface: transparent;
-  --toolbar-surface: #1d232c;
+  --toolbar-surface: #1a1b1e;
   --toolbar-border: color-mix(in srgb, var(--border) 30%, transparent);
   --tab-idle-surface: transparent;
   --tab-active-surface: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -170,11 +161,22 @@
   --shell-radius-sm: 10px;
   --shell-radius-lg: 14px;
   --shell-hero-width: 1180px;
-  --shell-editor-surface: #111419;
-  --shell-preview-surface: #14161a;
-  --workspace-paper: #17191d;
-  --workspace-paper-muted: #131418;
+  --shell-editor-surface: #141311;
+  --shell-preview-surface: #171513;
+  --workspace-paper: #191715;
+  --workspace-paper-muted: #141311;
   --workspace-ink: #f1f1ee;
+  --sidebar-search-surface: rgba(9, 9, 11, 0.48);
+  --sidebar-search-surface-focus: rgba(12, 12, 14, 0.6);
+  --sidebar-search-border: rgba(255, 255, 255, 0.045);
+  --sidebar-search-border-focus: rgba(255, 255, 255, 0.07);
+  --sidebar-item-hover: rgba(255, 255, 255, 0.042);
+  --sidebar-item-active: rgba(255, 255, 255, 0.07);
+  --sidebar-item-active-border: rgba(255, 255, 255, 0.05);
+  --sidebar-item-selected: rgba(255, 255, 255, 0.062);
+  --sidebar-vibrant-surface:
+    linear-gradient(180deg, rgba(12, 12, 14, 0.76) 0%, rgba(12, 12, 14, 0.7) 44%, rgba(10, 10, 12, 0.82) 100%);
+  --sidebar-vibrant-border: rgba(255, 255, 255, 0.04);
   --workbench-divider: color-mix(in srgb, var(--border) 28%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 16%, transparent);
   --button-primary-bg: #f4f4f2;
@@ -407,23 +409,23 @@
   --hl-punctuation: #433830;
   --hl-bracket: #433830;
 
-  --editor-active-line: rgba(17, 17, 17, 0.035);
+  --editor-active-line: rgba(121, 102, 73, 0.05);
   --editor-selection: rgba(17, 17, 17, 0.12);
   --editor-selection-match: rgba(17, 17, 17, 0.06);
   --editor-bracket-match: rgba(17, 17, 17, 0.08);
   --editor-bracket-border: rgba(17, 17, 17, 0.18);
   --editor-search-match: rgba(174, 122, 42, 0.16);
-  --app-canvas: #f2f2f3;
-  --app-canvas-glow: rgba(17, 17, 17, 0.018);
-  --chrome-surface: #e7edf5;
+  --app-canvas: #eef2f5;
+  --app-canvas-glow: rgba(17, 17, 17, 0.012);
+  --chrome-surface: #eef1f3;
   --chrome-border: color-mix(in srgb, var(--border) 42%, transparent);
-  --panel-surface: #dfe6ef;
+  --panel-surface: rgba(243, 246, 249, 0.5);
   --panel-elevated: color-mix(in srgb, white 98%, transparent);
   --panel-border: color-mix(in srgb, var(--border) 68%, transparent);
   --panel-shadow: 0 16px 34px rgba(17, 17, 17, 0.06);
   --panel-shadow-active: 0 22px 44px rgba(17, 17, 17, 0.1);
   --rail-surface: transparent;
-  --toolbar-surface: #edf2f8;
+  --toolbar-surface: #f4f6f8;
   --toolbar-border: color-mix(in srgb, var(--border) 28%, transparent);
   --tab-idle-surface: transparent;
   --tab-active-surface: color-mix(in srgb, var(--accent) 8%, transparent);
@@ -433,8 +435,8 @@
   --subtle-fill-strong: color-mix(in srgb, white 92%, transparent);
   --chrome-reveal: color-mix(in srgb, var(--border) 62%, transparent);
   --chrome-reveal-active: color-mix(in srgb, var(--accent) 12%, var(--chrome-reveal));
-  --shell-surface: color-mix(in srgb, white 98%, transparent);
-  --shell-muted-surface: color-mix(in srgb, white 88%, var(--surface-muted));
+  --shell-surface: color-mix(in srgb, white 99%, transparent);
+  --shell-muted-surface: color-mix(in srgb, white 92%, var(--surface-muted));
   --shell-accent-surface: color-mix(in srgb, var(--accent) 6%, white 94%);
   --shell-border: color-mix(in srgb, var(--border) 88%, transparent);
   --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
@@ -444,12 +446,22 @@
   --shell-radius-lg: 14px;
   --shell-hero-width: 1180px;
   --shell-editor-surface: #ffffff;
-  --shell-preview-surface: #f4f2ee;
-  --workspace-paper: #fffdfa;
-  --workspace-paper-muted: #f6f3ee;
+  --shell-preview-surface: #ffffff;
+  --workspace-paper: #ffffff;
+  --workspace-paper-muted: #f5f7f8;
   --workspace-ink: #171719;
-  --workbench-divider: color-mix(in srgb, var(--border) 30%, transparent);
-  --workbench-divider-soft: color-mix(in srgb, var(--border) 18%, transparent);
+  --sidebar-search-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
+  --sidebar-search-surface-focus: color-mix(in srgb, var(--panel-surface) 40%, transparent);
+  --sidebar-search-border: color-mix(in srgb, white 12%, transparent);
+  --sidebar-search-border-focus: color-mix(in srgb, white 18%, transparent);
+  --sidebar-item-hover: color-mix(in srgb, white 12%, transparent);
+  --sidebar-item-active: color-mix(in srgb, white 20%, transparent);
+  --sidebar-item-active-border: color-mix(in srgb, white 9%, transparent);
+  --sidebar-item-selected: color-mix(in srgb, white 15%, transparent);
+  --sidebar-vibrant-surface: color-mix(in srgb, var(--panel-surface) 24%, transparent);
+  --sidebar-vibrant-border: color-mix(in srgb, white 14%, transparent);
+  --workbench-divider: color-mix(in srgb, var(--border) 22%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 14%, transparent);
   --button-primary-bg: #111111;
   --button-primary-bg-hover: #000000;
   --button-primary-text: #ffffff;

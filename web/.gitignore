@@ -4,3 +4,18 @@ node_modules/
 data/
 .env
 .vercel
+
+# Local system junk
+._*
+.DS_Store
+.AppleDouble
+Thumbs.db
+
+# Tooling caches
+.cache/
+.vite/
+.turbo/
+.parcel-cache/
+.sass-cache/
+.eslintcache
+*.tsbuildinfo

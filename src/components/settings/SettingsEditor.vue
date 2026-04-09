@@ -1,185 +1,214 @@
 <template>
-  <div class="editor-page editor-page-compact">
+  <div class="editor-page settings-page">
     <h3 class="settings-section-title">{{ t('Editor') }}</h3>
 
-    <div class="editor-toggles">
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot good"></span>
-          <span class="env-lang-name">{{ t('Writing font') }}</span>
-          <span class="env-lang-version">{{ currentFontLabel }}</span>
-        </div>
-        <div class="wrap-column-row editor-card-offset">
-          <label class="ghost-model-label">{{ t('Prose font:') }}</label>
-          <div class="wrap-preset-group settings-segmented">
-            <UiButton
-              v-for="font in proseFonts"
-              :key="font.value"
-              class="wrap-preset-btn settings-segmented-btn font-preset-btn"
-              variant="ghost"
-              size="sm"
-              :active="workspace.proseFont === font.value"
-              :style="{ fontFamily: font.family, fontSize: font.fontSize }"
-              @click="workspace.setProseFont(font.value)"
-            >
-              {{ t(font.labelKey) }}
-            </UiButton>
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Appearance') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Writing font') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose the default reading and drafting face for prose documents.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <div class="settings-segmented editor-segmented" role="group" :aria-label="t('Writing font')">
+              <button
+                v-for="font in proseFonts"
+                :key="font.value"
+                type="button"
+                class="settings-segmented-btn"
+                :class="{ 'is-active': workspace.proseFont === font.value }"
+                @click="workspace.setProseFont(font.value)"
+              >
+                {{ t(font.labelKey) }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="workspace.autoSave ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('Auto Save') }}</span>
-          <span class="env-lang-version">{{
-            workspace.autoSave ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="workspace.autoSave"
-            :aria-label="t('Toggle auto save')"
-            @update:model-value="workspace.toggleAutoSave()"
-          />
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Writing') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Auto Save') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Save changes automatically while you work in the current project.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.autoSave"
+              :aria-label="t('Toggle auto save')"
+              @update:model-value="workspace.toggleAutoSave()"
+            />
+          </div>
         </div>
-      </div>
 
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="workspace.softWrap ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Soft Wrap') }}</span>
-          <span v-if="workspace.softWrap" class="env-lang-version">{{ t('Enabled') }}</span>
-          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="workspace.softWrap"
-            :aria-label="t('Toggle soft wrap')"
-            @update:model-value="workspace.toggleSoftWrap()"
-          />
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Soft Wrap') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Wrap long lines in the editor instead of scrolling horizontally.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.softWrap"
+              :aria-label="t('Toggle soft wrap')"
+              @update:model-value="workspace.toggleSoftWrap()"
+            />
+          </div>
         </div>
-        <div v-if="workspace.softWrap" class="wrap-column-row editor-card-offset">
-          <label class="ghost-model-label">{{ t('Line width:') }}</label>
-          <div class="wrap-preset-group settings-segmented">
-            <UiButton
-              v-for="preset in WRAP_PRESETS"
-              :key="preset.value"
-              class="wrap-preset-btn settings-segmented-btn"
-              variant="ghost"
-              size="sm"
-              :active="workspace.wrapColumn === preset.value"
-              @click="workspace.setWrapColumn(preset.value)"
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Preferred line width') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Used when soft wrap is enabled for long-form writing layouts.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <div
+              class="settings-segmented editor-segmented editor-segmented--compact"
+              role="group"
+              :aria-label="t('Preferred line width')"
+              :aria-disabled="!workspace.softWrap ? 'true' : 'false'"
             >
-              {{ t(preset.labelKey) }}
-            </UiButton>
+              <button
+                v-for="preset in WRAP_PRESETS"
+                :key="preset.value"
+                type="button"
+                class="settings-segmented-btn"
+                :class="{ 'is-active': workspace.wrapColumn === preset.value }"
+                :disabled="!workspace.softWrap"
+                @click="workspace.setWrapColumn(preset.value)"
+              >
+                {{ t(preset.labelKey) }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Spell Check') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Underline spelling issues while drafting in supported editors.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.spellcheck"
+              :aria-label="t('Toggle spell check')"
+              @update:model-value="workspace.toggleSpellcheck()"
+            />
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="workspace.spellcheck ? 'good' : 'none'"></span>
-          <span class="env-lang-name">{{ t('Spell Check') }}</span>
-          <span v-if="workspace.spellcheck" class="env-lang-version">{{ t('Enabled') }}</span>
-          <span v-else class="env-lang-missing">{{ t('Disabled') }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="workspace.spellcheck"
-            :aria-label="t('Toggle spell check')"
-            @update:model-value="workspace.toggleSpellcheck()"
-          />
+    <section class="settings-group">
+      <h4 class="settings-group-title">Typst</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Compile on save') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Refresh Typst output after each save in projects that use Typst.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="typstStore.autoCompile"
+              :aria-label="t('Toggle Typst compile on save')"
+              @update:model-value="typstStore.setAutoCompile(!typstStore.autoCompile)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Format on save') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Apply Typst formatting automatically when the document is saved.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="typstStore.formatOnSave"
+              :aria-label="t('Toggle Typst format on save')"
+              @update:model-value="typstStore.setFormatOnSave(!typstStore.formatOnSave)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Inlay hints') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Show inline hints from the Typst language service while editing.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="typstStore.inlayHints"
+              :aria-label="t('Toggle Typst inlay hints')"
+              @update:model-value="typstStore.setInlayHintsEnabled(!typstStore.inlayHints)"
+            />
+          </div>
         </div>
       </div>
+    </section>
 
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="typstStore.autoCompile ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('Typst compile on save') }}</span>
-          <span class="env-lang-version">{{
-            typstStore.autoCompile ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="typstStore.autoCompile"
-            :aria-label="t('Toggle Typst compile on save')"
-            @update:model-value="typstStore.setAutoCompile(!typstStore.autoCompile)"
-          />
+    <section class="settings-group">
+      <h4 class="settings-group-title">LaTeX</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Compile on save') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Build LaTeX output automatically after saving supported documents.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="latexStore.autoCompile"
+              :aria-label="t('Toggle LaTeX compile on save')"
+              @update:model-value="latexStore.setAutoCompile(!latexStore.autoCompile)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Format on save') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Apply configured LaTeX formatting automatically on save.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="latexStore.formatOnSave"
+              :aria-label="t('Toggle LaTeX format on save')"
+              @update:model-value="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
+            />
+          </div>
         </div>
       </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="typstStore.formatOnSave ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('Typst format on save') }}</span>
-          <span class="env-lang-version">{{
-            typstStore.formatOnSave ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="typstStore.formatOnSave"
-            :aria-label="t('Toggle Typst format on save')"
-            @update:model-value="typstStore.setFormatOnSave(!typstStore.formatOnSave)"
-          />
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="latexStore.autoCompile ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('LaTeX compile on save') }}</span>
-          <span class="env-lang-version">{{
-            latexStore.autoCompile ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="latexStore.autoCompile"
-            :aria-label="t('Toggle LaTeX compile on save')"
-            @update:model-value="latexStore.setAutoCompile(!latexStore.autoCompile)"
-          />
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="latexStore.formatOnSave ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('LaTeX format on save') }}</span>
-          <span class="env-lang-version">{{
-            latexStore.formatOnSave ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="latexStore.formatOnSave"
-            :aria-label="t('Toggle LaTeX format on save')"
-            @update:model-value="latexStore.setFormatOnSave(!latexStore.formatOnSave)"
-          />
-        </div>
-      </div>
-
-      <div class="env-lang-card">
-        <div class="env-lang-header">
-          <span class="env-lang-dot" :class="typstStore.inlayHints ? 'good' : 'warn'"></span>
-          <span class="env-lang-name">{{ t('Typst inlay hints') }}</span>
-          <span class="env-lang-version">{{
-            typstStore.inlayHints ? t('Enabled') : t('Disabled')
-          }}</span>
-          <div class="ui-flex-spacer"></div>
-          <UiSwitch
-            :model-value="typstStore.inlayHints"
-            :aria-label="t('Toggle Typst inlay hints')"
-            @update:model-value="typstStore.setInlayHintsEnabled(!typstStore.inlayHints)"
-          />
-        </div>
-      </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
-import UiButton from '../shared/ui/UiButton.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const workspace = useWorkspaceStore()
@@ -188,9 +217,9 @@ const latexStore = useLatexStore()
 const { t } = useI18n()
 
 const proseFonts = [
-  { value: 'inter', labelKey: 'Sans', family: "'Inter', system-ui, sans-serif", fontSize: '13px' },
-  { value: 'stix', labelKey: 'Serif', family: "'STIX Two Text', Georgia, serif", fontSize: '13px' },
-  { value: 'mono', labelKey: 'Mono', family: "'JetBrains Mono', monospace", fontSize: '12px' },
+  { value: 'inter', labelKey: 'Sans' },
+  { value: 'stix', labelKey: 'Serif' },
+  { value: 'mono', labelKey: 'Mono' },
 ]
 
 const WRAP_PRESETS = [
@@ -199,10 +228,24 @@ const WRAP_PRESETS = [
   { value: 100, labelKey: '100 ch' },
   { value: 120, labelKey: '120 ch' },
 ]
-
-const currentFontLabel = computed(() => {
-  return proseFonts.find((font) => font.value === workspace.proseFont)?.labelKey
-    ? t(proseFonts.find((font) => font.value === workspace.proseFont)?.labelKey)
-    : t('Sans')
-})
 </script>
+
+<style scoped>
+.editor-segmented {
+  min-width: 178px;
+}
+
+.editor-segmented--compact {
+  min-width: auto;
+}
+
+.editor-segmented .settings-segmented-btn {
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+.editor-segmented[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+</style>

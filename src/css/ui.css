@@ -81,3 +81,40 @@
   font-size: var(--ui-font-micro);
   line-height: 1;
 }
+
+.ui-button.is-icon-only > svg {
+  flex: 0 0 auto;
+}
+
+.ui-button--icon-xs.is-icon-only > svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.ui-button--icon-sm.is-icon-only > svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.ui-button--icon-md.is-icon-only > svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.ui-button--sm .ui-button-leading > svg,
+.ui-button--sm .ui-button-trailing > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ui-button--md .ui-button-leading > svg,
+.ui-button--md .ui-button-trailing > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-button--lg .ui-button-leading > svg,
+.ui-button--lg .ui-button-trailing > svg {
+  width: 17px;
+  height: 17px;
+}

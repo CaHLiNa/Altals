@@ -1,16 +1,16 @@
 <template>
   <div v-if="shouldRenderChrome" class="sidebar-chrome">
-    <div v-if="entries.length > 1" class="sidebar-chrome-strip">
+    <div v-if="entries.length > 1" class="sidebar-chrome-strip ui-segmented-control">
       <ShellChromeButton
         v-for="entry in entries"
         :key="entry.key"
         :active="entry.key === activeKey"
-        size="icon-xs"
+        size="icon-sm"
         :title="entry.title"
         :aria-label="entry.label"
         @click="$emit('select', entry.key)"
       >
-        <component :is="entry.icon" :size="12" :stroke-width="1.65" />
+        <component :is="entry.icon" :size="16" :stroke-width="1.75" />
       </ShellChromeButton>
     </div>
     <div v-if="$slots.trailing" class="sidebar-chrome-trailing">
@@ -46,23 +46,23 @@ const shouldRenderChrome = computed(() =>
 
 <style scoped>
 .sidebar-chrome {
-  --sidebar-header-row-height: 28px;
+  --sidebar-header-row-height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex: 0 0 auto;
   min-height: var(--sidebar-header-row-height);
   box-sizing: border-box;
-  padding: 0 4px 2px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
+  padding: 0 4px 5px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 10%, transparent);
   background: transparent;
 }
 
 .sidebar-chrome-strip {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   padding: 0;
 }
 

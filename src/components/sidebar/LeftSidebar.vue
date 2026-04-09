@@ -71,20 +71,14 @@ defineExpose({
 .left-shell-sidebar {
   display: flex;
   flex-direction: column;
+  position: relative;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 30px 6px 10px 4px;
-  background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--panel-surface) 100%, var(--app-canvas)) 0%,
-      color-mix(in srgb, var(--panel-surface) 94%, var(--app-canvas)) 100%
-    );
-  box-shadow:
-    inset -1px 0 0 var(--workbench-divider),
-    inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
-  backdrop-filter: saturate(1.06) blur(18px);
+  padding: 24px 14px 0 6px;
+  background: var(--sidebar-shell-surface, color-mix(in srgb, var(--panel-surface) 56%, transparent));
+  box-shadow: none;
+  backdrop-filter: blur(var(--sidebar-shell-blur, 18px)) saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .left-shell-sidebar > :last-child {

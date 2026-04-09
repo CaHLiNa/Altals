@@ -46,12 +46,12 @@
             @mousedown.stop
           >
             <svg
-              width="10"
-              height="10"
+              width="11"
+              height="11"
               viewBox="0 0 10 10"
               fill="none"
               stroke="currentColor"
-              stroke-width="1.5"
+              stroke-width="1.6"
             >
               <path d="M2 2l6 6M8 2l-6 6" />
             </svg>
@@ -78,12 +78,12 @@
           @mousedown.stop
         >
           <svg
-            width="12"
-            height="12"
+            width="14"
+            height="14"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.6"
           >
             <line x1="8" y1="3" x2="8" y2="13" />
             <line x1="3" y1="8" x2="13" y2="8" />
@@ -102,12 +102,12 @@
           :aria-label="t('Split vertical ({shortcut})', { shortcut: `${modKey} + J` })"
         >
           <svg
-            width="14"
-            height="14"
+            width="16"
+            height="16"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.6"
           >
             <rect x="1" y="2" width="14" height="12" rx="1.5" />
             <line x1="8" y1="2" x2="8" y2="14" />
@@ -123,12 +123,12 @@
           :aria-label="t('Split horizontal')"
         >
           <svg
-            width="14"
-            height="14"
+            width="16"
+            height="16"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.6"
           >
             <rect x="1" y="2" width="14" height="12" rx="1.5" />
             <line x1="1" y1="8" x2="15" y2="8" />
@@ -145,12 +145,12 @@
           :aria-label="t('Close pane')"
         >
           <svg
-            width="12"
-            height="12"
+            width="13"
+            height="13"
             viewBox="0 0 10 10"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.5"
+            stroke-width="1.6"
           >
             <path d="M2 2l6 6M8 2l-6 6" />
           </svg>
@@ -515,7 +515,7 @@ function updateDropIndicator(mouseX) {
   width: 100%;
   min-height: 34px;
   padding: 0;
-  gap: 12px;
+  gap: 10px;
 }
 
 .tab-bar-track {
@@ -523,7 +523,7 @@ function updateDropIndicator(mouseX) {
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-track {
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
   -webkit-mask-image: linear-gradient(
     to right,
@@ -634,25 +634,25 @@ function updateDropIndicator(mouseX) {
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-item {
-  min-height: 30px;
-  padding: 0 9px;
+  min-height: 32px;
+  padding: 0 11px;
   border-radius: 10px;
-  opacity: 0.62;
-  font-weight: 500;
+  opacity: 0.56;
+  font-weight: 520;
   letter-spacing: -0.01em;
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-item:hover {
-  background: color-mix(in srgb, var(--surface-hover) 44%, transparent);
-  opacity: 0.9;
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
+  opacity: 0.82;
 }
 
 .tab-bar-shell.is-shell-integrated .tab-bar-item.is-active {
   background: transparent;
   color: var(--text-primary);
   opacity: 1;
-  font-weight: 600;
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 18%, transparent);
+  font-weight: 560;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 16%, transparent);
 }
 
 .tab-bar-shell.is-shell-integrated .tab-close-button,
@@ -672,32 +672,32 @@ function updateDropIndicator(mouseX) {
 
 .tab-bar-shell.is-shell-integrated:hover .tab-close-button,
 .tab-bar-shell.is-shell-integrated:focus-within .tab-close-button {
-  opacity: 0.46;
+  opacity: 0.38;
 }
 
 .tab-bar-shell.is-shell-integrated:hover .tab-bar-actions,
 .tab-bar-shell.is-shell-integrated:focus-within .tab-bar-actions {
-  opacity: 0.74;
+  opacity: 0.62;
   transform: translateY(0);
 }
 
 .tab-bar-shell.is-shell-integrated .tab-toolbar-button-new {
   margin-left: 6px;
-  opacity: 0.14;
+  opacity: 0.12;
 }
 
 .tab-bar-shell.is-shell-integrated:hover .tab-toolbar-button-new,
 .tab-bar-shell.is-shell-integrated:focus-within .tab-toolbar-button-new {
-  opacity: 0.54;
+  opacity: 0.44;
 }
 
 .tab-bar-shell.is-shell-integrated .tab-toolbar-button {
-  opacity: 0.32;
+  opacity: 0.26;
 }
 
 .tab-bar-shell.is-shell-integrated .tab-toolbar-button:hover:not(:disabled),
 .tab-bar-shell.is-shell-integrated .tab-close-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 64%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 16%, transparent);
   opacity: 1;
 }
 

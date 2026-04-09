@@ -21,7 +21,7 @@
         <div
           v-for="item in section.items"
           :key="outlineItemKey(item)"
-          class="outline-panel-row"
+          class="outline-panel-row ui-list-row"
           :class="{ 'is-active': outlineItemKey(item) === activeOutlineItemKey }"
           :style="{ paddingLeft: getOutlineItemPadding(section.key, item) + 'px' }"
           @click="navigateToOutlineItem(item)"
@@ -457,13 +457,31 @@ onUnmounted(() => {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 0 0 4px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .outline-panel-section-label {
-  padding: 4px 8px 4px;
+  padding: 6px 10px 5px;
   font-size: var(--sidebar-font-meta);
   font-weight: 560;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
   opacity: 0.72;
@@ -473,14 +491,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   position: relative;
-  min-height: 24px;
-  padding: 1px 9px 1px 10px;
-  border-radius: 6px;
+  min-height: 28px;
+  padding: 3px 10px 3px 12px;
+  border-radius: 8px;
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
   font-size: var(--sidebar-font-item);
-  line-height: 1.25;
+  line-height: 1.35;
   opacity: 1;
   transition:
     background-color 140ms ease,
@@ -492,9 +510,9 @@ onUnmounted(() => {
 .outline-panel-row::before {
   content: '';
   position: absolute;
-  left: 4px;
-  top: 6px;
-  bottom: 6px;
+  left: 5px;
+  top: 7px;
+  bottom: 7px;
   width: 2px;
   border-radius: 999px;
   background: transparent;
@@ -505,13 +523,13 @@ onUnmounted(() => {
 }
 
 .outline-panel-row:hover {
-  background: color-mix(in srgb, var(--workspace-paper) 52%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
 }
 
 .outline-panel-row.is-active {
-  background: color-mix(in srgb, var(--workspace-paper) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
 
 .outline-panel-row.is-active::before {

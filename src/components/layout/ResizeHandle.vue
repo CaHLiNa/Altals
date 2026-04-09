@@ -65,7 +65,7 @@ function startDrag(e) {
 }
 
 .resize-handle.vertical {
-  width: 6px;
+  width: 8px;
   cursor: col-resize;
   background: transparent;
 }
@@ -75,12 +75,14 @@ function startDrag(e) {
   position: absolute;
   top: 12px;
   bottom: 12px;
-  left: 2px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   width: 1px;
   border-radius: 999px;
   cursor: col-resize;
-  background: color-mix(in srgb, var(--panel-border) 42%, transparent);
-  opacity: 1;
+  background: transparent;
+  opacity: 0;
   transition:
     opacity 140ms ease,
     background-color 140ms ease;
@@ -108,9 +110,8 @@ function startDrag(e) {
     background-color 140ms ease;
 }
 
-.resize-handle:hover::before,
 .resize-handle.dragging::before {
   opacity: 1;
-  background: color-mix(in srgb, var(--accent) 52%, transparent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 </style>

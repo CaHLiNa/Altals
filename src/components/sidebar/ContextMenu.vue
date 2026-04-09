@@ -117,9 +117,9 @@ const menuStyle = computed(() => {
 
 <style>
 .context-menu-ext {
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
-  opacity: 0.6;
+  font-size: 10.5px;
+  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+  opacity: 1;
   margin-left: auto;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
 }

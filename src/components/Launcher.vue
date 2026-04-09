@@ -13,7 +13,15 @@
           </div>
         </div>
 
-        <div class="launcher-principles">
+        <div class="launcher-focus-copy">
+          {{
+            t(
+              'Open a project and stay in the writing flow: draft, preview, compile, and review save points without leaving the document surface.'
+            )
+          }}
+        </div>
+
+        <div class="launcher-principles" aria-label="Writing workflow">
           <div class="launcher-principle">
             <span class="launcher-principle-label">{{ t('Draft') }}</span>
             <span class="launcher-principle-copy">
@@ -21,27 +29,29 @@
             </span>
           </div>
           <div class="launcher-principle">
-            <span class="launcher-principle-label">{{ t('Build') }}</span>
+            <span class="launcher-principle-label">{{ t('Preview') }}</span>
             <span class="launcher-principle-copy">
-              {{ t('Preview and compile documents without leaving the workspace.') }}
+              {{ t('Keep structure, outline, and rendered output close while revising.') }}
             </span>
           </div>
           <div class="launcher-principle">
             <span class="launcher-principle-label">{{ t('Protect') }}</span>
             <span class="launcher-principle-copy">
-              {{ t('Keep local save points, history, and project context close at hand.') }}
+              {{ t('Use save points, history, and sync as explicit safety boundaries.') }}
             </span>
           </div>
         </div>
 
         <div class="launcher-actions">
-          <button class="launcher-btn primary" @click="$emit('open-folder')">
-            <span>{{ t('Open project folder') }}</span>
-            <kbd class="ui-kbd">{{ modKey }}+O</kbd>
-          </button>
-          <button class="launcher-btn secondary" @click="showClone = true">
+          <UiButton variant="primary" size="md" @click="$emit('open-folder')">
+            {{ t('Open project folder') }}
+            <template #trailing>
+              <kbd class="ui-kbd">{{ modKey }}+O</kbd>
+            </template>
+          </UiButton>
+          <UiButton variant="secondary" size="md" @click="showClone = true">
             {{ t('Clone repository') }}
-          </button>
+          </UiButton>
         </div>
 
         <p v-if="!showClone" class="launcher-hint">
@@ -49,7 +59,9 @@
         </p>
 
         <div v-if="showClone" class="launcher-clone-form ui-surface-card">
-          <div class="launcher-clone-heading">{{ t('Clone a Git repository into a local workspace') }}</div>
+          <div class="launcher-clone-heading">
+            {{ t('Clone a Git repository into a local workspace') }}
+          </div>
           <input
             ref="urlInputRef"
             v-model="cloneUrl"
@@ -60,16 +72,17 @@
             @keydown.escape="cancelClone"
           />
           <div class="launcher-clone-actions">
-            <button
-              class="launcher-btn primary small"
+            <UiButton
+              variant="primary"
+              size="sm"
               :disabled="!cloneUrl.trim() || cloning"
               @click="doClone"
             >
               {{ cloning ? t('Cloning...') : t('Clone repository') }}
-            </button>
-            <button class="launcher-btn-text" :disabled="cloning" @click="cancelClone">
+            </UiButton>
+            <UiButton variant="ghost" size="sm" :disabled="cloning" @click="cancelClone">
               {{ t('Cancel') }}
-            </button>
+            </UiButton>
           </div>
           <div v-if="cloneError" class="launcher-error">{{ cloneError }}</div>
         </div>
@@ -80,39 +93,49 @@
           <div>
             <div class="launcher-recents-kicker">{{ t('Continue writing') }}</div>
             <h2 class="launcher-recents-title">{{ t('Recent workspaces') }}</h2>
+            <p class="launcher-recents-copy">
+              {{ t('Jump back into the projects you were editing most recently.') }}
+            </p>
           </div>
           <div class="launcher-recents-count">{{ recents.length }}</div>
         </div>
 
         <div v-if="recents.length" class="launcher-recent-list">
-          <button
-            v-for="r in recents"
-            :key="r.path"
-            class="launcher-recent"
-            @click="$emit('open-workspace', r.path)"
-          >
-            <span class="launcher-recent-icon" aria-hidden="true">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
-              </svg>
-            </span>
-            <span class="launcher-recent-text">
-              <span class="launcher-recent-name">{{ r.name }}</span>
-              <span class="launcher-recent-path">{{ shortenPath(r.path) }}</span>
-            </span>
-            <span class="launcher-recent-meta">{{ t('Open') }}</span>
-            <span
+          <div v-for="r in recents" :key="r.path" class="launcher-recent">
+            <button
+              type="button"
+              class="launcher-recent-open ui-list-row"
+              @click="$emit('open-workspace', r.path)"
+            >
+              <span class="launcher-recent-icon" aria-hidden="true">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"
+                  />
+                </svg>
+              </span>
+              <span class="launcher-recent-text">
+                <span class="launcher-recent-name">{{ r.name }}</span>
+                <span class="launcher-recent-path">{{ shortenPath(r.path) }}</span>
+              </span>
+              <span class="launcher-recent-meta">{{ t('Open') }}</span>
+            </button>
+            <UiButton
+              variant="ghost"
+              size="icon-sm"
+              icon-only
               class="launcher-recent-remove"
               :title="t('Remove from recent')"
+              :aria-label="t('Remove from recent')"
               @click.stop="removeRecent(r.path)"
             >
               <svg
@@ -128,8 +151,8 @@
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
-            </span>
-          </button>
+            </UiButton>
+          </div>
         </div>
 
         <div v-else class="launcher-empty-state">
@@ -150,6 +173,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../stores/workspace'
 import { modKey } from '../platform'
 import { useI18n } from '../i18n'
+import UiButton from './shared/ui/UiButton.vue'
 
 const emit = defineEmits(['open-folder', 'open-workspace'])
 
@@ -177,7 +201,10 @@ function cancelClone() {
 }
 
 function repoNameFromUrl(url) {
-  const cleaned = url.trim().replace(/\/+$/, '').replace(/\.git$/, '')
+  const cleaned = url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '')
   return cleaned.split('/').pop() || 'project'
 }
 
@@ -207,7 +234,11 @@ async function doClone() {
     }
 
     if (workspace.githubToken?.token && url.includes('github.com')) {
-      await invoke('git_clone_authenticated', { url, targetPath, token: workspace.githubToken.token })
+      await invoke('git_clone_authenticated', {
+        url,
+        targetPath,
+        token: workspace.githubToken.token,
+      })
     } else {
       await invoke('git_clone', { url, targetPath })
     }
@@ -291,24 +322,26 @@ function removeRecent(path) {
 
 .launcher-brand-row {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .launcher-logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 72%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-base) 70%, transparent);
+  width: 52px;
+  height: 52px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 58%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--workspace-paper) 68%, transparent);
   color: var(--text-primary);
   font-size: var(--ui-font-hero-xs);
-  font-family: var(--font-sans);
+  font-family: var(--font-display);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 5%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 5%, transparent),
+    0 10px 24px color-mix(in srgb, black 8%, transparent);
 }
 
 .launcher-brand-copy {
@@ -319,120 +352,68 @@ function removeRecent(path) {
 
 .launcher-title {
   margin: 0;
-  font-family: var(--font-sans);
+  font-family: var(--font-display);
   font-size: var(--ui-font-hero-sm);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.01em;
   color: var(--text-primary);
 }
 
 .launcher-tagline {
-  max-width: 580px;
+  max-width: 540px;
   margin: 0;
   font-size: var(--ui-font-body);
   line-height: var(--line-height-relaxed);
   color: var(--text-secondary);
 }
 
+.launcher-focus-copy {
+  max-width: 52rem;
+  padding-left: 2px;
+  font-size: var(--ui-font-title);
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+}
+
 .launcher-principles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0;
+  border-top: 1px solid color-mix(in srgb, var(--shell-border) 42%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 26%, transparent);
 }
 
 .launcher-principle {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: 12px 12px 14px;
-  border-radius: var(--shell-radius-sm);
-  background: color-mix(in srgb, var(--surface-base) 28%, transparent);
-  border: 1px solid color-mix(in srgb, var(--shell-border) 34%, transparent);
+  gap: 6px;
+  padding: 14px 14px 16px;
+  min-height: 100%;
+}
+
+.launcher-principle:not(:first-child) {
+  border-left: 1px solid color-mix(in srgb, var(--shell-border) 22%, transparent);
 }
 
 .launcher-principle-label {
   font-size: var(--ui-font-caption);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .launcher-principle-copy {
-  font-size: var(--ui-font-label);
-  line-height: var(--line-height-regular);
-  color: var(--text-muted);
+  font-size: var(--ui-font-body);
+  line-height: 1.55;
+  color: var(--text-secondary);
 }
 
 .launcher-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.launcher-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: 0 16px;
-  border-radius: 9px;
-  border: 1px solid transparent;
-  font: inherit;
-  font-size: var(--ui-font-body);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
-}
-
-.launcher-btn.primary {
-  background: var(--button-primary-bg);
-  border-color: color-mix(in srgb, var(--button-primary-bg) 72%, var(--border));
-  color: var(--button-primary-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-.launcher-btn.primary:hover:not(:disabled) {
-  background: var(--button-primary-bg-hover);
-}
-
-.launcher-btn.secondary {
-  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
-  border-color: var(--shell-border);
-  color: var(--text-secondary);
-}
-
-.launcher-btn.secondary:hover:not(:disabled) {
-  border-color: var(--shell-border-strong);
-  color: var(--text-primary);
-}
-
-.launcher-btn.small {
-  min-height: 34px;
-  padding: 0 14px;
-  font-size: var(--ui-font-label);
-}
-
-.launcher-btn:disabled,
-.launcher-btn-text:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.launcher-btn-text {
-  border: none;
-  background: none;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--ui-font-label);
-  cursor: pointer;
-}
-
-.launcher-btn-text:hover:not(:disabled) {
-  color: var(--text-primary);
 }
 
 .launcher-hint {
@@ -506,6 +487,13 @@ function removeRecent(path) {
   color: var(--text-primary);
 }
 
+.launcher-recents-copy {
+  margin: 6px 0 0;
+  font-size: var(--ui-font-label);
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
 .launcher-recents-count {
   display: inline-flex;
   align-items: center;
@@ -528,38 +516,48 @@ function removeRecent(path) {
 
 .launcher-recent {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.launcher-recent-open {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 44px;
-  padding: 9px 10px;
+  min-height: 52px;
+  padding: 11px 12px;
   border: 1px solid color-mix(in srgb, var(--shell-border) 18%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--workspace-paper) 22%, transparent);
   color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
+  font: inherit;
   transition:
     border-color 140ms ease,
     background-color 140ms ease,
-    color 140ms ease;
+    color 140ms ease,
+    box-shadow 140ms ease;
 }
 
-.launcher-recent:hover {
+.launcher-recent-open:hover {
   border-color: color-mix(in srgb, var(--shell-border) 30%, transparent);
-  background: color-mix(in srgb, var(--surface-hover) 30%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
   color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 10%, transparent);
 }
 
 .launcher-recent-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-base) 28%, transparent);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--workspace-paper-muted) 74%, transparent);
   color: var(--text-secondary);
 }
 
@@ -595,13 +593,26 @@ function removeRecent(path) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 18%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--workspace-paper) 18%, transparent);
   color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.launcher-recent-remove > svg {
+  width: 12px;
+  height: 12px;
 }
 
 .launcher-recent-remove:hover {
+  border-color: color-mix(in srgb, var(--error) 28%, transparent);
   background: color-mix(in srgb, var(--error) 8%, transparent);
   color: var(--error);
 }
@@ -639,6 +650,11 @@ function removeRecent(path) {
   .launcher-principles {
     grid-template-columns: 1fr;
   }
+
+  .launcher-principle:not(:first-child) {
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--shell-border) 18%, transparent);
+  }
 }
 
 @media (max-width: 720px) {
@@ -661,10 +677,6 @@ function removeRecent(path) {
 
   .launcher-tagline {
     font-size: var(--ui-font-body);
-  }
-
-  .launcher-recent {
-    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .launcher-recent-meta {

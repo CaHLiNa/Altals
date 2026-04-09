@@ -274,10 +274,10 @@
                 v-for="entry in selectedPreviewEntries"
                 :key="entry.path"
                 type="button"
-                class="workspace-snapshot-payload-entry"
+                class="workspace-snapshot-payload-entry ui-list-row"
                 :class="{
-                  'workspace-snapshot-payload-entry-active':
-                    entry.path === selectedPreviewEntryPath,
+                  'workspace-snapshot-payload-entry-active': entry.path === selectedPreviewEntryPath,
+                  'is-active': entry.path === selectedPreviewEntryPath,
                   'workspace-snapshot-payload-entry-previewable': canLoadPreviewDetail(entry),
                 }"
                 @click="selectPreviewEntry(entry)"
@@ -296,9 +296,10 @@
                 v-for="entry in selectedAddedEntries"
                 :key="entry.path"
                 type="button"
-                class="workspace-snapshot-payload-entry workspace-snapshot-payload-entry-previewable"
+                class="workspace-snapshot-payload-entry workspace-snapshot-payload-entry-previewable ui-list-row"
                 :class="{
                   'workspace-snapshot-payload-entry-active': entry.path === selectedAddedEntryPath,
+                  'is-active': entry.path === selectedAddedEntryPath,
                 }"
                 @click="selectAddedEntry(entry)"
               >
@@ -404,20 +405,22 @@
                   @chunk-state-change="updateSelectedPreviewChunkState"
                 />
                 <div class="workspace-snapshot-actions">
-                  <button
-                    class="workspace-snapshot-action workspace-snapshot-action-apply"
+                  <UiButton
+                    variant="primary"
+                    size="sm"
                     :disabled="!selectedPreviewHasMergedChanges || applyingPreview || restoring"
                     @click="applySelectedPreviewChunks"
                   >
                     {{ applyingPreview ? t('Applying...') : t('Apply selected chunks') }}
-                  </button>
-                  <button
-                    class="workspace-snapshot-action workspace-snapshot-action-restore"
+                  </UiButton>
+                  <UiButton
+                    variant="secondary"
+                    size="sm"
                     :disabled="restoring || applyingPreview"
                     @click="restoreSelectedPreviewEntry"
                   >
                     {{ restoring ? t('Restoring...') : t('Restore this file') }}
-                  </button>
+                  </UiButton>
                 </div>
               </template>
             </div>
@@ -443,13 +446,14 @@
                 }}
               </div>
               <div class="workspace-snapshot-actions">
-                <button
-                  class="workspace-snapshot-action workspace-snapshot-action-remove"
+                <UiButton
+                  variant="danger"
+                  size="sm"
                   :disabled="removingAddedEntry || restoring || applyingPreview"
                   @click="removeSelectedAddedEntry"
                 >
                   {{ removingAddedEntry ? t('Removing...') : t('Remove this file') }}
-                </button>
+                </UiButton>
               </div>
             </div>
 
@@ -462,13 +466,14 @@
               >
                 {{ t('Delete this save point') }}
               </UiButton>
-              <button
-                class="workspace-snapshot-action workspace-snapshot-action-restore"
+              <UiButton
+                variant="secondary"
+                size="sm"
                 :disabled="!canRestoreSelectedSavePoint || restoring || removingAddedEntry"
                 @click="restoreSelectedSnapshot"
               >
                 {{ restoring ? t('Restoring...') : t('Restore save point') }}
-              </button>
+              </UiButton>
             </div>
           </div>
         </div>
@@ -1422,6 +1427,8 @@ function formatPreviewStatus(status) {
 .workspace-snapshot-actions {
   display: flex;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   padding-top: 4px;
 }
 
@@ -1454,12 +1461,14 @@ function formatPreviewStatus(status) {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 0;
+  min-height: 30px;
+  padding: 0 10px;
   border: 0;
   background: transparent;
+  border-radius: 10px;
   text-align: left;
   font-size: var(--ui-font-body);
-  color: var(--fg-primary);
+  color: var(--text-secondary);
 }
 
 .workspace-snapshot-payload-entry-previewable {
@@ -1467,7 +1476,7 @@ function formatPreviewStatus(status) {
 }
 
 .workspace-snapshot-payload-entry-active {
-  color: var(--accent-fg, var(--fg-primary));
+  color: var(--text-primary);
 }
 
 .workspace-snapshot-payload-status {
@@ -1490,48 +1499,6 @@ function formatPreviewStatus(status) {
   font-size: var(--ui-font-caption);
   color: var(--fg-secondary);
   line-height: 1.5;
-}
-
-.workspace-snapshot-action {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.workspace-snapshot-action:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.workspace-snapshot-action-restore {
-  color: var(--fg-primary);
-  background: color-mix(in srgb, var(--bg-hover) 72%, var(--bg-secondary));
-}
-
-.workspace-snapshot-action-restore:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.workspace-snapshot-action-apply {
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
-}
-
-.workspace-snapshot-action-apply:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.workspace-snapshot-action-remove {
-  color: var(--error);
-  background: color-mix(in srgb, var(--error) 8%, var(--bg-primary));
-}
-
-.workspace-snapshot-action-remove:not(:disabled):hover {
-  transform: translateY(-1px);
 }
 
 .workspace-version-list-toolbar {

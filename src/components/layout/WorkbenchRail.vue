@@ -4,77 +4,71 @@
     :class="{ 'workbench-rail--mac': isMac && isTauriDesktop && !isNativeFullscreen }"
     :aria-label="t('Project navigation')"
     :style="railStyle"
-    data-tauri-drag-region
+    @mousedown="handleWindowDragStart"
   >
     <div class="workbench-rail-side workbench-rail-side-left">
       <UiButton
+        v-if="leftSidebarAvailable"
         class="workbench-rail-button"
         variant="ghost"
         size="icon-sm"
         :active="leftSidebarOpen"
         :title="t('Toggle sidebar ({shortcut})', { shortcut: `${modKey}+B` })"
         :aria-label="t('Toggle sidebar')"
+        data-window-drag-ignore="true"
         @click="$emit('toggle-left-sidebar')"
       >
         <component
           :is="leftSidebarOpen ? IconLayoutSidebarLeftCollapse : IconLayoutSidebar"
-          :size="15"
-          :stroke-width="1.7"
+          :size="18"
+          :stroke-width="1.75"
         />
       </UiButton>
 
       <UiButton
-        v-if="leftSidebarOpen"
+        v-if="leftSidebarOpen && leftSidebarAvailable"
         class="workbench-rail-button"
         variant="ghost"
         size="icon-sm"
         :title="t('Collapse All Folders')"
         :aria-label="t('Collapse All Folders')"
+        data-window-drag-ignore="true"
         @click="$emit('collapse-left-folders')"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path
-            d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"
-          />
-          <path
-            fill-rule="evenodd"
-            d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z"
-            clip-rule="evenodd"
-          />
-        </svg>
+        <IconFolderMinus :size="18" :stroke-width="1.75" />
       </UiButton>
 
       <UiButton
-        v-if="leftSidebarOpen"
+        v-if="leftSidebarOpen && leftSidebarAvailable"
         class="workbench-rail-button"
         variant="ghost"
         size="icon-sm"
         :title="t('New File or Folder')"
         :aria-label="t('New File or Folder')"
+        data-window-drag-ignore="true"
         @click="$emit('open-left-create-menu', $event)"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.7"
-          aria-hidden="true"
-        >
-          <line x1="8" y1="3" x2="8" y2="13" />
-          <line x1="3" y1="8" x2="13" y2="8" />
-        </svg>
+        <IconPlus :size="18" :stroke-width="1.75" />
       </UiButton>
     </div>
 
-    <div class="workbench-rail-center" data-tauri-drag-region="false">
-      <div :id="tabsTargetId" class="workbench-rail-title-target"></div>
+    <div class="workbench-rail-center">
+      <div class="workbench-rail-title-target">
+        <div
+          v-if="currentDocumentLabel"
+          class="workbench-rail-document-title"
+          :title="currentDocumentLabel"
+          :aria-label="currentDocumentLabel"
+        >
+          <span class="workbench-rail-document-title-label">{{ currentDocumentLabel }}</span>
+        </div>
+      </div>
     </div>
 
     <div class="workbench-rail-side workbench-rail-side-right">
-      <div class="workbench-rail-controls" data-tauri-drag-region="false">
+      <div class="workbench-rail-controls" data-window-drag-ignore="true">
         <UiButton
+          v-if="splitPaneAvailable"
           class="workbench-rail-button"
           shell-class="workbench-rail-pane-button"
           variant="ghost"
@@ -82,20 +76,10 @@
           :active="splitPaneOpen"
           :title="t('Toggle split pane ({shortcut})', { shortcut: `${modKey}+J` })"
           :aria-label="t('Toggle split pane')"
+          data-window-drag-ignore="true"
           @click="$emit('toggle-split-pane')"
         >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.7"
-            aria-hidden="true"
-          >
-            <rect x="2.5" y="3" width="11" height="10" rx="1.75" />
-            <path d="M8 3v10" />
-          </svg>
+          <IconLayoutColumns :size="18" :stroke-width="1.75" />
         </UiButton>
 
         <UiButton
@@ -107,12 +91,13 @@
           :active="rightSidebarOpen"
           :title="t('Toggle right sidebar')"
           :aria-label="t('Toggle right sidebar')"
+          data-window-drag-ignore="true"
           @click="$emit('toggle-right-sidebar')"
         >
           <component
             :is="rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
-            :size="15"
-            :stroke-width="1.7"
+            :size="18"
+            :stroke-width="1.75"
           />
         </UiButton>
       </div>
@@ -124,10 +109,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
+  IconFolderMinus,
+  IconLayoutColumns,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
   IconLayoutSidebarRightCollapse,
+  IconPlus,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import { isMac, modKey } from '../../platform'
@@ -135,8 +123,11 @@ import { useI18n } from '../../i18n'
 
 defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
+  currentDocumentLabel: { type: String, default: '' },
+  leftSidebarAvailable: { type: Boolean, default: true },
   leftSidebarOpen: { type: Boolean, default: true },
   rightSidebarOpen: { type: Boolean, default: false },
+  splitPaneAvailable: { type: Boolean, default: true },
   splitPaneOpen: { type: Boolean, default: false },
   inspectorAvailable: { type: Boolean, default: false },
 })
@@ -156,9 +147,11 @@ const DEFAULT_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
 const FULLSCREEN_LEFT_PADDING = 12
 const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+const WINDOW_DRAGGING_CLASS = 'window-dragging'
 
 const isNativeFullscreen = ref(false)
 let unlistenWindowResize = null
+let removeDragGuards = null
 
 const railLeftPadding = computed(() => {
   if (!isMac || !isTauriDesktop) {
@@ -183,6 +176,43 @@ async function syncNativeWindowChromeState() {
   }
 }
 
+async function handleWindowDragStart(event) {
+  if (!isTauriDesktop || event.button !== 0) return
+  const target = event.target instanceof Element ? event.target : null
+  if (target?.closest('[data-window-drag-ignore="true"]')) return
+  event.preventDefault()
+  beginWindowDragGuard()
+  try {
+    await getCurrentWindow().startDragging()
+  } catch {
+    // Ignore drag-start failures from unsupported environments.
+  } finally {
+    endWindowDragGuard()
+  }
+}
+
+function beginWindowDragGuard() {
+  endWindowDragGuard()
+  document.body.classList.add(WINDOW_DRAGGING_CLASS)
+
+  const cleanup = () => {
+    endWindowDragGuard()
+  }
+
+  window.addEventListener('mouseup', cleanup, { once: true })
+  window.addEventListener('blur', cleanup, { once: true })
+  removeDragGuards = () => {
+    window.removeEventListener('mouseup', cleanup)
+    window.removeEventListener('blur', cleanup)
+  }
+}
+
+function endWindowDragGuard() {
+  document.body.classList.remove(WINDOW_DRAGGING_CLASS)
+  removeDragGuards?.()
+  removeDragGuards = null
+}
+
 onMounted(async () => {
   if (!isTauriDesktop) return
   await syncNativeWindowChromeState()
@@ -196,6 +226,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  endWindowDragGuard()
   unlistenWindowResize?.()
   unlistenWindowResize = null
 })
@@ -203,8 +234,8 @@ onUnmounted(() => {
 
 <style scoped>
 .workbench-rail {
-  --top-chrome-control-size: 28px;
-  --top-chrome-control-radius: 8px;
+  --top-chrome-control-size: 33px;
+  --top-chrome-control-radius: 10px;
   position: relative;
   display: flex;
   align-items: center;
@@ -213,14 +244,16 @@ onUnmounted(() => {
   flex: 0 0 auto;
   min-width: 0;
   margin: 0;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding-top: 1px;
+  padding-bottom: 1px;
   border-bottom: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  pointer-events: none;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .workbench-rail:hover .workbench-rail-button,
@@ -236,7 +269,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 4px;
+  gap: 3px;
   position: relative;
   z-index: 2;
   pointer-events: auto;
@@ -252,7 +285,7 @@ onUnmounted(() => {
   justify-content: center;
   width: min(520px, calc(100% - 220px));
   min-width: 0;
-  pointer-events: none;
+  pointer-events: auto;
   transform: translate(-50%, -50%);
 }
 
@@ -265,8 +298,46 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
+  min-height: 24px;
   min-width: 0;
+  max-width: min(440px, 100%);
+  overflow: hidden;
   pointer-events: auto;
+}
+
+.workbench-rail-document-title {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--text-primary) 88%, transparent);
+  font-size: var(--ui-font-label);
+  font-weight: 560;
+  letter-spacing: -0.003em;
+  line-height: 1.2;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:global(body.window-dragging) {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+:global(body.window-dragging *) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.workbench-rail-document-title-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workbench-rail-side-left {
@@ -275,13 +346,13 @@ onUnmounted(() => {
 
 .workbench-rail-side-right {
   justify-content: flex-end;
-  gap: 4px;
+  gap: 3px;
 }
 
 .workbench-rail-controls {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 0;
   flex: 0 0 auto;
   min-height: var(--top-chrome-control-size);
   pointer-events: auto;
@@ -294,37 +365,35 @@ onUnmounted(() => {
   min-height: var(--top-chrome-control-size);
   padding: 0;
   border-radius: var(--top-chrome-control-radius);
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
   opacity: 1;
   background: transparent;
   box-shadow: none;
   transition:
     background-color 140ms ease,
-    border-color 140ms ease,
     color 140ms ease,
-    box-shadow 140ms ease;
+    opacity 140ms ease;
+}
+
+.workbench-rail-button :deep(svg) {
+  width: 18px !important;
+  height: 18px !important;
 }
 
 .workbench-rail-button:hover:not(:disabled) {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--chrome-surface) 24%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
+  background: transparent;
 }
 
 .workbench-rail-button:focus-visible {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--chrome-surface) 28%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent),
-    0 0 0 2px var(--focus-ring);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
 }
 
 .workbench-rail-button.is-active {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--chrome-surface) 42%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 18%, transparent),
-    0 1px 0 color-mix(in srgb, white 20%, transparent);
+  background: transparent;
 }
 
 :deep(.workbench-rail-pane-button) {
@@ -339,6 +408,7 @@ onUnmounted(() => {
   .workbench-rail {
     gap: 8px;
   }
+
 }
 
 @media (max-width: 720px) {

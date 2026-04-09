@@ -4,7 +4,7 @@
     variant="ghost"
     :size="size"
     icon-only
-    class="shell-chrome-button"
+    class="shell-chrome-button ui-segmented-item"
     :class="{ 'is-active': active }"
     :title="title"
     :aria-label="ariaLabel || title"
@@ -30,7 +30,7 @@ defineProps({
 .shell-chrome-button {
   position: relative;
   opacity: 1;
-  border-radius: 6px;
+  border-radius: 9px;
   color: var(--text-muted);
   transition:
     background-color 140ms ease,
@@ -40,12 +40,12 @@ defineProps({
 }
 
 .shell-chrome-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
   color: var(--text-primary);
 }
 
 .shell-chrome-button.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--text-primary);
   box-shadow: none;
 }

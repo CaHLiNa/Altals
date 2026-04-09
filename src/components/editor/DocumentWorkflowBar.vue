@@ -21,7 +21,7 @@
               :aria-label="primaryLabel"
               @click="$emit('primary-action')"
             >
-              <component :is="primaryIcon" :size="15" :stroke-width="1.7" />
+              <component :is="primaryIcon" :size="17" :stroke-width="1.8" />
             </UiButton>
           </template>
           <UiButton
@@ -34,7 +34,7 @@
             :aria-label="t('Run selection or line ({shortcut})', { shortcut: `${modKey}+Enter` })"
             @click="$emit('run-code')"
           >
-            <IconPlayerPlay :size="15" :stroke-width="1.7" />
+            <IconPlayerPlay :size="17" :stroke-width="1.8" />
           </UiButton>
           <UiButton
             v-if="showRunButtons"
@@ -46,7 +46,7 @@
             :aria-label="t('Run entire file ({shortcut})', { shortcut: `Shift+${modKey}+Enter` })"
             @click="$emit('run-file')"
           >
-            <IconPlayerTrackNext :size="15" :stroke-width="1.7" />
+            <IconPlayerTrackNext :size="17" :stroke-width="1.8" />
           </UiButton>
         </div>
 
@@ -81,7 +81,7 @@
             :aria-label="previewButtonLabel"
             @click="$emit('reveal-preview')"
           >
-            <IconEye :size="15" :stroke-width="1.7" />
+            <IconEye :size="17" :stroke-width="1.8" />
           </UiButton>
           <UiButton
             v-if="showPdfButton"
@@ -93,7 +93,7 @@
             :aria-label="pdfButtonLabel"
             @click="$emit('reveal-pdf')"
           >
-            <IconFileTypePdf :size="15" :stroke-width="1.7" />
+            <IconFileTypePdf :size="17" :stroke-width="1.8" />
           </UiButton>
         </div>
       </div>
@@ -218,21 +218,23 @@ const statusClass = computed(() => ({
 }
 
 .workflow-bar.is-shell-integrated {
-  --shell-top-control-size: 28px;
-  --shell-top-control-radius: 8px;
+  --shell-top-control-size: 31px;
+  --shell-top-control-radius: 9px;
   width: auto;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
   padding: 0;
-  gap: 6px;
+  gap: 4px;
 }
 
 .workflow-bar.is-inline-header {
   width: auto;
   min-width: 0;
   flex: 0 1 auto;
+  min-height: 31px;
+  height: 31px;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 3px;
 }
 
 .workflow-bar-split {
@@ -252,13 +254,13 @@ const statusClass = computed(() => ({
 
 .workflow-left {
   flex: 1 1 auto;
-  gap: 4px;
+  gap: 3px;
   padding: 0;
 }
 
 .workflow-right {
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 1px;
   margin-left: auto;
   padding: 0;
 }
@@ -270,7 +272,7 @@ const statusClass = computed(() => ({
 
 .workflow-bar.is-inline-header .workflow-right {
   margin-left: 0;
-  gap: 3px;
+  gap: 1px;
 }
 
 .workflow-bar.is-shell-integrated .workflow-left,
@@ -286,7 +288,7 @@ const statusClass = computed(() => ({
 }
 
 .workflow-bar.is-shell-integrated .workflow-right {
-  gap: 2px;
+  gap: 1px;
 }
 
 .workflow-bar-split .workflow-left,
@@ -332,7 +334,7 @@ const statusClass = computed(() => ({
   white-space: nowrap;
   font-size: var(--ui-font-caption);
   color: var(--text-muted);
-  opacity: 0.82;
+  opacity: 0.72;
 }
 
 .workflow-kind {
@@ -348,7 +350,7 @@ const statusClass = computed(() => ({
 .workflow-preview-tools {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   flex: 0 0 auto;
   min-height: 24px;
@@ -358,9 +360,16 @@ const statusClass = computed(() => ({
   border: 0;
 }
 
+.workflow-bar.is-inline-header .workflow-doc-tools,
+.workflow-bar.is-inline-header .workflow-preview-tools {
+  gap: 1px;
+  min-height: 31px;
+  height: 31px;
+}
+
 .workflow-bar.is-shell-integrated .workflow-doc-tools,
 .workflow-bar.is-shell-integrated .workflow-preview-tools {
-  gap: 4px;
+  gap: 2px;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
   padding: 0;
@@ -405,20 +414,30 @@ const statusClass = computed(() => ({
 .workflow-primary-btn,
 .workflow-secondary-btn {
   flex: 0 0 auto;
-  height: 22px;
-  width: 22px;
-  min-height: 22px;
+  height: 26px;
+  width: 26px;
+  min-height: 26px;
   white-space: nowrap;
-  color: var(--text-secondary);
-  border-radius: 7px;
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  border-radius: 8px;
   background: transparent;
-  opacity: 0.88;
+  opacity: 0.82;
   box-shadow: none;
   transition:
     background-color 140ms ease,
     color 140ms ease,
-    border-color 140ms ease,
+    opacity 140ms ease,
     box-shadow 140ms ease;
+}
+
+.workflow-bar.is-inline-header .workflow-primary-btn,
+.workflow-bar.is-inline-header .workflow-secondary-btn {
+  width: 31px;
+  height: 31px;
+  min-height: 31px;
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+  opacity: 0.74;
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn,
@@ -428,7 +447,7 @@ const statusClass = computed(() => ({
   min-height: var(--shell-top-control-size);
   padding: 0;
   border-radius: var(--shell-top-control-radius);
-  opacity: 0.92;
+  opacity: 0.74;
   background: transparent;
   box-shadow: none;
 }
@@ -441,19 +460,29 @@ const statusClass = computed(() => ({
 .workflow-bar:hover .workflow-secondary-btn,
 .workflow-bar:focus-within .workflow-primary-btn,
 .workflow-bar:focus-within .workflow-secondary-btn {
-  opacity: 0.92;
+  opacity: 0.88;
+}
+
+.workflow-bar.is-inline-header:hover .workflow-primary-btn,
+.workflow-bar.is-inline-header:hover .workflow-secondary-btn,
+.workflow-bar.is-inline-header:focus-within .workflow-primary-btn,
+.workflow-bar.is-inline-header:focus-within .workflow-secondary-btn {
+  opacity: 0.82;
 }
 
 .workflow-primary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--chrome-surface) 18%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 11%, transparent);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
 
 .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--chrome-surface) 18%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 11%, transparent);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
+}
+
+.workflow-bar.is-inline-header .workflow-primary-btn:hover:not(:disabled),
+.workflow-bar.is-inline-header .workflow-secondary-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
 }
 
 .workflow-secondary-btn {
@@ -461,21 +490,24 @@ const statusClass = computed(() => ({
 }
 
 .workflow-secondary-btn.is-active {
-  background: color-mix(in srgb, var(--chrome-surface) 24%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 14%, transparent);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 14%, transparent);
+}
+
+.workflow-bar.is-inline-header .workflow-secondary-btn.is-active {
+  background: color-mix(in srgb, var(--surface-hover) 9%, transparent);
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn.is-active,
 .workflow-bar.is-shell-integrated .workflow-secondary-btn.is-active {
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
 
 .workflow-bar.is-shell-integrated .workflow-primary-btn:hover:not(:disabled),
 .workflow-bar.is-shell-integrated .workflow-secondary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--chrome-surface) 50%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
 }
 
 .workflow-secondary-btn-accent {

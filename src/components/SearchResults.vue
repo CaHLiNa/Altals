@@ -3,8 +3,8 @@
     <div class="search-results-list">
       <!-- Title matches -->
       <template v-if="titleMatches.length > 0">
-        <div class="quick-open-section" v-if="query && contentMatches.length > 0">
-          {{ t('Files') }}
+        <div class="quick-open-section">
+          {{ query ? t('Files') : t('Recent files') }}
         </div>
         <div
           v-for="(file, idx) in titleMatches"
@@ -111,9 +111,9 @@ onMounted(() => {
     })
 })
 
-const workspaceSnapshot = computed(() => (
-  files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
-))
+const workspaceSnapshot = computed(
+  () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
+)
 
 const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
 

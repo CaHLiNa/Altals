@@ -270,6 +270,24 @@ function openCompileLog() {
   gap: 12px;
   padding: 6px 6px 12px;
   overflow-y: auto;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .document-run-hero,
@@ -281,8 +299,8 @@ function openCompileLog() {
 }
 
 .document-run-hero {
-  padding: 2px 2px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent);
+  padding: 4px 2px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
 }
 
 .document-run-hero-top {
@@ -350,16 +368,19 @@ function openCompileLog() {
 .document-run-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 0;
   margin-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
 }
 
 .document-run-stat-card {
   min-width: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 48%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 22%, transparent);
-  padding: 8px 10px;
+  padding: 10px 10px 11px;
+}
+
+.document-run-stat-card:not(:first-child) {
+  border-left: 1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent);
 }
 
 .document-run-stat-label {
@@ -388,7 +409,7 @@ function openCompileLog() {
   flex: 1 1 calc(50% - 4px);
   min-width: 0;
   justify-content: flex-start;
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text-secondary);
   opacity: 1;
   transition:
@@ -398,7 +419,7 @@ function openCompileLog() {
 }
 
 .document-run-action:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 2%, transparent);
+  background: color-mix(in srgb, white 28%, transparent);
   color: var(--text-primary);
 }
 
@@ -443,10 +464,10 @@ function openCompileLog() {
 }
 
 .document-run-problem {
-  border-left: 2px solid color-mix(in srgb, var(--border) 18%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--border) 12%, transparent);
   border-radius: 0;
   background: transparent;
-  padding: 7px 0 7px 10px;
+  padding: 9px 0 9px 12px;
 }
 
 .document-run-problem.is-error {

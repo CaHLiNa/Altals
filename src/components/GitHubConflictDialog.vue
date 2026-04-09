@@ -21,15 +21,15 @@
         </details>
 
         <div class="conflict-actions">
-          <button class="conflict-btn primary-large" @click="openGitHub">
+          <UiButton variant="primary" size="md" @click="openGitHub">
             {{ t('Open GitHub') }}
-          </button>
-          <button class="conflict-btn" @click="handleRefresh" :disabled="refreshing">
+          </UiButton>
+          <UiButton variant="secondary" size="md" @click="handleRefresh" :disabled="refreshing">
             {{ refreshing ? t('Checking...') : t('Refresh') }}
-          </button>
-          <button class="conflict-btn dismiss" @click="$emit('close')">
+          </UiButton>
+          <UiButton variant="ghost" size="md" @click="$emit('close')">
             {{ t('Dismiss') }}
-          </button>
+          </UiButton>
         </div>
       </div>
     </div>
@@ -40,6 +40,7 @@
 import { ref, computed } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
+import UiButton from './shared/ui/UiButton.vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -148,46 +149,9 @@ async function handleRefresh() {
 
 .conflict-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 20px;
   justify-content: center;
-}
-
-.conflict-btn {
-  padding: 7px 16px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--fg-secondary);
-  font-size: var(--ui-font-body);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.conflict-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.conflict-btn.primary-large {
-  border-color: var(--accent);
-  color: #fff;
-  background: var(--accent);
-  padding: 9px 24px;
-  font-size: var(--ui-font-title);
-  font-weight: 500;
-}
-
-.conflict-btn.primary-large:hover {
-  filter: brightness(1.1);
-}
-
-.conflict-btn.dismiss {
-  color: var(--fg-muted);
-}
-
-.conflict-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

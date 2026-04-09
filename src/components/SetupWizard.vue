@@ -54,7 +54,9 @@
           </div>
 
           <div class="wizard-nav">
-            <button class="wizard-btn primary" @click="finish">{{ t('Start Writing') }}</button>
+            <UiButton variant="primary" size="md" @click="finish">
+              {{ t('Start Writing') }}
+            </UiButton>
           </div>
         </div>
       </div>
@@ -67,6 +69,7 @@ import { ref } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
 import { WORKSPACE_THEME_OPTIONS } from '../shared/workspaceThemeOptions.js'
+import UiButton from './shared/ui/UiButton.vue'
 
 defineProps({
   visible: { type: Boolean, default: false },
@@ -224,26 +227,6 @@ function finish() {
   display: flex;
   justify-content: flex-end;
   margin-top: 24px;
-}
-
-.wizard-btn {
-  padding: 8px 20px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: var(--ui-font-body);
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.wizard-btn.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--bg-primary);
-}
-
-.wizard-btn.primary:hover {
-  opacity: 0.92;
 }
 
 @media (max-width: 760px) {

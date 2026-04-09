@@ -13,12 +13,12 @@
       >
         <svg
           v-if="headingCollapsible"
-          width="12"
-          height="12"
+          width="13"
+          height="13"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.5"
+          stroke-width="1.6"
           class="file-tree-chevron"
           :class="{ 'file-tree-chevron-open': !collapsed }"
         >
@@ -28,36 +28,27 @@
       </div>
       <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
         <UiButton
-          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
+          class="file-tree-header-action"
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           icon-only
           @click.stop="collapseAllFolders"
           :title="t('Collapse All Folders')"
           :aria-label="t('Collapse All Folders')"
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path
-              d="M14 4.27c.6.35 1 .99 1 1.73v5c0 2.21-1.79 4-4 4H6c-.74 0-1.38-.4-1.73-1H11c1.65 0 3-1.35 3-3zM9.5 7a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1z"
-            />
-            <path
-              fill-rule="evenodd"
-              d="M11 2c1.103 0 2 .897 2 2v7c0 1.103-.897 2-2 2H4c-1.103 0-2-.897-2-2V4c0-1.103.897-2 2-2zM4 3c-.551 0-1 .449-1 1v7c0 .552.449 1 1 1h7c.551 0 1-.448 1-1V4c0-.551-.449-1-1-1z"
-              clip-rule="evenodd"
-            />
-          </svg>
+          <IconFolderMinus :size="17" :stroke-width="1.75" />
         </UiButton>
         <UiButton
           ref="newBtnEl"
-          class="w-5 h-5 flex items-center justify-center rounded hover:opacity-80"
+          class="file-tree-header-action"
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           icon-only
           @click.stop="toggleNewMenu"
           :title="t('New File or Folder')"
           :aria-label="t('New File or Folder')"
         >
-          <IconPlus :size="12" :stroke-width="2" />
+          <IconPlus :size="15" :stroke-width="1.9" />
         </UiButton>
       </div>
     </div>
@@ -71,7 +62,7 @@
             v-model="filterQuery"
             size="sm"
             shell-class="file-tree-search-input"
-            :placeholder="t('Filter files or quick open...')"
+            :placeholder="t('Search files')"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
@@ -79,20 +70,7 @@
             @keydown="handleFilterInputKeydown"
           >
             <template #prefix>
-              <IconSearch :size="12" :stroke-width="1.5" class="file-tree-search-icon" />
-            </template>
-            <template #suffix>
-              <UiButton
-                class="file-tree-quick-open-trigger"
-                variant="ghost"
-                size="icon-sm"
-                icon-only
-                :title="t('Quick open ({shortcut})', { shortcut: `${modKey}+P` })"
-                :aria-label="t('Quick open')"
-                @click.stop="emit('open-search')"
-              >
-                <kbd class="ui-kbd file-tree-quick-open-kbd">{{ modKey }}+P</kbd>
-              </UiButton>
+              <IconSearch :size="14" :stroke-width="1.6" class="file-tree-search-icon" />
             </template>
           </UiInput>
         </div>
@@ -196,7 +174,7 @@
           :aria-label="t('Settings')"
           @click.stop="emit('open-settings')"
         >
-          <IconSettings :size="15" :stroke-width="1.7" />
+          <IconSettings :size="17" :stroke-width="1.8" />
         </UiButton>
 
         <UiButton
@@ -221,7 +199,7 @@
           :aria-label="t('Workspace Menu')"
           @click.stop="toggleWorkspaceMenu"
         >
-          <IconDotsVertical :size="15" :stroke-width="1.7" />
+          <IconDotsVertical :size="17" :stroke-width="1.8" />
         </UiButton>
       </div>
 
@@ -332,6 +310,7 @@ import ContextMenu from './ContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import {
+  IconFolderMinus,
   IconSearch,
   IconPlus,
   IconFileText,
@@ -373,9 +352,9 @@ const workspaceName = computed(() => {
   return workspace.path.split('/').pop()
 })
 const recentWorkspaces = computed(() => workspace.getRecentWorkspaces().slice(0, 5))
-const workspaceSnapshot = computed(() => (
-  files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
-))
+const workspaceSnapshot = computed(
+  () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
+)
 const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
 
 const treeContainer = ref(null)
@@ -443,6 +422,7 @@ const {
 })
 
 function openFile(path) {
+  workspace.openWorkspaceSurface()
   editor.openFile(path)
 }
 
@@ -568,13 +548,17 @@ async function createTypedFile(dir, ext) {
   const baseName = t('Untitled')
   let name = `${baseName}${ext}`
   let i = 2
-  while (workspaceFlatFiles.value.some((f) => f.name === name) || (await pathExists(`${dir}/${name}`))) {
+  while (
+    workspaceFlatFiles.value.some((f) => f.name === name) ||
+    (await pathExists(`${dir}/${name}`))
+  ) {
     name = `${baseName} ${i}${ext}`
     i++
   }
 
   const path = await files.createFile(dir, name)
   if (path) {
+    workspace.openWorkspaceSurface()
     editor.openFile(path)
     // Wait for Vue to render the new FileTreeItem before starting rename
     await nextTick()
@@ -620,6 +604,7 @@ async function handleDuplicate(entry) {
   if (newPath) {
     const newName = newPath.split('/').pop()
     if (!entry.is_dir) {
+      workspace.openWorkspaceSurface()
       editor.openFile(newPath)
     }
     // Start inline rename so user can give it a proper name
@@ -682,6 +667,7 @@ async function finishRename() {
       } else {
         const path = await files.createFile(renaming.parentDir, name)
         if (path) {
+          workspace.openWorkspaceSurface()
           editor.openFile(path)
         }
       }
@@ -795,11 +781,36 @@ defineExpose({
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 2px 4px 4px;
+  padding: 4px 4px 4px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .file-tree-header {
   color: var(--text-muted);
+}
+
+.file-tree-header-action {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--text-muted) 90%, transparent);
 }
 
 .file-tree-header--with-divider {
@@ -815,24 +826,24 @@ defineExpose({
 }
 
 .file-tree-search-row {
-  padding: 8px 6px 4px;
+  padding: 10px 8px 8px;
 }
 
 :deep(.file-tree-search-input) {
-  border-color: color-mix(in srgb, var(--border-subtle) 14%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--workspace-paper) 60%, var(--surface-hover));
-  min-height: 20px;
-  padding-inline: 6px;
+  border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
+  min-height: 30px;
+  padding-inline: 10px;
   gap: var(--sidebar-inline-gap);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 5%, transparent);
+  box-shadow: none;
   opacity: 1;
 }
 
 :deep(.file-tree-search-input:focus-within) {
-  border-color: color-mix(in srgb, var(--border) 22%, transparent);
-  background: color-mix(in srgb, var(--workspace-paper) 84%, transparent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: color-mix(in srgb, var(--sidebar-search-border-focus) 80%, transparent);
+  background: color-mix(in srgb, var(--sidebar-search-surface-focus) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 42%, transparent);
   opacity: 1;
 }
 
@@ -841,45 +852,22 @@ defineExpose({
   line-height: 1.1;
 }
 
+:deep(.file-tree-search-input .ui-input-control::placeholder) {
+  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
+  opacity: 1;
+}
+
 .file-tree-search-icon {
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
 }
 
 :deep(.file-tree-search-input.ui-input-shell--sm) {
-  min-height: 20px;
-  padding-inline: 6px;
+  min-height: 30px;
+  padding-inline: 10px;
 }
 
 :deep(.file-tree-search-input .ui-input-affix) {
   height: 14px;
-}
-
-.file-tree-quick-open-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.file-tree-quick-open-trigger:hover {
-  color: var(--text-primary);
-}
-
-.file-tree-quick-open-kbd {
-  min-width: 24px;
-  height: 14px;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-size: 9px;
-  line-height: 1;
-  color: var(--text-secondary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent);
 }
 
 .file-tree-root-rename-row {
@@ -912,22 +900,27 @@ defineExpose({
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  padding: 8px 2px 0;
-  border-top: 0;
+  padding: 4px 0 0;
   background: transparent;
 }
 
 .workspace-footer-icon-button {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
   opacity: 0.86;
 }
 
 .workspace-footer-icon-button:hover:not(:disabled) {
   opacity: 1;
+  background: transparent;
+}
+
+.workspace-footer-icon-button:focus-visible {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
 }
 
 .workspace-footer-action-button {
@@ -935,9 +928,9 @@ defineExpose({
   flex: 1 1 auto;
   min-height: var(--sidebar-row-height);
   justify-content: center;
-  padding-inline: 8px;
+  padding-inline: 10px;
   border: none;
-  border-radius: 7px;
+  border-radius: 9px;
   background: transparent;
   color: var(--fg-secondary);
   transition:
@@ -958,7 +951,12 @@ defineExpose({
 }
 
 .workspace-footer-action-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--workspace-paper) 72%, transparent);
+  background: transparent;
   color: var(--fg-primary);
+}
+
+.workspace-footer-action-button:focus-visible {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
 }
 </style>

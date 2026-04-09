@@ -1,9 +1,6 @@
 <template>
   <div class="md-preview-container" ref="containerEl">
-    <div
-      v-if="loadError"
-      class="md-preview-error"
-    >
+    <div v-if="loadError" class="md-preview-error">
       <div>{{ loadError.message }}</div>
       <div v-if="loadError.detail" class="md-preview-error-detail">{{ loadError.detail }}</div>
     </div>
@@ -45,10 +42,11 @@ const linksStore = useLinksStore()
 const containerEl = ref(null)
 
 const resolvedSourcePath = computed(
-  () => resolveMarkdownPreviewInput(props.filePath, {
-    sourcePath: props.sourcePath,
-    workflowStore,
-  }).sourcePath
+  () =>
+    resolveMarkdownPreviewInput(props.filePath, {
+      sourcePath: props.sourcePath,
+      workflowStore,
+    }).sourcePath
 )
 const loadError = computed(() => filesStore.getFileLoadError(resolvedSourcePath.value))
 
@@ -58,7 +56,11 @@ const renderedHtml = ref('')
 let flashTimer = null
 
 function getSourceAnchors() {
-  return [...(containerEl.value?.querySelectorAll?.('.md-preview-source-anchor[data-source-start-offset]') || [])]
+  return [
+    ...(containerEl.value?.querySelectorAll?.(
+      '.md-preview-source-anchor[data-source-start-offset]'
+    ) || []),
+  ]
 }
 
 function readAnchorLocation(element) {
@@ -85,19 +87,19 @@ function findBestAnchor(detail = {}) {
 
   if (Number.isFinite(targetOffset) && targetOffset >= 0) {
     const containing = anchors
-      .map(element => ({
+      .map((element) => ({
         element,
         start: Number(element.dataset.sourceStartOffset ?? -1),
         end: Number(element.dataset.sourceEndOffset ?? -1),
       }))
       .filter(({ start, end }) => start >= 0 && end >= start)
       .filter(({ start, end }) => targetOffset >= start && targetOffset <= end)
-      .sort((left, right) => ((left.end - left.start) - (right.end - right.start)))
+      .sort((left, right) => left.end - left.start - (right.end - right.start))
 
     if (containing[0]?.element) return containing[0].element
 
     const nearestBefore = anchors
-      .map(element => ({
+      .map((element) => ({
         element,
         start: Number(element.dataset.sourceStartOffset ?? -1),
       }))
@@ -109,14 +111,14 @@ function findBestAnchor(detail = {}) {
 
   if (Number.isFinite(targetLine) && targetLine > 0) {
     const containing = anchors
-      .map(element => ({
+      .map((element) => ({
         element,
         start: Number(element.dataset.sourceStartLine ?? -1),
         end: Number(element.dataset.sourceEndLine ?? -1),
       }))
       .filter(({ start, end }) => start > 0 && end >= start)
       .filter(({ start, end }) => targetLine >= start && targetLine <= end)
-      .sort((left, right) => ((left.end - left.start) - (right.end - right.start)))
+      .sort((left, right) => left.end - left.start - (right.end - right.start))
 
     if (containing[0]?.element) return containing[0].element
   }
@@ -185,17 +187,19 @@ async function doRender() {
     renderedHtml.value = ''
     workflowStore.setMarkdownPreviewState(resolvedSourcePath.value, {
       status: 'error',
-      problems: [{
-        id: `markdown-preview:${resolvedSourcePath.value}`,
-        sourcePath: resolvedSourcePath.value,
-        line: null,
-        column: null,
-        severity: 'error',
-        message: error?.message || String(error),
-        origin: 'preview',
-        actionable: true,
-        raw: error?.stack || String(error),
-      }],
+      problems: [
+        {
+          id: `markdown-preview:${resolvedSourcePath.value}`,
+          sourcePath: resolvedSourcePath.value,
+          line: null,
+          column: null,
+          severity: 'error',
+          message: error?.message || String(error),
+          origin: 'preview',
+          actionable: true,
+          raw: error?.stack || String(error),
+        },
+      ],
     })
   }
 }
@@ -273,11 +277,12 @@ async function handleDoubleClick(e) {
   e.preventDefault()
   e.stopPropagation()
 
-  const preferredSourcePaneId = (
-    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id
-    || (workflowStore.session.previewSourcePath === resolvedSourcePath.value ? workflowStore.session.sourcePaneId : null)
-    || null
-  )
+  const preferredSourcePaneId =
+    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id ||
+    (workflowStore.session.previewSourcePath === resolvedSourcePath.value
+      ? workflowStore.session.sourcePaneId
+      : null) ||
+    null
 
   await revealMarkdownSourceLocation(editorStore, location, {
     center: true,
@@ -291,8 +296,26 @@ async function handleDoubleClick(e) {
   height: 100%;
   overflow-y: auto;
   padding: 24px 22px 40px;
-  background: var(--shell-preview-surface);
+  background: inherit;
   color: var(--workspace-ink);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .md-preview-content {
@@ -356,15 +379,27 @@ async function handleDoubleClick(e) {
 .md-preview-content h5,
 .md-preview-content h6 {
   color: var(--hl-heading, var(--workspace-ink));
-  font-family: 'Geist', var(--font-sans, system-ui, sans-serif);
+  font-family: var(--font-display, var(--font-prose, Georgia, serif));
   margin: 1.8em 0 0.55em;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.01em;
 }
-.md-preview-content h1 { font-size: 2.05em; border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent); padding-bottom: 0.36em; }
-.md-preview-content h2 { font-size: 1.56em; border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 68%, transparent); padding-bottom: 0.26em; }
-.md-preview-content h3 { font-size: 1.28em; }
-.md-preview-content h4 { font-size: 1.1em; }
+.md-preview-content h1 {
+  font-size: 2.05em;
+  border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 74%, transparent);
+  padding-bottom: 0.36em;
+}
+.md-preview-content h2 {
+  font-size: 1.56em;
+  border-bottom: 1px solid color-mix(in srgb, var(--shell-border) 68%, transparent);
+  padding-bottom: 0.26em;
+}
+.md-preview-content h3 {
+  font-size: 1.28em;
+}
+.md-preview-content h4 {
+  font-size: 1.1em;
+}
 .md-preview-content h5,
 .md-preview-content h6 {
   color: var(--text-secondary);
@@ -544,28 +579,73 @@ async function handleDoubleClick(e) {
 }
 
 /* Highlight.js theme mapping — uses existing editor CSS vars */
-.md-preview-content .hljs { color: var(--workspace-ink); }
-.md-preview-content .hljs-keyword { color: var(--hl-keyword, #c678dd); }
-.md-preview-content .hljs-string { color: var(--hl-string, #e9967a); }
-.md-preview-content .hljs-number { color: var(--hl-number, #d19a66); }
-.md-preview-content .hljs-comment { color: var(--hl-comment, #5c6370); font-style: italic; }
-.md-preview-content .hljs-function { color: var(--hl-function, #61afef); }
-.md-preview-content .hljs-title { color: var(--hl-function, #61afef); }
-.md-preview-content .hljs-title.function_ { color: var(--hl-function, #61afef); }
-.md-preview-content .hljs-params { color: var(--hl-variable, #e06c75); }
-.md-preview-content .hljs-type { color: var(--hl-type, #e5c07b); }
-.md-preview-content .hljs-built_in { color: var(--hl-builtin, #56b6c2); }
-.md-preview-content .hljs-literal { color: var(--hl-constant, #d19a66); }
-.md-preview-content .hljs-attr { color: var(--hl-property, #d19a66); }
-.md-preview-content .hljs-attribute { color: var(--hl-property, #d19a66); }
-.md-preview-content .hljs-selector-tag { color: var(--hl-keyword, #c678dd); }
-.md-preview-content .hljs-selector-class { color: var(--hl-type, #e5c07b); }
-.md-preview-content .hljs-meta { color: var(--hl-meta, #abb2bf); }
-.md-preview-content .hljs-variable { color: var(--hl-variable, #e06c75); }
-.md-preview-content .hljs-name { color: var(--hl-tag, #e06c75); }
-.md-preview-content .hljs-tag { color: var(--fg-muted); }
-.md-preview-content .hljs-deletion { color: var(--error, #e06c75); }
-.md-preview-content .hljs-addition { color: var(--success, #98c379); }
+.md-preview-content .hljs {
+  color: var(--workspace-ink);
+}
+.md-preview-content .hljs-keyword {
+  color: var(--hl-keyword, #c678dd);
+}
+.md-preview-content .hljs-string {
+  color: var(--hl-string, #e9967a);
+}
+.md-preview-content .hljs-number {
+  color: var(--hl-number, #d19a66);
+}
+.md-preview-content .hljs-comment {
+  color: var(--hl-comment, #5c6370);
+  font-style: italic;
+}
+.md-preview-content .hljs-function {
+  color: var(--hl-function, #61afef);
+}
+.md-preview-content .hljs-title {
+  color: var(--hl-function, #61afef);
+}
+.md-preview-content .hljs-title.function_ {
+  color: var(--hl-function, #61afef);
+}
+.md-preview-content .hljs-params {
+  color: var(--hl-variable, #e06c75);
+}
+.md-preview-content .hljs-type {
+  color: var(--hl-type, #e5c07b);
+}
+.md-preview-content .hljs-built_in {
+  color: var(--hl-builtin, #56b6c2);
+}
+.md-preview-content .hljs-literal {
+  color: var(--hl-constant, #d19a66);
+}
+.md-preview-content .hljs-attr {
+  color: var(--hl-property, #d19a66);
+}
+.md-preview-content .hljs-attribute {
+  color: var(--hl-property, #d19a66);
+}
+.md-preview-content .hljs-selector-tag {
+  color: var(--hl-keyword, #c678dd);
+}
+.md-preview-content .hljs-selector-class {
+  color: var(--hl-type, #e5c07b);
+}
+.md-preview-content .hljs-meta {
+  color: var(--hl-meta, #abb2bf);
+}
+.md-preview-content .hljs-variable {
+  color: var(--hl-variable, #e06c75);
+}
+.md-preview-content .hljs-name {
+  color: var(--hl-tag, #e06c75);
+}
+.md-preview-content .hljs-tag {
+  color: var(--fg-muted);
+}
+.md-preview-content .hljs-deletion {
+  color: var(--error, #e06c75);
+}
+.md-preview-content .hljs-addition {
+  color: var(--success, #98c379);
+}
 
 /* KaTeX styles */
 .md-preview-content .katex-display {
@@ -579,7 +659,7 @@ async function handleDoubleClick(e) {
 }
 
 /* Task list checkboxes */
-.md-preview-content input[type="checkbox"] {
+.md-preview-content input[type='checkbox'] {
   margin-right: 6px;
   accent-color: var(--accent);
 }

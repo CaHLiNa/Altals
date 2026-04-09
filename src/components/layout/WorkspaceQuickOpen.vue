@@ -22,9 +22,6 @@
                 class="workspace-quick-open-search-icon shrink-0"
               />
             </template>
-            <template #suffix>
-              <kbd class="ui-kbd shrink-0">{{ modKey }}+P</kbd>
-            </template>
           </UiInput>
 
           <div class="workspace-quick-open-results">
@@ -48,7 +45,6 @@ import { IconSearch } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
-import { modKey } from '../../platform'
 import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 import UiInput from '../shared/ui/UiInput.vue'
 
@@ -67,7 +63,7 @@ const query = ref('')
 const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
-const searchPlaceholder = computed(() => t('Go to file...'))
+const searchPlaceholder = computed(() => t('Search files, headings, or symbols'))
 
 function onSearchKeydown(event) {
   if (event.key === 'Escape') {
@@ -155,38 +151,61 @@ defineExpose({ focusSearch })
   position: fixed;
   inset: 0;
   z-index: 9998;
-  background: transparent;
+  background: color-mix(in srgb, var(--overlay-backdrop) 22%, transparent);
+  backdrop-filter: blur(4px);
 }
 
 .workspace-quick-open-shell {
   position: fixed;
-  top: 12px;
+  top: 64px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(640px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 56px));
   z-index: 9999;
 }
 
 .workspace-quick-open-panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 12%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-surface) 48%, var(--shell-surface));
+  box-shadow: 0 16px 32px color-mix(in srgb, black 8%, transparent);
+  backdrop-filter: blur(18px) saturate(0.94);
 }
 
 .workspace-quick-open-input-wrap {
-  min-height: 34px;
-  border-color: transparent;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--panel-surface) 96%, transparent);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  min-height: 38px;
+  border-color: color-mix(in srgb, var(--shell-border) 9%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--workspace-paper) 14%, transparent);
+  box-shadow: none;
 }
 
 .workspace-quick-open-search-icon {
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text-muted) 86%, transparent);
+}
+
+:deep(.workspace-quick-open-input-wrap .ui-input-control) {
+  font-size: 14px;
+}
+
+:deep(.workspace-quick-open-input-wrap .ui-input-control::placeholder) {
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+  opacity: 1;
+}
+
+:deep(.workspace-quick-open-input-wrap:focus-within) {
+  border-color: color-mix(in srgb, var(--shell-border) 12%, transparent);
+  background: color-mix(in srgb, var(--workspace-paper) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 22%, transparent);
 }
 
 .workspace-quick-open-results {
   position: relative;
+  padding-top: 0;
 }
 
 .workspace-quick-open-results :deep(.search-results-dropdown) {
@@ -195,8 +214,10 @@ defineExpose({ focusSearch })
   left: auto;
   transform: none;
   width: 100%;
-  max-height: min(62vh, 460px);
-  border-radius: 11px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  max-height: min(62vh, 440px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 </style>

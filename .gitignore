@@ -6,6 +6,29 @@ src-tauri/target/
 dev/
 .env
 
+# Local system junk
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100/
+.Trashes/
+
+# Tooling caches
+.cache/
+.vite/
+.turbo/
+.parcel-cache/
+.sass-cache/
+.eslintcache
+*.tsbuildinfo
+__pycache__/
+.pytest_cache/
+
+# Local QA and debug traces
+.playwright-cli/*.log
+
 # Internal docs and notes
 private/
 

@@ -23,7 +23,11 @@
       />
 
       <Teleport v-if="showIntegratedDocumentTitle" :to="integratedDocumentTitleTarget">
-        <div class="workbench-document-title" :title="currentDocumentLabel" :aria-label="currentDocumentLabel">
+        <div
+          class="workbench-document-title"
+          :title="currentDocumentLabel"
+          :aria-label="currentDocumentLabel"
+        >
           <span class="workbench-document-title-label">{{ currentDocumentLabel }}</span>
         </div>
       </Teleport>
@@ -46,14 +50,13 @@
               >
                 <span class="document-title-label">{{ currentDocumentLabel }}</span>
                 <svg
-                  v-if="tabs.length > 1"
                   class="document-title-chevron"
-                  width="12"
-                  height="12"
+                  width="13"
+                  height="13"
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="1.6"
+                  stroke-width="1.7"
                   aria-hidden="true"
                 >
                   <path d="M4.5 6.5 8 10l3.5-3.5" />
@@ -74,6 +77,9 @@
                     class="document-tabs-menu-select"
                     @click="selectTabFromMenu(tab)"
                   >
+                    <span class="document-tabs-menu-glyph" aria-hidden="true">
+                      {{ tab === activeTab ? '✓' : '' }}
+                    </span>
                     <span class="document-tabs-menu-label">{{ fileName(tab) }}</span>
                     <span
                       v-if="editorStore.dirtyFiles.has(tab)"
@@ -81,41 +87,20 @@
                       aria-hidden="true"
                     ></span>
                   </button>
-                  <button
-                    type="button"
-                    class="document-tabs-menu-close"
-                    :title="t('Close tab')"
-                    :aria-label="t('Close tab')"
-                    @click.stop="closeTabFromMenu(tab)"
-                  >
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 10 10"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                    >
-                      <path d="M2 2l6 6M8 2l-6 6" />
-                    </svg>
-                  </button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div class="document-header-tools">
-            <div v-if="activeTab" class="document-pane-actions">
+              <div class="document-tabs-menu-separator"></div>
+
               <button
                 type="button"
-                class="document-pane-action"
-                :title="t('New Tab')"
-                :aria-label="t('New Tab')"
-                @click.stop="openNewTabDirect"
+                class="document-tabs-menu-create"
+                @click="createTabFromMenu"
               >
                 <svg
-                  width="14"
-                  height="14"
+                  class="document-tabs-menu-create-icon"
+                  width="13"
+                  height="13"
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
@@ -124,9 +109,33 @@
                 >
                   <path d="M8 3v10M3 8h10" />
                 </svg>
+                <span class="document-tabs-menu-command-label">{{ t('New Tab') }}</span>
+              </button>
+
+              <button
+                v-if="activeTab"
+                type="button"
+                class="document-tabs-menu-create"
+                @click="closeCurrentTabFromMenu"
+              >
+                <svg
+                  class="document-tabs-menu-create-icon"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  aria-hidden="true"
+                >
+                  <path d="M2 2l6 6M8 2l-6 6" />
+                </svg>
+                <span class="document-tabs-menu-command-label">{{ t('Close Current Tab') }}</span>
               </button>
             </div>
+          </div>
 
+          <div class="document-header-tools">
             <DocumentWorkflowBar
               v-if="showInlineWorkflowBar"
               inline-header
@@ -259,6 +268,7 @@ const hasIntegratedDocumentTitle = computed(() => !!props.topbarTabsTargetSelect
 const hasIntegratedWorkflowBar = computed(() => !!props.topbarWorkflowTargetSelector)
 const viewerType = computed(() => (props.activeTab ? getViewerType(props.activeTab) : null))
 const viewerTypeRef = viewerType
+const hasSinglePane = computed(() => countLeafPanes(editorStore.paneTree) <= 1)
 const showToolbarRunButtons = computed(
   () => !!props.activeTab && viewerType.value === 'text' && isRunnable(props.activeTab)
 )
@@ -268,7 +278,10 @@ const toolbarUiState = computed(() => {
   return null
 })
 const showIntegratedDocumentTitle = computed(
-  () => hasIntegratedDocumentTitle.value && isActive.value && !!props.activeTab
+  () =>
+    hasIntegratedDocumentTitle.value &&
+    !!props.activeTab &&
+    (isActive.value || hasSinglePane.value)
 )
 const integratedDocumentTitleTarget = computed(() =>
   showIntegratedDocumentTitle.value ? props.topbarTabsTargetSelector : ''
@@ -338,6 +351,12 @@ function fileName(path) {
   return path.split('/').pop() || path
 }
 
+function countLeafPanes(node) {
+  if (!node) return 0
+  if (node.type === 'leaf') return 1
+  return (node.children || []).reduce((total, child) => total + countLeafPanes(child), 0)
+}
+
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])
   if (result.choice === 'cancel') return
@@ -346,8 +365,13 @@ async function closeTab(path) {
 }
 
 function toggleTabsMenu() {
-  if (props.tabs.length <= 1) return
+  if (!props.activeTab) return
   tabsMenuOpen.value = !tabsMenuOpen.value
+}
+
+function createTabFromMenu() {
+  tabsMenuOpen.value = false
+  openNewTabDirect()
 }
 
 function closeTabsMenu() {
@@ -359,11 +383,11 @@ function selectTabFromMenu(path) {
   closeTabsMenu()
 }
 
-async function closeTabFromMenu(path) {
+async function closeCurrentTabFromMenu() {
+  const path = props.activeTab
+  closeTabsMenu()
+  if (!path) return
   await closeTab(path)
-  if ((props.tabs || []).length <= 1) {
-    closeTabsMenu()
-  }
 }
 
 function openNewTabDirect() {
@@ -418,7 +442,7 @@ onUnmounted(() => {
 }
 
 .document-header-stack {
-  --document-header-row-height: 28px;
+  --document-header-row-height: 31px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -426,7 +450,7 @@ onUnmounted(() => {
   z-index: 4;
   width: 100%;
   box-sizing: border-box;
-  padding: 1px 10px 2px;
+  padding: 1px 12px 2px;
   background: transparent;
 }
 
@@ -436,17 +460,17 @@ onUnmounted(() => {
   justify-content: center;
   max-width: 100%;
   min-width: 0;
-  min-height: 28px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--chrome-surface) 54%, transparent);
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--chrome-surface) 36%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 20%, transparent),
-    0 1px 0 color-mix(in srgb, white 24%, transparent);
-  color: var(--text-primary);
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent),
+    0 1px 0 color-mix(in srgb, white 18%, transparent);
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
   font-size: var(--ui-font-body);
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-weight: 580;
+  letter-spacing: -0.01em;
 }
 
 .workbench-document-title-label {
@@ -469,7 +493,7 @@ onUnmounted(() => {
 .document-header-tools {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: 0 0 auto;
 }
 
@@ -489,7 +513,6 @@ onUnmounted(() => {
 .document-title-cluster {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   min-width: 0;
   max-width: 100%;
 }
@@ -511,7 +534,9 @@ onUnmounted(() => {
   font-weight: 600;
   letter-spacing: -0.015em;
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .document-title-button:hover {
@@ -522,10 +547,10 @@ onUnmounted(() => {
   min-height: 24px;
   padding: 0 6px;
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
   font-size: var(--sidebar-font-item);
-  font-weight: 560;
-  letter-spacing: -0.01em;
+  font-weight: 540;
+  letter-spacing: -0.005em;
 }
 
 .editor-pane-shell:not([data-pane-id='pane-root']) .document-title-button--pane {
@@ -540,7 +565,7 @@ onUnmounted(() => {
 
 .document-title-button--pane:hover {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-hover) 14%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
 }
 
 .document-title-label {
@@ -553,78 +578,41 @@ onUnmounted(() => {
 
 .document-title-chevron {
   flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
   color: var(--text-muted);
-}
-
-.document-pane-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: 0 0 auto;
-}
-
-.document-pane-actions--leading {
-  min-width: 64px;
-}
-
-.document-pane-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.document-pane-action:hover {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
-  color: var(--text-primary);
 }
 
 .document-tabs-menu {
   position: absolute;
   top: calc(100% + 6px);
-  left: 50%;
+  left: 0;
   z-index: 30;
-  width: min(280px, calc(100vw - 32px));
-  transform: translateX(-50%);
+  width: min(242px, calc(100vw - 32px));
   padding: 4px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-base) 96%, var(--panel-surface));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-base) 97%, var(--panel-surface));
   box-shadow:
-    0 14px 32px color-mix(in srgb, black 14%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--border) 16%, transparent);
-  backdrop-filter: blur(20px) saturate(1.04);
+    0 18px 40px color-mix(in srgb, black 14%, transparent),
+    0 3px 10px color-mix(in srgb, black 6%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, white 8%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
+  backdrop-filter: blur(22px) saturate(1.05);
 }
 
 .document-tabs-menu-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   max-height: min(320px, 48vh);
   overflow: auto;
 }
 
 .document-tabs-menu-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 2px;
-  border-radius: 7px;
+  display: block;
 }
 
-.document-tabs-menu-item.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
-}
-
-.document-tabs-menu-select,
-.document-tabs-menu-close {
+.document-tabs-menu-select {
   border: 0;
   background: transparent;
   color: inherit;
@@ -632,18 +620,32 @@ onUnmounted(() => {
 }
 
 .document-tabs-menu-select {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 10px;
+  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+  cursor: pointer;
+  border-radius: 7px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.document-tabs-menu-glyph {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-  min-height: 28px;
-  padding: 0 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
+  justify-content: center;
+  width: 14px;
+  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
+  font-size: 12px;
 }
 
 .document-tabs-menu-item.is-active .document-tabs-menu-select {
   color: var(--text-primary);
+  font-weight: 540;
 }
 
 .document-tabs-menu-label {
@@ -654,38 +656,59 @@ onUnmounted(() => {
 }
 
 .document-tabs-menu-dirty {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
   background: var(--accent);
   flex: 0 0 auto;
+  margin-left: 10px;
+  opacity: 0.94;
 }
 
-.document-tabs-menu-close {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  color: var(--text-muted);
+.document-tabs-menu-select:hover {
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.document-tabs-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, var(--border-subtle) 44%, transparent);
+}
+
+.document-tabs-menu-create {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+  font: inherit;
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity 140ms ease,
     background-color 140ms ease,
     color 140ms ease;
 }
 
-.document-tabs-menu-item:hover .document-tabs-menu-close,
-.document-tabs-menu-item.is-active .document-tabs-menu-close {
-  opacity: 1;
-}
-
-.document-tabs-menu-close:hover,
-.document-tabs-menu-select:hover {
+.document-tabs-menu-create:hover {
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
   color: var(--text-primary);
 }
 
-.document-tabs-menu-close:hover {
-  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
+.document-tabs-menu-create-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.86;
+}
+
+.document-tabs-menu-command-label {
+  min-width: 0;
+  text-align: left;
 }
 
 .document-header-tools :deep(.workflow-bar) {

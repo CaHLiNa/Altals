@@ -132,6 +132,7 @@ onUnmounted(() => {
   border: none;
   background: transparent;
   text-align: left;
+  font-size: 13px;
 }
 
 .surface-context-menu-item:disabled {
@@ -153,8 +154,8 @@ onUnmounted(() => {
 .surface-context-menu-meta,
 .surface-context-menu-check {
   flex: 0 0 auto;
-  font-size: var(--ui-font-caption);
-  color: var(--fg-muted);
+  font-size: 10.5px;
+  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
 }
 
 .surface-context-menu-check {

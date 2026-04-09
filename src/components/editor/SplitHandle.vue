@@ -54,37 +54,47 @@ function startDrag(e) {
 .split-handle::before {
   content: '';
   position: absolute;
-  background: color-mix(in srgb, var(--border) 26%, transparent);
-  opacity: 0;
+  background: var(--workbench-divider-soft);
+  opacity: 1;
   transition:
     background 0.15s,
     opacity 0.15s;
 }
 .split-handle.vertical {
-  width: 6px;
-  margin: 0 -2px;
+  width: 1px;
+  margin: 0;
   cursor: col-resize;
 }
 .split-handle.vertical::before {
   top: 0;
   bottom: 0;
-  left: 2.5px;
+  left: 50%;
+  transform: translateX(-0.5px);
   width: 1px;
 }
 .split-handle.horizontal {
-  height: 6px;
-  margin: -2px 0;
+  height: 1px;
+  margin: 0;
   cursor: row-resize;
 }
 .split-handle.horizontal::before {
   left: 0;
   right: 0;
-  top: 2.5px;
+  top: 50%;
+  transform: translateY(-0.5px);
   height: 1px;
 }
 .split-handle:hover::before,
 .split-handle.dragging::before {
   opacity: 1;
-  background: var(--accent);
+}
+
+.split-handle:hover::before {
+  background: var(--workbench-divider);
+}
+
+.split-handle.dragging::before {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 26%, var(--workbench-divider));
 }
 </style>

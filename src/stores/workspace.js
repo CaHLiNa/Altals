@@ -22,7 +22,10 @@ import {
   setWrapColumnPreference,
   toggleStoredBoolean,
 } from '../services/workspacePreferences'
-import { normalizeWorkbenchSidebarPanel } from '../shared/workbenchSidebarPanels'
+import {
+  normalizeWorkbenchSidebarPanel,
+  normalizeWorkbenchSurface,
+} from '../shared/workbenchSidebarPanels'
 import { normalizeWorkbenchInspectorPanel } from '../shared/workbenchInspectorPanels.js'
 import {
   addRecentWorkspace,
@@ -73,8 +76,8 @@ export const useWorkspaceStore = defineStore('workspace', {
 
   getters: {
     isOpen: (state) => !!state.path,
-    isWorkspaceSurface: () => true,
-    primarySurface: (state) => state.primarySurface || 'workspace',
+    isWorkspaceSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'workspace',
+    isSettingsSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'settings',
     shouldersDir: (state) => state.workspaceDataDir || null,
     altalsDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => (state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null),
@@ -92,6 +95,8 @@ export const useWorkspaceStore = defineStore('workspace', {
   actions: {
     async openWorkspace(path) {
       this.path = path
+      this.settingsOpen = false
+      this.settingsSection = null
       this.primarySurface = 'workspace'
 
       try {
@@ -162,27 +167,32 @@ export const useWorkspaceStore = defineStore('workspace', {
     setLeftSidebarPanel(panel) {
       this.leftSidebarPanel = persistStoredString(
         'leftSidebarPanel',
-        normalizeWorkbenchSidebarPanel('workspace', panel)
+        normalizeWorkbenchSidebarPanel(this.primarySurface, panel)
       )
     },
 
     setRightSidebarPanel(panel) {
       this.rightSidebarPanel = persistStoredString(
         'rightSidebarPanel',
-        normalizeWorkbenchInspectorPanel('workspace', panel)
+        normalizeWorkbenchInspectorPanel(this.primarySurface, panel)
       )
     },
 
-    setPrimarySurface(_surface) {
-      this.primarySurface = persistStoredString('primarySurface', 'workspace')
+    setPrimarySurface(surface) {
+      const normalizedSurface = normalizeWorkbenchSurface(surface)
+      this.primarySurface = persistStoredString('primarySurface', normalizedSurface)
       this.leftSidebarPanel = persistStoredString(
         'leftSidebarPanel',
-        normalizeWorkbenchSidebarPanel('workspace', this.leftSidebarPanel)
+        normalizeWorkbenchSidebarPanel(normalizedSurface, this.leftSidebarPanel)
       )
       this.rightSidebarPanel = persistStoredString(
         'rightSidebarPanel',
-        normalizeWorkbenchInspectorPanel('workspace', this.rightSidebarPanel)
+        normalizeWorkbenchInspectorPanel(normalizedSurface, this.rightSidebarPanel)
       )
+      this.settingsOpen = normalizedSurface === 'settings'
+      if (normalizedSurface !== 'settings') {
+        this.settingsSection = null
+      }
     },
 
     openWorkspaceSurface() {
@@ -208,13 +218,16 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     openSettings(section = null) {
-      this.settingsSection = section
-      this.settingsOpen = true
+      this.settingsSection = section || this.settingsSection || 'theme'
+      this.setPrimarySurface('settings')
     },
 
     closeSettings() {
-      this.settingsOpen = false
-      this.settingsSection = null
+      this.openWorkspaceSurface()
+    },
+
+    setSettingsSection(section) {
+      this.settingsSection = section || 'theme'
     },
 
     toggleSoftWrap() {

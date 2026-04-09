@@ -38,7 +38,7 @@ defineProps({
 
 .document-workspace-tab-preview {
   flex: 1 1 0;
-  border-left: 1px solid color-mix(in srgb, var(--shell-border) 82%, transparent);
+  border-left: 1px solid var(--workbench-divider-soft);
   background: var(--shell-preview-surface);
 }
 </style>

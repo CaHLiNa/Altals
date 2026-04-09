@@ -1,11 +1,14 @@
 export const WORKSPACE_INSPECTOR_PANELS = ['outline', 'document-run']
+export const SETTINGS_INSPECTOR_PANELS = []
 
 export const WORKBENCH_INSPECTOR_PANELS = {
   workspace: WORKSPACE_INSPECTOR_PANELS,
+  settings: SETTINGS_INSPECTOR_PANELS,
 }
 
 export const DEFAULT_WORKBENCH_INSPECTOR_PANEL = {
   workspace: 'outline',
+  settings: '',
 }
 
 export const ALL_WORKBENCH_INSPECTOR_PANELS = [...WORKSPACE_INSPECTOR_PANELS]

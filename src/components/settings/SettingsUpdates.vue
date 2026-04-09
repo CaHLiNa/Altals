@@ -1,29 +1,32 @@
 <template>
-  <div>
+  <div class="updates-page settings-page">
     <h3 class="settings-section-title">{{ t('Updates') }}</h3>
 
-    <div class="update-card ui-surface-card">
-      <div class="update-identity-row">
-        <span class="env-lang-dot good"></span>
-        <span class="update-app-name">Altals</span>
-        <div class="ui-flex-spacer"></div>
-        <span class="update-version-tag">v{{ appVersion }}</span>
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Application') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">Altals</div>
+            <div class="settings-row-hint">
+              {{
+                t(
+                  'Automatic updates are disabled in this local build. Use the releases page when you want to download a newer version.'
+                )
+              }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <div class="update-version-stack">
+              <span class="update-version-tag">v{{ appVersion }}</span>
+              <UiButton variant="secondary" size="sm" @click="openReleases">
+                {{ t('Open Releases') }}
+              </UiButton>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <p class="update-copy">
-        {{
-          t(
-            'Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a newer version.'
-          )
-        }}
-      </p>
-
-      <div class="update-actions">
-        <UiButton variant="primary" @click="openReleases">
-          {{ t('Open Releases') }}
-        </UiButton>
-      </div>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -46,36 +49,16 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.update-card {
-  padding: var(--space-3);
-}
-
-.update-identity-row {
+.update-version-stack {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.update-app-name {
-  font-size: var(--ui-font-body);
-  color: var(--text-secondary);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .update-version-tag {
-  font-size: var(--ui-font-caption);
+  font-size: 12px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-}
-
-.update-copy {
-  margin: var(--space-3) 0 0;
-  font-size: var(--ui-font-body);
-  line-height: var(--line-height-relaxed);
-  color: var(--text-secondary);
-}
-
-.update-actions {
-  margin-top: var(--space-3);
-  padding-left: 14px;
 }
 </style>

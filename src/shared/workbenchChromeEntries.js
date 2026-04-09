@@ -10,6 +10,14 @@ const SIDEBAR_ENTRY_DEFINITIONS = {
       icon: IconFolder,
     },
   ],
+  settings: [
+    {
+      key: 'files',
+      labelKey: 'Project files',
+      titleKey: 'Project files',
+      icon: IconFolder,
+    },
+  ],
 }
 
 const INSPECTOR_ENTRY_DEFINITIONS = {
@@ -27,6 +35,7 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
       icon: IconActivityHeartbeat,
     },
   ],
+  settings: [],
 }
 
 function localizeEntries(entries, t) {

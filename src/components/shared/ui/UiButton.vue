@@ -119,12 +119,13 @@ defineExpose({
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease,
-    box-shadow 140ms ease;
+    box-shadow 140ms ease,
+    opacity 140ms ease;
 }
 
 .ui-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 52%, transparent);
 }
 
 .ui-button:disabled {
@@ -133,42 +134,42 @@ defineExpose({
 }
 
 .ui-button--sm {
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: var(--ui-font-caption);
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--ui-font-label);
 }
 
 .ui-button--md {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 15px;
   font-size: var(--ui-font-body);
 }
 
 .ui-button--lg {
-  min-height: 42px;
-  padding: 0 18px;
+  min-height: 44px;
+  padding: 0 20px;
   font-size: var(--ui-font-body);
 }
 
 .ui-button--icon-sm {
-  width: 30px;
-  height: 30px;
+  width: 35px;
+  height: 35px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .ui-button--icon-xs {
-  width: 22px;
-  height: 22px;
+  width: 27px;
+  height: 27px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 9px;
 }
 
 .ui-button--icon-md {
-  width: 34px;
-  height: 34px;
+  width: 37px;
+  height: 37px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 13px;
 }
 
 .ui-button--primary {
@@ -185,16 +186,21 @@ defineExpose({
 }
 
 .ui-button--secondary {
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-  border-color: color-mix(in srgb, var(--border-subtle) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 54%, transparent);
+  border-color: color-mix(in srgb, var(--border-subtle) 42%, transparent);
   color: var(--text-secondary);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg-primary) 4%, transparent);
+  box-shadow: none;
 }
 
 .ui-button--secondary:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
+  border-color: color-mix(in srgb, var(--border-subtle) 54%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
   color: var(--text-primary);
+}
+
+.ui-button--secondary:active:not(:disabled) {
+  border-color: color-mix(in srgb, var(--border-subtle) 46%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .ui-button--danger {
@@ -212,8 +218,12 @@ defineExpose({
 }
 
 .ui-button--ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 14%, transparent);
   color: var(--text-primary);
+}
+
+.ui-button--ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
 }
 
 .ui-button.is-block {

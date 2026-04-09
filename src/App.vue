@@ -5,6 +5,7 @@
       'is-left-resizing': isLeftSidebarResizing,
       'is-right-resizing': isRightSidebarResizing,
       'is-shell-resizing': isLeftSidebarResizing || isRightSidebarResizing,
+      'is-mac-vibrant': isMacDesktop && workspace.isOpen,
     }"
   >
     <Header v-if="!workspace.isOpen" />
@@ -23,9 +24,11 @@
       <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
         <WorkbenchRail
           class="app-shell-topbar shrink-0"
-          tabs-target-id="app-shell-topbar-tabs"
-          :left-sidebar-open="workspace.leftSidebarOpen"
+          :current-document-label="currentDocumentLabel"
+          :left-sidebar-available="workspace.isWorkspaceSurface"
+          :left-sidebar-open="leftSidebarVisible"
           :right-sidebar-open="workspace.rightSidebarOpen"
+          :split-pane-available="workspace.isWorkspaceSurface"
           :split-pane-open="splitPaneOpen"
           :inspector-available="supportsRightSidebar"
           @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
@@ -39,28 +42,29 @@
           <div
             class="app-shell-region app-shell-region-left shrink-0"
             :class="{
-              'is-open': workspace.leftSidebarOpen,
-              'is-collapsed': !workspace.leftSidebarOpen,
+              'is-open': leftSidebarVisible,
+              'is-collapsed': !leftSidebarVisible,
               'is-resizing': isLeftSidebarResizing,
             }"
             :style="{
-              width: workspace.leftSidebarOpen ? `${leftSidebarWidth}px` : '0px',
+              width: leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
             }"
           >
             <div
               class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden"
               :class="{
-                'is-open': workspace.leftSidebarOpen,
-                'is-collapsed': !workspace.leftSidebarOpen,
+                'is-open': leftSidebarVisible,
+                'is-collapsed': !leftSidebarVisible,
                 'is-resizing': isLeftSidebarResizing,
               }"
               data-sidebar="left"
-              :aria-hidden="workspace.leftSidebarOpen ? 'false' : 'true'"
+              :aria-hidden="leftSidebarVisible ? 'false' : 'true'"
               :style="{
                 width: '100%',
               }"
             >
               <LeftSidebar
+                v-if="workspace.isWorkspaceSurface"
                 ref="leftSidebarRef"
                 @file-version-history="openFileVersionHistory"
                 @open-search="openQuickSearch"
@@ -69,16 +73,18 @@
                 @open-workspace="openWorkspace"
                 @close-folder="closeWorkspace"
               />
+              <SettingsSidebar v-else-if="workspace.isSettingsSurface" />
             </div>
           </div>
 
           <!-- Left resize handle -->
           <div
+            v-if="leftSidebarVisible"
             class="app-shell-resize-slot"
-            :class="{ 'is-visible': workspace.leftSidebarOpen, 'is-hidden': !workspace.leftSidebarOpen }"
+            :class="{ 'is-visible': leftSidebarVisible, 'is-hidden': !leftSidebarVisible }"
           >
             <ResizeHandle
-              class="app-shell-resize-handle"
+              class="app-shell-resize-handle app-shell-resize-handle-left"
               direction="vertical"
               @resize="onLeftResize"
               @resize-start="startLeftSidebarResize"
@@ -89,7 +95,13 @@
           <div
             class="app-shell-region app-shell-region-main app-shell-main app-shell-main-shell flex-1 flex flex-col overflow-hidden"
           >
-            <div class="app-shell-main-card flex-1 overflow-hidden relative">
+            <div
+              class="app-shell-main-card flex-1 overflow-hidden relative"
+              :class="{
+                'has-left-sidebar': leftSidebarVisible,
+                'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
+              }"
+            >
               <KeepAlive :max="3">
                 <component
                   :is="activeWorkbenchComponent"
@@ -108,7 +120,7 @@
               :class="{ 'is-visible': workspace.rightSidebarOpen, 'is-hidden': !workspace.rightSidebarOpen }"
             >
               <ResizeHandle
-                class="app-shell-resize-handle"
+                class="app-shell-resize-handle app-shell-resize-handle-right"
                 direction="vertical"
                 @resize="onRightResize"
                 @resize-start="startRightSidebarResize"
@@ -153,13 +165,6 @@
       @close="fileVersionHistoryVisible = false"
     />
 
-    <!-- Settings Modal -->
-    <Settings
-      :visible="workspace.settingsOpen"
-      :initialSection="workspace.settingsSection"
-      @close="workspace.closeSettings()"
-    />
-
     <UnsavedChangesDialog />
 
     <!-- Setup Wizard (first-time) -->
@@ -192,9 +197,14 @@ import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
+import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
+import { isMac } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
+const SettingsSidebar = defineAsyncComponent(
+  () => import('./components/settings/SettingsSidebar.vue')
+)
 const PaneContainer = defineAsyncComponent(() => import('./components/editor/PaneContainer.vue'))
 const WorkspaceSnapshotBrowser = defineAsyncComponent(
   () => import('./components/WorkspaceSnapshotBrowser.vue')
@@ -213,6 +223,7 @@ const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
+const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
 const searchRef = ref(null)
 const leftSidebarRef = ref(null)
@@ -223,19 +234,37 @@ const workspaceSnapshotBrowserFeedback = ref(null)
 const fileVersionHistoryVisible = ref(false)
 const fileVersionHistoryFile = ref('')
 
-const supportsRightSidebar = computed(() => workspace.isOpen)
+const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
+const leftSidebarVisible = computed(() => workspace.isSettingsSurface || workspace.leftSidebarOpen)
 const splitPaneOpen = computed(() => (
   editorStore.paneTree?.type === 'split'
   && Array.isArray(editorStore.paneTree.children)
   && editorStore.paneTree.children.length === 2
 ))
-const activeWorkbenchComponent = computed(() => PaneContainer)
+const activeWorkbenchComponent = computed(() => (
+  workspace.isSettingsSurface ? Settings : PaneContainer
+))
 const activeWorkbenchCacheKey = computed(() => workspace.primarySurface || 'workspace')
-const activeWorkbenchProps = computed(() => ({
-  node: editorStore.paneTree,
-  topbarTabsTargetSelector: '#app-shell-topbar-tabs',
-}))
+const activeWorkbenchProps = computed(() => (
+  workspace.isSettingsSurface
+    ? {}
+    : {
+        node: editorStore.paneTree,
+        topbarTabsTargetSelector: '',
+      }
+))
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
+const currentDocumentLabel = computed(() => {
+  if (workspace.isSettingsSurface) return ''
+  const activePath = editorStore.activeTab
+  if (!activePath) return ''
+  if (isNewTab(activePath)) return t('New Tab')
+  if (isPreviewPath(activePath)) {
+    const sourcePath = previewSourcePathFromPath(activePath)
+    return sourcePath.split('/').pop() || t('Preview')
+  }
+  return activePath.split('/').pop() || activePath
+})
 
 function openQuickSearch() {
   searchRef.value?.focusSearch?.()
@@ -388,9 +417,39 @@ useAppTeardown({
   background: var(--app-canvas);
 }
 
+.app-shell-root.is-mac-vibrant {
+  background: transparent;
+  --sidebar-shell-surface: var(--sidebar-vibrant-surface);
+  --sidebar-shell-blur: 24px;
+  --sidebar-shell-saturate: 0.92;
+}
+
 .app-shell-workspace {
   position: relative;
   min-height: 0;
+}
+
+.app-shell-root.is-mac-vibrant .app-shell-workspace,
+.app-shell-root.is-mac-vibrant .app-shell-workbench {
+  background: transparent;
+}
+
+.app-shell-root.is-mac-vibrant .app-shell-region-left,
+.app-shell-root.is-mac-vibrant .app-shell-region-right {
+  background: transparent;
+}
+
+.app-shell-root.is-mac-vibrant :deep(.left-shell-sidebar),
+.app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
+  backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
+}
+
+.app-shell-root.is-mac-vibrant :deep(.left-shell-sidebar) {
+  border-right: none;
+}
+
+.app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
+  border-left: none;
 }
 
 .app-shell-topbar {
@@ -421,7 +480,8 @@ useAppTeardown({
 }
 
 .app-shell-region-main {
-  background: var(--shell-editor-surface);
+  background: transparent;
+  overflow: visible;
 }
 
 .app-shell-region-right {
@@ -499,12 +559,29 @@ useAppTeardown({
   background: var(--shell-editor-surface);
   box-shadow: none;
   overflow: hidden;
+  z-index: 2;
+}
+
+.app-shell-main-card.has-left-sidebar {
+  margin-left: -10px;
+  padding-left: 10px;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.app-shell-main-card.has-right-sidebar {
+  margin-right: -10px;
+  padding-right: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
 .app-shell-resize-slot {
   flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
   width: 0;
-  overflow: hidden;
+  overflow: visible;
   opacity: 0;
   transition:
     width 260ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -512,7 +589,7 @@ useAppTeardown({
 }
 
 .app-shell-resize-slot.is-visible {
-  width: 6px;
+  width: 0;
   opacity: 1;
   background: transparent;
 }
@@ -522,7 +599,19 @@ useAppTeardown({
 }
 
 .app-shell-resize-handle {
-  width: 6px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
   height: 100%;
+  margin: 0;
+}
+
+.app-shell-resize-handle-left {
+  left: -14px;
+}
+
+.app-shell-resize-handle-right {
+  right: -14px;
 }
 </style>

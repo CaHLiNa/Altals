@@ -20,7 +20,7 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: var(--app-canvas);
+  background: transparent;
   color: var(--fg-primary);
   font-family: var(--font-sans);
   font-size: var(--ui-font-size);
@@ -28,11 +28,44 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+body,
+#app {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 button,
 input,
 select,
 textarea {
   font: inherit;
+}
+
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable='plaintext-only'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cm-editor,
+.cm-editor *,
+.cm-content,
+.cm-line,
+.text-editor-host,
+.text-editor-load-error,
+.md-preview-content,
+.md-preview-content *,
+.md-preview-error,
+.md-preview-error *,
+.workspace-prose,
+.workspace-prose *,
+.chat-md,
+.chat-md * {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 @layer utilities {
@@ -135,22 +168,24 @@ textarea {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg-muted) 38%, transparent);
+  background-clip: padding-box;
   transition: background 0.15s;
 }
 *:hover::-webkit-scrollbar-thumb {
-  background: var(--fg-muted);
+  background: color-mix(in srgb, var(--fg-muted) 56%, transparent);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--fg-secondary);
+  background: color-mix(in srgb, var(--fg-secondary) 72%, transparent);
 }
 
 /* Hidden scrollbar (keeps scroll, hides bar) */

@@ -1,53 +1,114 @@
 /* Context menu — !important keeps the shared menu styles above viewer-specific
    CSS so dark-theme colors and z-index stacking stay stable. */
+.ui-list-row {
+  position: relative;
+  border-radius: 10px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.ui-list-row:hover {
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
+  color: var(--text-primary);
+}
+
+.ui-list-row.is-active,
+.ui-list-row.active {
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
+}
+
+.ui-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 10%, transparent);
+}
+
+.ui-segmented-item {
+  border-radius: 9px !important;
+}
+
+.ui-segmented-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent) !important;
+  color: var(--text-primary) !important;
+}
+
+.ui-segmented-item.is-active {
+  background: color-mix(in srgb, var(--surface-base) 72%, transparent) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent) !important;
+}
+
 .context-menu {
   position: fixed !important;
   z-index: 1000 !important;
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 6px !important;
-  padding: 4px 0 !important;
-  min-width: 160px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
-  color: var(--fg-secondary) !important;
+  background: color-mix(in srgb, var(--surface-muted) 82%, var(--shell-surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--shell-border) 12%, transparent) !important;
+  border-radius: 13px !important;
+  padding: 4px !important;
+  min-width: 180px !important;
+  box-shadow: 0 14px 28px color-mix(in srgb, black 8%, transparent) !important;
+  color: var(--text-secondary) !important;
   width: auto !important;
   margin-top: 0 !important;
-  font-size: var(--ui-font-body) !important;
+  font-size: 12.5px !important;
+  backdrop-filter: blur(18px) saturate(0.94);
+}
+
+.theme-light .context-menu {
+  background: rgba(229, 233, 238, 0.86) !important;
+  border-color: rgba(154, 160, 169, 0.18) !important;
+  box-shadow: 0 12px 24px rgba(55, 65, 81, 0.12) !important;
 }
 .context-menu-item {
-  padding: 6px 12px !important;
+  min-height: 30px;
+  padding: 0 10px !important;
   cursor: pointer;
   display: flex !important;
   align-items: center;
   gap: 8px;
-  color: var(--fg-secondary) !important;
+  border-radius: 8px;
+  color: var(--text-secondary) !important;
+  line-height: 1.2;
 }
 .context-menu-item:hover {
-  background: var(--bg-hover) !important;
-  color: var(--fg-primary) !important;
+  background: color-mix(in srgb, var(--surface-hover) 6%, transparent) !important;
+  color: var(--text-primary) !important;
 }
 .context-menu-section {
-  padding: 4px 12px 2px;
-  font-size: var(--ui-font-caption);
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  padding: 6px 10px 3px;
+  font-size: 9.5px;
+  font-weight: 520;
+  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 1;
 }
 .context-menu-separator {
   height: 1px;
-  background: var(--border);
-  margin: 4px 0;
+  background: color-mix(in srgb, var(--border) 8%, transparent);
+  margin: 4px 2px;
 }
 
 .context-menu-item-danger {
   color: var(--error) !important;
 }
 .context-menu-item-danger:hover {
-  background: rgba(247, 118, 142, 0.1);
+  background: color-mix(in srgb, var(--error) 7%, transparent) !important;
 }
 .context-menu-item svg {
   flex-shrink: 0;
+  opacity: 0.84;
+  width: 14px;
+  height: 14px;
 }
 
 /* Search results dropdown (anchored below header search bar) */
@@ -58,10 +119,10 @@
   transform: translateX(-50%);
   width: 480px;
   max-height: 400px;
-  background: color-mix(in srgb, var(--panel-surface) 94%, transparent);
+  background: transparent;
   border: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   z-index: 10000;
   display: flex;
@@ -70,80 +131,75 @@
 .search-results-list {
   overflow-y: auto;
   flex: 1;
-  padding: 6px 0 8px;
+  padding: 0 0 4px;
 }
 .quick-open-item {
   position: relative;
-  margin: 0 6px;
-  padding: 8px 12px 9px;
+  margin: 0;
+  padding: 9px 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
   border-radius: 8px;
-  color: var(--fg-secondary);
-  opacity: 0.9;
+  color: var(--text-secondary);
+  opacity: 0.94;
 }
 .quick-open-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 999px;
-  background: transparent;
-  opacity: 0;
-  transition:
-    background-color 140ms ease,
-    opacity 140ms ease;
+  display: none;
 }
+
+.quick-open-item + .quick-open-item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 8%, transparent);
+}
+
+.quick-open-section + .quick-open-item {
+  border-top: none;
+}
+
 .quick-open-item:hover,
 .quick-open-item.active {
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  color: var(--fg-primary);
+  background: color-mix(in srgb, var(--surface-hover) 7%, transparent);
+  color: var(--text-primary);
   opacity: 1;
-}
-.quick-open-item.active::before {
-  background: color-mix(in srgb, var(--accent) 62%, transparent);
-  opacity: 1;
+  box-shadow: none;
 }
 .quick-open-item-empty {
-  color: var(--fg-muted);
+  color: var(--text-muted);
   cursor: default;
 }
 .quick-open-primary {
   width: 100%;
   color: var(--text-primary);
-  font-size: var(--ui-font-body);
-  line-height: 1.25;
+  font-size: 13.5px;
+  line-height: 1.3;
 }
 .quick-open-secondary,
 .quick-open-item .path {
   width: 100%;
-  color: var(--fg-muted);
-  font-size: var(--ui-font-micro);
-  line-height: 1.35;
+  color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+  font-size: 11px;
+  line-height: 1.38;
 }
 .quick-open-section {
-  padding: 10px 12px 4px;
-  font-size: var(--ui-font-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--fg-muted);
-  opacity: 0.72;
+  padding: 14px 10px 3px;
+  font-size: 10.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  opacity: 1;
 }
 .quick-open-item .content-match {
-  color: var(--fg-muted);
+  color: color-mix(in srgb, var(--text-secondary) 76%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
 .quick-open-item .line-num {
-  color: var(--accent);
-  font-size: var(--ui-font-micro);
+  color: color-mix(in srgb, var(--accent) 78%, transparent);
+  font-size: 11px;
   margin-right: 4px;
 }
 .quick-open-item .chat-meta {
@@ -203,20 +259,23 @@
   overflow-y: auto;
 }
 .version-item {
-  padding: 10px 14px;
+  margin: 6px 6px 0;
+  padding: 10px 12px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border-subtle);
-  border-left: 2px solid transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   transition:
     background 0.12s,
-    border-color 0.12s;
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 .version-item:hover {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
 }
 .version-item.active {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
-  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  border-color: color-mix(in srgb, var(--border) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 10%, transparent);
 }
 .version-item .timestamp {
   font-size: var(--ui-font-label);
