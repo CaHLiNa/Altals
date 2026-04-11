@@ -1,28 +1,53 @@
-import { invoke } from '@tauri-apps/api/core'
+import { requestTinymistExecuteCommand } from '../tinymist/session.js'
 
-const DEFAULT_SCROLL_DEBOUNCE_MS = 80
-const PREVIEW_DOCUMENT_CACHE_VERSION = 3
-const SCROLL_DEBOUNCE_PATTERN =
-  /fromEvent\(resizeTarget, "scroll"\)\.pipe\(debounceTime\((\d+)\)\)\.subscribe\(\(\) => svgDoc\.addViewportChange\(\)\)/g
-const WS_BOOTSTRAP_PATTERN = /let urlObject = new URL\("\/", window\.location\.href\);/
-const PSEUDO_LINK_HOVER_PATTERN =
-  /elem\.addEventListener\("mousemove", mouseMoveToLink\);\s*elem\.addEventListener\("mouseleave", mouseLeaveFromLink\);/g
-const APP_BACKGROUND_STYLE_PATTERN =
-  /background-color:\s*var\(--typst-preview-background-color\)\s*!important;/g
+const PREVIEW_DOCUMENT_CACHE_VERSION = 4
+const DEFAULT_TINYMIST_PREVIEW_MODE = 'Doc'
+const TINYMIST_WS_PLACEHOLDER = 'ws://127.0.0.1:23625'
+const TINYMIST_PREVIEW_MODE_PLACEHOLDER = 'preview-arg:previewMode:Doc'
+const TINYMIST_PREVIEW_STATE_PLACEHOLDER = 'preview-arg:state:'
 const previewDocumentUrlCache = new Map()
+const previewDocumentDataUrlCache = new Map()
 
-function normalizePreviewBaseUrl(previewUrl = '') {
-  const value = String(previewUrl || '').trim()
-  if (!value) return ''
-  return value.endsWith('/') ? value : `${value}/`
+function normalizePreviewMode(previewMode = '') {
+  return String(previewMode || '').trim().toLowerCase() === 'slide' ? 'Slide' : DEFAULT_TINYMIST_PREVIEW_MODE
+}
+
+function normalizeWorkspacePath(workspacePath = '') {
+  return String(workspacePath || '').trim()
+}
+
+function normalizePreviewWebSocketUrl(value = '') {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+  if (/^wss?:\/\//i.test(normalized)) return normalized
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized.replace(/^http/i, 'ws')
+  }
+  return `ws://${normalized.replace(/^\/+/, '')}`
+}
+
+function resolveSessionWebSocketUrl(session = {}) {
+  const explicitUrl = normalizePreviewWebSocketUrl(
+    session.dataPlaneWsUrl
+      || session.dataPlaneUrl
+      || session.websocketUrl
+      || '',
+  )
+  if (explicitUrl) return explicitUrl
+
+  const port = Number(session.dataPlanePort || 0)
+  if (Number.isInteger(port) && port > 0) {
+    return `ws://127.0.0.1:${port}`
+  }
+
+  return ''
 }
 
 export function patchTypstPreviewDocumentHtml(html, options = {}) {
   const source = String(html || '')
-  const previewBaseUrl = normalizePreviewBaseUrl(options.previewBaseUrl || '')
-  const scrollDebounceMs = Number.isFinite(options.scrollDebounceMs)
-    ? Math.max(0, Math.trunc(options.scrollDebounceMs))
-    : DEFAULT_SCROLL_DEBOUNCE_MS
+  const websocketUrl = normalizePreviewWebSocketUrl(options.websocketUrl || '')
+  const previewMode = normalizePreviewMode(options.previewMode)
+  const previewState = String(options.previewState ?? '')
 
   if (!source) {
     return { html: '', patched: false }
@@ -31,27 +56,27 @@ export function patchTypstPreviewDocumentHtml(html, options = {}) {
   let nextHtml = source
   let patched = false
 
-  nextHtml = nextHtml.replace(SCROLL_DEBOUNCE_PATTERN, (match, currentValue) => {
-    if (Number(currentValue) === scrollDebounceMs) return match
+  if (websocketUrl && nextHtml.includes(TINYMIST_WS_PLACEHOLDER)) {
+    nextHtml = nextHtml.split(TINYMIST_WS_PLACEHOLDER).join(websocketUrl)
     patched = true
-    return match.replace(`debounceTime(${currentValue})`, `debounceTime(${scrollDebounceMs})`)
-  })
+  }
 
-  nextHtml = nextHtml.replace(PSEUDO_LINK_HOVER_PATTERN, () => {
+  const nextPreviewModePlaceholder = `preview-arg:previewMode:${previewMode}`
+  if (
+    previewMode !== DEFAULT_TINYMIST_PREVIEW_MODE
+    && nextHtml.includes(TINYMIST_PREVIEW_MODE_PLACEHOLDER)
+  ) {
+    nextHtml = nextHtml.replaceAll(TINYMIST_PREVIEW_MODE_PLACEHOLDER, nextPreviewModePlaceholder)
     patched = true
-    return ''
-  })
+  }
 
-  nextHtml = nextHtml.replace(APP_BACKGROUND_STYLE_PATTERN, () => {
+  const nextPreviewStatePlaceholder = `${TINYMIST_PREVIEW_STATE_PLACEHOLDER}${previewState}`
+  if (
+    previewState
+    && nextHtml.includes(TINYMIST_PREVIEW_STATE_PLACEHOLDER)
+  ) {
+    nextHtml = nextHtml.replace(TINYMIST_PREVIEW_STATE_PLACEHOLDER, nextPreviewStatePlaceholder)
     patched = true
-    return 'background-color: #fff !important;'
-  })
-
-  if (previewBaseUrl) {
-    nextHtml = nextHtml.replace(WS_BOOTSTRAP_PATTERN, () => {
-      patched = true
-      return `let urlObject = new URL(${JSON.stringify(previewBaseUrl)}, window.location.href);`
-    })
   }
 
   return {
@@ -60,33 +85,40 @@ export function patchTypstPreviewDocumentHtml(html, options = {}) {
   }
 }
 
-function buildPreviewDocumentCacheKey(previewUrl, options = {}) {
-  const normalizedPreviewUrl = normalizePreviewBaseUrl(previewUrl)
-  const scrollDebounceMs = Number.isFinite(options.scrollDebounceMs)
-    ? Math.max(0, Math.trunc(options.scrollDebounceMs))
-    : DEFAULT_SCROLL_DEBOUNCE_MS
-  if (!normalizedPreviewUrl) return ''
-  return `${normalizedPreviewUrl}::v${PREVIEW_DOCUMENT_CACHE_VERSION}::${scrollDebounceMs}`
+export function buildPreviewDocumentCacheKey(session = {}, options = {}) {
+  const websocketUrl = resolveSessionWebSocketUrl(session)
+  if (!websocketUrl) return ''
+
+  const workspacePath = normalizeWorkspacePath(options.workspacePath || session.workspacePath || '')
+  const previewMode = normalizePreviewMode(options.previewMode || session.previewMode || '')
+  return `${websocketUrl}::v${PREVIEW_DOCUMENT_CACHE_VERSION}::${previewMode}::${workspacePath}`
 }
 
-export async function fetchTypstPreviewDocumentHtml(previewUrl) {
-  const target = normalizePreviewBaseUrl(previewUrl)
-  if (!target) return ''
-  return invoke('typst_preview_fetch_document', { url: target })
+export async function fetchTypstPreviewDocumentHtml(options = {}) {
+  const workspacePath = normalizeWorkspacePath(options.workspacePath || '')
+  const html = await requestTinymistExecuteCommand(
+    'tinymist.getResources',
+    ['/preview/index.html'],
+    { workspacePath },
+  )
+  return typeof html === 'string' ? html : ''
 }
 
-export async function createTypstPreviewDocumentUrl(previewUrl, options = {}) {
-  const cacheKey = buildPreviewDocumentCacheKey(previewUrl, options)
+export async function createTypstPreviewDocumentUrl(session = {}, options = {}) {
+  const cacheKey = buildPreviewDocumentCacheKey(session, options)
   if (cacheKey && previewDocumentUrlCache.has(cacheKey)) {
     return previewDocumentUrlCache.get(cacheKey) || ''
   }
 
-  const rawHtml = await fetchTypstPreviewDocumentHtml(previewUrl)
+  const rawHtml = await fetchTypstPreviewDocumentHtml({
+    workspacePath: options.workspacePath || session.workspacePath || '',
+  })
   if (!rawHtml) return ''
 
   const { html } = patchTypstPreviewDocumentHtml(rawHtml, {
-    previewBaseUrl: previewUrl,
-    scrollDebounceMs: options.scrollDebounceMs,
+    websocketUrl: options.websocketUrl || resolveSessionWebSocketUrl(session),
+    previewMode: options.previewMode || session.previewMode || '',
+    previewState: options.previewState || '',
   })
 
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
@@ -95,6 +127,30 @@ export async function createTypstPreviewDocumentUrl(previewUrl, options = {}) {
     previewDocumentUrlCache.set(cacheKey, objectUrl)
   }
   return objectUrl
+}
+
+export async function createTypstPreviewDocumentDataUrl(session = {}, options = {}) {
+  const cacheKey = buildPreviewDocumentCacheKey(session, options)
+  if (cacheKey && previewDocumentDataUrlCache.has(cacheKey)) {
+    return previewDocumentDataUrlCache.get(cacheKey) || ''
+  }
+
+  const rawHtml = await fetchTypstPreviewDocumentHtml({
+    workspacePath: options.workspacePath || session.workspacePath || '',
+  })
+  if (!rawHtml) return ''
+
+  const { html } = patchTypstPreviewDocumentHtml(rawHtml, {
+    websocketUrl: options.websocketUrl || resolveSessionWebSocketUrl(session),
+    previewMode: options.previewMode || session.previewMode || '',
+    previewState: options.previewState || '',
+  })
+
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+  if (cacheKey) {
+    previewDocumentDataUrlCache.set(cacheKey, dataUrl)
+  }
+  return dataUrl
 }
 
 export function isManagedTypstPreviewDocumentUrl(url) {
@@ -106,15 +162,30 @@ export function isManagedTypstPreviewDocumentUrl(url) {
   return false
 }
 
-export function clearTypstPreviewDocumentCache(previewUrl = '') {
-  const normalizedPreviewUrl = normalizePreviewBaseUrl(previewUrl)
+export function clearTypstPreviewDocumentCache(session = null) {
+  const normalizedCachePrefix = typeof session === 'string'
+    ? normalizePreviewWebSocketUrl(session)
+    : resolveSessionWebSocketUrl(session || {})
+
   for (const [cacheKey, objectUrl] of previewDocumentUrlCache.entries()) {
-    if (normalizedPreviewUrl && !cacheKey.startsWith(`${normalizedPreviewUrl}::`)) continue
+    if (normalizedCachePrefix && !cacheKey.startsWith(`${normalizedCachePrefix}::`)) continue
     if (typeof objectUrl === 'string' && objectUrl.startsWith('blob:')) {
       URL.revokeObjectURL(objectUrl)
     }
     previewDocumentUrlCache.delete(cacheKey)
   }
+
+  for (const [cacheKey] of previewDocumentDataUrlCache.entries()) {
+    if (normalizedCachePrefix && !cacheKey.startsWith(`${normalizedCachePrefix}::`)) continue
+    previewDocumentDataUrlCache.delete(cacheKey)
+  }
 }
 
-export { DEFAULT_SCROLL_DEBOUNCE_MS, buildPreviewDocumentCacheKey }
+export {
+  DEFAULT_TINYMIST_PREVIEW_MODE,
+  PREVIEW_DOCUMENT_CACHE_VERSION,
+  TINYMIST_PREVIEW_MODE_PLACEHOLDER,
+  TINYMIST_PREVIEW_STATE_PLACEHOLDER,
+  TINYMIST_WS_PLACEHOLDER,
+  resolveSessionWebSocketUrl,
+}

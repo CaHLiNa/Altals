@@ -28,7 +28,7 @@
     :file-path="props.filePath"
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
-    :show-format-document="isLatexEditor || (isTyp && typstUi.tinymistActive)"
+    :show-format-document="isLatexEditor || (supportsTypstRuntime && typstUi.tinymistActive)"
     :show-markdown-insert-table="isMd"
     :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
     :typst-code-actions="ctxMenu.typstCodeActions"
@@ -37,6 +37,7 @@
     @format-document="handleFormatDocument"
     @insert-markdown-table="handleInsertMarkdownTable"
     @format-markdown-table="handleFormatMarkdownTable"
+    @paste-unavailable="handleContextMenuPasteUnavailable"
   />
 </template>
 
@@ -102,7 +103,7 @@ import {
   buildTinymistCodeActionRange,
   normalizeTinymistCodeActions,
 } from '../../services/tinymist/codeActions'
-import { isMarkdown, isLatex, isLatexEditorFile, isTypst } from '../../utils/fileTypes'
+import { isDraftPath, isMarkdown, isLatex, isLatexEditorFile, isTypst } from '../../utils/fileTypes'
 import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
@@ -116,6 +117,7 @@ import {
   rememberPendingTypstForwardSync,
 } from '../../services/typst/previewSync.js'
 import { shouldSuppressTypstSelectionPreviewSync } from '../../services/typst/previewSelectionSync.js'
+import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import EditorContextMenu from './EditorContextMenu.vue'
 import { useTypstDiagnostics } from '../../composables/useTypstDiagnostics'
 import { useTypstEditorNavigation } from '../../composables/useTypstEditorNavigation'
@@ -141,6 +143,25 @@ const latexStore = useLatexStore()
 const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
+async function appendLatexSyncDebug(entry = {}) {
+  const workspacePath = String(workspace.path || '').trim()
+  if (!workspacePath) return
+  const logPath = `${workspacePath}/${LATEX_SYNC_DEBUG_LOG}`
+  const line = `${JSON.stringify({
+    ts: new Date().toISOString(),
+    stage: 'editor',
+    filePath: props.filePath,
+    paneId: props.paneId,
+    ...entry,
+  })}\n`
+  try {
+    const previous = await readWorkspaceTextFile(logPath).catch(() => '')
+    await saveWorkspaceTextFile(logPath, `${previous}${line}`)
+  } catch {
+    // Ignore debug log failures.
+  }
+}
+
 let view = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
@@ -158,12 +179,17 @@ let latexFormatOnSaveInFlight = false
 let typstNormalizedSaveContent = null
 let typstFormatOnSaveInFlight = false
 let lastPersistedContent = ''
+const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
+const isDraftFile = isDraftPath(props.filePath)
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
 const isLatexEditor = isLatexEditorFile(props.filePath)
 const isTyp = isTypst(props.filePath)
-const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
+const runtimeFilePath = isDraftFile ? '' : props.filePath
+const supportsLatexRuntime = !isDraftFile && isTex
+const supportsTypstRuntime = !isDraftFile && isTyp
+const supportsTypstSupport = !isDraftFile && supportsTypstEditorSupport(props.filePath)
 const isMacPlatform =
   typeof navigator !== 'undefined' &&
   /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
@@ -189,7 +215,7 @@ const {
   registerWindowListeners: registerTypstWindowListeners,
   scheduleTinymistSync,
 } = useTypstDiagnostics({
-  filePath: props.filePath,
+  filePath: runtimeFilePath,
   getView,
   typstStore,
   editorStore,
@@ -204,7 +230,7 @@ const {
   handleNavigationSelectionChange,
   tinymistNavUi,
 } = useTypstEditorNavigation({
-  filePath: props.filePath,
+  filePath: runtimeFilePath,
   getView,
   editorStore,
   filesStore: files,
@@ -215,12 +241,12 @@ const {
 })
 
 const { showMergeViewIfNeeded } = useTextEditorBridges({
-  filePath: props.filePath,
+  filePath: runtimeFilePath,
   editorContainer,
   getView,
   files,
   isMarkdownFile: isMd,
-  isLatexFile: isTex,
+  isLatexFile: supportsLatexRuntime,
 })
 
 function isContextMenuMouseGesture(event) {
@@ -319,8 +345,20 @@ function closeContextMenu() {
   ctxMenu.requestId += 1
 }
 
+function handleContextMenuPasteUnavailable() {
+  toastStore.show(
+    t('Paste from the context menu is unavailable here. Use {shortcut} instead.', {
+      shortcut: isMacPlatform ? '⌘V' : 'Ctrl+V',
+    }),
+    {
+      type: 'info',
+      duration: 2600,
+    }
+  )
+}
+
 function buildTypstCodeActionRequest() {
-  if (!isTyp || !view || !typstUi.tinymistActive) return null
+  if (!supportsTypstRuntime || !view || !typstUi.tinymistActive) return null
 
   const range = buildTinymistCodeActionRange(view.state, view.state.selection.main)
   if (!range) return null
@@ -406,9 +444,9 @@ async function handleApplyTypstCodeAction(action) {
 }
 
 async function handleFormatDocument() {
-  if (!view || (!isTyp && !isLatexEditor)) return
+  if (!view || (!supportsTypstRuntime && !isLatexEditor)) return
 
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     if (!typstUi.tinymistActive) {
       toastStore.showOnce(
         'tinymist-format-unavailable',
@@ -482,6 +520,19 @@ function handleInsertMarkdownTable() {
   insertMarkdownTable(view)
 }
 
+async function persistDraftContent(content) {
+  const currentContent =
+    typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
+  const selectedPath = await files.promptAndSaveDraft(props.filePath, currentContent)
+  if (!selectedPath) return false
+
+  lastPersistedContent = currentContent
+  editorStore.updateFilePath(props.filePath, selectedPath)
+  editorStore.clearFileDirty(selectedPath)
+  void files.revealPath(selectedPath)
+  return true
+}
+
 async function requestFormattedTypstContent(content, options = {}) {
   if (!typstUi.tinymistActive) {
     if (options.notifyUnavailable) {
@@ -506,6 +557,10 @@ async function requestFormattedTypstContent(content, options = {}) {
 async function persistEditorContent(content) {
   const currentContent =
     typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
+
+  if (isDraftFile) {
+    return persistDraftContent(currentContent)
+  }
 
   if (isLatexEditor) {
     if (latexNormalizedSaveContent != null && currentContent === latexNormalizedSaveContent) {
@@ -556,7 +611,7 @@ async function persistEditorContent(content) {
     if (!saved) return false
     lastPersistedContent = nextContent
     editorStore.clearFileDirty(props.filePath)
-    if (isTex) {
+    if (supportsLatexRuntime) {
       void latexStore.scheduleAutoBuildForPath(props.filePath, {
         sourceContent: nextContent,
       })
@@ -564,7 +619,7 @@ async function persistEditorContent(content) {
     return true
   }
 
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     if (typstNormalizedSaveContent != null && currentContent === typstNormalizedSaveContent) {
       typstNormalizedSaveContent = null
       lastPersistedContent = currentContent
@@ -673,7 +728,7 @@ onMounted(async () => {
 
   let content = files.fileContents[props.filePath]
   if (content === undefined) {
-    content = await files.readFile(props.filePath)
+    content = isDraftFile ? '' : await files.readFile(props.filePath)
   }
   if (content === null && loadError.value) return
   if (content === null) content = ''
@@ -681,7 +736,7 @@ onMounted(async () => {
   lastPersistedContent = content
   editorStore.clearFileDirty(props.filePath)
 
-  if (isTex) {
+  if (supportsLatexRuntime) {
     void latexStore.checkTools().catch(() => {})
     void latexStore
       .refreshLint(props.filePath, {
@@ -703,14 +758,14 @@ onMounted(async () => {
         const selection = update.state.selection.main
         emit('selection-change', selection.from !== selection.to)
       }
-      if (isTyp && update.docChanged) {
+      if (supportsTypstRuntime && update.docChanged) {
         scheduleTinymistSync(update.state.doc.toString())
         if (!tinymistNavUi.jumpInFlight) {
           handleNavigationSelectionChange()
         }
       }
       if (
-        isTyp &&
+        supportsTypstRuntime &&
         update.selectionSet &&
         !update.docChanged &&
         !typstUi.jumpInFlight &&
@@ -728,7 +783,7 @@ onMounted(async () => {
     }),
   ]
 
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     const { createTypstDiagnosticsExtension } = await import('../../editor/typstEditorIntegration')
     extraExtensions.push(...createTypstDiagnosticsExtension())
   }
@@ -739,18 +794,20 @@ onMounted(async () => {
       import('../../editor/markdownDraftAssist'),
     ])
     const completionSources = [createMarkdownDraftSnippetSource(t)]
-    const wikiLinks = wikiLinksExtension({
-      resolveLink: (target, fromPath) => linksStore.resolveLink(target, fromPath),
-      getFiles: () => linksStore.allFileNames,
-      getHeadings: (target) => {
-        const resolved = linksStore.resolveLink(target, props.filePath)
-        if (!resolved) return null
-        return linksStore.headingsForFile(resolved.path)
-      },
-      currentFilePath: () => props.filePath,
-    })
-    extraExtensions.push(...wikiLinks.extensions)
-    completionSources.push(wikiLinks.completionSource)
+    if (!isDraftFile) {
+      const wikiLinks = wikiLinksExtension({
+        resolveLink: (target, fromPath) => linksStore.resolveLink(target, fromPath),
+        getFiles: () => linksStore.allFileNames,
+        getHeadings: (target) => {
+          const resolved = linksStore.resolveLink(target, props.filePath)
+          if (!resolved) return null
+          return linksStore.headingsForFile(resolved.path)
+        },
+        currentFilePath: () => props.filePath,
+      })
+      extraExtensions.push(...wikiLinks.extensions)
+      completionSources.push(wikiLinks.completionSource)
+    }
 
     extraExtensions.push(
       autocompletion({
@@ -848,7 +905,7 @@ onMounted(async () => {
     softWrap: workspace.softWrap,
     wrapColumn: workspace.wrapColumn,
     languageExtension: langExt,
-    autoSaveEnabled: workspace.autoSave,
+    autoSaveEnabled: workspace.autoSave && !isDraftFile,
     onDocChanged: handleDocumentChanged,
     onSave: (nextContent) => {
       void persistEditorContent(nextContent)
@@ -895,11 +952,11 @@ onMounted(async () => {
 })
 
 function ensureLatexWindowHandlers() {
-  if (!isTex) return
+  if (!supportsLatexRuntime) return
 
   if (!backwardSyncHandler) {
     backwardSyncHandler = async (event) => {
-      const { file, line, column, textBeforeSelection, textAfterSelection } = event.detail || {}
+      const { file, line, column, textBeforeSelection, textAfterSelection, strictLine } = event.detail || {}
       const normalizedFile = String(file || '').replace(/\\/g, '/')
       const normalizedCurrentPath = String(props.filePath || '').replace(/\\/g, '/')
       const location = {
@@ -908,7 +965,15 @@ function ensureLatexWindowHandlers() {
         column,
         textBeforeSelection,
         textAfterSelection,
+        strictLine,
       }
+      await appendLatexSyncDebug({
+        event: 'backward-sync-received',
+        detail: event.detail || null,
+        normalizedFile,
+        normalizedCurrentPath,
+        location,
+      })
       if (normalizedFile) {
         const targetFileName = normalizedFile.split('/').pop() || normalizedFile
         const currentFileName = normalizedCurrentPath.split('/').pop() || normalizedCurrentPath
@@ -917,6 +982,10 @@ function ensureLatexWindowHandlers() {
           !normalizedFile.includes('/') && targetFileName === currentFileName
         if (!exactMatch && !fileNameOnlyMatch) {
           if (editorStore.activeTab !== props.filePath) return
+          await appendLatexSyncDebug({
+            event: 'backward-sync-reveal-foreign',
+            location,
+          })
           await revealLatexSourceLocation(editorStore, location, {
             paneId: props.paneId,
             center: true,
@@ -925,6 +994,10 @@ function ensureLatexWindowHandlers() {
         }
       }
       if (line && line > 0) {
+        await appendLatexSyncDebug({
+          event: 'backward-sync-reveal-current',
+          location,
+        })
         await revealLatexSourceLocation(editorStore, location, {
           paneId: props.paneId,
           center: true,
@@ -972,7 +1045,7 @@ function ensureMarkdownWindowHandlers() {
 }
 
 function ensureTypstWindowHandlers() {
-  if (!isTyp || typstCursorRequestHandler) return
+  if (!supportsTypstRuntime || typstCursorRequestHandler) return
 
   typstCursorRequestHandler = (event) => {
     if (!view || event.detail?.sourcePath !== props.filePath) return
@@ -988,28 +1061,28 @@ function ensureTypstWindowHandlers() {
 
 function attachEditorRuntimeListeners() {
   editorContainer.value?.addEventListener('mousedown', handleContextMenuMouseDown, true)
-  if (isMd) {
+  if (isMd && !isDraftFile) {
     editorContainer.value?.addEventListener('click', handleWikiLinkClick)
   }
-  if (isTex) {
+  if (supportsLatexRuntime) {
     editorContainer.value?.addEventListener('dblclick', handleLatexDoubleClick)
   }
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     editorContainer.value?.addEventListener('click', handleDefinitionClick)
   }
-  if (isTyp && !cleanupTypstWindowListeners) {
-    cleanupTypstWindowListeners = registerTypstWindowListeners(isTyp)
+  if (supportsTypstRuntime && !cleanupTypstWindowListeners) {
+    cleanupTypstWindowListeners = registerTypstWindowListeners(true)
   }
 
-  if (isMd) {
+  if (isMd && !isDraftFile) {
     ensureMarkdownWindowHandlers()
     window.addEventListener('markdown-request-cursor', markdownCursorRequestHandler)
   }
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     ensureTypstWindowHandlers()
     window.addEventListener('typst-request-cursor', typstCursorRequestHandler)
   }
-  if (isTex) {
+  if (supportsLatexRuntime) {
     ensureLatexWindowHandlers()
     window.addEventListener('latex-backward-sync', backwardSyncHandler)
     window.addEventListener('latex-request-cursor', latexCursorRequestHandler)
@@ -1018,13 +1091,13 @@ function attachEditorRuntimeListeners() {
 
 function detachEditorRuntimeListeners() {
   editorContainer.value?.removeEventListener('mousedown', handleContextMenuMouseDown, true)
-  if (isMd) {
+  if (isMd && !isDraftFile) {
     editorContainer.value?.removeEventListener('click', handleWikiLinkClick)
   }
-  if (isTex) {
+  if (supportsLatexRuntime) {
     editorContainer.value?.removeEventListener('dblclick', handleLatexDoubleClick)
   }
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     editorContainer.value?.removeEventListener('click', handleDefinitionClick)
   }
   if (cleanupTypstWindowListeners) {
@@ -1051,7 +1124,7 @@ function activateEditorRuntime() {
   editorStore.registerEditorView(props.paneId, props.filePath, view)
   attachEditorRuntimeListeners()
   showMergeViewIfNeeded()
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     hydrateTypstDiagnostics()
     void connectTinymistDocument(view.state.doc.toString())
   }
@@ -1200,7 +1273,7 @@ function hasActiveLatexPdfPreviewTarget() {
 }
 
 function triggerLatexForwardSyncAtPos(pos) {
-  if (!isTex || !view) return
+  if (!supportsLatexRuntime || !view) return
   if (!hasActiveLatexPdfPreviewTarget()) return
   const location = getLatexSyncLocation(pos)
   if (!location) return
@@ -1208,7 +1281,7 @@ function triggerLatexForwardSyncAtPos(pos) {
 }
 
 function handleLatexDoubleClick(event) {
-  if (!isTex || !view || event.button !== 0) return
+  if (!supportsLatexRuntime || !view || event.button !== 0) return
   const pos = view.posAtCoords(getZoomCompensatedClientPoint(event))
   if (pos === null) return
   triggerLatexForwardSyncAtPos(pos)
@@ -1261,7 +1334,7 @@ async function triggerTypstForwardSyncAtPos(pos, trigger = 'typst-source-dblclic
 }
 
 function scheduleTypstSelectionPreviewSync(selection) {
-  if (!isTyp || !view) return
+  if (!supportsTypstRuntime || !view) return
   if (!hasActiveTypstNativePreviewTarget()) return
   if ((selection?.from ?? 0) !== (selection?.to ?? 0)) return
 
@@ -1349,7 +1422,7 @@ onUnmounted(() => {
     window.clearTimeout(typstPreviewSyncTimer)
     typstPreviewSyncTimer = null
   }
-  if (isTyp) {
+  if (supportsTypstRuntime) {
     void disconnectTinymistDocument()
   }
   if (view) {

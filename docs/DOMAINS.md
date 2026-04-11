@@ -38,6 +38,17 @@ Representative files:
 - `fileMutationRuntime.js`
 - `fileContentRuntime.js`
 
+### Future `src/domains/references/*`
+
+Owns project-scoped reference policy, citation insertion decisions, bibliography planning, reference filtering, and other reusable academic writing rules that should not live in components or stores.
+
+Representative future files:
+
+- `referenceLibraryRuntime.js`
+- `citationInsertionRuntime.js`
+- `bibliographyPlanningRuntime.js`
+- `referenceFilterRuntime.js`
+
 ### `src/domains/editor/*`
 
 Owns editor open/persist/restore behavior, pane layout, tab behavior, runtime view registration, and cleanup.
@@ -49,6 +60,17 @@ Representative files:
 - `paneTreeLayout.js`
 - `paneTabs.js`
 - `editorRestoreRuntime.js`
+
+### Future `src/domains/reader/*`
+
+Owns reader session policy, source-to-draft navigation decisions, inspection behavior for reading context, and annotation rules that should be shared across components and stores.
+
+Representative future files:
+
+- `readerSessionRuntime.js`
+- `readerNavigationRuntime.js`
+- `readerInspectionRuntime.js`
+- `annotationMappingRuntime.js`
 
 ### `src/domains/changes/*`
 
@@ -87,6 +109,7 @@ Representative file:
 - keep direct filesystem/process/network effects in `services`
 - keep Pinia stores focused on state ownership and coordination
 - keep Vue components focused on rendering and emitting user intent
+- keep reference, citation, and reader policy out of components even when the UI feels "sidebar-shaped"
 
 ## Signs logic belongs in a domain
 
@@ -94,6 +117,8 @@ Representative file:
 - a workflow has multiple valid states that need one normalized answer
 - the code is defining product behavior rather than performing an effect
 - tests can describe the logic without mounting UI
+- the feature needs to adapt differently for Markdown, LaTeX, and Typst without duplicating UI conditionals
+- the feature coordinates files, references, and readers under one writing task
 
 ## Validation anchors
 
@@ -104,8 +129,11 @@ A large share of the repository tests target domain runtime files directly. Repr
 - `tests/editorOpenRoutingRuntime.test.mjs`
 - `tests/workspaceSnapshot*.test.mjs`
 
+When references, citation, or reader domains are added, they should follow the same pattern: policy-heavy runtime tests first, UI tests second.
+
 ## See also
 
 - `docs/ARCHITECTURE.md`
+- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
 - `docs/TESTING.md`

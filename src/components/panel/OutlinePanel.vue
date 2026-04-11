@@ -37,17 +37,15 @@
 </template>
 
 <script setup>
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { useTypstStore } from '../../stores/typst'
-import { useWorkspaceStore } from '../../stores/workspace'
 import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
 import { subscribeTinymistDocumentSymbols } from '../../services/tinymist/session'
 import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
-import { buildTypstOutlineItems, buildTypstProjectOutlineItems } from '../../services/typst/outline'
-import { buildLatexOutlineItems } from '../../services/latex/outline'
+import { buildTypstOutlineItems } from '../../services/typst/outline'
 import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
 import { useI18n } from '../../i18n'
 
@@ -62,12 +60,7 @@ const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const typstStore = useTypstStore()
-const workspaceStore = useWorkspaceStore()
 const { t } = useI18n()
-const typstOutlineItems = ref([])
-const typstOutlineLoaded = ref(false)
-const latexOutlineItems = ref([])
-const latexOutlineLoaded = ref(false)
 const OUTLINE_SECTION_KEYS = [
   { key: 'contents', titleKey: 'Contents' },
   { key: 'figures', titleKey: 'Figures and tables' },
@@ -75,8 +68,6 @@ const OUTLINE_SECTION_KEYS = [
 ]
 
 let cleanupTinymistSymbols = null
-let typstOutlineRequestId = 0
-let latexOutlineRequestId = 0
 
 function outlineTypeForPath(path) {
   if (!path) return null
@@ -133,107 +124,31 @@ function bindTinymistOutline(path) {
       normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols),
       { loaded: true, tinymistBacked: true }
     )
-    if (activeFile.value === path && fileType.value === 'typst') {
-      void loadTypstOutline(path)
-    }
   })
 }
 
-function resetTypstOutline() {
-  typstOutlineLoaded.value = false
-  typstOutlineItems.value = []
-}
-
-async function loadTypstOutline(path) {
-  const requestId = ++typstOutlineRequestId
-  resetTypstOutline()
-  if (!path) return
-
-  try {
-    const items = await buildTypstProjectOutlineItems(path, {
-      filesStore,
-      workspacePath: workspaceStore.path,
-      documentText: currentDocumentText(path),
-      liveState: typstStore.liveStateForFile(path),
-      contentOverrides: {
-        [path]: currentDocumentText(path),
-      },
-    })
-    if (typstOutlineRequestId !== requestId) return
-    typstOutlineItems.value = items
-  } catch (error) {
-    if (typstOutlineRequestId !== requestId) return
-    console.warn('[outline] failed to build Typst outline:', error)
-    typstOutlineItems.value = []
-  } finally {
-    if (typstOutlineRequestId === requestId) {
-      typstOutlineLoaded.value = true
-    }
-  }
-}
-
-function resetLatexOutline() {
-  latexOutlineLoaded.value = false
-  latexOutlineItems.value = []
-}
-
-async function loadLatexOutline(path) {
-  const requestId = ++latexOutlineRequestId
-  resetLatexOutline()
-  if (!path) return
-
-  try {
-    const items = await buildLatexOutlineItems(path, {
-      filesStore,
-      workspacePath: workspaceStore.path,
-      contentOverrides: {
-        [path]: currentDocumentText(path),
-      },
-    })
-    if (latexOutlineRequestId !== requestId) return
-    latexOutlineItems.value = items
-  } catch (error) {
-    if (latexOutlineRequestId !== requestId) return
-    console.warn('[outline] failed to build LaTeX outline:', error)
-    latexOutlineItems.value = []
-  } finally {
-    if (latexOutlineRequestId === requestId) {
-      latexOutlineLoaded.value = true
-    }
-  }
-}
-
-// Extract headings based on file type
 const outlineItems = computed(() => {
   const path = activeFile.value
-  if (!path || !fileType.value) return []
-
   const ft = fileType.value
+  if (!path || !ft) return []
 
   if (ft === 'markdown') {
     const content = currentDocumentText(path)
-    if (!content) return []
-    return buildMarkdownOutlineItems(content)
+    return content ? buildMarkdownOutlineItems(content) : []
   }
 
   if (ft === 'latex') {
-    if (latexOutlineLoaded.value) {
-      return latexOutlineItems.value
-    }
-    const content = filesStore.fileContents[path]
-    if (!content) return []
-    return parseLatexHeadings(content)
+    const content = currentDocumentText(path)
+    return content ? parseLatexHeadings(content) : []
   }
 
   if (ft === 'typst') {
-    if (typstOutlineLoaded.value) {
-      return typstOutlineItems.value
-    }
     const content = currentDocumentText(path)
-    if (!content) return []
-    return buildTypstOutlineItems(content, {
-      liveState: typstStore.liveStateForFile(path),
-    })
+    return content
+      ? buildTypstOutlineItems(content, {
+          liveState: typstStore.liveStateForFile(path),
+        })
+      : []
   }
 
   return []
@@ -309,6 +224,7 @@ function parseLatexHeadings(content) {
   const baseLevel = result.length > 0 ? Math.min(...result.map((item) => item.rawLevel)) : 1
 
   return result.map((item) => ({
+    kind: 'heading',
     text: item.text,
     level: Math.max(1, item.rawLevel - baseLevel + 1),
     displayLevel: Math.max(1, item.rawLevel - baseLevel + 1),
@@ -372,36 +288,16 @@ function outlineItemKey(item = {}) {
 }
 
 watch(
-  () => [
-    activeFile.value,
-    fileType.value,
-    filesStore.fileContents[activeFile.value || ''] || '',
-    workspaceStore.path,
-  ],
+  () => [activeFile.value, fileType.value],
   ([path, ft]) => {
-    if (ft === 'typst') {
-      bindTinymistOutline(path)
-      void loadTypstOutline(path)
-      resetLatexOutline()
-      return
-    }
-
-    if (ft === 'latex') {
-      if (cleanupTinymistSymbols) {
-        cleanupTinymistSymbols()
-        cleanupTinymistSymbols = null
-      }
-      resetTypstOutline()
-      void loadLatexOutline(path)
-      return
-    }
-
     if (cleanupTinymistSymbols) {
       cleanupTinymistSymbols()
       cleanupTinymistSymbols = null
     }
-    resetTypstOutline()
-    resetLatexOutline()
+
+    if (ft === 'typst' && path) {
+      bindTinymistOutline(path)
+    }
   },
   { immediate: true }
 )

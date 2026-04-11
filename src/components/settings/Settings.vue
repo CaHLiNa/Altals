@@ -1,5 +1,8 @@
 <template>
-  <div class="settings-surface">
+  <div
+    class="settings-surface"
+    data-surface-context-guard="true"
+  >
     <header class="settings-header">
       <h2 class="settings-header-title">{{ activeSectionLabel }}</h2>
     </header>

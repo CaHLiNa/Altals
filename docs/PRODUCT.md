@@ -1,79 +1,114 @@
 # Product
 
-Altals is a local-first desktop writing workspace for project folders with first-class Markdown, LaTeX, and Typst support.
+Altals is a local-first desktop academic writing platform for project folders, with first-class Markdown, LaTeX, and Typst support plus an integrated project-level references and reading workflow.
 
-## Primary user flow
+The product is still writing-first. References, readers, citations, and later AI-assisted research tasks exist to keep the user inside one focused academic workbench, not to turn Altals into a generic knowledge manager.
 
-The product is built around one practical workbench:
+## Core user loop
+
+The target product loop is one practical desktop workbench:
 
 1. open a local project folder from the launcher
-2. browse and manage files in the left sidebar
-3. open documents into the editor workbench
-4. preview or compile supported document formats without leaving the workspace surface
-5. inspect the current document outline in the right sidebar
-6. use save points, local history, and repository workflows as safety boundaries while writing
+2. browse project files and project-scoped references without leaving the app
+3. read PDFs or other source material alongside the draft
+4. write Markdown, LaTeX, and Typst documents in the editor workbench
+5. insert citations and maintain bibliography output from the same workspace
+6. preview or compile supported document formats without leaving the workspace surface
+7. inspect document structure, citation context, or reader structure in the right-side inspection area
+8. use save points, local history, and repository workflows as safety boundaries while writing
 
-Representative entry points:
+Representative current entry points:
 
 - launcher and recent workspaces: `src/components/Launcher.vue`
 - shell composition: `src/App.vue`
-- left sidebar file tree: `src/components/sidebar/LeftSidebar.vue`
-- right sidebar outline: `src/components/sidebar/RightSidebar.vue`
+- left sidebar shell: `src/components/sidebar/LeftSidebar.vue`
+- right sidebar shell: `src/components/sidebar/RightSidebar.vue`
 - top workbench controls: `src/components/layout/WorkbenchRail.vue`
 
-## Current scope
+## Product direction
 
-### Core surfaces
+### Current shipped build
+
+The current shipped build remains centered on:
+
+- opening a local workspace folder and restoring recent workspaces
+- editing project documents in the main workbench
+- workflow-aware behavior for Markdown, LaTeX, and Typst
+- previewing or compiling supported writing formats
+- outline inspection in the current right sidebar
+- local history, snapshots, and repository-linked writing workflows
+
+### Current expansion target
+
+The next product expansion is not a separate surface. It is an extension of the same desktop workbench:
+
+- project-scoped references library stored alongside workspace-owned metadata
+- in-app PDF and research reading flows that stay close to the draft
+- direct citation insertion for Markdown, LaTeX, and Typst
+- bibliography generation that respects the active document workflow
+- reference metadata, import, and reading context that remain local-first
+
+The workbench can already open supporting files such as standalone PDFs, `.txt`, `.bib`, and common LaTeX sidecar text files. The next step is to turn that support into a coherent academic writing loop rather than treat those files as second-class attachments.
+
+## Core surfaces
+
+### Current surfaces
 
 - **Launcher** for opening a local workspace or cloning a repository into a local workspace
-- **Workspace surface** for file tree, editor panes, preview/compile actions, and outline inspection
+- **Workspace surface** for file tree, editor panes, preview or compile actions, and current inspection flows
 - **Settings surface** for theme, editor, environment, and update preferences
 - **Dialogs and overlays** for setup, unsaved changes, version history, and workspace snapshot browsing
 
-### Core capabilities
+### Planned workbench additions
 
-- open a local workspace folder and restore recent workspaces
-- edit document files in the main workbench
-- support workflow-aware behavior for Markdown, LaTeX, and Typst
-- manage workspace preferences and persisted shell state
-- keep local history, snapshots, and repository-linked writing workflows available inside the desktop app
-- produce release-ready desktop builds through the repository release pipeline
+- **Project references flow** inside the workspace surface, not as a disconnected second app
+- **Reader flow** for PDFs and other project-linked research material
+- **Citation insertion flow** attached to the editor and active document workflow
 
-### Current supported writing formats
+Future AI and translation features should plug into this workbench rather than replace it.
 
-- **Markdown** with a single built-in preview mode
+## Supported writing formats
+
+Current first-class writing formats remain:
+
+- **Markdown** with a built-in preview mode
 - **LaTeX** with compile status, diagnostics, and PDF preview
 - **Typst** with native preview when available plus PDF preview
 
-The workbench can also open supporting project files such as standalone PDFs, `.txt`, `.bib`, and common LaTeX sidecar text files without promoting them into full document workflows.
-
-The product copy in `src/components/Launcher.vue:11` and `src/components/SetupWizard.vue:13` already reflects this trimmed scope.
+Citations and bibliography behavior should adapt to each format instead of forcing one fake cross-format syntax over the top.
 
 ## Product boundaries
 
 - The Tauri desktop app is the primary product surface.
 - The `web/` directory exists, but it does not define the main product direction for the current app.
-- The current core experience is writing, previewing, compiling, and navigating project documents.
-- The left sidebar is file-tree focused.
-- The right sidebar is outline-only in the current build, as reflected by `src/shared/workbenchInspectorPanels.js`.
-- New product surfaces or speculative workflow systems should not be introduced casually.
+- The core experience is one desktop academic workbench, not a bundle of loosely related utilities.
+- The left sidebar remains project-tree-first, even when project references or reader entry points are introduced.
+- The right-side inspection area is currently outline-only in the shipped build, but it may grow into other writing-adjacent inspection panels when they directly support drafting, citation, or reading tasks.
+- References, reading, and citation features should stay project-scoped and local-first by default.
+- AI workflows and PDF translation are valid future capabilities, but they should land through modular seams or plugins instead of bloating the first-party core.
+- New surfaces, sync systems, or speculative platform expansion should not be introduced casually.
 
 ## State and persistence expectations
 
 - workspace identity and workspace-owned metadata are managed through `src/stores/workspace.js`
 - editor panes, tabs, and dirty state live in `src/stores/editor.js`
 - document workflow session state and preview preferences live in `src/stores/documentWorkflow.js`
-- local history and save-point behavior are integrated into the writing flow rather than treated as a separate product
+- local history and save-point behavior stay integrated into the writing flow
+- future references, reader state, and citation caches should remain scoped to the current workspace or its owned metadata directory rather than a mandatory global cloud account
 
-## Non-goals for the current slice
+## Non-goals for the current direction
 
+- turning Altals into a general note-taking or personal knowledge management product
+- building a global library-first product that weakens the project workspace model
+- shipping AI chat surfaces that are disconnected from the active draft or reference set
+- letting repository, sync, or release workflows overshadow the academic writing workbench itself
 - reviving deleted legacy feature claims just because they existed in old docs
-- expanding the inspector into multiple panels without a product decision
-- letting release, sync, or repository features overshadow the writing workbench itself
 
 ## See also
 
 - `docs/ARCHITECTURE.md`
+- `docs/DOMAINS.md`
+- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
 - `docs/GIT_AND_SNAPSHOTS.md`
 - `docs/TESTING.md`

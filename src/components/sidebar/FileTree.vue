@@ -558,6 +558,7 @@ async function createTypedFile(dir, ext) {
 
   const path = await files.createFile(dir, name)
   if (path) {
+    files.markTransientFile(path)
     workspace.openWorkspaceSurface()
     editor.openFile(path)
     // Wait for Vue to render the new FileTreeItem before starting rename
@@ -632,6 +633,11 @@ function startInlineCreate(dir, isDir) {
   })
 }
 
+function startInlineTypedFileCreate(dir, ext = '.md') {
+  startInlineCreate(dir, false)
+  renaming.autoExtension = ext
+}
+
 function handleRename(entry) {
   renaming.active = true
   renaming.isNew = false
@@ -667,6 +673,7 @@ async function finishRename() {
       } else {
         const path = await files.createFile(renaming.parentDir, name)
         if (path) {
+          files.markTransientFile(path)
           workspace.openWorkspaceSurface()
           editor.openFile(path)
         }
@@ -731,6 +738,24 @@ async function revealInFinder(entry) {
 }
 
 defineExpose({
+  beginNewFile(ext = '.md') {
+    let targetDir = workspace.path
+
+    if (selectedPaths.size > 0) {
+      const selectedPath = getActivePath()
+      const entry = findEntry(selectedPath)
+      if (entry) {
+        if (entry.is_dir) {
+          targetDir = entry.path
+          files.expandedDirs.add(targetDir)
+        } else {
+          targetDir = selectedPath.substring(0, selectedPath.lastIndexOf('/'))
+        }
+      }
+    }
+
+    startInlineTypedFileCreate(targetDir, ext)
+  },
   activateFilter,
   collapseAllFolders,
   toggleCreateMenuFrom(anchorEl = null) {

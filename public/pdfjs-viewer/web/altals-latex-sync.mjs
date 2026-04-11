@@ -56,23 +56,148 @@ function getSelectionContext() {
   }
 }
 
+function clampToRange(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function resolveMouseClientPoint(event) {
+  const clientX = Number(event?.clientX)
+  const clientY = Number(event?.clientY)
+  if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+    return { clientX, clientY }
+  }
+
+  const pageX = Number(event?.pageX)
+  const pageY = Number(event?.pageY)
+  if (Number.isFinite(pageX) && Number.isFinite(pageY)) {
+    return { clientX: pageX, clientY: pageY }
+  }
+
+  return null
+}
+
+function rectContainsPoint(rect, point) {
+  return !!rect
+    && !!point
+    && point.clientX >= rect.left
+    && point.clientX <= rect.left + rect.width
+    && point.clientY >= rect.top
+    && point.clientY <= rect.top + rect.height
+}
+
+function rectHasArea(rect) {
+  return !!rect
+    && Number.isFinite(rect.width)
+    && Number.isFinite(rect.height)
+    && rect.width > 0
+    && rect.height > 0
+}
+
+function resolveRectCenterPoint(rect) {
+  if (!rectHasArea(rect)) return null
+  return {
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
+  }
+}
+
+function resolveEventTargetClientPoint(target, pageRect) {
+  const rect = target?.getBoundingClientRect?.()
+  const centerPoint = resolveRectCenterPoint(rect)
+  if (rectContainsPoint(pageRect, centerPoint)) {
+    return centerPoint
+  }
+  return null
+}
+
+function resolveSelectionClientPoint(pageRect, fallbackPoint) {
+  const selection = window.getSelection()
+  if (!selection?.rangeCount) return fallbackPoint
+
+  let rect = null
+  try {
+    rect = selection.getRangeAt(0)?.getBoundingClientRect?.() || null
+  } catch {
+    rect = null
+  }
+
+  if (!rectHasArea(rect)) {
+    return fallbackPoint
+  }
+
+  const centerPoint = resolveRectCenterPoint(rect)
+  if (rectContainsPoint(pageRect, centerPoint)) {
+    return centerPoint
+  }
+  return fallbackPoint
+}
+
+function resolvePdfPageClientRect(pageView, pageDom, canvasWrapper) {
+  const textLayerRect = pageView?.textLayer?.div?.getBoundingClientRect?.()
+  if (textLayerRect) return textLayerRect
+
+  const canvasRect = canvasWrapper?.getBoundingClientRect?.()
+  if (canvasRect) return canvasRect
+
+  return pageDom?.getBoundingClientRect?.() || null
+}
+
+function resolvePdfPageHeight(pageView) {
+  const rawPageHeight = Number(pageView?.viewport?.rawDims?.pageHeight)
+  if (Number.isFinite(rawPageHeight) && rawPageHeight > 0) {
+    return rawPageHeight
+  }
+
+  const viewBox = pageView?.viewport?.viewBox
+  if (Array.isArray(viewBox) && viewBox.length >= 4) {
+    const viewBoxHeight = Number(viewBox[3]) - Number(viewBox[1])
+    if (Number.isFinite(viewBoxHeight) && viewBoxHeight > 0) {
+      return viewBoxHeight
+    }
+  }
+
+  return null
+}
+
 function callReverseSynctex(event, pageNumber, pageDom, viewerContainer) {
-  const canvasDom = pageDom.getElementsByTagName('canvas')[0]
   const canvasWrapper = pageDom.getElementsByClassName('canvasWrapper')[0]
-  if (!canvasDom || !canvasWrapper) return
+  if (!canvasWrapper || !viewerContainer) return
 
   const pageView = window.PDFViewerApplication.pdfViewer?._pages?.[pageNumber - 1]
-  if (!pageView?.getPagePoint) return
+  const pageRect = resolvePdfPageClientRect(pageView, pageDom, canvasWrapper)
+  const rawPointer = resolveMouseClientPoint(event)
+  const targetPointer = resolveEventTargetClientPoint(event.target, pageRect)
+  const pointer = resolveSelectionClientPoint(pageRect, targetPointer || rawPointer)
+  if (
+    !pageView?.getPagePoint
+    || !pageRect
+    || !pointer
+    || !Number.isFinite(pageRect.width)
+    || !Number.isFinite(pageRect.height)
+    || pageRect.width <= 0
+    || pageRect.height <= 0
+  ) {
+    return
+  }
 
-  const left = event.pageX - pageDom.offsetLeft + viewerContainer.scrollLeft - canvasWrapper.offsetLeft
-  const top = event.pageY - pageDom.offsetTop + viewerContainer.scrollTop - canvasWrapper.offsetTop
-  const pos = pageView.getPagePoint(left, canvasDom.offsetHeight - top)
+  const left = clampToRange(pointer.clientX - pageRect.left, 0, pageRect.width)
+  const top = clampToRange(pointer.clientY - pageRect.top, 0, pageRect.height)
+  const pos = pageView.getPagePoint(left, top)
   if (!Array.isArray(pos) || pos.length < 2) return
+
+  const pageHeight = resolvePdfPageHeight(pageView)
+  const pdfX = Number(pos[0])
+  const pdfY = Number(pos[1])
+  if (!Number.isFinite(pdfX) || !Number.isFinite(pdfY)) return
+
+  const normalizedPos = Number.isFinite(pageHeight)
+    ? [pdfX, pageHeight - pdfY]
+    : [pdfX, pdfY]
 
   const { textBeforeSelection, textAfterSelection } = getSelectionContext()
   postToParent('reverse_synctex', {
     page: pageNumber,
-    pos,
+    pos: normalizedPos,
     textBeforeSelection,
     textAfterSelection,
   })
@@ -91,7 +216,9 @@ function registerSyncTeX() {
     const pageNumber = Number(pageDom?.dataset?.pageNumber || 0)
     if (!pageNumber) continue
     pageDom.ondblclick = (event) => {
-      callReverseSynctex(event, pageNumber, pageDom, viewerContainer)
+      window.requestAnimationFrame(() => {
+        callReverseSynctex(event, pageNumber, pageDom, viewerContainer)
+      })
     }
   }
 }

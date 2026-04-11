@@ -496,7 +496,12 @@ export const useEditorStore = defineStore('editor', {
         path,
         editorViews: this.editorViews,
         filesStore: useFilesStore(),
-        onPersisted: (savedPath) => this.clearFileDirty(savedPath),
+        onPersisted: (savedPath, originalPath = savedPath) => {
+          if (originalPath !== savedPath) {
+            this.updateFilePath(originalPath, savedPath)
+          }
+          this.clearFileDirty(savedPath)
+        },
       })
     },
 

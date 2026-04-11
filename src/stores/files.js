@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
 import { readWorkspaceTreeSnapshot } from '../services/workspaceSnapshotIO'
@@ -98,6 +100,8 @@ export const useFilesStore = defineStore('files', {
     lastWorkspaceSnapshot: null,
     fileContents: {}, // cache: path → content
     fileLoadErrors: {}, // cache: path -> { code, message, detail, raw, ... }
+    draftFiles: {},
+    transientCreatedFiles: new Set(), // new files that can be discarded before first explicit save
     deletingPaths: new Set(), // paths currently being deleted (prevents save-on-unmount race)
     lastLoadError: null,
     reconcileState: {
@@ -475,11 +479,109 @@ export const useFilesStore = defineStore('files', {
     },
 
     async saveFile(path, content) {
-      return this._getFileContentRuntime().saveFile(path, content)
+      const saved = await this._getFileContentRuntime().saveFile(path, content)
+      if (saved) {
+        this.transientCreatedFiles.delete(path)
+      }
+      return saved
     },
 
     setInMemoryFileContent(path, content) {
       this._getFileContentRuntime().setInMemoryFileContent(path, content)
+    },
+
+    clearInMemoryFileContent(path) {
+      if (!path || !(path in this.fileContents)) return
+      delete this.fileContents[path]
+    },
+
+    createDraftFile(options = {}) {
+      const ext = typeof options.ext === 'string' && options.ext ? options.ext : '.md'
+      const suggestedName = typeof options.suggestedName === 'string' && options.suggestedName
+        ? options.suggestedName
+        : `Untitled${ext}`
+      const initialContent = typeof options.initialContent === 'string' ? options.initialContent : ''
+      const path = `draft:${nanoid()}/${suggestedName}`
+      this.draftFiles[path] = {
+        suggestedName,
+        ext,
+      }
+      this.fileContents[path] = initialContent
+      this._clearFileLoadError(path)
+      return path
+    },
+
+    isDraftFile(path) {
+      return !!path && path in this.draftFiles
+    },
+
+    getDraftSuggestedName(path) {
+      return this.draftFiles[path]?.suggestedName || ''
+    },
+
+    clearDraftFile(path) {
+      if (!path) return
+      delete this.draftFiles[path]
+      this.clearInMemoryFileContent(path)
+      this._clearFileLoadError(path)
+    },
+
+    async saveDraftAs(draftPath, targetPath, content) {
+      if (!draftPath || !targetPath) return false
+      const saved = await this._getFileContentRuntime().saveFile(targetPath, content)
+      if (!saved) return false
+      const targetDir = targetPath.substring(0, targetPath.lastIndexOf('/'))
+      await this.syncTreeAfterMutation({ expandPath: targetDir })
+      this.clearDraftFile(draftPath)
+      return true
+    },
+
+    async promptAndSaveDraft(draftPath, content) {
+      if (!draftPath) return null
+      const workspaceRoot = String(useWorkspaceStore().path || '').replace(/\/+$/, '')
+      const draftName = this.getDraftSuggestedName(draftPath) || 'Untitled.md'
+      const defaultPath = workspaceRoot ? `${workspaceRoot}/${draftName}` : draftName
+
+      let selectedPath = null
+      try {
+        selectedPath = await saveDialog({
+          title: t('Save'),
+          defaultPath,
+        })
+      } catch {
+        useToastStore().show(t('Could not open the save dialog.'), {
+          type: 'error',
+          duration: 4000,
+        })
+        return null
+      }
+
+      if (!selectedPath) return null
+
+      if (workspaceRoot && selectedPath !== workspaceRoot && !selectedPath.startsWith(`${workspaceRoot}/`)) {
+        useToastStore().show(t('Save the draft inside the current workspace.'), {
+          type: 'error',
+          duration: 4000,
+        })
+        return null
+      }
+
+      const saved = await this.saveDraftAs(draftPath, selectedPath, content)
+      return saved ? selectedPath : null
+    },
+
+    markTransientFile(path) {
+      if (!path) return
+      this.transientCreatedFiles.add(path)
+    },
+
+    clearTransientFile(path) {
+      if (!path) return
+      this.transientCreatedFiles.delete(path)
+    },
+
+    isTransientFile(path) {
+      return !!path && this.transientCreatedFiles.has(path)
     },
 
     async createFile(dirPath, name, options = {}) {
@@ -495,7 +597,12 @@ export const useFilesStore = defineStore('files', {
     },
 
     async renamePath(oldPath, newPath) {
-      return this._getFileMutationRuntime().renamePath(oldPath, newPath)
+      const renamed = await this._getFileMutationRuntime().renamePath(oldPath, newPath)
+      if (renamed && this.transientCreatedFiles.has(oldPath)) {
+        this.transientCreatedFiles.delete(oldPath)
+        this.transientCreatedFiles.add(newPath)
+      }
+      return renamed
     },
 
     async movePath(srcPath, destDir) {
@@ -507,7 +614,11 @@ export const useFilesStore = defineStore('files', {
     },
 
     async deletePath(path) {
-      return this._getFileMutationRuntime().deletePath(path)
+      const deleted = await this._getFileMutationRuntime().deletePath(path)
+      if (deleted) {
+        this.transientCreatedFiles.delete(path)
+      }
+      return deleted
     },
 
     cleanup() {
@@ -529,6 +640,8 @@ export const useFilesStore = defineStore('files', {
       this.expandedDirs = new Set()
       this.fileContents = {}
       this.fileLoadErrors = {}
+      this.draftFiles = {}
+      this.transientCreatedFiles = new Set()
       this.lastLoadError = null
       this.reconcileState = {
         inProgress: false,

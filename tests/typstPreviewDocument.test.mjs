@@ -2,88 +2,89 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  DEFAULT_SCROLL_DEBOUNCE_MS,
+  DEFAULT_TINYMIST_PREVIEW_MODE,
+  PREVIEW_DOCUMENT_CACHE_VERSION,
+  TINYMIST_PREVIEW_MODE_PLACEHOLDER,
+  TINYMIST_PREVIEW_STATE_PLACEHOLDER,
+  TINYMIST_WS_PLACEHOLDER,
   buildPreviewDocumentCacheKey,
   patchTypstPreviewDocumentHtml,
+  resolveSessionWebSocketUrl,
 } from '../src/services/typst/previewDocument.js'
 
-test('patchTypstPreviewDocumentHtml rewrites Tinymist websocket bootstrap to the preview base URL', () => {
+test('resolveSessionWebSocketUrl prefers explicit websocket URLs and falls back to the data plane port', () => {
+  assert.equal(
+    resolveSessionWebSocketUrl({ dataPlaneWsUrl: 'ws://127.0.0.1:24424' }),
+    'ws://127.0.0.1:24424',
+  )
+  assert.equal(
+    resolveSessionWebSocketUrl({ dataPlaneUrl: 'http://127.0.0.1:24424' }),
+    'ws://127.0.0.1:24424',
+  )
+  assert.equal(
+    resolveSessionWebSocketUrl({ dataPlanePort: 24424 }),
+    'ws://127.0.0.1:24424',
+  )
+})
+
+test('patchTypstPreviewDocumentHtml rewrites Tinymist websocket placeholders to the active data plane url', () => {
   const html = `
     <script>
-      let urlObject = new URL("/", window.location.href);
+      let urlObject = new URL("${TINYMIST_WS_PLACEHOLDER}", window.location.href);
     </script>
   `
 
   const result = patchTypstPreviewDocumentHtml(html, {
-    previewBaseUrl: 'http://127.0.0.1:23625',
+    websocketUrl: 'ws://127.0.0.1:24424',
   })
 
-  assert.match(
-    result.html,
-    /let urlObject = new URL\("http:\/\/127\.0\.0\.1:23625\/", window\.location\.href\);/,
-  )
+  assert.match(result.html, /ws:\/\/127\.0\.0\.1:24424/)
   assert.equal(result.patched, true)
 })
 
-test('patchTypstPreviewDocumentHtml lowers the preview scroll debounce for viewport updates', () => {
-  const html = `
-    <script>
-      fromEvent(resizeTarget, "scroll").pipe(debounceTime(500)).subscribe(() => svgDoc.addViewportChange())
-    </script>
-  `
+test('patchTypstPreviewDocumentHtml only rewrites the preview mode placeholder when a non-default mode is requested', () => {
+  const html = `<body>${TINYMIST_PREVIEW_MODE_PLACEHOLDER}</body>`
 
-  const result = patchTypstPreviewDocumentHtml(html)
+  const defaultResult = patchTypstPreviewDocumentHtml(html)
+  assert.equal(defaultResult.html, html)
+  assert.equal(defaultResult.patched, false)
 
-  assert.match(result.html, new RegExp(`debounceTime\\(${DEFAULT_SCROLL_DEBOUNCE_MS}\\)`))
-  assert.doesNotMatch(result.html, /fromEvent\(resizeTarget, "wheel"\)/)
-  assert.equal(result.patched, true)
-})
-
-test('patchTypstPreviewDocumentHtml removes pseudo-link hover listeners from embedded preview documents', () => {
-  const html = `
-    <script>
-      elem.addEventListener("mousemove", mouseMoveToLink);
-      elem.addEventListener("mouseleave", mouseLeaveFromLink);
-    </script>
-  `
-
-  const result = patchTypstPreviewDocumentHtml(html)
-
-  assert.doesNotMatch(result.html, /mouseMoveToLink/)
-  assert.doesNotMatch(result.html, /mouseLeaveFromLink/)
-  assert.equal(result.patched, true)
-})
-
-test('patchTypstPreviewDocumentHtml forces a paper-colored app background to avoid dark page gaps', () => {
-  const html = `
-    <div id="typst-app" style="background-color: var(--typst-preview-background-color) !important;"></div>
-  `
-
-  const result = patchTypstPreviewDocumentHtml(html)
-
-  assert.match(result.html, /background-color: #fff !important;/)
-  assert.doesNotMatch(result.html, /var\(--typst-preview-background-color\)/)
-  assert.equal(result.patched, true)
-})
-
-test('patchTypstPreviewDocumentHtml leaves unrelated html unchanged when preview markers are absent', () => {
-  const html = '<html><body>plain preview shell</body></html>'
-
-  const result = patchTypstPreviewDocumentHtml(html, {
-    previewBaseUrl: 'http://127.0.0.1:23625',
+  const slideResult = patchTypstPreviewDocumentHtml(html, {
+    previewMode: 'slide',
   })
-
-  assert.equal(result.html, html)
-  assert.equal(result.patched, false)
+  assert.equal(slideResult.html, '<body>preview-arg:previewMode:Slide</body>')
+  assert.equal(slideResult.patched, true)
 })
 
-test('buildPreviewDocumentCacheKey normalizes preview URLs and debounce settings', () => {
+test('patchTypstPreviewDocumentHtml injects preview state only when explicitly provided', () => {
+  const html = `<body>${TINYMIST_PREVIEW_STATE_PLACEHOLDER}</body>`
+
+  const emptyResult = patchTypstPreviewDocumentHtml(html)
+  assert.equal(emptyResult.html, html)
+  assert.equal(emptyResult.patched, false)
+
+  const stateResult = patchTypstPreviewDocumentHtml(html, {
+    previewState: 'eyJmb28iOiJiYXIifQ==',
+  })
+  assert.equal(stateResult.html, '<body>preview-arg:state:eyJmb28iOiJiYXIifQ==</body>')
+  assert.equal(stateResult.patched, true)
+})
+
+test('buildPreviewDocumentCacheKey tracks the Tinymist websocket endpoint, preview mode, and workspace path', () => {
   assert.equal(
-    buildPreviewDocumentCacheKey('http://127.0.0.1:23625', {}),
-    `http://127.0.0.1:23625/::v3::${DEFAULT_SCROLL_DEBOUNCE_MS}`,
+    buildPreviewDocumentCacheKey({
+      dataPlanePort: 24424,
+      workspacePath: '/workspace/project',
+    }, {}),
+    `ws://127.0.0.1:24424::v${PREVIEW_DOCUMENT_CACHE_VERSION}::${DEFAULT_TINYMIST_PREVIEW_MODE}::/workspace/project`,
   )
   assert.equal(
-    buildPreviewDocumentCacheKey('http://127.0.0.1:23625/', { scrollDebounceMs: 120 }),
-    'http://127.0.0.1:23625/::v3::120',
+    buildPreviewDocumentCacheKey({
+      dataPlaneWsUrl: 'ws://127.0.0.1:24424',
+      workspacePath: '/workspace/project',
+    }, {
+      previewMode: 'slide',
+    }),
+    `ws://127.0.0.1:24424::v${PREVIEW_DOCUMENT_CACHE_VERSION}::Slide::/workspace/project`,
   )
 })

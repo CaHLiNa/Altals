@@ -39,6 +39,33 @@ test('typst project graph prefers filesStore workspace snapshots for file enumer
   assert.deepEqual(graph.projectPaths, ['/ws/main.typ', '/ws/sections/intro.typ'])
 })
 
+test('typst project graph prefers leaf document roots over imported facade entrypoints', async () => {
+  const graph = await resolveTypstProjectGraph('/ws/template.typ', {
+    workspacePath: '/ws',
+    filesStore: {
+      async readWorkspaceSnapshot() {
+        return {
+          flatFiles: [
+            { path: '/ws/template.typ' },
+            { path: '/ws/thesis.typ' },
+            { path: '/ws/typst.toml' },
+          ],
+        }
+      },
+      fileContents: {
+        '/ws/template.typ': '#let conf(doc) = doc',
+        '/ws/thesis.typ': '#import "template.typ": *\n#show: doc => conf(doc)\n= Body',
+        '/ws/typst.toml': 'entrypoint = "template.typ"',
+      },
+    },
+  })
+
+  assert.equal(graph.rootPath, '/ws/thesis.typ')
+  assert.equal(graph.previewPath, '/ws/thesis.pdf')
+  assert.deepEqual(graph.projectPaths, ['/ws/template.typ', '/ws/thesis.typ'])
+  assert.deepEqual(graph.owningRoots, ['/ws/template.typ', '/ws/thesis.typ'])
+})
+
 test('latex project graph prefers filesStore workspace snapshots for file enumeration', async () => {
   const snapshotCalls = []
   let ensureFlatFilesReadyCalls = 0

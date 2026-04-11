@@ -495,6 +495,7 @@ pub fn run() {
         .register_uri_scheme_protocol("altals-workspace", |ctx, request| {
             handle_workspace_protocol(ctx.app_handle(), request)
         })
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
@@ -586,7 +587,6 @@ pub fn run() {
             typst_export::compile_typst_file,
             tinymist::check_tinymist_binary,
             tinymist::download_tinymist,
-            tinymist::typst_preview_fetch_document,
             tinymist::typst_preview_wait_for_jump,
             tinymist::typst_preview_send_src_point,
             keychain_get,

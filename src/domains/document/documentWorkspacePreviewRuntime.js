@@ -1,4 +1,5 @@
 import {
+  isDraftPath,
   isLatex,
   isMarkdown,
   isMarkdownPreviewPath,
@@ -10,6 +11,7 @@ import {
 function getWorkspaceDocumentKind(path = '', workflowUiState = null) {
   if (workflowUiState?.kind && workflowUiState.kind !== 'text') return workflowUiState.kind
   if (!path || typeof path !== 'string') return null
+  if (isDraftPath(path)) return null
   if (isMarkdown(path)) return 'markdown'
   if (isLatex(path)) return 'latex'
   if (isTypst(path)) return 'typst'

@@ -262,12 +262,21 @@ function buildRootScore(sourcePath = '', rootPath = '', configRootPaths = new Ma
   return score
 }
 
-function chooseRootPath(sourcePath, owningRoots = [], configRootPaths = new Map()) {
+function chooseRootPath(
+  sourcePath,
+  owningRoots = [],
+  configRootPaths = new Map(),
+  reverseDependencies = new Map(),
+) {
   const normalizedSource = normalizeFsPath(sourcePath)
-  if (owningRoots.includes(normalizedSource)) return normalizedSource
   if (owningRoots.length === 0) return normalizedSource
+  const leafOwningRoots = owningRoots.filter((rootPath) => {
+    const dependentCount = reverseDependencies.get(normalizeFsPath(rootPath))?.size || 0
+    return dependentCount === 0
+  })
+  const candidateRoots = leafOwningRoots.length > 0 ? leafOwningRoots : owningRoots
 
-  return [...owningRoots].sort((left, right) => {
+  return [...candidateRoots].sort((left, right) => {
     const scoreDelta = buildRootScore(normalizedSource, right, configRootPaths)
       - buildRootScore(normalizedSource, left, configRootPaths)
     if (scoreDelta !== 0) return scoreDelta
@@ -360,7 +369,12 @@ export async function resolveTypstProjectGraph(sourcePath, options = {}) {
     .filter(project => project.projectPaths.includes(normalizedSource))
     .map(project => project.rootPath)
     .sort()
-  const rootPath = chooseRootPath(normalizedSource, owningRoots, configRootPaths)
+  const rootPath = chooseRootPath(
+    normalizedSource,
+    owningRoots,
+    configRootPaths,
+    reverseDependencies,
+  )
   const activeProject = rootProjects.find(project => project.rootPath === rootPath)
 
   const graph = {

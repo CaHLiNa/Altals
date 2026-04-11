@@ -43,11 +43,12 @@
 
         <div class="app-shell-workbench flex flex-1 overflow-hidden">
           <div
-            class="app-shell-region app-shell-region-left shrink-0"
+            class="app-shell-region app-shell-region-left shrink-0 overflow-hidden"
             :class="{
               'is-open': leftSidebarVisible,
               'is-collapsed': !leftSidebarVisible,
               'is-resizing': isLeftSidebarResizing,
+              'is-workspace-left-region': workspace.isWorkspaceSurface,
             }"
             :style="{
               width: leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
@@ -66,23 +67,24 @@
                 width: '100%',
               }"
             >
-              <LeftSidebar
-                v-if="workspace.isWorkspaceSurface"
-                ref="leftSidebarRef"
-                @file-version-history="openFileVersionHistory"
-                @open-search="openQuickSearch"
-                @open-settings="workspace.openSettings()"
-                @open-folder="pickWorkspace"
-                @open-workspace="openWorkspace"
-                @close-folder="closeWorkspace"
-              />
-              <SettingsSidebar v-else-if="workspace.isSettingsSurface" />
+              <KeepAlive :max="2">
+                <LeftSidebar
+                  v-if="workspace.isWorkspaceSurface"
+                  ref="leftSidebarRef"
+                  @file-version-history="openFileVersionHistory"
+                  @open-search="openQuickSearch"
+                  @open-settings="workspace.openSettings()"
+                  @open-folder="pickWorkspace"
+                  @open-workspace="openWorkspace"
+                  @close-folder="closeWorkspace"
+                />
+                <SettingsSidebar v-else-if="workspace.isSettingsSurface" />
+              </KeepAlive>
             </div>
           </div>
 
           <!-- Left resize handle -->
           <div
-            v-if="leftSidebarVisible"
             class="app-shell-resize-slot"
             :class="{ 'is-visible': leftSidebarVisible, 'is-hidden': !leftSidebarVisible }"
           >
@@ -399,6 +401,7 @@ function onCursorChange(pos) {
 useAppShellEventBridge({
   workspace,
   editorStore,
+  filesStore,
   toggleSplitPane,
   searchRef,
   leftSidebarRef,
@@ -441,12 +444,11 @@ useAppTeardown({
   background: transparent;
 }
 
-.app-shell-root.is-mac-vibrant .app-shell-region-left,
 .app-shell-root.is-mac-vibrant .app-shell-region-right {
   background: transparent;
 }
 
-.app-shell-root.is-mac-vibrant :deep(.left-shell-sidebar),
+.app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region,
 .app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
   backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
 }
@@ -486,6 +488,10 @@ useAppTeardown({
   transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.app-shell-region-left.is-workspace-left-region {
+  background: var(--sidebar-shell-surface);
+}
+
 .app-shell-region-main {
   background: transparent;
   overflow: visible;
@@ -515,13 +521,19 @@ useAppTeardown({
 }
 
 .app-shell-sidebar-left.is-collapsed {
-  opacity: 0;
-  transform: translateX(-10px);
+  opacity: 1;
+  transform: translateX(-6px);
 }
 
 .app-shell-sidebar-right.is-collapsed {
   opacity: 0;
   transform: translateX(10px);
+}
+
+.app-shell-sidebar-left {
+  transition:
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 160ms ease;
 }
 
 .app-shell-sidebar-left.is-open,
@@ -561,11 +573,17 @@ useAppTeardown({
   box-shadow: none;
   overflow: hidden;
   z-index: 2;
+  transition:
+    margin-left 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding-left 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    margin-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-shell-main-card.has-left-sidebar {
-  margin-left: -10px;
-  padding-left: 10px;
+  margin-left: -6px;
+  padding-left: 6px;
   border-top-left-radius: 10px;
   border-bottom-left-radius: 10px;
 }
@@ -609,7 +627,7 @@ useAppTeardown({
 }
 
 .app-shell-resize-handle-left {
-  left: -14px;
+  left: -10px;
 }
 
 .app-shell-resize-handle-right {

@@ -121,3 +121,22 @@ test('editor persistence keeps raw pdf viewers independent from workspace previe
     activeTab: pdfPath,
   })
 })
+
+test('editor persistence strips draft tabs from saved workspace state', () => {
+  const persisted = buildPersistedEditorState({
+    activePaneId: 'pane-main',
+    paneTree: {
+      type: 'leaf',
+      id: 'pane-main',
+      tabs: ['draft:123/Untitled.md', '/workspace/main.md'],
+      activeTab: 'draft:123/Untitled.md',
+    },
+  })
+
+  assert.deepEqual(persisted.paneTree, {
+    type: 'leaf',
+    id: 'pane-main',
+    tabs: ['/workspace/main.md'],
+    activeTab: '/workspace/main.md',
+  })
+})

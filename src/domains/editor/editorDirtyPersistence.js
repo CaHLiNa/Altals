@@ -36,6 +36,16 @@ export async function persistEditorPath({
     return (await view.altalsPersist()) !== false
   }
 
+  if (filesStore.isDraftFile?.(path)) {
+    const content = filesStore.fileContents[path]
+    if (typeof content !== 'string') return false
+    const savedPath = await filesStore.promptAndSaveDraft(path, content)
+    if (savedPath) {
+      onPersisted?.(savedPath, path)
+    }
+    return !!savedPath
+  }
+
   if (view?.state?.doc) {
     const saved = await filesStore.saveFile(path, view.state.doc.toString())
     if (saved) {

@@ -1,5 +1,8 @@
 <template>
-  <div class="left-shell-sidebar settings-sidebar-shell">
+  <div
+    class="left-shell-sidebar settings-sidebar-shell"
+    data-surface-context-guard="true"
+  >
     <nav class="settings-sidebar-nav" :aria-label="t('Settings sections')">
       <UiButton
         v-for="item in sections"

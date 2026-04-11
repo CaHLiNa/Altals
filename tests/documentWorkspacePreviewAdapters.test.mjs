@@ -7,6 +7,7 @@ import {
   resolveTypstNativePreviewInput,
   resolveWorkspacePreviewSourcePath,
 } from '../src/domains/document/documentWorkspacePreviewAdapters.js'
+import { resolveTypstRootPathForSource } from '../src/services/typst/root.js'
 
 test('markdown preview adapters accept direct source paths without preview wrappers', () => {
   const input = resolveMarkdownPreviewInput('/workspace/chapter.md')
@@ -133,6 +134,23 @@ test('typst forward sync root resolution only falls back to compile target when 
     },
     workspacePath: '/workspace',
     contentOverrides: {
+      '/workspace/sections/intro.typ': '= Intro',
+    },
+  })
+
+  assert.equal(rootPath, '/workspace/main.typ')
+})
+
+test('typst reverse sync root resolution recovers multi-file project roots when cache is missing', async () => {
+  const rootPath = await resolveTypstRootPathForSource('/workspace/sections/intro.typ', {
+    resolveCachedTypstRootPathImpl: () => '',
+    workspacePath: '/workspace',
+    flatFiles: [
+      '/workspace/main.typ',
+      '/workspace/sections/intro.typ',
+    ],
+    contentOverrides: {
+      '/workspace/main.typ': '#include "sections/intro.typ"',
       '/workspace/sections/intro.typ': '= Intro',
     },
   })

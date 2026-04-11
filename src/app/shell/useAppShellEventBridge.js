@@ -14,6 +14,7 @@ function preferredNewFileExtension(path = '') {
 export function useAppShellEventBridge({
   workspace,
   editorStore,
+  filesStore,
   toggleSplitPane,
   searchRef,
   leftSidebarRef,
@@ -26,10 +27,34 @@ export function useAppShellEventBridge({
   openWorkspaceSnapshots,
   openFileVersionHistory,
 }) {
+  function createDraftDocument(ext = '.md', options = {}) {
+    const draftPath = filesStore.createDraftFile({
+      ext,
+      suggestedName: options.suggestedName,
+      initialContent: options.initialContent,
+    })
+    const targetPaneId = editorStore.activePaneId
+    if (targetPaneId) {
+      editorStore.openFileInPane(draftPath, targetPaneId, {
+        activatePane: true,
+      })
+      return
+    }
+    editorStore.openFile(draftPath)
+  }
+
   async function handleKeydown(event) {
-    if (isMod(event) && event.key === 's') {
+    if (isMod(event) && event.key === 's' && event.shiftKey) {
       event.preventDefault()
       await createSnapshot()
+      return
+    }
+
+    if (isMod(event) && event.key === 's') {
+      event.preventDefault()
+      const activePath = editorStore.activeTab
+      if (!activePath || isNewTab(activePath)) return
+      await editorStore.persistPath(activePath)
       return
     }
 
@@ -43,9 +68,9 @@ export function useAppShellEventBridge({
       event.preventDefault()
       const tab = editorStore.activeTab
       if (tab && !isNewTab(tab) && getViewerType(tab) === 'text') {
-        leftSidebarRef.value?.createNewFile(preferredNewFileExtension(tab))
+        createDraftDocument(preferredNewFileExtension(tab))
       } else {
-        leftSidebarRef.value?.createNewFile('.md')
+        createDraftDocument('.md')
       }
       return
     }
@@ -154,9 +179,18 @@ export function useAppShellEventBridge({
     searchRef.value?.focusSearch()
   }
 
-  function handleNewFile() {
+  async function handleNewFile() {
     if (!workspace.isOpen) return
-    leftSidebarRef.value?.createNewFile('.md')
+    createDraftDocument('.md')
+  }
+
+  async function handleBeginNewFile(event) {
+    if (!workspace.isOpen) return
+    const ext = typeof event?.detail?.ext === 'string' ? event.detail.ext : '.md'
+    createDraftDocument(ext, {
+      suggestedName: event?.detail?.suggestedName,
+      initialContent: event?.detail?.initialContent,
+    })
   }
 
   function handleOpenFolder() {
@@ -210,13 +244,21 @@ export function useAppShellEventBridge({
     })
   }
 
+  function handleSurfaceContextMenuGuard(event) {
+    const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement || null
+    if (!target?.closest?.('[data-surface-context-guard="true"]')) return
+    event.preventDefault()
+  }
+
   onMounted(() => {
     document.addEventListener('click', handleExternalLinkActivation)
+    document.addEventListener('contextmenu', handleSurfaceContextMenuGuard, true)
     document.addEventListener('keydown', handleKeydown)
     document.addEventListener('keydown', handleExternalLinkKeydown)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('app:focus-search', handleFocusSearch)
     window.addEventListener('app:new-file', handleNewFile)
+    window.addEventListener('app:begin-new-file', handleBeginNewFile)
     window.addEventListener('app:open-folder', handleOpenFolder)
     window.addEventListener('app:close-folder', handleCloseFolder)
     window.addEventListener('app:open-settings', handleOpenSettings)
@@ -227,11 +269,13 @@ export function useAppShellEventBridge({
 
   onUnmounted(() => {
     document.removeEventListener('click', handleExternalLinkActivation)
+    document.removeEventListener('contextmenu', handleSurfaceContextMenuGuard, true)
     document.removeEventListener('keydown', handleKeydown)
     document.removeEventListener('keydown', handleExternalLinkKeydown)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     window.removeEventListener('app:focus-search', handleFocusSearch)
     window.removeEventListener('app:new-file', handleNewFile)
+    window.removeEventListener('app:begin-new-file', handleBeginNewFile)
     window.removeEventListener('app:open-folder', handleOpenFolder)
     window.removeEventListener('app:close-folder', handleCloseFolder)
     window.removeEventListener('app:open-settings', handleOpenSettings)

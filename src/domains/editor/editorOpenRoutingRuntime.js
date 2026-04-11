@@ -13,7 +13,13 @@ export function createEditorOpenRoutingRuntime({
 } = {}) {
   function rememberOpenedPath(path) {
     rememberContextPath?.(path)
-    if (path && !path.startsWith('newtab:') && !path.startsWith('preview:') && !path.startsWith('typst-preview:')) {
+    if (
+      path
+      && !path.startsWith('newtab:')
+      && !path.startsWith('draft:')
+      && !path.startsWith('preview:')
+      && !path.startsWith('typst-preview:')
+    ) {
       recordFileOpen?.(path)
     }
   }

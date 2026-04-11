@@ -82,24 +82,20 @@ function indexes(source = '', find = '') {
 }
 
 function scoreColumnMatches(lineText = '', textBeforeSelectionFull = '', textAfterSelectionFull = '') {
-  let bestMatch = null
+  let previousColumnMatches = null
 
   const maxLength = Math.max(textBeforeSelectionFull.length, textAfterSelectionFull.length)
   for (let length = 5; length <= maxLength; length += 1) {
     const columns = []
     const textBeforeSelection = textBeforeSelectionFull.slice(textBeforeSelectionFull.length - length)
     const textAfterSelection = textAfterSelectionFull.slice(0, length)
-    let hasBeforeMatch = false
-    let hasAfterMatch = false
 
     if (textBeforeSelection) {
       const beforeColumns = indexes(lineText, textBeforeSelection).map(index => index + textBeforeSelection.length)
-      if (beforeColumns.length > 0) hasBeforeMatch = true
       columns.push(...beforeColumns)
     }
     if (textAfterSelection) {
       const afterColumns = indexes(lineText, textAfterSelection)
-      if (afterColumns.length > 0) hasAfterMatch = true
       columns.push(...afterColumns)
     }
 
@@ -108,25 +104,29 @@ function scoreColumnMatches(lineText = '', textBeforeSelectionFull = '', textAft
       columnMatches[column] = (columnMatches[column] || 0) + 1
     }
     const values = Object.values(columnMatches).sort((left, right) => left - right)
-    const strength = (hasBeforeMatch ? textBeforeSelection.length : 0) + (hasAfterMatch ? textAfterSelection.length : 0)
 
     if (values.length > 1 && values[0] === values[1]) {
+      previousColumnMatches = columnMatches
       continue
     }
     if (values.length >= 1) {
-      const nextMatch = {
+      return {
         column: Number(Object.keys(columnMatches).reduce((best, current) =>
           columnMatches[best] > columnMatches[current] ? best : current
         )),
-        strength,
-      }
-      if (!bestMatch || nextMatch.strength > bestMatch.strength) {
-        bestMatch = nextMatch
       }
     }
+    if (previousColumnMatches && Object.keys(previousColumnMatches).length > 0) {
+      return {
+        column: Number(Object.keys(previousColumnMatches).reduce((best, current) =>
+          previousColumnMatches[best] > previousColumnMatches[current] ? best : current
+        )),
+      }
+    }
+    return null
   }
 
-  return bestMatch
+  return null
 }
 
 export function resolveLatexEditorSelectionFromContext(view, location = {}) {
@@ -136,34 +136,26 @@ export function resolveLatexEditorSelectionFromContext(view, location = {}) {
   const textBeforeSelection = String(location?.textBeforeSelection || '')
   const textAfterSelection = String(location?.textAfterSelection || '')
   const explicitColumn = Number(location?.column)
+  const strictLine = location?.strictLine === true
 
   const safeLine = Math.max(1, Math.min(line, view.state.doc.lines))
   const lineInfo = view.state.doc.line(safeLine)
   if (textBeforeSelection.length >= 5 || textAfterSelection.length >= 5) {
-    const candidateRows = [safeLine, safeLine - 1, safeLine + 1, safeLine - 2, safeLine + 2]
+    const candidateRows = strictLine
+      ? [safeLine]
+      : [safeLine, safeLine - 1, safeLine + 1]
+    const normalizedCandidateRows = candidateRows
       .filter((row, index, rows) => row >= 1 && row <= view.state.doc.lines && rows.indexOf(row) === index)
-    let bestMatch = null
 
-    for (const row of candidateRows) {
+    for (const row of normalizedCandidateRows) {
       const candidateLine = view.state.doc.line(row)
       const match = scoreColumnMatches(candidateLine.text, textBeforeSelection, textAfterSelection)
       if (!match) continue
-      if (!bestMatch || match.strength > bestMatch.strength) {
-        bestMatch = {
-          row,
-          column: match.column,
-          strength: match.strength,
-          line: candidateLine,
-        }
-      }
-    }
-
-    if (bestMatch) {
-      const safeColumn = Math.max(0, Math.min(bestMatch.column, bestMatch.line.text.length))
+      const safeColumn = Math.max(0, Math.min(match.column, candidateLine.text.length))
       return {
-        lineNumber: bestMatch.row,
-        from: bestMatch.line.from + safeColumn,
-        to: bestMatch.line.from + safeColumn,
+        lineNumber: row,
+        from: candidateLine.from + safeColumn,
+        to: candidateLine.from + safeColumn,
       }
     }
   }

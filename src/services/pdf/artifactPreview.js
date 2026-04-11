@@ -38,12 +38,35 @@ export async function requestLatexPdfBackwardSync(options = {}) {
     return null
   }
 
-  return requestLatexWorkshopBackwardSync({
+  try {
+    const result = await invoke('synctex_backward', {
+      synctexPath,
+      page,
+      x,
+      y,
+    })
+    if (result) {
+      return {
+        ...result,
+        strictLine: true,
+      }
+    }
+  } catch {
+    // Fall back to the local parser when the SyncTeX binary is unavailable or
+    // cannot resolve this position on the current machine.
+  }
+
+  const fallbackResult = await requestLatexWorkshopBackwardSync({
     synctexPath,
     page,
     x,
     y,
   })
+  if (!fallbackResult) return null
+  return {
+    ...fallbackResult,
+    strictLine: false,
+  }
 }
 
 export async function writePdfArtifactBase64(filePath, data) {

@@ -128,3 +128,17 @@ test('openFileInPane replaces launcher tabs by default and can preserve them whe
   assert.equal(preservingState.pane.activeTab, '/workspace/appendix.tex')
   assert.equal(preservingState.lastContextPath, null)
 })
+
+test('openFile skips recent-file tracking for draft tabs', () => {
+  const state = createState()
+  state.pane.tabs = ['newtab:starter']
+  state.pane.activeTab = 'newtab:starter'
+
+  const { runtime, events } = createRuntime(state)
+  runtime.openFile('draft:generated/Untitled.md')
+
+  assert.deepEqual(state.pane.tabs, ['draft:generated/Untitled.md'])
+  assert.equal(state.pane.activeTab, 'draft:generated/Untitled.md')
+  assert.deepEqual(events.recorded, [])
+  assert.deepEqual(events.revealed, ['draft:generated/Untitled.md'])
+})

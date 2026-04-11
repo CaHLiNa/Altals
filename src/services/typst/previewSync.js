@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import {
   requestTinymistExecuteCommand,
   subscribeTinymistNotification,
+  tinymistUriToFilePath,
 } from '../tinymist/session.js'
 import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
 import { resolveCachedTypstRootPath } from './root.js'
@@ -37,28 +38,85 @@ function isPendingForwardSyncExpired(detail = {}, now = nowMs()) {
   return now - createdAt > PENDING_FORWARD_SYNC_TTL_MS
 }
 
-function toNotificationJumpLocation(payload = {}) {
-  const filePath = String(payload?.filepath || '')
-  if (!filePath) return null
+function normalizeNotificationPosition(value = null, fallbackLine = 0, fallbackCharacter = 0) {
+  if (Array.isArray(value)) {
+    return {
+      line: Number(value[0] || fallbackLine),
+      character: Number(value[1] || fallbackCharacter),
+    }
+  }
+  if (value && typeof value === 'object') {
+    return {
+      line: Number(value.line || fallbackLine),
+      character: Number(value.character || fallbackCharacter),
+    }
+  }
+  return {
+    line: Number(fallbackLine || 0),
+    character: Number(fallbackCharacter || 0),
+  }
+}
 
-  const start = Array.isArray(payload?.start)
-    ? { line: Number(payload.start[0] || 0), character: Number(payload.start[1] || 0) }
-    : null
-  const end = Array.isArray(payload?.end)
-    ? { line: Number(payload.end[0] || 0), character: Number(payload.end[1] || 0) }
-    : null
+function normalizeNotificationRange(payload = {}) {
+  if (payload?.targetSelectionRange && typeof payload.targetSelectionRange === 'object') {
+    const start = normalizeNotificationPosition(payload.targetSelectionRange.start)
+    const end = normalizeNotificationPosition(payload.targetSelectionRange.end, start.line, start.character)
+    return {
+      targetSelectionRange: { start, end },
+      range: payload?.range && typeof payload.range === 'object'
+        ? {
+          start: normalizeNotificationPosition(payload.range.start),
+          end: normalizeNotificationPosition(payload.range.end),
+        }
+        : {
+          start,
+          end,
+        },
+    }
+  }
+
+  if (payload?.range && typeof payload.range === 'object') {
+    const start = normalizeNotificationPosition(payload.range.start)
+    const end = normalizeNotificationPosition(payload.range.end, start.line, start.character)
+    return {
+      targetSelectionRange: { start, end },
+      range: { start, end },
+    }
+  }
+
+  const start = normalizeNotificationPosition(payload?.start)
+  const end = normalizeNotificationPosition(payload?.end, start.line, start.character)
+  return {
+    targetSelectionRange: { start, end },
+    range: { start, end },
+  }
+}
+
+export function resolveTypstPreviewNotificationFilePath(payload = {}) {
+  const rawFilePath = payload?.filepath ?? payload?.filePath ?? ''
+  const rawUri = payload?.uri ?? payload?.targetUri ?? ''
+
+  const normalizedFilePath = normalizeFsPath(rawFilePath)
+  if (normalizedFilePath) return normalizedFilePath
+
+  const decodedUriPath = tinymistUriToFilePath(rawUri)
+  return normalizeFsPath(decodedUriPath)
+}
+
+function toNotificationJumpLocation(payload = {}) {
+  const filePath = resolveTypstPreviewNotificationFilePath(payload)
+  if (!filePath) return null
+  const { targetSelectionRange, range } = normalizeNotificationRange(payload)
 
   return {
     filePath,
-    targetSelectionRange: {
-      start: start || end || { line: 0, character: 0 },
-      end: end || start || { line: 0, character: 0 },
-    },
-    range: {
-      start: start || end || { line: 0, character: 0 },
-      end: end || start || { line: 0, character: 0 },
-    },
+    targetSelectionRange,
+    range,
   }
+}
+
+export function resolveTypstPreviewNotificationLocation(payload = {}) {
+  return toNotificationJumpLocation(payload)
 }
 
 function chooseNearestJumpPosition(positions = [], currentPage = 1) {
@@ -90,7 +148,10 @@ function belongsToRootProject(sourcePath = '', rootPath = '', sourceRootPath = '
 }
 
 async function killPreviewTask(workspacePath = null) {
-  const stalePreviewUrl = previewTaskState.previewUrl
+  const stalePreviewSession = {
+    dataPlanePort: previewTaskState.dataPlanePort,
+    workspacePath: previewTaskState.workspacePath,
+  }
   try {
     await requestTinymistExecuteCommand('tinymist.doKillPreview', [], {
       workspacePath: workspacePath || previewTaskState.workspacePath || null,
@@ -98,7 +159,7 @@ async function killPreviewTask(workspacePath = null) {
   } catch {
     // Ignore stale task errors and reset local state.
   } finally {
-    clearTypstPreviewDocumentCache(stalePreviewUrl)
+    clearTypstPreviewDocumentCache(stalePreviewSession)
     previewTaskState.taskId = null
     previewTaskState.rootPath = null
     previewTaskState.workspacePath = workspacePath || null
@@ -122,20 +183,13 @@ export function buildTypstPreviewStartArgs(rootPath, options = {}) {
   const taskId = String(options.taskId || TYPST_PREVIEW_TASK_ID)
   const dataPlaneHost = String(options.dataPlaneHost || '127.0.0.1:0')
   const previewMode = options.previewMode === 'slide' ? 'slide' : 'document'
-  const partialRendering = options.partialRendering !== false
-  const invertColors = options.invertColors == null ? 'auto' : String(options.invertColors)
 
   return [
     '--task-id',
     taskId,
     '--data-plane-host',
     dataPlaneHost,
-    '--preview-mode',
-    previewMode,
-    '--partial-rendering',
-    partialRendering ? 'true' : 'false',
-    '--invert-colors',
-    invertColors,
+    ...(previewMode === 'slide' ? ['--preview-mode=slide'] : []),
     ...(options.notPrimary === true ? ['--not-primary'] : []),
     normalizedRoot,
   ]
@@ -174,8 +228,6 @@ async function startPreviewTask(rootPath, options = {}) {
     buildTypstPreviewStartArgs(normalizedRoot, {
       taskId: TYPST_PREVIEW_TASK_ID,
       previewMode: 'document',
-      partialRendering: true,
-      invertColors: 'auto',
     }),
     workspacePath,
   )
@@ -325,7 +377,10 @@ function waitForScrollSource(timeoutMs = DEFAULT_TIMEOUT_MS) {
 
 subscribeTinymistNotification('tinymist/preview/dispose', (payload) => {
   if (String(payload?.taskId || '') !== TYPST_PREVIEW_TASK_ID) return
-  clearTypstPreviewDocumentCache(previewTaskState.previewUrl)
+  clearTypstPreviewDocumentCache({
+    dataPlanePort: previewTaskState.dataPlanePort,
+    workspacePath: previewTaskState.workspacePath,
+  })
   previewTaskState.taskId = null
   previewTaskState.rootPath = null
   previewTaskState.dataPlanePort = null

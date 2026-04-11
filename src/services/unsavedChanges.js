@@ -1,6 +1,8 @@
 import { useEditorStore } from '../stores/editor'
+import { useFilesStore } from '../stores/files'
 import { useUnsavedChangesStore } from '../stores/unsavedChanges'
 import { useWorkspaceStore } from '../stores/workspace'
+import { discardEditorPaths } from '../domains/editor/editorDiscardRuntime'
 import { t } from '../i18n'
 
 function displayPath(path = '', workspacePath = '') {
@@ -13,6 +15,7 @@ function displayPath(path = '', workspacePath = '') {
 
 export async function confirmUnsavedChanges(paths = [], options = {}) {
   const editorStore = useEditorStore()
+  const filesStore = useFilesStore()
   const workspace = useWorkspaceStore()
   const dialogStore = useUnsavedChangesStore()
   const dirtyPaths = editorStore.getDirtyFiles(paths)
@@ -43,7 +46,16 @@ export async function confirmUnsavedChanges(paths = [], options = {}) {
   }
 
   if (choice === 'discard') {
-    dirtyPaths.forEach(path => editorStore.clearFileDirty(path))
+    await discardEditorPaths(dirtyPaths, {
+      isDraftFile: (path) => filesStore.isDraftFile(path),
+      clearDraftFile: (path) => filesStore.clearDraftFile(path),
+      isTransientFile: (path) => filesStore.isTransientFile(path),
+      clearTransientFile: (path) => filesStore.clearTransientFile(path),
+      deletePath: (path) => filesStore.deletePath(path),
+      deleteFileContent: (path) => filesStore.clearInMemoryFileContent(path),
+      reloadFile: (path) => filesStore.reloadFile(path),
+      clearDirtyPath: (path) => editorStore.clearFileDirty(path),
+    })
   }
 
   return { choice, dirtyPaths }

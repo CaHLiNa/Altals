@@ -1,5 +1,8 @@
 <template>
-  <div class="workspace-starter">
+  <div
+    class="workspace-starter"
+    data-surface-context-guard="true"
+  >
     <div class="workspace-starter-scroll">
       <div class="workspace-starter-shell">
         <section class="workspace-starter-masthead">
@@ -194,7 +197,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -312,57 +314,23 @@ function openFile(path) {
 async function createNewFile(ext) {
   if (!workspace.path) return
   if (props.paneId) editorStore.setActivePane(props.paneId)
-
-  const baseName = 'untitled'
-  let name = `${baseName}${ext}`
-  let counter = 2
-
-  while (true) {
-    const fullPath = `${workspace.path}/${name}`
-    try {
-      const exists = await invoke('path_exists', { path: fullPath })
-      if (!exists) break
-    } catch {
-      break
-    }
-    name = `${baseName}-${counter}${ext}`
-    counter += 1
-  }
-
-  const created = await filesStore.createFile(workspace.path, name)
-  if (created) {
-    editorStore.openFile(created)
-  }
+  window.dispatchEvent(new CustomEvent('app:begin-new-file', {
+    detail: { ext },
+  }))
 }
 
 async function createFromTemplate(template) {
   if (!workspace.path || !template?.filename) return
   if (props.paneId) editorStore.setActivePane(props.paneId)
-
-  let name = template.filename
-  let counter = 2
   const dotIndex = template.filename.lastIndexOf('.')
-  const baseName = dotIndex > 0 ? template.filename.slice(0, dotIndex) : template.filename
-  const suffix = dotIndex > 0 ? template.filename.slice(dotIndex) : ''
-
-  while (true) {
-    const fullPath = `${workspace.path}/${name}`
-    try {
-      const exists = await invoke('path_exists', { path: fullPath })
-      if (!exists) break
-    } catch {
-      break
-    }
-    name = `${baseName}-${counter}${suffix}`
-    counter += 1
-  }
-
-  const created = await filesStore.createFile(workspace.path, name, {
-    initialContent: template.content || '',
-  })
-  if (created) {
-    editorStore.openFile(created)
-  }
+  const ext = dotIndex > 0 ? template.filename.slice(dotIndex) : '.md'
+  window.dispatchEvent(new CustomEvent('app:begin-new-file', {
+    detail: {
+      ext,
+      suggestedName: template.filename,
+      initialContent: template.content || '',
+    },
+  }))
 }
 </script>
 

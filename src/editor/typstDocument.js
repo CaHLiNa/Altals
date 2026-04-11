@@ -187,6 +187,7 @@ function findMatchingDelimiter(text, openIndex, openChar, closeChar) {
 function normalizeOutlineText(text = '') {
   return String(text)
     .replace(/#([A-Za-z][\w-]*)/g, '$1')
+    .replace(/\s*<([A-Za-z][\w:-]*)>\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -283,7 +284,6 @@ function getTypstOutlineLevel(headings, offset) {
 }
 
 function buildStructureText(kind, body, label) {
-  if (label) return label
   const caption = extractCaptionText(body)
   if (caption) return caption
   return kind === 'table' ? 'Table' : 'Figure'
@@ -292,7 +292,6 @@ function buildStructureText(kind, body, label) {
 function buildBibliographyText(body, label) {
   const title = extractNamedBracketText(body, 'title')
   if (title) return title
-  if (label) return label
   return 'Bibliography'
 }
 
@@ -364,14 +363,6 @@ export function parseTypstOutlineItems(text = '') {
   LABEL_RE.lastIndex = 0
   while ((match = LABEL_RE.exec(source)) !== null) {
     if (isInsideConsumedLabel(match.index, consumedLabelRanges)) continue
-
-    structureItems.push({
-      kind: 'label',
-      text: match[1],
-      level: getTypstOutlineLevel(headings, match.index),
-      offset: match.index,
-      label: match[1],
-    })
   }
 
   return [...headings, ...structureItems].sort((left, right) => left.offset - right.offset)

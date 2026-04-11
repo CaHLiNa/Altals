@@ -17,6 +17,10 @@ function isVirtualNewTab(path = '') {
   return path.startsWith('newtab:')
 }
 
+function isVirtualDraftTab(path = '') {
+  return path.startsWith('draft:')
+}
+
 const REMOVED_VIRTUAL_TAB_PREFIXES = ['library:', 'chat:', 'ai-launcher:', 'ref:@']
 
 function isRemovedVirtualTabPath(path = '') {
@@ -47,6 +51,7 @@ export function serializePaneTree(node, options = {}) {
     const tabs = (node.tabs || []).filter((tab) => (
       tab
       && typeof tab === 'string'
+      && !isVirtualDraftTab(tab)
       && !isRemovedVirtualTabPath(tab)
       && (!isPreviewPath(tab) || preservedLegacyPreviewPaths.has(tab))
     ))
@@ -138,6 +143,7 @@ async function isTabValid(tab) {
   if (!tab || typeof tab !== 'string') return false
   if (isRemovedVirtualTabPath(tab)) return false
   if (isVirtualNewTab(tab)) return true
+  if (isVirtualDraftTab(tab)) return false
 
   const targetPath = isPreviewPath(tab) ? previewSourcePathFromPath(tab) : tab
   if (!targetPath) return false

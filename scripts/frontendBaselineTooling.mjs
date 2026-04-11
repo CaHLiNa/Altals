@@ -47,6 +47,7 @@ export const FRONTEND_BASELINE_FORMAT_TARGETS = Object.freeze(
     ...FRONTEND_BASELINE_LINT_TARGETS,
     'src/css/**/*.css',
     'docs/ARCHITECTURE.md',
+    'docs/ACADEMIC_PLATFORM_DIRECTION.md',
     'docs/BUILD_SYSTEM.md',
     'docs/CONTRIBUTING.md',
     'docs/DATA_MODEL.md',

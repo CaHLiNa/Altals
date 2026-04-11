@@ -7,21 +7,17 @@ import {
   peekPendingTypstForwardSync,
   PENDING_FORWARD_SYNC_TTL_MS,
   rememberPendingTypstForwardSync,
+  resolveTypstPreviewNotificationFilePath,
+  resolveTypstPreviewNotificationLocation,
   shouldRecoverTypstPreviewStart,
 } from '../src/services/typst/previewSync.js'
 
-test('typst preview start args align native preview defaults with tinymist preview settings', () => {
+test('typst preview start args align with tinymist vscode preview launch defaults', () => {
   assert.deepEqual(buildTypstPreviewStartArgs('/workspace/main.typ'), [
     '--task-id',
     'altals-typst-preview-sync',
     '--data-plane-host',
     '127.0.0.1:0',
-    '--preview-mode',
-    'document',
-    '--partial-rendering',
-    'true',
-    '--invert-colors',
-    'auto',
     '/workspace/main.typ',
   ])
 })
@@ -35,20 +31,13 @@ test('typst preview start args support slide mode and non-primary tasks when req
     taskId: 'slides-preview',
     dataPlaneHost: '127.0.0.1:24567',
     previewMode: 'slide',
-    partialRendering: false,
-    invertColors: 'never',
     notPrimary: true,
   }), [
     '--task-id',
     'slides-preview',
     '--data-plane-host',
     '127.0.0.1:24567',
-    '--preview-mode',
-    'slide',
-    '--partial-rendering',
-    'false',
-    '--invert-colors',
-    'never',
+    '--preview-mode=slide',
     '--not-primary',
     '/workspace/slides.typ',
   ])
@@ -73,6 +62,48 @@ test('typst preview start recovery recognizes compiler preview registration conf
   assert.equal(
     shouldRecoverTypstPreviewStart(new Error('Tinymist preview did not expose a valid data plane port')),
     false,
+  )
+})
+
+test('typst preview notifications normalize source file paths from file paths and uris', () => {
+  assert.equal(
+    resolveTypstPreviewNotificationFilePath({
+      filepath: '/workspace/sections/intro.typ',
+    }),
+    '/workspace/sections/intro.typ',
+  )
+  assert.equal(
+    resolveTypstPreviewNotificationFilePath({
+      uri: 'file:///workspace/sections/intro.typ',
+    }),
+    '/workspace/sections/intro.typ',
+  )
+})
+
+test('typst preview notifications normalize standard LSP ranges for reverse sync focus', () => {
+  assert.deepEqual(
+    resolveTypstPreviewNotificationLocation({
+      uri: 'file:///workspace/sections/intro.typ',
+      range: {
+        start: { line: 12, character: 3 },
+        end: { line: 14, character: 1 },
+      },
+      targetSelectionRange: {
+        start: { line: 12, character: 5 },
+        end: { line: 12, character: 11 },
+      },
+    }),
+    {
+      filePath: '/workspace/sections/intro.typ',
+      range: {
+        start: { line: 12, character: 3 },
+        end: { line: 14, character: 1 },
+      },
+      targetSelectionRange: {
+        start: { line: 12, character: 5 },
+        end: { line: 12, character: 11 },
+      },
+    },
   )
 })
 

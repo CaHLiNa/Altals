@@ -18,6 +18,10 @@ export function isNewTab(path) {
   return path?.startsWith('newtab:')
 }
 
+export function isDraftPath(path) {
+  return path?.startsWith('draft:')
+}
+
 export function isPreviewPath(path) {
   return isMarkdownPreviewPath(path) || isTypstPreviewPath(path)
 }
@@ -98,7 +102,7 @@ export function relativePath(fromFile, toFile) {
 }
 
 export function isBinaryFile(path) {
-  if (isNewTab(path)) return false
+  if (isNewTab(path) || isDraftPath(path)) return false
   const ext = getExt(path)
   return IMAGE_EXTS.includes(ext) || PDF_EXTS.includes(ext) || DOCX_EXTS.includes(ext)
 }

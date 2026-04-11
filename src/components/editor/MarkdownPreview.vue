@@ -1,5 +1,10 @@
 <template>
-  <div class="md-preview-container" ref="containerEl">
+  <div
+    ref="containerEl"
+    class="md-preview-container"
+    data-surface-context-guard="true"
+    @contextmenu.prevent="handleContextMenu"
+  >
     <div v-if="loadError" class="md-preview-error">
       <div>{{ loadError.message }}</div>
       <div v-if="loadError.detail" class="md-preview-error-detail">{{ loadError.detail }}</div>
@@ -12,6 +17,14 @@
       @dblclick="handleDoubleClick"
     ></div>
   </div>
+  <SurfaceContextMenu
+    :visible="menuVisible"
+    :x="menuX"
+    :y="menuY"
+    :groups="menuGroups"
+    @close="closeSurfaceContextMenu"
+    @select="handleSurfaceContextMenuSelect"
+  />
 </template>
 
 <script setup>
@@ -20,9 +33,13 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLinksStore } from '../../stores/links'
+import { useI18n } from '../../i18n'
 import { renderPreview } from '../../utils/markdownPreview'
+import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
 import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
 import { resolveMarkdownPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
+import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
+import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import {
   clearPendingMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
@@ -39,7 +56,17 @@ const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
+const { t } = useI18n()
 const containerEl = ref(null)
+const {
+  menuVisible,
+  menuX,
+  menuY,
+  menuGroups,
+  closeSurfaceContextMenu,
+  openSurfaceContextMenu,
+  handleSurfaceContextMenuSelect,
+} = useSurfaceContextMenu()
 
 const resolvedSourcePath = computed(
   () =>
@@ -162,6 +189,60 @@ function flushPendingForwardSync() {
   }
 }
 
+function resolvePreviewTarget(target) {
+  if (target instanceof Element) return target
+  if (target?.nodeType === 3) return target.parentElement || null
+  return null
+}
+
+function getPreferredSourcePaneId() {
+  return (
+    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id ||
+    (workflowStore.session.previewSourcePath === resolvedSourcePath.value
+      ? workflowStore.session.sourcePaneId
+      : null) ||
+    null
+  )
+}
+
+async function revealSourceLocation(location = null) {
+  if (!location) return
+  await revealMarkdownSourceLocation(editorStore, location, {
+    center: true,
+    paneId: getPreferredSourcePaneId(),
+  })
+}
+
+function selectAllPreviewContent() {
+  const contentRoot = containerEl.value?.querySelector('.md-preview-content') || containerEl.value
+  if (!contentRoot) return
+  const selection = window.getSelection?.()
+  if (!selection) return
+  const range = document.createRange()
+  range.selectNodeContents(contentRoot)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function getSelectedPreviewText() {
+  const selection = window.getSelection?.()
+  if (!selection || selection.rangeCount === 0) return ''
+  if (selection.anchorNode && containerEl.value && !containerEl.value.contains(selection.anchorNode)) {
+    return ''
+  }
+  return String(selection.toString() || '').trim()
+}
+
+async function copySelectedPreviewText() {
+  const text = getSelectedPreviewText()
+  if (!text) return
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  document.execCommand('copy')
+}
+
 async function doRender() {
   if (loadError.value) {
     renderedHtml.value = ''
@@ -277,16 +358,59 @@ async function handleDoubleClick(e) {
   e.preventDefault()
   e.stopPropagation()
 
-  const preferredSourcePaneId =
-    editorStore.findPaneWithTab(resolvedSourcePath.value)?.id ||
-    (workflowStore.session.previewSourcePath === resolvedSourcePath.value
-      ? workflowStore.session.sourcePaneId
-      : null) ||
-    null
+  await revealSourceLocation(location)
+}
 
-  await revealMarkdownSourceLocation(editorStore, location, {
-    center: true,
-    paneId: preferredSourcePaneId,
+function handleContextMenu(event) {
+  const target = resolvePreviewTarget(event.target)
+  const externalLink = resolveExternalHttpAnchor(target, document.baseURI)
+  const sourceAnchor = target?.closest?.('.md-preview-source-anchor[data-source-start-offset]') || null
+  const sourceLocation = readAnchorLocation(sourceAnchor)
+  const selectedText = getSelectedPreviewText()
+
+  openSurfaceContextMenu({
+    x: event.clientX,
+    y: event.clientY,
+    groups: [
+      {
+        key: 'markdown-preview-actions',
+        items: [
+          {
+            key: 'copy',
+            label: t('Copy'),
+            disabled: !selectedText,
+            action: () => {
+              void copySelectedPreviewText()
+            },
+          },
+          {
+            key: 'select-all',
+            label: t('Select All'),
+            action: () => {
+              selectAllPreviewContent()
+            },
+          },
+          ...(externalLink
+            ? [{
+              key: 'open-link',
+              label: t('Open Link'),
+              action: () => {
+                void openExternalHttpUrl(externalLink.url)
+              },
+            }]
+            : []),
+          ...(sourceLocation
+            ? [{
+              key: 'reveal-source',
+              label: t('Reveal Source'),
+              action: () => {
+                void revealSourceLocation(sourceLocation)
+              },
+            }]
+            : []),
+        ],
+      },
+    ],
   })
 }
 </script>

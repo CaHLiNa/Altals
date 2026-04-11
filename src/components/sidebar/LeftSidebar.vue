@@ -52,6 +52,9 @@ function openSidebarCreateMenu(anchorEl = null) {
 
 // Expose FileTree methods for App.vue
 defineExpose({
+  async beginNewFile(ext = '.md') {
+    await focusFileTree('beginNewFile', ext)
+  },
   async createNewFile(ext = '.md') {
     await focusFileTree('createNewFile', ext)
   },
@@ -76,9 +79,9 @@ defineExpose({
   min-height: 0;
   overflow: hidden;
   padding: 24px 14px 0 6px;
-  background: var(--sidebar-shell-surface, color-mix(in srgb, var(--panel-surface) 56%, transparent));
+  background: transparent;
   box-shadow: none;
-  backdrop-filter: blur(var(--sidebar-shell-blur, 18px)) saturate(var(--sidebar-shell-saturate, 1.08));
+  backdrop-filter: none;
 }
 
 .left-shell-sidebar > :last-child {

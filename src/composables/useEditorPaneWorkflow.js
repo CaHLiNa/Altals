@@ -1,8 +1,9 @@
 import { computed, watch } from 'vue'
-import { isLatex, isTypst } from '../utils/fileTypes.js'
+import { isDraftPath, isLatex, isTypst } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { pathExists } from '../services/pathExists.js'
+import { resolveTypstPreviewArtifact } from '../services/typst/root.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -32,15 +33,15 @@ export function useEditorPaneWorkflow(options) {
   }
 
   const workflowUiState = computed(() => (
-    activeTabRef.value
+    activeTabRef.value && !isDraftPath(activeTabRef.value)
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
   const activeDocumentAdapter = computed(() => (
-    activeTabRef.value ? getDocumentAdapterForFile(activeTabRef.value) : null
+    activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
   const documentBuildContext = computed(() => (
-    activeTabRef.value
+    activeTabRef.value && !isDraftPath(activeTabRef.value)
       ? workflowStore.buildAdapterContext(activeTabRef.value, buildWorkflowOptions({
         adapter: activeDocumentAdapter.value,
         workflowOnly: false,
@@ -177,12 +178,24 @@ export function useEditorPaneWorkflow(options) {
         adapter,
         workflowOnly: false,
       })) || ''
-      if (!artifactPath || !(await pathExists(artifactPath))) return
+      let resolvedArtifactPath = artifactPath
+
+      if ((!resolvedArtifactPath || !(await pathExists(resolvedArtifactPath))) && adapter.kind === 'typst') {
+        resolvedArtifactPath = await resolveTypstPreviewArtifact(filePath, {
+          filesStore,
+          workspacePath: workspace.path,
+          contentOverrides: {
+            [filePath]: filesStore?.fileContents?.[filePath],
+          },
+        }).catch(() => '')
+      }
+
+      if (!resolvedArtifactPath || !(await pathExists(resolvedArtifactPath))) return
 
       if (adapter.kind === 'latex') {
-        await latexStore.registerExistingArtifact?.(filePath, artifactPath)
+        await latexStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
       } else if (adapter.kind === 'typst') {
-        typstStore.registerExistingArtifact?.(filePath, artifactPath)
+        typstStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
       }
     },
     { immediate: true },

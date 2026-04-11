@@ -6,6 +6,7 @@ This repository prefers small, validated slices over broad rewrites.
 
 - read `AGENTS.md`
 - for meaningful product work, start with `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`
+- for academic platform direction work, also read `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - consult `docs/DOCUMENT_WORKFLOW.md` when changing preview, compile, or editor workflow behavior
 - consult `docs/TESTING.md` before claiming a slice is complete
 - consult `docs/OPERATIONS.md` when your change touches agent workflow, release steps, or environment-dependent operations
@@ -57,5 +58,6 @@ Update docs in the same slice when you change:
 
 - `docs/PRODUCT.md`
 - `docs/ARCHITECTURE.md`
+- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/TESTING.md`
 - `docs/OPERATIONS.md`

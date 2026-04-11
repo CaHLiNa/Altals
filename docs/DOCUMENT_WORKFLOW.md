@@ -66,6 +66,7 @@ LaTeX readiness is gated by `ensureLatexCompileReady()` in `src/services/environ
 - default preview kind: `native`
 - supported preview kinds: `native`, `pdf`
 - native preview is used when Tinymist-backed preview is available
+- native preview embeds Tinymist's `/preview/index.html` resource HTML through the LSP resource API instead of patching the static browser homepage
 - PDF artifact behavior is still available when explicitly requested and compiled
 
 Typst readiness is gated by `ensureTypstCompileReady()` in `src/services/environmentPreflight.js`.

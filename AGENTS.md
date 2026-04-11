@@ -7,32 +7,34 @@ Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work, `d
 
 ## Mission
 
-Altals is a local-first desktop research writing platform for Markdown, LaTeX, and Typst.
+Altals is a local-first desktop academic writing platform for Markdown, LaTeX, and Typst, with an integrated project-level references and reading workflow.
 
 The product is centered on one practical workbench:
 
 - open a local project directory
-- browse files in the left sidebar
+- browse project files and project references from the same workspace
+- read source material without leaving the desktop app
 - write Markdown, LaTeX, and Typst documents
+- insert citations and maintain bibliography output in context
 - compile and preview documents correctly
-- inspect outline in the right sidebar
+- inspect outline and other writing-adjacent context in the right-side inspection area
 
 ## Product Boundaries
 
 - The desktop Tauri app is the primary product surface.
-- The current core scope is writing, compiling, and previewing Markdown, LaTeX, and Typst documents.
-- The left sidebar is for the project file tree.
-- The right sidebar is for the outline only.
+- The core scope is one academic workbench for writing, references, reading, citation, compile, and preview flows.
+- The left sidebar remains project-tree-first even when reference entry points are added.
+- The right-side inspection area is currently outline-first, but may grow to support directly related reading or citation context.
 - Do not add new product surfaces, new workflow systems, or speculative platform expansions.
 - The `web/` directory is not the primary product and should not drive decisions for the desktop app.
 
 ## Current Direction
 
-- Stabilize the current desktop writing workflow before adding new capabilities.
+- Stabilize the current desktop writing workflow while extending it into a coherent references and reading loop.
 - Prefer removing stale systems over preserving dead architecture.
-- Future expansion is expected, but not in the current slice.
-- Any future extension model should support a plugin system rather than baking every feature into the core app.
-- Likely future plugins include PDF translation and reference-management features, but they are not part of the current product scope.
+- Project-scoped references, in-app reading, and citation insertion are part of the active product direction.
+- Future AI workflows and PDF translation should support a plugin-capable extension model rather than being welded into the core app from day one.
+- Do not turn the app into a generic PKM, chat shell, or disconnected library manager.
 - When making desktop UX decisions, prefer a polished macOS-native direction over generic cross-platform chrome.
 
 ## Working Rules
@@ -55,8 +57,8 @@ The product is centered on one practical workbench:
 Use this direction unless the user explicitly approves a different structure:
 
 - `src/app`: shell lifecycle, app boot, and desktop orchestration
-- `src/domains/*`: document workflow rules and reusable runtime decisions
-- `src/services/*`: effectful integrations such as filesystem access, compile runners, preview bridges, and adapters
+- `src/domains/*`: document, reference, citation, reader, and workspace workflow rules plus reusable runtime decisions
+- `src/services/*`: effectful integrations such as filesystem access, compile runners, preview bridges, importers, metadata adapters, and external tool seams
 - `src/stores/*`: reactive state and thin coordination
 - `src/components/*`: UI rendering and user intent emission
 - `src/composables/*`: reusable UI glue, not product policy

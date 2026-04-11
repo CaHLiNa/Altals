@@ -9,6 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const requiredDocs = [
   ['docs/PRODUCT.md', '# Product'],
   ['docs/ARCHITECTURE.md', '# Architecture'],
+  ['docs/ACADEMIC_PLATFORM_DIRECTION.md', '# Academic Platform Direction'],
   ['docs/DOMAINS.md', '# Domains'],
   ['docs/OPERATIONS.md', '# Operations'],
   ['docs/DATA_MODEL.md', '# Data Model'],
@@ -19,16 +20,18 @@ const requiredDocs = [
   ['docs/TESTING.md', '# Testing'],
 ]
 
-const requiredAgentFiles = [
-  ['AGENTS.md', '# Altals Agent Constitution'],
-]
+const requiredAgentFiles = [['AGENTS.md', '# Altals Agent Constitution']]
 
 test('required top-level docs exist with the expected root headings', () => {
   for (const [relativePath, heading] of requiredDocs) {
     const absolutePath = path.join(repoRoot, relativePath)
     assert.equal(existsSync(absolutePath), true, `${relativePath} should exist`)
     const content = readFileSync(absolutePath, 'utf8')
-    assert.equal(content.startsWith(`${heading}\n`), true, `${relativePath} should start with ${heading}`)
+    assert.equal(
+      content.startsWith(`${heading}\n`),
+      true,
+      `${relativePath} should start with ${heading}`
+    )
   }
 })
 
@@ -37,6 +40,10 @@ test('required AGENTS files exist with the expected root headings', () => {
     const absolutePath = path.join(repoRoot, relativePath)
     assert.equal(existsSync(absolutePath), true, `${relativePath} should exist`)
     const content = readFileSync(absolutePath, 'utf8')
-    assert.equal(content.startsWith(`${heading}\n`), true, `${relativePath} should start with ${heading}`)
+    assert.equal(
+      content.startsWith(`${heading}\n`),
+      true,
+      `${relativePath} should start with ${heading}`
+    )
   }
 })

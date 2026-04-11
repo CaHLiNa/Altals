@@ -77,6 +77,7 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -99,6 +100,7 @@ const emit = defineEmits([
   'insert-markdown-table',
   'format-markdown-table',
   'apply-typst-code-action',
+  'paste-unavailable',
 ])
 const { t } = useI18n()
 
@@ -217,9 +219,9 @@ function copy() {
 }
 
 async function paste() {
-  if (props.view && navigator.clipboard?.readText) {
+  if (props.view) {
     try {
-      const text = await navigator.clipboard.readText()
+      const text = await readClipboardText()
       if (typeof text === 'string') {
         const selection = props.view.state.selection.main
         const from = selection?.from ?? 0
@@ -233,12 +235,28 @@ async function paste() {
         return
       }
     } catch {
-      // Fall back to execCommand when direct clipboard access is unavailable.
+      try {
+        const text = await navigator.clipboard?.readText?.()
+        if (typeof text === 'string') {
+          const selection = props.view.state.selection.main
+          const from = selection?.from ?? 0
+          const to = selection?.to ?? from
+          props.view.focus()
+          props.view.dispatch({
+            changes: { from, to, insert: text },
+            selection: { anchor: from + text.length },
+          })
+          emit('close')
+          return
+        }
+      } catch {
+        // Last resort falls through to a host hint instead of showing the native paste popup.
+      }
     }
   }
 
-  document.execCommand('paste')
   emit('close')
+  emit('paste-unavailable')
 }
 
 function selectAll() {

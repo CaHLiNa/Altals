@@ -1,5 +1,8 @@
 <template>
-  <div class="right-shell-sidebar">
+  <div
+    class="right-shell-sidebar"
+    data-surface-context-guard="true"
+  >
     <KeepAlive :max="1">
       <OutlinePanel
         v-if="workspace.rightSidebarOpen"

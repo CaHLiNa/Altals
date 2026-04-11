@@ -10,5 +10,6 @@ const serviceSource = readFileSync(servicePath, 'utf8')
 
 test('latex pdf sync delegates to backend synctex commands', () => {
   assert.match(serviceSource, /invoke\('synctex_forward'/)
+  assert.match(serviceSource, /invoke\('synctex_backward'/)
   assert.match(serviceSource, /requestLatexWorkshopBackwardSync/)
 })

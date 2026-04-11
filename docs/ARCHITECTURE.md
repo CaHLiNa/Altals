@@ -2,6 +2,8 @@
 
 This repository is organized around a desktop-first Tauri application with a Vue frontend and a Rust backend.
 
+The architecture now targets one local-first academic workbench: project files, document workflows, references, readers, citations, and later plugin-style AI or translation extensions.
+
 ## High-level runtime shape
 
 ### Frontend boot
@@ -33,13 +35,15 @@ Current domain families:
 - document workflows
 - editor routing and pane behavior
 - file tree and file operations
+- project references, citation policy, and reference-to-document decisions
+- reader session behavior and writing-adjacent inspection flows
 - workspace history and snapshots
 - workspace bootstrap and automation
 - git/workspace repo linking
 
 ### `src/services/*`
 
-Effectful integrations such as files, compile flows, environment checks, repository operations, and preview bridges.
+Effectful integrations such as files, compile flows, environment checks, repository operations, reference import or metadata adapters, preview bridges, and reader integration seams.
 Examples:
 
 - `src/services/documentWorkflow/*`
@@ -58,6 +62,12 @@ Important stores:
 - `src/stores/latex.js`
 - `src/stores/typst.js`
 
+Future stores should follow the same thin-coordination rule when reference or reader features land, for example:
+
+- project references state
+- citation insertion session state
+- reader session state
+
 ### `src/components/*`
 
 UI rendering and user intent emission.
@@ -70,6 +80,8 @@ Representative surfaces:
 - right sidebar: `src/components/sidebar/RightSidebar.vue`
 - settings surface: `src/components/settings/Settings.vue`
 
+Future reference and reader UI should remain subordinate to the desktop workbench shell instead of introducing an unrelated app-within-an-app.
+
 ### `src/composables/*`
 
 Reusable UI glue that should stay lighter than product-policy code.
@@ -78,6 +90,8 @@ Reusable UI glue that should stay lighter than product-policy code.
 
 Native filesystem, process, protocol, and platform seams.
 The backend module list in `src-tauri/src/lib.rs` currently includes file, git, GitHub auth loopback, LaTeX, Typst, workspace access, and security-related modules.
+
+Future backend seams for references, citation tooling, or reader helpers should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 
 ## Important architectural seams
 
@@ -94,7 +108,9 @@ The same shell also owns dialogs for setup, unsaved changes, snapshots, and vers
 ### Sidebar model
 
 - the left sidebar is normalized through `src/shared/workbenchSidebarPanels.js` and is currently file-tree focused
+- the left sidebar should remain project-tree-first even when project references or reader entry points are introduced
 - the right inspector is normalized through `src/shared/workbenchInspectorPanels.js` and currently only exposes `outline`
+- future inspection panels are allowed only when they directly support drafting, citation, reading, or document understanding inside the same workbench
 
 ### Document workflow architecture
 
@@ -105,13 +121,49 @@ Document workflow behavior is split across:
 - runtime orchestration in `src/domains/document/*`
 - persisted workflow session state in `src/stores/documentWorkflow.js`
 
+Citation behavior should attach to document workflow decisions rather than fork into a disconnected formatting subsystem.
+
+### Project references architecture
+
+Project references are a first-class planned slice, but they should follow the existing layering rules:
+
+- workspace-owned reference data and caches should live under the current workspace metadata boundary
+- import, parse, metadata, and citation-format adapters belong in `src/services/*`
+- selection rules, reference filtering, citation insertion policy, and bibliography decisions belong in `src/domains/*`
+- UI surfaces for references and readers belong in `src/components/*`
+- coordination state belongs in `src/stores/*`
+
+The default model should be project-scoped references first. If a broader library is introduced later, it should not break the local project workbench contract.
+
+### Reader architecture
+
+Reader features should stay tightly connected to the writing workflow:
+
+- PDF or source reading state should be recoverable from workspace state
+- reader navigation should connect back to the active draft, citation targets, and outline context
+- annotations or extracted metadata should prefer project-local persistence where practical
+- a reader should not become a separate navigation universe that ignores the current project
+
+### AI and translation extension architecture
+
+AI-assisted research flows and PDF translation are valid future product areas, but they should be added through modular seams:
+
+- keep the first-party core useful without any remote AI dependency
+- place effectful model or translation clients in `services`
+- keep user-facing automation policy in `domains`
+- prefer plugin-capable boundaries over hard-coding every future workflow into the shell
+
 ### Workspace persistence
 
 `src/stores/workspace.js` resolves a hashed workspace identity, separate workspace-owned metadata directories, and shell preference persistence. This is one of the main boundaries between user project files and app-owned metadata.
 
+That boundary should also carry future reference indexes, citation caches, reader session state, and other project-local research metadata that should not pollute the user project tree.
+
 ### History and snapshot architecture
 
 Workspace history and save points are modeled in `src/domains/changes/*`, where git-backed history and local snapshot metadata are merged into stable UI-facing records.
+
+Future references or reader state should integrate with this system only when they materially protect the writing workflow. Do not bolt unrelated persistence schemes onto the side.
 
 ### Release and repo automation
 
@@ -127,11 +179,16 @@ Repository automation is split between:
 - keep `services` effectful and policy-light
 - keep stores thinner over time instead of turning them into another policy layer
 - keep the desktop app as the primary architecture driver
+- keep writing as the primary product loop even as references and readers are added
+- keep project-scoped reference and reader data local-first
+- make citations document-aware instead of format-agnostic shortcuts
+- keep AI and translation capabilities modular and plugin-friendly
 - do not let deleted legacy systems define new structure choices
 
 ## See also
 
 - `docs/PRODUCT.md`
 - `docs/DOMAINS.md`
+- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
 - `docs/GIT_AND_SNAPSHOTS.md`

@@ -226,8 +226,8 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 }
 
 .workflow-bar.is-shell-integrated {
-  --shell-top-control-size: 31px;
-  --shell-top-control-radius: 9px;
+  --shell-top-control-size: 33px;
+  --shell-top-control-radius: 10px;
   width: auto;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
@@ -362,7 +362,7 @@ const pdfActionIconSize = computed(() => (compactPaneBar.value ? 15 : 16))
 }
 
 .workflow-bar.is-shell-integrated .workflow-doc-tools {
-  gap: 2px;
+  gap: 0;
   min-height: var(--shell-top-control-size);
   height: var(--shell-top-control-size);
   padding: 0;

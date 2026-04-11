@@ -107,7 +107,7 @@ test('latex backward sync checks adjacent lines when the reported line is slight
   assert.equal(resolved.from, view.state.doc.line(2).from + 16)
 })
 
-test('latex backward sync prefers surrounding text over an explicit but stale column', () => {
+test('latex backward sync prefers surrounding text before falling back to an explicit stale column', () => {
   const view = createMockView([
     '\\begin{itemize}',
     '\\item first bullet content here',
@@ -122,6 +122,42 @@ test('latex backward sync prefers surrounding text over an explicit but stale co
     textAfterSelection: ' content here',
   })
 
+  assert.equal(resolved.lineNumber, 3)
+  assert.equal(resolved.from, view.state.doc.line(3).from + 19)
+})
+
+test('latex backward sync does not drift more than one line while refining context', () => {
+  const view = createMockView([
+    'first unrelated line',
+    'second unrelated line',
+    'third unrelated line',
+    'fourth unrelated line',
+    'target alpha beta gamma delta',
+  ])
+
+  const resolved = resolveLatexEditorSelectionFromContext(view, {
+    line: 5,
+    column: 0,
+    textBeforeSelection: 'alpha beta',
+    textAfterSelection: ' gamma delta',
+  })
+
+  assert.equal(resolved.lineNumber, 5)
+})
+
+test('latex backward sync keeps the reported line when strictLine is enabled', () => {
+  const view = createMockView([
+    '\\item first bullet content here',
+    '\\item second bullet content here',
+  ])
+
+  const resolved = resolveLatexEditorSelectionFromContext(view, {
+    line: 2,
+    column: 0,
+    textBeforeSelection: 'first bullet',
+    textAfterSelection: ' content here',
+    strictLine: true,
+  })
+
   assert.equal(resolved.lineNumber, 2)
-  assert.equal(resolved.from, view.state.doc.line(2).from + 18)
 })
