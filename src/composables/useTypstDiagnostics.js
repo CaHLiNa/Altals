@@ -33,7 +33,6 @@ export function useTypstDiagnostics(options) {
     editorStore,
     getWorkspacePath,
     filesStore,
-    referencesStore,
   } = options
 
   const typstUi = reactive({
@@ -56,7 +55,6 @@ export function useTypstDiagnostics(options) {
   function refreshProjectDiagnostics(text) {
     return typstStore.refreshProjectProblems(filePath, {
       filesStore,
-      referencesStore,
       workspacePath: getWorkspacePath?.() || null,
       contentOverrides: {
         [filePath]: text,

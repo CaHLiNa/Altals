@@ -443,30 +443,6 @@ body.tab-dragging * {
   }
 }
 
-/* Reference detail */
-.ref-detail-label {
-  display: block;
-  font-size: var(--ui-font-caption);
-  font-weight: 500;
-  color: var(--fg-muted);
-  margin-bottom: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.ref-detail-input {
-  width: 100%;
-  padding: 4px 8px;
-  font-size: var(--ui-font-body);
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-tertiary);
-  color: var(--fg-primary);
-  outline: none;
-}
-.ref-detail-input:focus {
-  border-color: var(--accent);
-}
-
 /* Add reference dialog */
 .ref-confidence-verified {
   background: rgba(158, 206, 106, 0.15);

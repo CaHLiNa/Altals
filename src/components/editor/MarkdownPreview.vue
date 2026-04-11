@@ -268,7 +268,7 @@ function handleClick(e) {
 async function handleDoubleClick(e) {
   const target = e.target instanceof Element ? e.target : e.target?.parentElement
   if (!target) return
-  if (target.closest('.md-preview-wikilink, .md-preview-citation, a[href]')) return
+  if (target.closest('.md-preview-wikilink, a[href]')) return
 
   const anchor = target.closest('.md-preview-source-anchor[data-source-start-offset]')
   const location = readAnchorLocation(anchor)
@@ -543,16 +543,6 @@ async function handleDoubleClick(e) {
 }
 .md-preview-content .md-preview-wikilink:hover {
   opacity: 0.8;
-}
-
-/* Citations */
-.md-preview-content .md-preview-citation {
-  color: color-mix(in srgb, var(--accent) 82%, var(--fg-primary));
-  cursor: pointer;
-  font-weight: 500;
-}
-.md-preview-content .md-preview-citation:hover {
-  text-decoration: underline;
 }
 
 /* Footnotes */

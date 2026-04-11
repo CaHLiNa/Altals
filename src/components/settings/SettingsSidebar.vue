@@ -1,9 +1,5 @@
 <template>
   <div class="left-shell-sidebar settings-sidebar-shell">
-    <div class="settings-sidebar-header">
-      <h2 class="settings-sidebar-title">{{ t('Settings') }}</h2>
-    </div>
-
     <nav class="settings-sidebar-nav" :aria-label="t('Settings sections')">
       <UiButton
         v-for="item in sections"
@@ -81,22 +77,6 @@ const activeSection = computed(() => workspace.settingsSection || 'theme')
   min-height: 0;
 }
 
-.settings-sidebar-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 4px 14px 18px;
-}
-
-.settings-sidebar-title {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.08;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
 .settings-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -104,7 +84,7 @@ const activeSection = computed(() => workspace.settingsSection || 'theme')
   min-height: 0;
   overflow-y: auto;
   gap: 4px;
-  padding: 0 8px;
+  padding: 30px 8px 0;
 }
 
 .settings-sidebar-item {

@@ -377,17 +377,7 @@ export function parseTypstOutlineItems(text = '') {
   return [...headings, ...structureItems].sort((left, right) => left.offset - right.offset)
 }
 
-function formatReferenceDetail(ref = {}) {
-  const author = ref.author?.[0]?.family || ref.author?.[0]?.given || ''
-  const year = ref.issued?.['date-parts']?.[0]?.[0] || ''
-  const title = ref.title || ''
-
-  const left = [author, year].filter(Boolean).join(' ')
-  return [left, title].filter(Boolean).join(' · ') || 'Library reference'
-}
-
 export function collectTypstReferenceOptions({
-  referencesStore,
   documentText = '',
   projectLabels = [],
   query = '',
@@ -413,27 +403,6 @@ export function collectTypstReferenceOptions({
     })
     seen.add(insertText)
     if (options.length >= limit) return options
-  }
-
-  const refs = referencesStore
-    ? (normalizedQuery ? referencesStore.searchGlobalRefs(normalizedQuery) : referencesStore.sortedLibrary || referencesStore.library || [])
-    : []
-
-  for (const ref of refs) {
-    const key = ref?._key
-    if (!key) continue
-
-    const insertText = `@${key}`
-    if (seen.has(insertText)) continue
-
-    options.push({
-      label: insertText,
-      detail: formatReferenceDetail(ref),
-      type: 'constant',
-      apply: insertText,
-    })
-    seen.add(insertText)
-    if (options.length >= limit) break
   }
 
   return options

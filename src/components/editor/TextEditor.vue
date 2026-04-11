@@ -28,7 +28,7 @@
     :file-path="props.filePath"
     :view="view"
     :spellcheck-enabled="isMd && workspace.spellcheck"
-    :show-format-document="isTex || (isTyp && typstUi.tinymistActive)"
+    :show-format-document="isLatexEditor || (isTyp && typstUi.tinymistActive)"
     :show-markdown-insert-table="isMd"
     :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
     :typst-code-actions="ctxMenu.typstCodeActions"
@@ -102,7 +102,7 @@ import {
   buildTinymistCodeActionRange,
   normalizeTinymistCodeActions,
 } from '../../services/tinymist/codeActions'
-import { isMarkdown, isLatex, isTypst } from '../../utils/fileTypes'
+import { isMarkdown, isLatex, isLatexEditorFile, isTypst } from '../../utils/fileTypes'
 import { resolveLatexProjectGraph } from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
@@ -161,6 +161,7 @@ let lastPersistedContent = ''
 
 const isMd = isMarkdown(props.filePath)
 const isTex = isLatex(props.filePath)
+const isLatexEditor = isLatexEditorFile(props.filePath)
 const isTyp = isTypst(props.filePath)
 const supportsTypstSupport = supportsTypstEditorSupport(props.filePath)
 const isMacPlatform =
@@ -405,7 +406,7 @@ async function handleApplyTypstCodeAction(action) {
 }
 
 async function handleFormatDocument() {
-  if (!view || (!isTyp && !isTex)) return
+  if (!view || (!isTyp && !isLatexEditor)) return
 
   if (isTyp) {
     if (!typstUi.tinymistActive) {
@@ -506,7 +507,7 @@ async function persistEditorContent(content) {
   const currentContent =
     typeof content === 'string' ? content : view ? view.state.doc.toString() : ''
 
-  if (isTex) {
+  if (isLatexEditor) {
     if (latexNormalizedSaveContent != null && currentContent === latexNormalizedSaveContent) {
       latexNormalizedSaveContent = null
       lastPersistedContent = currentContent
@@ -555,9 +556,11 @@ async function persistEditorContent(content) {
     if (!saved) return false
     lastPersistedContent = nextContent
     editorStore.clearFileDirty(props.filePath)
-    void latexStore.scheduleAutoBuildForPath(props.filePath, {
-      sourceContent: nextContent,
-    })
+    if (isTex) {
+      void latexStore.scheduleAutoBuildForPath(props.filePath, {
+        sourceContent: nextContent,
+      })
+    }
     return true
   }
 
@@ -638,7 +641,7 @@ async function loadLanguageExtension() {
     const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
     return markdown({ base: markdownLanguage, codeLanguages: languages })
   }
-  if (isTex) {
+  if (isLatexEditor) {
     const { altalsLatexLanguage } = await import('../../editor/latexLanguage')
     return altalsLatexLanguage
   }
@@ -763,7 +766,7 @@ onMounted(async () => {
     extraExtensions.push(...createMarkdownDraftEditorExtensions({ t }))
   }
 
-  if (isTex) {
+  if (isLatexEditor) {
     const [{ autocompletion }, { createLatexCompletionSource }] = await Promise.all([
       import('@codemirror/autocomplete'),
       import('../../editor/latexAutocomplete'),

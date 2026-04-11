@@ -285,10 +285,7 @@ async function projectAwareCompletion(context, options = {}) {
   if (!graph) return null
 
   if (citeContext) {
-    const values = uniqueBy([
-      ...(graph.bibKeys || []),
-      ...(options.referencesStore?.allKeys || []),
-    ])
+    const values = uniqueBy(graph.bibKeys || [])
     return buildFilteredResult(context, values, 'Citation key', 'variable')
   }
 

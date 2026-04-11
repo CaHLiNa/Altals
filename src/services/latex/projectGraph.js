@@ -566,10 +566,6 @@ async function loadBibKeys(bibliographyFiles = [], options = {}) {
     }
   }
 
-  if (keys.length === 0 && options.referencesStore?.allKeys) {
-    keys.push(...options.referencesStore.allKeys)
-  }
-
   return uniqueBy(keys)
 }
 

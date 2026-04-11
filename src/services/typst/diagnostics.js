@@ -59,12 +59,11 @@ function isTypstProjectLabelKey(key = '') {
   return PROJECT_LABEL_KEY_RE.test(String(key || '').trim())
 }
 
-function deriveTypstProjectWarnings(project = null, referencesStore = null) {
-  if (!project) return { unresolvedRefs: [], unresolvedCitations: [] }
+function deriveTypstProjectWarnings(project = null) {
+  if (!project) return []
 
   const labelKeys = new Set((project.labels || []).map(label => label.key))
   const unresolvedRefs = []
-  const unresolvedCitations = []
 
   for (const reference of project.references || []) {
     const key = String(reference?.key || '').trim()
@@ -72,20 +71,15 @@ function deriveTypstProjectWarnings(project = null, referencesStore = null) {
 
     if (isTypstProjectLabelKey(key)) {
       unresolvedRefs.push(reference)
-      continue
-    }
-
-    if (!referencesStore?.getByKey?.(key)) {
-      unresolvedCitations.push(reference)
     }
   }
 
-  return { unresolvedRefs, unresolvedCitations }
+  return unresolvedRefs
 }
 
-function buildProjectWarnings(sourcePath, project = null, referencesStore = null) {
+function buildProjectWarnings(sourcePath, project = null) {
   if (!project) return []
-  const { unresolvedRefs, unresolvedCitations } = deriveTypstProjectWarnings(project, referencesStore)
+  const unresolvedRefs = deriveTypstProjectWarnings(project)
 
   const refWarnings = unresolvedRefs.map((entry, index) => ({
     id: `typst:project:ref:${entry.filePath || sourcePath}:${entry.key}:${entry.line ?? 0}:${index}`,
@@ -99,24 +93,12 @@ function buildProjectWarnings(sourcePath, project = null, referencesStore = null
     raw: entry.key,
   }))
 
-  const citationWarnings = unresolvedCitations.map((entry, index) => ({
-    id: `typst:project:cite:${entry.filePath || sourcePath}:${entry.key}:${entry.line ?? 0}:${index}`,
-    sourcePath: entry.filePath || sourcePath,
-    line: entry.line ?? null,
-    column: null,
-    severity: 'warning',
-    origin: 'project',
-    actionable: true,
-    message: `Unknown reference key: ${entry.key}`,
-    raw: entry.key,
-  }))
-
-  return [...refWarnings, ...citationWarnings]
+  return refWarnings
 }
 
 export function buildTypstProjectProblems(sourcePath, options = {}) {
   const project = options.project || getCachedTypstProjectGraph(sourcePath)
-  return normalizeProblems(buildProjectWarnings(sourcePath, project, options.referencesStore))
+  return normalizeProblems(buildProjectWarnings(sourcePath, project))
 }
 
 export function buildTypstWorkflowProblems(sourcePath, options = {}) {

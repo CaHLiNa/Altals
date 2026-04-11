@@ -67,7 +67,20 @@
                   @click="selectTabFromMenu(tab)"
                 >
                   <span class="document-tabs-menu-glyph" aria-hidden="true">
-                    {{ tab === activeTab ? '✓' : '' }}
+                    <svg
+                      v-if="tab === activeTab"
+                      class="document-tabs-menu-check"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                    </svg>
                   </span>
                   <span class="document-tabs-menu-label">{{ fileName(tab) }}</span>
                   <span
@@ -75,6 +88,27 @@
                     class="document-tabs-menu-dirty"
                     aria-hidden="true"
                   ></span>
+                </button>
+                <button
+                  type="button"
+                  class="document-tabs-menu-close"
+                  :title="t('Close tab')"
+                  :aria-label="t('Close tab')"
+                  @click.stop="closeTabFromMenu(tab)"
+                >
+                  <svg
+                    class="document-tabs-menu-close-icon"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M2.5 2.5 9.5 9.5M9.5 2.5l-7 7" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -84,8 +118,8 @@
             <button type="button" class="document-tabs-menu-create" @click="createTabFromMenu">
               <svg
                 class="document-tabs-menu-create-icon"
-                width="13"
-                height="13"
+                width="12"
+                height="12"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"
@@ -95,27 +129,6 @@
                 <path d="M8 3v10M3 8h10" />
               </svg>
               <span class="document-tabs-menu-command-label">{{ t('New Tab') }}</span>
-            </button>
-
-            <button
-              v-if="activeTab"
-              type="button"
-              class="document-tabs-menu-create"
-              @click="closeCurrentTabFromMenu"
-            >
-              <svg
-                class="document-tabs-menu-create-icon"
-                width="12"
-                height="12"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
-              >
-                <path d="M2 2l6 6M8 2l-6 6" />
-              </svg>
-              <span class="document-tabs-menu-command-label">{{ t('Close Current Tab') }}</span>
             </button>
           </div>
         </div>
@@ -167,7 +180,20 @@
                     @click="selectTabFromMenu(tab)"
                   >
                     <span class="document-tabs-menu-glyph" aria-hidden="true">
-                      {{ tab === activeTab ? '✓' : '' }}
+                      <svg
+                        v-if="tab === activeTab"
+                        class="document-tabs-menu-check"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M2.25 6.1 4.8 8.6 9.75 3.6" />
+                      </svg>
                     </span>
                     <span class="document-tabs-menu-label">{{ fileName(tab) }}</span>
                     <span
@@ -175,6 +201,27 @@
                       class="document-tabs-menu-dirty"
                       aria-hidden="true"
                     ></span>
+                  </button>
+                  <button
+                    type="button"
+                    class="document-tabs-menu-close"
+                    :title="t('Close tab')"
+                    :aria-label="t('Close tab')"
+                    @click.stop="closeTabFromMenu(tab)"
+                  >
+                    <svg
+                      class="document-tabs-menu-close-icon"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.5 2.5 9.5 9.5M9.5 2.5l-7 7" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -184,8 +231,8 @@
               <button type="button" class="document-tabs-menu-create" @click="createTabFromMenu">
                 <svg
                   class="document-tabs-menu-create-icon"
-                  width="13"
-                  height="13"
+                  width="12"
+                  height="12"
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
@@ -195,27 +242,6 @@
                   <path d="M8 3v10M3 8h10" />
                 </svg>
                 <span class="document-tabs-menu-command-label">{{ t('New Tab') }}</span>
-              </button>
-
-              <button
-                v-if="activeTab"
-                type="button"
-                class="document-tabs-menu-create"
-                @click="closeCurrentTabFromMenu"
-              >
-                <svg
-                  class="document-tabs-menu-create-icon"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 10 10"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  aria-hidden="true"
-                >
-                  <path d="M2 2l6 6M8 2l-6 6" />
-                </svg>
-                <span class="document-tabs-menu-command-label">{{ t('Close Current Tab') }}</span>
               </button>
             </div>
           </div>
@@ -307,6 +333,14 @@
           :key="activeTab"
           :filePath="activeTab"
         />
+        <PdfArtifactPreview
+          v-else-if="activeTab && viewerType === 'pdf'"
+          :key="`pdf:${activeTab}`"
+          :artifactPath="activeTab"
+          :sourcePath="activeTab"
+          kind="pdf"
+          @open-external="handleOpenExternalPdf"
+        />
         <MarkdownPreview
           v-else-if="activeTab && viewerType === 'markdown-preview'"
           :key="activeTab"
@@ -348,8 +382,10 @@ import { useLatexStore } from '../../stores/latex'
 import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
+import { openLocalPath } from '../../services/localFileOpen'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { resolveDocumentWorkspaceTextRoute } from '../../domains/document/documentWorkspacePreviewRuntime'
+import { shouldShowIntegratedDocumentTitle } from '../../domains/editor/paneChromeRuntime'
 
 const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRouteSurface.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
@@ -397,9 +433,14 @@ const toolbarUiState = computed(() => {
   if (props.activeTab && viewerType.value === 'text') return { kind: 'text' }
   return null
 })
-const showIntegratedDocumentTitle = computed(
-  () =>
-    hasIntegratedDocumentTitle.value && !!props.activeTab && (isActive.value || hasSinglePane.value)
+const showIntegratedDocumentTitle = computed(() =>
+  shouldShowIntegratedDocumentTitle({
+    hasIntegratedDocumentTitle: hasIntegratedDocumentTitle.value,
+    activeTab: props.activeTab,
+    isActive: isActive.value,
+    hasSinglePane: hasSinglePane.value,
+    isSettingsSurface: workspace.isSettingsSurface,
+  })
 )
 const integratedDocumentTitleTarget = computed(() =>
   showIntegratedDocumentTitle.value ? props.topbarTabsTargetSelector : ''
@@ -486,6 +527,11 @@ function countLeafPanes(node) {
   return (node.children || []).reduce((total, child) => total + countLeafPanes(child), 0)
 }
 
+function handleOpenExternalPdf() {
+  if (!props.activeTab || viewerType.value !== 'pdf') return
+  void openLocalPath(props.activeTab)
+}
+
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])
   if (result.choice === 'cancel') return
@@ -495,11 +541,15 @@ async function closeTab(path) {
 
 function toggleTabsMenu() {
   if (!props.activeTab) return
-  tabsMenuOpen.value = !tabsMenuOpen.value
+  if (tabsMenuOpen.value) {
+    closeTabsMenu()
+    return
+  }
+  tabsMenuOpen.value = true
 }
 
 function createTabFromMenu() {
-  tabsMenuOpen.value = false
+  closeTabsMenu()
   openNewTabDirect()
 }
 
@@ -512,8 +562,7 @@ function selectTabFromMenu(path) {
   closeTabsMenu()
 }
 
-async function closeCurrentTabFromMenu() {
-  const path = props.activeTab
+async function closeTabFromMenu(path) {
   closeTabsMenu()
   if (!path) return
   await closeTab(path)
@@ -757,7 +806,10 @@ onUnmounted(() => {
 }
 
 .document-tabs-menu-item {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
 }
 
 .document-tabs-menu-select {
@@ -769,11 +821,12 @@ onUnmounted(() => {
 
 .document-tabs-menu-select {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  column-gap: 8px;
   align-items: center;
   width: 100%;
   min-height: 26px;
-  padding: 0 10px;
+  padding: 0 8px 0 10px;
   color: color-mix(in srgb, var(--text-secondary) 92%, transparent);
   cursor: pointer;
   border-radius: 7px;
@@ -786,9 +839,15 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 12px;
+  height: 12px;
   color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
   font-size: var(--workbench-font-secondary);
+}
+
+.document-tabs-menu-check {
+  width: 12px;
+  height: 12px;
 }
 
 .document-tabs-menu-item.is-active .document-tabs-menu-select {
@@ -818,6 +877,33 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+.document-tabs-menu-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.document-tabs-menu-close:hover {
+  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.document-tabs-menu-close-icon {
+  width: 12px;
+  height: 12px;
+}
+
 .document-tabs-menu-separator {
   height: 1px;
   margin: 4px 6px;
@@ -826,7 +912,7 @@ onUnmounted(() => {
 
 .document-tabs-menu-create {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-columns: 12px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -849,8 +935,8 @@ onUnmounted(() => {
 }
 
 .document-tabs-menu-create-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   opacity: 0.86;
 }
 

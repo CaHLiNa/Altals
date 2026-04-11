@@ -51,17 +51,6 @@ const typstPreviewAdapter = {
   },
 }
 
-const typstCitationSyntax = {
-  supportsInsertion(filePath) {
-    return isTypst(filePath)
-  },
-
-  buildText(_filePath, keys) {
-    const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean)
-    return list.map(key => `@${key}`).join(' ')
-  },
-}
-
 const typstCompileAdapter = {
   id: 'typst',
 
@@ -86,7 +75,6 @@ const typstCompileAdapter = {
       compileState: this.stateForFile(filePath, context) || {},
       queueState: context.typstStore?.queueStateForFile(filePath) || null,
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
-      referencesStore: context.referencesStore || null,
     })
   },
 
@@ -119,7 +107,6 @@ export const typstDocumentAdapter = {
   },
 
   preview: typstPreviewAdapter,
-  citationSyntax: typstCitationSyntax,
   compile: typstCompileAdapter,
 
   getProblems(filePath, context = {}) {
@@ -132,7 +119,6 @@ export const typstDocumentAdapter = {
       compileState: typstCompileAdapter.stateForFile(filePath, context) || {},
       queueState: context.typstStore?.queueStateForFile(filePath) || null,
       liveState: context.typstStore?.liveStateForFile(filePath) || null,
-      referencesStore: context.referencesStore || null,
       previewAvailable: !!context.previewAvailable,
       nativePreviewSupported: context.nativePreviewSupported !== false,
       artifactReady: context.artifactReady === true,

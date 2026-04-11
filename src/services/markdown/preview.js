@@ -8,9 +8,6 @@ import rehypeStringify from 'rehype-stringify'
 import rehypeHighlight from 'rehype-highlight'
 import DOMPurify from 'dompurify'
 import { visit } from 'unist-util-visit'
-import { formatInlineCitation } from '../citationFormatter.js'
-import { isFastPath } from '../citationStyleRegistry.js'
-import { extractCitationKeysFromRaw } from './citations.js'
 
 const SOURCE_POSITION_NODE_TYPES = new Set([
   'heading',
@@ -70,8 +67,6 @@ const markdownPreviewProcessor = unified()
   .use(rehypeStringify)
 
 const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g
-const BRACKET_CITATION_RE = /\[([^\[\]\n]*@[a-zA-Z][\w:-]*[^\[\]\n]*)\]/g
-const BARE_CITATION_RE = /(^|[\s([{\u3000])@([a-zA-Z][\w:-]*)\b/g
 const SKIP_PARENT_TAGS = new Set(['A', 'CODE', 'PRE', 'SCRIPT', 'STYLE', 'TEXTAREA'])
 
 function parseWikiLink(raw = '') {
@@ -110,16 +105,6 @@ function createWikiLinkNode(document, raw = '') {
   return anchor
 }
 
-function createCitationNode(document, raw = '', keys = []) {
-  const span = document.createElement('span')
-  span.className = 'md-preview-citation'
-  span.dataset.keys = keys.join(',')
-  span.dataset.raw = raw
-  span.textContent = raw
-  span.title = raw
-  return span
-}
-
 function candidateFromMatch(type, match, cursor) {
   if (!match) return null
   if (type === 'wiki') {
@@ -131,25 +116,7 @@ function candidateFromMatch(type, match, cursor) {
       matchedText: match[0],
     }
   }
-  if (type === 'citation-group') {
-    return {
-      type,
-      start: cursor + match.index,
-      end: cursor + match.index + match[0].length,
-      raw: match[0],
-      keys: extractCitationKeysFromRaw(match[1]),
-    }
-  }
-
-  const prefix = match[1] || ''
-  const raw = `@${match[2]}`
-  return {
-    type,
-    start: cursor + match.index + prefix.length,
-    end: cursor + match.index + prefix.length + raw.length,
-    raw,
-    keys: [match[2]],
-  }
+  return null
 }
 
 function nextInlineDraftToken(text = '', cursor = 0) {
@@ -157,13 +124,9 @@ function nextInlineDraftToken(text = '', cursor = 0) {
   if (!remaining) return null
 
   WIKI_LINK_RE.lastIndex = 0
-  BRACKET_CITATION_RE.lastIndex = 0
-  BARE_CITATION_RE.lastIndex = 0
 
   const candidates = [
     candidateFromMatch('wiki', WIKI_LINK_RE.exec(remaining), cursor),
-    candidateFromMatch('citation-group', BRACKET_CITATION_RE.exec(remaining), cursor),
-    candidateFromMatch('citation-bare', BARE_CITATION_RE.exec(remaining), cursor),
   ].filter(Boolean)
 
   if (candidates.length === 0) return null
@@ -175,7 +138,6 @@ function shouldSkipTextNode(node) {
   let parent = node.parentElement
   while (parent) {
     if (SKIP_PARENT_TAGS.has(parent.tagName)) return true
-    if (parent.classList?.contains('md-preview-citation')) return true
     if (parent.classList?.contains('md-preview-wikilink')) return true
     parent = parent.parentElement
   }
@@ -216,9 +178,6 @@ function decorateInlineDraftSyntax(root) {
       if (token.type === 'wiki') {
         parts.push(createWikiLinkNode(document, token.raw))
         changed = true
-      } else if (token.keys?.length) {
-        parts.push(createCitationNode(document, token.raw, token.keys))
-        changed = true
       } else {
         parts.push(document.createTextNode(text.slice(token.start, token.end)))
       }
@@ -239,106 +198,16 @@ function decorateInlineDraftSyntax(root) {
 function sanitize(html = '') {
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'munder', 'mover', 'munderover', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'math', 'menclose', 'msqrt', 'mroot', 'mpadded', 'mphantom', 'mstyle'],
-    ADD_ATTR: ['data-target', 'data-heading', 'data-keys', 'data-raw', 'data-source-kind', 'data-source-start-line', 'data-source-end-line', 'data-source-start-offset', 'data-source-end-offset', 'mathvariant', 'encoding', 'xmlns', 'display', 'accent', 'accentunder', 'columnalign', 'columnlines', 'columnspacing', 'rowspacing', 'rowlines', 'frame', 'separator', 'stretchy', 'symmetric', 'movablelimits', 'fence', 'lspace', 'rspace', 'linethickness', 'scriptlevel'],
+    ADD_ATTR: ['data-target', 'data-heading', 'data-source-kind', 'data-source-start-line', 'data-source-end-line', 'data-source-start-offset', 'data-source-end-offset', 'mathvariant', 'encoding', 'xmlns', 'display', 'accent', 'accentunder', 'columnalign', 'columnlines', 'columnspacing', 'rowspacing', 'rowlines', 'frame', 'separator', 'stretchy', 'symmetric', 'movablelimits', 'fence', 'lspace', 'rspace', 'linethickness', 'scriptlevel'],
   })
 }
-
-function resolveCitationsFast(root, refs, style) {
-  const nodes = root.querySelectorAll('.md-preview-citation')
-  const isNumeric = style === 'ieee' || style === 'vancouver'
-  const keyNumberMap = {}
-
-  if (isNumeric) {
-    let counter = 0
-    const seen = new Set()
-    nodes.forEach((node) => {
-      const keys = String(node.dataset.keys || '').split(',').filter(Boolean)
-      for (const key of keys) {
-        if (seen.has(key)) continue
-        seen.add(key)
-        keyNumberMap[key] = ++counter
-      }
-    })
-  }
-
-  nodes.forEach((node) => {
-    const keys = String(node.dataset.keys || '').split(',').filter(Boolean)
-    const raw = node.dataset.raw || node.textContent || ''
-    if (keys.length === 0) return
-
-    const parts = keys.map((key) => {
-      const ref = refs.getByKey(key)
-      if (!ref) return `@${key}`
-      return formatInlineCitation(ref, style, keyNumberMap[key])
-    })
-
-    let display
-    if (isNumeric) {
-      display = parts.join(', ')
-    } else {
-      const stripped = parts.map(part => part.replace(/^\(/, '').replace(/\)$/, ''))
-      display = `(${stripped.join('; ')})`
-    }
-
-    node.textContent = display
-    node.title = raw
-  })
-}
-
-async function resolveCitationsCSL(root, refs, styleId) {
-  const { formatWithCSL } = await import('../citationFormatterCSL.js')
-  const nodes = [...root.querySelectorAll('.md-preview-citation')]
-  const allKeys = []
-  const seen = new Set()
-
-  for (const node of nodes) {
-    const keys = String(node.dataset.keys || '').split(',').filter(Boolean)
-    for (const key of keys) {
-      if (seen.has(key)) continue
-      seen.add(key)
-      allKeys.push(key)
-    }
-  }
-
-  if (allKeys.length === 0) return
-
-  const items = allKeys.map(key => refs.getByKey(key)).filter(Boolean)
-  if (items.length === 0) return
-
-  const inlineCache = {}
-  for (const item of items) {
-    const key = item._key || item.id
-    try {
-      inlineCache[key] = await formatWithCSL(styleId, 'inline', [item])
-    } catch {
-      inlineCache[key] = `@${key}`
-    }
-  }
-
-  for (const node of nodes) {
-    const raw = node.dataset.raw || node.textContent || ''
-    const keys = String(node.dataset.keys || '').split(',').filter(Boolean)
-    const display = keys.map(key => inlineCache[key] || `@${key}`).join('; ')
-    node.textContent = display
-    node.title = raw
-  }
-}
-
-export async function renderMarkdownDraftPreview(md, refs, citationStyle = 'apa') {
+export async function renderMarkdownDraftPreview(md) {
   const processed = await markdownPreviewProcessor.process(String(md || ''))
   const parser = new DOMParser()
   const document = parser.parseFromString(`<body>${String(processed)}</body>`, 'text/html')
   const root = document.body
 
   decorateInlineDraftSyntax(root)
-
-  if (refs) {
-    if (isFastPath(citationStyle)) {
-      resolveCitationsFast(root, refs, citationStyle)
-    } else {
-      await resolveCitationsCSL(root, refs, citationStyle)
-    }
-  }
 
   return sanitize(root.innerHTML)
 }

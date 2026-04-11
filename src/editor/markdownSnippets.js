@@ -51,12 +51,6 @@ const MARKDOWN_DRAFT_SNIPPETS = [
     template: '$$\n${expression}\n$$\n\n${}',
   },
   {
-    label: '/cite',
-    aliases: [],
-    detailKey: 'Bracket citation',
-    template: '[@${citation_key}]${}',
-  },
-  {
     label: '/footnote',
     aliases: ['/fn'],
     detailKey: 'Footnote definition',

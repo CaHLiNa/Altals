@@ -507,7 +507,6 @@ export const useTypstStore = defineStore('typst', {
 
       const problems = buildTypstProjectProblems(filePath, {
         project,
-        referencesStore: options.referencesStore,
       })
       this.setProjectProblems(filePath, problems)
       return problems

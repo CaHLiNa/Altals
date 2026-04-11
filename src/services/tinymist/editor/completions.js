@@ -121,8 +121,6 @@ function linePrefixBefore(text, from) {
 }
 
 function createLocalTypstCompletionSource(options = {}) {
-  const { referencesStore } = options
-
   return (context) => {
     const { state, pos, explicit } = context
     const line = state.doc.lineAt(pos)
@@ -151,7 +149,6 @@ function createLocalTypstCompletionSource(options = {}) {
       const query = atMatch[1] || ''
       const from = pos - query.length - 1
       const referenceOptions = collectTypstReferenceOptions({
-        referencesStore,
         documentText: state.doc.toString(),
         query,
       })
@@ -227,7 +224,6 @@ export function createTinymistTypstCompletionSource(options = {}) {
       }
 
       const referenceOptions = collectTypstReferenceOptions({
-        referencesStore: options.referencesStore,
         documentText: context.state.doc.toString(),
         projectLabels,
         query,

@@ -131,19 +131,6 @@ const latexPreviewAdapter = {
   },
 }
 
-const latexCitationSyntax = {
-  supportsInsertion(filePath) {
-    return isLatex(filePath)
-  },
-
-  buildText(_filePath, keys, options = {}) {
-    const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean)
-    if (list.length === 0) return ''
-    const command = options.latexCommand || 'cite'
-    return `\\${command}{${list.join(', ')}}`
-  },
-}
-
 const latexCompileAdapter = {
   id: 'latex',
 
@@ -195,7 +182,6 @@ export const latexDocumentAdapter = {
   },
 
   preview: latexPreviewAdapter,
-  citationSyntax: latexCitationSyntax,
   compile: latexCompileAdapter,
 
   getProblems(filePath, context = {}) {

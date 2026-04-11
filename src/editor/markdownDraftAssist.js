@@ -2,7 +2,6 @@ import { hoverTooltip, tooltips } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
 import katex from 'katex'
 
-const INLINE_CITE_KEY_RE = /@([a-zA-Z][\w:-]*)/g
 const FOOTNOTE_REF_RE = /\[\^([^\]\s]+)\]/g
 const FOOTNOTE_DEF_RE = /^\[\^([^\]\s]+)\]:\s*(.*)$/gm
 const DISPLAY_MATH_RE = /(^|[^\\])\$\$([\s\S]+?)\$\$/g
@@ -34,53 +33,6 @@ function escapeHtml(text = '') {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-function collectAuthors(ref = {}) {
-  const authors = Array.isArray(ref.author) ? ref.author : []
-  if (authors.length === 0) return ''
-  const names = authors.map((author) => (
-    author?.family || author?.given || ''
-  )).filter(Boolean)
-  if (names.length <= 3) return names.join(', ')
-  return `${names[0]} et al.`
-}
-
-function publicationYear(ref = {}) {
-  return ref?.issued?.['date-parts']?.[0]?.[0] || ref?.year || ''
-}
-
-function referenceMeta(ref = {}) {
-  return ref['container-title'] || ref.publisher || ref.journalAbbreviation || ''
-}
-
-function createCitationHoverDom(key, ref, labels) {
-  const dom = document.createElement('div')
-  dom.className = 'cm-markdown-draft-hover__body'
-
-  if (!ref) {
-    dom.innerHTML = `
-      <div class="cm-markdown-draft-hover__eyebrow">${escapeHtml(labels.citation)}</div>
-      <div class="cm-markdown-draft-hover__title">@${escapeHtml(key)}</div>
-      <div class="cm-markdown-draft-hover__meta cm-markdown-draft-hover__meta--missing">${escapeHtml(labels.referenceNotFound)}</div>
-    `
-    return dom
-  }
-
-  const authors = collectAuthors(ref)
-  const year = publicationYear(ref)
-  const meta = referenceMeta(ref)
-  const doi = ref.DOI ? `doi:${ref.DOI}` : ''
-
-  dom.innerHTML = `
-    <div class="cm-markdown-draft-hover__eyebrow">${escapeHtml(labels.citation)}</div>
-    <div class="cm-markdown-draft-hover__title">@${escapeHtml(key)}</div>
-    <div class="cm-markdown-draft-hover__headline">${escapeHtml(ref.title || 'Untitled reference')}</div>
-    <div class="cm-markdown-draft-hover__meta">${escapeHtml([authors, year].filter(Boolean).join(' · '))}</div>
-    ${meta ? `<div class="cm-markdown-draft-hover__submeta">${escapeHtml(meta)}</div>` : ''}
-    ${doi ? `<div class="cm-markdown-draft-hover__submeta">${escapeHtml(doi)}</div>` : ''}
-  `
-  return dom
 }
 
 function createMathHoverDom(source, displayMode, labels) {
@@ -123,28 +75,6 @@ function createFootnoteHoverDom(id, content, labels) {
     <div class="cm-markdown-draft-hover__headline">${escapeHtml(content || labels.footnoteNotFound)}</div>
   `
   return dom
-}
-
-function findCitationAt(view, pos) {
-  const line = view.state.doc.lineAt(pos)
-  const text = line.text
-  const offsetBase = line.from
-
-  INLINE_CITE_KEY_RE.lastIndex = 0
-  let match
-  while ((match = INLINE_CITE_KEY_RE.exec(text)) !== null) {
-    const start = offsetBase + match.index
-    const end = start + match[0].length
-    if (pos < start || pos > end) continue
-    if (isInCodeContext(view.state, start, end)) continue
-    return {
-      key: match[1],
-      from: start,
-      to: end,
-    }
-  }
-
-  return null
 }
 
 function extractFootnoteMap(doc = '') {
@@ -232,29 +162,6 @@ function findMathAt(view, pos) {
   return null
 }
 
-function createCitationHoverExtension(referencesStore, labels) {
-  return hoverTooltip((view, pos) => {
-    if (!referencesStore?.getByKey) return null
-    const hit = findCitationAt(view, pos)
-    if (!hit) return null
-
-    return {
-      pos: hit.from,
-      end: hit.to,
-      above: false,
-      clip: false,
-      class: 'cm-markdown-draft-hover',
-      create() {
-        const dom = createCitationHoverDom(hit.key, referencesStore.getByKey(hit.key), labels)
-        return { dom }
-      },
-    }
-  }, {
-    hoverTime: 220,
-    hideOnChange: 'touch',
-  })
-}
-
 function createFootnoteHoverExtension(labels) {
   return hoverTooltip((view, pos) => {
     const hit = findFootnoteAt(view, pos)
@@ -300,7 +207,6 @@ function createMathHoverExtension(labels) {
 }
 
 export function createMarkdownDraftEditorExtensions(options = {}) {
-  const { referencesStore = null } = options
   const t = typeof options.t === 'function' ? options.t : (value) => value
   const tooltipConfig = {
     position: 'fixed',
@@ -311,11 +217,9 @@ export function createMarkdownDraftEditorExtensions(options = {}) {
   }
 
   const labels = {
-    citation: t('Citation'),
     footnote: t('Footnote'),
     displayMath: t('Display math'),
     inlineMath: t('Inline math'),
-    referenceNotFound: t('Reference not found'),
     footnoteNotFound: t('Footnote not found'),
   }
 
@@ -324,10 +228,6 @@ export function createMarkdownDraftEditorExtensions(options = {}) {
     createFootnoteHoverExtension(labels),
     createMathHoverExtension(labels),
   ]
-
-  if (referencesStore?.getByKey) {
-    extensions.splice(1, 0, createCitationHoverExtension(referencesStore, labels))
-  }
 
   return extensions
 }

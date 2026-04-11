@@ -45,6 +45,8 @@ Representative entry points:
 - **LaTeX** with compile status, diagnostics, and PDF preview
 - **Typst** with native preview when available plus PDF preview
 
+The workbench can also open supporting project files such as standalone PDFs, `.txt`, `.bib`, and common LaTeX sidecar text files without promoting them into full document workflows.
+
 The product copy in `src/components/Launcher.vue:11` and `src/components/SetupWizard.vue:13` already reflects this trimmed scope.
 
 ## Product boundaries

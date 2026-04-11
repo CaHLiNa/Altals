@@ -11,7 +11,7 @@ test('hasVisibleViewerType returns true when the active leaf tab matches the req
     activeTab: '/tmp/paper.pdf',
   }
 
-  assert.equal(hasVisibleViewerType(paneTree, 'unsupported-binary'), true)
+  assert.equal(hasVisibleViewerType(paneTree, 'pdf'), true)
 })
 
 test('hasVisibleViewerType ignores non-active tabs in a leaf', () => {
@@ -22,7 +22,7 @@ test('hasVisibleViewerType ignores non-active tabs in a leaf', () => {
     activeTab: '/tmp/notes.md',
   }
 
-  assert.equal(hasVisibleViewerType(paneTree, 'unsupported-binary'), false)
+  assert.equal(hasVisibleViewerType(paneTree, 'pdf'), false)
 })
 
 test('hasVisibleViewerType walks split pane trees using visible active tabs only', () => {
@@ -46,14 +46,14 @@ test('hasVisibleViewerType walks split pane trees using visible active tabs only
     ],
   }
 
-  assert.equal(hasVisibleViewerType(paneTree, 'unsupported-binary'), true)
+  assert.equal(hasVisibleViewerType(paneTree, 'pdf'), true)
   assert.equal(hasVisibleViewerType(paneTree, 'text'), true)
   assert.equal(hasVisibleViewerType(paneTree, 'csv'), false)
 })
 
 test('hasVisibleViewerType returns false for empty or malformed pane trees', () => {
-  assert.equal(hasVisibleViewerType(null, 'unsupported-binary'), false)
-  assert.equal(hasVisibleViewerType({}, 'unsupported-binary'), false)
-  assert.equal(hasVisibleViewerType({ type: 'leaf', activeTab: null }, 'unsupported-binary'), false)
-  assert.equal(hasVisibleViewerType({ type: 'split', children: null }, 'unsupported-binary'), false)
+  assert.equal(hasVisibleViewerType(null, 'pdf'), false)
+  assert.equal(hasVisibleViewerType({}, 'pdf'), false)
+  assert.equal(hasVisibleViewerType({ type: 'leaf', activeTab: null }, 'pdf'), false)
+  assert.equal(hasVisibleViewerType({ type: 'split', children: null }, 'pdf'), false)
 })

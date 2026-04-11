@@ -76,7 +76,6 @@ function createComposable({
     typstStore: {},
     toastStore: {},
     workflowStore,
-    referencesStore: {},
     t: value => value,
   })
 

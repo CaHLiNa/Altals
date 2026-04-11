@@ -29,7 +29,6 @@ pub const ALLOWED_HOSTS: &[&str] = &[
     "api.minimaxi.com",
     "open.bigmodel.cn",
     "api.github.com",
-    "api.crossref.org",
     "api.exa.ai",
     "api.openalex.org",
 ];

@@ -3,7 +3,9 @@ const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const CSV_EXTS = ['csv', 'tsv']
 const PDF_EXTS = ['pdf']
 const DOCX_EXTS = ['docx']
-const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'tex', 'latex', 'typ']
+const LATEX_AUX_TEXT_EXTS = ['aux', 'bbl', 'blg', 'log', 'out', 'toc']
+const LATEX_EDITOR_EXTS = ['tex', 'latex', 'cls', 'sty']
+const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'typ', 'txt', 'bib', ...LATEX_EDITOR_EXTS, ...LATEX_AUX_TEXT_EXTS]
 const RUNNABLE_MAP = {}
 
 function getExt(path) {
@@ -40,6 +42,7 @@ export function getViewerType(path) {
   if (isTypstPreviewPath(path)) return 'typst-native-preview'
   const ext = getExt(path)
   if (SUPPORTED_TEXT_EXTS.includes(ext)) return 'text'
+  if (PDF_EXTS.includes(ext)) return 'pdf'
   return 'unsupported-binary'
 }
 
@@ -53,8 +56,12 @@ export function isLatex(path) {
   return ext === 'tex' || ext === 'latex'
 }
 
+export function isLatexEditorFile(path) {
+  return LATEX_EDITOR_EXTS.includes(getExt(path))
+}
+
 export function isBibFile(path) {
-  return false
+  return getExt(path) === 'bib'
 }
 
 export function isTypst(path) {
@@ -154,6 +161,8 @@ const ICON_MAP = {
   jl: 'IconFileCode',
   ipynb: 'IconNotebook',
   tex: 'IconMath',
+  cls: 'IconMath',
+  sty: 'IconMath',
   typ: 'IconMath',
   bib: 'IconFileText',
   lua: 'IconFileCode',

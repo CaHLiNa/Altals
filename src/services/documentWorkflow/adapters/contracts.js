@@ -6,7 +6,6 @@
  * @property {Object} [editorStore]
  * @property {Object} [filesStore]
  * @property {Object} [toastStore]
- * @property {Object} [referencesStore]
  * @property {Object} [workspace]
  * @property {Object | null} [previewState]
  * @property {string} [previewKind]
@@ -31,12 +30,6 @@
  */
 
 /**
- * @typedef {Object} CitationSyntaxAdapter
- * @property {(filePath: string) => boolean} supportsInsertion
- * @property {(filePath: string, keys: string[] | string, options?: Object) => string} buildText
- */
-
-/**
  * @typedef {Object} CompileAdapter
  * @property {string} id
  * @property {(filePath: string, context: DocumentAdapterContext) => Object | null} stateForFile
@@ -54,7 +47,6 @@
  * @property {(filePath: string) => boolean} matchesFile
  * @property {(filePath: string) => boolean} supportsWorkflowSource
  * @property {PreviewAdapter} preview
- * @property {CitationSyntaxAdapter} citationSyntax
  * @property {CompileAdapter | null} [compile]
  * @property {(filePath: string, context: DocumentAdapterContext) => any[]} getProblems
  * @property {(filePath: string, context: DocumentAdapterContext) => Object | null} getUiState

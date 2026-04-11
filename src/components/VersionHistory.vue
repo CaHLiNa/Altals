@@ -188,7 +188,7 @@ import {
   loadFileVersionHistoryPreview,
   restoreFileVersionHistoryEntry,
 } from '../domains/changes/workspaceSnapshot.js'
-import { getViewerType } from '../utils/fileTypes'
+import { isBinaryFile } from '../utils/fileTypes'
 import { formatFileError } from '../utils/errorMessages'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n, formatDate as formatLocaleDate } from '../i18n'
@@ -220,7 +220,7 @@ let previewView = null // CodeMirror instance
 let copyTimer = null
 
 const fileName = computed(() => props.filePath.split('/').pop())
-const isUnsupportedBinary = computed(() => getViewerType(props.filePath) === 'unsupported-binary')
+const isUnsupportedBinary = computed(() => isBinaryFile(props.filePath))
 const selectedSnapshot = computed(() =>
   selectedIndex.value >= 0 ? snapshots.value[selectedIndex.value] : null
 )
