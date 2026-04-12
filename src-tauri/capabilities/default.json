@@ -13,7 +13,6 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-    "deep-link:default",
     "shell:allow-open",
     {
       "identifier": "shell:allow-spawn",

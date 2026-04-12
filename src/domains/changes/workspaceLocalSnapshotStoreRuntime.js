@@ -103,7 +103,7 @@ export function createLocalWorkspaceSavePointRecord({ snapshot = null } = {}) {
   }
 }
 
-export function mergeWorkspaceSavePointEntries({ localEntries = [], gitEntries = [] } = {}) {
+export function mergeWorkspaceSavePointEntries({ localEntries = [], incomingEntries = [] } = {}) {
   const merged = []
   const seen = new Set()
 
@@ -114,7 +114,7 @@ export function mergeWorkspaceSavePointEntries({ localEntries = [], gitEntries =
     merged.push(entry)
   }
 
-  for (const entry of gitEntries) {
+  for (const entry of incomingEntries) {
     const key = buildWorkspaceSavePointKey(entry)
     if (seen.has(key)) continue
     seen.add(key)
@@ -190,7 +190,7 @@ export function createWorkspaceLocalSnapshotStoreRuntime({
       .filter(Boolean)
     const nextEntries = mergeWorkspaceSavePointEntries({
       localEntries: current,
-      gitEntries: incoming,
+      incomingEntries: incoming,
     })
     await writeWorkspaceSavePointIndex({
       workspaceDataDir,

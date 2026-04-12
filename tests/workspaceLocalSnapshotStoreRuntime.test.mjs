@@ -78,7 +78,7 @@ test('workspace local snapshot store records and reloads workspace save points f
   assert.deepEqual(loaded, [recorded])
 })
 
-test('workspace local snapshot store keeps only workspace-scoped save points and prefers local entries over duplicate git fallbacks', () => {
+test('workspace local snapshot store keeps only workspace-scoped save points and prefers local entries over duplicate incoming fallbacks', () => {
   assert.equal(
     createLocalWorkspaceSavePointRecord({
       snapshot: {
@@ -106,11 +106,11 @@ test('workspace local snapshot store keeps only workspace-scoped save points and
   })
   const merged = mergeWorkspaceSavePointEntries({
     localEntries: [localEntry],
-    gitEntries: [
+    incomingEntries: [
       {
-        id: 'git:workspace123',
-        backend: 'git',
-        sourceKind: 'git-commit',
+        id: 'imported:workspace123',
+        backend: 'imported',
+        sourceKind: 'workspace-save-point',
         sourceId: 'workspace123',
         scope: 'workspace',
         filePath: '',
@@ -126,9 +126,9 @@ test('workspace local snapshot store keeps only workspace-scoped save points and
         },
       },
       {
-        id: 'git:workspace456',
-        backend: 'git',
-        sourceKind: 'git-commit',
+        id: 'imported:workspace456',
+        backend: 'imported',
+        sourceKind: 'workspace-save-point',
         sourceId: 'workspace456',
         scope: 'workspace',
         filePath: '',
@@ -149,9 +149,9 @@ test('workspace local snapshot store keeps only workspace-scoped save points and
   assert.deepEqual(merged, [
     localEntry,
     {
-      id: 'git:workspace456',
-      backend: 'git',
-      sourceKind: 'git-commit',
+      id: 'imported:workspace456',
+      backend: 'imported',
+      sourceKind: 'workspace-save-point',
       sourceId: 'workspace456',
       scope: 'workspace',
       filePath: '',
@@ -169,7 +169,7 @@ test('workspace local snapshot store keeps only workspace-scoped save points and
   ])
 })
 
-test('workspace local snapshot store can backfill manifest-backed git save points into the local index', async () => {
+test('workspace local snapshot store can backfill manifest-backed save points into the local index', async () => {
   const files = new Map()
   const runtime = createWorkspaceLocalSnapshotStoreRuntime({
     readFileImpl: async (path) => {
@@ -188,9 +188,9 @@ test('workspace local snapshot store can backfill manifest-backed git save point
     workspaceDataDir: '/workspace/.altals',
     snapshots: [
       {
-        id: 'git:workspace456',
-        backend: 'git',
-        sourceKind: 'git-commit',
+        id: 'imported:workspace456',
+        backend: 'imported',
+        sourceKind: 'workspace-save-point',
         sourceId: 'workspace456',
         scope: 'workspace',
         filePath: '',

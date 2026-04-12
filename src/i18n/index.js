@@ -25,8 +25,8 @@ const ZH_MESSAGES = {
   'Investigate websites and online sources': '检索网页和在线来源。',
   'Clean up metadata, duplicates, and citation readiness': '整理元数据、重复项和引用可用性。',
   'Compile assistant': '编译助手',
-  'Diagnose the current TeX / Typst document': '诊断当前 TeX / Typst 文档。',
-  'Inspect LaTeX or Typst compile problems': '检查 LaTeX 或 Typst 的编译问题。',
+  'Diagnose the current LaTeX document': '诊断当前 LaTeX 文档。',
+  'Inspect LaTeX compile problems': '检查 LaTeX 的编译问题。',
   'Document run': '文档运行',
   'No document selected': '未选择文档',
   'Untitled document': '未命名文档',
@@ -50,17 +50,14 @@ const ZH_MESSAGES = {
   'Use this file as the primary context.': '把这个文件作为主要上下文。',
   'Use the current workspace as the primary context and browse related files when needed.':
     '把当前工作区作为主要上下文，并在需要时浏览相关文件。',
-  GitHub: 'GitHub',
   System: '系统',
   Usage: '用量',
   Updates: '更新',
   'Behavior and display preferences for the text editor.': '文本编辑器的行为和显示偏好。',
   Appearance: '外观',
   'PDF Viewer': 'PDF 查看器',
-  'Tooling Status': '工具状态',
-  'Built in': '内建',
-  'Choose the default reading and drafting face for prose documents.':
-    '选择正文阅读和起草时默认使用的字体。',
+  'Choose the default reading and drafting face for Markdown documents.':
+    '选择 Markdown 文档默认使用的阅读和起草字体。',
   'Save changes automatically while you work in the current project.':
     '在当前项目中编辑时自动保存改动。',
   'Wrap long lines in the editor instead of scrolling horizontally.':
@@ -68,22 +65,19 @@ const ZH_MESSAGES = {
   'Preferred line width': '首选行宽',
   'Used when soft wrap is enabled for long-form writing layouts.':
     '在启用自动换行时，用作长文写作的默认行宽。',
-  'Underline spelling issues while drafting in supported editors.':
-    '在支持的编辑器里为拼写问题加下划线。',
-  'Refresh Typst output after each save in projects that use Typst.':
-    '在使用 Typst 的项目里，每次保存后刷新输出。',
-  'Apply Typst formatting automatically when the document is saved.':
-    '保存文档时自动应用 Typst 格式化。',
-  'Show inline hints from the Typst language service while editing.':
-    '编辑时显示 Typst 语言服务的内联提示。',
-  'Build LaTeX output automatically after saving supported documents.':
-    '保存支持的文档后自动构建 LaTeX 输出。',
+  'Underline spelling issues while drafting in Markdown documents.':
+    '在 Markdown 文档写作时为拼写问题加下划线。',
+  'Build LaTeX output automatically after saving .tex documents.':
+    '保存 .tex 文档后自动构建 LaTeX 输出。',
   'Apply configured LaTeX formatting automatically on save.':
     '保存时自动应用已配置的 LaTeX 格式化。',
   'Tint embedded PDF pages to better match the active application theme.':
     '让嵌入的 PDF 页面更贴合当前应用主题。',
   'Tooling has not been checked in this session yet.': '本次会话里还没有检查工具链。',
-  'Re-scan system tools and installed compilers.': '重新扫描系统工具和已安装的编译器。',
+  'Re-scan LaTeX tools installed on this Mac.': '重新扫描这台 Mac 上安装的 LaTeX 工具。',
+  'LaTeX Tooling': 'LaTeX 工具链',
+  'Active compiler': '当前编译器',
+  'System check': '系统检查',
   'Pick the preferred backend for LaTeX projects.': '为 LaTeX 项目选择首选后端。',
   'Used when the selected compiler supports engine selection.': '当所选编译器支持引擎选择时使用。',
   'Choose the command sequence used for LaTeX builds.': '选择用于 LaTeX 构建的命令方案。',
@@ -94,14 +88,6 @@ const ZH_MESSAGES = {
     '下载 Tectonic，以便在不依赖完整 TeX 发行版的情况下运行 LaTeX。',
   'Optional linter used for LaTeX diagnostics.': '用于 LaTeX 诊断的可选检查器。',
   'Optional formatter used for LaTeX format on save.': '用于 LaTeX 保存时格式化的可选格式化工具。',
-  'The Typst compiler is available for live preview and export.':
-    'Typst 编译器已可用于实时预览和导出。',
-  'Download Typst to enable document builds and native preview.':
-    '下载 Typst 以启用文档构建和原生预览。',
-  'Language service is available for Typst diagnostics and editor assistance.':
-    '语言服务已可用于 Typst 诊断和编辑辅助。',
-  'Download Tinymist to enable advanced Typst language features.':
-    '下载 Tinymist 以启用更完整的 Typst 语言特性。',
   'Auto Save': '自动保存',
   'Writing font': '写作字体',
   'Font for Markdown files. Other files use monospace editor font.':
@@ -148,8 +134,6 @@ const ZH_MESSAGES = {
   'Saved versions': '已保存版本',
   'Add save point': '新增保存点',
   'Save point added': '已新增保存点',
-  'Added a local workspace save point without new file changes.':
-    '已新增一个本地工作区保存点，没有生成新的文件改动。',
   'Added a new workspace save point to Saved Versions.': '已把新的工作区保存点加入已保存版本。',
   'Nothing new to save': '没有新的内容可保存',
   'There were no file changes to capture for a new workspace save point.':
@@ -159,27 +143,14 @@ const ZH_MESSAGES = {
     '这次 Altals 无法创建新的工作区保存点。',
   'Delete this save point': '删除这个保存点',
   'Delete save point': '删除保存点',
-  'Delete the local workspace save point from {date}? This removes it from Altals.':
-    '要删除 {date} 的本地工作区保存点吗？这会把它从 Altals 里移除。',
-  'Delete the selected save point from Saved Versions? This removes it from Altals without rewriting Git history.':
-    '要从已保存版本里删除这个保存点吗？这只会把它从 Altals 里移除，不会改写 Git 历史。',
+  'Delete the save point from {date}? This removes it from Altals local history.':
+    '要删除 {date} 的保存点吗？这会把它从 Altals 的本地历史里移除。',
   'Could not delete save point': '无法删除保存点',
   'Altals could not remove the selected save point from this history list.':
     'Altals 无法从这个历史列表里移除所选保存点。',
   'Save point deleted': '保存点已删除',
-  'Deleted the local workspace save point from Altals.': '已从 Altals 删除这个本地工作区保存点。',
-  'Removed the selected save point from Altals Saved Versions without rewriting Git history.':
-    '已从 Altals 的已保存版本里移除所选保存点，没有改写 Git 历史。',
-  'Delete this version': '删除这个版本',
-  'Delete version': '删除版本',
-  'Delete the selected file history entry from Altals? This removes it from File Version History without rewriting Git history.':
-    '要从 Altals 删除这个文件历史条目吗？这只会把它从文件历史里移除，不会改写 Git 历史。',
-  'Could not delete version': '无法删除版本',
-  'Altals could not remove the selected file history entry from this history list.':
-    'Altals 无法从这个历史列表里移除所选文件历史条目。',
-  'Version deleted': '版本已删除',
-  'Removed the selected file history entry from Altals File Version History without rewriting Git history.':
-    '已从 Altals 的文件历史里移除所选条目，没有改写 Git 历史。',
+  'Removed the selected save point from Altals Saved Versions.':
+    '已从 Altals 的已保存版本里移除所选保存点。',
   "Don't Save": '不保存',
   Advanced: '高级',
   'Custom API endpoints for enterprise/private deployments': '为企业或私有部署自定义 API 地址',
@@ -221,13 +192,6 @@ const ZH_MESSAGES = {
   'Last detected this session': '本次会话已检测',
   'LaTeX Compiler': 'LaTeX 编译器',
   'Choose which compiler Altals uses for .tex files.': '选择 Altals 编译 .tex 文件时使用的编译器。',
-  'Typst Compiler': 'Typst 编译器',
-  'Compile .typ files with the local Typst CLI.': '使用本地 Typst CLI 编译 .typ 文件。',
-  'Compilation and editor tooling for .typ files.': '用于 .typ 文件的编译与编辑器支持。',
-  'Use the Typst CLI to compile .typ files directly to PDF.':
-    '通过 Typst CLI 直接把 .typ 文件编译成 PDF。',
-  'Typst compiles .typ files to PDF. A one-time download is required.':
-    'Typst 用于将 .typ 文件编译为 PDF，需要一次性下载。',
   Compiler: '编译器',
   'LaTeX Engine': 'LaTeX 引擎',
   'LaTeX Tools': 'LaTeX 工具',
@@ -247,9 +211,6 @@ const ZH_MESSAGES = {
   'Format on save': '保存时格式化',
   'LaTeX compile on save': 'LaTeX 保存时编译',
   'LaTeX format on save': 'LaTeX 保存时格式化',
-  'Typst compile on save': 'Typst 保存时编译',
-  'Typst format on save': 'Typst 保存时格式化',
-  'Typst inlay hints': 'Typst 内联提示',
   'Automatically compile the resolved root document after saving a LaTeX file.':
     '保存 LaTeX 文件后，自动编译解析出来的根文档。',
   'Automatically format LaTeX files with latexindent before saving when available.':
@@ -285,8 +246,6 @@ const ZH_MESSAGES = {
   'Insert Table': '插入表格',
   Draft: '预览',
   'Preview failed': '预览失败',
-  'Starting Typst preview…': '正在启动 Typst 预览…',
-  'Tinymist preview failed to start.': 'Tinymist 预览启动失败。',
   'Quick Fixes': '快速修复',
   Citation: '引用',
   Footnote: '脚注',
@@ -327,16 +286,6 @@ const ZH_MESSAGES = {
   'Named save point': '命名保存点',
   'Saved automatically through the normal save flow': '通过正常保存流程创建的保存点',
   'Saved locally without new file changes': '在没有新文件改动时本地创建的保存点',
-  'This browser lists workspace-level save points separately from File Version History.':
-    '这里单独列出工作区级保存点，不与文件版本历史混在一起。',
-  'Workspace save points are still Git-backed milestones, not a separate local snapshot backend.':
-    '这些工作区保存点目前仍然由 Git 支撑，还不是独立的本地 snapshot 后端。',
-  'Workspace save points use a local Altals index and reuse Git-backed milestones when available.':
-    '工作区保存点使用本地 Altals 索引，并在可用时复用底层的 Git 里程碑。',
-  'This save point was created locally without a new Git milestone because the workspace had no file changes.':
-    '这个保存点是在工作区没有新文件改动时本地创建的，因此没有额外生成新的 Git 里程碑。',
-  'Restore is not available here yet. Use File Version History for per-file restores.':
-    '这里暂时还不能直接恢复。按文件恢复请使用文件版本历史。',
   'Show problems': '展开问题',
   'Hide problems': '收起问题',
   'Hide errors': '收起错误',
@@ -347,7 +296,6 @@ const ZH_MESSAGES = {
   'No line info': '无行号',
   'Compilation failed — see Terminal.': '编译失败，请查看终端。',
   'Diagnostics are shown in Terminal.': '编译诊断已显示在终端中。',
-  'Tinymist is not available for navigation.': 'Tinymist 当前不可用于导航。',
   'Could not open {location}.': '无法打开 {location}。',
   'No definition found.': '没有找到定义。',
   'Multiple definitions found. Opened {location}.': '找到了多个定义，已打开 {location}。',
@@ -372,54 +320,13 @@ const ZH_MESSAGES = {
   'PDF compilation for LaTeX requires Tectonic, a modern TeX engine. One-time ~15MB download.':
     'LaTeX 导出 PDF 需要 Tectonic，这是一款现代 TeX 引擎。首次下载约 15MB。',
   'Download Tectonic': '下载 Tectonic',
-  'Download Typst': '下载 Typst',
   'Reload PDF': '重新加载 PDF',
   'Reload Preview': '重新加载预览',
   Retry: '重试',
-  Repository: '仓库',
   Disconnect: '断开连接',
-  'Switch Account': '切换账号',
-  'Switching account...': '切换账号中...',
-  'Git is not installed. Install Git, then retry GitHub sync.':
-    'Git 未安装。安装 Git 后再重试 GitHub 同步。',
-  Unlink: '取消关联',
-  'Sync Now': '立即同步',
-  'Create New Repository': '创建新仓库',
-  'Create a new GitHub repo and link it to this workspace':
-    '创建一个新的 GitHub 仓库并关联到当前工作区',
-  'Private repository': '私有仓库',
-  'Creating...': '创建中...',
-  'Create & Link': '创建并关联',
-  'Link Existing Repository': '关联现有仓库',
-  'Connect this workspace to one of your GitHub repos': '将当前工作区关联到你已有的 GitHub 仓库',
-  'Loading repositories...': '正在加载仓库...',
-  'No repositories found.': '没有找到仓库。',
-  private: '私有',
-  'Connect your GitHub account to sync this workspace to a repository.':
-    '连接你的 GitHub 账号后，当前工作区就可以同步到仓库。',
-  'Altals uses an official GitHub authorization page. Most users do not need to change anything here.':
-    'Altals 会打开官方 GitHub 授权页。大多数用户不需要修改这里的任何设置。',
-  'Auth service': '授权服务',
-  'Override Auth Service URL': '覆盖授权服务地址',
-  'Only change this if you are developing Altals locally or using a self-hosted auth bridge.':
-    '只有在本地开发 Altals，或你自己托管了授权桥接服务时，才需要修改这里。',
-  'Save Auth Service URL': '保存授权服务地址',
-  'Leave blank to use the built-in default auth service.': '留空则使用应用内置的默认授权服务。',
   'Connecting...': '连接中...',
-  'Connect GitHub Account': '连接 GitHub 账号',
-  'A browser window will open. Authorize the app on GitHub, then return to Altals.':
-    '会打开一个浏览器窗口。在 GitHub 上授权后返回 Altals 即可。',
-  'Or use a Personal Access Token': '或使用 Personal Access Token',
-  'Create a token at GitHub Settings → Developer Settings → Personal Access Tokens with':
-    '可在 GitHub Settings → Developer Settings → Personal Access Tokens 中创建一个具有',
-  'scope.': '权限范围的令牌。',
   Connect: '连接',
-  'GitHub sign-in is not configured in this build yet. Please use a release with a configured auth service, or connect with a Personal Access Token.':
-    '这个构建里还没有配置 GitHub 登录服务。请使用已经配置好授权服务的发行版，或改用 Personal Access Token 连接。',
   'Connection timed out. Please try again.': '连接超时，请重试。',
-  'Invalid token': '无效的令牌',
-  'Failed to load repos': '加载仓库失败',
-  Synced: '已同步',
   'Synced {when}': '{when}已同步',
   'Syncing...': '同步中...',
   'Conflict - saved to branch {branch}': '发生冲突，已保存到分支 {branch}',
@@ -447,14 +354,10 @@ const ZH_MESSAGES = {
   'Actual charges may differ significantly. Check provider dashboards.':
     '实际收费可能与估算差异较大，请以提供商后台为准。',
   'Show billing in footer': '在底栏显示费用信息',
-  'Automatic updates are disabled in this local build. Use the GitHub releases page when you want to download a newer version.':
-    '这个本地构建已禁用自动更新。如需下载新版本，请使用 GitHub Releases 页面。',
+  'Automatic updates are disabled in this local build. Use the releases page when you want to download a newer version.':
+    '这个本地构建已禁用自动更新。如需下载新版本，请打开发布页面。',
   'Open Releases': '打开 Releases',
   'Open Folder': '打开文件夹',
-  'Clone Repository': '克隆仓库',
-  'Open a folder to get started, or clone an existing project.':
-    '打开一个文件夹开始使用，或克隆一个已有项目。',
-  Clone: '克隆',
   Recent: '最近',
   'Remove from recent': '从最近列表移除',
   'Connect a provider to use AI features': '连接提供商以启用 AI 功能',
@@ -466,9 +369,10 @@ const ZH_MESSAGES = {
   'You can configure this any time in Settings': '你可以随时在设置里配置',
   Continue: '继续',
   'Choose a theme': '选择主题',
-  'Choose a theme for your writing workspace': '为你的写作工作台选择主题',
-  'This trimmed build focuses on Markdown, LaTeX, and Typst only.':
-    '这个精简版只保留 Markdown、LaTeX 和 Typst。',
+  'Choose a theme for your Markdown and LaTeX workspace':
+    '为你的 Markdown 和 LaTeX 工作台选择主题',
+  'This build focuses on local Markdown and LaTeX writing.':
+    '这个版本专注于本地 Markdown 和 LaTeX 写作。',
   'You can change this any time in Settings': '你随时都可以在设置中修改',
   'You can change this any time in Settings.': '你随时都可以在设置中修改。',
   Light: '浅色',
@@ -532,8 +436,6 @@ const ZH_MESSAGES = {
     '这些文件有未保存的更改，关闭分栏时会一并关闭。',
   'These files have unsaved changes and will be closed with the workspace.':
     '这些文件有未保存的更改，关闭工作区时会一并关闭。',
-  'File Version History is not available for the home folder.': '主目录工作区不支持文件版本历史。',
-  'Failed to initialize File Version History: {error}': '初始化文件版本历史失败：{error}',
   'Initial history': '初始历史记录',
   'Cancel suggestion': '取消建议',
   'Pending Changes': '待处理修改',
@@ -545,38 +447,16 @@ const ZH_MESSAGES = {
   'Estimated API cost this month - check provider dashboards for actual charges':
     '本月 API 费用估算，实际收费请以提供商后台为准',
   '{cost} this month': '本月 {cost}',
-  'GitHub Sync': 'GitHub 同步',
   'Last sync': '上次同步',
   Reconnect: '重新连接',
-  "Your local changes and GitHub are out of sync. We've saved your version to {branch}.":
-    '你的本地修改与 GitHub 上的版本不同步。你的版本已安全保存到 {branch}。',
-  'Resolve on GitHub, then click Refresh.': '请先在 GitHub 上处理，然后点击刷新。',
-  'Open GitHub': '打开 GitHub',
   Refresh: '刷新',
-  'Up to date': '已是最新',
-  'Needs your input': '需要你处理',
   'Needs attention': '需要关注',
-  Connected: '已连接',
-  'No repository linked': '未关联仓库',
-  'Your GitHub connection has expired.': '你的 GitHub 连接已过期。',
-  "Can't reach GitHub right now. Will retry automatically.":
-    '当前无法连接 GitHub，稍后会自动重试。',
-  'Something went wrong. Sync will retry automatically.': '发生了一些问题，同步会自动重试。',
-  'Backed up': '已备份',
   'Saving...': '保存中...',
   'Sync issue': '同步异常',
-  'Synced with GitHub': '已与 GitHub 同步',
-  'Syncing with GitHub...': '正在与 GitHub 同步...',
-  'GitHub sync finished': 'GitHub 同步已完成',
   'Sync conflict needs attention': '同步冲突需要处理',
   'Needs your input - click for details': '需要你处理，点击查看详情',
   'Needs attention - click for details': '需要关注，点击查看详情',
-  'GitHub: connected': 'GitHub：已连接',
-  'GitHub: not connected': 'GitHub：未连接',
-  'Your changes conflict with updates on GitHub. Click to resolve.':
-    '你的修改与 GitHub 上的更新发生冲突，点击即可处理。',
   Resolve: '处理',
-  'GitHub connection expired. Reconnect in Settings.': 'GitHub 连接已过期，请在设置中重新连接。',
   Details: '详情',
   'Sync failed. Click for details.': '同步失败，点击查看详情。',
   'Name this version': '为这个版本命名',
@@ -588,14 +468,9 @@ const ZH_MESSAGES = {
   Save: '保存',
   'Could not open the save dialog.': '无法打开保存对话框。',
   'Save the draft inside the current workspace.': '请将草稿保存在当前工作区内。',
-  'Your changes conflict with updates on GitHub': '你的修改与 GitHub 上的更新发生冲突',
   'Your version has been safely saved to': '你的版本已经安全保存到',
   'a separate branch': '一个独立分支',
-  'nothing is lost. Open GitHub to compare and merge, then click Refresh.':
-    '，内容不会丢失。请在 GitHub 上比较并合并，然后点击刷新。',
   'What happened?': '发生了什么？',
-  "Someone else (or you, on another device) pushed changes while you were editing. Git can't automatically combine both versions, so we pushed your work to a safe branch. You can compare both versions on GitHub and choose what to keep.":
-    '当你在编辑时，其他人（或你在另一台设备上）把修改推到了远端。Git 无法自动合并两个版本，所以我们把你的工作安全地推送到了一个独立分支。你可以在 GitHub 上比较两个版本，再决定保留哪些内容。',
   'Checking...': '检查中...',
   Dismiss: '关闭',
   'Open Folder...': '打开文件夹...',
@@ -626,20 +501,11 @@ const ZH_MESSAGES = {
     '从 r-project.org 安装后，在 R 中执行：install.packages("IRkernel"); IRkernel::installspec()',
   'Install from julialang.org, then in Julia: using Pkg; Pkg.add("IJulia")':
     '从 julialang.org 安装后，在 Julia 中执行：using Pkg; Pkg.add("IJulia")',
-  'Markdown, LaTeX, and Typst in one local workspace.':
-    'Markdown、LaTeX 与 Typst，被整合进同一个本地工作区。',
-  'Clone into...': '克隆到...',
+  'Markdown and LaTeX in one local workspace.':
+    'Markdown 与 LaTeX，被整合进同一个本地工作区。',
   'Open Workspace': '打开工作区',
   'Failed to open workspace: {error}': '打开工作区失败：{error}',
-  'Connect GitHub': '连接 GitHub',
-  'Link Repository': '关联仓库',
-  'Failed to link repository': '关联仓库失败',
-  'Failed to initialize a local Git repository for this workspace.':
-    '当前工作区初始化本地 Git 仓库失败。',
-  'Linking repository...': '正在关联仓库...',
-  'Repository linked': '仓库已关联',
   'All saved (no changes)': '全部已保存（没有新改动）',
-  'Saved (commit failed)': '已保存（提交失败）',
   'Save: {ts}': '保存：{ts}',
   'New Tab': '新建标签页',
   'Run selection or line ({shortcut})': '运行选中内容或当前行 ({shortcut})',
@@ -654,7 +520,6 @@ const ZH_MESSAGES = {
   'PDF export settings': 'PDF 导出设置',
   Markdown: 'Markdown',
   LaTeX: 'LaTeX',
-  Typst: 'Typst',
   'Open output': '打开输出',
   'Sync Models': '同步模型',
   'Syncing models...': '正在同步模型...',
@@ -950,7 +815,6 @@ const ZH_MESSAGES = {
   'Translation completed': '翻译完成',
   'Starting translation for {name}': '开始翻译 {name}',
   'Compiling...': '编译中...',
-  'Compile Typst': '编译 Typst',
   Compiled: '已编译',
   Compile: '编译',
   'Compile LaTeX': '编译 LaTeX',
@@ -959,6 +823,8 @@ const ZH_MESSAGES = {
   'Sync to PDF position': '同步到 PDF 位置',
   'Open Settings to install Tectonic': '打开设置以安装 Tectonic',
   'Open Settings to configure LaTeX compiler': '打开设置以配置 LaTeX 编译器',
+  'Altals icon': 'Altals 图标',
+  'Altals mark': 'Altals 标记',
   Launcher: '启动器',
   Project: '项目',
   'Project navigation': '项目导航',
@@ -974,11 +840,29 @@ const ZH_MESSAGES = {
   'Recent documents': '最近文档',
   'Return to the files you opened or edited most recently.': '回到最近打开或编辑过的文档。',
   'Document formats': '文档格式',
-  'This workspace now focuses on the three core document formats.':
-    '这个工作区现在聚焦在三种核心文档格式上。',
-  'New document': '新建文档',
+  'This workspace now focuses on Markdown and LaTeX workflows.':
+    '这个工作区现在聚焦在 Markdown 和 LaTeX 工作流上。',
+  'New draft': '新建草稿',
+  'Choose Markdown or LaTeX': '选择 Markdown 或 LaTeX',
+  'Start with a note or article shell in this pane.':
+    '在当前面板里从笔记模板或文章骨架开始。',
   'Create file': '新建文件',
   'Markdown documents': 'Markdown 文档',
+  'Ready to start': '准备开始',
+  'Open a folder to start': '先打开文件夹',
+  'Markdown note': 'Markdown 笔记',
+  'Quick notes, reading summaries, and lightweight drafts.':
+    '适合快速笔记、阅读摘要和轻量草稿。',
+  'LaTeX article': 'LaTeX 文章',
+  'Article-style manuscript with title block and document shell.':
+    '带标题信息和文档骨架的文章型稿件。',
+  'Altals works with local project folders. Open one first, then create a Markdown note or LaTeX draft.':
+    'Altals 以本地项目文件夹为单位工作。先打开一个文件夹，再创建 Markdown 笔记或 LaTeX 草稿。',
+  'Then create': '然后创建',
+  'Markdown and LaTeX writing for local project folders.':
+    '面向本地项目文件夹的 Markdown 与 LaTeX 写作。',
+  'LaTeX compilers, downloads, and system checks.':
+    '管理 LaTeX 编译器、下载项和系统检查。',
   Background: '后台',
   Waiting: '等待中',
   Completed: '已完成',
@@ -1011,7 +895,6 @@ const ZH_MESSAGES = {
   'Delete {count} items?': '删除 {count} 个项目？',
   'Delete {count} selected': '删除已选的 {count} 项',
   'Version History': '版本历史',
-  'File Version History': '文件版本历史',
   'Reveal in Finder': '在 Finder 中显示',
   'Show in Explorer': '在资源管理器中显示',
   'Open in File Manager': '在文件管理器中打开',
@@ -1232,7 +1115,6 @@ const ZH_MESSAGES = {
   'Reveal Source': '定位到源文件',
   'Select All': '全选',
   'Close (Esc)': '关闭 (Esc)',
-  'File Version History: {fileName}': '文件版本历史：{fileName}',
   'Loading...': '加载中...',
   'No history yet': '还没有历史记录',
   'Loading preview...': '正在加载预览...',
@@ -1244,8 +1126,6 @@ const ZH_MESSAGES = {
   'Version preview is not available for this file type.': '这种文件类型暂不支持版本预览。',
   'This saved version is not previewable from file history.':
     '这个保存版本无法在文件历史视图中预览。',
-  'Workspace-level save points remain Git-backed, but this view only restores file-level history.':
-    '工作区级保存点仍然是 Git 驱动的，但这个视图只恢复文件级历史。',
   'DOCX files remain in history, but Altals no longer previews or restores them.':
     'DOCX 文件仍会保留在历史记录里，但 Altals 不再预览或恢复它们。',
   'Confirm Restore': '确认恢复',
@@ -1261,7 +1141,6 @@ const ZH_MESSAGES = {
   Code: '代码',
   'Refresh preview': '刷新预览',
   'Rendering...': '渲染中...',
-  'Typst compiler not available yet.': 'Typst 编译器暂不可用。',
   'Could not load rendered file: {path}': '无法加载渲染后的文件：{path}',
   'Reset to actual size': '恢复到实际大小',
   'Loading image...': '正在加载图片...',
@@ -1272,7 +1151,6 @@ const ZH_MESSAGES = {
   'Compiling…': '编译中…',
   'Tectonic is disabled. Enable it in Settings.': 'Tectonic 已禁用，请在设置中启用。',
   'No PDF yet — click Compile in the .tex tab': '还没有 PDF，请在 .tex 标签页点击编译。',
-  'No PDF yet — click Compile in the .typ tab': '还没有 PDF，请在 .typ 标签页点击编译。',
   'Add text node': '添加文本节点',
   'Add prompt node': '添加提示节点',
   'Add label': '添加标签',
@@ -1379,7 +1257,7 @@ const ZH_MESSAGES = {
   'Code assistant': '代码助手',
   'Workspace explorer': '工作区探索',
   'Feedback assistant': '反馈助手',
-  'Fix TeX / Typst': '修复 TeX / Typst',
+  'Fix LaTeX': '修复 LaTeX',
   'Describe dataset': '描述数据集',
   'Delete chat': '删除聊天',
   'AI task': 'AI 任务',
@@ -1388,7 +1266,7 @@ const ZH_MESSAGES = {
   'Research task': '研究任务',
   'Review task': '审查任务',
   'Code task': '代码任务',
-  'TeX / Typst fixer': 'TeX / Typst 修复任务',
+  'LaTeX fixer': 'LaTeX 修复任务',
   'Workflow draft': '工作流草稿',
   'Workflow planned': '工作流已计划',
   'Workflow running': '工作流运行中',
@@ -1444,11 +1322,11 @@ const ZH_MESSAGES = {
   'Auto-runs a structured PDF summary without pausing for approval.':
     '自动完成结构化 PDF 总结，无需暂停确认。',
   'Workflow · compile diagnosis': '工作流 · 编译诊断',
-  'Auto-runs compile diagnosis for the current TeX or Typst file without editing it.':
-    '自动对当前 TeX 或 Typst 文件执行编译诊断，不直接修改文件。',
+  'Auto-runs compile diagnosis for the current LaTeX file without editing it.':
+    '自动对当前 LaTeX 文件执行编译诊断，不直接修改文件。',
   'Workflow · compile fix approval': '工作流 · 编译修复确认',
-  'Auto-runs compile diagnosis, then pauses for patch approval before editing the TeX or Typst file.':
-    '自动完成编译诊断，并在修改 TeX 或 Typst 文件前暂停进行补丁确认。',
+  'Auto-runs compile diagnosis, then pauses for patch approval before editing the LaTeX file.':
+    '自动完成编译诊断，并在修改 LaTeX 文件前暂停进行补丁确认。',
   'Workflow · {approval}': '工作流 · {approval}',
   'Workflow · auto-runs': '工作流 · 自动运行',
   'More context': '更多上下文',
@@ -1458,7 +1336,7 @@ const ZH_MESSAGES = {
   'Debug current code': '调试当前代码',
   'Inspect current notebook': '检查当前笔记本',
   'Summarize current PDF': '总结当前 PDF',
-  'Fix TeX / Typst compile issues': '修复 TeX / Typst 编译问题',
+  'Fix LaTeX compile issues': '修复 LaTeX 编译问题',
   'Read context': '读取上下文',
   'Analyze goal': '分析目标',
   'Generate review': '生成审阅结果',
@@ -1508,16 +1386,16 @@ const ZH_MESSAGES = {
   'Produce a structured summary of the PDF.': '生成结构化 PDF 总结。',
   'Summarize the reading output and suggest the next follow-up actions.':
     '汇总阅读结果并建议下一步跟进动作。',
-  'Read the current TeX or Typst source and compile context.':
-    '读取当前 TeX 或 Typst 源文件及编译上下文。',
+  'Read the current LaTeX source and compile context.':
+    '读取当前 LaTeX 源文件及编译上下文。',
   'Analyze compile diagnostics and identify the highest-priority issues.':
     '分析编译诊断并识别优先级最高的问题。',
   'Summarize the compile diagnosis and the next recommended action.':
     '汇总编译诊断以及下一步推荐动作。',
   'Prepare the smallest safe patch for the detected compile issues.':
     '为检测到的编译问题准备最小且安全的补丁。',
-  'Pause before applying TeX / Typst edits and wait for approval.':
-    '在应用 TeX / Typst 修改前暂停，并等待确认。',
+  'Pause before applying LaTeX edits and wait for approval.':
+    '在应用 LaTeX 修改前暂停，并等待确认。',
   'Summarize the diagnosis, proposed edits, and remaining blockers.':
     '汇总诊断、建议修改和剩余阻塞点。',
   'Await approval': '等待确认',
@@ -1547,8 +1425,8 @@ const ZH_MESSAGES = {
     '已提取 PDF 的研究问题、方法、证据和关键结论。',
   'Generated a structured PDF summary that is ready for follow-up questions.':
     '已生成结构化 PDF 总结，可以继续追问细节。',
-  'Generated a prioritized diagnosis of the current TeX / Typst compile issues.':
-    '已生成当前 TeX / Typst 编译问题的优先级诊断。',
+  'Generated a prioritized diagnosis of the current LaTeX compile issues.':
+    '已生成当前 LaTeX 编译问题的优先级诊断。',
   'Summarized the current workflow outcome and prepared the next follow-up actions.':
     '已汇总当前工作流结果，并准备好下一步跟进行动。',
   '{step} completed automatically.': '{step} 已自动完成。',
@@ -1568,8 +1446,8 @@ const ZH_MESSAGES = {
     '已基于当前笔记本上下文生成具体的分析或编辑建议。',
   'Structured PDF summary generated from the current paper context.':
     '已基于当前论文上下文生成结构化 PDF 总结。',
-  'Structured compile diagnosis generated for the current TeX / Typst file.':
-    '已为当前 TeX / Typst 文件生成结构化编译诊断。',
+  'Structured compile diagnosis generated for the current LaTeX file.':
+    '已为当前 LaTeX 文件生成结构化编译诊断。',
   'Workflow execution failed: {error}': '工作流执行失败：{error}',
   Warning: '警告',
   'Line {line}': '第 {line} 行',
@@ -1633,8 +1511,8 @@ const ZH_MESSAGES = {
     '请帮我检查工作区文件，梳理相关代码或笔记，并建议下一步安全操作。先问我想聚焦哪个文件或任务。',
   'Help me work through comments, feedback, or review threads. Ask which document or comment thread I want to address first.':
     '请帮我处理评论、反馈或审查线程。先问我想先处理哪份文档或哪条评论线程。',
-  'Help me diagnose a LaTeX or Typst compilation problem. Ask which source file or error log I want to inspect first.':
-    '请帮我诊断 LaTeX 或 Typst 的编译问题。先问我想检查哪个源文件或错误日志。',
+  'Help me diagnose a LaTeX compilation problem. Ask which source file or error log I want to inspect first.':
+    '请帮我诊断 LaTeX 的编译问题。先问我想检查哪个源文件或错误日志。',
   'Inspect the notebook at {path}. Start by reading its cells and outputs, then help with analysis, debugging, or edits using notebook tools when appropriate.':
     '请检查位于 {path} 的笔记本。先读取它的单元格和输出，然后根据需要帮助我做分析、调试或修改，并在合适时使用笔记本工具。',
   'Inspect the notebook at {path} for reproducibility risks, hidden state, missing dependencies, and unclear execution steps. Start by reading the notebook cells and outputs.':
@@ -1724,7 +1602,7 @@ const ZH_MESSAGES = {
   'Local only': '仅本地',
   'Uses external sources': '使用外部来源',
   'Diagnose with AI': '用 AI 诊断',
-  'Compile a TeX / Typst source and return diagnostics': '编译 TeX / Typst 源文件并返回诊断信息',
+  'Compile a LaTeX source and return diagnostics': '编译 LaTeX 源文件并返回诊断信息',
   '{count} replies': '{count} 条回复',
   'Edit suggested': '已建议修改',
   'Execute a safe workspace command': '执行安全的工作区命令',
@@ -1750,8 +1628,8 @@ const ZH_MESSAGES = {
   'Cell {index}': '单元 {index}',
   'Insert result': '插入结果',
   'Dismiss output': '关闭输出',
-  'Open a Markdown, LaTeX, or Typst manuscript to insert this result.':
-    '请先打开一个 Markdown、LaTeX 或 Typst 手稿，再插入这个结果。',
+  'Open a Markdown or LaTeX manuscript to insert this result.':
+    '请先打开一个 Markdown 或 LaTeX 手稿，再插入这个结果。',
   'This result does not contain an insertable image, table, or text output.':
     '这个结果里没有可插入的图片、表格或文本输出。',
   'Could not insert this result into the current manuscript.': '无法把这个结果插入当前手稿。',
@@ -1783,15 +1661,11 @@ const ZH_MESSAGES = {
     '这里会明确标出支持级别，让不稳定特性能在导出前就暴露出来。',
   Diff: '差异',
   Reject: '拒绝',
-  'Tinymist is not available for formatting.': 'Tinymist 当前不可用于格式化。',
   'No code actions could be applied at the current cursor location.':
     '当前光标位置没有可应用的代码动作。',
   'Applied code action to {count} file(s).': '已在 {count} 个文件中应用代码动作。',
   'Applied code action to {count} file(s), but skipped {skipped}.':
     '已在 {count} 个文件中应用代码动作，但跳过了 {skipped}。',
-  'Typst code action failed: {error}': 'Typst 代码动作失败：{error}',
-  'Typst formatting failed: {error}': 'Typst 格式化失败：{error}',
-  'Typst format on save failed: {error}': 'Typst 保存前格式化失败：{error}',
   'Compiler is not available': '编译器不可用',
   'Compile succeeded with no reported problems': '编译成功，未报告任何问题',
   'Compile succeeded with {count} warnings': '编译成功，但有 {count} 条警告',
@@ -1802,11 +1676,10 @@ const ZH_MESSAGES = {
   'Compile succeeded': '编译成功',
   'Compile failed': '编译失败',
   'LaTeX compile diagnosis': 'LaTeX 编译诊断',
-  'Typst compile diagnosis': 'Typst 编译诊断',
   'Compile target': '编译目标',
   Duration: '耗时',
-  'Fix this TeX / Typst source file with the smallest safe patch.':
-    '请用最小且安全的补丁修复这个 TeX / Typst 源文件。',
+  'Fix this LaTeX source file with the smallest safe patch.':
+    '请用最小且安全的补丁修复这个 LaTeX 源文件。',
   'Use the attached source file and the compile diagnosis below as your starting point.':
     '请以附带的源文件和下方的编译诊断作为起点。',
   'Apply the fix by editing the source file with the available workspace edit tools instead of only describing the change.':
@@ -1819,12 +1692,11 @@ const ZH_MESSAGES = {
     '完成修改前，请对同一个文件运行 `compile_document`，以验证修复结果。',
   'If the remaining issue needs a content decision or a larger restructure, stop and explain the blocker instead of guessing.':
     '如果剩余问题需要内容层面的决策或较大的结构调整，请停止猜测并明确说明阻塞点。',
-  'Only .tex and .typ files can be sent to the TeX / Typst fixer.':
-    '只有 `.tex` 和 `.typ` 文件可以发送给 TeX / Typst 修复助手。',
+  'Only .tex files can be sent to the LaTeX fixer.':
+    '只有 `.tex` 文件可以发送给 LaTeX 修复助手。',
   'No compile adapter is available for this file.': '当前文件没有可用的编译适配器。',
   'Compile diagnosis': '编译诊断',
   'No compile diagnostics were produced': '没有生成任何编译诊断信息',
-  Tinymist: 'Tinymist',
   'Heading levels': '标题层级',
   'Bold / italic': '粗体 / 斜体',
   Lists: '列表',
@@ -1850,8 +1722,6 @@ const ZH_MESSAGES = {
     '还没有安装 Tectonic，请到环境设置里下载。',
   'No LaTeX compiler found. Install System TeX or Tectonic in Environment settings.':
     '没有找到可用的 LaTeX 编译器，请在环境设置里安装系统 TeX 或 Tectonic。',
-  'Typst CLI not found. Install or download it in Environment settings.':
-    '没有找到 Typst CLI，请到环境设置里安装或下载。',
   Artifact: '产物',
   Artifacts: '产物',
   'Review artifact': '审查产物',
@@ -1875,8 +1745,6 @@ const ZH_MESSAGES = {
   'Add selection to project': '将所选项加入项目',
   'added after save point': '在保存点之后新增',
   'Added File Removal': '新增文件移除',
-  'Altals will open the official GitHub authorization page in your browser.':
-    'Altals 会在浏览器中打开 GitHub 官方授权页面。',
   applied: '已应用',
   'Applied the selected snapshot chunks to {path}.': '已将所选快照块应用到 {path}。',
   'Apply selected chunks': '应用所选块',
@@ -1901,7 +1769,6 @@ const ZH_MESSAGES = {
   'Current workspace comparison': '当前工作区对比',
   'Delete this chat permanently?': '要永久删除这个聊天吗？',
   'detected but not applied': '已检测到但未应用',
-  'Download Tinymist': '下载 Tinymist',
   'Edit file': '编辑文件',
   'Failed to apply the selected snapshot chunks.': '应用所选快照块失败。',
   'Failed to open workspace': '打开工作区失败',
@@ -1919,8 +1786,8 @@ const ZH_MESSAGES = {
   'missing from workspace': '工作区中缺失',
   modified: '已修改',
   'of {count}': '共 {count}',
-  'Older workspace save points may appear here without a local payload yet. Use File Version History for per-file restores.':
-    '较早的工作区保存点可能暂时还没有本地负载。按文件恢复请使用文件版本历史。',
+  'Older workspace save points may appear here without a local payload yet, so they cannot restore files.':
+    '较早的工作区保存点可能暂时还没有本地负载，因此还不能恢复文件。',
   'Open details': '打开详情',
   'Open latest chat': '打开最近聊天',
   'Opening {name}...': '正在打开 {name}...',
@@ -1939,8 +1806,8 @@ const ZH_MESSAGES = {
   'Removed {path} to match the selected save point.': '已移除 {path} 以匹配所选保存点。',
   'Removed {removedCount} added file(s) to match the selected workspace save point.':
     '已移除 {removedCount} 个新增文件以匹配所选工作区保存点。',
-  'Removing it here uses Altals file operations rather than Git checkout, and only affects the current project-text-set restore scope.':
-    '在这里移除会使用 Altals 的文件操作，而不是 Git checkout，并且只影响当前项目文本集的恢复范围。',
+  'Removing it here uses Altals file operations and only affects the current project-text-set restore scope.':
+    '在这里移除会使用 Altals 的文件操作，并且只影响当前项目文本集的恢复范围。',
   'Removing...': '移除中...',
   'Replaced text': '已替换文本',
   'Restore {count} captured file(s) from {date}? This overwrites the current contents of those files.':
@@ -1965,20 +1832,20 @@ const ZH_MESSAGES = {
   Sort: '排序',
   Split: '拆分',
   'Synced external workspace changes.': '已同步外部工作区更改。',
-  'The merged result below differs from the current workspace file and can be written back without using Git history.':
-    '下方合并结果与当前工作区文件不同，可以直接写回而无需使用 Git 历史。',
+  'The merged result below differs from the current workspace file and can be written back directly.':
+    '下方合并结果与当前工作区文件不同，可以直接写回。',
   'This file is currently inside the workspace save-point restore scope, but it did not exist when this save point was created.':
     '这个文件当前处于工作区保存点恢复范围内，但在创建该保存点时它并不存在。',
   'This file is currently missing from the workspace. Restoring the save point will recreate only the captured text content for it.':
     '这个文件当前在工作区中缺失。恢复该保存点只会为它重建已捕获的文本内容。',
-  'This save point can also remove current project-text files that were added after it was created, still without using Git checkout.':
-    '这个保存点还可以移除创建之后新增的当前项目文本文件，仍然无需使用 Git checkout。',
-  'This save point can restore its captured files through the local snapshot payload without rewinding Git history.':
-    '这个保存点可以通过本地快照负载恢复其已捕获文件，而无需回退 Git 历史。',
-  'This save point can restore the current project text set captured for the workspace, without rewinding Git history.':
-    '这个保存点可以恢复为工作区捕获的当前项目文本集，而无需回退 Git 历史。',
-  'This save point can restore the workspace text files Altals had loaded when it was created, without rewinding Git history.':
-    '这个保存点可以恢复创建时 Altals 已加载的工作区文本文件，而无需回退 Git 历史。',
+  'This save point can also remove current project-text files that were added after it was created.':
+    '这个保存点还可以移除创建之后新增的当前项目文本文件。',
+  'This save point can restore its captured files through the local snapshot payload.':
+    '这个保存点可以通过本地快照负载恢复其已捕获文件。',
+  'This save point can restore the current project text set captured for the workspace.':
+    '这个保存点可以恢复为工作区捕获的当前项目文本集。',
+  'This save point can restore the workspace text files Altals had loaded when it was created.':
+    '这个保存点可以恢复创建时 Altals 已加载的工作区文本文件。',
   'This save point recorded workspace payload coverage, but no files were captured for local restore. Check the skipped files list below.':
     '这个保存点记录了工作区负载覆盖范围，但没有捕获可用于本地恢复的文件。请查看下方跳过文件列表。',
   'This saved version does not have a local restore payload yet.':
@@ -1993,9 +1860,6 @@ const ZH_MESSAGES = {
   'Toggle spell check': '切换拼写检查',
   'Toggle themed PDF pages': '切换主题化 PDF 页面',
   'Toggle tool {name}': '切换工具 {name}',
-  'Toggle Typst compile on save': '切换 Typst 保存时编译',
-  'Toggle Typst format on save': '切换 Typst 保存时格式化',
-  'Toggle Typst inlay hints': '切换 Typst 内联提示',
   'Too large to capture as text': '体积过大，无法作为文本捕获',
   'too large to compare': '体积过大，无法比较',
   unchanged: '未变化',
@@ -2009,10 +1873,7 @@ const ZH_MESSAGES = {
   'Workspace ready': '工作区已就绪',
   'Workspace refresh failed. Some external changes may appear late.':
     '工作区刷新失败，部分外部更改可能会延迟显示。',
-  'Workspace save points now have a local Altals index while still pointing at Git-backed milestones underneath.':
-    '工作区保存点现在有本地 Altals 索引，但底层仍指向 Git 支撑的里程碑。',
   'Write file': '写入文件',
-  Git: 'Git',
 }
 
 function normalizeLocale(value = '') {

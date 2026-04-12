@@ -17,7 +17,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2"
-tauri-plugin-deep-link = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
@@ -34,7 +33,6 @@ flate2 = "1"
 dirs = "5"
 url = "2"
 percent-encoding = "2"
-git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2", "vendored-openssl", "https"] }
 shell-words = "1"
 tauri-plugin-clipboard-manager = "2"
 

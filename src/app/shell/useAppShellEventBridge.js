@@ -19,13 +19,11 @@ export function useAppShellEventBridge({
   searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
-  fileVersionHistoryVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
   createSnapshot,
   openWorkspaceSnapshots,
-  openFileVersionHistory,
 }) {
   function createDraftDocument(ext = '.md', options = {}) {
     const draftPath = filesStore.createDraftFile({
@@ -163,11 +161,6 @@ export function useAppShellEventBridge({
         event.preventDefault()
         return
       }
-      if (fileVersionHistoryVisible.value) {
-        fileVersionHistoryVisible.value = false
-        event.preventDefault()
-        return
-      }
       if (workspace.rightSidebarOpen) {
         workspace.closeRightSidebar()
         event.preventDefault()
@@ -210,12 +203,6 @@ export function useAppShellEventBridge({
   function handleToggleLeftSidebar() {
     if (!workspace.isOpen) return
     workspace.toggleLeftSidebar()
-  }
-
-  function handleOpenFileVersionHistoryEvent(event) {
-    const path = event.detail?.path
-    if (!path) return
-    openFileVersionHistory({ path })
   }
 
   function handleOpenWorkspaceSnapshotsEvent() {
@@ -264,7 +251,6 @@ export function useAppShellEventBridge({
     window.addEventListener('app:open-settings', handleOpenSettings)
     window.addEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.addEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
-    window.addEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 
   onUnmounted(() => {
@@ -281,6 +267,5 @@ export function useAppShellEventBridge({
     window.removeEventListener('app:open-settings', handleOpenSettings)
     window.removeEventListener('app:toggle-left-sidebar', handleToggleLeftSidebar)
     window.removeEventListener('app:open-workspace-snapshots', handleOpenWorkspaceSnapshotsEvent)
-    window.removeEventListener('open-file-version-history', handleOpenFileVersionHistoryEvent)
   })
 }

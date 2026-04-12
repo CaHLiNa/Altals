@@ -1,34 +1,8 @@
-import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n/index.js'
 import { useLatexStore } from '../stores/latex.js'
 import { useToastStore } from '../stores/toast.js'
-import { useTypstStore } from '../stores/typst.js'
 import { useUxStatusStore } from '../stores/uxStatus.js'
 import { useWorkspaceStore } from '../stores/workspace.js'
-
-const COMMAND_CACHE_MS = 5 * 60 * 1000
-const commandCache = new Map()
-
-async function resolveCommandAvailable(command) {
-  const cached = commandCache.get(command)
-  if (cached && Date.now() - cached.checkedAt < COMMAND_CACHE_MS) {
-    return cached.available
-  }
-
-  let available = false
-  try {
-    const path = await invoke('resolve_command_path', { command })
-    available = !!String(path || '').trim()
-  } catch {
-    available = false
-  }
-
-  commandCache.set(command, {
-    checkedAt: Date.now(),
-    available,
-  })
-  return available
-}
 
 function openSettingsFooterAction(section = 'environment') {
   return {
@@ -76,16 +50,4 @@ export async function ensureLatexCompileReady() {
   }
 
   return showBlockedFeedback('missing-latex', t('No LaTeX compiler found. Install System TeX or Tectonic in Environment settings.'))
-}
-
-export async function ensureTypstCompileReady() {
-  const typstStore = useTypstStore()
-  await typstStore.checkCompiler()
-  if (typstStore.available) return true
-  return showBlockedFeedback('missing-typst', t('Typst CLI not found. Install or download it in Environment settings.'))
-}
-
-export async function ensureGitHubSyncReady() {
-  if (await resolveCommandAvailable('git')) return true
-  return showBlockedFeedback('missing-git-sync', t('Git is not installed. Install Git, then retry GitHub sync.'))
 }

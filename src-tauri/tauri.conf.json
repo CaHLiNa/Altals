@@ -36,14 +36,5 @@
       "icons/icon.ico",
       "icons/icon.png"
     ]
-  },
-  "plugins": {
-    "deep-link": {
-      "desktop": {
-        "schemes": [
-          "altals"
-        ]
-      }
-    }
   }
 }

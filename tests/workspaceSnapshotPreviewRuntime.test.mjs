@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { createWorkspaceSnapshotPreviewRuntime } from '../src/domains/changes/workspaceSnapshotPreviewRuntime.js'
 
-test('workspace snapshot preview runtime summarizes current workspace file states without using git history', async () => {
+test('workspace snapshot preview runtime summarizes current workspace file states from local save-point payloads', async () => {
   const runtime = createWorkspaceSnapshotPreviewRuntime({
     payloadRuntime: {
       loadWorkspaceSnapshotPayloadManifest: async () => ({

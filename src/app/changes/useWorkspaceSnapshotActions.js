@@ -1,6 +1,5 @@
 import {
   createWorkspaceSnapshot,
-  openFileVersionHistoryBrowser,
 } from '../../domains/changes/workspaceSnapshot.js'
 
 export function useWorkspaceSnapshotActions({
@@ -9,39 +8,25 @@ export function useWorkspaceSnapshotActions({
   editorStore,
   toastStore,
   workspaceSnapshotBrowserVisible,
-  fileVersionHistoryVisible,
-  fileVersionHistoryFile,
   requestSnapshotLabelImpl = null,
   createWorkspaceSnapshotImpl = createWorkspaceSnapshot,
-  openFileVersionHistoryBrowserImpl = openFileVersionHistoryBrowser,
   t,
 }) {
   const defaultRequestSnapshotLabel =
     typeof requestSnapshotLabelImpl === 'function' ? requestSnapshotLabelImpl : null
 
-  function showHistoryUnavailable() {
-    toastStore.show(t('File Version History is not available for the home folder.'), {
-      type: 'warning',
-      duration: 5000,
-    })
-  }
-
-  function startAutoCommitIfNeeded() {
-    void workspace.startAutoCommit()
-  }
-
   async function createSnapshot({
     preferredSnapshotLabel = '',
     requestSnapshotLabel = defaultRequestSnapshotLabel,
-    allowLocalSavePointWhenUnchanged = false,
+    allowLocalSavePointWhenUnchanged = true,
     showNoChanges = () => {
       toastStore.show(t('All saved (no changes)'), {
         type: 'info',
         duration: 2500,
       })
     },
-    showCommitFailure = () => {
-      toastStore.show(t('Saved (commit failed)'), {
+    showSaveFailure = () => {
+      toastStore.show(t('Could not add save point'), {
         type: 'warning',
         duration: 3500,
       })
@@ -55,9 +40,7 @@ export function useWorkspaceSnapshotActions({
       requestSnapshotLabel,
       allowLocalSavePointWhenUnchanged,
       showNoChanges,
-      showCommitFailure,
-      onUnavailable: showHistoryUnavailable,
-      onAutoCommitEnabled: startAutoCommitIfNeeded,
+      showSaveFailure,
       t,
     })
   }
@@ -70,37 +53,8 @@ export function useWorkspaceSnapshotActions({
     workspaceSnapshotBrowserVisible.value = true
   }
 
-  function openFileVersionHistory(entry) {
-    openFileVersionHistoryBrowserImpl({
-      workspace,
-      filePath: entry.path,
-      onUnavailable: showHistoryUnavailable,
-      onAutoCommitEnabled: startAutoCommitIfNeeded,
-      onReady: (path) => {
-        fileVersionHistoryFile.value = path
-        fileVersionHistoryVisible.value = true
-      },
-      options: {
-        seedInitialCommit: true,
-        seedMessage: t('Initial history'),
-        enableAutoCommit: true,
-      },
-    }).catch((error) => {
-      toastStore.show(
-        t('Failed to initialize File Version History: {error}', {
-          error: error?.message || String(error || ''),
-        }),
-        {
-          type: 'error',
-          duration: 6000,
-        }
-      )
-    })
-  }
-
   return {
     createSnapshot,
     openWorkspaceSnapshots,
-    openFileVersionHistory,
   }
 }

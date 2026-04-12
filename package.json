@@ -36,7 +36,6 @@
     "@tabler/icons-vue": "^3.36.1",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-deep-link": "^2.4.7",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "codemirror": "^6.0.0",

@@ -19,24 +19,6 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">Git</div>
-            <div class="settings-row-hint">
-              {{
-                gitInstalled
-                  ? gitPath || 'git'
-                  : t('Git powers history, snapshots, and remote sync.')
-              }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <span class="settings-status-badge" :class="gitInstalled ? 'is-good' : 'is-muted'">
-              {{ gitInstalled ? t('Installed') : t('Not found') }}
-            </span>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX Compiler') }}</div>
             <div class="settings-row-hint">{{ t('Choose System TeX or Tectonic below.') }}</div>
           </div>
@@ -78,7 +60,7 @@
               {{
                 !toolingChecked
                   ? t('Tooling has not been checked in this session yet.')
-                  : t('Re-scan system tools and installed compilers.')
+                  : t('Re-scan LaTeX tools installed on this Mac.')
               }}
             </div>
           </div>
@@ -87,7 +69,6 @@
               variant="secondary"
               size="sm"
               :loading="
-                gitChecking ||
                 latexStore.checkingCompilers ||
                 typstStore.checkingCompiler ||
                 typstStore.downloading ||
@@ -97,7 +78,6 @@
               @click="redetectSystem"
             >
               {{
-                gitChecking ||
                 latexStore.checkingCompilers ||
                 typstStore.checkingCompiler ||
                 typstStore.downloading ||
@@ -358,7 +338,6 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import {
   LATEX_BUILD_RECIPE_OPTIONS,
   formatLatexBuildRecipeLabel,
@@ -374,9 +353,6 @@ const latexStore = useLatexStore()
 const tinymistStore = useTinymistStore()
 const typstStore = useTypstStore()
 const { t } = useI18n()
-const gitInstalled = ref(false)
-const gitPath = ref('')
-const gitChecking = ref(false)
 const toolingChecked = ref(false)
 
 const latexBuildRecipeOptions = computed(() =>
@@ -414,22 +390,8 @@ const buildRecipe = computed({
   set: (value) => latexStore.setBuildRecipe(value),
 })
 
-async function detectGit() {
-  if (gitChecking.value) return
-  gitChecking.value = true
-  try {
-    const resolved = await invoke('resolve_command_path', { command: 'git' }).catch(() => '')
-    gitPath.value = String(resolved || '').trim()
-    gitInstalled.value = !!gitPath.value
-    toolingChecked.value = true
-  } finally {
-    gitChecking.value = false
-  }
-}
-
 async function redetectSystem() {
   await Promise.all([
-    detectGit(),
     latexStore.checkCompilers(true),
     latexStore.checkTools(true),
     typstStore.checkCompiler(true),
@@ -459,7 +421,6 @@ function scheduleAfterFirstPaint(task) {
 function warmSystemChecks() {
   scheduleAfterFirstPaint(() =>
     Promise.all([
-      detectGit(),
       latexStore.checkCompilers(),
       latexStore.checkTools(),
       typstStore.checkCompiler(),

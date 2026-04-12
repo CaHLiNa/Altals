@@ -11,8 +11,6 @@ test('workspace snapshot actions open the workspace snapshot browser only for an
     editorStore: {},
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible,
-    fileVersionHistoryVisible: { value: false },
-    fileVersionHistoryFile: { value: '' },
     t: (value) => value,
   })
 
@@ -26,8 +24,6 @@ test('workspace snapshot actions open the workspace snapshot browser only for an
     editorStore: {},
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible,
-    fileVersionHistoryVisible: { value: false },
-    fileVersionHistoryFile: { value: '' },
     t: (value) => value,
   })
 
@@ -52,8 +48,6 @@ test('workspace snapshot actions return snapshot results and allow inline prompt
     },
     toastStore: { show() {} },
     workspaceSnapshotBrowserVisible: { value: false },
-    fileVersionHistoryVisible: { value: false },
-    fileVersionHistoryFile: { value: '' },
     createWorkspaceSnapshotImpl: async (input) => {
       calls.push(input)
       return expectedResult
@@ -66,7 +60,7 @@ test('workspace snapshot actions return snapshot results and allow inline prompt
     requestSnapshotLabel: null,
     allowLocalSavePointWhenUnchanged: true,
     showNoChanges: () => {},
-    showCommitFailure: () => {},
+    showSaveFailure: () => {},
   })
 
   assert.equal(defaultResult, expectedResult)
@@ -76,5 +70,5 @@ test('workspace snapshot actions return snapshot results and allow inline prompt
   assert.equal(calls[1].requestSnapshotLabel, null)
   assert.equal(calls[1].allowLocalSavePointWhenUnchanged, true)
   assert.equal(typeof calls[1].showNoChanges, 'function')
-  assert.equal(typeof calls[1].showCommitFailure, 'function')
+  assert.equal(typeof calls[1].showSaveFailure, 'function')
 })

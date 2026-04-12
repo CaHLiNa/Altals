@@ -53,14 +53,6 @@
           {{ t('Delete {count} selected', { count: selectedCount }) }}
         </div>
 
-        <template v-if="entry && !entry.is_dir">
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="$emit('file-version-history', entry)">
-            <IconClock :size="14" :stroke-width="1.5" />
-            {{ t('File Version History') }}
-          </div>
-        </template>
-
         <template v-if="entry">
           <div class="context-menu-separator"></div>
           <div class="context-menu-item" @click="$emit('reveal-in-finder', entry)">
@@ -83,7 +75,6 @@ import {
   IconPencil,
   IconCopy,
   IconTrash,
-  IconClock,
   IconExternalLink,
 } from '@tabler/icons-vue'
 import { isMac } from '../../platform'
@@ -100,7 +91,7 @@ const props = defineProps({
   selectedCount: { type: Number, default: 0 },
 })
 
-defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'file-version-history', 'reveal-in-finder'])
+defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'reveal-in-finder'])
 
 // Keep menu within viewport
 const menuStyle = computed(() => {

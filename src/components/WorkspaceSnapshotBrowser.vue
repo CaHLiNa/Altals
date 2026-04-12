@@ -123,9 +123,7 @@
                 {{
                   isNamedSnapshot(selectedSnapshot)
                     ? t('Named save point')
-                    : isLocalOnlySavePoint
-                      ? t('Saved locally without new file changes')
-                      : t('Saved automatically through the normal save flow')
+                    : t('Saved automatically through the normal save flow')
                 }}
               </div>
               <div v-if="selectedPayloadFileCount > 0" class="workspace-snapshot-meta">
@@ -159,23 +157,12 @@
             </div>
 
             <div class="workspace-snapshot-note">
-              {{
-                t(
-                  'This browser lists workspace-level save points separately from File Version History.'
-                )
-              }}
+              {{ t('This browser lists workspace-level save points captured by Altals.') }}
             </div>
             <div class="workspace-snapshot-note">
               {{
                 t(
-                  'Workspace save points use a local Altals index and reuse Git-backed milestones when available.'
-                )
-              }}
-            </div>
-            <div v-if="isLocalOnlySavePoint" class="workspace-snapshot-note">
-              {{
-                t(
-                  'This save point was created locally without a new Git milestone because the workspace had no file changes.'
+                  'Workspace save points use a local Altals index and payload store inside the workspace data directory.'
                 )
               }}
             </div>
@@ -183,21 +170,21 @@
               {{
                 isProjectTextSetSnapshot
                   ? t(
-                      'This save point can restore the current project text set captured for the workspace, without rewinding Git history.'
+                      'This save point can restore the current project text set captured for the workspace.'
                     )
                   : isLoadedWorkspaceTextSnapshot
                     ? t(
-                        'This save point can restore the workspace text files Altals had loaded when it was created, without rewinding Git history.'
+                        'This save point can restore the workspace text files Altals had loaded when it was created.'
                       )
                     : t(
-                        'This save point can restore its captured files through the local snapshot payload without rewinding Git history.'
+                        'This save point can restore its captured files through the local snapshot payload.'
                       )
               }}
             </div>
             <div v-if="selectedAddedEntries.length > 0" class="workspace-snapshot-note">
               {{
                 t(
-                  'This save point can also remove current project-text files that were added after it was created, still without using Git checkout.'
+                  'This save point can also remove current project-text files that were added after it was created.'
                 )
               }}
             </div>
@@ -225,7 +212,7 @@
             >
               {{
                 t(
-                  'Older workspace save points may appear here without a local payload yet. Use File Version History for per-file restores.'
+                  'Older workspace save points may appear here without a local payload yet, so they cannot restore files.'
                 )
               }}
             </div>
@@ -393,7 +380,7 @@
                 <div v-if="selectedPreviewHasMergedChanges" class="workspace-snapshot-preview-meta">
                   {{
                     t(
-                      'The merged result below differs from the current workspace file and can be written back without using Git history.'
+                      'The merged result below differs from the current workspace file and can be written back directly.'
                     )
                   }}
                 </div>
@@ -441,7 +428,7 @@
               <div class="workspace-snapshot-preview-meta">
                 {{
                   t(
-                    'Removing it here uses Altals file operations rather than Git checkout, and only affects the current project-text-set restore scope.'
+                    'Removing it here uses Altals file operations and only affects the current project-text-set restore scope.'
                   )
                 }}
               </div>
@@ -620,9 +607,6 @@ const canRestoreSelectedSnapshot = computed(
 )
 const canRestoreSelectedSavePoint = computed(
   () => canRestoreSelectedSnapshot.value || selectedAddedEntries.value.length > 0
-)
-const isLocalOnlySavePoint = computed(
-  () => selectedSnapshot.value?.backend === 'local' && !selectedSnapshot.value?.sourceId
 )
 
 watch(
@@ -1053,16 +1037,11 @@ function confirmDeleteSelectedSnapshot() {
   }
 
   const date = formatDisplayDate(snapshot.createdAt)
-  const isLocalOnly = snapshot.backend === 'local' && !snapshot.sourceId
   openHistoryConfirm({
     title: t('Delete save point'),
-    description: isLocalOnly
-      ? t('Delete the local workspace save point from {date}? This removes it from Altals.', {
-          date,
-        })
-      : t(
-          'Delete the selected save point from Saved Versions? This removes it from Altals without rewriting Git history.'
-        ),
+    description: t('Delete the save point from {date}? This removes it from Altals local history.', {
+      date,
+    }),
     confirmLabel: t('Delete save point'),
     onConfirm: deleteSelectedSnapshot,
   })
@@ -1095,12 +1074,7 @@ async function deleteSelectedSnapshot() {
     }
     openHistoryNotice({
       title: t('Save point deleted'),
-      description:
-        snapshot.backend === 'local' && !snapshot.sourceId
-          ? t('Deleted the local workspace save point from Altals.')
-          : t(
-              'Removed the selected save point from Altals Saved Versions without rewriting Git history.'
-            ),
+      description: t('Removed the selected save point from Altals Saved Versions.'),
     })
   } catch (error) {
     console.error('Failed to delete workspace save point:', error)

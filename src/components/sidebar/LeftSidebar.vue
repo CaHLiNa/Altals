@@ -6,7 +6,6 @@
       :embedded="true"
       :heading-collapsible="false"
       :heading-label="fileTreeHeadingLabel"
-      @file-version-history="$emit('file-version-history', $event)"
       @open-search="$emit('open-search')"
       @open-settings="$emit('open-settings')"
       @open-folder="$emit('open-folder')"
@@ -22,7 +21,6 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import FileTree from './FileTree.vue'
 
 defineEmits([
-  'file-version-history',
   'open-search',
   'open-settings',
   'open-folder',

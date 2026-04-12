@@ -12,9 +12,9 @@ import {
 
 test('workspace snapshot metadata runtime derives titles and capabilities from snapshot records', () => {
   const namedSnapshot = {
-    id: 'git:abc123',
-    backend: 'git',
-    sourceKind: 'git-commit',
+    id: 'local:file:abc123',
+    backend: 'local',
+    sourceKind: 'workspace-save-point',
     sourceId: 'abc123',
     scope: 'file',
     filePath: '/workspace/demo/draft.md',
@@ -24,9 +24,9 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     createdAt: '2026-03-22T10:11:00Z',
   }
   const workspaceSnapshot = {
-    id: 'git:def456',
-    backend: 'git',
-    sourceKind: 'git-commit',
+    id: 'local:workspace:def456',
+    backend: 'local',
+    sourceKind: 'workspace-save-point',
     sourceId: 'def456',
     scope: 'workspace',
     filePath: '',
@@ -109,10 +109,10 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
     canCopy: true,
   })
   assert.deepEqual(createWorkspaceSnapshotMetadata({ snapshot: namedSnapshot }), {
-    snapshotId: 'git:abc123',
+    snapshotId: 'local:file:abc123',
     scope: 'file',
-    backend: 'git',
-    sourceKind: 'git-commit',
+    backend: 'local',
+    sourceKind: 'workspace-save-point',
     kind: 'named',
     title: 'Draft 3 ready',
     message: 'Draft 3 ready',
@@ -176,9 +176,9 @@ test('workspace snapshot metadata runtime derives titles and capabilities from s
 
 test('workspace snapshot metadata runtime attaches metadata and reuses matching attached metadata', () => {
   const snapshot = {
-    id: 'git:abc123',
-    backend: 'git',
-    sourceKind: 'git-commit',
+    id: 'local:file:abc123',
+    backend: 'local',
+    sourceKind: 'workspace-save-point',
     sourceId: 'abc123',
     scope: 'file',
     filePath: '/workspace/demo/draft.md',
@@ -189,7 +189,7 @@ test('workspace snapshot metadata runtime attaches metadata and reuses matching 
   }
 
   const attached = attachWorkspaceSnapshotMetadata(snapshot)
-  assert.equal(attached.metadata.snapshotId, 'git:abc123')
+  assert.equal(attached.metadata.snapshotId, 'local:file:abc123')
   assert.deepEqual(attachWorkspaceSnapshotMetadataList([snapshot]), [attached])
   assert.equal(getWorkspaceSnapshotMetadata(attached), attached.metadata)
   assert.equal(attached.metadata.payload, null)

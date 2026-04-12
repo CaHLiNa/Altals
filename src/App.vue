@@ -71,7 +71,6 @@
                 <LeftSidebar
                   v-if="workspace.isWorkspaceSurface"
                   ref="leftSidebarRef"
-                  @file-version-history="openFileVersionHistory"
                   @open-search="openQuickSearch"
                   @open-settings="workspace.openSettings()"
                   @open-folder="pickWorkspace"
@@ -166,13 +165,6 @@
       @create-snapshot="handleCreateWorkspaceSnapshot"
     />
 
-    <!-- File Version History Modal -->
-    <FileVersionHistory
-      :visible="fileVersionHistoryVisible"
-      :filePath="fileVersionHistoryFile"
-      @close="fileVersionHistoryVisible = false"
-    />
-
     <UnsavedChangesDialog />
 
     <!-- Setup Wizard (first-time) -->
@@ -217,7 +209,6 @@ const PaneContainer = defineAsyncComponent(() => import('./components/editor/Pan
 const WorkspaceSnapshotBrowser = defineAsyncComponent(
   () => import('./components/WorkspaceSnapshotBrowser.vue')
 )
-const FileVersionHistory = defineAsyncComponent(() => import('./components/VersionHistory.vue'))
 const Settings = defineAsyncComponent(() => import('./components/settings/Settings.vue'))
 const SetupWizard = defineAsyncComponent(() => import('./components/SetupWizard.vue'))
 const UnsavedChangesDialog = defineAsyncComponent(
@@ -239,8 +230,6 @@ const creatingWorkspaceSnapshot = ref(false)
 const workspaceSnapshotBrowserRefreshToken = ref(0)
 const workspaceSnapshotBrowserVisible = ref(false)
 const workspaceSnapshotBrowserFeedback = ref(null)
-const fileVersionHistoryVisible = ref(false)
-const fileVersionHistoryFile = ref('')
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(() => workspace.isSettingsSurface || workspace.leftSidebarOpen)
@@ -326,17 +315,14 @@ const {
 } = useAppShellLayout()
 const { closeWorkspace, handleVisibilityChange, openWorkspace, pickWorkspace, setupWizardVisible } =
   useWorkspaceLifecycle()
-const { createSnapshot, openWorkspaceSnapshots, openFileVersionHistory } =
-  useWorkspaceSnapshotActions({
-    workspace,
-    filesStore,
-    editorStore,
-    toastStore,
-    workspaceSnapshotBrowserVisible,
-    fileVersionHistoryVisible,
-    fileVersionHistoryFile,
-    t,
-  })
+const { createSnapshot, openWorkspaceSnapshots } = useWorkspaceSnapshotActions({
+  workspace,
+  filesStore,
+  editorStore,
+  toastStore,
+  workspaceSnapshotBrowserVisible,
+  t,
+})
 
 async function handleCreateWorkspaceSnapshot() {
   if (creatingWorkspaceSnapshot.value) {
@@ -349,7 +335,7 @@ async function handleCreateWorkspaceSnapshot() {
       requestSnapshotLabel: null,
       allowLocalSavePointWhenUnchanged: true,
       showNoChanges: () => {},
-      showCommitFailure: () => {},
+      showSaveFailure: () => {},
     })
     if (result?.snapshot) {
       workspaceSnapshotBrowserRefreshToken.value += 1
@@ -362,14 +348,6 @@ async function handleCreateWorkspaceSnapshot() {
 
 function buildWorkspaceSnapshotBrowserFeedback(result) {
   const id = Date.now()
-  if (result?.reason === 'created-local-save-point') {
-    return {
-      id,
-      title: t('Save point added'),
-      message: t('Added a local workspace save point without new file changes.'),
-    }
-  }
-
   if (result?.snapshot) {
     return {
       id,
@@ -406,13 +384,11 @@ useAppShellEventBridge({
   searchRef,
   leftSidebarRef,
   workspaceSnapshotBrowserVisible,
-  fileVersionHistoryVisible,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
   createSnapshot,
   openWorkspaceSnapshots,
-  openFileVersionHistory,
 })
 useAppTeardown({
   cleanupAppShellLayout,

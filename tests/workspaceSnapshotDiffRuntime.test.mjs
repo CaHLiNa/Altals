@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 import { createWorkspaceSnapshotDiffRuntime } from '../src/domains/changes/workspaceSnapshotDiffRuntime.js'
 
-test('workspace snapshot diff runtime builds per-file modified previews without using git history', async () => {
+test('workspace snapshot diff runtime builds per-file modified previews from local save-point payloads', async () => {
   const runtime = createWorkspaceSnapshotDiffRuntime({
     payloadRuntime: {
       loadWorkspaceSnapshotPayloadManifest: async () => ({

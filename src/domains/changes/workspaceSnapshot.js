@@ -1,5 +1,3 @@
-import { createWorkspaceHistoryAvailabilityRuntime } from './workspaceHistoryAvailabilityRuntime.js'
-import { createWorkspaceHistoryPointRuntime } from './workspaceHistoryPointRuntime.js'
 import { createWorkspaceHistoryVisibilityRuntime } from './workspaceHistoryVisibilityRuntime.js'
 import {
   createWorkspaceLocalSnapshotPayloadRuntime,
@@ -17,6 +15,8 @@ import {
   createWorkspaceSnapshotManifest,
 } from './workspaceSnapshotManifestRuntime.js'
 import { createWorkspaceSnapshotPreviewRuntime } from './workspaceSnapshotPreviewRuntime.js'
+import { buildWorkspaceHistorySaveMessage } from './workspaceHistoryMessageRuntime.js'
+import { createWorkspaceHistoryPreparationRuntime } from './workspaceHistoryPreparationRuntime.js'
 import {
   attachWorkspaceSnapshotMetadata,
   attachWorkspaceSnapshotMetadataList,
@@ -26,16 +26,11 @@ import {
 } from './workspaceSnapshotMetadataRuntime.js'
 import {
   createWorkspaceSnapshotRuntime,
-  createWorkspaceSnapshotRecord,
   getWorkspaceSnapshotDisplayMessage,
   isNamedWorkspaceSnapshot,
 } from './workspaceSnapshotRuntime.js'
 
 export function createWorkspaceSnapshotOperations({
-  availabilityRuntime = createWorkspaceHistoryAvailabilityRuntime(),
-  historyPointRuntime = createWorkspaceHistoryPointRuntime({
-    availabilityRuntime,
-  }),
   snapshotRuntime = createWorkspaceSnapshotRuntime(),
   previewRuntime = createWorkspaceSnapshotPreviewRuntime(),
   deletionRuntime = createWorkspaceSnapshotDeletionRuntime(),
@@ -43,26 +38,62 @@ export function createWorkspaceSnapshotOperations({
   fileApplyRuntime = createWorkspaceSnapshotFileApplyRuntime(),
   localSnapshotPayloadRuntime = createWorkspaceLocalSnapshotPayloadRuntime(),
   localSnapshotStoreRuntime = createWorkspaceLocalSnapshotStoreRuntime(),
+  historyPreparationRuntime = createWorkspaceHistoryPreparationRuntime(),
   historyVisibilityRuntime = createWorkspaceHistoryVisibilityRuntime(),
   attachSnapshotMetadataImpl = attachWorkspaceSnapshotMetadata,
   attachSnapshotMetadataListImpl = attachWorkspaceSnapshotMetadataList,
+  buildSaveMessageImpl = buildWorkspaceHistorySaveMessage,
   buildPersistedMessageImpl = buildWorkspaceSnapshotPersistedMessage,
   createSnapshotManifestImpl = createWorkspaceSnapshotManifest,
   logErrorImpl = (...args) => console.error(...args),
   nowImpl = () => new Date(),
 } = {}) {
-  async function createLocalWorkspaceSavePointWithoutChanges({
+  function normalizeSnapshotLabel(value = '') {
+    return String(value || '').trim()
+  }
+
+  async function resolveWorkspaceSavePointIntent({
+    preferredSnapshotLabel = '',
+    requestSnapshotLabel,
+    t,
+  } = {}) {
+    const preferredLabel = normalizeSnapshotLabel(preferredSnapshotLabel)
+    if (preferredLabel) {
+      return {
+        kind: 'named',
+        label: preferredLabel,
+        message: preferredLabel,
+      }
+    }
+
+    const requestedLabel = normalizeSnapshotLabel(await requestSnapshotLabel?.())
+    if (requestedLabel) {
+      return {
+        kind: 'named',
+        label: requestedLabel,
+        message: requestedLabel,
+      }
+    }
+
+    return {
+      kind: 'save',
+      label: '',
+      message: buildSaveMessageImpl({ t, now: nowImpl() }),
+    }
+  }
+
+  async function createLocalWorkspaceSavePoint({
     workspace,
     filesStore,
     editorStore,
-    historyPoint = null,
+    savePointIntent = null,
   } = {}) {
-    if (!workspace?.path || !workspace?.workspaceDataDir || !historyPoint?.commitMessage) {
+    if (!workspace?.path || !workspace?.workspaceDataDir || !savePointIntent?.message) {
       return null
     }
 
-    const kind = String(historyPoint.kind || '').trim() || 'save'
-    const label = String(historyPoint.label || '').trim()
+    const kind = String(savePointIntent.kind || '').trim() || 'save'
+    const label = String(savePointIntent.label || '').trim()
     const createdAt = nowImpl().toISOString()
     const syntheticSnapshot = {
       backend: 'local',
@@ -72,9 +103,9 @@ export function createWorkspaceSnapshotOperations({
       filePath: '',
       kind,
       label,
-      message: historyPoint.commitMessage,
+      message: savePointIntent.message,
       rawMessage: buildPersistedMessageImpl({
-        message: historyPoint.commitMessage,
+        message: savePointIntent.message,
         scope: 'workspace',
         kind,
       }),
@@ -113,11 +144,9 @@ export function createWorkspaceSnapshotOperations({
     editorStore,
     preferredSnapshotLabel = '',
     requestSnapshotLabel,
-    allowLocalSavePointWhenUnchanged = false,
-    showNoChanges,
-    showCommitFailure,
-    onUnavailable,
-    onAutoCommitEnabled,
+    allowLocalSavePointWhenUnchanged = true,
+    showNoChanges = null,
+    showSaveFailure,
     t,
   } = {}) {
     if (!workspace?.path) {
@@ -125,135 +154,53 @@ export function createWorkspaceSnapshotOperations({
     }
 
     try {
-      let deferredNoChanges = false
-      const result = await historyPointRuntime.createHistoryPoint({
-        workspace,
+      const preparedFiles = await historyPreparationRuntime.prepareWorkspaceHistoryFiles({
         filesStore,
         editorStore,
-        preferredHistoryLabel: preferredSnapshotLabel,
-        requestHistoryLabel: requestSnapshotLabel,
-        showNoChanges: () => {
-          deferredNoChanges = true
-          if (!allowLocalSavePointWhenUnchanged) {
-            showNoChanges?.()
-          }
-        },
-        onUnavailable,
-        onAutoCommitEnabled,
+      })
+      if (!preparedFiles?.ok) {
+        return {
+          committed: false,
+          reason: preparedFiles?.reason || 'prepare-failed',
+        }
+      }
+
+      const savePointIntent = await resolveWorkspaceSavePointIntent({
+        preferredSnapshotLabel,
+        requestSnapshotLabel,
         t,
       })
 
-      if (!result?.snapshot) {
-        if (allowLocalSavePointWhenUnchanged && result?.reason === 'no-changes') {
-          const localSnapshotRecord = await createLocalWorkspaceSavePointWithoutChanges({
-            workspace,
-            filesStore,
-            editorStore,
-            historyPoint: result?.historyPoint,
-          })
-          if (localSnapshotRecord) {
-            const localSnapshot = attachSnapshotMetadataImpl(localSnapshotRecord)
-            return {
-              ...result,
-              committed: true,
-              reason: 'created-local-save-point',
-              localSnapshot,
-              snapshot: localSnapshot,
-              snapshotMetadata: localSnapshot.metadata ?? null,
-            }
+      const localSnapshotRecord = await createLocalWorkspaceSavePoint({
+        workspace,
+        filesStore,
+        editorStore,
+        savePointIntent,
+      })
+      if (!localSnapshotRecord) {
+        if (!allowLocalSavePointWhenUnchanged) {
+          showNoChanges?.()
+          return {
+            committed: false,
+            reason: 'no-changes',
           }
         }
-        if (deferredNoChanges) {
-          showNoChanges?.()
-        }
-        return result
+        return null
       }
 
-      const gitSnapshot = attachSnapshotMetadataImpl(result.snapshot)
-      const payload = await localSnapshotPayloadRuntime
-        .captureWorkspaceSnapshotPayload({
-          workspacePath: workspace?.path || '',
-          workspaceDataDir: workspace?.workspaceDataDir || '',
-          snapshot: result.snapshot,
-          editorStore,
-          filesStore,
-        })
-        .catch((error) => {
-          logErrorImpl('Capture snapshot payload error:', error)
-          return null
-        })
-      const localSnapshotRecord = await localSnapshotStoreRuntime.recordWorkspaceSavePoint({
-        workspaceDataDir: workspace?.workspaceDataDir || '',
-        snapshot: {
-          ...result.snapshot,
-          payload,
-        },
-      })
       const localSnapshot = attachSnapshotMetadataImpl(localSnapshotRecord)
-      const snapshot = localSnapshot || gitSnapshot
       return {
-        ...result,
-        gitSnapshot,
+        committed: true,
+        reason: 'created-save-point',
         localSnapshot,
-        snapshot,
-        snapshotMetadata: snapshot?.metadata ?? null,
+        snapshot: localSnapshot,
+        snapshotMetadata: localSnapshot.metadata ?? null,
       }
     } catch (error) {
       logErrorImpl('Create snapshot error:', error)
-      showCommitFailure?.(error)
+      showSaveFailure?.(error)
       return null
     }
-  }
-
-  async function openFileVersionHistoryBrowser({
-    workspace,
-    filePath = '',
-    onUnavailable,
-    onAutoCommitEnabled,
-    onReady,
-    options = {},
-  } = {}) {
-    const workspacePath = workspace?.path || ''
-    if (!workspacePath || !filePath) {
-      return null
-    }
-
-    const historyAvailability = await availabilityRuntime.ensureWorkspaceHistoryAvailable({
-      workspacePath,
-      options,
-      onUnavailable,
-      onAutoCommitEnabled,
-    })
-    if (!historyAvailability) {
-      return null
-    }
-
-    onReady?.(filePath)
-    return {
-      historyAvailability,
-      filePath,
-    }
-  }
-
-  async function listFileVersionHistory({
-    workspacePath = '',
-    workspaceDataDir = '',
-    filePath = '',
-    limit = 50,
-    t,
-  } = {}) {
-    if (!workspacePath || !filePath) {
-      return []
-    }
-
-    const snapshots = await snapshotRuntime.listFileVersionHistoryEntries({
-      workspacePath,
-      workspaceDataDir,
-      filePath,
-      limit,
-      t,
-    })
-    return attachSnapshotMetadataListImpl(snapshots)
   }
 
   async function listWorkspaceSavePoints({
@@ -273,14 +220,6 @@ export function createWorkspaceSnapshotOperations({
       t,
     })
     return attachSnapshotMetadataListImpl(snapshots)
-  }
-
-  async function loadFileVersionHistoryPreview(input = {}) {
-    return snapshotRuntime.loadFileVersionHistoryPreview(input)
-  }
-
-  async function restoreFileVersionHistoryEntry(input = {}) {
-    return snapshotRuntime.restoreFileVersionHistoryEntry(input)
   }
 
   async function deleteWorkspaceSavePoint({ workspace, snapshot = null } = {}) {
@@ -313,32 +252,6 @@ export function createWorkspaceSnapshotOperations({
       removedLocalEntry: !!removedLocalEntry,
       hiddenEntry: !!hiddenEntry,
       reason: removedLocalEntry || hiddenEntry ? '' : 'delete-failed',
-    }
-  }
-
-  async function deleteFileVersionHistoryEntry({ workspace, filePath = '', snapshot = null } = {}) {
-    if (!workspace?.workspaceDataDir || !filePath || !snapshot) {
-      return { deleted: false, reason: 'missing-input' }
-    }
-    if (String(snapshot?.scope || '').trim() !== 'file') {
-      return { deleted: false, reason: 'unsupported-scope' }
-    }
-
-    const hiddenEntry = await historyVisibilityRuntime
-      .hideHistoryEntry({
-        workspaceDataDir: workspace.workspaceDataDir,
-        snapshot: {
-          ...snapshot,
-          scope: 'file',
-          filePath,
-        },
-      })
-      .catch(() => null)
-
-    return {
-      deleted: !!hiddenEntry,
-      hiddenEntry: !!hiddenEntry,
-      reason: hiddenEntry ? '' : 'delete-failed',
     }
   }
 
@@ -526,13 +439,8 @@ export function createWorkspaceSnapshotOperations({
 
   return {
     createWorkspaceSnapshot,
-    openFileVersionHistoryBrowser,
-    listFileVersionHistory,
     listWorkspaceSavePoints,
-    loadFileVersionHistoryPreview,
-    restoreFileVersionHistoryEntry,
     deleteWorkspaceSavePoint,
-    deleteFileVersionHistoryEntry,
     loadWorkspaceSavePointPayloadManifest,
     loadWorkspaceSavePointPreviewSummary,
     loadWorkspaceSavePointFilePreview,
@@ -546,17 +454,8 @@ export function createWorkspaceSnapshotOperations({
 const workspaceSnapshotOperations = createWorkspaceSnapshotOperations()
 
 export const createWorkspaceSnapshot = workspaceSnapshotOperations.createWorkspaceSnapshot
-export const openFileVersionHistoryBrowser =
-  workspaceSnapshotOperations.openFileVersionHistoryBrowser
-export const listFileVersionHistory = workspaceSnapshotOperations.listFileVersionHistory
 export const listWorkspaceSavePoints = workspaceSnapshotOperations.listWorkspaceSavePoints
-export const loadFileVersionHistoryPreview =
-  workspaceSnapshotOperations.loadFileVersionHistoryPreview
-export const restoreFileVersionHistoryEntry =
-  workspaceSnapshotOperations.restoreFileVersionHistoryEntry
 export const deleteWorkspaceSavePoint = workspaceSnapshotOperations.deleteWorkspaceSavePoint
-export const deleteFileVersionHistoryEntry =
-  workspaceSnapshotOperations.deleteFileVersionHistoryEntry
 export const loadWorkspaceSavePointPayloadManifest =
   workspaceSnapshotOperations.loadWorkspaceSavePointPayloadManifest
 export const loadWorkspaceSavePointPreviewSummary =
@@ -576,7 +475,6 @@ export {
   attachWorkspaceSnapshotMetadataList,
   createWorkspaceSnapshotMetadata,
   getWorkspaceSnapshotMetadata,
-  createWorkspaceSnapshotRecord,
   getWorkspaceSnapshotDisplayMessage,
   getWorkspaceSnapshotTitle,
   getWorkspaceSnapshotPayloadCaptureScope,

@@ -49,43 +49,11 @@
               <kbd class="ui-kbd">{{ modKey }}+O</kbd>
             </template>
           </UiButton>
-          <UiButton variant="secondary" size="md" @click="showClone = true">
-            {{ t('Clone repository') }}
-          </UiButton>
         </div>
 
-        <p v-if="!showClone" class="launcher-hint">
-          {{ t('Start from a local workspace or clone an existing writing project.') }}
+        <p class="launcher-hint">
+          {{ t('Open a project folder to start your first local writing workspace.') }}
         </p>
-
-        <div v-if="showClone" class="launcher-clone-form ui-surface-card">
-          <div class="launcher-clone-heading">
-            {{ t('Clone a Git repository into a local workspace') }}
-          </div>
-          <input
-            ref="urlInputRef"
-            v-model="cloneUrl"
-            class="launcher-input"
-            placeholder="https://github.com/user/repo.git"
-            spellcheck="false"
-            @keydown.enter="doClone"
-            @keydown.escape="cancelClone"
-          />
-          <div class="launcher-clone-actions">
-            <UiButton
-              variant="primary"
-              size="sm"
-              :disabled="!cloneUrl.trim() || cloning"
-              @click="doClone"
-            >
-              {{ cloning ? t('Cloning...') : t('Clone repository') }}
-            </UiButton>
-            <UiButton variant="ghost" size="sm" :disabled="cloning" @click="cancelClone">
-              {{ t('Cancel') }}
-            </UiButton>
-          </div>
-          <div v-if="cloneError" class="launcher-error">{{ cloneError }}</div>
-        </div>
       </section>
 
       <aside class="launcher-recents ui-surface-card">
@@ -167,9 +135,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
+import { computed } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { modKey } from '../platform'
 import { useI18n } from '../i18n'
@@ -180,76 +146,6 @@ const emit = defineEmits(['open-folder', 'open-workspace'])
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const recents = computed(() => workspace.getRecentWorkspaces())
-
-const showClone = ref(false)
-const cloneUrl = ref('')
-const cloning = ref(false)
-const cloneError = ref('')
-const urlInputRef = ref(null)
-
-watch(showClone, (val) => {
-  if (val) {
-    cloneError.value = ''
-    nextTick(() => urlInputRef.value?.focus())
-  }
-})
-
-function cancelClone() {
-  showClone.value = false
-  cloneUrl.value = ''
-  cloneError.value = ''
-}
-
-function repoNameFromUrl(url) {
-  const cleaned = url
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\.git$/, '')
-  return cleaned.split('/').pop() || 'project'
-}
-
-async function doClone() {
-  const url = cloneUrl.value.trim()
-  if (!url || cloning.value) return
-
-  cloneError.value = ''
-
-  const { homeDir } = await import('@tauri-apps/api/path')
-  const home = await homeDir()
-  const parentDir = await open({
-    directory: true,
-    multiple: false,
-    title: t('Clone into...'),
-    defaultPath: home,
-  })
-  if (!parentDir) return
-
-  const repoName = repoNameFromUrl(url)
-  const targetPath = `${parentDir}/${repoName}`
-
-  cloning.value = true
-  try {
-    if (url.includes('github.com')) {
-      await workspace.ensureGitHubInitialized()
-    }
-
-    if (workspace.githubToken?.token && url.includes('github.com')) {
-      await invoke('git_clone_authenticated', {
-        url,
-        targetPath,
-        token: workspace.githubToken.token,
-      })
-    } else {
-      await invoke('git_clone', { url, targetPath })
-    }
-    cancelClone()
-    emit('open-workspace', targetPath)
-  } catch (e) {
-    cloneError.value = String(e).replace(/^Error:\s*/i, '')
-  } finally {
-    cloning.value = false
-  }
-}
 
 function shortenPath(fullPath) {
   const home = fullPath.match(/^\/Users\/[^/]+/)

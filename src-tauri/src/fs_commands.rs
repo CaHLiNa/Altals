@@ -28,7 +28,6 @@ pub const ALLOWED_HOSTS: &[&str] = &[
     "dashscope.aliyuncs.com",
     "api.minimaxi.com",
     "open.bigmodel.cn",
-    "api.github.com",
     "api.exa.ai",
     "api.openalex.org",
 ];

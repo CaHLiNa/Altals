@@ -216,7 +216,6 @@
         @duplicate="handleDuplicate"
         @delete="handleDelete"
         @delete-selected="handleDeleteSelected"
-        @file-version-history="$emit('file-version-history', $event)"
         @reveal-in-finder="revealInFinder"
       />
 
@@ -333,7 +332,6 @@ const props = defineProps({
   headingLabel: { type: String, default: '' },
 })
 const emit = defineEmits([
-  'file-version-history',
   'open-search',
   'open-settings',
   'toggle-collapse',
