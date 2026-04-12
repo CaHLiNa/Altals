@@ -15,13 +15,14 @@ export const FRONTEND_BASELINE_LINT_TARGETS = Object.freeze(
     'src/components/editor/WorkspaceStarter.vue',
     'src/components/editor/EditorContextMenu.vue',
     'src/components/editor/EditorPane.vue',
-    'src/components/editor/TypstNativePreview.vue',
+    'src/components/editor/PdfHostedPreview.vue',
+    'src/components/editor/PdfIframeSurface.vue',
     'src/components/editor/TextEditor.vue',
     'src/components/sidebar/FileTree.vue',
     'src/components/sidebar/FileTreeItem.vue',
     'src/components/layout/WorkbenchRail.vue',
     'src/components/layout/ToastContainer.vue',
-    'src/components/layout/SyncPopover.vue',
+    'src/components/layout/WorkspaceQuickOpen.vue',
     'src/shared/**/*.js',
     'scripts/frontendBaselineTooling.mjs',
     'tests/documentRunInspectorRuntime.test.mjs',
@@ -70,8 +71,9 @@ export const FRONTEND_BASELINE_RAW_FORM_CONTROL_FILES = Object.freeze([
 export const FRONTEND_BASELINE_INLINE_STYLE_FILES = Object.freeze([
   'src/components/editor/EditorContextMenu.vue',
   'src/components/editor/EditorPane.vue',
+  'src/components/editor/PdfHostedPreview.vue',
+  'src/components/editor/PdfIframeSurface.vue',
   'src/components/editor/TabBar.vue',
-  'src/components/editor/TypstNativePreview.vue',
   'src/components/editor/TextEditor.vue',
 ])
 

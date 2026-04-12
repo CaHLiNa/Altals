@@ -23,9 +23,7 @@
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
         @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
-        @open-left-create-menu="
-          leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)
-        "
+        @open-left-create-menu="leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-split-pane="toggleSplitPane"
         @toggle-right-sidebar="workspace.toggleRightSidebar()"
