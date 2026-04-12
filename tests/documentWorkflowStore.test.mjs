@@ -3,29 +3,29 @@ import assert from 'node:assert/strict'
 
 import { createWorkspacePreviewSessionState } from '../src/domains/document/documentWorkspacePreviewRuntime.js'
 
-test('workspace preview session state keeps typst workspace preview in native mode', () => {
+test('workspace preview session state keeps latex workspace preview in pdf mode', () => {
   const sessionState = createWorkspacePreviewSessionState({
-    filePath: '/workspace/paper.typ',
-    kind: 'typst',
-    previewKind: 'native',
+    filePath: '/workspace/paper.tex',
+    kind: 'latex',
+    previewKind: 'pdf',
     sourcePaneId: 'pane-source',
     currentSession: {
-      activeFile: '/workspace/paper.typ',
-      activeKind: 'typst',
+      activeFile: '/workspace/paper.tex',
+      activeKind: 'latex',
       sourcePaneId: 'pane-source',
-      previewKind: 'native',
-      previewSourcePath: '/workspace/paper.typ',
+      previewKind: 'pdf',
+      previewSourcePath: '/workspace/paper.tex',
       state: 'workspace-preview',
     },
   })
 
   assert.deepEqual(sessionState, {
-    activeFile: '/workspace/paper.typ',
-    activeKind: 'typst',
+    activeFile: '/workspace/paper.tex',
+    activeKind: 'latex',
     sourcePaneId: 'pane-source',
     previewPaneId: null,
-    previewKind: 'native',
-    previewSourcePath: '/workspace/paper.typ',
+    previewKind: 'pdf',
+    previewSourcePath: '/workspace/paper.tex',
     state: 'workspace-preview',
   })
 })

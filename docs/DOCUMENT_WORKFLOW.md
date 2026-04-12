@@ -4,11 +4,10 @@ Altals treats document workflows as explicit runtime capabilities instead of one
 
 ## Supported workflow sources
 
-The workflow layer currently recognizes three source kinds through `src/services/documentWorkflow/adapters/index.js`:
+The workflow layer currently recognizes two source kinds through `src/services/documentWorkflow/adapters/index.js`:
 
 - **Markdown**
 - **LaTeX**
-- **Typst**
 
 Workflow kind resolution and preview preference decisions are driven by:
 
@@ -59,26 +58,12 @@ Markdown workflow state includes draft problems plus preview problems. The UI st
 
 LaTeX readiness is gated by `ensureLatexCompileReady()` in `src/services/environmentPreflight.js`.
 
-### Typst
-
-- matched by `src/services/documentWorkflow/adapters/typst.js`
-- compile adapter: present
-- default preview kind: `native`
-- supported preview kinds: `native`, `pdf`
-- native preview is used when Tinymist-backed preview is available
-- native preview embeds Tinymist's `/preview/index.html` resource HTML through the LSP resource API instead of patching the static browser homepage
-- PDF artifact behavior is still available when explicitly requested and compiled
-
-Typst readiness is gated by `ensureTypstCompileReady()` in `src/services/environmentPreflight.js`.
-
 ## Workspace preview rules
 
 The workspace preview runtime in `src/domains/document/documentWorkspacePreviewRuntime.js` currently enforces these high-level rules:
 
 - Markdown uses a single built-in workspace preview mode.
 - LaTeX preview is PDF-only.
-- Typst prefers native preview when available.
-- Typst can also switch to PDF preview when explicitly requested and an artifact exists.
 - Hidden-by-user preview state is preserved explicitly rather than inferred indirectly.
 
 Preview state includes:
@@ -87,14 +72,14 @@ Preview state includes:
 - whether preview is visible
 - preview kind and preview mode
 - target resolution status
-- reason codes such as `workspace-markdown`, `workspace-typst-native`, `workspace-latex-pdf`, and `artifact-ready-external`
+- reason codes such as `workspace-markdown`, `workspace-latex-pdf`, and `artifact-ready-external`
 
 ## Toolbar behavior
 
 `src/components/editor/DocumentWorkflowBar.vue` exposes workflow-aware controls:
 
-- primary compile action for LaTeX and Typst
-- preview toggle for Markdown and native Typst preview
+- primary compile action for LaTeX
+- preview toggle for Markdown
 - PDF action when a PDF artifact can be opened
 - status and phase display for render/compile state
 
@@ -104,8 +89,7 @@ This toolbar is rendered both in integrated shell contexts and inline editor hea
 
 - Markdown surfaces draft and preview problems.
 - LaTeX surfaces compile errors, warnings, lint problems, and project-level problems.
-- Typst surfaces compile diagnostics and preview capability state.
-- artifact paths for LaTeX and Typst are resolved through compile adapters, not guessed in components.
+- artifact paths for LaTeX are resolved through compile adapters, not guessed in components.
 
 ## Validation anchors
 

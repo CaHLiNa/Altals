@@ -3,23 +3,11 @@
     <h3 class="settings-section-title">{{ t('System') }}</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Tooling Status') }}</h4>
+      <h4 class="settings-group-title">{{ t('LaTeX Tooling') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">Markdown</div>
-            <div class="settings-row-hint">
-              {{ t('Plain text editing and preview are available without extra setup.') }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <span class="settings-status-badge is-good">{{ t('Built in') }}</span>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('LaTeX Compiler') }}</div>
+            <div class="settings-row-title">{{ t('Active compiler') }}</div>
             <div class="settings-row-hint">{{ t('Choose System TeX or Tectonic below.') }}</div>
           </div>
           <div class="settings-row-control">
@@ -38,24 +26,7 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Typst Compiler') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Install Typst and Tinymist below for live preview and sync.') }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <span
-              class="settings-status-badge"
-              :class="typstStore.available ? 'is-good' : 'is-warn'"
-            >
-              {{ typstStore.available ? t('Installed') : t('Needs setup') }}
-            </span>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Detection') }}</div>
+            <div class="settings-row-title">{{ t('System check') }}</div>
             <div class="settings-row-hint">
               {{
                 !toolingChecked
@@ -68,33 +39,14 @@
             <UiButton
               variant="secondary"
               size="sm"
-              :loading="
-                latexStore.checkingCompilers ||
-                typstStore.checkingCompiler ||
-                typstStore.downloading ||
-                tinymistStore.checkingBinary ||
-                tinymistStore.downloading
-              "
+              :loading="latexStore.checkingCompilers"
               @click="redetectSystem"
             >
-              {{
-                latexStore.checkingCompilers ||
-                typstStore.checkingCompiler ||
-                typstStore.downloading ||
-                tinymistStore.checkingBinary ||
-                tinymistStore.downloading
-                  ? t('Checking...')
-                  : t('Re-detect')
-              }}
+              {{ latexStore.checkingCompilers ? t('Checking...') : t('Re-detect') }}
             </UiButton>
           </div>
         </div>
-      </div>
-    </section>
 
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('LaTeX') }}</h4>
-      <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compiler') }}</div>
@@ -247,92 +199,6 @@
       </div>
     </section>
 
-    <section class="settings-group">
-      <h4 class="settings-group-title">Typst</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">Typst</div>
-            <div class="settings-row-hint">
-              {{
-                typstStore.available
-                  ? t('The Typst compiler is available for live preview and export.')
-                  : typstStore.downloading
-                    ? t('Downloading Typst… {progress}%', { progress: typstStore.downloadProgress })
-                    : t('Download Typst to enable document builds and native preview.')
-              }}
-            </div>
-            <div v-if="typstStore.downloading" class="settings-progress">
-              <div class="settings-progress-bar">
-                <div
-                  class="settings-progress-fill"
-                  :style="{ width: typstStore.downloadProgress + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div v-if="typstStore.downloadError" class="settings-row-error">
-              {{ typstStore.downloadError }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <span v-if="typstStore.available" class="settings-status-badge is-good">
-              {{ t('Installed') }}
-            </span>
-            <UiButton
-              v-else
-              variant="secondary"
-              size="sm"
-              :loading="typstStore.downloading"
-              @click="typstStore.downloadTypst()"
-            >
-              {{ typstStore.downloadError ? t('Retry') : t('Download') }}
-            </UiButton>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">Tinymist</div>
-            <div class="settings-row-hint">
-              {{
-                tinymistStore.available
-                  ? t('Language service is available for Typst diagnostics and editor assistance.')
-                  : tinymistStore.downloading
-                    ? t('Downloading Tinymist… {progress}%', {
-                        progress: tinymistStore.downloadProgress,
-                      })
-                    : t('Download Tinymist to enable advanced Typst language features.')
-              }}
-            </div>
-            <div v-if="tinymistStore.downloading" class="settings-progress">
-              <div class="settings-progress-bar">
-                <div
-                  class="settings-progress-fill"
-                  :style="{ width: tinymistStore.downloadProgress + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div v-if="tinymistStore.downloadError" class="settings-row-error">
-              {{ tinymistStore.downloadError }}
-            </div>
-          </div>
-          <div class="settings-row-control">
-            <span v-if="tinymistStore.available" class="settings-status-badge is-good">
-              {{ t('Installed') }}
-            </span>
-            <UiButton
-              v-else
-              variant="secondary"
-              size="sm"
-              :loading="tinymistStore.downloading"
-              @click="tinymistStore.downloadTinymist()"
-            >
-              {{ tinymistStore.downloadError ? t('Retry') : t('Download') }}
-            </UiButton>
-          </div>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -343,15 +209,11 @@ import {
   formatLatexBuildRecipeLabel,
   useLatexStore,
 } from '../../stores/latex'
-import { useTinymistStore } from '../../stores/tinymist'
-import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
-const tinymistStore = useTinymistStore()
-const typstStore = useTypstStore()
 const { t } = useI18n()
 const toolingChecked = ref(false)
 
@@ -391,12 +253,8 @@ const buildRecipe = computed({
 })
 
 async function redetectSystem() {
-  await Promise.all([
-    latexStore.checkCompilers(true),
-    latexStore.checkTools(true),
-    typstStore.checkCompiler(true),
-    tinymistStore.checkBinary(true),
-  ])
+  toolingChecked.value = true
+  await Promise.all([latexStore.checkCompilers(true), latexStore.checkTools(true)])
 }
 
 function scheduleAfterFirstPaint(task) {
@@ -419,14 +277,10 @@ function scheduleAfterFirstPaint(task) {
 }
 
 function warmSystemChecks() {
-  scheduleAfterFirstPaint(() =>
-    Promise.all([
-      latexStore.checkCompilers(),
-      latexStore.checkTools(),
-      typstStore.checkCompiler(),
-      tinymistStore.checkBinary(),
-    ])
-  )
+  scheduleAfterFirstPaint(async () => {
+    toolingChecked.value = true
+    await Promise.all([latexStore.checkCompilers(), latexStore.checkTools()])
+  })
 }
 
 onMounted(() => {

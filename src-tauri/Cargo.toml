@@ -15,7 +15,7 @@ incremental = false
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "unstable"] }
 tauri-plugin-dialog = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tauri-plugin-shell = "2"
@@ -35,6 +35,7 @@ url = "2"
 percent-encoding = "2"
 shell-words = "1"
 tauri-plugin-clipboard-manager = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

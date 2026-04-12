@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { useEditorStore } from './editor.js'
 import { useLatexStore } from './latex.js'
-import { useTypstStore } from './typst.js'
 import { useFilesStore } from './files.js'
 import { useWorkspaceStore } from './workspace.js'
 import { previewSourcePathFromPath } from '../utils/fileTypes.js'
@@ -117,13 +116,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
               return
             }
 
-            if (kind === 'typst') {
-              window.dispatchEvent(new CustomEvent('typst-request-cursor', {
-                detail: { sourcePath },
-              }))
-              return
-            }
-
             if (kind === 'markdown' && previewKind === 'html') {
               window.dispatchEvent(new CustomEvent('markdown-request-cursor', {
                 detail: { sourcePath },
@@ -150,7 +142,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           getFilesStore: () => useFilesStore(),
           getWorkspaceStore: () => useWorkspaceStore(),
           getLatexStore: () => useLatexStore(),
-          getTypstStore: () => useTypstStore(),
         })
       }
       return this._documentWorkflowBuildRuntime

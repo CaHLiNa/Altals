@@ -3984,6 +3984,15 @@
   pointer-events:none;
 }
 
+.annotationEditorLayer.nonEditing{
+  pointer-events:none !important;
+  cursor:text !important;
+}
+
+.annotationEditorLayer.nonEditing *{
+  cursor:text !important;
+}
+
 .annotationEditorLayer.disabled.highlightEditing :is(.freeTextEditor,.inkEditor,.stampEditor,.signatureEditor,.commentPopup){
     pointer-events:auto;
   }
@@ -6902,6 +6911,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
     overflow:hidden;
     width:100%;
     height:100%;
+    cursor:text;
   }
 
 :is(.pdfViewer .canvasWrapper) canvas{
@@ -6912,6 +6922,7 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
       display:block;
       width:100%;
       height:100%;
+      cursor:text;
       contain:content;
     }
 
@@ -6938,6 +6949,31 @@ button.hasPopupMenu[aria-expanded="false"] + menu{
   border:var(--page-border);
   background-clip:content-box;
   background-color:var(--page-bg-color, rgb(255 255 255));
+  cursor:text;
+}
+
+.pdfViewer .textLayer{
+  cursor:text;
+}
+
+.pdfViewer .textLayer :is(span[role="img"],.endOfContent),
+.pdfViewer .annotationLayer,
+.pdfViewer .annotationLayer .annotationContent,
+.pdfViewer .annotationLayer section,
+:is(.pdfViewer .annotationLayer section) .overlaidText{
+  cursor:text;
+}
+
+.pdfViewer .annotationLayer :is(.linkAnnotation,.buttonWidgetAnnotation.pushButton) > a,
+.pdfViewer .annotationLayer .textAnnotation img,
+.pdfViewer .annotationLayer .popupTriggerArea{
+  cursor:pointer;
+}
+
+.pdfViewer .annotationLayer .textWidgetAnnotation :is(input,textarea),
+.pdfViewer .annotationLayer .choiceWidgetAnnotation select,
+.pdfViewer .annotationLayer .buttonWidgetAnnotation:is(.checkBox,.radioButton) input{
+  cursor:auto;
 }
 
 .pdfViewer .dummyPage{
@@ -7403,7 +7439,12 @@ body.wait::before{
   position:absolute;
   inset:var(--toolbar-height) 0 0;
   outline:none;
+  cursor:text;
   z-index:0;
+}
+
+#viewer{
+  cursor:text;
 }
 
 #viewerContainer:not(.pdfPresentationMode){

@@ -5,7 +5,7 @@ const PDF_EXTS = ['pdf']
 const DOCX_EXTS = ['docx']
 const LATEX_AUX_TEXT_EXTS = ['aux', 'bbl', 'blg', 'log', 'out', 'toc']
 const LATEX_EDITOR_EXTS = ['tex', 'latex', 'cls', 'sty']
-const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'typ', 'txt', 'bib', ...LATEX_EDITOR_EXTS, ...LATEX_AUX_TEXT_EXTS]
+const SUPPORTED_TEXT_EXTS = ['md', 'markdown', 'txt', 'bib', ...LATEX_EDITOR_EXTS, ...LATEX_AUX_TEXT_EXTS]
 const RUNNABLE_MAP = {}
 
 function getExt(path) {
@@ -23,27 +23,21 @@ export function isDraftPath(path) {
 }
 
 export function isPreviewPath(path) {
-  return isMarkdownPreviewPath(path) || isTypstPreviewPath(path)
+  return isMarkdownPreviewPath(path)
 }
 
 export function isMarkdownPreviewPath(path) {
   return typeof path === 'string' && path.startsWith('preview:')
 }
 
-export function isTypstPreviewPath(path) {
-  return typeof path === 'string' && path.startsWith('typst-preview:')
-}
-
 export function previewSourcePathFromPath(path) {
   if (isMarkdownPreviewPath(path)) return path.slice('preview:'.length)
-  if (isTypstPreviewPath(path)) return path.slice('typst-preview:'.length)
   return ''
 }
 
 export function getViewerType(path) {
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
-  if (isTypstPreviewPath(path)) return 'typst-native-preview'
   const ext = getExt(path)
   if (SUPPORTED_TEXT_EXTS.includes(ext)) return 'text'
   if (PDF_EXTS.includes(ext)) return 'pdf'
@@ -66,10 +60,6 @@ export function isLatexEditorFile(path) {
 
 export function isBibFile(path) {
   return getExt(path) === 'bib'
-}
-
-export function isTypst(path) {
-  return getExt(path) === 'typ'
 }
 
 export function isImage(path) {
@@ -167,7 +157,6 @@ const ICON_MAP = {
   tex: 'IconMath',
   cls: 'IconMath',
   sty: 'IconMath',
-  typ: 'IconMath',
   bib: 'IconFileText',
   lua: 'IconFileCode',
   zig: 'IconFileCode',

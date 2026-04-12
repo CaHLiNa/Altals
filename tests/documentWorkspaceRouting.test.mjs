@@ -10,7 +10,7 @@ import {
 test('document workspace routing identifies source documents for workspace composition', () => {
   assert.equal(shouldUseDocumentWorkspaceTab('/workspace/chapter.md'), true)
   assert.equal(shouldUseDocumentWorkspaceTab('/workspace/paper.tex'), true)
-  assert.equal(shouldUseDocumentWorkspaceTab('/workspace/paper.typ'), true)
+  assert.equal(shouldUseDocumentWorkspaceTab('/workspace/paper.rst'), false)
   assert.equal(shouldUseDocumentWorkspaceTab('/workspace/output.pdf'), false)
 })
 
@@ -50,21 +50,6 @@ test('document workspace routing keeps markdown previews visible without extra p
   })
 })
 
-test('document workspace routing keeps typst native previews visible when supported', () => {
-  assert.deepEqual(getWorkspaceRouteContract({ path: '/workspace/paper.typ' }), {
-    useWorkspace: true,
-    previewVisible: true,
-    previewKind: 'native',
-    previewMode: 'typst-native',
-    targetResolution: 'not-needed',
-    reason: 'workspace-typst-native',
-    toolbarTargetVisible: false,
-    useWorkspaceSurface: true,
-    previewTargetPath: '',
-    previewFilePath: 'typst-preview:/workspace/paper.typ',
-  })
-})
-
 test('document workspace routing keeps latex source-only while retaining the resolved pdf target', () => {
   assert.deepEqual(getWorkspaceRouteContract({
     path: '/workspace/paper.tex',
@@ -80,26 +65,6 @@ test('document workspace routing keeps latex source-only while retaining the res
     toolbarTargetVisible: false,
     useWorkspaceSurface: true,
     previewTargetPath: '/workspace/paper.pdf',
-    previewFilePath: '',
-  })
-})
-
-test('document workspace routing keeps typst source-only when native preview is unavailable', () => {
-  assert.deepEqual(getWorkspaceRouteContract({
-    path: '/workspace/paper.typ',
-    nativePreviewSupported: false,
-    resolvedTargetPath: '/workspace/paper.pdf',
-    artifactReady: true,
-  }), {
-    useWorkspace: true,
-    previewVisible: false,
-    previewKind: null,
-    previewMode: null,
-    targetResolution: 'resolved',
-    reason: 'artifact-ready-external',
-    toolbarTargetVisible: false,
-    useWorkspaceSurface: true,
-    previewTargetPath: '',
     previewFilePath: '',
   })
 })

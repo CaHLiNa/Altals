@@ -54,15 +54,15 @@ Look first at:
 Look first at:
 
 - `tests/workspaceSnapshot*.test.mjs`
-- `tests/workspaceHistory*.test.mjs`
-- `tests/fileVersionHistoryViewRuntime.test.mjs`
+- `tests/workspaceLocalSnapshotStoreRuntime.test.mjs`
+- `tests/workspaceSnapshotPreviewRuntime.test.mjs`
 
 ## What current tests cover
 
 - document workflow runtime behavior
 - editor routing, persistence, and pane layout
 - file tree hydration, refresh, creation, and mutation
-- workspace snapshots, local history, and version history flows
+- workspace snapshots, local save points, and restore flows
 - workspace shell and workbench layout expectations
 - repo policy audits for docs and baseline tooling
 

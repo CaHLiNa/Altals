@@ -8,16 +8,19 @@
 
 <script setup>
 import { ref } from 'vue'
+import { setShellResizeActive } from '../../shared/shellResizeSignals'
 
 const props = defineProps({
   direction: { type: String, default: 'vertical' },
 })
 
-const emit = defineEmits(['resize'])
+const emit = defineEmits(['resize', 'resize-start', 'resize-end'])
 const dragging = ref(false)
 
 function startDrag(e) {
   dragging.value = true
+  emit('resize-start')
+  setShellResizeActive(true, { source: 'split-handle', direction: props.direction })
 
   // Prevent iframes from capturing mouse events during drag
   const style = document.createElement('style')
@@ -36,6 +39,8 @@ function startDrag(e) {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.getElementById('split-drag-iframe-block')?.remove()
+    setShellResizeActive(false, { source: 'split-handle', direction: props.direction })
+    emit('resize-end')
   }
 
   document.addEventListener('mousemove', onMouseMove)

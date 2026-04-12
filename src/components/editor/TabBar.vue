@@ -190,7 +190,6 @@ const emit = defineEmits([
   'close-pane',
   'render-document',
   'compile-tex',
-  'compile-typst',
   'preview-pdf',
   'preview-markdown',
   'new-tab',

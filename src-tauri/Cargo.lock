@@ -37,6 +37,7 @@ name = "altals"
 version = "1.0.4"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "dirs 5.0.1",
  "flate2",
  "futures-util",

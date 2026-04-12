@@ -20,6 +20,32 @@ test('file creation runtime shows duplicate-name error when create file collides
   }])
 })
 
+test('file creation runtime forwards template payloads when creating files', async () => {
+  const calls = []
+
+  const runtime = createFileCreationRuntime({
+    createWorkspaceFile: async (dirPath, name, options) => {
+      calls.push({ dirPath, name, options })
+      return { ok: true, path: `${dirPath}/${name}` }
+    },
+    syncTreeAfterMutation: async () => {},
+  })
+
+  assert.equal(
+    await runtime.createFile('/ws/docs', 'note.md', {
+      initialContent: '# Title\n',
+    }),
+    '/ws/docs/note.md',
+  )
+  assert.deepEqual(calls, [{
+    dirPath: '/ws/docs',
+    name: 'note.md',
+    options: {
+      initialContent: '# Title\n',
+    },
+  }])
+})
+
 test('file creation runtime creates folders, expands them, and forces hydration', async () => {
   const syncCalls = []
   const ensured = []

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -20,20 +20,12 @@ test('markdown preview uses the shared surface context menu', () => {
 })
 
 test('pdf preview intercepts iframe context menus and routes them through the shared menu', () => {
-  const source = readSource('src/components/editor/PdfArtifactPreview.vue')
+  const source = readSource('src/components/editor/PdfIframeSurface.vue')
   assert.match(source, /SurfaceContextMenu/)
   assert.match(source, /data-surface-context-guard="true"/)
   assert.match(source, /frameWindow\.document\.addEventListener\('contextmenu', contextMenuHandler, true\)/)
   assert.match(source, /t\('Reload PDF'\)/)
   assert.match(source, /resolveLatexPdfReverseSyncPayload/)
-})
-
-test('typst preview intercepts iframe context menus and routes them through the shared menu', () => {
-  const source = readSource('src/components/editor/TypstNativePreview.vue')
-  assert.match(source, /SurfaceContextMenu/)
-  assert.match(source, /data-surface-context-guard="true"/)
-  assert.match(source, /frameDocument\.addEventListener\('contextmenu', handler, true\)/)
-  assert.match(source, /t\('Reload Preview'\)/)
 })
 
 test('app shell installs a capture-phase guard against default preview surface context menus', () => {

@@ -8,7 +8,7 @@ const runtime = createDocumentWorkflowAdaptersRuntime()
 test('document workflow adapters runtime resolves workflow adapters for supported files', () => {
   assert.equal(runtime.resolveForFile('/workspace/paper.md')?.kind, 'markdown')
   assert.equal(runtime.resolveForFile('/workspace/paper.tex')?.kind, 'latex')
-  assert.equal(runtime.resolveForFile('/workspace/paper.typ')?.kind, 'typst')
+  assert.equal(runtime.resolveForFile('/workspace/paper.rst'), null)
 })
 
 test('document workflow adapters runtime exposes capability summaries', () => {

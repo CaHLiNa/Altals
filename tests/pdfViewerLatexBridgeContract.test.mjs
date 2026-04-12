@@ -33,3 +33,25 @@ test('pdf viewer latex bridge shows a visible indicator on forward sync', () => 
   assert.match(viewerCssSource, /#synctex-indicator/)
   assert.match(viewerCssSource, /\.synctex-indicator-rect/)
 })
+
+test('pdf viewer keeps a stable text-selection cursor across the page surface', () => {
+  assert.match(viewerCssSource, /\.pdfViewer \.canvasWrapper\{\s*[\s\S]*cursor:text;/)
+  assert.match(viewerCssSource, /:is\(\.pdfViewer \.canvasWrapper\) canvas\{[\s\S]*cursor:text;/)
+  assert.match(viewerCssSource, /\.pdfViewer \.page\{[\s\S]*cursor:text;/)
+  assert.match(viewerCssSource, /\.pdfViewer \.textLayer\{\s*cursor:text;/)
+  assert.match(viewerCssSource, /#viewerContainer\{[\s\S]*cursor:text;/)
+  assert.match(viewerCssSource, /#viewer\{\s*cursor:text;/)
+  assert.match(
+    viewerCssSource,
+    /\.pdfViewer \.textLayer :is\(span\[role="img"\],\.endOfContent\),[\s\S]*?\.pdfViewer \.annotationLayer section,[\s\S]*?cursor:text;/,
+  )
+  assert.match(
+    viewerCssSource,
+    /\.pdfViewer \.annotationLayer :is\(\.linkAnnotation,\s*\.buttonWidgetAnnotation\.pushButton\) > a,[\s\S]*?cursor:pointer;/,
+  )
+  assert.match(
+    viewerCssSource,
+    /\.annotationEditorLayer\.nonEditing\{\s*pointer-events:none !important;[\s\S]*?cursor:text !important;/,
+  )
+  assert.match(viewerCssSource, /\.annotationEditorLayer\.nonEditing \*\{\s*cursor:text !important;/)
+})

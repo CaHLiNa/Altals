@@ -43,9 +43,6 @@ function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowSt
 
   if (session.activeFile === filePath) {
     const sessionPreviewKind = normalizePreviewKind(adapter, session.previewKind)
-    if (adapter.kind === 'typst' && sessionPreviewKind === 'pdf') {
-      return normalizePreviewKind(adapter, preferredPreviewKind)
-    }
     return sessionPreviewKind || preferredPreviewKind
   }
   return normalizePreviewKind(adapter, preferredPreviewKind)
@@ -64,20 +61,19 @@ function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = 
 }
 
 function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
+  void filePath
+  void context
+  void requestedPreviewKind
   if (typeof options.nativePreviewSupported === 'boolean') {
     return options.nativePreviewSupported
   }
-  if (adapter?.kind !== 'typst') return true
-  return adapter?.preview?.isNativeSupported?.(filePath, context, options) !== false
+  return true
 }
 
 function resolveArtifactReady(filePath, adapter, context) {
   if (!adapter || !filePath) return false
   if (adapter.kind === 'latex') {
     return Boolean(context.latexStore?.stateForFile?.(filePath)?.pdfPath)
-  }
-  if (adapter.kind === 'typst') {
-    return Boolean(context.typstStore?.stateForFile?.(filePath)?.pdfPath)
   }
   return false
 }
@@ -145,7 +141,6 @@ export function createDocumentWorkflowBuildRuntime({
   getFilesStore,
   getWorkspaceStore,
   getLatexStore,
-  getTypstStore,
 } = {}) {
   function resolveBaseContext(options = {}) {
     return {
@@ -155,7 +150,6 @@ export function createDocumentWorkflowBuildRuntime({
       chatStore: options.chatStore || null,
       workspace: options.workspace || getWorkspaceStore?.() || null,
       latexStore: options.latexStore || getLatexStore?.() || null,
-      typstStore: options.typstStore || getTypstStore?.() || null,
       toastStore: options.toastStore || null,
       t: options.t || null,
     }

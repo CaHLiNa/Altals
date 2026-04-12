@@ -1,6 +1,14 @@
+import {
+  __resetWorkbenchMotionRuntimeForTests,
+  WORKBENCH_MOTION_PHASE_EVENT,
+  resolveWorkbenchMotionSourceKey,
+  setWorkbenchMotionSourceActive,
+} from '../domains/workbench/workbenchMotionRuntime.js'
+
 export const SHELL_RESIZE_BODY_CLASS = 'altals-shell-resizing'
 export const SHELL_RESIZE_START_EVENT = 'altals-shell-resize-start'
 export const SHELL_RESIZE_END_EVENT = 'altals-shell-resize-end'
+export const SHELL_RESIZE_PHASE_EVENT = WORKBENCH_MOTION_PHASE_EVENT
 
 const activeShellResizeSources = new Set()
 
@@ -37,21 +45,25 @@ function dispatchResizeEvent(type, detail) {
   targetWindow.dispatchEvent({ type, detail })
 }
 
-function resolveSourceKey(detail = {}) {
-  const source = String(detail?.source || 'default').trim() || 'default'
-  const direction = String(detail?.direction || '').trim()
-  const side = String(detail?.side || '').trim()
-  return [source, direction, side].filter(Boolean).join(':')
-}
-
 export function setShellResizeActive(active, detail = {}) {
-  const sourceKey = resolveSourceKey(detail)
+  const sourceKey = resolveWorkbenchMotionSourceKey(detail)
   const wasActive = activeShellResizeSources.size > 0
+  const hasSource = activeShellResizeSources.has(sourceKey)
 
   if (active) {
+    if (hasSource) return
     activeShellResizeSources.add(sourceKey)
+    setWorkbenchMotionSourceActive(true, {
+      ...detail,
+      sourceKey,
+    })
   } else {
+    if (!hasSource) return
     activeShellResizeSources.delete(sourceKey)
+    setWorkbenchMotionSourceActive(false, {
+      ...detail,
+      sourceKey,
+    })
   }
 
   const nextActive = activeShellResizeSources.size > 0
@@ -69,4 +81,5 @@ export function isShellResizeActive() {
 export function __resetShellResizeSignalsForTests() {
   activeShellResizeSources.clear()
   toggleBodyClass(false)
+  __resetWorkbenchMotionRuntimeForTests()
 }

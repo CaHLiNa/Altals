@@ -73,7 +73,6 @@ function createComposable({
       openRightSidebar() {},
     },
     latexStore: {},
-    typstStore: {},
     toastStore: {},
     workflowStore,
     t: value => value,
@@ -89,14 +88,14 @@ test('useEditorPaneWorkflow exposes workflow state without any pdf toolbar targe
   const previewState = {
     useWorkspace: true,
     previewVisible: true,
-    previewKind: 'native',
-    previewMode: 'typst-native',
-    previewTargetPath: '',
+    previewKind: 'pdf',
+    previewMode: 'pdf-artifact',
+    previewTargetPath: '/workspace/build/main.pdf',
   }
   const { workflow, workflowStore } = createComposable({
-    activeTab: '/workspace/main.typ',
+    activeTab: '/workspace/main.tex',
     previewState,
-    uiState: { kind: 'typst', previewKind: 'native', canRevealPreview: true, canOpenPdf: true },
+    uiState: { kind: 'latex', previewKind: 'pdf', canOpenPdf: true },
   })
 
   assert.deepEqual(workflow.documentPreviewState.value, previewState)

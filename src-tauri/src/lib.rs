@@ -6,8 +6,6 @@ mod latex;
 mod latex_tools;
 mod process_utils;
 mod security;
-mod tinymist;
-mod typst_export;
 mod workspace_access;
 
 use percent_encoding::percent_decode_str;
@@ -550,13 +548,6 @@ pub fn run() {
             latex::synctex_forward,
             latex::synctex_backward,
             latex::read_latex_synctex,
-            typst_export::check_typst_compiler,
-            typst_export::download_typst,
-            typst_export::compile_typst_file,
-            tinymist::check_tinymist_binary,
-            tinymist::download_tinymist,
-            tinymist::typst_preview_wait_for_jump,
-            tinymist::typst_preview_send_src_point,
             keychain_get,
             keychain_set,
             keychain_delete,

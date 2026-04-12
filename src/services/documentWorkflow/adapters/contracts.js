@@ -2,7 +2,6 @@
  * @typedef {Object} DocumentAdapterContext
  * @property {Object} [workflowStore]
  * @property {Object} [latexStore]
- * @property {Object} [typstStore]
  * @property {Object} [editorStore]
  * @property {Object} [filesStore]
  * @property {Object} [toastStore]

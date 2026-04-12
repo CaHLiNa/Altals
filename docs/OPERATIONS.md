@@ -25,8 +25,6 @@ This doc tracks repository operations that keep the desktop app and its review w
 Some operations depend on local tools being present.
 
 - LaTeX compile readiness is checked through `ensureLatexCompileReady()` in `src/services/environmentPreflight.js`
-- Typst compile readiness is checked through `ensureTypstCompileReady()` in `src/services/environmentPreflight.js`
-- GitHub sync readiness checks for a local `git` executable through the same environment preflight service
 
 When these tools are missing, the app surfaces settings-oriented recovery actions instead of failing silently.
 
@@ -57,8 +55,6 @@ Current release flow:
 - verify version and tag state
 - build and publish release artifacts for macOS, Linux, and Windows
 - generate and upload a helper DMG for macOS builds
-
-The release workflow also validates `VITE_GITHUB_AUTH_ORIGIN` for public release builds.
 
 ## Operational focus
 

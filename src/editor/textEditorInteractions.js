@@ -1,8 +1,5 @@
 import { isImage, relativePath } from '../utils/fileTypes'
 
-const TYPST_CITATION_RE = /@([a-zA-Z][\w.-]*)/g
-export const TYPST_CITATION_GROUP_RE = /@[a-zA-Z][\w.-]*(?:\s+@[a-zA-Z][\w.-]*)*/g
-
 export function parseCitationGroup(text) {
   const inner = text.slice(1, -1)
   const parts = inner.split(/\s*;\s*|\s*,\s*(?=@)/).map((part) => part.trim()).filter(Boolean)
@@ -16,18 +13,6 @@ export function parseCitationGroup(text) {
     const afterKey = part.substring(part.indexOf(keyMatch[0]) + keyMatch[0].length).replace(/^[\s,]+/, '')
     const prefix = part.substring(0, part.indexOf(keyMatch[0])).trim()
     cites.push({ key, locator: afterKey, prefix })
-  }
-
-  return cites
-}
-
-export function parseTypstCitationGroup(text) {
-  TYPST_CITATION_RE.lastIndex = 0
-  const cites = []
-  let match
-
-  while ((match = TYPST_CITATION_RE.exec(text)) !== null) {
-    cites.push({ key: match[1], locator: '', prefix: '' })
   }
 
   return cites

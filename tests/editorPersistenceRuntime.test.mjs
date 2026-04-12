@@ -8,7 +8,7 @@ import {
 import { deriveRestoredEditorRuntimeState } from '../src/domains/editor/editorRestoreRuntime.js'
 
 function isContextCandidatePath(path) {
-  return !!path && !path.startsWith('preview:') && !path.startsWith('typst-preview:')
+  return !!path && !path.startsWith('preview:')
 }
 
 test('editor persistence reads old legacy preview panes and flags them for restore', () => {
@@ -72,8 +72,8 @@ test('editor persistence write-new strips workspace preview pseudo-tabs and coll
 })
 
 test('editor persistence preserve-open-legacy keeps restored preview pseudo-tabs until closed', () => {
-  const sourcePath = '/workspace/main.typ'
-  const previewPath = `typst-preview:${sourcePath}`
+  const sourcePath = '/workspace/main.md'
+  const previewPath = `preview:${sourcePath}`
   const persisted = buildPersistedEditorState({
     activePaneId: 'pane-preview',
     legacyPreviewPaths: [previewPath],

@@ -1,12 +1,10 @@
 import { isDraftPath, isNewTab, isPreviewPath } from '../../../utils/fileTypes.js'
 import { markdownDocumentAdapter } from './markdown.js'
 import { latexDocumentAdapter } from './latex.js'
-import { typstDocumentAdapter } from './typst.js'
 
 const DOCUMENT_ADAPTERS = [
   markdownDocumentAdapter,
   latexDocumentAdapter,
-  typstDocumentAdapter,
 ]
 
 export function listDocumentAdapters() {

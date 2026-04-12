@@ -1,6 +1,6 @@
 # Product
 
-Altals is a local-first desktop academic writing platform for project folders, with first-class Markdown, LaTeX, and Typst support plus an integrated project-level references and reading workflow.
+Altals is a local-first desktop academic writing platform for project folders, with first-class Markdown and LaTeX support plus an integrated project-level references and reading workflow.
 
 The product is still writing-first. References, readers, citations, and later AI-assisted research tasks exist to keep the user inside one focused academic workbench, not to turn Altals into a generic knowledge manager.
 
@@ -11,7 +11,7 @@ The target product loop is one practical desktop workbench:
 1. open a local project folder from the launcher
 2. browse project files and project-scoped references without leaving the app
 3. read PDFs or other source material alongside the draft
-4. write Markdown, LaTeX, and Typst documents in the editor workbench
+4. write Markdown and LaTeX documents in the editor workbench
 5. insert citations and maintain bibliography output from the same workspace
 6. preview or compile supported document formats without leaving the workspace surface
 7. inspect document structure, citation context, or reader structure in the right-side inspection area
@@ -33,7 +33,7 @@ The current shipped build remains centered on:
 
 - opening a local workspace folder and restoring recent workspaces
 - editing project documents in the main workbench
-- workflow-aware behavior for Markdown, LaTeX, and Typst
+- workflow-aware behavior for Markdown and LaTeX
 - previewing or compiling supported writing formats
 - outline inspection in the current right sidebar
 - local history, snapshots, and repository-linked writing workflows
@@ -44,7 +44,7 @@ The next product expansion is not a separate surface. It is an extension of the 
 
 - project-scoped references library stored alongside workspace-owned metadata
 - in-app PDF and research reading flows that stay close to the draft
-- direct citation insertion for Markdown, LaTeX, and Typst
+- direct citation insertion for Markdown and LaTeX
 - bibliography generation that respects the active document workflow
 - reference metadata, import, and reading context that remain local-first
 
@@ -54,10 +54,10 @@ The workbench can already open supporting files such as standalone PDFs, `.txt`,
 
 ### Current surfaces
 
-- **Launcher** for opening a local workspace or cloning a repository into a local workspace
+- **Launcher** for opening a local workspace
 - **Workspace surface** for file tree, editor panes, preview or compile actions, and current inspection flows
 - **Settings surface** for theme, editor, environment, and update preferences
-- **Dialogs and overlays** for setup, unsaved changes, version history, and workspace snapshot browsing
+- **Dialogs and overlays** for setup, unsaved changes, and workspace snapshot browsing
 
 ### Planned workbench additions
 
@@ -73,8 +73,6 @@ Current first-class writing formats remain:
 
 - **Markdown** with a built-in preview mode
 - **LaTeX** with compile status, diagnostics, and PDF preview
-- **Typst** with native preview when available plus PDF preview
-
 Citations and bibliography behavior should adapt to each format instead of forcing one fake cross-format syntax over the top.
 
 ## Product boundaries

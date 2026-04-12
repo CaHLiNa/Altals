@@ -75,9 +75,6 @@ export async function createWorkspaceFile(dirPath, name, options = {}) {
     if (name.endsWith('.tex')) {
       const title = name.replace(/\.tex$/, '').replace(/-/g, ' ')
       content = `\\documentclass{article}\n\\title{${title}}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\n\n\\end{document}\n`
-    } else if (name.endsWith('.typ')) {
-      const title = name.replace(/\.typ$/, '').replace(/-/g, ' ')
-      content = `= ${title}\n\nStart writing here.\n`
     }
   }
 

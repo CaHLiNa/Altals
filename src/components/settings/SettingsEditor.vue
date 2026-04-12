@@ -9,7 +9,7 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Writing font') }}</div>
             <div class="settings-row-hint">
-              {{ t('Choose the default reading and drafting face for prose documents.') }}
+              {{ t('Choose the default reading and drafting face for Markdown documents.') }}
             </div>
           </div>
           <div class="settings-row-control">
@@ -119,7 +119,7 @@
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Spell Check') }}</div>
             <div class="settings-row-hint">
-              {{ t('Underline spelling issues while drafting in supported editors.') }}
+              {{ t('Underline spelling issues while drafting in Markdown documents.') }}
             </div>
           </div>
           <div class="settings-row-control compact">
@@ -134,66 +134,13 @@
     </section>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">Typst</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Compile on save') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Refresh Typst output after each save in projects that use Typst.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="typstStore.autoCompile"
-              :aria-label="t('Toggle Typst compile on save')"
-              @update:model-value="typstStore.setAutoCompile(!typstStore.autoCompile)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Format on save') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Apply Typst formatting automatically when the document is saved.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="typstStore.formatOnSave"
-              :aria-label="t('Toggle Typst format on save')"
-              @update:model-value="typstStore.setFormatOnSave(!typstStore.formatOnSave)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Inlay hints') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Show inline hints from the Typst language service while editing.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="typstStore.inlayHints"
-              :aria-label="t('Toggle Typst inlay hints')"
-              @update:model-value="typstStore.setInlayHintsEnabled(!typstStore.inlayHints)"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="settings-group">
       <h4 class="settings-group-title">LaTeX</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Compile on save') }}</div>
             <div class="settings-row-hint">
-              {{ t('Build LaTeX output automatically after saving supported documents.') }}
+              {{ t('Build LaTeX output automatically after saving .tex documents.') }}
             </div>
           </div>
           <div class="settings-row-control compact">
@@ -227,7 +174,6 @@
 
 <script setup>
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
 import { EDITOR_FONT_SIZE_PRESETS } from '../../services/workspacePreferences'
 import { useI18n } from '../../i18n'
@@ -235,7 +181,6 @@ import UiSwitch from '../shared/ui/UiSwitch.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const workspace = useWorkspaceStore()
-const typstStore = useTypstStore()
 const latexStore = useLatexStore()
 const { t } = useI18n()
 

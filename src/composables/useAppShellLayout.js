@@ -1,4 +1,8 @@
 import { onMounted, ref } from 'vue'
+import {
+  flushWorkbenchMotionCommit,
+  scheduleWorkbenchMotionCommit,
+} from '../domains/workbench/workbenchMotionRuntime.js'
 import { MAX_WORKBENCH_SIDEBAR_PANEL_COUNT } from '../shared/workbenchSidebarPanels.js'
 import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspectorPanels.js'
 
@@ -32,11 +36,11 @@ const isLeftSidebarResizing = ref(false)
 const isRightSidebarResizing = ref(false)
 
 let sidebarWidthSaveTimer = null
-let leftSidebarFrame = null
-let rightSidebarFrame = null
 let viewportResizeFrame = null
 let pendingLeftSidebarWidth = leftSidebarWidth.value
 let pendingRightSidebarWidth = rightSidebarWidth.value
+const LEFT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:left-sidebar-width'
+const RIGHT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:right-sidebar-width'
 
 function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
@@ -204,12 +208,11 @@ function commitLeftSidebarWidth(value) {
 
 function scheduleLeftSidebarWidth(value) {
   pendingLeftSidebarWidth = value
-  if (leftSidebarFrame !== null) return
-
-  leftSidebarFrame = window.requestAnimationFrame(() => {
-    leftSidebarFrame = null
-    commitLeftSidebarWidth(pendingLeftSidebarWidth)
-  })
+  scheduleWorkbenchMotionCommit(
+    LEFT_SIDEBAR_WIDTH_MOTION_KEY,
+    pendingLeftSidebarWidth,
+    commitLeftSidebarWidth,
+  )
 }
 
 function commitRightSidebarWidth(value) {
@@ -222,26 +225,16 @@ function commitRightSidebarWidth(value) {
 
 function scheduleRightSidebarWidth(value) {
   pendingRightSidebarWidth = value
-  if (rightSidebarFrame !== null) return
-
-  rightSidebarFrame = window.requestAnimationFrame(() => {
-    rightSidebarFrame = null
-    commitRightSidebarWidth(pendingRightSidebarWidth)
-  })
+  scheduleWorkbenchMotionCommit(
+    RIGHT_SIDEBAR_WIDTH_MOTION_KEY,
+    pendingRightSidebarWidth,
+    commitRightSidebarWidth,
+  )
 }
 
 function flushScheduledSidebarWidths() {
-  if (leftSidebarFrame !== null) {
-    window.cancelAnimationFrame(leftSidebarFrame)
-    leftSidebarFrame = null
-    commitLeftSidebarWidth(pendingLeftSidebarWidth)
-  }
-
-  if (rightSidebarFrame !== null) {
-    window.cancelAnimationFrame(rightSidebarFrame)
-    rightSidebarFrame = null
-    commitRightSidebarWidth(pendingRightSidebarWidth)
-  }
+  flushWorkbenchMotionCommit(LEFT_SIDEBAR_WIDTH_MOTION_KEY)
+  flushWorkbenchMotionCommit(RIGHT_SIDEBAR_WIDTH_MOTION_KEY)
 }
 
 function commitSidebarWidthsToViewport() {

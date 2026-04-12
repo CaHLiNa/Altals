@@ -41,11 +41,7 @@ import { computed, onUnmounted, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
-import { useTypstStore } from '../../stores/typst'
-import { isMarkdown, isLatex, isTypst, getViewerType } from '../../utils/fileTypes'
-import { subscribeTinymistDocumentSymbols } from '../../services/tinymist/session'
-import { normalizeTinymistDocumentSymbols } from '../../services/tinymist/symbols'
-import { buildTypstOutlineItems } from '../../services/typst/outline'
+import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
 import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
 import { useI18n } from '../../i18n'
 
@@ -59,7 +55,6 @@ defineEmits(['toggle-collapse'])
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
-const typstStore = useTypstStore()
 const { t } = useI18n()
 const OUTLINE_SECTION_KEYS = [
   { key: 'contents', titleKey: 'Contents' },
@@ -67,14 +62,11 @@ const OUTLINE_SECTION_KEYS = [
   { key: 'bibliography', titleKey: 'Bibliography' },
 ]
 
-let cleanupTinymistSymbols = null
-
 function outlineTypeForPath(path) {
   if (!path) return null
   const vt = getViewerType(path)
   if (vt === 'text' && isMarkdown(path)) return 'markdown'
   if (vt === 'text' && isLatex(path)) return 'latex'
-  if (vt === 'text' && isTypst(path)) return 'typst'
   return null
 }
 
@@ -110,23 +102,6 @@ function currentDocumentText(path) {
   return filesStore.fileContents[path] || ''
 }
 
-function bindTinymistOutline(path) {
-  if (cleanupTinymistSymbols) {
-    cleanupTinymistSymbols()
-    cleanupTinymistSymbols = null
-  }
-
-  if (!path) return
-
-  cleanupTinymistSymbols = subscribeTinymistDocumentSymbols(path, (symbols) => {
-    typstStore.setTinymistOutlineItems(
-      path,
-      normalizeTinymistDocumentSymbols(currentDocumentText(path), symbols),
-      { loaded: true, tinymistBacked: true }
-    )
-  })
-}
-
 const outlineItems = computed(() => {
   const path = activeFile.value
   const ft = fileType.value
@@ -140,15 +115,6 @@ const outlineItems = computed(() => {
   if (ft === 'latex') {
     const content = currentDocumentText(path)
     return content ? parseLatexHeadings(content) : []
-  }
-
-  if (ft === 'typst') {
-    const content = currentDocumentText(path)
-    return content
-      ? buildTypstOutlineItems(content, {
-          liveState: typstStore.liveStateForFile(path),
-        })
-      : []
   }
 
   return []
@@ -258,7 +224,7 @@ function navigateToOutlineItem(item) {
   const ft = fileType.value
   const targetPath = item.filePath || path
 
-  if (ft === 'markdown' || ft === 'latex' || ft === 'typst') {
+  if (ft === 'markdown' || ft === 'latex') {
     const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
     editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
     focusTextOffset(targetPath, item.offset)
@@ -287,27 +253,9 @@ function outlineItemKey(item = {}) {
   ].join('::')
 }
 
-watch(
-  () => [activeFile.value, fileType.value],
-  ([path, ft]) => {
-    if (cleanupTinymistSymbols) {
-      cleanupTinymistSymbols()
-      cleanupTinymistSymbols = null
-    }
+watch(() => [activeFile.value, fileType.value], () => {}, { immediate: true })
 
-    if (ft === 'typst' && path) {
-      bindTinymistOutline(path)
-    }
-  },
-  { immediate: true }
-)
-
-onUnmounted(() => {
-  if (cleanupTinymistSymbols) {
-    cleanupTinymistSymbols()
-    cleanupTinymistSymbols = null
-  }
-})
+onUnmounted(() => {})
 </script>
 
 <style scoped>

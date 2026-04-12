@@ -130,7 +130,6 @@ const kindLabel = computed(() => {
   if (!props.uiState || props.uiState.kind === 'text') return ''
   if (props.uiState.kind === 'markdown') return t('Markdown')
   if (props.uiState.kind === 'latex') return t('LaTeX')
-  if (props.uiState.kind === 'typst') return t('Typst')
   return ''
 })
 
@@ -155,14 +154,14 @@ const showShellStatus = computed(
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
 const primaryLabel = computed(() => {
-  if (props.uiState?.kind === 'latex' || props.uiState?.kind === 'typst') {
+  if (props.uiState?.kind === 'latex') {
     return t('Compile')
   }
   return t('Preview')
 })
 
 const primaryIcon = computed(() => {
-  if (props.uiState?.kind === 'latex' || props.uiState?.kind === 'typst') {
+  if (props.uiState?.kind === 'latex') {
     return IconPlayerPlay
   }
   return IconEye
@@ -171,7 +170,6 @@ const primaryIcon = computed(() => {
 const showPreviewButton = computed(() => {
   if (!props.uiState?.kind || props.uiState.kind === 'text') return false
   if (props.uiState.kind === 'latex') return false
-  if (props.uiState.kind === 'typst') return props.uiState.canRevealPreview === true
   return true
 })
 
@@ -181,7 +179,7 @@ const previewButtonLabel = computed(() =>
 
 const canOpenPdf = computed(() => props.uiState?.canOpenPdf === true)
 const showPdfButton = computed(() => {
-  if (props.uiState?.kind === 'latex' || props.uiState?.kind === 'typst') return true
+  if (props.uiState?.kind === 'latex') return true
   return canOpenPdf.value
 })
 const pdfButtonLabel = computed(() => {
@@ -192,7 +190,7 @@ const pdfButtonLabel = computed(() => {
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
 const isPreviewButtonActive = computed(
-  () => activePreviewMode.value === 'markdown' || activePreviewMode.value === 'typst-native'
+  () => activePreviewMode.value === 'markdown'
 )
 const isPdfButtonActive = computed(() => activePreviewMode.value === 'pdf-artifact')
 

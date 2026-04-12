@@ -6,7 +6,6 @@ import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 
 function preferredNewFileExtension(path = '') {
   if (path.endsWith('.tex') || path.endsWith('.latex')) return '.tex'
-  if (path.endsWith('.typ')) return '.typ'
   if (path.endsWith('.markdown')) return '.markdown'
   return '.md'
 }

@@ -13,7 +13,6 @@ function createWorkflowStore({ previewBinding = null, detachedSources = {} } = {
   return {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      typst: { preferredPreview: 'native' },
     },
     session: {
       detachedSources,
@@ -23,7 +22,6 @@ function createWorkflowStore({ previewBinding = null, detachedSources = {} } = {
     },
     inferPreviewKind(sourcePath, previewPath) {
       if (previewPath === `preview:${sourcePath}`) return 'html'
-      if (previewPath === `typst-preview:${sourcePath}`) return 'native'
       return null
     },
   }

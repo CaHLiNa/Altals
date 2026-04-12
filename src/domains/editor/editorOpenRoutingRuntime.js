@@ -18,7 +18,6 @@ export function createEditorOpenRoutingRuntime({
       && !path.startsWith('newtab:')
       && !path.startsWith('draft:')
       && !path.startsWith('preview:')
-      && !path.startsWith('typst-preview:')
     ) {
       recordFileOpen?.(path)
     }

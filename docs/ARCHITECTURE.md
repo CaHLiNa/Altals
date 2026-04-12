@@ -48,7 +48,6 @@ Examples:
 
 - `src/services/documentWorkflow/*`
 - `src/services/environmentPreflight.js`
-- `src/services/workspaceHistoryRepo.js`
 
 ### `src/stores/*`
 
@@ -60,7 +59,6 @@ Important stores:
 - `src/stores/documentWorkflow.js`
 - `src/stores/files.js`
 - `src/stores/latex.js`
-- `src/stores/typst.js`
 
 Future stores should follow the same thin-coordination rule when reference or reader features land, for example:
 
@@ -89,7 +87,7 @@ Reusable UI glue that should stay lighter than product-policy code.
 ### `src-tauri/*`
 
 Native filesystem, process, protocol, and platform seams.
-The backend module list in `src-tauri/src/lib.rs` currently includes file, git, GitHub auth loopback, LaTeX, Typst, workspace access, and security-related modules.
+The backend module list in `src-tauri/src/lib.rs` currently includes file, LaTeX, workspace access, keychain, and security-related modules.
 
 Future backend seams for references, citation tooling, or reader helpers should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 
@@ -103,7 +101,7 @@ Future backend seams for references, citation tooling, or reader helpers should 
 - workspace workbench when a workspace is open
 - settings surface when the primary surface changes to settings
 
-The same shell also owns dialogs for setup, unsaved changes, snapshots, and version history.
+The same shell also owns dialogs for setup, unsaved changes, and snapshots.
 
 ### Sidebar model
 
@@ -161,7 +159,7 @@ That boundary should also carry future reference indexes, citation caches, reade
 
 ### History and snapshot architecture
 
-Workspace history and save points are modeled in `src/domains/changes/*`, where git-backed history and local snapshot metadata are merged into stable UI-facing records.
+Workspace save points are modeled in `src/domains/changes/*`, where local snapshot metadata, payload manifests, and restore previews are normalized into stable UI-facing records.
 
 Future references or reader state should integrate with this system only when they materially protect the writing workflow. Do not bolt unrelated persistence schemes onto the side.
 
@@ -191,4 +189,4 @@ Repository automation is split between:
 - `docs/DOMAINS.md`
 - `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`
-- `docs/GIT_AND_SNAPSHOTS.md`
+- `docs/WORKSPACE_SAVE_POINTS.md`

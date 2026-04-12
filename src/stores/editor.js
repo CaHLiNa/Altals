@@ -349,10 +349,17 @@ export const useEditorStore = defineStore('editor', {
       this.saveEditorState()
     },
 
-    setSplitRatio(splitNode, ratio) {
+    setSplitRatio(splitNode, ratio, { persist = false } = {}) {
       if (!splitNode || splitNode !== this.paneTree || splitNode.type !== 'split') return
       splitNode.ratio = Math.max(0.15, Math.min(0.85, Number(ratio) || 0.5))
-      this.saveEditorState()
+      if (persist) {
+        this.saveEditorState()
+      }
+    },
+
+    commitSplitRatio(splitNode) {
+      if (!splitNode || splitNode !== this.paneTree || splitNode.type !== 'split') return
+      this.setSplitRatio(splitNode, splitNode.ratio, { persist: true })
     },
 
     updateFilePath(oldPath, newPath) {

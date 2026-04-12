@@ -6,7 +6,6 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useLinksStore } from '../../stores/links'
-import { useTypstStore } from '../../stores/typst'
 import { useLatexStore } from '../../stores/latex'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
@@ -24,7 +23,6 @@ export function useWorkspaceLifecycle() {
   const filesStore = useFilesStore()
   const editorStore = useEditorStore()
   const linksStore = useLinksStore()
-  const typstStore = useTypstStore()
   const latexStore = useLatexStore()
   const toastStore = useToastStore()
   const uxStatusStore = useUxStatusStore()
@@ -187,12 +185,6 @@ export function useWorkspaceLifecycle() {
 
       scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
 
-      scheduleWorkspaceBackgroundTask(620, loadGeneration, targetPath, async () => {
-        await workspace.ensureWorkspaceBootstrapReady(targetPath)
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await typstStore.checkCompiler()
-      }, 'typst.checkCompiler')
-
       backgroundWorkspaceLoadTimer = window.setTimeout(() => {
         if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
         backgroundWorkspaceLoadTimer = null
@@ -235,7 +227,6 @@ export function useWorkspaceLifecycle() {
     filesStore.cleanup()
     linksStore.cleanup()
     latexStore.cleanup()
-    typstStore.cleanup()
     await workspace.closeWorkspace()
     await invoke('workspace_clear_allowed_roots').catch((error) => {
       console.warn('[workspace] failed to clear allowed roots:', error)

@@ -26,19 +26,6 @@
         <div class="context-menu-separator"></div>
       </template>
 
-      <template v-if="typstCodeActions.length > 0">
-        <div class="context-menu-section">{{ t('Quick Fixes') }}</div>
-        <div
-          v-for="action in typstCodeActions"
-          :key="action.id"
-          class="context-menu-item"
-          @click="applyTypstCodeAction(action)"
-        >
-          {{ typstCodeActionLabel(action) }}
-        </div>
-        <div class="context-menu-separator"></div>
-      </template>
-
       <template v-if="hasSelection">
         <div class="context-menu-item" @click="cut">{{ t('Cut') }}</div>
         <div class="context-menu-item" @click="copy">{{ t('Copy') }}</div>
@@ -91,7 +78,6 @@ const props = defineProps({
   showFormatDocument: { type: Boolean, default: false },
   showMarkdownInsertTable: { type: Boolean, default: false },
   showMarkdownFormatTable: { type: Boolean, default: false },
-  typstCodeActions: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits([
@@ -99,7 +85,6 @@ const emit = defineEmits([
   'format-document',
   'insert-markdown-table',
   'format-markdown-table',
-  'apply-typst-code-action',
   'paste-unavailable',
 ])
 const { t } = useI18n()
@@ -168,7 +153,6 @@ watch(
   () => [
     props.visible,
     spellSuggestions.value.length,
-    props.typstCodeActions.length,
     props.hasSelection,
     props.showFormatDocument,
     props.showMarkdownInsertTable,
@@ -281,25 +265,6 @@ function formatMarkdownTable() {
 function insertMarkdownTable() {
   emit('insert-markdown-table')
   emit('close')
-}
-
-function applyTypstCodeAction(action) {
-  emit('apply-typst-code-action', action)
-  emit('close')
-}
-
-function typstCodeActionLabel(action) {
-  const title = String(action?.title || '').trim()
-  if (!title) return ''
-
-  const createMissingFileMatch = /^Create missing file at `(.+)`$/.exec(title)
-  if (createMissingFileMatch) {
-    return t('Create missing file at `{path}`', {
-      path: createMissingFileMatch[1],
-    })
-  }
-
-  return t(title)
 }
 </script>
 

@@ -47,7 +47,7 @@ Success criteria:
 
 - a user can open a project and see its references without leaving Altals
 - references survive app restarts and remain bound to the workspace
-- Markdown, LaTeX, and Typst each get a correct citation insertion path
+- Markdown and LaTeX each get a correct citation insertion path
 
 ## Phase 2: In-App Reading Loop
 
@@ -121,7 +121,7 @@ If work starts now, the smallest meaningful slice is:
 1. define the project references data model
 2. persist references in workspace-owned metadata
 3. add a basic references list and selection flow
-4. implement citation insertion for one path in each of Markdown, LaTeX, and Typst
+4. implement citation insertion for one path in each of Markdown and LaTeX
 5. allow a project PDF to open in a workbench-adjacent reader
 
 That slice is narrow enough to ship and broad enough to prove the product direction.

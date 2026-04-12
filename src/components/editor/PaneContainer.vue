@@ -30,6 +30,7 @@
     <SplitHandle
       direction="vertical"
       @resize="(e) => handleResize(e)"
+      @resize-end="handleResizeEnd"
     />
 
     <div :style="secondChildStyle" class="pane-container-slot overflow-hidden">
@@ -46,6 +47,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import {
+  flushWorkbenchMotionCommit,
+  scheduleWorkbenchMotionCommit,
+} from '../../domains/workbench/workbenchMotionRuntime.js'
 import { useEditorStore } from '../../stores/editor'
 import EditorPane from './EditorPane.vue'
 import SplitHandle from './SplitHandle.vue'
@@ -59,6 +64,7 @@ const props = defineProps({
 const emit = defineEmits(['cursor-change', 'editor-stats'])
 const editorStore = useEditorStore()
 const splitContainer = ref(null)
+const splitMotionKey = computed(() => `pane-split:${props.node?.id || 'root'}`)
 
 const firstChildStyle = computed(() => {
   if (props.node.type !== 'split') return {}
@@ -79,9 +85,18 @@ function handleResize(e) {
   if (!container) return
 
   const rect = container.getBoundingClientRect()
+  if (!rect.width) return
   const ratio = (e.x - rect.left) / rect.width
 
-  editorStore.setSplitRatio(props.node, ratio)
+  scheduleWorkbenchMotionCommit(splitMotionKey.value, ratio, (nextRatio) => {
+    editorStore.setSplitRatio(props.node, nextRatio)
+  })
+}
+
+function handleResizeEnd() {
+  if (props.node.type !== 'split') return
+  flushWorkbenchMotionCommit(splitMotionKey.value)
+  editorStore.commitSplitRatio(props.node)
 }
 </script>
 

@@ -77,13 +77,13 @@ test('openFile replaces the active new-tab launcher in the current pane', () => 
   state.pane.activeTab = 'newtab:starter'
 
   const { runtime, events } = createRuntime(state)
-  runtime.openFile('/workspace/paper.typ')
+  runtime.openFile('/workspace/paper.tex')
 
-  assert.deepEqual(state.pane.tabs, ['/workspace/paper.typ'])
-  assert.equal(state.pane.activeTab, '/workspace/paper.typ')
-  assert.equal(state.lastContextPath, '/workspace/paper.typ')
-  assert.deepEqual(events.recorded, ['/workspace/paper.typ'])
-  assert.deepEqual(events.revealed, ['/workspace/paper.typ'])
+  assert.deepEqual(state.pane.tabs, ['/workspace/paper.tex'])
+  assert.equal(state.pane.activeTab, '/workspace/paper.tex')
+  assert.equal(state.lastContextPath, '/workspace/paper.tex')
+  assert.deepEqual(events.recorded, ['/workspace/paper.tex'])
+  assert.deepEqual(events.revealed, ['/workspace/paper.tex'])
   assert.equal(events.saves, 1)
 })
 

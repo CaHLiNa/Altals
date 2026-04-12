@@ -8,153 +8,143 @@
       'is-mac-vibrant': isMacDesktop && workspace.isOpen,
     }"
   >
-    <Header v-if="!workspace.isOpen" />
+    <WorkspaceQuickOpen v-if="workspace.isOpen" ref="searchRef" />
 
-    <!-- Launcher (no workspace open) -->
-    <Launcher
-      v-if="!workspace.isOpen"
-      @open-folder="pickWorkspace"
-      @open-workspace="openWorkspace"
-    />
+    <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
+      <WorkbenchRail
+        v-if="workspace.isOpen"
+        class="app-shell-topbar shrink-0"
+        :current-document-label="currentDocumentLabel"
+        :prefer-external-document-title="workspace.isWorkspaceSurface"
+        :left-sidebar-available="workspace.isWorkspaceSurface"
+        :left-sidebar-open="leftSidebarVisible"
+        :right-sidebar-open="workspace.rightSidebarOpen"
+        :split-pane-available="workspace.isWorkspaceSurface"
+        :split-pane-open="splitPaneOpen"
+        :inspector-available="supportsRightSidebar"
+        @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
+        @open-left-create-menu="
+          leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)
+        "
+        @toggle-left-sidebar="workspace.toggleLeftSidebar()"
+        @toggle-split-pane="toggleSplitPane"
+        @toggle-right-sidebar="workspace.toggleRightSidebar()"
+      />
 
-    <!-- Main content area (workspace open) -->
-    <template v-if="workspace.isOpen">
-      <WorkspaceQuickOpen ref="searchRef" />
-
-      <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
-        <WorkbenchRail
-          class="app-shell-topbar shrink-0"
-          :current-document-label="currentDocumentLabel"
-          :prefer-external-document-title="workspace.isWorkspaceSurface"
-          :left-sidebar-available="workspace.isWorkspaceSurface"
-          :left-sidebar-open="leftSidebarVisible"
-          :right-sidebar-open="workspace.rightSidebarOpen"
-          :split-pane-available="workspace.isWorkspaceSurface"
-          :split-pane-open="splitPaneOpen"
-          :inspector-available="supportsRightSidebar"
-          @collapse-left-folders="leftSidebarRef?.collapseAllFolders?.()"
-          @open-left-create-menu="
-            leftSidebarRef?.openCreateMenuFrom?.($event?.currentTarget || null)
-          "
-          @toggle-left-sidebar="workspace.toggleLeftSidebar()"
-          @toggle-split-pane="toggleSplitPane"
-          @toggle-right-sidebar="workspace.toggleRightSidebar()"
-        />
-
-        <div class="app-shell-workbench flex flex-1 overflow-hidden">
+      <div class="app-shell-workbench flex flex-1 overflow-hidden">
+        <div
+          class="app-shell-region app-shell-region-left shrink-0 overflow-hidden"
+          :class="{
+            'is-open': leftSidebarVisible,
+            'is-collapsed': !leftSidebarVisible,
+            'is-resizing': isLeftSidebarResizing,
+            'is-workspace-left-region': workspace.isWorkspaceSurface,
+          }"
+          :style="{
+            width: leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
+          }"
+        >
           <div
-            class="app-shell-region app-shell-region-left shrink-0 overflow-hidden"
+            class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden"
             :class="{
               'is-open': leftSidebarVisible,
               'is-collapsed': !leftSidebarVisible,
               'is-resizing': isLeftSidebarResizing,
-              'is-workspace-left-region': workspace.isWorkspaceSurface,
             }"
+            data-sidebar="left"
+            :aria-hidden="leftSidebarVisible ? 'false' : 'true'"
             :style="{
-              width: leftSidebarVisible ? `${leftSidebarWidth}px` : '0px',
+              width: '100%',
             }"
           >
-            <div
-              class="app-shell-sidebar app-shell-sidebar-left shrink-0 overflow-hidden"
-              :class="{
-                'is-open': leftSidebarVisible,
-                'is-collapsed': !leftSidebarVisible,
-                'is-resizing': isLeftSidebarResizing,
-              }"
-              data-sidebar="left"
-              :aria-hidden="leftSidebarVisible ? 'false' : 'true'"
-              :style="{
-                width: '100%',
-              }"
-            >
-              <KeepAlive :max="2">
-                <LeftSidebar
-                  v-if="workspace.isWorkspaceSurface"
-                  ref="leftSidebarRef"
-                  @open-search="openQuickSearch"
-                  @open-settings="workspace.openSettings()"
-                  @open-folder="pickWorkspace"
-                  @open-workspace="openWorkspace"
-                  @close-folder="closeWorkspace"
-                />
-                <SettingsSidebar v-else-if="workspace.isSettingsSurface" />
-              </KeepAlive>
-            </div>
+            <KeepAlive :max="2">
+              <LeftSidebar
+                v-if="workspace.isWorkspaceSurface && workspace.isOpen"
+                ref="leftSidebarRef"
+                @open-search="openQuickSearch"
+                @open-settings="workspace.openSettings()"
+                @open-folder="pickWorkspace"
+                @open-workspace="openWorkspace"
+                @close-folder="closeWorkspace"
+              />
+              <SettingsSidebar v-else-if="workspace.isSettingsSurface && workspace.isOpen" />
+            </KeepAlive>
           </div>
+        </div>
 
-          <!-- Left resize handle -->
+        <!-- Left resize handle -->
+        <div
+          class="app-shell-resize-slot"
+          :class="{ 'is-visible': leftSidebarVisible, 'is-hidden': !leftSidebarVisible }"
+        >
+          <ResizeHandle
+            class="app-shell-resize-handle app-shell-resize-handle-left"
+            direction="vertical"
+            @resize="onLeftResize"
+            @resize-start="startLeftSidebarResize"
+            @resize-end="endLeftSidebarResize"
+          />
+        </div>
+
+        <div
+          class="app-shell-region app-shell-region-main app-shell-main app-shell-main-shell flex-1 flex flex-col overflow-hidden"
+        >
+          <div
+            class="app-shell-main-card flex-1 overflow-hidden relative"
+            :class="{
+              'has-left-sidebar': leftSidebarVisible,
+              'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
+              'is-empty-workspace-shell': !workspace.isOpen,
+            }"
+          >
+            <KeepAlive :max="3">
+              <component
+                :is="activeWorkbenchComponent"
+                :key="activeWorkbenchCacheKey"
+                v-bind="activeWorkbenchProps"
+                :class="activeWorkbenchClass"
+                @cursor-change="onCursorChange"
+              />
+            </KeepAlive>
+          </div>
+        </div>
+
+        <template v-if="supportsRightSidebar">
           <div
             class="app-shell-resize-slot"
-            :class="{ 'is-visible': leftSidebarVisible, 'is-hidden': !leftSidebarVisible }"
+            :class="{
+              'is-visible': workspace.rightSidebarOpen,
+              'is-hidden': !workspace.rightSidebarOpen,
+            }"
           >
             <ResizeHandle
-              class="app-shell-resize-handle app-shell-resize-handle-left"
+              class="app-shell-resize-handle app-shell-resize-handle-right"
               direction="vertical"
-              @resize="onLeftResize"
-              @resize-start="startLeftSidebarResize"
-              @resize-end="endLeftSidebarResize"
+              @resize="onRightResize"
+              @resize-start="startRightSidebarResize"
+              @resize-end="endRightSidebarResize"
+              @dblclick="onRightResizeSnap"
             />
           </div>
 
           <div
-            class="app-shell-region app-shell-region-main app-shell-main app-shell-main-shell flex-1 flex flex-col overflow-hidden"
+            class="app-shell-region app-shell-region-right shrink-0 overflow-hidden"
+            :class="{
+              'is-open': workspace.rightSidebarOpen,
+              'is-collapsed': !workspace.rightSidebarOpen,
+              'is-resizing': isRightSidebarResizing,
+            }"
+            data-sidebar="right"
+            :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
+            :style="{
+              width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
+            }"
           >
-            <div
-              class="app-shell-main-card flex-1 overflow-hidden relative"
-              :class="{
-                'has-left-sidebar': leftSidebarVisible,
-                'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
-              }"
-            >
-              <KeepAlive :max="3">
-                <component
-                  :is="activeWorkbenchComponent"
-                  :key="activeWorkbenchCacheKey"
-                  v-bind="activeWorkbenchProps"
-                  :class="activeWorkbenchClass"
-                  @cursor-change="onCursorChange"
-                />
-              </KeepAlive>
-            </div>
+            <RightSidebar class="app-shell-sidebar app-shell-sidebar-right" />
           </div>
-
-          <template v-if="supportsRightSidebar">
-            <div
-              class="app-shell-resize-slot"
-              :class="{
-                'is-visible': workspace.rightSidebarOpen,
-                'is-hidden': !workspace.rightSidebarOpen,
-              }"
-            >
-              <ResizeHandle
-                class="app-shell-resize-handle app-shell-resize-handle-right"
-                direction="vertical"
-                @resize="onRightResize"
-                @resize-start="startRightSidebarResize"
-                @resize-end="endRightSidebarResize"
-                @dblclick="onRightResizeSnap"
-              />
-            </div>
-
-            <div
-              class="app-shell-region app-shell-region-right shrink-0 overflow-hidden"
-              :class="{
-                'is-open': workspace.rightSidebarOpen,
-                'is-collapsed': !workspace.rightSidebarOpen,
-                'is-resizing': isRightSidebarResizing,
-              }"
-              data-sidebar="right"
-              :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
-              :style="{
-                width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
-              }"
-            >
-              <RightSidebar class="app-shell-sidebar app-shell-sidebar-right" />
-            </div>
-          </template>
-        </div>
+        </template>
       </div>
-    </template>
+    </div>
 
     <WorkspaceSnapshotBrowser
       :visible="workspaceSnapshotBrowserVisible"
@@ -184,11 +174,9 @@ import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useToastStore } from './stores/toast'
 
-import Header from './components/layout/Header.vue'
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
 import WorkspaceQuickOpen from './components/layout/WorkspaceQuickOpen.vue'
-import Launcher from './components/Launcher.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
 import { useAppShellLayout } from './composables/useAppShellLayout'
@@ -232,7 +220,9 @@ const workspaceSnapshotBrowserVisible = ref(false)
 const workspaceSnapshotBrowserFeedback = ref(null)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
-const leftSidebarVisible = computed(() => workspace.isSettingsSurface || workspace.leftSidebarOpen)
+const leftSidebarVisible = computed(
+  () => workspace.isOpen && (workspace.isSettingsSurface || workspace.leftSidebarOpen)
+)
 const splitPaneOpen = computed(
   () =>
     editorStore.paneTree?.type === 'split' &&
@@ -465,7 +455,7 @@ useAppTeardown({
 }
 
 .app-shell-region-left.is-workspace-left-region {
-  background: var(--sidebar-shell-surface);
+  background: transparent;
 }
 
 .app-shell-region-main {
@@ -477,6 +467,14 @@ useAppTeardown({
   background: transparent;
   will-change: width;
   transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global(body.altals-shell-resizing) .app-shell-region-left,
+:global(body.altals-shell-resizing) .app-shell-region-right,
+:global(body.altals-shell-resizing) .app-shell-sidebar,
+:global(body.altals-shell-resizing) .app-shell-sidebar-left,
+:global(body.altals-shell-resizing) .app-shell-sidebar-right {
+  transition: none !important;
 }
 
 .app-shell-sidebar {
@@ -555,6 +553,10 @@ useAppTeardown({
     margin-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
     padding-right 260ms cubic-bezier(0.16, 1, 0.3, 1),
     border-radius 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-shell-main-card.is-empty-workspace-shell {
+  padding-top: 0;
 }
 
 .app-shell-main-card.has-left-sidebar {

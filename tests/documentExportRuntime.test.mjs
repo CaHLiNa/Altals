@@ -28,16 +28,10 @@ test('document export runtime keeps markdown in a preview-first workflow', () =>
   })
 })
 
-test('document export runtime marks latex and typst outputs as external artifacts when available', () => {
+test('document export runtime marks latex outputs as external artifacts when available', () => {
   const latexState = resolveDocumentExportState({
     filePath: '/workspace/paper.tex',
     uiState: { kind: 'latex', phase: 'ready' },
-    artifactPath: '/workspace/build/paper.pdf',
-    artifactReady: true,
-  })
-  const typstState = resolveDocumentExportState({
-    filePath: '/workspace/paper.typ',
-    uiState: { kind: 'typst', phase: 'compiling' },
     artifactPath: '/workspace/build/paper.pdf',
     artifactReady: true,
   })
@@ -45,7 +39,6 @@ test('document export runtime marks latex and typst outputs as external artifact
   assert.equal(latexState.canExport, true)
   assert.equal(latexState.canOpenArtifact, true)
   assert.equal(latexState.exportPhase, 'ready')
-  assert.equal(typstState.exportPhase, 'exporting')
 })
 
 test('document export runtime builds human-readable summaries for preview, ready, and build-required states', () => {
@@ -85,7 +78,7 @@ test('document export runtime builds human-readable summaries for preview, ready
   assert.deepEqual(
     buildDocumentExportSummary(
       {
-        kind: 'typst',
+        kind: 'latex',
         canOpenArtifact: false,
       },
       t,

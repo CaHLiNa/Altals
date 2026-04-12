@@ -12,7 +12,7 @@ import {
 test('workspace preview runtime identifies document sources and keeps raw pdf tabs out of the split surface', () => {
   assert.equal(shouldUseDocumentWorkspaceTab('/tmp/note.md'), true)
   assert.equal(shouldUseDocumentWorkspaceTab('/tmp/paper.tex'), true)
-  assert.equal(shouldUseDocumentWorkspaceTab('/tmp/paper.typ'), true)
+  assert.equal(shouldUseDocumentWorkspaceTab('/tmp/paper.rst'), false)
   assert.equal(shouldUseDocumentWorkspaceTab('/tmp/paper.pdf'), false)
 })
 
@@ -67,56 +67,24 @@ test('latex can switch into an embedded pdf artifact preview when explicitly req
   assert.equal(state.reason, 'workspace-latex-pdf')
 })
 
-test('typst prefers native preview and falls back to source-only when native rendering is unavailable', () => {
-  const nativeState = resolveDocumentWorkspacePreviewState({ path: '/tmp/paper.typ' })
-  assert.equal(nativeState.previewVisible, true)
-  assert.equal(nativeState.previewKind, 'native')
-  assert.equal(nativeState.previewMode, 'typst-native')
-  assert.equal(nativeState.previewFilePath, 'typst-preview:/tmp/paper.typ')
-
-  const sourceOnlyState = resolveDocumentWorkspacePreviewState({
-    path: '/tmp/paper.typ',
-    previewKind: 'native',
-    nativePreviewSupported: false,
-    artifactReady: true,
-    resolvedTargetPath: '/tmp/paper.pdf',
-  })
-  assert.equal(sourceOnlyState.previewVisible, false)
-  assert.equal(sourceOnlyState.previewKind, null)
-  assert.equal(sourceOnlyState.previewMode, null)
-  assert.equal(sourceOnlyState.reason, 'artifact-ready-external')
-})
-
-test('typst can explicitly switch from native preview to pdf artifact preview', () => {
-  const state = resolveDocumentWorkspacePreviewState({
-    path: '/tmp/paper.typ',
+test('workspace text routing mirrors the resolved preview state for split editors', () => {
+  const previewState = resolveDocumentWorkspacePreviewState({
+    path: '/tmp/paper.tex',
     previewKind: 'pdf',
     previewRequested: true,
     artifactReady: true,
     resolvedTargetPath: '/tmp/paper.pdf',
   })
-
-  assert.equal(state.previewVisible, true)
-  assert.equal(state.previewKind, 'pdf')
-  assert.equal(state.previewMode, 'pdf-artifact')
-  assert.equal(state.previewTargetPath, '/tmp/paper.pdf')
-  assert.equal(state.reason, 'workspace-typst-pdf')
-})
-
-test('workspace text routing mirrors the resolved preview state for split editors', () => {
-  const previewState = resolveDocumentWorkspacePreviewState({
-    path: '/tmp/paper.typ',
-  })
   const route = resolveDocumentWorkspaceTextRoute({
-    activeTab: '/tmp/paper.typ',
+    activeTab: '/tmp/paper.tex',
     viewerType: 'text',
     documentPreviewState: previewState,
   })
 
   assert.equal(route.useWorkspaceSurface, true)
   assert.equal(route.previewVisible, true)
-  assert.equal(route.previewMode, 'typst-native')
-  assert.equal(route.previewTargetPath, '')
+  assert.equal(route.previewMode, 'pdf-artifact')
+  assert.equal(route.previewTargetPath, '/tmp/paper.pdf')
 })
 
 test('legacy preview tabs remain read-only and close effects only detach pane-bound previews', () => {

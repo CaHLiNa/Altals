@@ -38,31 +38,10 @@
         </div>
       </template>
 
-      <!-- Typst workspace symbols -->
-      <template v-if="typstSymbolMatches.length > 0">
-        <div class="quick-open-section">{{ t('Typst') }}</div>
-        <div
-          v-for="(symbol, idx) in typstSymbolMatches"
-          :key="'ts-' + symbol.filePath + ':' + symbol.line + ':' + symbol.name"
-          class="quick-open-item"
-          :class="{ active: titleMatches.length + contentMatches.length + idx === selectedIndex }"
-          @mousedown.prevent="$emit('select-typst-symbol', symbol)"
-          @mouseover="selectedIndex = titleMatches.length + contentMatches.length + idx"
-        >
-          <div class="quick-open-primary truncate">{{ symbol.name }}</div>
-          <div class="quick-open-secondary path">
-            <span v-if="symbol.kindLabel" class="uppercase">{{ symbol.kindLabel }}</span>
-            <span v-if="symbol.kindLabel"> · </span>
-            {{ symbol.relativePath }}<span v-if="symbol.line">:{{ symbol.line }}</span>
-          </div>
-        </div>
-      </template>
-
       <div
         v-if="
           titleMatches.length === 0 &&
           contentMatches.length === 0 &&
-          typstSymbolMatches.length === 0 &&
           query
         "
         class="quick-open-item quick-open-item-empty"
@@ -79,15 +58,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useFilesStore } from '../stores/files'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
-import { requestTinymistWorkspaceSymbols } from '../services/tinymist/session'
-import { normalizeTinymistWorkspaceSymbols } from '../services/tinymist/symbols'
 import { listWorkspaceFlatFileEntries } from '../domains/files/workspaceSnapshotFlatFilesRuntime'
 
 const props = defineProps({
   query: { type: String, default: '' },
 })
 
-const emit = defineEmits(['select-file', 'select-typst-symbol'])
+const emit = defineEmits(['select-file'])
 
 const files = useFilesStore()
 const workspace = useWorkspaceStore()
@@ -95,12 +72,9 @@ const { t } = useI18n()
 
 const selectedIndex = ref(0)
 const contentMatches = ref([])
-const typstSymbolMatches = ref([])
 const searching = ref(false)
 
 let searchTimer = null
-let typstSymbolTimer = null
-let typstSymbolRequestId = 0
 
 onMounted(() => {
   files
@@ -146,21 +120,16 @@ const titleMatches = computed(() => {
   return list.slice(0, 15)
 })
 
-const totalItems = computed(
-  () => titleMatches.value.length + contentMatches.value.length + typstSymbolMatches.value.length
-)
+const totalItems = computed(() => titleMatches.value.length + contentMatches.value.length)
 
 // Debounced content search
 watch(
   () => props.query,
   (q) => {
-    typstSymbolRequestId += 1
     selectedIndex.value = 0
     contentMatches.value = []
-    typstSymbolMatches.value = []
 
     clearTimeout(searchTimer)
-    clearTimeout(typstSymbolTimer)
     if (q.length >= 2 && workspace.path) {
       searching.value = true
       searchTimer = setTimeout(async () => {
@@ -177,27 +146,8 @@ watch(
         }
         searching.value = false
       }, 200)
-
-      const requestId = typstSymbolRequestId
-      typstSymbolTimer = setTimeout(async () => {
-        try {
-          const results = await requestTinymistWorkspaceSymbols(q, {
-            workspacePath: workspace.path,
-          })
-          if (requestId !== typstSymbolRequestId) return
-          typstSymbolMatches.value = normalizeTinymistWorkspaceSymbols(
-            results,
-            workspace.path
-          ).slice(0, 8)
-        } catch (error) {
-          console.warn('[search-results] typst workspace symbol search failed:', error)
-          if (requestId !== typstSymbolRequestId) return
-          typstSymbolMatches.value = []
-        }
-      }, 180)
     } else {
       searching.value = false
-      typstSymbolMatches.value = []
     }
   }
 )
@@ -223,7 +173,6 @@ function confirmSelection() {
   if (totalItems.value === 0) return
   const fileEnd = titleMatches.value.length
   const contentEnd = fileEnd + contentMatches.value.length
-  const typstEnd = contentEnd + typstSymbolMatches.value.length
 
   if (selectedIndex.value < fileEnd) {
     const file = titleMatches.value[selectedIndex.value]
@@ -232,10 +181,6 @@ function confirmSelection() {
     const idx = selectedIndex.value - fileEnd
     const match = contentMatches.value[idx]
     if (match) emit('select-file', match.path)
-  } else if (selectedIndex.value < typstEnd) {
-    const idx = selectedIndex.value - contentEnd
-    const symbol = typstSymbolMatches.value[idx]
-    if (symbol) emit('select-typst-symbol', symbol)
   }
 }
 

@@ -31,7 +31,7 @@ test('workspace starter metrics counts draft and computation artifacts by extens
   const files = [
     { path: '/workspace/intro.md' },
     { path: '/workspace/paper/main.tex' },
-    { path: '/workspace/slides/main.typ' },
+    { path: '/workspace/notes/summary.md' },
     { path: '/workspace/archive/draft.pdf' },
     { path: '/workspace/assets/figure.png' },
     { path: '/workspace/data/table.csv' },
@@ -61,7 +61,7 @@ test('workspace snapshot flat-file runtime lists and counts flat files from snap
     flatFiles: [
       { path: '/workspace/intro.md' },
       { path: '/workspace/paper/main.tex' },
-      { path: '/workspace/slides/main.typ' },
+      { path: '/workspace/notes/summary.md' },
       { path: '/workspace/archive/draft.pdf' },
     ],
   }
@@ -69,13 +69,13 @@ test('workspace snapshot flat-file runtime lists and counts flat files from snap
   assert.deepEqual(listWorkspaceFlatFileEntries(snapshot), [
     { path: '/workspace/intro.md', name: 'intro.md' },
     { path: '/workspace/paper/main.tex', name: 'main.tex' },
-    { path: '/workspace/slides/main.typ', name: 'main.typ' },
+    { path: '/workspace/notes/summary.md', name: 'summary.md' },
     { path: '/workspace/archive/draft.pdf', name: 'draft.pdf' },
   ])
   assert.deepEqual(listWorkspaceFlatFilePaths(snapshot), [
     '/workspace/intro.md',
     '/workspace/paper/main.tex',
-    '/workspace/slides/main.typ',
+    '/workspace/notes/summary.md',
     '/workspace/archive/draft.pdf',
   ])
   assert.equal(countWorkspaceFlatFilesByExtension(snapshot, WORKSPACE_STARTER_DRAFT_EXTENSIONS), 3)
@@ -91,18 +91,18 @@ test('workspace snapshot flat-file runtime normalizes mixed entries and filters 
       '/workspace/intro.md',
       { path: '/workspace/paper/main.tex', is_dir: false },
       { path: '/workspace/assets', is_dir: true, name: 'assets' },
-      { path: '/workspace/slides/main.typ', name: 'Slides main.typ', is_dir: false },
+      { path: '/workspace/notes/summary.md', name: 'summary.md', is_dir: false },
     ],
   }
 
   assert.deepEqual(listWorkspaceFlatFileEntries(snapshot), [
     { path: '/workspace/intro.md', name: 'intro.md', is_dir: false },
     { path: '/workspace/paper/main.tex', name: 'main.tex', is_dir: false },
-    { path: '/workspace/slides/main.typ', name: 'Slides main.typ', is_dir: false },
+    { path: '/workspace/notes/summary.md', name: 'summary.md', is_dir: false },
   ])
   assert.deepEqual(
-    filterWorkspaceFlatFilesByExtension(snapshot, ['.md', '.typ']).map((entry) => entry.path),
-    ['/workspace/intro.md', '/workspace/slides/main.typ']
+    filterWorkspaceFlatFilesByExtension(snapshot, ['.md', '.tex']).map((entry) => entry.path),
+    ['/workspace/intro.md', '/workspace/paper/main.tex', '/workspace/notes/summary.md']
   )
 })
 

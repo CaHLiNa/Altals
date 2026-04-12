@@ -16,7 +16,7 @@ export const SETTINGS_SECTION_DEFINITIONS = [
   {
     id: 'system',
     labelKey: 'System',
-    descriptionKey: 'Compiler availability, downloads, and runtime detection.',
+    descriptionKey: 'LaTeX compilers, downloads, and system checks.',
     icon: IconCpu,
   },
   {

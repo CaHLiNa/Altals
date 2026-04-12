@@ -10,7 +10,7 @@ test('workspace template runtime lists academic writing templates with localized
   const templates = listWorkspaceDocumentTemplates((value) => `x:${value}`)
   assert.deepEqual(
     templates.map((template) => template.id),
-    ['markdown-note', 'latex-article', 'typst-paper'],
+    ['markdown-note', 'latex-article'],
   )
   assert.equal(templates[0].label, 'x:Markdown note')
   assert.equal(templates[1].description, 'x:Article-style manuscript with title block and document shell.')

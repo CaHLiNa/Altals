@@ -264,20 +264,19 @@
               <span class="flex-1">{{ t('New File...') }}</span>
             </div>
             <div class="context-menu-separator"></div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.md' })">
-              <IconFileText :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('Markdown') }}</span>
-              <span class="context-menu-ext">.md</span>
-            </div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.tex' })">
-              <IconMath :size="14" :stroke-width="1.5" />
-              <span class="flex-1">{{ t('LaTeX') }}</span>
-              <span class="context-menu-ext">.tex</span>
-            </div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: '.typ' })">
-              <IconMath :size="14" :stroke-width="1.5" />
-              <span class="flex-1">Typst</span>
-              <span class="context-menu-ext">.typ</span>
+            <div
+              v-for="template in documentTemplates"
+              :key="template.id"
+              class="context-menu-item"
+              @click="handleNewMenuCreate({
+                ext: template.ext,
+                suggestedName: template.filename,
+                initialContent: template.content,
+              })"
+            >
+              <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
+              <span class="flex-1">{{ template.label }}</span>
+              <span class="context-menu-ext">{{ template.ext }}</span>
             </div>
           </div>
         </div>
@@ -303,6 +302,7 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
+import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeItem from './FileTreeItem.vue'
 import { isMod, modKey } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
@@ -344,6 +344,7 @@ const files = useFilesStore()
 const editor = useEditorStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
+const documentTemplates = computed(() => listWorkspaceDocumentTemplates(t))
 
 const workspaceName = computed(() => {
   if (!workspace.path) return t('Explorer')
@@ -534,7 +535,7 @@ function handleWorkspaceMenuCloseFolder() {
 }
 
 // Unified creation handler — creates a typed file and starts inline rename
-async function createTypedFile(dir, ext) {
+async function createTypedFile(dir, ext, options = {}) {
   if (!dir) return
 
   // Ensure the target directory is expanded so the new file is visible
@@ -542,8 +543,13 @@ async function createTypedFile(dir, ext) {
     files.expandedDirs.add(dir)
   }
 
-  // Generate unique default name — check both in-memory list and disk
-  const baseName = t('Untitled')
+  const preferredName = typeof options.suggestedName === 'string' && options.suggestedName.trim()
+    ? options.suggestedName.trim()
+    : `${t('Untitled')}${ext}`
+  const normalizedName = preferredName.endsWith(ext) ? preferredName : `${preferredName}${ext}`
+  const baseName = normalizedName.endsWith(ext)
+    ? normalizedName.slice(0, normalizedName.length - ext.length)
+    : normalizedName
   let name = `${baseName}${ext}`
   let i = 2
   while (
@@ -554,7 +560,9 @@ async function createTypedFile(dir, ext) {
     i++
   }
 
-  const path = await files.createFile(dir, name)
+  const path = await files.createFile(dir, name, {
+    initialContent: typeof options.initialContent === 'string' ? options.initialContent : '',
+  })
   if (path) {
     files.markTransientFile(path)
     workspace.openWorkspaceSurface()
@@ -568,7 +576,7 @@ async function createTypedFile(dir, ext) {
 }
 
 // Handle "+ New" header dropdown selection (target: workspace root)
-function handleNewMenuCreate({ ext, isDir }) {
+function handleNewMenuCreate({ ext, isDir, suggestedName = '', initialContent = '' }) {
   newMenuOpen.value = false
   const dir = workspace.path
   if (!dir) return
@@ -579,12 +587,12 @@ function handleNewMenuCreate({ ext, isDir }) {
     // "Other..." — generic inline create
     startInlineCreate(dir, false)
   } else {
-    createTypedFile(dir, ext)
+    createTypedFile(dir, ext, { suggestedName, initialContent })
   }
 }
 
 // Handle context menu creation (target: clicked folder or workspace root)
-function handleContextCreate({ ext, isDir }) {
+function handleContextCreate({ ext, isDir, suggestedName = '', initialContent = '' }) {
   const dir = contextMenu.entry?.is_dir ? contextMenu.entry.path : workspace.path
   if (!dir) return
 
@@ -593,7 +601,7 @@ function handleContextCreate({ ext, isDir }) {
   } else if (!ext) {
     startInlineCreate(dir, false)
   } else {
-    createTypedFile(dir, ext)
+    createTypedFile(dir, ext, { suggestedName, initialContent })
   }
 }
 

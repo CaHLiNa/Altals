@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url'
 const host = process.env.TAURI_DEV_HOST
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 const extendShimPath = fileURLToPath(new URL('./src/shims/extend.js', import.meta.url))
+const mainEntryHtml = fileURLToPath(new URL('./index.html', import.meta.url))
+const pdfHostEntryHtml = fileURLToPath(new URL('./pdf-host.html', import.meta.url))
 
 const chunkGroups = [
   ['vendor-vue', [
@@ -94,6 +96,10 @@ export default defineConfig(async () => ({
       resolveDependencies: () => [],
     },
     rollupOptions: {
+      input: {
+        main: mainEntryHtml,
+        pdfHost: pdfHostEntryHtml,
+      },
       output: {
         manualChunks: getManualChunk,
       },

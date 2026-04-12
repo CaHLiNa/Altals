@@ -287,15 +287,10 @@
               :filePath="activeTab"
               :paneId="paneId"
             />
-            <TypstNativePreview
-              v-else-if="documentWorkspaceRoute.previewMode === 'typst-native'"
-              :filePath="activeTab"
-              :paneId="paneId"
-              :sourcePath="activeTab"
-            />
             <PdfArtifactPreview
               v-else-if="documentWorkspaceRoute.previewMode === 'pdf-artifact'"
               :key="`workspace-pdf-artifact:${activeTab}:${documentWorkspaceRoute.previewTargetPath}`"
+              :paneId="paneId"
               :artifactPath="documentWorkspaceRoute.previewTargetPath"
               :sourcePath="activeTab"
               :kind="toolbarUiState?.kind || 'document'"
@@ -336,6 +331,7 @@
         <PdfArtifactPreview
           v-else-if="activeTab && viewerType === 'pdf'"
           :key="`pdf:${activeTab}`"
+          :paneId="paneId"
           :artifactPath="activeTab"
           :sourcePath="activeTab"
           kind="pdf"
@@ -343,12 +339,6 @@
         />
         <MarkdownPreview
           v-else-if="activeTab && viewerType === 'markdown-preview'"
-          :key="activeTab"
-          :filePath="activeTab"
-          :paneId="paneId"
-        />
-        <TypstNativePreview
-          v-else-if="activeTab && viewerType === 'typst-native-preview'"
           :key="activeTab"
           :filePath="activeTab"
           :paneId="paneId"
@@ -379,7 +369,6 @@ import {
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
 import { useLatexStore } from '../../stores/latex'
-import { useTypstStore } from '../../stores/typst'
 import { useI18n } from '../../i18n'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
 import { openLocalPath } from '../../services/localFileOpen'
@@ -390,7 +379,6 @@ import { shouldShowIntegratedDocumentTitle } from '../../domains/editor/paneChro
 const EditorTextRouteSurface = defineAsyncComponent(() => import('./EditorTextRouteSurface.vue'))
 const UnsupportedFilePane = defineAsyncComponent(() => import('./UnsupportedFilePane.vue'))
 const MarkdownPreview = defineAsyncComponent(() => import('./MarkdownPreview.vue'))
-const TypstNativePreview = defineAsyncComponent(() => import('./TypstNativePreview.vue'))
 const PdfArtifactPreview = defineAsyncComponent(() => import('./PdfArtifactPreview.vue'))
 const DocumentWorkflowBar = defineAsyncComponent(() => import('./DocumentWorkflowBar.vue'))
 const NewTab = defineAsyncComponent(() => import('./NewTab.vue'))
@@ -411,7 +399,6 @@ const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
-const typstStore = useTypstStore()
 const toastStore = useToastStore()
 const workflowStore = useDocumentWorkflowStore()
 const { t } = useI18n()
@@ -493,7 +480,6 @@ const {
   filesStore,
   workspace,
   latexStore,
-  typstStore,
   toastStore,
   workflowStore,
   t,

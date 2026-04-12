@@ -7,14 +7,14 @@ Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work, `d
 
 ## Mission
 
-Altals is a local-first desktop academic writing platform for Markdown, LaTeX, and Typst, with an integrated project-level references and reading workflow.
+Altals is a local-first desktop academic writing platform for Markdown and LaTeX, with an integrated project-level references and reading workflow.
 
 The product is centered on one practical workbench:
 
 - open a local project directory
 - browse project files and project references from the same workspace
 - read source material without leaving the desktop app
-- write Markdown, LaTeX, and Typst documents
+- write Markdown and LaTeX documents
 - insert citations and maintain bibliography output in context
 - compile and preview documents correctly
 - inspect outline and other writing-adjacent context in the right-side inspection area

@@ -16,7 +16,7 @@ function isPreviewCapableLeaf(leaf) {
   if (!leaf) return false
   if (!leaf.activeTab) return true
   const viewerType = getViewerType(leaf.activeTab)
-  return viewerType === 'markdown-preview' || viewerType === 'typst-native-preview'
+  return viewerType === 'markdown-preview'
 }
 
 function matchesPreviewBinding(tabPath, sourcePath, preferredPreview, workflowStore) {
@@ -134,7 +134,7 @@ export function reconcileDocumentWorkflow({
       path: sourcePath,
       sourcePaneId: activePaneId,
       trigger,
-      nativePreviewSupported: preferredPreview === 'native' || kind !== 'typst',
+      nativePreviewSupported: preferredPreview === 'native',
       preserveOpenLegacy: !!matchedLegacyPreview,
       legacyPreviewPath: matchedLegacyPreview?.previewPath || '',
       legacyPreviewPaneId: matchedLegacyPreview?.previewPaneId || null,

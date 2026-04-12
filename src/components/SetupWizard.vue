@@ -8,9 +8,9 @@
             <div class="wizard-wordmark">Altals</div>
           </div>
 
-          <h2 class="wizard-step-title">{{ t('Choose a theme for your writing workspace') }}</h2>
+          <h2 class="wizard-step-title">{{ t('Choose a theme for your Markdown and LaTeX workspace') }}</h2>
           <p class="wizard-step-hint">
-            {{ t('This trimmed build focuses on Markdown, LaTeX, and Typst only.') }}
+            {{ t('This build focuses on local Markdown and LaTeX writing.') }}
           </p>
           <p class="wizard-step-hint wizard-step-hint-secondary">
             {{ t('You can change this any time in Settings.') }}

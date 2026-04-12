@@ -4,12 +4,11 @@ const STATE_FILE = 'editor-state.json'
 const STATE_VERSION = 1
 
 function isPreviewPath(path = '') {
-  return path.startsWith('preview:') || path.startsWith('typst-preview:')
+  return path.startsWith('preview:')
 }
 
 function previewSourcePathFromPath(path = '') {
   if (path.startsWith('preview:')) return path.slice('preview:'.length)
-  if (path.startsWith('typst-preview:')) return path.slice('typst-preview:'.length)
   return ''
 }
 

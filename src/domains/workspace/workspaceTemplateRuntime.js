@@ -18,14 +18,6 @@ export const WORKSPACE_DOCUMENT_TEMPLATES = Object.freeze([
     content:
       '\\documentclass{article}\n\\title{Title}\n\\author{}\n\\date{}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introduction}\n\nStart writing here.\n\n\\end{document}\n',
   },
-  {
-    id: 'typst-paper',
-    ext: '.typ',
-    label: 'Typst paper',
-    description: 'Clean Typst writing starter with title and outline-ready heading.',
-    filename: 'paper.typ',
-    content: '= Title\n\nStart writing here.\n',
-  },
 ])
 
 export function listWorkspaceDocumentTemplates(t = DEFAULT_TRANSLATOR) {

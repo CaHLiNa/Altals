@@ -1,5 +1,4 @@
-import { isMarkdown, isTypst, previewSourcePathFromPath } from '../../utils/fileTypes.js'
-import { resolveCachedTypstRootPath, resolveTypstCompileTarget } from '../../services/typst/root.js'
+import { isMarkdown, previewSourcePathFromPath } from '../../utils/fileTypes.js'
 
 function readPreviewBinding(filePath, workflowStore, previewKind = null) {
   const binding = workflowStore?.getPreviewBinding?.(filePath) || null
@@ -40,94 +39,5 @@ export function resolveMarkdownPreviewInput(filePath, options = {}) {
   return {
     sourcePath,
     legacyPreviewPath: previewSourcePathFromPath(filePath) || '',
-  }
-}
-
-export async function resolveTypstNativePreviewInput(filePath, options = {}) {
-  const sourcePath = resolveWorkspacePreviewSourcePath(filePath, {
-    ...options,
-    previewKind: 'native',
-    matchesSourcePath: isTypst,
-  })
-  const explicitRootPath = normalizePath(options.rootPath)
-
-  if (!sourcePath) {
-    return {
-      sourcePath: '',
-      rootPath: explicitRootPath,
-    }
-  }
-
-  const typstState = options.typstStore?.stateForFile?.(sourcePath)
-  const fallbackRootPath =
-    explicitRootPath ||
-    typstState?.projectRootPath ||
-    typstState?.compileTargetPath ||
-    options.resolveCachedTypstRootPathImpl?.(sourcePath) ||
-    resolveCachedTypstRootPath(sourcePath) ||
-    sourcePath
-
-  if (explicitRootPath) {
-    return {
-      sourcePath,
-      rootPath: explicitRootPath,
-    }
-  }
-
-  try {
-    const resolvedRootPath = await (
-      options.resolveTypstCompileTargetImpl || resolveTypstCompileTarget
-    )(sourcePath, {
-      filesStore: options.filesStore,
-      workspacePath: options.workspacePath,
-      contentOverrides: {
-        [sourcePath]: options.filesStore?.fileContents?.[sourcePath],
-      },
-    })
-
-    return {
-      sourcePath,
-      rootPath: resolvedRootPath || fallbackRootPath,
-    }
-  } catch {
-    return {
-      sourcePath,
-      rootPath: fallbackRootPath,
-    }
-  }
-}
-
-export async function resolveTypstForwardSyncRootPath(sourcePath, options = {}) {
-  const normalizedSourcePath = normalizePath(sourcePath)
-  if (!normalizedSourcePath) return ''
-
-  const explicitRootPath = normalizePath(options.rootPath)
-  if (explicitRootPath) return explicitRootPath
-
-  const activePreviewRootPath = normalizePath(options.activePreviewRootPath)
-  const typstState = options.typstStore?.stateForFile?.(normalizedSourcePath)
-  const fallbackRootPath =
-    activePreviewRootPath ||
-    typstState?.projectRootPath ||
-    typstState?.compileTargetPath ||
-    options.resolveCachedTypstRootPathImpl?.(normalizedSourcePath) ||
-    resolveCachedTypstRootPath(normalizedSourcePath) ||
-    normalizedSourcePath
-
-  if (fallbackRootPath !== normalizedSourcePath) {
-    return fallbackRootPath
-  }
-
-  try {
-    const resolvedRootPath = await (
-      options.resolveTypstCompileTargetImpl || resolveTypstCompileTarget
-    )(normalizedSourcePath, {
-      filesStore: options.filesStore,
-      workspacePath: options.workspacePath,
-      contentOverrides: options.contentOverrides,
-    })
-    return normalizePath(resolvedRootPath) || fallbackRootPath
-  } catch {
-    return fallbackRootPath
   }
 }

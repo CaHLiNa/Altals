@@ -29,7 +29,6 @@
               ref="searchResultsRef"
               :query="query"
               @select-file="onSelectFile"
-              @select-typst-symbol="onSelectTypstSymbol"
               @mousedown.prevent
             />
           </div>
@@ -45,7 +44,6 @@ import { IconSearch } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
-import { tinymistRangeToOffsets } from '../../services/tinymist/textEdits'
 import UiInput from '../shared/ui/UiInput.vue'
 
 const SearchResults = defineAsyncComponent(() => import('../SearchResults.vue'))
@@ -55,15 +53,13 @@ const editorStore = useEditorStore()
 const { t } = useI18n()
 
 const SEARCH_ICON_SIZE = 12
-const EDITOR_WAIT_TIMEOUT_MS = 1500
-
 const searchInputRef = ref(null)
 const searchResultsRef = ref(null)
 const query = ref('')
 const searchOpen = ref(false)
 
 const showResults = computed(() => searchOpen.value)
-const searchPlaceholder = computed(() => t('Search files, headings, or symbols'))
+const searchPlaceholder = computed(() => t('Search files or content'))
 
 function onSearchKeydown(event) {
   if (event.key === 'Escape') {
@@ -90,42 +86,6 @@ function onSearchKeydown(event) {
 function onSelectFile(path) {
   workspace.openWorkspaceSurface()
   editorStore.openFile(path)
-  closeSearchPalette()
-}
-
-async function waitForEditorView(targetPath) {
-  const startedAt = Date.now()
-  let targetView = editorStore.getAnyEditorView(targetPath)
-
-  while (!targetView && Date.now() - startedAt < EDITOR_WAIT_TIMEOUT_MS) {
-    await new Promise((resolve) => window.setTimeout(resolve, 16))
-    targetView = editorStore.getAnyEditorView(targetPath)
-  }
-
-  return targetView
-}
-
-async function onSelectTypstSymbol(symbol) {
-  const filePath = String(symbol?.filePath || '')
-  if (!filePath) return
-
-  workspace.openWorkspaceSurface()
-  editorStore.openFile(filePath)
-  const targetView = await waitForEditorView(filePath)
-  if (targetView) {
-    const offsets = tinymistRangeToOffsets(targetView.state, symbol?.range)
-    if (offsets) {
-      targetView.dispatch({
-        selection: {
-          anchor: offsets.from,
-          head: offsets.to,
-        },
-        scrollIntoView: true,
-      })
-      targetView.focus()
-    }
-  }
-
   closeSearchPalette()
 }
 

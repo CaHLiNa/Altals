@@ -15,14 +15,13 @@ import {
 import { reconcileDocumentWorkflow } from '../src/services/documentWorkflow/reconcile.js'
 
 function isContextCandidatePath(path) {
-  return !!path && !path.startsWith('preview:') && !path.startsWith('typst-preview:')
+  return !!path && !path.startsWith('preview:')
 }
 
 function createWorkflowStore() {
   return {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      typst: { preferredPreview: 'native' },
     },
     session: {
       detachedSources: {},
@@ -32,15 +31,14 @@ function createWorkflowStore() {
     },
     inferPreviewKind(sourcePath, previewPath) {
       if (previewPath === `preview:${sourcePath}`) return 'html'
-      if (previewPath === `typst-preview:${sourcePath}`) return 'native'
       return null
     },
   }
 }
 
 test('document workspace persistence round-trip restores source-first workspace semantics instead of pane-first preview tabs', () => {
-  const sourcePath = '/workspace/main.typ'
-  const previewPath = `typst-preview:${sourcePath}`
+  const sourcePath = '/workspace/main.md'
+  const previewPath = `preview:${sourcePath}`
   const saved = buildPersistedEditorState({
     activePaneId: 'pane-preview',
     paneTree: {

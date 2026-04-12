@@ -5,6 +5,13 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:webview:allow-create-webview",
+    "core:webview:allow-set-webview-position",
+    "core:webview:allow-set-webview-size",
+    "core:webview:allow-set-webview-auto-resize",
+    "core:webview:allow-webview-show",
+    "core:webview:allow-webview-hide",
+    "core:webview:allow-webview-close",
     "core:webview:allow-set-webview-zoom",
     "clipboard-manager:allow-read-text",
     "dialog:default",
@@ -17,31 +24,6 @@
     {
       "identifier": "shell:allow-spawn",
       "allow": [
-        {
-          "name": "tinymist-lsp",
-          "cmd": "tinymist",
-          "args": ["lsp"]
-        },
-        {
-          "name": "tinymist-lsp-managed",
-          "cmd": "$HOME/.altals/bin/tinymist",
-          "args": ["lsp"]
-        },
-        {
-          "name": "tinymist-lsp-managed-win",
-          "cmd": "$HOME/.altals/bin/tinymist.exe",
-          "args": ["lsp"]
-        },
-        {
-          "name": "tinymist-lsp-legacy",
-          "cmd": "$HOME/.shoulders/bin/tinymist",
-          "args": ["lsp"]
-        },
-        {
-          "name": "tinymist-lsp-legacy-win",
-          "cmd": "$HOME/.shoulders/bin/tinymist.exe",
-          "args": ["lsp"]
-        },
         {
           "name": "opencode-cli",
           "cmd": "opencode",

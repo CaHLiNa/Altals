@@ -21,7 +21,6 @@ function usesLegacyPanePreviewDelivery(options = {}) {
 
 function resolvePreviewModeFromKind(previewKind) {
   if (previewKind === 'html') return 'markdown'
-  if (previewKind === 'native') return 'typst-native'
   if (previewKind === 'pdf') return 'pdf-artifact'
   return previewKind || null
 }
@@ -113,7 +112,7 @@ export function createDocumentWorkflowActionRuntime({
       return toggleMarkdownPreviewForFile(filePath, options)
     }
 
-    if (uiState.kind === 'latex' || uiState.kind === 'typst') {
+    if (uiState.kind === 'latex') {
       const buildOperationRuntime = getBuildOperationRuntime?.() || null
       return buildOperationRuntime?.runBuildForFile?.(filePath, {
         ...(options.buildOptions || {}),
@@ -139,9 +138,7 @@ export function createDocumentWorkflowActionRuntime({
       })
     }
 
-    const requestedPreviewKind = uiState.kind === 'typst' && uiState.canRevealPreview === true
-      ? 'native'
-      : uiState.previewKind
+    const requestedPreviewKind = uiState.previewKind
 
     if (!workflowStore || !requestedPreviewKind) return null
 
@@ -177,13 +174,6 @@ export function createDocumentWorkflowActionRuntime({
 
     const previewState = resolveWorkspacePreviewState(filePath, options)
     if (previewState?.previewVisible && previewState?.previewMode === 'pdf-artifact') {
-      if (options.uiState?.kind === 'typst' && options.uiState?.canRevealPreview === true) {
-        return workflowStore.showWorkspacePreviewForFile?.(filePath, {
-          previewKind: 'native',
-          sourcePaneId: options.sourcePaneId,
-          trigger: 'typst-return-native-preview',
-        }) || null
-      }
       return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
     }
 

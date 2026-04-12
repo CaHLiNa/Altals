@@ -77,9 +77,9 @@ defineExpose({
   min-height: 0;
   overflow: hidden;
   padding: 24px 14px 0 6px;
-  background: transparent;
+  background: var(--sidebar-shell-surface, color-mix(in srgb, var(--panel-surface) 56%, transparent));
   box-shadow: none;
-  backdrop-filter: none;
+  backdrop-filter: blur(var(--sidebar-shell-blur, 18px)) saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .left-shell-sidebar > :last-child {

@@ -1,7 +1,6 @@
 export const WORKSPACE_STARTER_DRAFT_EXTENSIONS = Object.freeze([
   '.md',
   '.tex',
-  '.typ',
 ])
 
 export const WORKSPACE_STARTER_COMPUTATION_EXTENSIONS = Object.freeze([])

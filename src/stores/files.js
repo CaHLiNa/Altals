@@ -318,7 +318,7 @@ export const useFilesStore = defineStore('files', {
     _getFileCreationRuntime() {
       if (!this._fileCreationRuntime) {
         this._fileCreationRuntime = createFileCreationRuntime({
-          createWorkspaceFile: (dirPath, name) => createWorkspaceFile(dirPath, name),
+          createWorkspaceFile: (dirPath, name, options = {}) => createWorkspaceFile(dirPath, name, options),
           duplicateWorkspacePath: (path) => duplicateWorkspacePath(path),
           createWorkspaceFolder: (dirPath, name) => createWorkspaceFolder(dirPath, name),
           copyExternalWorkspaceFile: (srcPath, destDir) => copyExternalWorkspaceFile(srcPath, destDir),

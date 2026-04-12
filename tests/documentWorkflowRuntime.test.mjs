@@ -51,7 +51,6 @@ function createRuntime({
   const state = {
     previewPrefs: {
       markdown: { preferredPreview: 'html' },
-      typst: { preferredPreview: 'native' },
     },
     session: {
       activeFile: null,
@@ -126,7 +125,6 @@ function createRuntime({
     getDocumentWorkflowKindImpl: (sourcePath) => {
       if (sourcePath.endsWith('.md')) return 'markdown'
       if (sourcePath.endsWith('.tex')) return 'latex'
-      if (sourcePath.endsWith('.typ')) return 'typst'
       return null
     },
     createWorkspacePreviewAction: createDocumentWorkspacePreviewAction,
@@ -321,12 +319,12 @@ test('document workflow runtime reconcile records workspace preview state withou
       reconcileDocumentWorkflowImpl: () => ({
         type: 'workspace-preview',
         trigger: 'manual-open-preview',
-        kind: 'typst',
-        filePath: '/workspace/main.typ',
-        sourcePath: '/workspace/main.typ',
+        kind: 'latex',
+        filePath: '/workspace/main.tex',
+        sourcePath: '/workspace/main.tex',
         sourcePaneId: 'pane-source',
-        previewKind: 'native',
-        previewMode: 'typst-native',
+        previewKind: 'pdf',
+        previewMode: 'pdf-artifact',
         state: 'workspace-preview',
         preserveOpenLegacy: false,
         legacyReadOnly: false,
@@ -348,8 +346,8 @@ test('document workflow runtime reconcile records workspace preview state withou
   assert.deepEqual(editorStore.openCalls, [])
   assert.deepEqual(editorStore.splitCalls, [])
   assert.equal(state.session.state, 'workspace-preview')
-  assert.equal(state.session.previewKind, 'native')
-  assert.equal(state.session.previewSourcePath, '/workspace/main.typ')
+  assert.equal(state.session.previewKind, 'pdf')
+  assert.equal(state.session.previewSourcePath, '/workspace/main.tex')
 })
 
 test('document workflow runtime revealPreview keeps workspace-local previews in place and still emits jump metadata', () => {
@@ -358,12 +356,12 @@ test('document workflow runtime revealPreview keeps workspace-local previews in 
       reconcileDocumentWorkflowImpl: () => ({
         type: 'workspace-preview',
         trigger: 'reveal-preview',
-        kind: 'typst',
-        filePath: '/workspace/main.typ',
-        sourcePath: '/workspace/main.typ',
+        kind: 'latex',
+        filePath: '/workspace/main.tex',
+        sourcePath: '/workspace/main.tex',
         sourcePaneId: 'pane-source',
-        previewKind: 'native',
-        previewMode: 'typst-native',
+        previewKind: 'pdf',
+        previewMode: 'pdf-artifact',
         state: 'workspace-preview',
         preserveOpenLegacy: false,
         legacyReadOnly: false,
@@ -373,17 +371,17 @@ test('document workflow runtime revealPreview keeps workspace-local previews in 
     },
   })
 
-  const result = runtime.revealPreview('/workspace/main.typ', {
-    previewKind: 'native',
+  const result = runtime.revealPreview('/workspace/main.tex', {
+    previewKind: 'pdf',
     jump: true,
   })
 
   assert.equal(result.type, 'workspace-preview')
   assert.deepEqual(editorStore.openCalls, [])
   assert.deepEqual(state.jumps, [{
-    kind: 'typst',
-    previewKind: 'native',
-    sourcePath: '/workspace/main.typ',
+    kind: 'latex',
+    previewKind: 'pdf',
+    sourcePath: '/workspace/main.tex',
   }])
 })
 

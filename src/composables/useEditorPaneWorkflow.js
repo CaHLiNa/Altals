@@ -1,9 +1,8 @@
 import { computed, watch } from 'vue'
-import { isDraftPath, isLatex, isTypst } from '../utils/fileTypes.js'
+import { isDraftPath, isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { pathExists } from '../services/pathExists.js'
-import { resolveTypstPreviewArtifact } from '../services/typst/root.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -13,7 +12,6 @@ export function useEditorPaneWorkflow(options) {
     filesStore,
     workspace,
     latexStore,
-    typstStore,
     toastStore,
     workflowStore,
     t,
@@ -25,7 +23,6 @@ export function useEditorPaneWorkflow(options) {
       filesStore,
       workspace,
       latexStore,
-      typstStore,
       toastStore,
       t,
       ...extra,
@@ -75,16 +72,6 @@ export function useEditorPaneWorkflow(options) {
       workflowOnly: false,
       sourcePaneId: paneIdRef.value,
       trigger: 'latex-compile-button',
-    }))
-  }
-
-  async function handleCompileTypst() {
-    if (!activeTabRef.value || !isTypst(activeTabRef.value)) return
-    await workflowStore.runBuildForFile(activeTabRef.value, buildWorkflowOptions({
-      adapter: activeDocumentAdapter.value,
-      workflowOnly: false,
-      sourcePaneId: paneIdRef.value,
-      trigger: 'typst-compile-button',
     }))
   }
 
@@ -167,7 +154,7 @@ export function useEditorPaneWorkflow(options) {
   watch(
     [activeTabRef, activeDocumentAdapter],
     async ([filePath, adapter]) => {
-      if (!filePath || !adapter || (adapter.kind !== 'latex' && adapter.kind !== 'typst')) return
+      if (!filePath || !adapter || adapter.kind !== 'latex') return
       const uiState = workflowStore.getUiStateForFile(filePath, buildWorkflowOptions({
         adapter,
         workflowOnly: false,
@@ -178,25 +165,10 @@ export function useEditorPaneWorkflow(options) {
         adapter,
         workflowOnly: false,
       })) || ''
-      let resolvedArtifactPath = artifactPath
-
-      if ((!resolvedArtifactPath || !(await pathExists(resolvedArtifactPath))) && adapter.kind === 'typst') {
-        resolvedArtifactPath = await resolveTypstPreviewArtifact(filePath, {
-          filesStore,
-          workspacePath: workspace.path,
-          contentOverrides: {
-            [filePath]: filesStore?.fileContents?.[filePath],
-          },
-        }).catch(() => '')
-      }
-
+      const resolvedArtifactPath = artifactPath
       if (!resolvedArtifactPath || !(await pathExists(resolvedArtifactPath))) return
 
-      if (adapter.kind === 'latex') {
-        await latexStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
-      } else if (adapter.kind === 'typst') {
-        typstStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
-      }
+      await latexStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
     },
     { immediate: true },
   )
@@ -212,7 +184,6 @@ export function useEditorPaneWorkflow(options) {
     handleRunFile,
     handleRenderDocument,
     handleCompileTex,
-    handleCompileTypst,
     handlePreviewPdf,
     handlePreviewMarkdown,
     handleWorkflowPrimaryAction,

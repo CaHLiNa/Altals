@@ -187,11 +187,11 @@
   --sidebar-item-selected: rgba(255, 255, 255, 0.062);
   --sidebar-vibrant-surface: linear-gradient(
     180deg,
-    rgba(12, 12, 14, 0.76) 0%,
-    rgba(12, 12, 14, 0.7) 44%,
-    rgba(10, 10, 12, 0.82) 100%
+    rgba(12, 12, 14, 0.58) 0%,
+    rgba(12, 12, 14, 0.5) 44%,
+    rgba(10, 10, 12, 0.64) 100%
   );
-  --sidebar-vibrant-border: rgba(255, 255, 255, 0.04);
+  --sidebar-vibrant-border: rgba(255, 255, 255, 0.035);
   --workbench-divider: color-mix(in srgb, var(--border) 28%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 16%, transparent);
   --button-primary-bg: #f4f4f2;
@@ -473,8 +473,12 @@
   --sidebar-item-active: color-mix(in srgb, white 20%, transparent);
   --sidebar-item-active-border: color-mix(in srgb, white 9%, transparent);
   --sidebar-item-selected: color-mix(in srgb, white 15%, transparent);
-  --sidebar-vibrant-surface: color-mix(in srgb, var(--panel-surface) 24%, transparent);
-  --sidebar-vibrant-border: color-mix(in srgb, white 14%, transparent);
+  --sidebar-vibrant-surface: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-surface) 16%, transparent),
+    color-mix(in srgb, var(--panel-surface) 24%, transparent)
+  );
+  --sidebar-vibrant-border: color-mix(in srgb, white 12%, transparent);
   --workbench-divider: color-mix(in srgb, var(--border) 22%, transparent);
   --workbench-divider-soft: color-mix(in srgb, var(--border) 14%, transparent);
   --button-primary-bg: #111111;

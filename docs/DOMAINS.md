@@ -74,34 +74,25 @@ Representative future files:
 
 ### `src/domains/changes/*`
 
-Owns workspace snapshots, local save points, visibility filtering, diff/preview/apply behavior, version history, and history preparation.
+Owns workspace snapshots, local save points, visibility filtering, payload manifests, diff/preview/apply behavior, and restore preparation.
 
 Representative files:
 
 - `workspaceSnapshotRuntime.js`
 - `workspaceLocalSnapshotStoreRuntime.js`
 - `workspaceSnapshotPreviewRuntime.js`
-- `workspaceVersionHistoryRuntime.js`
 - `workspaceHistoryPreparationRuntime.js`
+- `workspaceSnapshotDiffRuntime.js`
 
 ### `src/domains/workspace/*`
 
-Owns workspace bootstrap, starter metrics, automation, and workspace-level GitHub flows.
+Owns workspace bootstrap, starter metrics, templates, and shell-facing workspace setup behavior.
 
 Representative files:
 
 - `workspaceBootstrapRuntime.js`
 - `workspaceStarterMetrics.js`
-- `workspaceAutomationRuntime.js`
-- `workspaceGitHubRuntime.js`
-
-### `src/domains/git/*`
-
-Owns workspace repository linking behavior.
-
-Representative file:
-
-- `workspaceRepoLinkRuntime.js`
+- `workspaceTemplateRuntime.js`
 
 ## Practical boundary rules
 
@@ -117,7 +108,7 @@ Representative file:
 - a workflow has multiple valid states that need one normalized answer
 - the code is defining product behavior rather than performing an effect
 - tests can describe the logic without mounting UI
-- the feature needs to adapt differently for Markdown, LaTeX, and Typst without duplicating UI conditionals
+- the feature needs to adapt differently for Markdown and LaTeX without duplicating UI conditionals
 - the feature coordinates files, references, and readers under one writing task
 
 ## Validation anchors

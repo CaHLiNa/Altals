@@ -3,14 +3,14 @@
     <div v-if="!sourceFilePath" class="document-run-empty">
       <div class="document-run-empty-title">{{ t('No document selected') }}</div>
       <div class="document-run-empty-copy">
-        {{ t('Open a LaTeX or Typst document to see compile status here.') }}
+        {{ t('Open a LaTeX document to see compile status here.') }}
       </div>
     </div>
 
     <div v-else-if="!supportsDocumentRun" class="document-run-empty">
-      <div class="document-run-empty-title">{{ t('Document run is only for LaTeX / Typst') }}</div>
+      <div class="document-run-empty-title">{{ t('Document run is only for LaTeX') }}</div>
       <div class="document-run-empty-copy">
-        {{ t('Switch to a LaTeX or Typst source file to inspect compile status and output.') }}
+        {{ t('Switch to a LaTeX source file to inspect compile status and output.') }}
       </div>
     </div>
 
@@ -122,10 +122,9 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useLatexStore } from '../../stores/latex'
-import { useTypstStore } from '../../stores/typst'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
-import { isLatex, isTypst } from '../../utils/fileTypes'
+import { isLatex } from '../../utils/fileTypes'
 import { getDocumentWorkflowStatusTone } from '../../domains/document/documentWorkflowBuildRuntime.js'
 import { shortenDocumentPath } from '../../domains/document/documentRunInspectorRuntime.js'
 import { openLocalPath } from '../../services/localFileOpen.js'
@@ -139,7 +138,6 @@ const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
 const filesStore = useFilesStore()
 const latexStore = useLatexStore()
-const typstStore = useTypstStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 
@@ -160,20 +158,17 @@ const sourceFileShortPath = computed(() =>
   shortenDocumentPath(sourceFilePath.value, { segments: 3 })
 )
 
-const supportsDocumentRun = computed(
-  () => !!sourceFilePath.value && (isLatex(sourceFilePath.value) || isTypst(sourceFilePath.value))
-)
+const supportsDocumentRun = computed(() => !!sourceFilePath.value && isLatex(sourceFilePath.value))
 
 const kindLabel = computed(() => {
   if (!supportsDocumentRun.value) return ''
-  return isLatex(sourceFilePath.value) ? t('LaTeX') : t('Typst')
+  return t('LaTeX')
 })
 
 const buildContext = computed(() => ({
   filesStore,
   workspace,
   latexStore,
-  typstStore,
   t,
 }))
 

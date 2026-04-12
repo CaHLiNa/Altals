@@ -58,7 +58,6 @@ This store is the bridge between backend filesystem reads and the workbench-visi
 Language-specific compile state is owned separately:
 
 - `src/stores/latex.js` — compile state, queue state, diagnostics, compiler/tool availability, forward sync state
-- `src/stores/typst.js` — compile state, queue state, compiler availability, Tinymist-backed live state
 
 ## Persisted locations
 
@@ -92,7 +91,7 @@ Preview bindings connect a preview path to its source path, preview kind, docume
 
 ### Compile state
 
-LaTeX and Typst stores both maintain per-file compile state maps. These records commonly include:
+LaTeX stores maintain per-file compile state maps. These records commonly include:
 
 - `status`
 - `errors`
@@ -102,7 +101,7 @@ LaTeX and Typst stores both maintain per-file compile state maps. These records 
 
 ### Snapshot records
 
-`src/domains/changes/workspaceSnapshotRuntime.js` normalizes git history entries into stable UI-facing snapshot records with fields such as:
+`src/domains/changes/workspaceSnapshotRuntime.js` normalizes local workspace save-point entries into stable UI-facing snapshot records with fields such as:
 
 - `id`
 - `backend`
@@ -128,5 +127,5 @@ Workspace save-point entries can also carry payload metadata such as manifest pa
 ## See also
 
 - `docs/ARCHITECTURE.md`
-- `docs/GIT_AND_SNAPSHOTS.md`
+- `docs/WORKSPACE_SAVE_POINTS.md`
 - `docs/DOCUMENT_WORKFLOW.md`

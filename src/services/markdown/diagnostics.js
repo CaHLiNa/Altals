@@ -2,7 +2,7 @@ import { visit } from 'unist-util-visit'
 import { normalizeProblems } from '../documentIntelligence/diagnostics.js'
 import { parseMarkdownDraft } from './parser.js'
 
-const RAW_HTML_MESSAGE = 'Raw HTML may not migrate cleanly to Typst/LaTeX export.'
+const RAW_HTML_MESSAGE = 'Raw HTML may not migrate cleanly to LaTeX export.'
 function nodePosition(node) {
   return {
     line: Number.isInteger(node?.position?.start?.line) ? node.position.start.line : null,
