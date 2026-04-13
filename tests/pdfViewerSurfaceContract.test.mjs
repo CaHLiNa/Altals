@@ -91,3 +91,13 @@ test('pdf viewer zoom menu excludes auto and page-width, and defaults to page-fi
   assert.match(viewerHtmlSource, /id="pageFitOption" value="page-fit" selected="selected"/)
   assert.match(viewerRuntimeSource, /const DEFAULT_SCALE_VALUE = "page-fit";/)
 })
+
+test('pdf viewer does not expose the grab-hand cursor tool in altals', () => {
+  assert.doesNotMatch(viewerHtmlSource, /id="cursorToolButtons"/)
+  assert.doesNotMatch(viewerHtmlSource, /id="cursorSelectTool"/)
+  assert.doesNotMatch(viewerHtmlSource, /id="cursorHandTool"/)
+  assert.doesNotMatch(
+    viewerRuntimeSource,
+    /case 72:\s*this\.pdfCursorTools\?\.switchTool\(CursorTool\.HAND\);/
+  )
+})

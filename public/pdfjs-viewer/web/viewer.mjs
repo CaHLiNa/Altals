@@ -19060,12 +19060,6 @@ function onKeyDown(evt) {
           ensureViewerFocused = true;
         }
         break;
-      case 83:
-        this.pdfCursorTools?.switchTool(CursorTool.SELECT);
-        break;
-      case 72:
-        this.pdfCursorTools?.switchTool(CursorTool.HAND);
-        break;
       case 82:
         this.rotatePages(90);
         break;
