@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   buildPdfViewerSrc,
   buildPdfViewerThemeOptions,
+  normalizePdfViewerLocale,
   shouldUsePdfCanvasFilterFallback,
 } from '../src/services/pdf/viewerUrl.js'
 
@@ -71,6 +72,13 @@ test('shouldUsePdfCanvasFilterFallback only enables on dark Apple WebKit themed 
   }), false)
 })
 
+test('normalizePdfViewerLocale collapses app locales to the shipped viewer locales', () => {
+  assert.equal(normalizePdfViewerLocale('zh-CN'), 'zh-CN')
+  assert.equal(normalizePdfViewerLocale('zh-Hans'), 'zh-CN')
+  assert.equal(normalizePdfViewerLocale('en-US'), 'en-US')
+  assert.equal(normalizePdfViewerLocale('fr-FR'), 'en-US')
+})
+
 test('buildPdfViewerSrc includes PDF.js theme and page color params', () => {
   const result = buildPdfViewerSrc('blob:demo', {
     forcePageColors: true,
@@ -78,6 +86,7 @@ test('buildPdfViewerSrc includes PDF.js theme and page color params', () => {
     pageForeground: 'rgb(236 232 225)',
     useCanvasFilterFallback: true,
     viewerCssTheme: 2,
+    locale: 'zh-CN',
   })
 
   const url = new URL(result, 'http://localhost')
@@ -85,8 +94,9 @@ test('buildPdfViewerSrc includes PDF.js theme and page color params', () => {
   assert.equal(url.pathname, '/pdfjs-viewer/web/viewer.html')
   assert.equal(url.searchParams.get('file'), 'blob:demo')
   assert.equal(url.searchParams.get('maxcanvaspixels'), String(2 ** 27))
-  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '0')
+  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '32')
   assert.equal(url.searchParams.get('enabledetailcanvas'), 'true')
+  assert.equal(url.searchParams.get('locale'), 'zh-CN')
   assert.equal(url.searchParams.get('forcepagecolors'), 'true')
   assert.equal(url.searchParams.get('pagecolorsbackground'), 'rgb(20 19 17)')
   assert.equal(url.searchParams.get('pagecolorsforeground'), 'rgb(236 232 225)')
@@ -100,8 +110,9 @@ test('buildPdfViewerSrc omits optional params when not provided', () => {
 
   assert.equal(url.searchParams.get('file'), 'blob:demo')
   assert.equal(url.searchParams.get('maxcanvaspixels'), String(2 ** 27))
-  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '0')
+  assert.equal(url.searchParams.get('mindurationtoupdatecanvas'), '32')
   assert.equal(url.searchParams.get('enabledetailcanvas'), 'true')
+  assert.equal(url.searchParams.has('locale'), false)
   assert.equal(url.searchParams.has('forcepagecolors'), false)
   assert.equal(url.searchParams.has('pagecolorsbackground'), false)
   assert.equal(url.searchParams.has('pagecolorsforeground'), false)

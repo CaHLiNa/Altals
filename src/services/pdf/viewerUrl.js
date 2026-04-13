@@ -29,6 +29,10 @@ export function buildPdfViewerThemeOptions(options = {}) {
   }
 }
 
+export function normalizePdfViewerLocale(value = '') {
+  return String(value || '').trim().toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+}
+
 export function buildPdfViewerSrc(fileUrl, options = {}) {
   const normalizedFileUrl = String(fileUrl || '').trim()
   if (!normalizedFileUrl) return ''
@@ -36,8 +40,13 @@ export function buildPdfViewerSrc(fileUrl, options = {}) {
   const params = new URLSearchParams()
   params.set('file', normalizedFileUrl)
   params.set('maxcanvaspixels', String(2 ** 27))
-  params.set('mindurationtoupdatecanvas', '0')
+  params.set('mindurationtoupdatecanvas', '32')
   params.set('enabledetailcanvas', 'true')
+
+  const normalizedLocale = String(options.locale || '').trim()
+  if (normalizedLocale) {
+    params.set('locale', normalizePdfViewerLocale(normalizedLocale))
+  }
 
   if (options.forcePageColors) {
     params.set('forcepagecolors', 'true')

@@ -1,43 +1,53 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-if="visible"
-      class="fixed inset-0 z-[1001]"
-      @mousedown="emit('close')"
-      @contextmenu.prevent="emit('close')"
-    >
-      <div
-        ref="menuRef"
+  <DropdownMenuRoot :open="visible" :modal="false" @update:open="handleOpenChange">
+    <DropdownMenuPortal>
+      <DropdownMenuContent
         class="context-menu surface-context-menu"
-        :style="menuStyle"
-        @mousedown.stop
-        @click.stop
-        @contextmenu.prevent.stop
+        :reference="menuReference"
+        position="popper"
+        position-strategy="fixed"
+        :side-offset="2"
+        :collision-padding="8"
+        @close-auto-focus.prevent
+        @pointer-down-outside="emit('close')"
+        @focus-outside="emit('close')"
+        @interact-outside="emit('close')"
+        @escape-key-down="emit('close')"
       >
         <template v-for="(group, groupIndex) in normalizedGroups" :key="group.key || groupIndex">
-          <div v-if="groupIndex > 0" class="context-menu-separator"></div>
-          <div v-if="group.label" class="context-menu-section">{{ group.label }}</div>
-          <button
+          <DropdownMenuSeparator v-if="groupIndex > 0" class="context-menu-separator" />
+          <DropdownMenuLabel v-if="group.label" class="context-menu-section">
+            {{ group.label }}
+          </DropdownMenuLabel>
+          <DropdownMenuItem
             v-for="item in group.items"
             :key="item.key"
-            type="button"
             class="context-menu-item surface-context-menu-item"
             :class="{ 'context-menu-item-danger': item.danger }"
             :disabled="item.disabled"
-            @click="handleSelect(item)"
+            @select="handleSelect(item)"
           >
             <span class="surface-context-menu-label">{{ item.label }}</span>
             <span v-if="item.meta" class="surface-context-menu-meta">{{ item.meta }}</span>
             <span v-else-if="item.checked" class="surface-context-menu-check">✓</span>
-          </button>
+          </DropdownMenuItem>
         </template>
-      </div>
-    </div>
-  </Teleport>
+      </DropdownMenuContent>
+    </DropdownMenuPortal>
+  </DropdownMenuRoot>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+} from 'reka-ui'
+import { computed } from 'vue'
+import { createPointReference } from '../../utils/floatingReference'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -47,10 +57,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select'])
-
-const menuRef = ref(null)
-const menuWidth = ref(0)
-const menuHeight = ref(0)
 
 const normalizedGroups = computed(() =>
   (props.groups || [])
@@ -64,22 +70,7 @@ const normalizedGroups = computed(() =>
     .filter((group) => group.items.length > 0)
 )
 
-const menuStyle = computed(() => {
-  const margin = 8
-  const maxX = Math.max(margin, window.innerWidth - menuWidth.value - margin)
-  const maxY = Math.max(margin, window.innerHeight - menuHeight.value - margin)
-  return {
-    left: `${Math.min(Math.max(props.x, margin), maxX)}px`,
-    top: `${Math.min(Math.max(props.y, margin), maxY)}px`,
-  }
-})
-
-function syncSize() {
-  nextTick(() => {
-    menuWidth.value = menuRef.value?.offsetWidth || 0
-    menuHeight.value = menuRef.value?.offsetHeight || 0
-  })
-}
+const menuReference = computed(() => createPointReference(props.x, props.y))
 
 function handleSelect(item) {
   if (!item || item.disabled) return
@@ -87,38 +78,11 @@ function handleSelect(item) {
   emit('close')
 }
 
-function handleKeydown(event) {
-  if (event.key === 'Escape') {
+function handleOpenChange(open) {
+  if (!open) {
     emit('close')
   }
 }
-
-watch(
-  () => props.visible,
-  (visible) => {
-    if (visible) syncSize()
-  }
-)
-
-watch(
-  normalizedGroups,
-  () => {
-    if (props.visible) syncSize()
-  },
-  { deep: true }
-)
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
-})
-
-onUpdated(() => {
-  if (props.visible) syncSize()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
 </script>
 
 <style scoped>
@@ -135,13 +99,14 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-.surface-context-menu-item:disabled {
+.surface-context-menu-item[data-disabled] {
   cursor: default;
   color: var(--fg-muted) !important;
   opacity: 0.72;
 }
 
-.surface-context-menu-item:disabled:hover {
+.surface-context-menu-item[data-disabled]:hover,
+.surface-context-menu-item[data-disabled][data-highlighted] {
   background: transparent !important;
   color: var(--fg-muted) !important;
 }

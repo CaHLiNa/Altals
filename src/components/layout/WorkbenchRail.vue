@@ -1,9 +1,11 @@
 <template>
   <nav
     class="workbench-rail"
+    data-surface-context-guard="true"
     :class="{ 'workbench-rail--mac': isMac && isTauriDesktop && !isNativeFullscreen }"
     :aria-label="t('Project navigation')"
     :style="railStyle"
+    @contextmenu.prevent
     @mousedown="handleWindowDragStart"
   >
     <div class="workbench-rail-side workbench-rail-side-left">

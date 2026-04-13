@@ -220,55 +220,95 @@
       />
 
       <!-- Workspace dropdown menu -->
-      <Teleport to="body">
-        <div v-if="workspaceMenuOpen" class="fixed inset-0 z-50" @click="workspaceMenuOpen = false">
-          <div class="context-menu" :style="workspaceMenuStyle">
-            <div class="context-menu-item" @click="handleWorkspaceMenuOpenFolder">
+      <DropdownMenuRoot
+        :open="workspaceMenuOpen"
+        :modal="false"
+        @update:open="handleWorkspaceMenuOpenChange"
+      >
+        <DropdownMenuPortal>
+          <DropdownMenuContent
+            v-if="workspaceMenuReference"
+            class="context-menu file-tree-workspace-menu"
+            :reference="workspaceMenuReference"
+            position="popper"
+            position-strategy="fixed"
+            side="top"
+            align="start"
+            :side-offset="2"
+            :collision-padding="8"
+            @close-auto-focus.prevent
+            @pointer-down-outside="closeWorkspaceMenu"
+            @focus-outside="closeWorkspaceMenu"
+            @interact-outside="closeWorkspaceMenu"
+            @escape-key-down="closeWorkspaceMenu"
+          >
+            <DropdownMenuItem class="context-menu-item" @select="handleWorkspaceMenuOpenFolder">
               {{ t('Open Folder...') }}
               <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }}+O</span>
-            </div>
-            <div class="context-menu-item" @click="handleWorkspaceMenuOpenSettings">
+            </DropdownMenuItem>
+            <DropdownMenuItem class="context-menu-item" @select="handleWorkspaceMenuOpenSettings">
               {{ t('Settings...') }}
               <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }},</span>
-            </div>
+            </DropdownMenuItem>
             <template v-if="recentWorkspaces.length">
-              <div class="context-menu-separator"></div>
-              <div class="context-menu-section">{{ t('Recent') }}</div>
-              <div
+              <DropdownMenuSeparator class="context-menu-separator" />
+              <DropdownMenuLabel class="context-menu-section">{{ t('Recent') }}</DropdownMenuLabel>
+              <DropdownMenuItem
                 v-for="recent in recentWorkspaces"
                 :key="recent.path"
                 class="context-menu-item"
-                @click="handleWorkspaceMenuOpenRecent(recent.path)"
+                @select="handleWorkspaceMenuOpenRecent(recent.path)"
               >
                 {{ recent.name }}
-              </div>
+              </DropdownMenuItem>
             </template>
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-item" @click="handleWorkspaceMenuCloseFolder">
+            <DropdownMenuSeparator class="context-menu-separator" />
+            <DropdownMenuItem class="context-menu-item" @select="handleWorkspaceMenuCloseFolder">
               {{ t('Close Folder') }}
-            </div>
-          </div>
-        </div>
-      </Teleport>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
 
       <!-- "+ New" dropdown menu -->
-      <Teleport to="body">
-        <div v-if="newMenuOpen" class="fixed inset-0 z-50" @click="newMenuOpen = false">
-          <div class="context-menu" :style="newMenuStyle">
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null, isDir: true })">
+      <DropdownMenuRoot :open="newMenuOpen" :modal="false" @update:open="handleNewMenuOpenChange">
+        <DropdownMenuPortal>
+          <DropdownMenuContent
+            v-if="newMenuReference"
+            class="context-menu file-tree-new-menu"
+            :reference="newMenuReference"
+            position="popper"
+            position-strategy="fixed"
+            side="bottom"
+            align="start"
+            :side-offset="2"
+            :collision-padding="8"
+            @close-auto-focus.prevent
+            @pointer-down-outside="closeNewMenu"
+            @focus-outside="closeNewMenu"
+            @interact-outside="closeNewMenu"
+            @escape-key-down="closeNewMenu"
+          >
+            <DropdownMenuItem
+              class="context-menu-item"
+              @select="handleNewMenuCreate({ ext: null, isDir: true })"
+            >
               <IconFolderPlus :size="14" :stroke-width="1.5" />
               <span class="flex-1">{{ t('New Folder') }}</span>
-            </div>
-            <div class="context-menu-item" @click="handleNewMenuCreate({ ext: null })">
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              class="context-menu-item"
+              @select="handleNewMenuCreate({ ext: null })"
+            >
               <IconFilePlus :size="14" :stroke-width="1.5" />
               <span class="flex-1">{{ t('New File...') }}</span>
-            </div>
-            <div class="context-menu-separator"></div>
-            <div
+            </DropdownMenuItem>
+            <DropdownMenuSeparator class="context-menu-separator" />
+            <DropdownMenuItem
               v-for="template in documentTemplates"
               :key="template.id"
               class="context-menu-item"
-              @click="
+              @select="
                 handleNewMenuCreate({
                   ext: template.ext,
                   suggestedName: template.filename,
@@ -283,10 +323,10 @@
               />
               <span class="flex-1">{{ template.label }}</span>
               <span class="context-menu-ext">{{ template.ext }}</span>
-            </div>
-          </div>
-        </div>
-      </Teleport>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
 
       <!-- Drag ghost -->
       <Teleport to="body">
@@ -303,6 +343,14 @@
 </template>
 
 <script setup>
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+} from 'reka-ui'
 import { ref, reactive, computed, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -330,6 +378,8 @@ import { useI18n } from '../../i18n'
 import { pathExists, revealPathInFileManager } from '../../services/fileTreeSystem'
 import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
+import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
+import { resolveFloatingReference } from '../../utils/floatingReference'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -367,9 +417,15 @@ const renameInput = ref(null)
 const filterInputEl = ref(null)
 const workspaceMenuAnchorEl = ref(null)
 const newBtnEl = ref(null)
+const newMenuAnchorOverride = ref(null)
 const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
+const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('file-tree-menu', () => {
+  closeWorkspaceMenu()
+  closeNewMenu()
+  contextMenu.show = false
+})
 
 const renaming = reactive({
   active: false,
@@ -453,6 +509,9 @@ async function handleTreeKeydown(e) {
 }
 
 function showContextMenu({ event, entry }) {
+  dismissOtherTransientOverlays()
+  closeWorkspaceMenu()
+  closeNewMenu()
   contextMenu.show = true
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
@@ -461,55 +520,39 @@ function showContextMenu({ event, entry }) {
 
 function showContextMenuOnEmpty(event) {
   if (event.target.closest('.group, .tree-item')) return
+  dismissOtherTransientOverlays()
+  closeWorkspaceMenu()
+  closeNewMenu()
   contextMenu.show = true
   contextMenu.x = event.clientX
   contextMenu.y = event.clientY
   contextMenu.entry = null
 }
 
-const workspaceMenuStyle = computed(() => {
-  if (!workspaceMenuAnchorEl.value) return {}
-  const rect = workspaceMenuAnchorEl.value.getBoundingClientRect()
-  const menuWidth = Math.max(220, Math.round(rect.width))
-  const viewportPadding = 8
-  const menuGap = 1
-  const maxX = window.innerWidth - menuWidth - viewportPadding
-  const bottom = Math.max(viewportPadding, window.innerHeight - rect.top + menuGap)
-  const maxHeight = Math.max(120, rect.top - viewportPadding - menuGap)
-  return {
-    left: Math.min(rect.left, maxX) + 'px',
-    top: 'auto',
-    bottom: `${bottom}px`,
-    minWidth: `${menuWidth}px`,
-    maxHeight: `${maxHeight}px`,
-    overflowY: 'auto',
-  }
-})
-
-// Computed style for the "+ New" dropdown (anchored below the button)
-const newMenuStyle = computed(() => {
-  if (!newBtnEl.value) return {}
-  const rect = newBtnEl.value.getBoundingClientRect()
-  const menuWidth = 200
-  const menuHeight = 320
-  const maxX = window.innerWidth - menuWidth - 8
-  const maxY = window.innerHeight - menuHeight - 8
-  return {
-    left: Math.min(rect.left, maxX) + 'px',
-    top: Math.min(rect.bottom + 2, maxY) + 'px',
-  }
-})
+const workspaceMenuReference = computed(() => resolveFloatingReference(workspaceMenuAnchorEl.value))
+const newMenuReference = computed(() =>
+  resolveFloatingReference(newMenuAnchorOverride.value || newBtnEl.value)
+)
 
 function toggleWorkspaceMenu() {
-  workspaceMenuOpen.value = !workspaceMenuOpen.value
-  if (workspaceMenuOpen.value) {
-    newMenuOpen.value = false
+  const nextOpen = !workspaceMenuOpen.value
+  workspaceMenuOpen.value = nextOpen
+  if (nextOpen) {
+    dismissOtherTransientOverlays()
+    closeNewMenu()
   }
 }
 
-function toggleNewMenu() {
+function toggleNewMenu(anchorEl = null) {
   workspaceMenuOpen.value = false
-  newMenuOpen.value = !newMenuOpen.value
+  newMenuAnchorOverride.value = anchorEl
+  const nextOpen = !newMenuOpen.value
+  newMenuOpen.value = nextOpen
+  if (nextOpen) {
+    dismissOtherTransientOverlays()
+  } else {
+    newMenuAnchorOverride.value = null
+  }
 }
 
 function collapseAllFolders() {
@@ -518,6 +561,29 @@ function collapseAllFolders() {
 
 function closeWorkspaceMenu() {
   workspaceMenuOpen.value = false
+}
+
+function closeNewMenu() {
+  newMenuOpen.value = false
+  newMenuAnchorOverride.value = null
+}
+
+function handleWorkspaceMenuOpenChange(open) {
+  if (!open) {
+    closeWorkspaceMenu()
+    return
+  }
+  dismissOtherTransientOverlays()
+  workspaceMenuOpen.value = true
+}
+
+function handleNewMenuOpenChange(open) {
+  if (!open) {
+    closeNewMenu()
+    return
+  }
+  dismissOtherTransientOverlays()
+  newMenuOpen.value = true
 }
 
 function handleWorkspaceMenuOpenFolder() {
@@ -584,7 +650,7 @@ async function createTypedFile(dir, ext, options = {}) {
 
 // Handle "+ New" header dropdown selection (target: workspace root)
 function handleNewMenuCreate({ ext, isDir, suggestedName = '', initialContent = '' }) {
-  newMenuOpen.value = false
+  closeNewMenu()
   const dir = workspace.path
   if (!dir) return
 
@@ -772,10 +838,7 @@ defineExpose({
   activateFilter,
   collapseAllFolders,
   toggleCreateMenuFrom(anchorEl = null) {
-    if (anchorEl) {
-      newBtnEl.value = anchorEl
-    }
-    toggleNewMenu()
+    toggleNewMenu(anchorEl)
   },
   createNewFile(ext = '.md') {
     let targetDir = workspace.path
@@ -931,6 +994,18 @@ defineExpose({
 
 .file-tree-workspace-shortcut {
   opacity: 1;
+}
+
+.file-tree-workspace-menu {
+  min-width: 220px !important;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+}
+
+.file-tree-new-menu {
+  min-width: 200px !important;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
 }
 
 .workspace-footer-action {

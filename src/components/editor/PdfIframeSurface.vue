@@ -65,8 +65,11 @@ import {
   buildPdfViewerThemeOptions,
   shouldUsePdfCanvasFilterFallback,
 } from '../../services/pdf/viewerUrl.js'
+import { createPdfViewerScaleLock } from '../../services/pdf/viewerResize.js'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
+import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
+import { isShellResizeActive, SHELL_RESIZE_PHASE_EVENT } from '../../shared/shellResizeSignals.js'
 
 const props = defineProps({
   sourcePath: { type: String, required: true },
@@ -84,7 +87,7 @@ const props = defineProps({
 
 const emit = defineEmits(['open-external', 'backward-sync', 'forward-sync-handled'])
 
-const { t } = useI18n()
+const { locale: uiLocale, t } = useI18n()
 const {
   menuVisible,
   menuX,
@@ -94,6 +97,7 @@ const {
   openSurfaceContextMenu,
   handleSurfaceContextMenuSelect,
 } = useSurfaceContextMenu()
+const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('pdf-iframe-surface')
 
 const iframeRef = ref(null)
 const viewerSrc = ref(null)
@@ -104,6 +108,7 @@ const latexViewerReady = ref(false)
 const surfaceStyle = computed(() => ({ ...(props.themeTokens || {}) }))
 const viewerThemeReloadKey = computed(() =>
   JSON.stringify({
+    locale: String(uiLocale.value || '').trim(),
     resolvedTheme: getResolvedTheme(),
     pdfThemedPages: props.pdfThemedPages === true,
     themeRevision: Number(props.themeRevision || 0),
@@ -120,6 +125,7 @@ let pendingForwardSync = null
 let loadToken = 0
 let latexReverseSyncCleanup = null
 let viewerContextMenuCleanup = null
+let viewerScaleLock = null
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
 function getResolvedTheme() {
@@ -201,6 +207,41 @@ function getViewerApp() {
   return iframeRef.value?.contentWindow?.PDFViewerApplication || null
 }
 
+function lockViewerScaleForResize() {
+  const pdfViewer = getViewerApp()?.pdfViewer
+  if (!pdfViewer) return false
+
+  const scaleLock = createPdfViewerScaleLock(pdfViewer.currentScaleValue, pdfViewer.currentScale)
+  if (!scaleLock) return false
+
+  viewerScaleLock = scaleLock
+  pdfViewer.currentScaleValue = scaleLock.lockedScaleValue
+  return true
+}
+
+function restoreViewerScaleAfterResize() {
+  const restoreScaleValue = String(viewerScaleLock?.restoreScaleValue || '').trim()
+  viewerScaleLock = null
+  if (!restoreScaleValue) return false
+
+  const pdfViewer = getViewerApp()?.pdfViewer
+  if (!pdfViewer) return false
+  pdfViewer.currentScaleValue = restoreScaleValue
+  return true
+}
+
+function handleShellResizePhase(event) {
+  const phase = String(event?.detail?.phase || '').trim()
+  if (phase === 'live-resize') {
+    lockViewerScaleForResize()
+    return
+  }
+
+  if (phase === 'settling' || phase === 'idle') {
+    restoreViewerScaleAfterResize()
+  }
+}
+
 function shouldUseCanvasFilterFallback() {
   return shouldUsePdfCanvasFilterFallback({
     themedPages: props.pdfThemedPages,
@@ -260,6 +301,10 @@ function getViewerThemeOptions() {
     pageBackground: resolveThemeToken('--shell-editor-surface'),
     pageForeground: resolveThemeToken('--workspace-ink'),
   })
+}
+
+function getViewerLocale() {
+  return String(uiLocale.value || '').trim() || 'en-US'
 }
 
 function normalizeViewerChromeText() {
@@ -412,11 +457,27 @@ function installViewerPatches() {
     viewerContextMenuCleanup?.()
     viewerContextMenuCleanup = null
 
-    frameWindow.document.addEventListener('mousedown', () => {
-      iframeRef.value?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
+    const dismissTransientOverlays = () => {
+      dismissOtherTransientOverlays()
+    }
 
-    frameWindow.document.addEventListener('keydown', (event) => {
+    const bridgeMouseDown = (event) => {
+      if (Number(event?.button) === 2) {
+        return
+      }
+      dismissTransientOverlays()
+      iframeRef.value?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    }
+    frameWindow.document.addEventListener('mousedown', bridgeMouseDown, true)
+    frameWindow.document.addEventListener('wheel', dismissTransientOverlays, true)
+
+    const keydownHandler = (event) => {
+      if (event.key === 'Escape') {
+        dismissTransientOverlays()
+        event.preventDefault()
+        return
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
         event.preventDefault()
         document.dispatchEvent(
@@ -432,23 +493,22 @@ function installViewerPatches() {
           })
         )
       }
-    })
+    }
+    frameWindow.document.addEventListener('keydown', keydownHandler)
 
-    frameWindow.document.addEventListener(
-      'click',
-      async (event) => {
-        const resolved = resolveExternalHttpAnchor(event.target, frameWindow.location.href)
-        if (!resolved?.url) return
-        event.preventDefault()
-        event.stopPropagation()
-        try {
-          await openExternalHttpUrl(resolved.url)
-        } catch {
-          // Ignore shell-open failures here.
-        }
-      },
-      true
-    )
+    const clickHandler = async (event) => {
+      dismissTransientOverlays()
+      const resolved = resolveExternalHttpAnchor(event.target, frameWindow.location.href)
+      if (!resolved?.url) return
+      event.preventDefault()
+      event.stopPropagation()
+      try {
+        await openExternalHttpUrl(resolved.url)
+      } catch {
+        // Ignore shell-open failures here.
+      }
+    }
+    frameWindow.document.addEventListener('click', clickHandler, true)
 
     const contextMenuHandler = (event) => {
       event.preventDefault()
@@ -457,6 +517,10 @@ function installViewerPatches() {
     }
     frameWindow.document.addEventListener('contextmenu', contextMenuHandler, true)
     viewerContextMenuCleanup = () => {
+      frameWindow.document.removeEventListener('mousedown', bridgeMouseDown, true)
+      frameWindow.document.removeEventListener('wheel', dismissTransientOverlays, true)
+      frameWindow.document.removeEventListener('keydown', keydownHandler)
+      frameWindow.document.removeEventListener('click', clickHandler, true)
       frameWindow.document.removeEventListener('contextmenu', contextMenuHandler, true)
     }
 
@@ -570,6 +634,10 @@ function onIframeLoad() {
   applyTheme()
   normalizeViewerChromeText()
   installViewerPatches()
+  viewerScaleLock = null
+  if (isShellResizeActive()) {
+    lockViewerScaleForResize()
+  }
   requestAnimationFrame(() => applyCanvasFilterFallback())
   loading.value = false
   loadError.value = ''
@@ -607,7 +675,10 @@ async function loadPdf() {
 
     const bytes = base64ToUint8Array(base64)
     currentBlobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
-    viewerSrc.value = buildPdfViewerSrc(currentBlobUrl, getViewerThemeOptions())
+    viewerSrc.value = buildPdfViewerSrc(currentBlobUrl, {
+      ...getViewerThemeOptions(),
+      locale: getViewerLocale(),
+    })
     viewerKey.value += 1
   } catch (error) {
     if (currentToken !== loadToken) return
@@ -716,13 +787,16 @@ watch(
 
 onMounted(() => {
   window.addEventListener('message', handleIframeViewerMessage)
+  window.addEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
   void loadPdf()
 })
 
 onUnmounted(() => {
   window.removeEventListener('message', handleIframeViewerMessage)
+  window.removeEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
   loadToken += 1
   pendingForwardSync = null
+  viewerScaleLock = null
   viewerContextMenuCleanup?.()
   viewerContextMenuCleanup = null
   latexReverseSyncCleanup?.()

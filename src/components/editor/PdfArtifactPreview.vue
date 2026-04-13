@@ -71,7 +71,6 @@ const resolvedTheme = ref(resolveThemePreference())
 const themeRevision = ref(0)
 const hostedPreviewSession = ref(nextHostedPreviewSessionId++)
 const hostedPreviewRejected = ref(false)
-
 const useHostedPreview = computed(() =>
   isPdfHostedPreviewSupported() && hostedPreviewRejected.value !== true
 )
@@ -83,19 +82,23 @@ const compileState = computed(() => {
 })
 
 const documentVersion = computed(() => compileState.value?.lastCompiled || '')
-const forwardSyncRequest = computed(() => (
-  props.kind === 'latex'
-    ? latexStore.forwardSyncRequestFor(props.sourcePath)
-    : null
-))
+const forwardSyncRequest = computed(() =>
+  props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
+)
 
 function normalizeResolvedThemeValue(value) {
-  return String(value || '').trim().toLowerCase() === 'light' ? 'light' : 'dark'
+  return String(value || '')
+    .trim()
+    .toLowerCase() === 'light'
+    ? 'light'
+    : 'dark'
 }
 
 function resolveThemePreference() {
   if (typeof document !== 'undefined') {
-    const datasetResolved = String(document.documentElement.dataset.themeResolved || '').trim().toLowerCase()
+    const datasetResolved = String(document.documentElement.dataset.themeResolved || '')
+      .trim()
+      .toLowerCase()
     if (datasetResolved === 'light' || datasetResolved === 'dark') {
       return datasetResolved
     }
@@ -168,7 +171,7 @@ function handleForwardSyncHandled(detail) {
 
 function handleWorkspaceThemeUpdated(event) {
   resolvedTheme.value = normalizeResolvedThemeValue(
-    event?.detail?.resolvedTheme || resolveThemePreference(),
+    event?.detail?.resolvedTheme || resolveThemePreference()
   )
   scheduleThemeSnapshot({ forceReload: true })
 }
@@ -182,14 +185,14 @@ watch(
   () => {
     void ensureLatexSynctexState()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 watch(
   () => workspace.pdfThemedPages,
   () => {
     scheduleThemeSnapshot({ forceReload: true })
-  },
+  }
 )
 
 onMounted(() => {

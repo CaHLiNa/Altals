@@ -23,7 +23,21 @@ test('pdf preview intercepts iframe context menus and routes them through the sh
   const source = readSource('src/components/editor/PdfIframeSurface.vue')
   assert.match(source, /SurfaceContextMenu/)
   assert.match(source, /data-surface-context-guard="true"/)
-  assert.match(source, /frameWindow\.document\.addEventListener\('contextmenu', contextMenuHandler, true\)/)
+  assert.match(source, /useTransientOverlayDismiss\('pdf-iframe-surface'\)/)
+  assert.match(source, /if \(Number\(event\?\.button\) === 2\) \{\s*return\s*\}/)
+  assert.match(
+    source,
+    /frameWindow\.document\.addEventListener\('mousedown', bridgeMouseDown, true\)/
+  )
+  assert.match(
+    source,
+    /frameWindow\.document\.addEventListener\('wheel', dismissTransientOverlays, true\)/
+  )
+  assert.match(source, /if \(event\.key === 'Escape'\) \{\s*dismissTransientOverlays\(\)/)
+  assert.match(
+    source,
+    /frameWindow\.document\.addEventListener\('contextmenu', contextMenuHandler, true\)/
+  )
   assert.match(source, /t\('Reload PDF'\)/)
   assert.match(source, /resolveLatexPdfReverseSyncPayload/)
 })
@@ -31,7 +45,10 @@ test('pdf preview intercepts iframe context menus and routes them through the sh
 test('app shell installs a capture-phase guard against default preview surface context menus', () => {
   const source = readSource('src/app/shell/useAppShellEventBridge.js')
   assert.match(source, /handleSurfaceContextMenuGuard/)
-  assert.match(source, /document\.addEventListener\('contextmenu', handleSurfaceContextMenuGuard, true\)/)
+  assert.match(
+    source,
+    /document\.addEventListener\('contextmenu', handleSurfaceContextMenuGuard, true\)/
+  )
   assert.match(source, /closest\?\.\('\[data-surface-context-guard="true"\]'\)/)
 })
 
@@ -49,6 +66,12 @@ test('workspace starter and right sidebar suppress default context menus without
   assert.match(rightSidebarSource, /data-surface-context-guard="true"/)
   assert.doesNotMatch(starterSource, /SurfaceContextMenu/)
   assert.doesNotMatch(rightSidebarSource, /SurfaceContextMenu/)
+})
+
+test('workbench rail suppresses the default browser context menu in the title area', () => {
+  const railSource = readSource('src/components/layout/WorkbenchRail.vue')
+  assert.match(railSource, /data-surface-context-guard="true"/)
+  assert.match(railSource, /@contextmenu\.prevent/)
 })
 
 test('editor context menu avoids the native paste fallback and exposes a host hint path', () => {

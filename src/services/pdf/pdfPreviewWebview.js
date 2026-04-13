@@ -3,6 +3,7 @@ import { Webview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 const webviewStateByLabel = new Map()
+const ENABLE_PDF_HOSTED_PREVIEW = false
 
 export const PDF_PREVIEW_HOST_READY_EVENT = 'altals:pdf-host:ready'
 export const PDF_PREVIEW_HOST_UPDATE_EVENT = 'altals:pdf-host:update'
@@ -24,18 +25,30 @@ export const PDF_PREVIEW_THEME_TOKEN_NAMES = [
 ]
 
 function sanitizeLabelPart(value = '') {
-  return String(value || '')
-    .trim()
-    .replace(/[^A-Za-z0-9_:/-]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'preview'
+  return (
+    String(value || '')
+      .trim()
+      .replace(/[^A-Za-z0-9_:/-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'preview'
+  )
 }
 
 function normalizeResolvedTheme(value = '') {
-  return String(value || '').trim().toLowerCase() === 'light' ? 'light' : 'dark'
+  return String(value || '')
+    .trim()
+    .toLowerCase() === 'light'
+    ? 'light'
+    : 'dark'
+}
+
+function hasPdfChildWebviewRuntime() {
+  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
 }
 
 export function isPdfHostedPreviewSupported() {
-  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__?.metadata?.currentWebview
+  // Child webviews clip transient overlays at native bounds, which breaks workbench menus.
+  // Keep the hosted path disabled until there is a dedicated cross-webview overlay bridge.
+  return ENABLE_PDF_HOSTED_PREVIEW && hasPdfChildWebviewRuntime()
 }
 
 export function buildPdfPreviewWebviewLabel(paneId = '') {
@@ -43,14 +56,17 @@ export function buildPdfPreviewWebviewLabel(paneId = '') {
 }
 
 export function buildPdfPreviewHostUrl(options = {}) {
-  const origin = typeof window !== 'undefined' && window.location?.origin
-    ? window.location.origin
-    : 'http://localhost'
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost'
   const url = new URL('/pdf-host.html', origin)
   const label = String(options.label || '').trim()
   const parentLabel = String(options.parentLabel || '').trim()
   const resolvedTheme = normalizeResolvedTheme(options.resolvedTheme)
-  const themeRevision = Number.isFinite(Number(options.themeRevision)) ? Number(options.themeRevision) : 0
+  const themeRevision = Number.isFinite(Number(options.themeRevision))
+    ? Number(options.themeRevision)
+    : 0
   const bootBackground = String(options.bootBackground || '').trim()
   const bootForeground = String(options.bootForeground || '').trim()
   if (label) {
@@ -84,14 +100,15 @@ export function capturePdfPreviewThemeTokens() {
 }
 
 export function createPdfPreviewHostPayload(options = {}) {
-  const compileState = options.compileState && typeof options.compileState === 'object'
-    ? {
-      lastCompiled: options.compileState.lastCompiled ?? '',
-      pdfPath: String(options.compileState.pdfPath || ''),
-      synctexPath: String(options.compileState.synctexPath || ''),
-      compileTargetPath: String(options.compileState.compileTargetPath || ''),
-    }
-    : null
+  const compileState =
+    options.compileState && typeof options.compileState === 'object'
+      ? {
+          lastCompiled: options.compileState.lastCompiled ?? '',
+          pdfPath: String(options.compileState.pdfPath || ''),
+          synctexPath: String(options.compileState.synctexPath || ''),
+          compileTargetPath: String(options.compileState.compileTargetPath || ''),
+        }
+      : null
 
   return {
     label: String(options.label || '').trim(),
@@ -104,7 +121,9 @@ export function createPdfPreviewHostPayload(options = {}) {
     forwardSyncRequest: options.forwardSyncRequest || null,
     resolvedTheme: normalizeResolvedTheme(options.resolvedTheme),
     pdfThemedPages: options.pdfThemedPages === true,
-    themeRevision: Number.isFinite(Number(options.themeRevision)) ? Number(options.themeRevision) : 0,
+    themeRevision: Number.isFinite(Number(options.themeRevision))
+      ? Number(options.themeRevision)
+      : 0,
     themeTokens: {
       ...(options.themeTokens || {}),
     },
@@ -141,13 +160,15 @@ async function createWebview(label, url, bounds) {
       fn(value)
     }
 
-    webview.once('tauri://created', () => done(resolve))
-      .then(unlisten => cleanup.push(unlisten))
+    webview
+      .once('tauri://created', () => done(resolve))
+      .then((unlisten) => cleanup.push(unlisten))
       .catch(() => {})
-    webview.once('tauri://error', (event) => {
-      done(reject, new Error(String(event?.payload || 'Failed to create PDF preview webview')))
-    })
-      .then(unlisten => cleanup.push(unlisten))
+    webview
+      .once('tauri://error', (event) => {
+        done(reject, new Error(String(event?.payload || 'Failed to create PDF preview webview')))
+      })
+      .then((unlisten) => cleanup.push(unlisten))
       .catch(() => {})
   })
 
@@ -166,7 +187,7 @@ export async function ensurePdfPreviewWebview(options = {}) {
   if (!label || !url || !bounds) return null
 
   const cached = webviewStateByLabel.get(label) || null
-  let webview = cached?.webview || await getExistingWebview(label)
+  let webview = cached?.webview || (await getExistingWebview(label))
 
   if (webview && cached?.url !== url) {
     await closeExistingWebview(label)

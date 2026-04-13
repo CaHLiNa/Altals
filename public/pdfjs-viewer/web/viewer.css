@@ -8690,11 +8690,11 @@ body{
 }
 
 #toolbarContainer #toolbarViewer{
-  display:flex;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto minmax(0, 1fr);
   align-items:center;
-  justify-content:flex-start;
   gap:0;
-  position:relative;
+  width:100%;
 }
 
 #toolbarViewerLeft,
@@ -8706,22 +8706,19 @@ body{
 }
 
 #toolbarViewerLeft{
-  flex:1 1 auto;
   min-width:0;
+  justify-self:start;
 }
 
 #toolbarViewerMiddle{
-  position:absolute;
-  left:50%;
-  transform:translateX(-50%);
+  position:static;
   margin-inline-start:0;
+  justify-self:center;
 }
 
 #toolbarViewerRight{
-  position:absolute;
-  inset-inline-end:0;
-  top:50%;
-  transform:translateY(-50%);
+  position:static;
+  justify-self:end;
 }
 
 #toolbarViewerRight > :not(.altalsPageGroup){
@@ -8834,11 +8831,11 @@ body{
 }
 
 .dropdownToolbarButton{
-  height:22px;
-  min-width:0;
+  height:24px;
+  min-width:108px;
   width:auto;
   padding-inline:0;
-  border-radius:7px;
+  border-radius:8px;
   border:0;
   background:transparent;
   box-shadow:none;
@@ -8847,14 +8844,14 @@ body{
 .dropdownToolbarButton select{
   height:100%;
   width:100%;
-  padding-inline:10px 22px;
+  padding-inline:12px 26px;
   border:none;
   background:color-mix(in srgb, var(--altals-surface-base) 5%, transparent);
   color:var(--altals-text-primary);
   font:inherit;
-  font-size:11px;
+  font-size:12px;
   font-weight:500;
-  line-height:22px;
+  line-height:24px;
   text-overflow:ellipsis;
   white-space:nowrap;
   -webkit-appearance:none;
@@ -8862,16 +8859,20 @@ body{
   appearance:none;
   outline:none;
   box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--altals-border-subtle) 24%, transparent) !important;
-  border-radius:7px;
+  border-radius:8px;
 }
 
 .dropdownToolbarButton::after{
-  inset-inline-end:8px;
+  inset-inline-end:10px;
   top:50%;
   transform:translateY(-50%);
   width:8px;
   height:8px;
   background-color:color-mix(in srgb, var(--altals-text-muted) 90%, transparent);
+}
+
+#scaleSelectContainer{
+  min-width:120px;
 }
 
 #pageNumber:focus,
@@ -8929,13 +8930,51 @@ body{
   --image-current-shadow:
     0 0 0 var(--image-border-width) var(--image-current-border-color);
   display:flex !important;
+  position:absolute;
+  inset-inline-start:0;
+  inset-block-start:calc(100% + 1px);
+  inset-block-end:auto;
   padding-bottom:0;
-  height:calc(var(--viewer-container-height) - var(--toolbar-height));
-  border-inline-end:1px solid color-mix(in srgb, var(--altals-border-subtle) 36%, transparent);
+  padding-block:0;
+  height:calc(var(--viewer-container-height) - var(--toolbar-height) - 1px);
+  width:var(--viewsManager-width);
+  min-width:var(--viewsManager-width);
+  max-width:var(--viewsManager-width);
+  overflow:hidden;
+  border-inline-end:none;
+  border:none;
   box-sizing:border-box;
   backdrop-filter:none;
   border-radius:0;
   box-shadow:none;
+  opacity:0;
+  pointer-events:none;
+  transform:translateX(calc(-100% - 8px));
+  transition-property:transform, opacity;
+  transition-duration:140ms;
+  transition-timing-function:var(--sidebar-transition-timing-function);
+  will-change:transform, opacity;
+}
+
+#sidebarContent{
+  box-shadow:none;
+}
+
+#outerContainer.viewsManagerMoving #viewsManager,
+#outerContainer.viewsManagerOpen #viewsManager{
+  visibility:visible;
+}
+
+#outerContainer.viewsManagerOpen #viewsManager{
+  inset-inline-start:0;
+  opacity:1;
+  pointer-events:auto;
+  transform:translateX(0);
+}
+
+#outerContainer.viewsManagerOpen #viewerContainer:not(.pdfPresentationMode){
+  inset-inline-start:0;
+  transition-property:none;
 }
 
 #viewsManagerSelector,
@@ -8951,23 +8990,24 @@ body{
 }
 
 #viewsManager #viewsManagerContent{
-  padding-top:0;
+  padding:12px 10px 20px;
+  box-sizing:border-box;
 }
 
 #viewsManager #viewsManagerContent #thumbnailsView{
   --thumbnail-width:82px;
   justify-content:center;
   align-content:flex-start;
-  padding:4px 6px 8px;
-  gap:8px;
+  padding:6px 10px 20px;
+  gap:12px;
 }
 
 #viewsManager #viewsManagerContent #thumbnailsView > .thumbnail{
-  scroll-margin-top:4px;
+  scroll-margin-top:12px;
 }
 
 #viewsManager #viewsManagerContent #thumbnailsView > .thumbnail::after{
-  bottom:4px;
+  bottom:8px;
   min-width:20px;
   height:15px;
   border-radius:999px;

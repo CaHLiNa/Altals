@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive } from 'vue'
+import { onMounted, onUnmounted, reactive, watch } from 'vue'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 
 import PdfIframeSurface from '../components/editor/PdfIframeSurface.vue'
@@ -42,6 +42,16 @@ const surfaceState = reactive(createPdfPreviewHostPayload({
 }))
 
 let cleanupUpdateListener = null
+
+function applyHostThemeClass(theme = 'dark') {
+  if (typeof document === 'undefined') return
+  const resolvedTheme = String(theme || '').trim().toLowerCase() === 'light' ? 'light' : 'dark'
+  const root = document.documentElement
+  root.classList.remove('theme-light', 'theme-dark', 'theme-system')
+  root.classList.add(`theme-${resolvedTheme}`)
+  root.dataset.themeResolved = resolvedTheme
+  root.dataset.themePreference = resolvedTheme
+}
 
 function assignSurfaceState(payload = {}) {
   const next = createPdfPreviewHostPayload({
@@ -75,6 +85,7 @@ function handleOpenExternal() {
 }
 
 onMounted(async () => {
+  applyHostThemeClass(surfaceState.resolvedTheme)
   cleanupUpdateListener = await currentWebview.listen(PDF_PREVIEW_HOST_UPDATE_EVENT, (event) => {
     if (String(event.payload?.label || '') !== ownLabel) return
     assignSurfaceState(event.payload)
@@ -86,4 +97,12 @@ onUnmounted(() => {
   cleanupUpdateListener?.()
   cleanupUpdateListener = null
 })
+
+watch(
+  () => surfaceState.resolvedTheme,
+  (theme) => {
+    applyHostThemeClass(theme)
+  },
+  { immediate: true }
+)
 </script>

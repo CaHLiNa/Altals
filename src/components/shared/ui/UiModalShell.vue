@@ -1,42 +1,45 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-if="visible"
-      class="ui-modal-overlay ui-overlay-scrim"
-      :class="[`ui-modal-overlay--${position}`, overlayClass]"
-      tabindex="-1"
-      @click.self="handleBackdropClick"
-      @keydown.esc="$emit('close')"
-    >
+  <DialogRoot :open="visible" @update:open="handleOpenChange">
+    <DialogPortal>
       <div
-        class="ui-modal-surface"
-        :class="[
-          `ui-modal-surface--${size}`,
-          {
-            'is-flush': !bodyPadding,
-            'is-absolute': position === 'absolute',
-          },
-          surfaceClass,
-        ]"
-        :style="surfaceStyle"
-        role="dialog"
-        aria-modal="true"
+        v-if="visible"
+        class="ui-modal-overlay"
+        :class="[`ui-modal-overlay--${position}`, overlayClass]"
       >
-        <div v-if="$slots.header" class="ui-modal-header">
-          <slot name="header" />
-        </div>
-        <div class="ui-modal-body" :class="[bodyClass, { 'is-flush': !bodyPadding }]">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" class="ui-modal-footer">
-          <slot name="footer" />
-        </div>
+        <DialogOverlay class="ui-modal-backdrop ui-overlay-scrim" />
+
+        <DialogContent
+          class="ui-modal-surface"
+          :class="[
+            `ui-modal-surface--${size}`,
+            {
+              'is-flush': !bodyPadding,
+              'is-absolute': position === 'absolute',
+            },
+            surfaceClass,
+          ]"
+          :style="surfaceStyle"
+          @pointer-down-outside="handleOutsideInteraction"
+          @interact-outside="handleOutsideInteraction"
+        >
+          <div v-if="$slots.header" class="ui-modal-header">
+            <slot name="header" />
+          </div>
+          <div class="ui-modal-body" :class="[bodyClass, { 'is-flush': !bodyPadding }]">
+            <slot />
+          </div>
+          <div v-if="$slots.footer" class="ui-modal-footer">
+            <slot name="footer" />
+          </div>
+        </DialogContent>
       </div>
-    </div>
-  </Teleport>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <script setup>
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot } from 'reka-ui'
+
 const props = defineProps({
   visible: {
     type: Boolean,
@@ -78,9 +81,16 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-function handleBackdropClick() {
-  if (!props.closeOnBackdrop) return
-  emit('close')
+function handleOpenChange(open) {
+  if (!open) {
+    emit('close')
+  }
+}
+
+function handleOutsideInteraction(event) {
+  if (!props.closeOnBackdrop) {
+    event.preventDefault()
+  }
 }
 </script>
 
@@ -91,6 +101,11 @@ function handleBackdropClick() {
   z-index: var(--z-modal);
   display: flex;
   padding: var(--space-5);
+}
+
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
 }
 
 .ui-modal-overlay--center {
@@ -113,6 +128,7 @@ function handleBackdropClick() {
   background: var(--surface-raised);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  z-index: 1;
 }
 
 .ui-modal-surface.is-absolute {
@@ -147,5 +163,9 @@ function handleBackdropClick() {
 
 .ui-modal-body.is-flush {
   padding: 0;
+}
+
+.ui-modal-surface:focus-visible {
+  outline: none;
 }
 </style>

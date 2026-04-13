@@ -56,6 +56,11 @@ Markdown workflow state includes draft problems plus preview problems. The UI st
 - supported preview kind: `pdf`
 - LaTeX preview is PDF-only
 
+Current implementation note:
+
+- PDF preview currently uses the inline iframe surface in the main workbench webview.
+- The hosted child-webview path remains in the codebase but is not enabled until workbench overlays can span webview boundaries without clipping menus.
+
 LaTeX readiness is gated by `ensureLatexCompileReady()` in `src/services/environmentPreflight.js`.
 
 ## Workspace preview rules

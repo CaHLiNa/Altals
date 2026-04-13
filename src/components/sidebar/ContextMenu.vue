@@ -1,71 +1,105 @@
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-50" @click="$emit('close')" @contextmenu.prevent="$emit('close')">
-      <div class="context-menu" :style="menuStyle">
-        <!-- Creation section (folders and empty space only) -->
+  <DropdownMenuRoot :open="menuOpen" :modal="false" @update:open="handleOpenChange">
+    <DropdownMenuPortal>
+      <DropdownMenuContent
+        class="context-menu"
+        :reference="menuReference"
+        position="popper"
+        position-strategy="fixed"
+        :side-offset="2"
+        :collision-padding="8"
+        @close-auto-focus.prevent
+        @pointer-down-outside="emit('close')"
+        @focus-outside="emit('close')"
+        @interact-outside="emit('close')"
+        @escape-key-down="emit('close')"
+      >
         <template v-if="!entry || entry.is_dir">
-          <div class="context-menu-item" @click="$emit('create', { ext: null, isDir: true })">
+          <DropdownMenuItem
+            class="context-menu-item"
+            @select="$emit('create', { ext: null, isDir: true })"
+          >
             <IconFolderPlus :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ t('New Folder') }}</span>
-          </div>
-          <div class="context-menu-item" @click="$emit('create', { ext: null })">
+          </DropdownMenuItem>
+          <DropdownMenuItem class="context-menu-item" @select="$emit('create', { ext: null })">
             <IconFilePlus :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ t('New File...') }}</span>
-          </div>
-          <div class="context-menu-separator"></div>
-          <div
+          </DropdownMenuItem>
+          <DropdownMenuSeparator class="context-menu-separator" />
+          <DropdownMenuItem
             v-for="template in documentTemplates"
             :key="template.id"
             class="context-menu-item"
-            @click="$emit('create', {
-              ext: template.ext,
-              suggestedName: template.filename,
-              initialContent: template.content,
-            })"
+            @select="
+              $emit('create', {
+                ext: template.ext,
+                suggestedName: template.filename,
+                initialContent: template.content,
+              })
+            "
           >
-            <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
+            <component
+              :is="template.ext === '.tex' ? IconMath : IconFileText"
+              :size="14"
+              :stroke-width="1.5"
+            />
             <span class="flex-1">{{ template.label }}</span>
             <span class="context-menu-ext">{{ template.ext }}</span>
-          </div>
+          </DropdownMenuItem>
         </template>
 
-        <!-- Actions section -->
         <template v-if="entry">
-          <div v-if="entry.is_dir" class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="$emit('rename', entry)">
+          <DropdownMenuSeparator v-if="entry.is_dir" class="context-menu-separator" />
+          <DropdownMenuItem class="context-menu-item" @select="$emit('rename', entry)">
             <IconPencil :size="14" :stroke-width="1.5" />
             {{ t('Rename') }}
-          </div>
-          <div class="context-menu-item" @click="$emit('duplicate', entry)">
+          </DropdownMenuItem>
+          <DropdownMenuItem class="context-menu-item" @select="$emit('duplicate', entry)">
             <IconCopy :size="14" :stroke-width="1.5" />
             {{ t('Duplicate') }}
-          </div>
-          <div class="context-menu-item context-menu-item-danger" @click="$emit('delete', entry)">
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            class="context-menu-item context-menu-item-danger"
+            @select="$emit('delete', entry)"
+          >
             <IconTrash :size="14" :stroke-width="1.5" />
             {{ t('Delete') }}
-          </div>
+          </DropdownMenuItem>
         </template>
 
-        <div v-if="selectedCount > 1" class="context-menu-separator"></div>
-        <div v-if="selectedCount > 1" class="context-menu-item context-menu-item-danger" @click="$emit('delete-selected')">
-          <IconTrash :size="14" :stroke-width="1.5" />
-          {{ t('Delete {count} selected', { count: selectedCount }) }}
-        </div>
+        <template v-if="selectedCount > 1">
+          <DropdownMenuSeparator class="context-menu-separator" />
+          <DropdownMenuItem
+            class="context-menu-item context-menu-item-danger"
+            @select="$emit('delete-selected')"
+          >
+            <IconTrash :size="14" :stroke-width="1.5" />
+            {{ t('Delete {count} selected', { count: selectedCount }) }}
+          </DropdownMenuItem>
+        </template>
 
         <template v-if="entry">
-          <div class="context-menu-separator"></div>
-          <div class="context-menu-item" @click="$emit('reveal-in-finder', entry)">
+          <DropdownMenuSeparator class="context-menu-separator" />
+          <DropdownMenuItem class="context-menu-item" @select="$emit('reveal-in-finder', entry)">
             <IconExternalLink :size="14" :stroke-width="1.5" />
             {{ revealLabel }}
-          </div>
+          </DropdownMenuItem>
         </template>
-      </div>
-    </div>
-  </Teleport>
+      </DropdownMenuContent>
+    </DropdownMenuPortal>
+  </DropdownMenuRoot>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+} from 'reka-ui'
+import { computed, ref } from 'vue'
 import {
   IconFileText,
   IconMath,
@@ -79,6 +113,7 @@ import {
 import { isMac } from '../../platform'
 import { useI18n } from '../../i18n'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
+import { createPointReference } from '../../utils/floatingReference'
 
 const isWindows = /Win/.test(navigator.platform)
 const { t } = useI18n()
@@ -92,19 +127,23 @@ const props = defineProps({
   selectedCount: { type: Number, default: 0 },
 })
 
-defineEmits(['close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'reveal-in-finder'])
+const emit = defineEmits([
+  'close',
+  'create',
+  'rename',
+  'duplicate',
+  'delete',
+  'delete-selected',
+  'reveal-in-finder',
+])
 
-// Keep menu within viewport
-const menuStyle = computed(() => {
-  const menuWidth = 220
-  const menuHeight = (props.entry ? 13 : 8) * 28 + 16
-  const maxX = window.innerWidth - menuWidth - 8
-  const maxY = window.innerHeight - menuHeight - 8
-  return {
-    left: Math.min(props.x, maxX) + 'px',
-    top: Math.min(props.y, maxY) + 'px',
-  }
-})
+const menuOpen = ref(true)
+const menuReference = computed(() => createPointReference(props.x, props.y))
+
+function handleOpenChange(open) {
+  menuOpen.value = open
+  if (!open) emit('close')
+}
 </script>
 
 <style>
