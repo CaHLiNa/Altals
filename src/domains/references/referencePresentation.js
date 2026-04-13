@@ -50,6 +50,7 @@ export function getReferenceTypeLabelKey(typeKey = '') {
 
 export function normalizeReferenceRecord(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
+  const pdfPath = String(reference.pdfPath || '').trim()
 
   return {
     ...reference,
@@ -59,6 +60,8 @@ export function normalizeReferenceRecord(reference = {}) {
     tags: Array.isArray(reference.tags) ? reference.tags : [],
     notes: Array.isArray(reference.notes) ? reference.notes : [],
     annotations: Array.isArray(reference.annotations) ? reference.annotations : [],
+    pdfPath,
+    hasPdf: pdfPath ? true : reference.hasPdf === true,
     typeKey: normalizeReferenceTypeKey(reference.typeKey || reference.typeLabel),
   }
 }

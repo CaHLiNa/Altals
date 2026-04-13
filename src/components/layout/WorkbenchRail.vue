@@ -53,7 +53,7 @@
     <div class="workbench-rail-center">
       <div class="workbench-rail-title-target">
         <div
-          v-if="showDocumentTitleTarget"
+          v-show="showDocumentTitleTarget"
           :id="documentTitleTargetId"
           class="workbench-rail-title-slot"
         ></div>
@@ -319,17 +319,21 @@ onUnmounted(() => {
 }
 
 .workbench-rail-document-title {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
   min-width: 0;
-  padding: 0;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
   background: transparent;
   box-shadow: none;
-  color: color-mix(in srgb, var(--text-primary) 88%, transparent);
-  font-size: var(--ui-font-label);
-  font-weight: 560;
+  color: color-mix(in srgb, var(--text-primary) 92%, transparent);
+  font-size: var(--workbench-font-title);
+  font-weight: var(--workbench-weight-strong);
   letter-spacing: -0.003em;
-  line-height: 1.2;
+  line-height: 1.25;
   user-select: none;
   -webkit-user-select: none;
 }

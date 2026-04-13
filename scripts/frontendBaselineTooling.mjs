@@ -22,7 +22,6 @@ export const FRONTEND_BASELINE_LINT_TARGETS = Object.freeze(
     'src/components/sidebar/FileTreeItem.vue',
     'src/components/layout/WorkbenchRail.vue',
     'src/components/layout/ToastContainer.vue',
-    'src/components/layout/WorkspaceQuickOpen.vue',
     'src/shared/**/*.js',
     'scripts/frontendBaselineTooling.mjs',
     'tests/editorOpenRoutingRuntime.test.mjs',

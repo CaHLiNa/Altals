@@ -15,7 +15,6 @@ export function useAppShellEventBridge({
   editorStore,
   filesStore,
   toggleSplitPane,
-  searchRef,
   leftSidebarRef,
   handleVisibilityChange,
   pickWorkspace,
@@ -87,12 +86,6 @@ export function useAppShellEventBridge({
       return
     }
 
-    if (isMod(event) && event.key === 'p') {
-      event.preventDefault()
-      searchRef.value?.focusSearch()
-      return
-    }
-
     if (isMod(event) && event.shiftKey && (event.key === '[' || event.key === ']')) {
       event.preventDefault()
       editorStore.switchTab(event.key === '[' ? -1 : 1)
@@ -151,10 +144,6 @@ export function useAppShellEventBridge({
         event.preventDefault()
       }
     }
-  }
-
-  function handleFocusSearch() {
-    searchRef.value?.focusSearch()
   }
 
   async function handleNewFile() {
@@ -224,7 +213,6 @@ export function useAppShellEventBridge({
     document.addEventListener('keydown', handleKeydown)
     document.addEventListener('keydown', handleExternalLinkKeydown)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('app:focus-search', handleFocusSearch)
     window.addEventListener('app:new-file', handleNewFile)
     window.addEventListener('app:begin-new-file', handleBeginNewFile)
     window.addEventListener('app:open-folder', handleOpenFolder)
@@ -239,7 +227,6 @@ export function useAppShellEventBridge({
     document.removeEventListener('keydown', handleKeydown)
     document.removeEventListener('keydown', handleExternalLinkKeydown)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('app:focus-search', handleFocusSearch)
     window.removeEventListener('app:new-file', handleNewFile)
     window.removeEventListener('app:begin-new-file', handleBeginNewFile)
     window.removeEventListener('app:open-folder', handleOpenFolder)

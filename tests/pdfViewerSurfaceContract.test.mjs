@@ -91,7 +91,12 @@ test('pdf iframe surface waits for pdf.js document events before declaring the p
   assert.match(pdfIframeSurfaceSource, /app\.eventBus\?\.on\?\.\('documenterror', handleDocumentError\)/)
   assert.match(pdfIframeSurfaceSource, /const handleDocumentLoaded = \(\) => \{[\s\S]*loading\.value = false[\s\S]*loadError\.value = ''/s)
   assert.match(pdfIframeSurfaceSource, /const handleDocumentError = \(event\) => \{[\s\S]*loading\.value = false[\s\S]*loadError\.value = String\(/s)
-  assert.doesNotMatch(pdfIframeSurfaceSource, /function onIframeLoad\(\)\s*\{[\s\S]*loading\.value = false[\s\S]*loadError\.value = ''[\s\S]*\}/)
+  const onIframeLoadMatch = pdfIframeSurfaceSource.match(
+    /function onIframeLoad\(\)\s*\{([\s\S]*?)\n\}\n\nfunction resolveProtocolViewerUrl/
+  )
+  assert.ok(onIframeLoadMatch)
+  assert.doesNotMatch(onIframeLoadMatch[1], /loading\.value = false/)
+  assert.doesNotMatch(onIframeLoadMatch[1], /loadError\.value = ''/)
 })
 
 test('pdf iframe surface falls back from workspace protocol URLs to blob loading when the viewer stalls', () => {
@@ -109,6 +114,25 @@ test('pdf iframe surface retries binding pdf.js runtime after iframe load when P
   assert.match(pdfIframeSurfaceSource, /installViewerAppPatches\(\{ attempt: nextAttempt \}\)/)
   assert.match(pdfIframeSurfaceSource, /installViewerFramePatches\(\)/)
   assert.match(pdfIframeSurfaceSource, /installViewerAppPatches\(\)/)
+})
+
+test('pdf iframe surface recognizes an already-loaded pdf.js document even if the load event was emitted before listeners attached', () => {
+  assert.match(pdfIframeSurfaceSource, /function syncViewerLoadedState\(app = getViewerApp\(\)\)/)
+  assert.match(pdfIframeSurfaceSource, /const pageCount = Number\(app\?\.pagesCount \|\| app\?\.pdfDocument\?\.numPages \|\| 0\)/)
+  assert.match(pdfIframeSurfaceSource, /syncViewerLoadedState\(app\)/)
+  assert.match(pdfIframeSurfaceSource, /if \(syncViewerLoadedState\(\)\) \{\s*return\s*\}/)
+})
+
+test('pdf iframe surface records viewer state snapshots and accepts viewer-originated debug status messages', () => {
+  assert.match(pdfIframeSurfaceSource, /function buildViewerStateSnapshot\(app = getViewerApp\(\)\)/)
+  assert.match(pdfIframeSurfaceSource, /initialized: Boolean\(app\?\.initialized\)/)
+  assert.match(pdfIframeSurfaceSource, /initPhase: String\(app\?\._altalsInitPhase \|\| ''\)/)
+  assert.match(pdfIframeSurfaceSource, /runPhase: String\(app\?\._altalsRunPhase \|\| ''\)/)
+  assert.match(pdfIframeSurfaceSource, /openPhase: String\(app\?\._altalsOpenPhase \|\| ''\)/)
+  assert.match(pdfIframeSurfaceSource, /event: 'pdf-load-timeout'/)
+  assert.match(pdfIframeSurfaceSource, /data\.channel === 'altals-pdf-debug'/)
+  assert.match(pdfIframeSurfaceSource, /data\.type === 'document-error'/)
+  assert.match(pdfIframeSurfaceSource, /data\.type === 'document-load' \|\| data\.type === 'open-success'/)
 })
 
 test('pdf viewer ships a zh-CN locale pack for common toolbar and zoom labels', () => {
@@ -132,6 +156,21 @@ test('pdf viewer allows app-generated blob urls for local preview documents', ()
   assert.match(viewerRuntimeSource, /if \(String\(file\)\.startsWith\("altals-workspace:\/\/"\)\) \{\s*return;\s*\}/)
 })
 
+test('pdf viewer posts debug bridge messages for file resolution and loading failures', () => {
+  assert.match(viewerRuntimeSource, /function postAltalsDebugMessage\(type, payload = \{\}\)/)
+  assert.match(viewerRuntimeSource, /channel: "altals-pdf-debug"/)
+  assert.match(viewerRuntimeSource, /_altalsInitPhase: "boot"/)
+  assert.match(viewerRuntimeSource, /_altalsRunPhase: "boot"/)
+  assert.match(viewerRuntimeSource, /_altalsOpenPhase: "idle"/)
+  assert.match(viewerRuntimeSource, /this\._altalsInitPhase = "initialize:ready"/)
+  assert.match(viewerRuntimeSource, /this\._altalsRunPhase = "run:open-dispatched"/)
+  assert.match(viewerRuntimeSource, /this\._altalsOpenPhase = "open:success"/)
+  assert.match(viewerRuntimeSource, /postAltalsDebugMessage\("run-file", \{/)
+  assert.match(viewerRuntimeSource, /postAltalsDebugMessage\("resolved-file", \{/)
+  assert.match(viewerRuntimeSource, /postAltalsDebugMessage\("open-failure", \{/)
+  assert.match(viewerRuntimeSource, /postAltalsDebugMessage\("document-error", \{/)
+})
+
 test('pdf viewer avoids relying on URL.parse so the bundled viewer still works in WebKit runtimes', () => {
   assert.match(viewerRuntimeSource, /function parseUrlOrNull\(input, base = undefined\)/)
   assert.match(viewerRuntimeSource, /typeof URL\.parse === "function"/)
@@ -146,4 +185,10 @@ test('pdf viewer does not expose the grab-hand cursor tool in altals', () => {
     viewerRuntimeSource,
     /case 72:\s*this\.pdfCursorTools\?\.switchTool\(CursorTool\.HAND\);/
   )
+})
+
+test('pdf viewer secondary toolbar tolerates missing cursor tool buttons', () => {
+  assert.match(viewerRuntimeSource, /if \(!element\) \{\s*continue;\s*\}/)
+  assert.match(viewerRuntimeSource, /if \(cursorSelectToolButton\) \{/)
+  assert.match(viewerRuntimeSource, /if \(cursorHandToolButton\) \{/)
 })

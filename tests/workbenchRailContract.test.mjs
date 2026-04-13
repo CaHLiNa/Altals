@@ -16,6 +16,10 @@ test('workbench rail only excludes explicit interactive controls from window dra
 
   assert.match(railSource, /if \(target\?\.closest\('\[data-window-drag-ignore="true"\]'\)\) return/)
   assert.match(
+    railSource,
+    /<div[\s\S]*v-show="showDocumentTitleTarget"[\s\S]*:id="documentTitleTargetId"[\s\S]*class="workbench-rail-title-slot"/
+  )
+  assert.match(
     editorPaneSource,
     /<div ref="documentTitleWrapRef" class="document-title-wrap document-title-wrap--rail">/
   )

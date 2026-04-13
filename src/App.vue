@@ -8,14 +8,14 @@
       'is-mac-vibrant': isMacDesktop && workspace.isOpen,
     }"
   >
-    <WorkspaceQuickOpen v-if="workspace.isOpen" ref="searchRef" />
-
     <div class="app-shell-workspace flex flex-1 flex-col overflow-hidden">
       <WorkbenchRail
         v-if="workspace.isOpen"
         class="app-shell-topbar shrink-0"
         :current-document-label="currentDocumentLabel"
-        :prefer-external-document-title="workspace.isWorkspaceSurface"
+        :prefer-external-document-title="
+          workspace.isWorkspaceSurface && workspace.leftSidebarPanel !== 'references'
+        "
         :show-document-title-target="workspace.leftSidebarPanel !== 'references'"
         :left-sidebar-available="workspace.isWorkspaceSurface"
         :left-sidebar-open="leftSidebarVisible"
@@ -60,7 +60,6 @@
               <LeftSidebar
                 v-if="workspace.isWorkspaceSurface && workspace.isOpen"
                 ref="leftSidebarRef"
-                @open-search="openQuickSearch"
                 @open-settings="workspace.openSettings()"
                 @open-folder="pickWorkspace"
                 @open-workspace="openWorkspace"
@@ -94,7 +93,6 @@
               'has-left-sidebar': leftSidebarVisible,
               'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
               'is-empty-workspace-shell': !workspace.isOpen,
-              'is-reference-library-shell': workspace.leftSidebarPanel === 'references',
             }"
           >
             <KeepAlive :max="3">
@@ -161,12 +159,13 @@ import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
 import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
+import { useReferencesStore } from './stores/references'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
-import WorkspaceQuickOpen from './components/layout/WorkspaceQuickOpen.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import { useI18n } from './i18n'
+import { getReferenceSectionLabelKey } from './domains/references/referencePresentation.js'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
@@ -192,10 +191,10 @@ const filesStore = useFilesStore()
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
+const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
-const searchRef = ref(null)
 const leftSidebarRef = ref(null)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
@@ -230,7 +229,13 @@ const activeWorkbenchProps = computed(() =>
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 const currentDocumentLabel = computed(() => {
   if (workspace.isSettingsSurface) return ''
-  if (workspace.leftSidebarPanel === 'references') return t('Reference Library')
+  if (workspace.leftSidebarPanel === 'references') {
+    const sectionKey =
+      referencesStore.librarySections.find(
+        (section) => section.key === referencesStore.selectedSectionKey
+      )?.key || 'all'
+    return t(getReferenceSectionLabelKey(sectionKey))
+  }
   const activePath = editorStore.activeTab
   if (!activePath) return ''
   if (isNewTab(activePath)) return t('New Tab')
@@ -240,10 +245,6 @@ const currentDocumentLabel = computed(() => {
   }
   return activePath.split('/').pop() || activePath
 })
-
-function openQuickSearch() {
-  searchRef.value?.focusSearch?.()
-}
 
 function toggleReferenceLibrary() {
   const nextPanel = workspace.leftSidebarPanel === 'references' ? 'files' : 'references'
@@ -309,7 +310,6 @@ useAppShellEventBridge({
   editorStore,
   filesStore,
   toggleSplitPane,
-  searchRef,
   leftSidebarRef,
   handleVisibilityChange,
   pickWorkspace,
@@ -491,10 +491,6 @@ useAppTeardown({
 }
 
 .app-shell-main-card.is-empty-workspace-shell {
-  padding-top: 0;
-}
-
-.app-shell-main-card.is-reference-library-shell {
   padding-top: 0;
 }
 

@@ -110,3 +110,82 @@ test('applying a legacy snapshot normalizes reference type labels into type keys
 
   assert.equal(store.references[0].typeKey, 'journal-article')
 })
+
+test('references store filters by search query and keeps sorting stable', () => {
+  setActivePinia(createPinia())
+  const store = useReferencesStore()
+
+  store.applyLibrarySnapshot({
+    references: [
+      {
+        id: 'ref-a',
+        typeKey: 'journal-article',
+        title: 'Barrier Functions for Safety',
+        authors: ['Alice'],
+        authorLine: 'Alice',
+        year: 2022,
+        source: 'Automatica',
+        identifier: 'doi:a',
+        pages: '',
+        citationKey: 'alice2022',
+        hasPdf: false,
+        collections: [],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+      {
+        id: 'ref-b',
+        typeKey: 'conference-paper',
+        title: 'Adaptive Cruise Control',
+        authors: ['Bob'],
+        authorLine: 'Bob',
+        year: 2024,
+        source: 'CDC',
+        identifier: 'doi:b',
+        pages: '',
+        citationKey: 'bob2024',
+        hasPdf: false,
+        collections: [],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+      {
+        id: 'ref-c',
+        typeKey: 'journal-article',
+        title: 'Cruise Barrier Design',
+        authors: ['Carol'],
+        authorLine: 'Carol',
+        year: 2021,
+        source: 'TAC',
+        identifier: 'doi:c',
+        pages: '',
+        citationKey: 'carol2021',
+        hasPdf: false,
+        collections: [],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+    ],
+  })
+
+  store.setSearchQuery('cruise')
+  assert.deepEqual(
+    store.filteredReferences.map((reference) => reference.id),
+    ['ref-b', 'ref-c']
+  )
+
+  store.setSortKey('title-asc')
+  assert.deepEqual(
+    store.filteredReferences.map((reference) => reference.id),
+    ['ref-b', 'ref-c']
+  )
+
+  store.setSortKey('year-asc')
+  assert.deepEqual(
+    store.filteredReferences.map((reference) => reference.id),
+    ['ref-c', 'ref-b']
+  )
+})

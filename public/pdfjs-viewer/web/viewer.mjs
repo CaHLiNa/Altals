@@ -15291,6 +15291,9 @@ class SecondaryToolbar {
       close,
       eventDetails
     } of buttons) {
+      if (!element) {
+        continue;
+      }
       element.addEventListener("click", evt => {
         if (eventName !== null) {
           eventBus.dispatch(eventName, {
@@ -15324,10 +15327,14 @@ class SecondaryToolbar {
       cursorSelectToolButton,
       cursorHandToolButton
     } = this.#opts;
-    toggleCheckedBtn(cursorSelectToolButton, tool === CursorTool.SELECT);
-    toggleCheckedBtn(cursorHandToolButton, tool === CursorTool.HAND);
-    cursorSelectToolButton.disabled = disabled;
-    cursorHandToolButton.disabled = disabled;
+    if (cursorSelectToolButton) {
+      toggleCheckedBtn(cursorSelectToolButton, tool === CursorTool.SELECT);
+      cursorSelectToolButton.disabled = disabled;
+    }
+    if (cursorHandToolButton) {
+      toggleCheckedBtn(cursorHandToolButton, tool === CursorTool.HAND);
+      cursorHandToolButton.disabled = disabled;
+    }
   }
   #scrollModeChanged({
     mode
@@ -17062,6 +17069,9 @@ const PDFViewerApplication = {
   _globalAbortController: new AbortController(),
   documentInfo: null,
   metadata: null,
+  _altalsInitPhase: "boot",
+  _altalsRunPhase: "boot",
+  _altalsOpenPhase: "idle",
   _contentDispositionFilename: null,
   _contentLength: null,
   _saveInProgress: false,
@@ -17080,8 +17090,10 @@ const PDFViewerApplication = {
   editorUndoBar: null,
   _printPermissionPromise: null,
   async initialize(appConfig) {
+    this._altalsInitPhase = "initialize:start";
     this.appConfig = appConfig;
     try {
+      this._altalsInitPhase = "initialize:preferences";
       await this.preferences.initializedPromise;
     } catch (ex) {
       console.error("initialize:", ex);
@@ -17101,16 +17113,21 @@ const PDFViewerApplication = {
     if (mode) {
       docStyle.setProperty("color-scheme", mode);
     }
+    this._altalsInitPhase = "initialize:create-l10n";
     this.l10n = await this.externalServices.createL10n();
+    this._altalsInitPhase = "initialize:translate";
     document.getElementsByTagName("html")[0].dir = this.l10n.getDirection();
     this.l10n.translate(appConfig.appContainer || document.documentElement);
     if (this.isViewerEmbedded && AppOptions.get("externalLinkTarget") === LinkTarget.NONE) {
       AppOptions.set("externalLinkTarget", LinkTarget.TOP);
     }
+    this._altalsInitPhase = "initialize:components";
     await this._initializeViewerComponents();
     this.pdfTextExtractor = new PdfTextExtractor(this.externalServices);
+    this._altalsInitPhase = "initialize:bind-events";
     this.bindEvents();
     this.bindWindowEvents();
+    this._altalsInitPhase = "initialize:ready";
     this._initializedCapability.settled = true;
     this._initializedCapability.resolve();
   },
@@ -17427,6 +17444,7 @@ const PDFViewerApplication = {
     }
   },
   async run(config) {
+    this._altalsRunPhase = "run:start";
     const queryString = document.location.search.substring(1);
     const params = parseQueryString(queryString);
     const viewerQueryOptions = {
@@ -17442,18 +17460,28 @@ const PDFViewerApplication = {
         AppOptions.set(name, check(params.get(key)));
       }
     }
+    this._altalsRunPhase = "run:initialize";
     await this.initialize(config);
+    this._altalsRunPhase = "run:initialized";
     const {
       appConfig,
       eventBus
     } = this;
     let file;
     file = params.get("file") ?? AppOptions.get("defaultUrl");
+    this._altalsRunPhase = "run:file-param";
+    postAltalsDebugMessage("run-file", {
+      file: file || ""
+    });
     try {
       file = new URL(file).href;
     } catch {
       file = encodeURIComponent(file).replaceAll("%2F", "/");
     }
+    postAltalsDebugMessage("resolved-file", {
+      file: file || ""
+    });
+    this._altalsRunPhase = "run:file-resolved";
     validateFileURL(file);
     const fileInput = this._openFileInput = document.createElement("input");
     fileInput.id = "fileInput";
@@ -17516,6 +17544,7 @@ const PDFViewerApplication = {
       appConfig.findBar?.toggleButton?.classList.add("hidden");
     }
     if (file) {
+      this._altalsRunPhase = "run:open-dispatched";
       this.open({
         url: file
       });
@@ -17706,9 +17735,14 @@ const PDFViewerApplication = {
     await Promise.all(promises);
   },
   async open(args) {
+    this._altalsOpenPhase = "open:start";
     if (this.pdfLoadingTask) {
       await this.close();
     }
+    postAltalsDebugMessage("open-start", {
+      url: args?.url || "",
+      originalUrl: args?.originalUrl || ""
+    });
     const workerParams = AppOptions.getAll(OptionKind.WORKER);
     Object.assign(GlobalWorkerOptions, workerParams);
     if (args.url) {
@@ -17730,8 +17764,19 @@ const PDFViewerApplication = {
     };
     loadingTask.onProgress = evt => this.progress(evt.percent);
     return loadingTask.promise.then(pdfDocument => {
+      this._altalsOpenPhase = "open:success";
+      postAltalsDebugMessage("open-success", {
+        url: args?.url || "",
+        pages: pdfDocument?.numPages || 0
+      });
       this.load(pdfDocument);
     }, reason => {
+      this._altalsOpenPhase = "open:failure";
+      postAltalsDebugMessage("open-failure", {
+        url: args?.url || "",
+        name: reason?.name || "",
+        message: reason?.message || String(reason || "")
+      });
       if (loadingTask !== this.pdfLoadingTask) {
         return undefined;
       }
@@ -17793,6 +17838,12 @@ const PDFViewerApplication = {
   async _documentError(key, moreInfo = null) {
     this._unblockDocumentLoadEvent();
     const message = await this._otherError(key || "pdfjs-loading-error", moreInfo);
+    postAltalsDebugMessage("document-error", {
+      key: key || "pdfjs-loading-error",
+      message,
+      reason: moreInfo?.message ?? null,
+      url: this.url || ""
+    });
     this.eventBus.dispatch("documenterror", {
       source: this,
       message,
@@ -17829,6 +17880,10 @@ const PDFViewerApplication = {
   },
   load(pdfDocument) {
     this.pdfDocument = pdfDocument;
+    postAltalsDebugMessage("document-load", {
+      url: this.url || "",
+      pages: pdfDocument?.numPages || 0
+    });
     this._printPermissionPromise = new Promise(resolve => {
       this.eventBus.on("printingallowed", ({
         isAllowed
@@ -18537,6 +18592,15 @@ const PDFViewerApplication = {
     return this.pdfScriptingManager.ready;
   }
 };
+function postAltalsDebugMessage(type, payload = {}) {
+  try {
+    window.parent?.postMessage({
+      channel: "altals-pdf-debug",
+      type,
+      ...payload
+    }, "*");
+  } catch {}
+}
 initCom(PDFViewerApplication);
 {
   PDFPrintServiceFactory.initGlobals(PDFViewerApplication);

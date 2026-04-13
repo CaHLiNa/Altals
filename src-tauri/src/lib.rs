@@ -215,8 +215,6 @@ const MENU_NEW_FILE: &str = "menu-new-file";
 #[cfg(target_os = "macos")]
 const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 #[cfg(target_os = "macos")]
-const MENU_SEARCH: &str = "menu-search";
-#[cfg(target_os = "macos")]
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
 
 #[cfg(target_os = "macos")]
@@ -299,13 +297,6 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         None::<&str>,
     )?;
-    let search = MenuItem::with_id(
-        app,
-        MENU_SEARCH,
-        label("搜索...", "Search..."),
-        true,
-        Some("CmdOrCtrl+P"),
-    )?;
     let toggle_left_sidebar = MenuItem::with_id(
         app,
         MENU_TOGGLE_LEFT_SIDEBAR,
@@ -346,8 +337,6 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let view_menu = SubmenuBuilder::new(app, label("显示", "View"))
-        .item(&search)
-        .separator()
         .item(&toggle_left_sidebar)
         .build()?;
 
@@ -375,8 +364,6 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
         dispatch_frontend_event(app, "app:close-folder", None);
     } else if event.id() == MENU_OPEN_SETTINGS {
         dispatch_frontend_event(app, "app:open-settings", None);
-    } else if event.id() == MENU_SEARCH {
-        dispatch_frontend_event(app, "app:focus-search", None);
     } else if event.id() == MENU_TOGGLE_LEFT_SIDEBAR {
         dispatch_frontend_event(app, "app:toggle-left-sidebar", None);
     }

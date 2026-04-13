@@ -105,6 +105,7 @@ export function parseBibTeXText(content = '') {
       pages: fields.pages || '',
       citationKey: String(citationKey || '').trim(),
       hasPdf: false,
+      pdfPath: '',
       collections: [],
       tags: [],
       rating: 0,

@@ -78,7 +78,7 @@ defineExpose({
   gap: 18px;
   min-height: 0;
   overflow: auto;
-  padding: 6px 8px 18px;
+  padding: 0 0 18px;
   color: var(--text-primary);
 }
 
@@ -90,10 +90,12 @@ defineExpose({
 
 .references-sidebar-panel__section-title {
   color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
-  padding: 2px 8px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  padding: 6px 10px 5px;
+  font-size: var(--sidebar-font-meta);
+  font-weight: var(--workbench-weight-medium);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .references-sidebar-panel__row {
@@ -102,12 +104,14 @@ defineExpose({
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 28px;
+  padding: 4px 10px 4px 12px;
   border: 0;
   background: transparent;
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
-  font-size: 13px;
-  font-weight: 540;
+  font-size: var(--sidebar-font-item);
+  font-weight: var(--workbench-weight-medium);
+  line-height: var(--workbench-line-height-primary);
   text-align: left;
   cursor: pointer;
 }
@@ -120,14 +124,15 @@ defineExpose({
 
 .references-sidebar-panel__count {
   color: color-mix(in srgb, var(--text-secondary) 68%, transparent);
-  font-size: 12px;
-  font-weight: 540;
+  font-size: var(--sidebar-font-meta);
+  font-weight: var(--workbench-weight-medium);
+  line-height: var(--workbench-line-height-secondary);
 }
 
 .references-sidebar-panel__secondary {
-  padding: 4px 8px;
+  padding: 3px 10px 3px 12px;
   color: color-mix(in srgb, var(--text-secondary) 76%, transparent);
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: var(--sidebar-font-body);
+  line-height: 1.5;
 }
 </style>

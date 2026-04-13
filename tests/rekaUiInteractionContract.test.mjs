@@ -32,15 +32,6 @@ test('UiSelect uses Reka Select primitives', () => {
   assert.match(source, /SelectItem/)
 })
 
-test('workspace quick open uses Reka dialog and combobox primitives', () => {
-  const source = readSource('src/components/layout/WorkspaceQuickOpen.vue')
-  assert.match(source, /from 'reka-ui'/)
-  assert.match(source, /DialogRoot/)
-  assert.match(source, /ComboboxRoot/)
-  assert.match(source, /ComboboxInput/)
-  assert.match(source, /ComboboxItem/)
-})
-
 test('context and dropdown surfaces use Reka dropdown menu primitives', () => {
   const editorMenu = readSource('src/components/editor/EditorContextMenu.vue')
   const surfaceMenu = readSource('src/components/shared/SurfaceContextMenu.vue')

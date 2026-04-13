@@ -631,6 +631,7 @@ function installViewerAppPatches(options = {}) {
   }
   app.download = async () => savePdfToDisk()
   app.save = async () => savePdfToDisk()
+  syncViewerLoadedState(app)
 }
 
 function buildPdfMenuGroups(options = {}) {
@@ -761,6 +762,28 @@ function syncViewerLoadedState(app = getViewerApp()) {
   return true
 }
 
+function buildViewerStateSnapshot(app = getViewerApp()) {
+  return {
+    hasApp: Boolean(app),
+    initialized: Boolean(app?.initialized),
+    hasEventBus: Boolean(app?.eventBus),
+    hasLoadingTask: Boolean(app?.pdfLoadingTask),
+    hasPdfDocument: Boolean(app?.pdfDocument),
+    hasL10n: Boolean(app?.l10n),
+    hasPdfViewer: Boolean(app?.pdfViewer),
+    hasToolbar: Boolean(app?.toolbar),
+    hasSecondaryToolbar: Boolean(app?.secondaryToolbar),
+    pagesCount: Number(app?.pagesCount || app?.pdfDocument?.numPages || 0),
+    initPhase: String(app?._altalsInitPhase || ''),
+    runPhase: String(app?._altalsRunPhase || ''),
+    openPhase: String(app?._altalsOpenPhase || ''),
+    viewerUrl: String(app?.url || ''),
+    viewerBaseUrl: String(app?.baseUrl || ''),
+    viewerSrc: String(viewerSrc.value || ''),
+    artifactPath: String(props.artifactPath || ''),
+  }
+}
+
 async function loadPdf() {
   return loadPdfWithStrategy({ preferProtocol: true })
 }
@@ -826,6 +849,14 @@ async function loadPdfWithStrategy(options = {}) {
     viewerLoadTimeout = window.setTimeout(() => {
       if (currentToken !== loadToken || !loading.value) return
       viewerLoadTimeout = 0
+      if (syncViewerLoadedState()) {
+        return
+      }
+      void appendLatexSyncDebug({
+        event: 'pdf-load-timeout',
+        sourceMode,
+        snapshot: buildViewerStateSnapshot(),
+      })
       if (sourceMode === 'protocol') {
         void loadPdfWithStrategy({ preferProtocol: false })
         return
@@ -847,7 +878,36 @@ function reloadPdf() {
 
 async function handleIframeViewerMessage(event) {
   const data = event.data
-  if (!data || data.channel !== 'altals-latex-sync') return
+  if (!data || typeof data !== 'object') return
+
+  if (data.channel === 'altals-pdf-debug') {
+    void appendLatexSyncDebug({
+      event: 'pdf-viewer-debug',
+      detail: data,
+      snapshot: buildViewerStateSnapshot(),
+    })
+    if (data.type === 'document-error') {
+      if (viewerLoadTimeout) {
+        window.clearTimeout(viewerLoadTimeout)
+        viewerLoadTimeout = 0
+      }
+      loadError.value = String(data.reason || data.message || t('Could not load PDF')).trim()
+      loading.value = false
+      return
+    }
+    if (data.type === 'document-load' || data.type === 'open-success') {
+      if (viewerLoadTimeout) {
+        window.clearTimeout(viewerLoadTimeout)
+        viewerLoadTimeout = 0
+      }
+      loadError.value = ''
+      loading.value = false
+      return
+    }
+    return
+  }
+
+  if (data.channel !== 'altals-latex-sync') return
 
   if (data.type === 'loaded' || data.type === 'pagesinit') {
     latexViewerReady.value = true

@@ -47,3 +47,20 @@ test('normalizing a saved library snapshot removes legacy demo references and ba
   assert.equal(snapshot.references[0].id, 'user-1')
   assert.equal(snapshot.references[0].typeKey, 'conference-paper')
 })
+
+test('normalizing a saved library snapshot derives hasPdf from pdfPath', () => {
+  const snapshot = normalizeReferenceLibrarySnapshot({
+    references: [
+      {
+        id: 'user-2',
+        title: 'PDF-backed paper',
+        typeLabel: '期刊论文',
+        pdfPath: '/tmp/paper.pdf',
+        hasPdf: false,
+      },
+    ],
+  })
+
+  assert.equal(snapshot.references[0].pdfPath, '/tmp/paper.pdf')
+  assert.equal(snapshot.references[0].hasPdf, true)
+})

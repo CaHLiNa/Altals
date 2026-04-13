@@ -60,7 +60,7 @@ watch(
   position: relative;
   height: 100%;
   min-height: 0;
-  padding: 24px 8px 10px 14px;
+  padding: 30px 10px 10px;
   background: var(--sidebar-shell-surface, color-mix(in srgb, var(--panel-surface) 56%, transparent));
   box-shadow: none;
   backdrop-filter: blur(var(--sidebar-shell-blur, 18px)) saturate(var(--sidebar-shell-saturate, 1.08));

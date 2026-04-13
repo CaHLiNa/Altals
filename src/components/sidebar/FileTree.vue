@@ -391,7 +391,6 @@ const props = defineProps({
   headingLabel: { type: String, default: '' },
 })
 const emit = defineEmits([
-  'open-search',
   'open-settings',
   'toggle-collapse',
   'open-folder',
@@ -493,12 +492,6 @@ function openFile(path) {
 }
 
 function handleFilterInputKeydown(event) {
-  if (isMod(event) && String(event.key || '').toLowerCase() === 'p') {
-    event.preventDefault()
-    emit('open-search')
-    return
-  }
-
   handleFilterKeydown(event)
 }
 
@@ -975,7 +968,7 @@ defineExpose({
 }
 
 .file-tree-search-row {
-  padding: 10px 8px 8px;
+  padding: 0 8px 8px;
 }
 
 :deep(.file-tree-search-input) {
@@ -1081,7 +1074,7 @@ defineExpose({
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  padding: 4px 0 0;
+  padding: 8px 0 0;
   background: transparent;
 }
 
