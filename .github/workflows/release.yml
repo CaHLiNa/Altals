@@ -23,7 +23,7 @@ jobs:
     name: Prepare release
     runs-on: ubuntu-22.04
     outputs:
-      version: ${{ steps.release_meta.outputs.version }}
+      version: ${{ steps.version_meta.outputs.version }}
       tag: ${{ steps.release_meta.outputs.tag }}
 
     steps:
@@ -42,8 +42,6 @@ jobs:
             exit 1
           fi
 
-          VERSION="$(node scripts/version-utils.mjs check-tag "${TAG}")"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Check out release tag
@@ -56,6 +54,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Resolve release version
+        id: version_meta
+        shell: bash
+        run: |
+          VERSION="$(node scripts/version-utils.mjs check-tag "${{ steps.release_meta.outputs.tag }}")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
   build-release:
     name: Release (${{ matrix.label }})
