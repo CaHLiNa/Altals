@@ -188,4 +188,116 @@ test('references store filters by search query and keeps sorting stable', () => 
     store.filteredReferences.map((reference) => reference.id),
     ['ref-c', 'ref-b']
   )
+
+  store.setSortKey('author-desc')
+  assert.deepEqual(
+    store.filteredReferences.map((reference) => reference.id),
+    ['ref-c', 'ref-b']
+  )
+})
+
+test('creating a collection appends a unique library collection entry', async () => {
+  setActivePinia(createPinia())
+  const store = useReferencesStore()
+
+  const created = await store.createCollection('', '控制理论')
+  const duplicate = await store.createCollection('', '控制理论')
+
+  assert.equal(created?.label, '控制理论')
+  assert.equal(store.collections.length, 1)
+  assert.equal(duplicate?.key, created?.key)
+})
+
+test('selecting a collection filters references and keeps selection inside that collection', () => {
+  setActivePinia(createPinia())
+  const store = useReferencesStore()
+
+  store.applyLibrarySnapshot({
+    collections: [
+      { key: 'control-theory', label: '控制理论' },
+      { key: 'safety-design', label: '安全设计' },
+    ],
+    references: [
+      {
+        id: 'ref-1',
+        typeKey: 'journal-article',
+        title: 'A',
+        authors: ['One'],
+        authorLine: 'One',
+        year: 2024,
+        source: 'Journal',
+        identifier: 'doi:a',
+        pages: '',
+        citationKey: 'a2024',
+        hasPdf: true,
+        collections: ['control-theory'],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+      {
+        id: 'ref-2',
+        typeKey: 'conference-paper',
+        title: 'B',
+        authors: ['Two'],
+        authorLine: 'Two',
+        year: 2025,
+        source: 'Conf',
+        identifier: 'doi:b',
+        pages: '',
+        citationKey: 'b2025',
+        hasPdf: true,
+        collections: ['safety-design'],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+    ],
+  })
+
+  store.selectReference('ref-2')
+  store.setSelectedCollection('control-theory')
+
+  assert.equal(store.selectedSectionKey, 'all')
+  assert.equal(store.selectedCollectionKey, 'control-theory')
+  assert.deepEqual(
+    store.filteredReferences.map((reference) => reference.id),
+    ['ref-1']
+  )
+  assert.equal(store.selectedReferenceId, 'ref-1')
+})
+
+test('toggling a reference collection membership adds and removes the collection key', async () => {
+  setActivePinia(createPinia())
+  const store = useReferencesStore()
+
+  store.applyLibrarySnapshot({
+    collections: [{ key: 'control-theory', label: '控制理论' }],
+    references: [
+      {
+        id: 'ref-1',
+        typeKey: 'journal-article',
+        title: 'A',
+        authors: ['One'],
+        authorLine: 'One',
+        year: 2024,
+        source: 'Journal',
+        identifier: 'doi:a',
+        pages: '',
+        citationKey: 'a2024',
+        hasPdf: true,
+        collections: [],
+        tags: [],
+        abstract: '',
+        annotations: [],
+      },
+    ],
+  })
+
+  const added = await store.toggleReferenceCollection('', 'ref-1', 'control-theory')
+  const removed = await store.toggleReferenceCollection('', 'ref-1', 'control-theory')
+
+  assert.equal(added, true)
+  assert.deepEqual(store.references[0].collections, [])
+  assert.equal(removed, false)
 })

@@ -1,33 +1,8 @@
 <template>
   <section class="reference-workbench" data-surface-context-guard="true">
     <header class="reference-workbench__toolbar">
-      <div class="reference-workbench__toolbar-group reference-workbench__toolbar-group--search">
-        <UiInput
-          v-model="searchQuery"
-          size="sm"
-          shell-class="reference-workbench__search-input"
-          :placeholder="t('Search references')"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-        >
-          <template #prefix>
-            <IconSearch :size="14" :stroke-width="1.6" />
-          </template>
-        </UiInput>
-        <UiSelect
-          v-model="sortKey"
-          size="sm"
-          shell-class="reference-workbench__sort-select"
-          :aria-label="t('Sort')"
-          :options="sortOptions"
-        />
-      </div>
+      <div class="reference-workbench__toolbar-spacer" />
       <div class="reference-workbench__toolbar-group reference-workbench__toolbar-group--actions">
-        <div class="reference-workbench__summary">
-          {{ t('{count} items', { count: filteredReferences.length }) }}
-        </div>
         <UiButton
           variant="secondary"
           size="sm"
@@ -54,9 +29,75 @@
 
     <div v-else class="reference-workbench__content">
       <div class="reference-workbench__table-head">
-        <div>{{ t('Title') }}</div>
-        <div>{{ t('Authors') }}</div>
-        <div>{{ t('Year') }}</div>
+        <button
+          type="button"
+          class="reference-workbench__head-button"
+          :class="{ 'is-active': isSortActive('title') }"
+          @click="toggleTitleSort"
+        >
+          <span>{{ t('Title') }}</span>
+          <span v-if="isSortActive('title')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
+            <svg
+              :class="{ 'is-desc': sortKey === 'title-desc' }"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2 6l3-3 3 3" />
+            </svg>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="reference-workbench__head-button"
+          :class="{ 'is-active': isSortActive('author') }"
+          @click="toggleAuthorSort"
+        >
+          <span>{{ t('Authors') }}</span>
+          <span v-if="isSortActive('author')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
+            <svg
+              :class="{ 'is-desc': sortKey === 'author-desc' }"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2 6l3-3 3 3" />
+            </svg>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="reference-workbench__head-button"
+          :class="{ 'is-active': isSortActive('year') }"
+          @click="toggleYearSort"
+        >
+          <span>{{ t('Year') }}</span>
+          <span v-if="isSortActive('year')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
+            <svg
+              :class="{ 'is-desc': sortKey === 'year-desc' }"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2 6l3-3 3 3" />
+            </svg>
+          </span>
+        </button>
         <div>{{ t('Source') }}</div>
       </div>
 
@@ -66,9 +107,12 @@
         class="reference-workbench__row ui-list-row"
         :class="{ 'is-active': reference.id === selectedReference?.id }"
         @click="referencesStore.selectReference(reference.id)"
+        @contextmenu.prevent="openReferenceContextMenu($event, reference)"
       >
         <div class="reference-workbench__cell reference-workbench__cell--title">
-          <IconFileText :size="16" :stroke-width="1.8" />
+          <span class="reference-workbench__title-icon" aria-hidden="true">
+            <IconFileText :size="15" :stroke-width="1.85" />
+          </span>
           <span class="reference-workbench__truncate">{{ reference.title }}</span>
         </div>
         <div class="reference-workbench__cell">
@@ -82,55 +126,130 @@
         </div>
       </div>
     </div>
+
+    <SurfaceContextMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :groups="menuGroups"
+      @close="closeSurfaceContextMenu"
+      @select="handleSurfaceContextMenuSelect"
+    />
   </section>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
-import { IconFileText, IconSearch } from '@tabler/icons-vue'
+import { IconFileText } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
+import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 import {
   mergeImportedReferences,
   parseBibTeXText,
 } from '../../services/references/bibtexImport.js'
 import { writeReferenceLibrarySnapshot } from '../../services/references/referenceLibraryIO.js'
+import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
-import UiInput from '../shared/ui/UiInput.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
 
 const { t } = useI18n()
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const uxStatusStore = useUxStatusStore()
+const {
+  menuVisible,
+  menuX,
+  menuY,
+  menuGroups,
+  closeSurfaceContextMenu,
+  openSurfaceContextMenu,
+  handleSurfaceContextMenuSelect,
+} = useSurfaceContextMenu()
 
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
-const searchQuery = computed({
-  get: () => referencesStore.searchQuery,
-  set: (value) => referencesStore.setSearchQuery(value),
-})
 const sortKey = computed({
   get: () => referencesStore.sortKey,
   set: (value) => referencesStore.setSortKey(value),
 })
-const sortOptions = computed(() => [
-  { value: 'year-desc', label: t('Year (newest first)') },
-  { value: 'year-asc', label: t('Year (oldest first)') },
-  { value: 'title-asc', label: t('Title (A-Z)') },
-])
+const availableCollections = computed(() => referencesStore.collections)
 
 function getReferenceAuthorLabel(reference) {
   const authors = Array.isArray(reference?.authors) ? reference.authors : []
   if (!authors.length) return '—'
   if (authors.length === 1) return authors[0]
   return `${authors[0]} et al.`
+}
+
+function isSortActive(group) {
+  return sortKey.value.startsWith(`${group}-`)
+}
+
+function toggleTitleSort() {
+  referencesStore.setSortKey(sortKey.value === 'title-asc' ? 'title-desc' : 'title-asc')
+}
+
+function toggleAuthorSort() {
+  referencesStore.setSortKey(sortKey.value === 'author-asc' ? 'author-desc' : 'author-asc')
+}
+
+function toggleYearSort() {
+  referencesStore.setSortKey(sortKey.value === 'year-desc' ? 'year-asc' : 'year-desc')
+}
+
+function referenceIsInCollection(reference = {}, collectionKey = '') {
+  const collection = availableCollections.value.find((item) => item.key === collectionKey)
+  if (!collection) return false
+
+  const memberships = Array.isArray(reference.collections) ? reference.collections : []
+  const normalizedKey = String(collection.key || '').trim().toLowerCase()
+  const normalizedLabel = String(collection.label || '').trim().toLowerCase()
+  return memberships.some((value) => {
+    const normalizedValue = String(value || '').trim().toLowerCase()
+    return normalizedValue === normalizedKey || normalizedValue === normalizedLabel
+  })
+}
+
+function openReferenceContextMenu(event, reference) {
+  referencesStore.selectReference(reference.id)
+
+  const groups = [
+    {
+      key: 'collections',
+      label: t('Collections'),
+      items: availableCollections.value.length
+        ? availableCollections.value.map((collection) => ({
+            key: `collection:${collection.key}`,
+            label: collection.label,
+            checked: referenceIsInCollection(reference, collection.key),
+            action: () =>
+              referencesStore.toggleReferenceCollection(
+                workspace.workspaceDataDir,
+                reference.id,
+                collection.key
+              ),
+          }))
+        : [
+            {
+              key: 'collections-empty',
+              label: t('No collections yet'),
+              disabled: true,
+            },
+          ],
+    },
+  ]
+
+  openSurfaceContextMenu({
+    x: event.clientX,
+    y: event.clientY,
+    groups,
+  })
 }
 
 async function handleImportBibTeX() {
@@ -228,33 +347,13 @@ async function importBibTeXWithFallback(content = '') {
   min-width: 0;
 }
 
-.reference-workbench__toolbar-group--search {
-  flex: 1 1 auto;
-}
-
 .reference-workbench__toolbar-group--actions {
   flex: 0 0 auto;
 }
 
-.reference-workbench__search-input {
-  min-width: min(240px, 38vw);
-  max-width: 360px;
-  border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
-  box-shadow: none;
-}
-
-.reference-workbench__sort-select {
-  width: 168px;
-}
-
-.reference-workbench__summary {
-  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
-  font-size: var(--workbench-font-primary);
-  font-weight: var(--workbench-weight-medium);
-  line-height: var(--workbench-line-height-primary);
-  white-space: nowrap;
+.reference-workbench__toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .reference-workbench__content {
@@ -284,6 +383,47 @@ async function importBibTeXWithFallback(content = '') {
   line-height: var(--workbench-line-height-secondary);
 }
 
+.reference-workbench__head-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.reference-workbench__head-button.is-active {
+  color: var(--text-primary);
+}
+
+.reference-workbench__sort-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
+  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
+  font-size: 10.5px;
+  font-weight: var(--workbench-weight-medium);
+  line-height: 1;
+}
+
+.reference-workbench__sort-chip--icon {
+  padding: 0 4px;
+}
+
+.reference-workbench__sort-chip--icon svg.is-desc {
+  transform: rotate(180deg);
+}
+
 .reference-workbench__row {
   min-height: 40px;
   padding: 0 12px;
@@ -306,6 +446,16 @@ async function importBibTeXWithFallback(content = '') {
   color: var(--text-primary);
   font-size: var(--workbench-font-primary);
   font-weight: var(--workbench-weight-medium);
+}
+
+.reference-workbench__title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
 }
 
 .reference-workbench__truncate {
@@ -334,14 +484,8 @@ async function importBibTeXWithFallback(content = '') {
     padding-bottom: 6px;
   }
 
-  .reference-workbench__toolbar-group--search,
   .reference-workbench__toolbar-group--actions {
     width: 100%;
-  }
-
-  .reference-workbench__search-input {
-    min-width: 0;
-    max-width: none;
   }
 }
 </style>

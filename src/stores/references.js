@@ -14,11 +14,63 @@ import {
 } from '../services/references/referenceLibraryIO.js'
 import { mergeImportedReferences, parseBibTeXText } from '../services/references/bibtexImport.js'
 
+function normalizedAuthorSortText(reference = {}) {
+  const authors = Array.isArray(reference.authors) ? reference.authors : []
+  if (authors.length > 0) {
+    return authors.join(' ').trim().toLowerCase()
+  }
+  return String(reference.authorLine || '').trim().toLowerCase()
+}
+
+function buildCollectionKey(label = '') {
+  const normalized = String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return normalized || `collection-${Date.now()}`
+}
+
+function normalizeCollectionMembershipValue(value = '') {
+  return String(value || '').trim().toLowerCase()
+}
+
+function resolveCollection(collections = [], collectionKey = '') {
+  const normalizedKey = normalizeCollectionMembershipValue(collectionKey)
+  if (!normalizedKey) return null
+
+  return (
+    collections.find((collection) => normalizeCollectionMembershipValue(collection.key) === normalizedKey) ||
+    collections.find((collection) => normalizeCollectionMembershipValue(collection.label) === normalizedKey) ||
+    null
+  )
+}
+
+function referenceHasCollection(reference = {}, collection = null) {
+  if (!collection) return false
+  const collectionValues = Array.isArray(reference.collections) ? reference.collections : []
+  const normalizedKey = normalizeCollectionMembershipValue(collection.key)
+  const normalizedLabel = normalizeCollectionMembershipValue(collection.label)
+
+  return collectionValues.some((value) => {
+    const normalizedValue = normalizeCollectionMembershipValue(value)
+    return normalizedValue === normalizedKey || normalizedValue === normalizedLabel
+  })
+}
+
 function filterReferenceBySection(reference, sectionKey) {
   if (sectionKey === 'unfiled') return !reference.collections.length
   if (sectionKey === 'missing-identifier') return !String(reference.identifier || '').trim()
   if (sectionKey === 'missing-pdf') return !referenceHasPdf(reference)
   return true
+}
+
+function filterReferenceByCollection(reference, collectionKey, collections = []) {
+  if (!collectionKey) return true
+  const collection = resolveCollection(collections, collectionKey)
+  if (!collection) return false
+  return referenceHasCollection(reference, collection)
 }
 
 function referenceHasPdf(reference = {}) {
@@ -47,6 +99,24 @@ function compareReferences(a = {}, b = {}, sortKey = 'year-desc') {
       String(a.title || '').localeCompare(String(b.title || ''))
     )
   }
+  if (sortKey === 'author-desc') {
+    return (
+      normalizedAuthorSortText(b).localeCompare(normalizedAuthorSortText(a)) ||
+      String(a.title || '').localeCompare(String(b.title || ''))
+    )
+  }
+  if (sortKey === 'author-asc') {
+    return (
+      normalizedAuthorSortText(a).localeCompare(normalizedAuthorSortText(b)) ||
+      String(a.title || '').localeCompare(String(b.title || ''))
+    )
+  }
+  if (sortKey === 'title-desc') {
+    return (
+      String(b.title || '').localeCompare(String(a.title || '')) ||
+      Number(b.year || 0) - Number(a.year || 0)
+    )
+  }
   if (sortKey === 'title-asc') {
     return (
       String(a.title || '').localeCompare(String(b.title || '')) ||
@@ -66,6 +136,7 @@ export const useReferencesStore = defineStore('references', {
     tags: REFERENCE_TAGS,
     references: REFERENCE_FIXTURES,
     selectedSectionKey: 'all',
+    selectedCollectionKey: '',
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
     searchQuery: '',
     sortKey: 'year-desc',
@@ -83,9 +154,23 @@ export const useReferencesStore = defineStore('references', {
         ])
       ),
 
+    collectionCounts: (state) =>
+      Object.fromEntries(
+        state.collections.map((collection) => [
+          collection.key,
+          state.references.filter((reference) => filterReferenceByCollection(reference, collection.key, state.collections))
+            .length,
+        ])
+      ),
+
+    selectedCollection: (state) => resolveCollection(state.collections, state.selectedCollectionKey),
+
     filteredReferences: (state) =>
       state.references
         .filter((reference) => filterReferenceBySection(reference, state.selectedSectionKey))
+        .filter((reference) =>
+          filterReferenceByCollection(reference, state.selectedCollectionKey, state.collections)
+        )
         .filter((reference) => {
           const query = String(state.searchQuery || '').trim().toLowerCase()
           if (!query) return true
@@ -104,6 +189,17 @@ export const useReferencesStore = defineStore('references', {
   },
 
   actions: {
+    async persistLibrarySnapshot(workspaceDataDir = '') {
+      const snapshot = {
+        version: 1,
+        collections: this.collections,
+        tags: this.tags,
+        references: this.references,
+      }
+      await writeReferenceLibrarySnapshot(workspaceDataDir, snapshot)
+      return snapshot
+    },
+
     applyLibrarySnapshot(snapshot = {}) {
       const normalized = {
         ...buildDefaultReferenceLibrarySnapshot(),
@@ -113,6 +209,9 @@ export const useReferencesStore = defineStore('references', {
       this.collections = normalized.collections
       this.tags = normalized.tags
       this.references = normalized.references
+      if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
+        this.selectedCollectionKey = ''
+      }
 
       if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.references[0]?.id || ''
@@ -163,9 +262,45 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
+    async createCollection(workspaceDataDir = '', label = '') {
+      const trimmedLabel = String(label || '').trim()
+      if (!trimmedLabel) return null
+
+      const existingCollection = this.collections.find(
+        (collection) => String(collection.label || '').trim().toLowerCase() === trimmedLabel.toLowerCase()
+      )
+      if (existingCollection) return existingCollection
+
+      let key = buildCollectionKey(trimmedLabel)
+      let suffix = 2
+      while (this.collections.some((collection) => collection.key === key)) {
+        key = `${buildCollectionKey(trimmedLabel)}-${suffix}`
+        suffix += 1
+      }
+
+      const nextCollection = {
+        key,
+        label: trimmedLabel,
+      }
+
+      this.collections = [...this.collections, nextCollection]
+      await this.persistLibrarySnapshot(workspaceDataDir)
+      return nextCollection
+    },
+
     setSelectedSection(sectionKey) {
       const exists = this.librarySections.some((section) => section.key === sectionKey)
       this.selectedSectionKey = exists ? sectionKey : 'all'
+      this.selectedCollectionKey = ''
+      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
+        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
+      }
+    },
+
+    setSelectedCollection(collectionKey = '') {
+      const collection = resolveCollection(this.collections, collectionKey)
+      this.selectedCollectionKey = collection?.key || ''
+      this.selectedSectionKey = 'all'
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -179,7 +314,16 @@ export const useReferencesStore = defineStore('references', {
     },
 
     setSortKey(value = '') {
-      this.sortKey = ['year-desc', 'year-asc', 'title-asc'].includes(value) ? value : 'year-desc'
+      this.sortKey = [
+        'year-desc',
+        'year-asc',
+        'title-asc',
+        'title-desc',
+        'author-asc',
+        'author-desc',
+      ].includes(value)
+        ? value
+        : 'year-desc'
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -190,11 +334,47 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = referenceId
     },
 
+    async toggleReferenceCollection(workspaceDataDir = '', referenceId = '', collectionKey = '') {
+      const collection = resolveCollection(this.collections, collectionKey)
+      if (!collection) return false
+
+      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
+      if (referenceIndex === -1) return false
+
+      const reference = this.references[referenceIndex]
+      const currentCollections = Array.isArray(reference.collections) ? reference.collections : []
+      const isMember = referenceHasCollection(reference, collection)
+      const nextCollections = currentCollections.filter((value) => {
+        const normalizedValue = normalizeCollectionMembershipValue(value)
+        return (
+          normalizedValue !== normalizeCollectionMembershipValue(collection.key) &&
+          normalizedValue !== normalizeCollectionMembershipValue(collection.label)
+        )
+      })
+
+      if (!isMember) {
+        nextCollections.push(collection.key)
+      }
+
+      this.references = this.references.map((candidate, index) =>
+        index === referenceIndex
+          ? {
+              ...candidate,
+              collections: nextCollections,
+            }
+          : candidate
+      )
+
+      await this.persistLibrarySnapshot(workspaceDataDir)
+      return !isMember
+    },
+
     cleanup() {
       this.collections = REFERENCE_COLLECTIONS
       this.tags = REFERENCE_TAGS
       this.references = REFERENCE_FIXTURES
       this.selectedSectionKey = 'all'
+      this.selectedCollectionKey = ''
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
       this.searchQuery = ''
       this.sortKey = 'year-desc'

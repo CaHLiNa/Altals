@@ -51,11 +51,22 @@
           </div>
           <div class="reference-detail-panel__field">
             <span class="reference-detail-panel__label">{{ t('Collections') }}</span>
-            <span class="reference-detail-panel__value">{{
-              selectedReference.collections.length
-                ? selectedReference.collections.join(', ')
-                : t('None')
-            }}</span>
+            <span class="reference-detail-panel__value">{{ selectedReferenceCollectionSummary }}</span>
+            <div
+              v-if="availableCollections.length"
+              class="reference-detail-panel__collection-actions"
+            >
+              <UiButton
+                v-for="collection in availableCollections"
+                :key="collection.key"
+                variant="ghost"
+                size="sm"
+                :active="referenceIsInCollection(collection.key)"
+                @click="toggleCollectionMembership(collection.key)"
+              >
+                {{ collection.label }}
+              </UiButton>
+            </div>
           </div>
           <div class="reference-detail-panel__field">
             <span class="reference-detail-panel__label">{{ t('Tags') }}</span>
@@ -102,14 +113,17 @@ import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
 import { useReferencesStore } from '../../stores/references'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { openLocalPath } from '../../services/localFileOpen'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const { t } = useI18n()
 const referencesStore = useReferencesStore()
+const workspace = useWorkspaceStore()
 
 const selectedReference = computed(() => referencesStore.selectedReference)
+const availableCollections = computed(() => referencesStore.collections)
 const selectedReferenceTypeLabel = computed(() =>
   selectedReference.value
     ? t(getReferenceTypeLabelKey(selectedReference.value.typeKey || selectedReference.value.typeLabel))
@@ -119,6 +133,40 @@ const selectedReferencePdfPath = computed(() =>
   String(selectedReference.value?.pdfPath || '').trim()
 )
 const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
+const selectedReferenceCollectionSummary = computed(() => {
+  const memberships = Array.isArray(selectedReference.value?.collections)
+    ? selectedReference.value.collections
+    : []
+  if (!memberships.length) return t('None')
+
+  return memberships
+    .map((value) => {
+      const normalized = String(value || '').trim().toLowerCase()
+      return (
+        availableCollections.value.find((collection) => {
+          const key = String(collection.key || '').trim().toLowerCase()
+          const label = String(collection.label || '').trim().toLowerCase()
+          return normalized === key || normalized === label
+        })?.label || value
+      )
+    })
+    .join(', ')
+})
+
+function referenceIsInCollection(collectionKey = '') {
+  const memberships = Array.isArray(selectedReference.value?.collections)
+    ? selectedReference.value.collections
+    : []
+  const collection = availableCollections.value.find((item) => item.key === collectionKey)
+  if (!collection) return false
+
+  const normalizedKey = String(collection.key || '').trim().toLowerCase()
+  const normalizedLabel = String(collection.label || '').trim().toLowerCase()
+  return memberships.some((value) => {
+    const normalizedValue = String(value || '').trim().toLowerCase()
+    return normalizedValue === normalizedKey || normalizedValue === normalizedLabel
+  })
+}
 
 async function handleOpenPdf() {
   if (!canOpenPdf.value) return
@@ -128,6 +176,15 @@ async function handleOpenPdf() {
 async function handleRevealPdf() {
   if (!canOpenPdf.value) return
   await revealPathInFileManager({ path: selectedReferencePdfPath.value })
+}
+
+async function toggleCollectionMembership(collectionKey = '') {
+  if (!selectedReference.value?.id) return
+  await referencesStore.toggleReferenceCollection(
+    workspace.workspaceDataDir,
+    selectedReference.value.id,
+    collectionKey
+  )
 }
 </script>
 
@@ -256,6 +313,13 @@ async function handleRevealPdf() {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.reference-detail-panel__collection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .reference-detail-panel__empty {

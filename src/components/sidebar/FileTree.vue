@@ -968,14 +968,14 @@ defineExpose({
 }
 
 .file-tree-search-row {
-  padding: 0 8px 8px;
+  padding: 6px 8px 8px;
 }
 
 :deep(.file-tree-search-input) {
   border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
   border-radius: 11px;
   background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
-  min-height: 30px;
+  min-height: 28px;
   padding-inline: 10px;
   gap: var(--sidebar-inline-gap);
   box-shadow: none;
@@ -1004,7 +1004,7 @@ defineExpose({
 }
 
 :deep(.file-tree-search-input.ui-input-shell--sm) {
-  min-height: 30px;
+  min-height: 28px;
   padding-inline: 10px;
 }
 

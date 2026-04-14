@@ -21,7 +21,9 @@
         :left-sidebar-open="leftSidebarVisible"
         :left-sidebar-panel="workspace.leftSidebarPanel"
         :right-sidebar-open="workspace.rightSidebarOpen"
-        :split-pane-available="workspace.isWorkspaceSurface"
+        :split-pane-available="
+          workspace.isWorkspaceSurface && workspace.leftSidebarPanel !== 'references'
+        "
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
         @open-reference-library="toggleReferenceLibrary"
@@ -168,6 +170,7 @@ import { useI18n } from './i18n'
 import { getReferenceSectionLabelKey } from './domains/references/referencePresentation.js'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
+import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
@@ -194,6 +197,8 @@ const linksStore = useLinksStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
+
+void applyAppWindowConstraints()
 
 const leftSidebarRef = ref(null)
 
@@ -230,6 +235,9 @@ const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
 const currentDocumentLabel = computed(() => {
   if (workspace.isSettingsSurface) return ''
   if (workspace.leftSidebarPanel === 'references') {
+    if (referencesStore.selectedCollection?.label) {
+      return referencesStore.selectedCollection.label
+    }
     const sectionKey =
       referencesStore.librarySections.find(
         (section) => section.key === referencesStore.selectedSectionKey
