@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/settings/SettingsZotero.vue -->
 <template>
   <div class="settings-page">
     <h3 class="settings-section-title">{{ t('Zotero') }}</h3>
@@ -11,9 +12,9 @@
             <div class="settings-row-hint">{{ t('User ID: {id}', { id: config.userId }) }}</div>
           </div>
           <div class="settings-row-control compact">
-            <button type="button" class="settings-action-btn settings-action-btn-danger" @click="handleDisconnect">
+            <UiButton variant="danger" size="sm" @click="handleDisconnect">
               {{ t('Disconnect') }}
-            </button>
+            </UiButton>
           </div>
         </div>
 
@@ -24,7 +25,7 @@
               <div class="settings-row-hint">{{ t('Create an API key at zotero.org/settings/keys.') }}</div>
             </div>
             <div class="settings-row-control">
-              <input v-model="userId" class="settings-input" placeholder="12345678" />
+              <UiInput v-model="userId" size="sm" placeholder="12345678" />
             </div>
           </div>
 
@@ -34,7 +35,7 @@
               <div class="settings-row-hint">{{ t('Enable read and write access.') }}</div>
             </div>
             <div class="settings-row-control">
-              <input v-model="apiKey" class="settings-input" type="password" placeholder="xxxxxxxxxxxxxxxx" />
+              <UiInput v-model="apiKey" size="sm" type="password" placeholder="xxxxxxxxxxxxxxxx" />
             </div>
           </div>
 
@@ -44,14 +45,14 @@
               <div class="settings-row-hint">{{ t('Store credentials locally in the app keychain.') }}</div>
             </div>
             <div class="settings-row-control compact">
-              <button
-                type="button"
-                class="settings-action-btn"
+              <UiButton
+                variant="secondary"
+                size="sm"
                 :disabled="loading || !userId.trim() || !apiKey.trim()"
                 @click="handleConnect"
               >
                 {{ loading ? t('Connecting...') : t('Connect to Zotero') }}
-              </button>
+              </UiButton>
             </div>
           </div>
         </template>
@@ -69,15 +70,12 @@
             <div class="settings-row-hint">{{ t('Used by formatted citations and bibliography export.') }}</div>
           </div>
           <div class="settings-row-control">
-            <select v-model="citationStyle" class="settings-select" @change="handleCitationStyleChange">
-              <option
-                v-for="style in referencesStore.availableCitationStyles"
-                :key="style.id"
-                :value="style.id"
-              >
-                {{ style.name }}
-              </option>
-            </select>
+            <UiSelect 
+              :model-value="citationStyle" 
+              :options="citationStyleOptions"
+              size="sm" 
+              @update:model-value="handleCitationStyleChange" 
+            />
           </div>
         </div>
       </div>
@@ -103,14 +101,14 @@
           </div>
           <div class="settings-row-control">
             <div class="settings-checklist">
-              <label v-for="group in groups" :key="group.id" class="settings-checklist-item">
-                <input
-                  type="checkbox"
-                  :checked="selectedGroupIds.has(group.id)"
-                  @change="toggleGroup(group.id)"
-                />
-                <span>{{ group.name }}</span>
-              </label>
+              <UiCheckbox 
+                v-for="group in groups" 
+                :key="group.id"
+                :model-value="selectedGroupIds.has(group.id)"
+                @update:model-value="toggleGroup(group.id)"
+              >
+                {{ group.name }}
+              </UiCheckbox>
               <div v-if="groups.length === 0" class="settings-inline-message">{{ t('No group libraries.') }}</div>
             </div>
           </div>
@@ -122,17 +120,12 @@
             <div class="settings-row-hint">{{ t('References imported in Altals can also be created in Zotero.') }}</div>
           </div>
           <div class="settings-row-control">
-            <select v-model="pushTargetValue" class="settings-select" @change="saveConfigState">
-              <option value="">{{ t("Don't push to Zotero") }}</option>
-              <option :value="`user/${config.userId}`">{{ t('My Library') }}</option>
-              <option
-                v-for="option in collectionOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
+            <UiSelect 
+              :model-value="pushTargetValue" 
+              :options="pushTargetOptions"
+              size="sm" 
+              @update:model-value="handlePushTargetChange" 
+            />
           </div>
         </div>
 
@@ -145,9 +138,9 @@
             </div>
           </div>
           <div class="settings-row-control compact">
-            <button type="button" class="settings-action-btn" :disabled="loading" @click="handleSyncNow">
+            <UiButton variant="secondary" size="sm" :disabled="loading" @click="handleSyncNow">
               {{ loading ? t('Syncing...') : t('Sync Now') }}
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>
@@ -161,6 +154,10 @@ import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
+import UiInput from '../shared/ui/UiInput.vue'
+import UiButton from '../shared/ui/UiButton.vue'
+import UiCheckbox from '../shared/ui/UiCheckbox.vue'
 import {
   disconnectZotero,
   fetchCollections,
@@ -191,6 +188,19 @@ const pushTargetValue = ref('')
 const collectionOptions = ref([])
 const syncSummary = ref('')
 const citationStyle = ref('apa')
+
+const citationStyleOptions = computed(() => 
+  referencesStore.availableCitationStyles.map(style => ({
+    value: style.id,
+    label: style.name
+  }))
+)
+
+const pushTargetOptions = computed(() => [
+  { value: '', label: t("Don't push to Zotero") },
+  { value: `user/${config.value.userId}`, label: t('My Library') },
+  ...collectionOptions.value
+])
 
 const syncStatusText = computed(() => {
   if (zoteroSyncState.status === 'syncing') return t('Sync in progress')
@@ -284,8 +294,14 @@ function toggleGroup(groupId = '') {
   void saveConfigState()
 }
 
-async function handleCitationStyleChange() {
-  referencesStore.setCitationStyle(citationStyle.value)
+function handlePushTargetChange(val) {
+  pushTargetValue.value = val
+  saveConfigState()
+}
+
+async function handleCitationStyleChange(val) {
+  citationStyle.value = val
+  referencesStore.setCitationStyle(val)
   await referencesStore.persistLibrarySnapshot(workspace.globalConfigDir)
 }
 
@@ -376,38 +392,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-input,
-.settings-select {
-  width: min(100%, 260px);
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 11px;
-  border: 1px solid var(--settings-control-border, color-mix(in srgb, var(--border-subtle) 42%, transparent));
-  background: var(--settings-control-surface, color-mix(in srgb, var(--surface-hover) 82%, var(--surface-muted)));
-  color: var(--text-primary);
-}
-
-.settings-action-btn {
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 11px;
-  border: 1px solid var(--settings-control-border, color-mix(in srgb, var(--border-subtle) 42%, transparent));
-  background: var(--settings-control-surface, color-mix(in srgb, var(--surface-hover) 82%, var(--surface-muted)));
-  color: var(--text-primary);
-}
-
-.settings-action-btn-danger {
-  color: var(--danger);
-}
-
 .settings-inline-message {
-  padding: 0 4px;
-  font-size: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
 .settings-inline-message-error {
-  color: var(--danger);
+  color: var(--error);
+  padding: 12px 16px 0;
 }
 
 .settings-checklist {
@@ -417,11 +410,12 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.settings-checklist-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-  color: var(--text-primary);
+/* 覆盖 UiInput 在设置页内部的宽度限制 */
+:deep(.ui-input-shell) {
+  width: min(100%, 280px);
+}
+
+:deep(.ui-select-shell) {
+  width: min(100%, 280px);
 }
 </style>

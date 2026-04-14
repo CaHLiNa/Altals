@@ -78,29 +78,40 @@ function handleToastAction(toast) {
 <style scoped>
 .toast-container {
   position: fixed;
-  bottom: 24px;
-  right: 16px;
+  bottom: 32px;
+  right: 24px;
   z-index: var(--z-toast);
   display: flex;
-  flex-direction: column-reverse;
-  gap: 8px;
+  flex-direction: column-reverse; /* 新消息在底部 */
+  gap: 12px;
   pointer-events: none;
 }
 
 .toast-item {
   pointer-events: auto;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
-  font-size: var(--ui-font-caption);
+  padding: 10px 16px;
+  border-radius: 12px; /* macOS 原生胶囊圆角 */
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--fg-muted) 30%, var(--border));
-  color: var(--fg-primary);
-  max-width: 380px;
-  line-height: var(--line-height-regular);
+  
+  /* 核心：极其高级的毛玻璃胶囊效果 */
+  background: color-mix(in srgb, var(--surface-raised) 75%, transparent);
+  backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  
+  color: var(--text-primary);
+  max-width: 360px;
+  line-height: 1.4;
   display: flex;
   align-items: center;
-  gap: 10px;
-  box-shadow: var(--shadow-md);
+  gap: 12px;
+}
+
+.theme-light .toast-item {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 .toast-type-icon {
@@ -119,59 +130,39 @@ function handleToastAction(toast) {
   display: flex;
   align-items: center;
   padding: 0;
+  margin-left: -4px;
   line-height: 1;
   color: var(--text-muted);
+  border-radius: 50%;
 }
 
-/* Type styling: background tint + icon color */
-.toast-success {
-  background: color-mix(in srgb, var(--success) 8%, var(--bg-secondary));
-}
-.toast-success .toast-type-icon {
-  color: var(--success);
+.toast-dismiss-btn:hover {
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-primary);
 }
 
-.toast-error {
-  background: color-mix(in srgb, var(--error, #f44) 8%, var(--bg-secondary));
-}
-.toast-error .toast-type-icon {
-  color: var(--error, #f44);
-}
+/* 颜色标记：不再粗暴地更改背景，而是以高亮边框和发光图标的形式暗示状态 */
+.toast-success .toast-type-icon { color: var(--success); }
+.toast-error .toast-type-icon { color: var(--error); }
+.toast-warning .toast-type-icon { color: var(--warning); }
+.toast-info .toast-type-icon { color: var(--accent); }
 
-.toast-warning {
-  background: color-mix(in srgb, var(--warning, #e0af68) 8%, var(--bg-secondary));
-}
-.toast-warning .toast-type-icon {
-  color: var(--warning, #e0af68);
-}
-
-.toast-info {
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
-}
-.toast-info .toast-type-icon {
-  color: var(--accent);
-}
-
-/* Transitions */
+/* 进出场动画，采用弹性曲线（Spring-like） */
 .toast-enter-active {
-  transition:
-    opacity 0.2s ease-out,
-    transform 0.2s ease-out;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .toast-leave-active {
-  transition:
-    opacity 0.08s ease-out,
-    transform 0.08s ease-out;
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
 }
 .toast-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(20px) scale(0.95);
 }
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateX(20px) scale(0.95);
 }
 .toast-move {
-  transition: transform 0.15s ease;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 </style>

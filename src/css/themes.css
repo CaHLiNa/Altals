@@ -1,69 +1,71 @@
+/* START OF FILE src/css/themes.css */
+
 /* ===== Dark ===== */
 :root {
   color-scheme: dark;
-  --bg-primary: #0f0f10;
-  --bg-secondary: #171719;
-  --bg-tertiary: #1f2022;
-  --bg-hover: #2a2b2e;
-  --fg-primary: #f4f4f2;
-  --fg-secondary: #d3d3cf;
-  --fg-muted: #8f8f8a;
-  --accent: #f4f4f2;
+  
+  /* 原生深色模式中性灰基底，不再使用死黑 */
+  --bg-primary: #161616;
+  --bg-secondary: #1e1e1e;
+  --bg-tertiary: #262626;
+  --bg-hover: #323232;
+  --fg-primary: #f0f0f0;
+  --fg-secondary: #cccccc;
+  --fg-muted: #8e8e8e;
+  --accent: #ffffff;
   --accent-secondary: #a7a7a1;
-  --border: #2f2f33;
+  --border: #383838;
   --success: #8aa57d;
   --error: #d68a77;
   --warning: #d6ab67;
   --info: #8da7b8;
 
-  /* Syntax highlighting — markdown */
-  --hl-heading: #f0f0ee;
-  --hl-heading-minor: #d5d5d0;
-  --hl-emphasis: #f0f0ee;
-  --hl-link: #c6c6c0;
-  --hl-code: #9dc08f;
-  --hl-number: #d7ab71;
-  --hl-keyword: #c0b0dd;
-  --hl-function: #c6c6c0;
-  --hl-type: #c6c6c0;
-  --hl-operator: #dcd3c9;
-
-  /* Syntax highlighting — code tokens */
-  --hl-string: #a4bf92;
-  --hl-comment: #948878;
-  --hl-constant: #ddb27d;
-  --hl-property: #d5d5d0;
-  --hl-tag: #daa08f;
-  --hl-attribute: #bfd1db;
-  --hl-regexp: #adc7c7;
-  --hl-escape: #c4d5d1;
-  --hl-self: #daa08f;
-  --hl-def-keyword: #c5b5e1;
-  --hl-ctrl-keyword: #c5b5e1;
-  --hl-module-keyword: #bbc8d0;
-  --hl-class: #b7ccb8;
-  --hl-decorator: #d8b286;
-  --hl-punctuation: #d6cfc5;
-  --hl-bracket: #d6cfc5;
+  /* Syntax highlighting — Markdown & LaTeX */
+  --hl-heading: #ffffff;
+  --hl-heading-minor: #e0e0e0;
+  --hl-emphasis: #ffffff;
+  --hl-link: #6bdfff;
+  
+  /* 核心代码 Token (Xcode / One Dark 风格) */
+  --hl-keyword: #ff7ab2;    /* 鲜艳粉紫：用于 \usepackage, \newcommand 等核心命令 */
+  --hl-function: #6bdfff;   /* 亮青色：用于 \begin, \end, \textbf 等环境或函数 */
+  --hl-string: #a2fca2;     /* 亮绿色：用于 {} 内的参数、字符串 */
+  --hl-number: #ffb86c;     /* 亮橙色：用于数字 */
+  --hl-comment: #8e8e93;    /* 系统灰：用于 % 注释，静默但不瞎眼 */
+  
+  --hl-operator: #ffb86c;   /* 橙色：用于数学符号、等号 */
+  --hl-property: #6bdfff;
+  --hl-tag: #ff7ab2;
+  --hl-attribute: #eacb8d;  /* 暖黄色：用于 [] 内的可选参数 */
+  --hl-list: var(--warning);
+  --hl-regexp: #6bdfff;
+  --hl-escape: #ff7ab2;
+  --hl-self: #ff7ab2;
+  --hl-def-keyword: #ff7ab2;
+  --hl-ctrl-keyword: #ff7ab2;
+  --hl-module-keyword: #ff7ab2;
+  --hl-class: #a2fca2;
+  --hl-decorator: #eacb8d;
+  --hl-punctuation: #b0b0b8; /* 浅灰：基础标点 */
+  --hl-bracket: #eacb8d;     /* 暖黄色：大括号/中括号，使其与正文分离 */
+  --hl-code: #a2fca2;
 
   /* Editor */
-  --editor-active-line: rgba(255, 248, 237, 0.045);
-  --editor-selection: rgba(244, 244, 242, 0.16);
-  --editor-selection-match: rgba(244, 244, 242, 0.08);
-  --editor-bracket-match: rgba(244, 244, 242, 0.12);
-  --editor-bracket-border: rgba(244, 244, 242, 0.24);
-  --editor-search-match: rgba(214, 171, 103, 0.18);
-
-  --hl-list: var(--warning);
+  --editor-active-line: rgba(255, 255, 255, 0.04);
+  --editor-selection: rgba(255, 255, 255, 0.14);
+  --editor-selection-match: rgba(255, 255, 255, 0.08);
+  --editor-bracket-match: rgba(255, 255, 255, 0.12);
+  --editor-bracket-border: rgba(255, 255, 255, 0.24);
+  --editor-search-match: rgba(214, 171, 103, 0.2);
 
   /* Canvas node colors */
-  --canvas-yellow: #232324;
-  --canvas-blue: #202123;
-  --canvas-green: #202220;
-  --canvas-pink: #232122;
-  --canvas-purple: #222124;
-  --canvas-orange: #24211f;
-  --canvas-gray: #232325;
+  --canvas-yellow: #2a2a2a;
+  --canvas-blue: #242628;
+  --canvas-green: #242824;
+  --canvas-pink: #2a2426;
+  --canvas-purple: #26242a;
+  --canvas-orange: #2a2624;
+  --canvas-gray: #282828;
 
   /* macOS Native-like Typography Scale */
   --ui-font-size: 13px;
@@ -138,27 +140,27 @@
   --surface-raised: var(--bg-secondary);
   --surface-muted: var(--bg-tertiary);
   --surface-hover: var(--bg-hover);
-  --border-subtle: color-mix(in srgb, var(--border) 60%, transparent);
-  --border-strong: color-mix(in srgb, var(--fg-muted) 32%, var(--border));
+  --border-subtle: color-mix(in srgb, var(--border) 50%, transparent);
+  --border-strong: color-mix(in srgb, var(--fg-muted) 40%, var(--border));
   --overlay-backdrop: color-mix(in srgb, black 40%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 24%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 30%, transparent);
   
   /* macOS Vibrancy & Shell adjustments */
-  --sidebar-shell-surface: rgba(23, 23, 23, 0.65);
+  --sidebar-shell-surface: rgba(28, 28, 30, 0.65);
   --sidebar-shell-blur: 40px;
   --sidebar-shell-saturate: 1.5;
   
-  --app-canvas: #111111;
-  --app-canvas-glow: rgba(255, 255, 255, 0.025);
-  --chrome-surface: #17181b;
-  --chrome-border: color-mix(in srgb, var(--border) 36%, transparent);
+  --app-canvas: #000000;
+  --app-canvas-glow: rgba(255, 255, 255, 0.03);
+  --chrome-surface: #1e1e1e;
+  --chrome-border: color-mix(in srgb, var(--border) 40%, transparent);
   --panel-surface: rgba(30, 30, 30, 0.85);
-  --panel-elevated: color-mix(in srgb, #181817 98%, transparent);
-  --panel-border: color-mix(in srgb, var(--border) 40%, transparent);
+  --panel-elevated: color-mix(in srgb, #1e1e1e 98%, transparent);
+  --panel-border: color-mix(in srgb, var(--border) 50%, transparent);
   --panel-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
   --panel-shadow-active: 0 16px 40px rgba(0, 0, 0, 0.4);
   --rail-surface: transparent;
-  --toolbar-surface: #1a1b1e;
+  --toolbar-surface: #1e1e1e;
   --toolbar-border: color-mix(in srgb, var(--border) 30%, transparent);
   --tab-idle-surface: transparent;
   --tab-active-surface: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -166,38 +168,41 @@
   --status-border: transparent;
   --subtle-fill: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
   --subtle-fill-strong: color-mix(in srgb, var(--bg-tertiary) 88%, transparent);
-  --chrome-reveal: color-mix(in srgb, var(--border) 56%, transparent);
-  --chrome-reveal-active: color-mix(in srgb, var(--accent) 18%, var(--chrome-reveal));
+  --chrome-reveal: color-mix(in srgb, var(--border) 60%, transparent);
+  --chrome-reveal-active: color-mix(in srgb, var(--accent) 20%, var(--chrome-reveal));
   --shell-surface: color-mix(in srgb, var(--panel-elevated) 98%, transparent);
   --shell-muted-surface: color-mix(in srgb, var(--panel-surface) 88%, transparent);
-  --shell-accent-surface: color-mix(in srgb, var(--accent) 10%, var(--panel-elevated));
+  --shell-accent-surface: color-mix(in srgb, var(--accent) 12%, var(--panel-elevated));
   --shell-border: color-mix(in srgb, var(--border) 60%, transparent);
-  --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
-  --shell-accent-border: color-mix(in srgb, var(--accent) 18%, var(--border));
+  --shell-border-strong: color-mix(in srgb, var(--fg-muted) 30%, var(--border));
+  --shell-accent-border: color-mix(in srgb, var(--accent) 20%, var(--border));
   --shell-shadow-soft: 0 12px 28px rgba(0, 0, 0, 0.22);
   --shell-radius-sm: 6px;
   --shell-radius-lg: 10px;
   --shell-hero-width: 1180px;
-  --shell-editor-surface: #141311;
-  --shell-preview-surface: #171513;
-  --workspace-paper: #191715;
-  --workspace-paper-muted: #141311;
-  --workspace-ink: #f1f1ee;
-  --sidebar-search-surface: rgba(255, 255, 255, 0.05);
-  --sidebar-search-surface-focus: rgba(255, 255, 255, 0.08);
+
+  /* 核心修复：统一主区域为柔和深灰，不再出现黑洞 */
+  --shell-editor-surface: #1e1e1e; 
+  --shell-preview-surface: #1e1e1e; 
+  --workspace-paper: #1e1e1e;
+  --workspace-paper-muted: #161616;
+  --workspace-ink: #f0f0f0;
+  
+  --sidebar-search-surface: rgba(255, 255, 255, 0.06);
+  --sidebar-search-surface-focus: rgba(255, 255, 255, 0.1);
   --sidebar-search-border: rgba(255, 255, 255, 0.08);
   --sidebar-search-border-focus: rgba(255, 255, 255, 0.15);
   
   /* Native List Selection States */
   --sidebar-item-hover: rgba(255, 255, 255, 0.06);
-  --sidebar-item-active: rgba(255, 255, 255, 0.12); /* 替换之前的 var(--accent) */
+  --sidebar-item-active: rgba(255, 255, 255, 0.12); 
   --list-active-bg: rgba(255, 255, 255, 0.12);
-  --list-active-fg: var(--text-primary); /* 文字颜色保持原本的一级文本色 */
+  --list-active-fg: var(--text-primary);
   
-  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(23,23,23,0.58) 0%, rgba(20,20,20,0.64) 100%);
+  --sidebar-vibrant-surface: linear-gradient(180deg, rgba(30,30,30,0.58) 0%, rgba(26,26,26,0.64) 100%);
   --sidebar-vibrant-border: rgba(255, 255, 255, 0.035);
-  --workbench-divider: color-mix(in srgb, var(--border) 40%, transparent);
-  --workbench-divider-soft: color-mix(in srgb, var(--border) 20%, transparent);
+  --workbench-divider: color-mix(in srgb, var(--border) 50%, transparent);
+  --workbench-divider-soft: color-mix(in srgb, var(--border) 25%, transparent);
   --button-primary-bg: #f4f4f2;
   --button-primary-bg-hover: #ffffff;
   --button-primary-text: #111111;
@@ -351,34 +356,35 @@
   --warning: #ae7a2a;
   --info: #557887;
 
-  --hl-heading: #111111;
-  --hl-heading-minor: #4a4a47;
-  --hl-emphasis: #111111;
-  --hl-link: #4a4a47;
-  --hl-code: #67815f;
-  --hl-number: #936130;
-  --hl-keyword: #806a9d;
-  --hl-function: #4a4a47;
-  --hl-type: #4a4a47;
-  --hl-operator: #666660;
-
-  --hl-string: #6f8a5c;
-  --hl-comment: #97897a;
-  --hl-constant: #986535;
-  --hl-property: #5a5a56;
-  --hl-tag: #bb6e64;
-  --hl-attribute: #7f6aa3;
-  --hl-list: #8a6a47;
-  --hl-regexp: #5c8685;
-  --hl-escape: #5c8685;
-  --hl-self: #bb6e64;
-  --hl-def-keyword: #7f6aa3;
-  --hl-ctrl-keyword: #7f6aa3;
-  --hl-module-keyword: #607b87;
-  --hl-class: #7a8b60;
-  --hl-decorator: #9c7443;
-  --hl-punctuation: #433830;
-  --hl-bracket: #433830;
+  /* Syntax highlighting — Markdown & LaTeX */
+  --hl-heading: #000000;
+  --hl-heading-minor: #333333;
+  --hl-emphasis: #000000;
+  --hl-link: #0b4f79;
+  
+  /* 核心代码 Token (Xcode / One Light 风格) */
+  --hl-keyword: #9b2393;    /* 深洋红：用于 \usepackage, \newcommand 等核心命令 */
+  --hl-function: #0b4f79;   /* 深青蓝：用于 \begin, \end, \textbf 等环境或函数 */
+  --hl-string: #1d6a15;     /* 深绿色：用于 {} 内的参数、字符串 */
+  --hl-number: #814605;     /* 棕橙色：用于数字 */
+  --hl-comment: #808080;    /* 标准灰：用于 % 注释 */
+  
+  --hl-operator: #814605;   /* 棕橙色：用于数学符号、等号 */
+  --hl-property: #0b4f79;
+  --hl-tag: #9b2393;
+  --hl-attribute: #794f10;  /* 棕黄色：用于 [] 内的可选参数 */
+  --hl-list: #814605;
+  --hl-regexp: #0b4f79;
+  --hl-escape: #9b2393;
+  --hl-self: #9b2393;
+  --hl-def-keyword: #9b2393;
+  --hl-ctrl-keyword: #9b2393;
+  --hl-module-keyword: #9b2393;
+  --hl-class: #1d6a15;
+  --hl-decorator: #794f10;
+  --hl-punctuation: #666666; /* 深灰：基础标点 */
+  --hl-bracket: #794f10;     /* 棕黄色：大括号/中括号，使其与正文分离 */
+  --hl-code: #1d6a15;
 
   --editor-active-line: rgba(121, 102, 73, 0.05);
   --editor-selection: rgba(17, 17, 17, 0.12);
@@ -414,6 +420,7 @@
   --shell-border-strong: color-mix(in srgb, var(--fg-muted) 24%, var(--border));
   --shell-accent-border: color-mix(in srgb, var(--accent) 14%, var(--border));
   --shell-shadow-soft: 0 12px 24px rgba(17, 17, 17, 0.08);
+  
   --shell-editor-surface: #ffffff;
   --shell-preview-surface: #ffffff;
   --workspace-paper: #ffffff;
@@ -427,9 +434,9 @@
   --sidebar-search-border-focus: color-mix(in srgb, black 12%, transparent);
   
   --sidebar-item-hover: rgba(0, 0, 0, 0.05);
-  --sidebar-item-active: rgba(0, 0, 0, 0.08); /* 替换之前的 var(--accent) */
+  --sidebar-item-active: rgba(0, 0, 0, 0.08); 
   --list-active-bg: rgba(0, 0, 0, 0.08);
-  --list-active-fg: var(--text-primary); /* 文字颜色保持原本的一级文本色 */
+  --list-active-fg: var(--text-primary);
 
   --sidebar-vibrant-surface: linear-gradient(180deg, rgba(250,250,250,0.6) 0%, rgba(245,245,245,0.7) 100%);
   --sidebar-vibrant-border: rgba(0, 0, 0, 0.035);

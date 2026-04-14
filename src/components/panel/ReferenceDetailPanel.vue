@@ -1,3 +1,4 @@
+<!-- START OF FILE src/components/panel/ReferenceDetailPanel.vue -->
 <template>
   <section class="reference-inspector">
     <div v-if="!selectedReference" class="reference-inspector__empty">
@@ -5,150 +6,187 @@
     </div>
 
     <div v-else class="reference-inspector__scroll scrollbar-hidden">
-      <!-- Hero: Title & Authors (无边界感设计) -->
-      <div class="reference-inspector__hero">
-        <div class="inspector-hero-type">{{ selectedReferenceTypeLabel }}</div>
+      
+      <!-- ==========================================
+           Level 1: 文档类型与核心信息 (Hero)
+      =========================================== -->
+      <div class="inspector-section inspector-section--hero">
+        <div class="inspector-section-header">
+          <span class="inspector-type-label">{{ selectedReferenceTypeLabel }}</span>
+          <button
+            type="button"
+            class="inspector-icon-btn"
+            :disabled="!canOpenPdf"
+            :title="t('Open PDF')"
+            @click="handleOpenPdf"
+          >
+            <IconFileText :size="16" :stroke-width="1.5" />
+          </button>
+        </div>
         
-        <UiTextarea
-          v-model="draft.title"
-          variant="ghost"
-          :rows="2"
-          shell-class="inspector-title-input"
-          :placeholder="t('Title')"
-          @blur="commitTitle"
-        />
-        <UiInput
-          v-model="draft.authorsText"
-          variant="ghost"
-          size="sm"
-          shell-class="inspector-author-input"
-          :placeholder="t('Authors')"
-          @blur="commitAuthors"
-          @keydown.enter.prevent="$event.target.blur()"
-        />
+        <div class="inspector-hero-content">
+          <UiTextarea
+            v-model="draft.title"
+            variant="ghost"
+            :rows="2"
+            shell-class="inspector-input-title"
+            :placeholder="t('Title')"
+            @blur="commitTitle"
+          />
+        </div>
       </div>
 
-      <div class="inspector-divider"></div>
-
-      <!-- Meta Grid -->
+      <!-- ==========================================
+           Level 2: 引用 (Citation)
+      =========================================== -->
       <div class="inspector-section">
-        <div class="inspector-grid">
-          <div class="inspector-label">{{ t('Citation Key') }}</div>
-          <div class="inspector-value">
+        <div class="inspector-section-header">
+          <span>{{ t('Citation') }}</span>
+        </div>
+        
+        <div class="inspector-kv-grid">
+          <div class="kv-label">{{ t('Authors') }}</div>
+          <div class="kv-value">
+            <UiInput v-model="draft.authorsText" variant="ghost" size="sm" @blur="commitAuthors" @keydown.enter.prevent="$event.target.blur()"/>
+          </div>
+
+          <div class="kv-label">Key</div>
+          <div class="kv-value">
             <UiInput v-model="draft.citationKey" variant="ghost" size="sm" monospace @blur="commitCitationKey" @keydown.enter.prevent="$event.target.blur()"/>
           </div>
 
-          <div class="inspector-label">{{ t('Year') }}</div>
-          <div class="inspector-value">
+          <div class="kv-label">{{ t('Year') }}</div>
+          <div class="kv-value">
             <UiInput v-model="draft.year" variant="ghost" size="sm" @blur="commitYear" @keydown.enter.prevent="$event.target.blur()"/>
           </div>
 
-          <div class="inspector-label">{{ t('Source') }}</div>
-          <div class="inspector-value">
+          <div class="kv-label">{{ t('Source') }}</div>
+          <div class="kv-value">
             <UiInput v-model="draft.source" variant="ghost" size="sm" @blur="commitTextField('source')" @keydown.enter.prevent="$event.target.blur()"/>
           </div>
 
-          <div class="inspector-label">{{ t('Identifier') }}</div>
-          <div class="inspector-value">
+          <div class="kv-label">{{ t('Identifier') }}</div>
+          <div class="kv-value">
             <UiInput v-model="draft.identifier" variant="ghost" size="sm" monospace @blur="commitTextField('identifier')" @keydown.enter.prevent="$event.target.blur()"/>
           </div>
-        </div>
-        
-        <div class="inspector-grid-3">
-          <div class="inspector-col">
-            <div class="inspector-label-mini">{{ t('Volume') }}</div>
-            <UiInput v-model="draft.volume" variant="ghost" size="sm" @blur="commitTextField('volume')" @keydown.enter.prevent="$event.target.blur()"/>
-          </div>
-          <div class="inspector-col">
-            <div class="inspector-label-mini">{{ t('Issue') }}</div>
-            <UiInput v-model="draft.issue" variant="ghost" size="sm" @blur="commitTextField('issue')" @keydown.enter.prevent="$event.target.blur()"/>
-          </div>
-          <div class="inspector-col">
-            <div class="inspector-label-mini">{{ t('Pages') }}</div>
-            <UiInput v-model="draft.pages" variant="ghost" size="sm" @blur="commitTextField('pages')" @keydown.enter.prevent="$event.target.blur()"/>
+
+          <div class="kv-label">{{ t('Volume') }}</div>
+          <div class="kv-value kv-value--inline-triple">
+            <div class="triple-cell">
+              <UiInput v-model="draft.volume" variant="ghost" size="sm" @blur="commitTextField('volume')" @keydown.enter.prevent="$event.target.blur()"/>
+            </div>
+            <div class="triple-label">{{ t('Issue') }}</div>
+            <div class="triple-cell">
+              <UiInput v-model="draft.issue" variant="ghost" size="sm" @blur="commitTextField('issue')" @keydown.enter.prevent="$event.target.blur()"/>
+            </div>
+            <div class="triple-label">{{ t('Pages') }}</div>
+            <div class="triple-cell triple-cell--wide">
+              <UiInput v-model="draft.pages" variant="ghost" size="sm" @blur="commitTextField('pages')" @keydown.enter.prevent="$event.target.blur()"/>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="inspector-divider"></div>
-
-      <!-- Library & Organization -->
+      <!-- ==========================================
+           Level 3: 文库 (Library)
+      =========================================== -->
       <div class="inspector-section">
         <div class="inspector-section-header">
-          <span>{{ t('Organization') }}</span>
+          <span>{{ t('Library') }}</span>
         </div>
         
-        <div class="inspector-grid">
-          <div class="inspector-label">{{ t('Rating') }}</div>
-          <div class="inspector-value inspector-rating">
+        <div class="inspector-kv-grid">
+          <div class="kv-label">{{ t('Rating') }}</div>
+          <div class="kv-value inspector-rating">
             <button v-for="value in ratingOptions" :key="value" class="rating-star" :class="{ 'is-active': value <= draft.rating }" @click="setRating(value)">
               <IconStar :size="16" :stroke-width="1.5" />
             </button>
+            <span class="rating-text">{{ draft.rating }} / 5</span>
           </div>
 
-          <div class="inspector-label align-top mt-1">{{ t('Collections') }}</div>
-          <div class="inspector-value token-area">
+          <div class="kv-label align-top mt-1">{{ t('Collections') }}</div>
+          <div class="kv-value token-area">
             <div class="token-list">
               <button v-for="col in draft.collections" :key="col" class="token-chip" @click="removeCollection(col)">
-                <IconFolder :size="12" /><span>{{ collectionLabel(col) }}</span>
+                <IconFolder :size="13" :stroke-width="1.5" /><span>{{ collectionLabel(col) }}</span>
+                <IconX class="token-remove" :size="12" :stroke-width="2" />
               </button>
             </div>
-            <UiInput v-model="collectionInput" variant="ghost" size="sm" :placeholder="t('Add...')" @keydown.enter.prevent="addCollection"/>
+            <UiInput v-model="collectionInput" variant="ghost" size="sm" :placeholder="t('Add collection')" @keydown.enter.prevent="addCollection"/>
           </div>
 
-          <div class="inspector-label align-top mt-1">{{ t('Tags') }}</div>
-          <div class="inspector-value token-area">
+          <div class="kv-label align-top mt-1">{{ t('Tags') }}</div>
+          <div class="kv-value token-area">
             <div class="token-list">
               <button v-for="tag in draft.tags" :key="tag" class="token-chip token-chip-tag" @click="removeTag(tag)">
-                {{ tag }}
+                <div class="tag-dot"></div><span>{{ tag }}</span>
+                <IconX class="token-remove" :size="12" :stroke-width="2" />
               </button>
             </div>
-            <UiInput v-model="tagInput" variant="ghost" size="sm" :placeholder="t('Add tag...')" @keydown.enter.prevent="addTag" @keydown="handleTagInputKeydown"/>
+            <UiInput v-model="tagInput" variant="ghost" size="sm" :placeholder="t('Add tag')" @keydown.enter.prevent="addTag" @keydown="handleTagInputKeydown"/>
           </div>
         </div>
       </div>
 
-      <div class="inspector-divider"></div>
-
-      <!-- Abstract & Notes (Disclosure style) -->
+      <!-- ==========================================
+           Level 4: 内容 (Content)
+      =========================================== -->
       <div class="inspector-section">
+        <div class="inspector-section-header">
+          <span>{{ t('Content') }}</span>
+        </div>
+
         <details class="inspector-details" open>
-          <summary class="inspector-details-summary">{{ t('Abstract') }}</summary>
-          <UiTextarea v-model="draft.abstract" variant="ghost" :rows="5" @blur="commitTextField('abstract', { multiline: true })"/>
+          <summary class="inspector-details-summary">
+            <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Abstract') }}
+          </summary>
+          <div class="inspector-details-body">
+            <UiTextarea v-model="draft.abstract" variant="ghost" :rows="5" @blur="commitTextField('abstract', { multiline: true })"/>
+          </div>
         </details>
 
         <details class="inspector-details">
-          <summary class="inspector-details-summary">{{ t('Notes') }}</summary>
-          <UiTextarea v-model="draft.note" variant="ghost" :rows="4" @blur="commitNote"/>
+          <summary class="inspector-details-summary">
+            <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Notes') }}
+          </summary>
+          <div class="inspector-details-body">
+            <UiTextarea v-model="draft.note" variant="ghost" :rows="4" @blur="commitNote"/>
+          </div>
         </details>
       </div>
 
-      <div class="inspector-divider"></div>
-
-      <!-- Actions -->
+      <!-- ==========================================
+           Level 5: 文件 & 链接 (Files & Links)
+      =========================================== -->
       <div class="inspector-section">
-        <div class="inspector-actions">
-          <UiButton variant="secondary" size="sm" block :disabled="!canOpenPdf" @click="handleOpenPdf">
-            <template #leading><IconFileText :size="14"/></template>
-            {{ t('Open Document') }}
+        <div class="inspector-section-header">
+          <span>{{ t('Files') }}</span>
+        </div>
+        
+        <div class="inspector-file-actions">
+          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdf">
+            <template #leading><IconFileText :size="14"/></template> {{ t('Open') }}
           </UiButton>
-          <div class="inspector-action-row">
-             <UiButton variant="ghost" size="sm" @click="handleRefreshMetadata">
-               <template #leading><IconRefresh :size="14"/></template> {{ t('Update') }}
-             </UiButton>
-             <UiButton variant="ghost" size="sm" @click="handleAttachPdf">
-               <template #leading><IconPaperclip :size="14"/></template> {{ t('Attach') }}
-             </UiButton>
-          </div>
-          
-          <div v-if="citedInFiles.length > 0" class="inspector-links">
-             <div class="inspector-label-mini mt-2">{{ t('Cited In') }}</div>
-             <button v-for="path in citedInFiles" :key="path" class="inspector-link-btn" @click="editorStore.openFile(path)">
-               {{ getRelativePath(path) }}
-             </button>
-          </div>
+          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
+            <template #leading><IconFolder :size="14"/></template> Finder
+          </UiButton>
+          <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
+            <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
+          </UiButton>
         </div>
       </div>
+
+      <div v-if="citedInFiles.length > 0" class="inspector-section">
+        <div class="inspector-section-header">
+          <span>{{ t('Cited In') }}</span>
+        </div>
+        <div class="inspector-links">
+          <button v-for="path in citedInFiles" :key="path" class="inspector-link-btn" @click="editorStore.openFile(path)">
+            {{ getRelativePath(path) }}
+          </button>
+        </div>
+      </div>
+
     </div>
   </section>
 </template>
@@ -157,11 +195,12 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
+  IconChevronRight,
   IconFileText,
   IconFolder,
   IconRefresh,
   IconStar,
-  IconPaperclip
+  IconX
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
@@ -171,6 +210,7 @@ import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { openLocalPath } from '../../services/localFileOpen'
+import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -219,10 +259,20 @@ const citedInFiles = computed(() => {
   return referencesStore.citedIn[citationKey] || []
 })
 
+// 核心修复：只有当选中的 ID 真正改变时，才拉取并覆盖整个 draft。
+// 如果仅仅是在当前面板更新了数据导致 selectedReference 变更，我们不重置草稿，
+// 这样就不会销毁正在被点击的 DOM 元素，彻底解决“需要点两次”的失焦 Bug！
 watch(
   () => selectedReference.value,
-  (reference) => {
-    syncDraft(reference)
+  (reference, oldRef) => {
+    if (!reference) {
+      syncDraft(null)
+      return
+    }
+    // 只有更换了文献，才全量重置
+    if (reference.id !== oldRef?.id) {
+      syncDraft(reference)
+    }
   },
   { immediate: true }
 )
@@ -443,7 +493,7 @@ async function handleRefreshMetadata() {
       hasFullText: reference.hasFullText,
     })
 
-    await updateSelectedReference({
+    await referencesStore.updateReference(workspace.globalConfigDir, reference.id, {
       ...refreshed,
       _source: reference._source,
       _zoteroKey: reference._zoteroKey,
@@ -452,6 +502,10 @@ async function handleRefreshMetadata() {
       _pushedByShoulders: reference._pushedByShoulders,
       _shouldersPushPending: reference._shouldersPushPending,
     })
+    
+    // 手动刷新以体现服务端数据拉取结果
+    syncDraft(selectedReference.value)
+    
   } catch (error) {
     toastStore.show(error?.message || t('Failed to refresh metadata'), {
       type: 'error',
@@ -463,6 +517,11 @@ async function handleRefreshMetadata() {
 async function handleOpenPdf() {
   if (!canOpenPdf.value) return
   await openLocalPath(selectedReferencePdfPath.value)
+}
+
+async function handleRevealPdf() {
+  if (!canOpenPdf.value) return
+  await revealPathInFileManager({ path: selectedReferencePdfPath.value })
 }
 
 async function handleAttachPdf() {
@@ -504,203 +563,312 @@ async function handleAttachPdf() {
 .reference-inspector__scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 12px 32px;
+  padding: 12px 10px 32px; /* 减小左右 padding 释放更多空间给右侧值区域 */
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.inspector-hero-type {
-  font-size: 10px;
+/* ==========================================
+   Level 1: Hero (类型, 标题)
+========================================== */
+.inspector-section--hero {
+  gap: 8px !important;
+}
+
+.inspector-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 2px;
-  padding-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  user-select: none;
 }
 
-:deep(.inspector-title-input .ui-textarea-control) {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.3;
+.inspector-type-label {
+  color: var(--text-secondary);
+}
+
+.inspector-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inspector-icon-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.inspector-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.inspector-hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+:deep(.ui-input-shell--ghost),
+:deep(.ui-textarea-shell--ghost) {
+  padding-inline: 4px !important;
+  margin-inline: -4px; 
+}
+
+:deep(.inspector-input-title .ui-textarea-control) {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
   min-height: 0;
   padding-block: 2px;
 }
 
-:deep(.inspector-author-input .ui-input-control) {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.inspector-divider {
-  height: 1px;
-  background: color-mix(in srgb, var(--border) 40%, transparent);
-  margin: 0 4px;
-}
-
+/* ==========================================
+   Level X: 通用 Section & Grid 对齐
+========================================== */
 .inspector-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.inspector-section-header {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  padding: 0 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.inspector-grid {
+/* 极致压缩左侧列宽，给右侧留足展示区 */
+.inspector-kv-grid {
   display: grid;
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 48px minmax(0, 1fr); /* 压缩到极限 48px */
+  row-gap: 4px;
+  column-gap: 8px; /* 减小两列之间的留白 */
   align-items: center;
-  column-gap: 8px;
-  row-gap: 2px;
 }
 
-.inspector-label {
+.kv-label {
   text-align: right;
-  color: var(--text-muted);
   font-size: 12px;
+  color: var(--text-muted);
   user-select: none;
+  white-space: nowrap;
 }
 
-.inspector-label.align-top {
+.kv-label.align-top {
   align-self: flex-start;
-  margin-top: 6px;
+  margin-top: 5px;
 }
 
-.inspector-value {
+/* 强行约束最大宽度，超长文本会被截断并隐入输入框滑动中 */
+.kv-value {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* ==========================================
+   卷、期、页码：极限紧凑排版
+========================================== */
+.kv-value--inline-triple {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* 极小间距 */
+}
+
+.triple-cell {
+  flex: 0 1 36px; /* 缩小框的最小宽度 */
   min-width: 0;
 }
 
-.inspector-grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 0 4px;
-  margin-top: 4px;
+.triple-cell--wide {
+  flex: 1 1 50px;
 }
 
-.inspector-col {
-  display: flex;
-  flex-direction: column;
-}
-
-.inspector-label-mini {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-  padding-left: 4px;
-}
-
-/* Tokens */
-.token-area {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.token-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 4px 0;
-}
-.token-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-hover) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  color: var(--text-secondary);
+.triple-label {
   font-size: 12px;
-  cursor: pointer;
-  transition: all 0.1s;
-}
-.token-chip:hover {
-  background: var(--error);
-  color: white;
-  border-color: transparent;
-  text-decoration: line-through;
-}
-.token-chip-tag::before {
-  content: '#';
-  opacity: 0.5;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-/* Rating */
+/* ==========================================
+   评级、文集、标签 (Tokens)
+========================================== */
 .inspector-rating {
-  display: flex;
-  padding-left: 4px;
+  gap: 4px;
 }
+
 .rating-star {
   background: none;
   border: none;
   color: color-mix(in srgb, var(--text-muted) 40%, transparent);
   cursor: pointer;
-  padding: 2px;
-}
-.rating-star.is-active {
-  color: var(--warning);
+  padding: 0;
+  display: flex;
 }
 
-/* Details */
-.inspector-details {
-  padding: 0 4px;
+.rating-star.is-active {
+  color: var(--warning); 
 }
-.inspector-details-summary {
+
+.rating-text {
+  margin-left: 6px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.inspector-details-summary::marker {
   color: var(--text-muted);
 }
 
-/* Actions */
-.inspector-actions {
-  display: flex;
+.token-area {
   flex-direction: column;
-  gap: 8px;
-  padding: 0 4px;
+  align-items: flex-start;
+  gap: 4px;
 }
-.inspector-action-row {
+
+.token-list {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-light .token-chip {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.token-remove {
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.15s;
+}
+
+.token-chip:hover {
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+}
+
+.token-chip:hover .token-remove {
+  opacity: 1;
+  color: var(--error);
+}
+
+.token-chip-tag {
+  padding-left: 6px;
+}
+
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-muted) 60%, transparent);
+}
+
+/* ==========================================
+   内容折叠面板 (Disclosure)
+========================================== */
+.inspector-details {
+  margin-bottom: 4px;
+}
+
+.inspector-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.inspector-details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-icon {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+details[open] .disclosure-icon {
+  transform: rotate(90deg);
+}
+
+.inspector-details-body {
+  padding-top: 6px;
+  padding-left: 18px; 
+}
+
+/* ==========================================
+   文件操作按钮 (Native File Actions)
+========================================== */
+.inspector-file-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
-.inspector-action-row > * {
-  flex: 1;
+
+.inspector-file-actions :deep(.ui-button) {
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .inspector-links {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
+
 .inspector-link-btn {
   background: transparent;
   border: none;
   color: var(--accent);
   text-align: left;
-  padding: 2px 4px;
-  font-size: 12px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  font-size: 12.5px;
   cursor: pointer;
   border-radius: 4px;
 }
+
 .inspector-link-btn:hover {
-  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 15%, transparent);
   text-decoration: underline;
+}
+
+/* ==========================================
+   修正 Input Ghost 在小区域中的表现
+========================================== */
+:deep(.ui-input-shell--sm) {
+  min-height: 24px;
+}
+:deep(.ui-input-shell--ghost .ui-input-control) {
+  color: var(--text-primary);
 }
 </style>

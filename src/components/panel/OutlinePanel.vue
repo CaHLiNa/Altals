@@ -280,27 +280,27 @@ onUnmounted(() => {})
 }
 
 .outline-panel-empty-copy {
-  font-size: var(--sidebar-font-body);
+  font-size: 13px;
   line-height: 1.5;
   color: var(--text-muted);
 }
 
 .outline-panel-empty-title {
-  font-size: var(--sidebar-font-item);
-  line-height: var(--workbench-line-height-primary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .outline-panel-empty-hint {
   margin-top: 4px;
-  font-size: var(--sidebar-font-meta);
-  line-height: var(--workbench-line-height-secondary);
-  opacity: 0.7;
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 .outline-panel-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 0 0 4px;
+  padding: 0 4px 4px;
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
@@ -322,73 +322,57 @@ onUnmounted(() => {})
 }
 
 .outline-panel-section-label {
-  padding: 6px 10px 5px;
-  font-size: var(--sidebar-font-meta);
-  font-weight: var(--workbench-weight-medium);
-  letter-spacing: 0.08em;
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.72;
 }
 
+/* =========================================================
+   完全对齐 FileTree 的 macOS 原生列表样式 
+========================================================= */
 .outline-panel-row {
   display: flex;
   align-items: center;
   position: relative;
-  min-height: 28px;
-  padding: 3px 10px 3px 12px;
-  border-radius: 8px;
+  min-height: 26px; /* 统一行高 */
+  padding: 0 10px 0 12px;
+  border-radius: 4px; /* 统一圆角 */
+  margin: 1px 0;
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
-  font-size: var(--workbench-font-primary);
-  line-height: var(--workbench-line-height-primary);
-  opacity: 1;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    border-color 140ms ease;
-}
-
-.outline-panel-row::before {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 7px;
-  bottom: 7px;
-  width: 2px;
-  border-radius: 999px;
-  background: transparent;
-  opacity: 0;
-  transition:
-    background-color 140ms ease,
-    opacity 140ms ease;
+  font-size: 13px;
+  line-height: 1.3;
+  transition: none; /* 原生无过渡 */
 }
 
 .outline-panel-row:hover {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
-}
-
-.outline-panel-row.is-active {
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 12%, transparent);
 }
 
-.outline-panel-row.is-active::before {
-  background: transparent;
-  opacity: 0;
+/* 移除之前的发光描边、前置点等杂乱设计，直接使用原生强色铺满 */
+.outline-panel-row.is-active {
+  background: var(--list-active-bg);
+  color: var(--list-active-fg);
+  font-weight: 600;
+}
+
+.outline-panel-row.is-active .outline-panel-kind {
+  color: var(--list-active-fg);
+  opacity: 0.9;
 }
 
 .outline-panel-kind {
-  margin-right: 6px;
+  margin-right: 8px;
   flex-shrink: 0;
-  font-size: var(--workbench-font-secondary);
-  font-weight: var(--workbench-weight-medium);
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.62;
 }
 </style>

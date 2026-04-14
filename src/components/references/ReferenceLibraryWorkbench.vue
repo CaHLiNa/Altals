@@ -1,38 +1,49 @@
+<!-- START OF FILE src/components/references/ReferenceLibraryWorkbench.vue -->
 <template>
   <section class="reference-workbench" data-surface-context-guard="true">
+    
+    <!-- 紧凑工具栏 (Compact Toolbar) -->
     <header class="reference-workbench__toolbar">
-      <div class="reference-workbench__toolbar-group reference-workbench__toolbar-group--actions">
-        <UiButton class="reference-workbench__toolbar-action" variant="ghost" size="sm" @click="showAddDialog = true">
-          {{ t('Add Reference') }}
+      <div class="reference-workbench__toolbar-group">
+        <UiButton variant="secondary" size="sm" shell-class="workbench-action-btn" @click="showAddDialog = true">
+          <template #leading><IconPlus :size="14" :stroke-width="2" /></template>
+          {{ t('Add') }}
         </UiButton>
+        <div class="workbench-toolbar-divider"></div>
         <UiButton
-          class="reference-workbench__toolbar-action"
-          variant="secondary"
+          variant="ghost"
           size="sm"
+          shell-class="workbench-action-btn"
           :loading="referencesStore.importInFlight"
           :disabled="referencesStore.isLoading"
           @click="handleImportPdf"
         >
-          {{ t('Import PDF') }}
+          <template #leading><IconFileTypePdf :size="14" :stroke-width="1.8" /></template>
+          {{ t('PDF') }}
         </UiButton>
         <UiButton
-          class="reference-workbench__toolbar-action"
-          variant="secondary"
+          variant="ghost"
           size="sm"
+          shell-class="workbench-action-btn"
           :loading="referencesStore.importInFlight"
           :disabled="referencesStore.isLoading"
           @click="handleImportBibTeX"
         >
-          {{ t('Import BibTeX') }}
+          <template #leading><IconFileCode :size="14" :stroke-width="1.8" /></template>
+          {{ t('BibTeX') }}
         </UiButton>
+      </div>
+
+      <div class="reference-workbench__toolbar-group">
         <UiButton
-          class="reference-workbench__toolbar-action"
           variant="ghost"
           size="sm"
+          shell-class="workbench-action-btn"
           :disabled="referencesStore.references.length === 0"
           @click="handleExportBibTeX"
         >
-          {{ t('Export BibTeX') }}
+          <template #leading><IconShare :size="14" :stroke-width="1.8" /></template>
+          {{ t('Export') }}
         </UiButton>
       </div>
     </header>
@@ -50,6 +61,7 @@
     </div>
 
     <div v-else class="reference-workbench__content">
+      <!-- 极简原生表头 (Native Table Header) -->
       <div class="reference-workbench__table-head">
         <button
           type="button"
@@ -58,21 +70,13 @@
           @click="toggleTitleSort"
         >
           <span>{{ t('Title') }}</span>
-          <span v-if="isSortActive('title')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
-            <svg
-              :class="{ 'is-desc': sortKey === 'title-desc' }"
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M2 6l3-3 3 3" />
-            </svg>
-          </span>
+          <IconChevronDown 
+            v-if="isSortActive('title')" 
+            class="sort-arrow" 
+            :class="{ 'is-asc': sortKey === 'title-asc' }" 
+            :size="12" 
+            :stroke-width="2.5" 
+          />
         </button>
         <button
           type="button"
@@ -81,21 +85,13 @@
           @click="toggleAuthorSort"
         >
           <span>{{ t('Authors') }}</span>
-          <span v-if="isSortActive('author')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
-            <svg
-              :class="{ 'is-desc': sortKey === 'author-desc' }"
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M2 6l3-3 3 3" />
-            </svg>
-          </span>
+          <IconChevronDown 
+            v-if="isSortActive('author')" 
+            class="sort-arrow" 
+            :class="{ 'is-asc': sortKey === 'author-asc' }" 
+            :size="12" 
+            :stroke-width="2.5" 
+          />
         </button>
         <button
           type="button"
@@ -104,23 +100,15 @@
           @click="toggleYearSort"
         >
           <span>{{ t('Year') }}</span>
-          <span v-if="isSortActive('year')" class="reference-workbench__sort-chip reference-workbench__sort-chip--icon" aria-hidden="true">
-            <svg
-              :class="{ 'is-desc': sortKey === 'year-desc' }"
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M2 6l3-3 3 3" />
-            </svg>
-          </span>
+          <IconChevronDown 
+            v-if="isSortActive('year')" 
+            class="sort-arrow" 
+            :class="{ 'is-asc': sortKey === 'year-asc' }" 
+            :size="12" 
+            :stroke-width="2.5" 
+          />
         </button>
-        <div>{{ t('Source') }}</div>
+        <div class="reference-workbench__head-label">{{ t('Source') }}</div>
       </div>
 
       <div
@@ -133,7 +121,7 @@
       >
         <div class="reference-workbench__cell reference-workbench__cell--title">
           <span class="reference-workbench__title-icon" aria-hidden="true">
-            <IconFileText :size="15" :stroke-width="1.85" />
+            <IconFileText :size="14" :stroke-width="1.8" />
           </span>
           <span class="reference-workbench__truncate">{{ reference.title }}</span>
         </div>
@@ -170,7 +158,14 @@
 import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { IconFileText } from '@tabler/icons-vue'
+import { 
+  IconFileText, 
+  IconPlus, 
+  IconFileTypePdf, 
+  IconFileCode, 
+  IconShare,
+  IconChevronDown
+} from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
@@ -721,80 +716,105 @@ async function importBibTeXWithFallback(content = '') {
   background: transparent;
 }
 
+/* =========================================================================
+   紧凑原生工具栏 (Compact Toolbar)
+========================================================================= */
 .reference-workbench__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 36px;
+  height: 44px; /* 降低高度，原先可能被撑得太大 */
   padding: 0 12px;
-  border-bottom: 1px solid var(--workbench-divider);
+  background: var(--panel-surface); /* 工具栏与下方表头保持色彩一致，融合度更高 */
 }
 
 .reference-workbench__toolbar-group {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
-.reference-workbench__toolbar-group--actions {
-  flex: 0 0 auto;
+.workbench-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+  margin: 0 4px;
 }
 
-.reference-workbench__toolbar-group--actions :deep(.reference-workbench__toolbar-action) {
-  min-height: 28px;
-  padding: 0 10px;
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
+/* 工具栏原生化按钮，不再像文字链接 */
+:deep(.workbench-action-btn) {
+  min-height: 24px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 5px;
+  color: var(--text-secondary);
 }
 
-.reference-workbench__toolbar-group--actions :deep(.reference-workbench__toolbar-action:hover:not(:disabled)) {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent) !important;
+:deep(.workbench-action-btn .ui-button-leading svg) {
+  opacity: 0.8;
+}
+
+:deep(.workbench-action-btn.ui-button--secondary) {
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+:deep(.workbench-action-btn.ui-button--ghost:hover) {
+  background: var(--surface-hover);
   color: var(--text-primary);
 }
 
-.reference-workbench__toolbar-group--actions :deep(.reference-workbench__toolbar-action:active:not(:disabled)) {
-  background: color-mix(in srgb, var(--surface-hover) 24%, transparent) !important;
-}
-
+/* =========================================================================
+   内容区与表头 (Content & Header)
+========================================================================= */
 .reference-workbench__content {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;
-  padding: 6px 0 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 0 20px; /* 顶部不要留白，让表头直接吸顶 */
 }
 
 .reference-workbench__table-head,
 .reference-workbench__row {
   display: grid;
-  grid-template-columns: minmax(280px, 3fr) minmax(140px, 1.35fr) 92px minmax(160px, 1.4fr);
+  grid-template-columns: minmax(280px, 3fr) minmax(140px, 1.35fr) 72px minmax(160px, 1.4fr);
   align-items: center;
   gap: 14px;
 }
 
+/* 极致纤薄的表头 */
 .reference-workbench__table-head {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--workbench-divider-soft);
-  background: var(--panel-surface);
+  height: 28px; /* Finder 原生列表视图表头高度 */
+  padding: 0 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent); /* 分隔上方的 Toolbar */
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: var(--panel-surface); /* 同步颜色 */
   color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(20px);
+}
+
+.reference-workbench__head-label {
+  user-select: none;
 }
 
 .reference-workbench__head-button {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -804,55 +824,49 @@ async function importBibTeXWithFallback(content = '') {
   cursor: pointer;
 }
 
+.reference-workbench__head-button:hover {
+  color: var(--text-secondary);
+}
+
 .reference-workbench__head-button.is-active {
   color: var(--text-primary);
 }
 
-.reference-workbench__sort-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  min-height: 20px;
-  padding: 0 6px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
-  color: color-mix(in srgb, var(--text-secondary) 88%, transparent);
-  font-size: 10.5px;
-  font-weight: var(--workbench-weight-medium);
-  line-height: 1;
+/* 纤细的原生箭头，替代臃肿的色块底 */
+.sort-arrow {
+  color: var(--text-primary);
+  opacity: 0.8;
+  transition: transform 0.2s ease;
 }
 
-.reference-workbench__sort-chip--icon {
-  padding: 0 4px;
-}
-
-.reference-workbench__sort-chip--icon svg.is-desc {
+.sort-arrow.is-asc {
   transform: rotate(180deg);
 }
 
+/* =========================================================================
+   文献行 (Rows)
+========================================================================= */
 .reference-workbench__row {
-  min-height: 32px;
-  padding: 0 12px;
+  min-height: 28px; /* 进一步压低高度，呈现高密度信息 */
+  padding: 0 16px;
   border-radius: 4px;
-  margin: 1px 6px;
+  margin: 1px 0;
   cursor: pointer;
-  transition: none; /* Native lists don't animate hover bg */
+  transition: none; /* 原生无动画 */
 }
 
 .reference-workbench__row:hover {
   background: var(--sidebar-item-hover);
 }
 
-.reference-workbench__row.is-active,
-.reference-workbench__row.ui-list-row.is-active {
+.reference-workbench__row.is-active {
   background: var(--list-active-bg);
   color: var(--list-active-fg) !important;
   box-shadow: none;
 }
 
 .reference-workbench__row.is-active .reference-workbench__cell,
-.reference-workbench__row.ui-list-row.is-active .reference-workbench__cell {
+.reference-workbench__row.is-active .reference-workbench__title-icon {
   color: var(--list-active-fg) !important;
 }
 
@@ -865,7 +879,7 @@ async function importBibTeXWithFallback(content = '') {
 }
 
 .reference-workbench__cell--title {
-  gap: 9px;
+  gap: 8px;
   font-weight: 500;
 }
 
@@ -873,10 +887,10 @@ async function importBibTeXWithFallback(content = '') {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
 }
 
 .reference-workbench__truncate {
@@ -887,26 +901,24 @@ async function importBibTeXWithFallback(content = '') {
 }
 
 .reference-workbench__empty {
-  padding: 16px 12px;
+  padding: 24px;
+  text-align: center;
 }
 
 @media (max-width: 1200px) {
   .reference-workbench__table-head,
   .reference-workbench__row {
-    grid-template-columns: minmax(220px, 2.5fr) minmax(120px, 1.2fr) 84px minmax(120px, 1.2fr);
+    grid-template-columns: minmax(220px, 2.5fr) minmax(120px, 1.2fr) 68px minmax(120px, 1.2fr);
     gap: 12px;
   }
 }
 
 @media (max-width: 920px) {
   .reference-workbench__toolbar {
+    height: auto;
     flex-wrap: wrap;
-    padding-top: 6px;
-    padding-bottom: 6px;
-  }
-
-  .reference-workbench__toolbar-group--actions {
-    width: 100%;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 }
 </style>

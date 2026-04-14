@@ -1,10 +1,9 @@
+<!-- START OF FILE src/components/shared/ui/UiSelect.vue -->
 <template>
   <SelectRoot
-    :model-value="modelValue"
-    :open="open"
+    :model-value="stringValue"
     :disabled="disabled"
-    @update:model-value="emit('update:modelValue', $event)"
-    @update:open="(value) => (open = value)"
+    @update:model-value="handleUpdate"
   >
     <div ref="shellRef" class="ui-select-shell" :class="[shellClassName, propsShellClass]">
       <SelectTrigger
@@ -17,8 +16,9 @@
       >
         <SelectValue class="ui-select-value" :placeholder="placeholder || selectedLabel" />
         <SelectIcon class="ui-select-caret" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-            <path d="M1 3l4 4 4-4z" />
+          <svg width="12" height="12" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 9.5L7.5 12.5L10.5 9.5" />
+            <path d="M4.5 5.5L7.5 2.5L10.5 5.5" />
           </svg>
         </SelectIcon>
       </SelectTrigger>
@@ -27,17 +27,17 @@
         <SelectContent
           class="ui-select-menu"
           position="popper"
-          position-strategy="fixed"
-          :side-offset="6"
+          side="bottom"
+          align="start"
+          :side-offset="4"
           :collision-padding="8"
         >
-          <SelectViewport>
+          <SelectViewport class="ui-select-viewport scrollbar-hidden">
             <SelectItem
               v-for="(option, index) in normalizedOptions"
               :key="getOptionKey(option, index)"
               class="ui-select-option"
-              :class="{ 'is-selected': isSelected(option) }"
-              :value="option.value"
+              :value="option.stringValue"
               :disabled="option.disabled"
             >
               <SelectItemText class="ui-select-option-label">
@@ -69,96 +69,62 @@ import {
   SelectViewport,
 } from 'reka-ui'
 
-defineOptions({
-  inheritAttrs: false,
-})
+defineOptions({ inheritAttrs: false })
 
 const props = defineProps({
-  modelValue: {
-    type: [String, Number, Boolean],
-    default: '',
-  },
-  disabled: {
-    type: Boolean,
-    default: false,
-  },
-  shellClass: {
-    type: [String, Array, Object],
-    default: '',
-  },
-  size: {
-    type: String,
-    default: 'md',
-  },
-  options: {
-    type: Array,
-    default: () => [],
-  },
-  ariaLabel: {
-    type: String,
-    default: '',
-  },
-  placeholder: {
-    type: String,
-    default: '',
-  },
+  modelValue: { type: [String, Number, Boolean], default: '' },
+  disabled: { type: Boolean, default: false },
+  shellClass: { type: [String, Array, Object], default: '' },
+  size: { type: String, default: 'md' },
+  options: { type: Array, default: () => [] },
+  ariaLabel: { type: String, default: '' },
+  placeholder: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur'])
 
 const shellRef = ref(null)
 const triggerRef = ref(null)
-const open = ref(false)
+
+// 核心修复：强制转为字符串以满足 Reka UI 的内部要求，防止抛错卡死
+const stringValue = computed(() => String(props.modelValue ?? ''))
 
 const normalizedOptions = computed(() =>
   (props.options || []).map((option) => {
     if (option && typeof option === 'object' && 'value' in option) {
       return {
-        value: option.value,
+        originalValue: option.value,
+        stringValue: String(option.value ?? ''),
         label: option.label ?? String(option.value ?? ''),
         disabled: option.disabled === true,
       }
     }
     return {
-      value: option,
+      originalValue: option,
+      stringValue: String(option ?? ''),
       label: String(option ?? ''),
       disabled: false,
     }
   })
 )
 
+function handleUpdate(val) {
+  // 选回后，将字符串还原为原始类型 (Number/Boolean) 传给父组件
+  const opt = normalizedOptions.value.find(o => o.stringValue === val)
+  emit('update:modelValue', opt ? opt.originalValue : val)
+}
+
 const shellClassName = computed(() => [
   `ui-select-shell--${props.size}`,
-  {
-    'is-disabled': props.disabled,
-    'is-open': open.value,
-  },
+  { 'is-disabled': props.disabled },
 ])
 
 const propsShellClass = computed(() => props.shellClass)
-
-const selectedOption = computed(
-  () =>
-    normalizedOptions.value.find((option) => sameValue(option.value, props.modelValue)) ||
-    normalizedOptions.value.find((option) => !option.disabled) ||
-    null
-)
-
+const selectedOption = computed(() => normalizedOptions.value.find((o) => o.stringValue === stringValue.value) || normalizedOptions.value.find((o) => !o.disabled) || null)
 const selectedLabel = computed(() => selectedOption.value?.label || props.placeholder || '')
-
 const triggerLabel = computed(() => props.ariaLabel || selectedLabel.value || 'Select')
 
-function sameValue(a, b) {
-  return String(a ?? '') === String(b ?? '')
-}
-
-function isSelected(option) {
-  return sameValue(option?.value, props.modelValue)
-}
-
-function getOptionKey(option, index) {
-  return `${String(option?.value ?? '')}:${index}`
-}
+function getOptionKey(option, index) { return `${option.stringValue}:${index}` }
 
 defineExpose({
   el: triggerRef,
@@ -188,18 +154,14 @@ defineExpose({
   color: var(--text-primary);
   font: inherit;
   text-align: left;
-  transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    background-color 140ms ease,
-    color 140ms ease;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
   cursor: pointer;
 }
 
 .ui-select-trigger:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ui-select-trigger:disabled {
@@ -208,18 +170,18 @@ defineExpose({
 }
 
 .ui-select-shell--sm .ui-select-trigger {
-  min-height: 28px;
-  padding: 0 32px 0 var(--space-3);
+  min-height: 26px;
+  padding: 0 28px 0 10px;
 }
 
 .ui-select-shell--md .ui-select-trigger {
-  min-height: 32px;
-  padding: 0 36px 0 var(--space-3);
+  min-height: 30px;
+  padding: 0 32px 0 12px;
 }
 
 .ui-select-shell--lg .ui-select-trigger {
   min-height: 36px;
-  padding: 0 40px 0 var(--space-3);
+  padding: 0 36px 0 12px;
 }
 
 .ui-select-value {
@@ -233,35 +195,53 @@ defineExpose({
 .ui-select-caret {
   position: absolute;
   top: 50%;
-  right: var(--space-3);
+  right: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
   pointer-events: none;
   transform: translateY(-50%);
-  transition:
-    transform 140ms ease,
-    color 140ms ease;
+  opacity: 0.8;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.ui-select-shell.is-open .ui-select-caret {
+/* 使用 Reka 原生的 data-state 替代手动管理的 class */
+.ui-select-trigger[data-state="open"] .ui-select-caret {
   transform: translateY(-50%) rotate(180deg);
-  color: var(--text-secondary);
+  opacity: 1;
 }
 
+/* =========================================================================
+   原生毛玻璃下拉菜单 (Native Dropdown Menu)
+========================================================================= */
 .ui-select-menu {
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
-  width: max(var(--reka-select-trigger-width, 100%), 100%);
-  min-width: max-content;
-  padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--shell-border) 12%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-muted) 82%, var(--shell-surface));
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(18px) saturate(0.94);
+  
+  /* 核心修复：最小宽度对齐按钮，取消最大宽度的强制 100vw，防止挤开屏幕 */
+  min-width: var(--reka-select-trigger-width, 220px);
+  max-width: min(100vw - 32px, 460px); 
+  max-height: 45vh; 
+  
+  padding: 5px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.theme-light .ui-select-menu {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.ui-select-viewport {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
 }
 
 .ui-select-option {
@@ -270,32 +250,22 @@ defineExpose({
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 30px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 8px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
   outline: none;
 }
 
 .ui-select-option:hover:not([data-disabled]),
-.ui-select-option[data-highlighted],
-.ui-select-option[data-state='checked'] {
-  background: color-mix(in srgb, var(--surface-hover) 6%, transparent);
-  color: var(--text-primary);
-}
-
-.ui-select-option.is-selected,
-.ui-select-option[data-state='checked'] {
-  color: var(--text-primary);
+.ui-select-option[data-highlighted] {
+  background: var(--list-active-bg) !important;
+  color: var(--list-active-fg) !important;
 }
 
 .ui-select-option[data-disabled] {
@@ -310,6 +280,11 @@ defineExpose({
 
 .ui-select-option-check {
   flex: 0 0 auto;
-  color: color-mix(in srgb, var(--accent) 72%, currentColor);
+  color: var(--text-primary);
+}
+
+.ui-select-option:hover .ui-select-option-check,
+.ui-select-option[data-highlighted] .ui-select-option-check {
+  color: var(--list-active-fg);
 }
 </style>
