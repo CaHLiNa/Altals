@@ -121,6 +121,8 @@ test('pdf iframe surface waits for pdf.js document events before declaring the p
 test('pdf iframe surface falls back from workspace protocol URLs to blob loading when the viewer stalls', () => {
   assert.match(pdfIframeSurfaceSource, /const PROTOCOL_LOAD_TIMEOUT_MS = 1200/)
   assert.match(pdfIframeSurfaceSource, /const BLOB_LOAD_TIMEOUT_MS = 2200/)
+  assert.match(pdfIframeSurfaceSource, /function fallbackToBlobAfterProtocolFailure\(detail = \{\}\)/)
+  assert.match(pdfIframeSurfaceSource, /activeLoadSourceMode !== 'protocol' \|\| protocolFailureFallbackTriggered/)
   assert.match(pdfIframeSurfaceSource, /void loadPdfWithStrategy\(\{ preferProtocol: false \}\)/)
   assert.match(pdfIframeSurfaceSource, /loadError\.value = t\('PDF viewer did not finish rendering the document\.'\)/)
 })
@@ -149,8 +151,10 @@ test('pdf iframe surface records viewer state snapshots and accepts viewer-origi
   assert.match(pdfIframeSurfaceSource, /runPhase: String\(app\?\._altalsRunPhase \|\| ''\)/)
   assert.match(pdfIframeSurfaceSource, /openPhase: String\(app\?\._altalsOpenPhase \|\| ''\)/)
   assert.match(pdfIframeSurfaceSource, /event: 'pdf-load-timeout'/)
+  assert.match(pdfIframeSurfaceSource, /event: 'pdf-protocol-load-failed'/)
+  assert.match(pdfIframeSurfaceSource, /if \(event\.source && frameWindow && event\.source !== frameWindow\) return/)
   assert.match(pdfIframeSurfaceSource, /data\.channel === 'altals-pdf-debug'/)
-  assert.match(pdfIframeSurfaceSource, /data\.type === 'document-error'/)
+  assert.match(pdfIframeSurfaceSource, /data\.type === 'document-error' \|\| data\.type === 'open-failure'/)
   assert.match(pdfIframeSurfaceSource, /data\.type === 'document-load' \|\| data\.type === 'open-success'/)
 })
 

@@ -134,6 +134,8 @@ let viewerRuntimeActive = false
 let viewerLoadTimeout = 0
 let viewerAppBindTimer = 0
 let viewerFramePatchesInstalled = false
+let activeLoadSourceMode = ''
+let protocolFailureFallbackTriggered = false
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 const PROTOCOL_LOAD_TIMEOUT_MS = 1200
 const BLOB_LOAD_TIMEOUT_MS = 2200
@@ -610,6 +612,14 @@ function installViewerAppPatches(options = {}) {
     flushPendingLatexForwardSync()
   }
   const handleDocumentError = (event) => {
+    if (
+      fallbackToBlobAfterProtocolFailure({
+        reason: String(event?.reason || event?.message || '').trim(),
+        type: 'documenterror',
+      })
+    ) {
+      return
+    }
     if (viewerLoadTimeout) {
       window.clearTimeout(viewerLoadTimeout)
       viewerLoadTimeout = 0
@@ -791,6 +801,26 @@ function buildViewerStateSnapshot(app = getViewerApp()) {
   }
 }
 
+function fallbackToBlobAfterProtocolFailure(detail = {}) {
+  if (activeLoadSourceMode !== 'protocol' || protocolFailureFallbackTriggered) {
+    return false
+  }
+
+  protocolFailureFallbackTriggered = true
+  if (viewerLoadTimeout) {
+    window.clearTimeout(viewerLoadTimeout)
+    viewerLoadTimeout = 0
+  }
+  void appendLatexSyncDebug({
+    event: 'pdf-protocol-load-failed',
+    sourceMode: activeLoadSourceMode,
+    detail,
+    snapshot: buildViewerStateSnapshot(),
+  })
+  void loadPdfWithStrategy({ preferProtocol: false })
+  return true
+}
+
 async function loadPdf() {
   return loadPdfWithStrategy({ preferProtocol: true })
 }
@@ -838,6 +868,8 @@ async function loadPdfWithStrategy(options = {}) {
     const protocolUrl = preferProtocol ? resolveProtocolViewerUrl(artifactPath) : ''
     const fileUrl = protocolUrl || null
     let sourceMode = fileUrl ? 'protocol' : 'blob'
+    activeLoadSourceMode = sourceMode
+    protocolFailureFallbackTriggered = sourceMode !== 'protocol'
 
     if (!fileUrl) {
       const base64 = await readPdfArtifactBase64(artifactPath)
@@ -884,6 +916,9 @@ function reloadPdf() {
 }
 
 async function handleIframeViewerMessage(event) {
+  const frameWindow = iframeRef.value?.contentWindow
+  if (event.source && frameWindow && event.source !== frameWindow) return
+
   const data = event.data
   if (!data || typeof data !== 'object') return
 
@@ -893,7 +928,15 @@ async function handleIframeViewerMessage(event) {
       detail: data,
       snapshot: buildViewerStateSnapshot(),
     })
-    if (data.type === 'document-error') {
+    if (data.type === 'document-error' || data.type === 'open-failure') {
+      if (
+        fallbackToBlobAfterProtocolFailure({
+          reason: String(data.reason || data.message || '').trim(),
+          type: data.type,
+        })
+      ) {
+        return
+      }
       if (viewerLoadTimeout) {
         window.clearTimeout(viewerLoadTimeout)
         viewerLoadTimeout = 0
