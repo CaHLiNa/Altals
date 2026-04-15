@@ -1,32 +1,35 @@
 # Academic Platform Direction
 
-This document defines the near-term product direction for turning Altals from a writing-only desktop workbench into a broader academic research platform.
+This document defines the near-term product direction for Altals as a local-first academic research platform where writing, literature management, reading, and AI workflows are peer capabilities inside one desktop workbench.
 
-It is intentionally phased. The goal is not to clone every research tool at once. The goal is to keep the user inside one coherent loop while they manage references, read, write, cite, and revise.
+It is intentionally phased. The goal is not to clone every research tool at once. The goal is to keep the user inside one coherent loop while they manage references, read, write, invoke grounded AI help, cite, and revise.
 
 ## Product thesis
 
-Academic users do not experience writing, reading, references, and citation as separate products.
+Academic users do not experience writing, reading, references, citation, and AI assistance as separate products.
 
 They are doing one job:
 
 1. collect or open source material
-2. read and extract what matters
-3. write the draft
-4. insert citations at the point of writing
-5. generate or maintain bibliography output
-6. revise safely
+2. organize references and project context
+3. read and extract what matters
+4. write the draft
+5. invoke AI with grounded project, document, and reference context
+6. insert citations at the point of writing
+7. generate or maintain bibliography output
+8. revise safely
 
 Altals should serve that full loop inside one local-first desktop app.
 
 ## Guardrails
 
-- writing, literature management, and reading are peer product loops inside one research workbench
+- writing, literature management, reading, and AI workflows are peer product loops inside one research workbench
 - project folders remain the primary organizing model
 - references are project-scoped first, not mandatory global-library-first
 - PDF and source reading stay close to the active draft and active reference context
-- AI workflows should be grounded in the active project, draft, and selected references
-- PDF translation is a valid extension, but it should not distort the first release of the references and reader foundation
+- AI workflows should be grounded in the active project, draft, selected references, and reader context
+- AI should appear as workbench-native actions, automation flows, or contextual panels, not a detached chat shell
+- PDF translation is a valid AI-adjacent extension, but it should not distort the first release of the references and reader foundation
 - avoid turning Altals into a generic PKM, chat shell, or feed reader
 
 ## Delivery phases
@@ -85,22 +88,24 @@ Success criteria:
 - bibliography output is predictable and testable
 - citation quality improves without making the workflow feel like database administration
 
-## Phase 4: Plugin-Ready Research Extensions
+## Cross-cutting Track: Grounded AI Workflows
 
-Goal: add high-value research automation without baking every future feature into core.
+Goal: make AI genuinely useful across writing, literature management, and reading without breaking local-first boundaries.
 
 Scope:
 
-- plugin-capable seams for AI research workflows
-- plugin-capable seams for PDF translation
-- project-grounded prompts and retrieval, not generic chat surfaces
-- optional remote services that do not block the core offline workflow
+- context assembly from the active file, selected references, outline, diagnostics, and reader selections
+- citation-grounded drafting, revision, summarization, and planning flows
+- document-aware translation or explanation helpers that remain tied to the current project
+- optional local or remote model runners behind plugin-capable seams
+- automation hooks that help the user move across reading, writing, and citation tasks without rebuilding context each time
 
 Success criteria:
 
+- AI helps inside the same workspace instead of requiring a separate chat-first workflow
+- AI outputs can stay anchored to local project material and selected references
 - the core app remains useful without AI
-- AI and translation features can evolve independently
-- the workbench stays legible instead of collapsing into tool sprawl
+- AI capabilities can evolve independently without becoming the primary navigation model
 
 ## Suggested module shape
 
@@ -108,13 +113,16 @@ The expected implementation direction is:
 
 - `src/domains/references/*` for reference policy, citation insertion rules, and bibliography decisions
 - `src/domains/reader/*` for reader session and source-to-draft navigation policy
+- `src/domains/ai/*` for grounded prompt policy, context selection, artifact normalization, and AI workflow guardrails
 - `src/services/references/*` for import, parse, metadata, and formatting adapters
-- `src/services/reader/*` for PDF or source integration seams
+- `src/services/reader/*` or equivalent PDF helpers for source integration seams
+- future `src/services/ai/*` for model adapters, retrieval, translation, and indexing clients
 - `src/stores/references.js` and related thin stores for state coordination
-- `src/components/references/*` and `src/components/reader/*` for UI
-- `src-tauri/*` for typed desktop seams where filesystem, PDF helpers, or external tooling are required
+- future reader and AI stores for session state, not long-lived policy
+- `src/components/references/*`, `src/components/reader/*`, and future AI workbench surfaces for UI
+- `src-tauri/*` for typed desktop seams where filesystem, PDF helpers, model runners, or external tooling are required
 
-Keep policy in `domains`. Keep effectful parsing, IO, and tool invocation in `services`.
+Keep policy in `domains`. Keep effectful parsing, IO, model invocation, and tool execution in `services`.
 
 ## Immediate next implementation slice
 
@@ -125,6 +133,9 @@ If work starts now, the smallest meaningful slice is:
 3. add a basic references list and selection flow
 4. implement citation insertion for one path in each of Markdown and LaTeX
 5. allow a project PDF to open in a workbench-adjacent reader
+6. expose one grounded AI workflow that can use the active draft plus selected references
+
+That foundation slice is now implemented in the workbench as an AI panel with provider settings, grounded context assembly, skill execution, and first-pass artifact application.
 
 That slice is narrow enough to ship and broad enough to prove the product direction.
 

@@ -2,19 +2,26 @@
 
 This repository is organized around a desktop-first Tauri application with a Vue frontend and a Rust backend.
 
-The architecture now targets one local-first academic workbench: project files, document workflows, references, readers, citations, and later plugin-style AI or translation extensions.
+The architecture targets one local-first academic platform where document writing, literature management, reading, and AI workflows are peer product capabilities inside the same project workbench. AI is not a detached add-on surface: it should stay grounded in the active project, open documents, selected references, reader context, and citation workflow.
 
 ## High-level runtime shape
 
 ### Frontend boot
 
 - `src/main.js` initializes locale, Vue, and Pinia, then mounts `App.vue`.
-- `src/App.vue` composes the main shell, launcher, sidebars, workbench, settings surface, dialogs, and overlays.
+- `src/App.vue` composes the launcher, workspace shell, sidebars, workbench surfaces, settings surface, dialogs, and overlays.
 
 ### Desktop backend
 
 - `src-tauri/src/lib.rs` is the main backend integration point for native behavior, workspace protocol serving, and registered backend modules.
-- the Rust backend owns native seams such as filesystem access, platform commands, and desktop-specific protocol handling
+- the Rust backend owns native seams such as filesystem access, secure path resolution, process execution, and desktop-specific protocol handling
+
+### Product workbench model
+
+- the workspace shell is the primary container for writing, references, reading, and AI-assisted research actions
+- the left sidebar remains project-tree-first, with references as a peer workspace navigation panel
+- the main workbench hosts editor, reference, preview, compile, and grounded AI workflow surfaces
+- the right inspection area is currently outline-first and may grow only when a panel directly supports drafting, citation, reading, or grounded AI assistance
 
 ## Layer responsibilities
 
@@ -31,38 +38,49 @@ Examples:
 Product rules and reusable runtime decisions that should stay out of components.
 Current domain families:
 
-- document workflows
-- editor routing and pane behavior
-- file tree and file operations
-- project references, citation policy, and reference-to-document decisions
-- reader session behavior and writing-adjacent inspection flows
+- document workflow runtime and preview decisions
+- editor routing, pane layout, cleanup, and persistence
+- file tree hydration, mutation, watches, and text indexing
+- reference interop, search token normalization, and citation presentation rules
+- AI context normalization and artifact rules
+- workbench motion and surface coordination
 - workspace setup and starter flows
-- git/workspace repo linking
+
+Near-term domain expansions should cover:
+
+- reader session and source-to-draft navigation policy
+- deeper AI workflow policy, citation guardrails, and automation decisions
 
 ### `src/services/*`
 
-Effectful integrations such as files, compile flows, environment checks, repository operations, reference import or metadata adapters, preview bridges, and reader integration seams.
-Examples:
+Effectful integrations such as files, compile flows, environment checks, repository operations, document intelligence extraction, reference import or export adapters, PDF helpers, and future model or translation clients.
+Current examples:
 
 - `src/services/documentWorkflow/*`
+- `src/services/documentIntelligence/*`
+- `src/services/ai/*`
+- `src/services/references/*`
+- `src/services/pdf/*`
 - `src/services/environmentPreflight.js`
 
 ### `src/stores/*`
 
-Reactive state and coordination.
+Reactive state and thin coordination.
 Important stores:
 
 - `src/stores/workspace.js`
 - `src/stores/editor.js`
 - `src/stores/documentWorkflow.js`
+- `src/stores/ai.js`
+- `src/stores/references.js`
 - `src/stores/files.js`
 - `src/stores/latex.js`
 
-Future stores should follow the same thin-coordination rule when reference or reader features land, for example:
+Future stores should follow the same thin-coordination rule when reader or deeper AI features land, for example:
 
-- project references state
-- citation insertion session state
 - reader session state
+- AI task or session state
+- grounded context selection state
 
 ### `src/components/*`
 
@@ -72,11 +90,16 @@ Representative surfaces:
 - launcher: `src/components/Launcher.vue`
 - workbench chrome: `src/components/layout/WorkbenchRail.vue`
 - editor surface: `src/components/editor/EditorPane.vue`
+- AI workflow panel: `src/components/panel/AiWorkflowPanel.vue`
+- reference workbench: `src/components/references/ReferenceLibraryWorkbench.vue`
+- references sidebar: `src/components/sidebar/ReferencesSidebarPanel.vue`
+- reference detail panel: `src/components/panel/ReferenceDetailPanel.vue`
 - left sidebar: `src/components/sidebar/LeftSidebar.vue`
 - right sidebar: `src/components/sidebar/RightSidebar.vue`
 - settings surface: `src/components/settings/Settings.vue`
+- AI settings surface: `src/components/settings/SettingsAi.vue` for multi-provider presets, active routing, and custom relay compatibility
 
-Future reference and reader UI should remain subordinate to the desktop workbench shell instead of introducing an unrelated app-within-an-app.
+Future reader and AI surfaces should remain workbench-native views or contextual panels instead of becoming an unrelated app-within-an-app.
 
 ### `src/composables/*`
 
@@ -85,9 +108,9 @@ Reusable UI glue that should stay lighter than product-policy code.
 ### `src-tauri/*`
 
 Native filesystem, process, protocol, and platform seams.
-The backend module list in `src-tauri/src/lib.rs` currently includes file, LaTeX, workspace access, and security-related modules.
+The backend module list in `src-tauri/src/lib.rs` currently centers on file access, LaTeX execution, workspace access, and security-sensitive desktop integration.
 
-Future backend seams for references, citation tooling, or reader helpers should remain typed desktop integrations instead of ad hoc UI-owned process launching.
+Future backend seams for reader helpers, reference tooling, local model runners, or translation execution should remain typed desktop integrations instead of ad hoc UI-owned process launching.
 
 ## Important architectural seams
 
@@ -101,12 +124,12 @@ Future backend seams for references, citation tooling, or reader helpers should 
 
 The same shell also owns setup flow overlays and file or workspace confirmations.
 
-### Sidebar model
+### Sidebar and workbench composition
 
-- the left sidebar is normalized through `src/shared/workbenchSidebarPanels.js` and is currently file-tree focused
-- the left sidebar should remain project-tree-first even when project references or reader entry points are introduced
-- the right inspector is normalized through `src/shared/workbenchInspectorPanels.js` and currently only exposes `outline`
-- future inspection panels are allowed only when they directly support drafting, citation, reading, or document understanding inside the same workbench
+- the left sidebar is normalized through `src/shared/workbenchSidebarPanels.js` and currently exposes `files` and `references`
+- references are already first-class workbench navigation, not a hidden utility flow
+- the right inspector is normalized through `src/shared/workbenchInspectorPanels.js` and currently exposes `outline` and `ai`
+- future inspector panels are allowed only when they directly support drafting, citation, reading, or grounded AI assistance inside the same workbench
 
 ### Document workflow architecture
 
@@ -114,46 +137,60 @@ Document workflow behavior is split across:
 
 - adapter definitions in `src/services/documentWorkflow/adapters/*`
 - workflow policy in `src/services/documentWorkflow/policy.js`
+- reconcile helpers in `src/services/documentWorkflow/reconcile.js`
 - runtime orchestration in `src/domains/document/*`
 - persisted workflow session state in `src/stores/documentWorkflow.js`
 
-Citation behavior should attach to document workflow decisions rather than fork into a disconnected formatting subsystem.
+Citation behavior and AI writing assistance should attach to document workflow decisions rather than fork into disconnected subsystems.
 
-### Project references architecture
+### References architecture
 
-Project references are a first-class planned slice, but they should follow the existing layering rules:
+References are no longer a speculative sidecar. The current architecture already includes a real slice:
 
-- reference library data and assets should live under the app-owned Altals data directory, not in the user workspace tree
-- import, parse, metadata, and citation-format adapters belong in `src/services/*`
-- selection rules, reference filtering, citation insertion policy, and bibliography decisions belong in `src/domains/*`
-- UI surfaces for references and readers belong in `src/components/*`
-- coordination state belongs in `src/stores/*`
+- reference UI in `src/components/references/*` and `src/components/sidebar/ReferencesSidebarPanel.vue`
+- reference detail rendering in `src/components/panel/ReferenceDetailPanel.vue`
+- coordination state in `src/stores/references.js`
+- reference normalization and presentation rules in `src/domains/references/*`
+- import, export, formatting, metadata, assets, and sync adapters in `src/services/references/*`
 
-The default model should be a local app-owned library that stays available across workspaces without polluting the user project tree.
+The default storage model should stay local-first: shared reference assets and library data may live in the app-owned Altals directory, while workspace-local usage, citation context, and draft links stay tied to the active project.
 
 ### Reader architecture
 
-Reader features should stay tightly connected to the writing workflow:
+Reader features should stay tightly connected to the same research loop:
 
 - PDF or source reading state should be recoverable from workspace state
-- reader navigation should connect back to the active draft, citation targets, and outline context
-- annotations or extracted metadata should prefer project-local persistence where practical
+- reader navigation should connect back to the active draft, selected references, citation targets, and outline context
+- annotations or extracted metadata should prefer local persistence
 - a reader should not become a separate navigation universe that ignores the current project
 
-### AI and translation extension architecture
+### AI workflow architecture
 
-AI-assisted research flows and PDF translation are valid future product areas, but they should be added through modular seams:
+AI workflow is a first-class product capability, but it should be architected as a grounded cross-cutting layer rather than a generic chat shell:
 
-- keep the first-party core useful without any remote AI dependency
-- place effectful model or translation clients in `services`
-- keep user-facing automation policy in `domains`
-- prefer plugin-capable boundaries over hard-coding every future workflow into the shell
+- the current first slice already ships a right-inspector AI panel, multi-provider settings, active-provider routing, skill execution, and artifact application for selected workflows
+- AI actions should start from explicit project context such as the active file, selected references, reader selection, diagnostics, or compile state
+- effectful model clients, retrieval adapters, translation clients, and indexing jobs belong in `src/services/*`
+- prompt assembly, context eligibility, citation-grounding rules, and workflow guardrails belong in `src/domains/*`
+- user-facing AI surfaces belong in `src/components/*` and should appear as workbench-native actions, panels, or automation entry points
+- coordination state belongs in `src/stores/*`, but long-lived policy should not drift into stores
+- the first-party core should remain useful without remote AI, and future AI integrations should stay plugin-capable
+
+### Document intelligence seam
+
+`src/services/documentIntelligence/*` already forms a useful bridge between core document behavior and future AI workflows:
+
+- outline normalization
+- diagnostic normalization
+- workspace graph helpers
+
+This seam should continue to provide structured local context that can support writing, reading, citation, and AI workflows without forcing product policy into low-level services.
 
 ### Workspace persistence
 
 `src/stores/workspace.js` resolves a hashed workspace identity, separate workspace-owned metadata directories, and shell preference persistence. This is one of the main boundaries between user project files and app-owned metadata.
 
-That boundary should carry workspace-local reader session state and other project-local metadata, while the shared reference library itself stays in the app-owned Altals directory.
+That boundary should carry workspace-local reader session state, AI working context, and other project metadata, while shared reference assets or reusable model caches remain in app-owned Altals storage where appropriate.
 
 ### Release and repo automation
 
@@ -165,12 +202,13 @@ Repository automation is split between:
 
 ## Architectural direction
 
+- keep the desktop app as the primary architecture driver
+- treat writing, literature management, reading, and AI workflows as peer loops inside one workbench
+- keep AI grounded in active project context instead of building a detached chat product
 - keep policy in `domains` where possible
 - keep `services` effectful and policy-light
 - keep stores thinner over time instead of turning them into another policy layer
-- keep the desktop app as the primary architecture driver
-- keep writing as the primary product loop even as references and readers are added
-- keep project-scoped reference and reader data local-first
+- keep references, reading state, and AI context local-first by default
 - make citations document-aware instead of format-agnostic shortcuts
 - keep AI and translation capabilities modular and plugin-friendly
 - do not let deleted legacy systems define new structure choices

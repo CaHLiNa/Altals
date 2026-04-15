@@ -17,7 +17,7 @@ A good domain module usually:
 
 ### `src/domains/document/*`
 
-Owns document workflow capabilities, preview/build actions, adapter resolution, diagnostics, and workspace preview state.
+Owns document workflow capabilities, preview or build actions, adapter resolution, diagnostics decisions, and workspace preview state.
 
 Representative files:
 
@@ -39,20 +39,18 @@ Representative files:
 - `fileContentRuntime.js`
 - `workspaceSnapshotFlatFilesRuntime.js`
 
-### Future `src/domains/references/*`
+### `src/domains/references/*`
 
-Owns project-scoped reference policy, citation insertion decisions, bibliography planning, reference filtering, and other reusable academic writing rules that should not live in components or stores.
+Owns reference interop, search token normalization, citation presentation decisions, and other reusable reference rules that should not live in components or stores.
 
-Representative future files:
+Representative files:
 
-- `referenceLibraryRuntime.js`
-- `citationInsertionRuntime.js`
-- `bibliographyPlanningRuntime.js`
-- `referenceFilterRuntime.js`
+- `referenceInterop.js`
+- `referencePresentation.js`
 
 ### `src/domains/editor/*`
 
-Owns editor open/persist/restore behavior, pane layout, tab behavior, runtime view registration, and cleanup.
+Owns editor open or persist behavior, pane layout, tab behavior, runtime view registration, and cleanup.
 
 Representative files:
 
@@ -61,6 +59,14 @@ Representative files:
 - `paneTreeLayout.js`
 - `paneTabs.js`
 - `editorRestoreRuntime.js`
+
+### `src/domains/workbench/*`
+
+Owns workbench-level interaction and motion rules that should not be buried in view components.
+
+Representative files:
+
+- `workbenchMotionRuntime.js`
 
 ### Future `src/domains/reader/*`
 
@@ -72,6 +78,21 @@ Representative future files:
 - `readerNavigationRuntime.js`
 - `readerInspectionRuntime.js`
 - `annotationMappingRuntime.js`
+
+### `src/domains/ai/*`
+
+Owns grounded AI workflow policy, context eligibility, prompt assembly rules, citation-backed drafting guardrails, and other reusable AI decisions that should not live in components or stores.
+
+Representative files:
+
+- `aiContextRuntime.js`
+- `aiArtifactRuntime.js`
+
+Future additions can include:
+
+- `groundedPromptRuntime.js`
+- `citationGuardrailsRuntime.js`
+- `aiWorkflowRuntime.js`
 
 ### `src/domains/workspace/*`
 
@@ -85,10 +106,10 @@ Representative files:
 ## Practical boundary rules
 
 - put cross-component product decisions in `domains`
-- keep direct filesystem/process/network effects in `services`
+- keep direct filesystem, process, and network effects in `services`
 - keep Pinia stores focused on state ownership and coordination
 - keep Vue components focused on rendering and emitting user intent
-- keep reference, citation, and reader policy out of components even when the UI feels "sidebar-shaped"
+- keep reference, citation, reader, and AI policy out of components even when the UI feels sidebar-shaped or panel-shaped
 
 ## Signs logic belongs in a domain
 
@@ -97,7 +118,7 @@ Representative files:
 - the code is defining product behavior rather than performing an effect
 - tests can describe the logic without mounting UI
 - the feature needs to adapt differently for Markdown and LaTeX without duplicating UI conditionals
-- the feature coordinates files, references, and readers under one writing task
+- the feature coordinates files, references, readers, and AI under one research task
 
 ## Validation anchors
 
@@ -108,7 +129,7 @@ A large share of the repository tests target domain runtime files directly. Repr
 - `tests/editorOpenRoutingRuntime.test.mjs`
 - `tests/fileTreeWatchRuntime.test.mjs`
 
-When references, citation, or reader domains are added, they should follow the same pattern: policy-heavy runtime tests first, UI tests second.
+Reader and AI domains should follow the same pattern: policy-heavy runtime tests first, UI tests second.
 
 ## See also
 

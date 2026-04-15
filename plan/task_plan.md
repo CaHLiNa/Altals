@@ -1,29 +1,30 @@
-# Task Plan: Reference Library Development Checklist
+# Task Plan: AI Workflow Implementation
 
 ## Goal
-Turn the repository's references / reader / citation direction into an executable development checklist grounded in the current codebase.
+Deliver a usable grounded AI workflow for Altals: provider settings, skill execution, session UI, and artifact application inside the desktop workbench.
 
 ## Phases
-- [x] Phase 1: Review product and architecture direction
-- [x] Phase 2: Inspect current reference-, citation-, and PDF-related capabilities
-- [x] Phase 3: Draft a structured development checklist
-- [x] Phase 4: Save the checklist to `/plan`
-- [x] Phase 5: Run doc verification
+- [x] Phase 1: Inspect current workbench, sidebar, editor-selection, and references architecture
+- [x] Phase 2: Write the implementation plan document
+- [x] Phase 3: Implement AI workflow foundation across domains, services, stores, and UI
+- [x] Phase 4: Run targeted verification
+- [x] Phase 5: Review outputs and summarize next execution slice
 
 ## Key Questions
-1. Which parts already exist in the current workbench and should not be replanned?
-2. What is the minimum shippable slice for a project-scoped references library?
-3. How should work split across `domains`, `services`, `stores`, `components`, and `src-tauri`?
-4. What tests should gate each phase?
+1. What is the smallest useful AI workflow slice that fits the current desktop shell?
+2. Which context sources already exist and can be reused immediately?
+3. Where should AI workflow policy live so it does not become a detached chat subsystem?
+4. Which UI surface can host AI workflow entry without disrupting current writing and references flows?
 
 ## Decisions Made
-- Use `docs/ACADEMIC_PLATFORM_DIRECTION.md` as the canonical roadmap source.
-- Keep the checklist aligned with existing architecture boundaries from `docs/ARCHITECTURE.md` and `docs/DOMAINS.md`.
-- Treat existing PDF preview and document workflow support as reusable infrastructure, not as greenfield work.
+- The first slice will use the right inspector area as the AI workflow entry instead of introducing a new full-screen chat surface.
+- The implementation ships a grounded AI panel, skill registry, context bundle builder, session UI, and prepared-brief generator.
+- The first slice will use active document, editor selection, and selected reference as the initial context sources.
+- AI execution uses an OpenAI-compatible settings flow with local key storage and real model calls.
+- Artifact application is included for document patching and note-draft generation.
 
 ## Errors Encountered
-- `scripts/codex_hook_emulation.py` is not present in this repository, so the session-start helper could not run.
-- The repository does not currently contain a dedicated references-library implementation plan under `docs/superpowers/plans/`.
+- `npm run build` reports existing Vite chunking warnings around mixed static and dynamic imports, but the build completes successfully.
 
 ## Status
-**Completed** - The checklist is saved in `/plan/reference-library-development-checklist.md` and the minimal docs verification passed.
+**Completed** - AI workflow is implemented with provider settings, grounded chat/skill execution, and artifact application. The next slice is deeper reader/PDF grounding and richer artifact types.
