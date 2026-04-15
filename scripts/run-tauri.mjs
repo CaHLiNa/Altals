@@ -1,11 +1,10 @@
 import { existsSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const args = process.argv.slice(2)
-const env = { ...process.env }
-
-function resolveMacDeveloperDir(currentEnv) {
-  if (process.platform !== 'darwin' || currentEnv.DEVELOPER_DIR) {
+export function resolveMacDeveloperDir(currentEnv, platform = process.platform) {
+  if (platform !== 'darwin' || currentEnv.DEVELOPER_DIR) {
     return null
   }
 
@@ -28,31 +27,59 @@ function resolveMacDeveloperDir(currentEnv) {
   return cltPath
 }
 
-const developerDir = resolveMacDeveloperDir(env)
-
-if (developerDir) {
-  env.DEVELOPER_DIR = developerDir
-  process.stderr.write(
-    `[altals] xcrun could not resolve developer tools; falling back to ${developerDir}\n`,
-  )
-}
-
-const tauriCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
-const child = spawn(tauriCommand, ['tauri', ...args], {
-  env,
-  stdio: 'inherit',
-})
-
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal)
-    return
+export function buildTauriSpawnSpec(platform, forwardedArgs = []) {
+  if (platform === 'win32') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npx', 'tauri', ...forwardedArgs],
+      options: {},
+    }
   }
 
-  process.exit(code ?? 0)
-})
+  return {
+    command: 'npx',
+    args: ['tauri', ...forwardedArgs],
+    options: {},
+  }
+}
 
-child.on('error', (error) => {
-  process.stderr.write(`${error.message}\n`)
-  process.exit(1)
-})
+export function runTauriCli() {
+  const args = process.argv.slice(2)
+  const env = { ...process.env }
+  const developerDir = resolveMacDeveloperDir(env)
+
+  if (developerDir) {
+    env.DEVELOPER_DIR = developerDir
+    process.stderr.write(
+      `[altals] xcrun could not resolve developer tools; falling back to ${developerDir}\n`,
+    )
+  }
+
+  const spec = buildTauriSpawnSpec(process.platform, args)
+  const child = spawn(spec.command, spec.args, {
+    env,
+    stdio: 'inherit',
+    ...spec.options,
+  })
+
+  child.on('exit', (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal)
+      return
+    }
+
+    process.exit(code ?? 0)
+  })
+
+  child.on('error', (error) => {
+    process.stderr.write(`${error.message}\n`)
+    process.exit(1)
+  })
+}
+
+const isMainModule =
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
+
+if (isMainModule) {
+  runTauriCli()
+}
