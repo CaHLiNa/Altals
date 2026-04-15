@@ -61,7 +61,11 @@ test('altals pdf viewer sidebar chrome stays flat and padded inside the preview 
 test('webkit canvas fallback blends inverted pdf canvases back onto the app surface instead of a pure black page', () => {
   assert.match(
     viewerCssSource,
-    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.page\{[\s\S]*background-color:transparent !important;[\s\S]*background-clip:border-box;[\s\S]*border:none !important;[\s\S]*isolation:isolate;/
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.page\{[\s\S]*background-color:transparent !important;[\s\S]*background-clip:border-box;[\s\S]*border:none !important;/
+  )
+  assert.match(
+    viewerCssSource,
+    /html\[data-altals-canvas-filter-fallback="true"\] body,[\s\S]*#viewerContainer,[\s\S]*\.pdfViewer\{[\s\S]*background:transparent !important;/
   )
   assert.match(
     viewerCssSource,
@@ -69,7 +73,7 @@ test('webkit canvas fallback blends inverted pdf canvases back onto the app surf
   )
   assert.match(
     viewerCssSource,
-    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper,[\s\S]*background:var\(--altals-pdf-page-bg\);/
+    /html\[data-altals-canvas-filter-fallback="true"\] \.pdfViewer \.canvasWrapper,[\s\S]*background:var\(--altals-pdf-page-bg\);[\s\S]*isolation:isolate;/
   )
 })
 

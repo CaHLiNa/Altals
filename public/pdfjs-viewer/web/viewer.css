@@ -9024,7 +9024,14 @@ html[data-altals-canvas-filter-fallback="true"] .pdfViewer .page{
   background-color:transparent !important;
   background-clip:border-box;
   border:none !important;
-  isolation:isolate;
+}
+
+html[data-altals-canvas-filter-fallback="true"] body,
+html[data-altals-canvas-filter-fallback="true"] #outerContainer,
+html[data-altals-canvas-filter-fallback="true"] #mainContainer,
+html[data-altals-canvas-filter-fallback="true"] #viewerContainer,
+html[data-altals-canvas-filter-fallback="true"] .pdfViewer{
+  background:transparent !important;
 }
 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
@@ -9036,6 +9043,7 @@ html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage 
 html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper,
 html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage{
   background:var(--altals-pdf-page-bg);
+  isolation:isolate;
 }
 
 #outerContainer,

@@ -30,9 +30,9 @@ export function resolveMacDeveloperDir(currentEnv, platform = process.platform) 
 export function buildTauriSpawnSpec(platform, forwardedArgs = []) {
   if (platform === 'win32') {
     return {
-      command: 'cmd.exe',
-      args: ['/d', '/s', '/c', 'npx', 'tauri', ...forwardedArgs],
-      options: {},
+      command: ['npx', 'tauri', ...forwardedArgs].join(' '),
+      args: [],
+      options: { shell: true },
     }
   }
 
