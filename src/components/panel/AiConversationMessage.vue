@@ -7,28 +7,19 @@
       <span>{{ formattedTime }}</span>
     </div>
 
-    <div
-      v-if="skillLabel || providerSummary"
-      class="ai-conversation-message__run"
-    >
+    <div v-if="showRunMetadata" class="ai-conversation-message__run">
       <span
-        v-if="skillLabel"
+        v-if="showSkillMetadata"
         class="ai-conversation-message__pill ai-conversation-message__pill--accent"
       >
         {{ skillLabel }}
       </span>
-      <span
-        v-if="providerSummary"
-        class="ai-conversation-message__pill"
-      >
+      <span v-if="providerSummary" class="ai-conversation-message__pill">
         {{ providerSummary }}
       </span>
     </div>
 
-    <div
-      v-if="contextChips.length > 0"
-      class="ai-conversation-message__context"
-    >
+    <div v-if="showContextMetadata" class="ai-conversation-message__context">
       <span
         v-for="chip in contextChips"
         :key="`${chip.kind}:${chip.value}`"
@@ -41,15 +32,19 @@
 
     <div
       class="ai-conversation-message__body"
-      :class="message.role === 'assistant'
-        ? 'ai-conversation-message__body--assistant'
-        : 'ai-conversation-message__body--user'"
+      :class="
+        message.role === 'assistant'
+          ? 'ai-conversation-message__body--assistant'
+          : 'ai-conversation-message__body--user'
+      "
     >
       <div
         class="ai-conversation-message__surface"
-        :class="message.role === 'assistant'
-          ? 'ai-conversation-message__surface--assistant'
-          : 'ai-conversation-message__surface--user'"
+        :class="
+          message.role === 'assistant'
+            ? 'ai-conversation-message__surface--assistant'
+            : 'ai-conversation-message__surface--user'
+        "
       >
         <template v-if="message.role === 'user'">
           <div class="ai-conversation-message__user-text">
@@ -60,7 +55,10 @@
         <template v-else>
           <AiTaskProgressCard :tasks="taskProgressTasks" />
 
-          <template v-for="(part, index) in displayParts" :key="`${message.id}:${index}:${part.type}`">
+          <template
+            v-for="(part, index) in displayParts"
+            :key="`${message.id}:${index}:${part.type}`"
+          >
             <template v-if="part.type === 'status'"></template>
 
             <details
@@ -68,35 +66,28 @@
               class="ai-conversation-message__support"
               :open="part.isStreaming === true"
             >
-              <summary>{{ part.label || t('Grounding note') }}</summary>
+              <summary>{{ part.label || t('Support note') }}</summary>
               <div class="ai-conversation-message__support-body">{{ part.text }}</div>
             </details>
 
-            <AiToolLine
-              v-else-if="part.type === 'tool'"
-              :part="part"
-            />
+            <AiToolLine v-else-if="part.type === 'tool'" :part="part" />
 
             <div
               v-else-if="part.type === 'text'"
               class="ai-conversation-message__response"
-              :class="{ 'ai-conversation-message__response--placeholder': part.isPlaceholder === true }"
+              :class="{
+                'ai-conversation-message__response--placeholder': part.isPlaceholder === true,
+              }"
             >
               {{ resolveDisplayedText(index, part.text) }}
             </div>
 
-            <div
-              v-else-if="part.type === 'note'"
-              class="ai-conversation-message__note"
-            >
+            <div v-else-if="part.type === 'note'" class="ai-conversation-message__note">
               <div class="ai-conversation-message__note-label">{{ part.label }}</div>
               <div class="ai-conversation-message__note-text">{{ part.text }}</div>
             </div>
 
-            <div
-              v-else-if="part.type === 'error'"
-              class="ai-conversation-message__error"
-            >
+            <div v-else-if="part.type === 'error'" class="ai-conversation-message__error">
               {{ part.text }}
             </div>
 
@@ -117,7 +108,11 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n, formatDate } from '../../i18n'
-import { getAiArtifactCapability, canApplyAiArtifact } from '../../services/ai/artifactCapabilities.js'
+import { isDefaultAgentActionId } from '../../services/ai/builtInActions.js'
+import {
+  getAiArtifactCapability,
+  canApplyAiArtifact,
+} from '../../services/ai/artifactCapabilities.js'
 import { extractAiMessageText } from '../../domains/ai/aiConversationRuntime.js'
 import AiArtifactInlineCard from './AiArtifactInlineCard.vue'
 import AiTaskProgressCard from './AiTaskProgressCard.vue'
@@ -148,11 +143,28 @@ const displayParts = computed(() => {
 })
 
 const messageText = computed(() => extractAiMessageText(props.message))
+const skillId = computed(() => String(props.message?.metadata?.skillId || '').trim())
 const skillLabel = computed(() => String(props.message?.metadata?.skillLabel || '').trim())
-const providerSummary = computed(() => String(props.message?.metadata?.providerSummary || '').trim())
+const providerSummary = computed(() =>
+  String(props.message?.metadata?.providerSummary || '').trim()
+)
 const contextChips = computed(() =>
-  (Array.isArray(props.message?.metadata?.contextChips) ? props.message.metadata.contextChips : [])
-    .filter((chip) => chip && chip.value)
+  (Array.isArray(props.message?.metadata?.contextChips)
+    ? props.message.metadata.contextChips
+    : []
+  ).filter((chip) => chip && chip.value)
+)
+const showSkillMetadata = computed(
+  () => !!skillLabel.value && !isDefaultAgentActionId(skillId.value)
+)
+const showRunMetadata = computed(
+  () => props.message?.role === 'assistant' && (showSkillMetadata.value || !!providerSummary.value)
+)
+const showContextMetadata = computed(
+  () =>
+    props.message?.role === 'assistant' &&
+    contextChips.value.length > 0 &&
+    !isDefaultAgentActionId(skillId.value)
 )
 const taskProgressTasks = computed(() => {
   return displayParts.value
@@ -220,9 +232,10 @@ function animateText(index, fullText = '') {
   const existing = String(displayedTextMap.value[index] || '')
   const tokens = fullText.match(/\S+\s*|\s+/g) || [fullText]
   const step = Math.max(1, Math.ceil(tokens.length / 24))
-  let cursor = existing && fullText.startsWith(existing)
-    ? Math.max(step, Math.ceil(existing.length / Math.max(fullText.length, 1) * tokens.length))
-    : 0
+  let cursor =
+    existing && fullText.startsWith(existing)
+      ? Math.max(step, Math.ceil((existing.length / Math.max(fullText.length, 1)) * tokens.length))
+      : 0
 
   const tick = () => {
     cursor = Math.min(tokens.length, cursor + step)
@@ -331,12 +344,11 @@ onBeforeUnmount(() => {
   padding: 12px 13px;
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--border-color) 44%, transparent);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-base) 82%, transparent),
-      color-mix(in srgb, var(--surface-base) 70%, transparent)
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-base) 82%, transparent),
+    color-mix(in srgb, var(--surface-base) 70%, transparent)
+  );
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.05),
     inset 0 1px 0 color-mix(in srgb, var(--surface-base) 40%, transparent);

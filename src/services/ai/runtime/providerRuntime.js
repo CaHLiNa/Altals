@@ -11,9 +11,10 @@ const MAX_TOOL_ROUNDS = 6
 function mergeToolMetadata(toolCalls = [], toolResults = []) {
   return (Array.isArray(toolCalls) ? toolCalls : []).map((toolCall) => ({
     ...toolCall,
-    result: (Array.isArray(toolResults) ? toolResults : []).find(
-      (result) => result.toolCallId === toolCall.id
-    ) || null,
+    result:
+      (Array.isArray(toolResults) ? toolResults : []).find(
+        (result) => result.toolCallId === toolCall.id
+      ) || null,
   }))
 }
 
@@ -30,10 +31,14 @@ export async function runAiProviderRuntime({
   toolRuntime = {},
   onEvent,
   signal,
+  anthropicSdkRunner = runAnthropicAgentSdkRuntime,
+  sseRunner = streamSSE,
+  resolveRuntimeTools = resolveAiRuntimeTools,
+  executeToolCalls = executeAiToolCalls,
 } = {}) {
   if (providerId === 'anthropic' && String(config?.sdk?.runtimeMode || 'sdk') === 'sdk') {
     try {
-      return await runAnthropicAgentSdkRuntime({
+      return await anthropicSdkRunner({
         config,
         apiKey,
         userMessage,
@@ -50,7 +55,7 @@ export async function runAiProviderRuntime({
   }
 
   const adapter = getAiProviderAdapter(providerId)
-  const { tools, executors } = resolveAiRuntimeTools({
+  const { tools, executors } = resolveRuntimeTools({
     enabledToolIds,
     contextBundle,
     supportFiles,
@@ -77,7 +82,7 @@ export async function runAiProviderRuntime({
       continuationMessages,
     })
 
-    const streamResult = await streamSSE({
+    const streamResult = await sseRunner({
       request,
       adapter,
       onEvent,
@@ -92,7 +97,7 @@ export async function runAiProviderRuntime({
       break
     }
 
-    const toolResults = await executeAiToolCalls(streamResult.toolCalls, executors)
+    const toolResults = await executeToolCalls(streamResult.toolCalls, executors)
     toolRounds.push({
       toolCalls: mergeToolMetadata(streamResult.toolCalls, toolResults),
       toolResults,

@@ -97,16 +97,11 @@ export async function loadSkillSupportingFiles(skill = null) {
 export function buildSkillSupportPromptBlock(files = []) {
   const normalized = Array.isArray(files) ? files.filter(Boolean) : []
   if (normalized.length === 0) {
-    return 'Skill support files loaded: none.'
+    return 'Instruction-pack support files loaded: none.'
   }
 
   return [
-    'Skill support files loaded from the skill directory:',
-    ...normalized.flatMap((file) => [
-      `- ${file.relativePath}`,
-      '```text',
-      file.content,
-      '```',
-    ]),
+    'Instruction-pack support files loaded from the current skill directory:',
+    ...normalized.flatMap((file) => [`- ${file.relativePath}`, '```text', file.content, '```']),
   ].join('\n')
 }

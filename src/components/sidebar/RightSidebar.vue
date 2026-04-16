@@ -1,12 +1,9 @@
 <template>
-  <div
-    class="right-shell-sidebar"
-    data-surface-context-guard="true"
-  >
+  <div class="right-shell-sidebar" data-surface-context-guard="true">
     <KeepAlive :max="2">
-      <AiWorkflowPanel
+      <AiAgentPanel
         v-if="workspace.rightSidebarOpen && workspace.rightSidebarPanel === 'ai'"
-        key="workspace-ai-workflow"
+        key="workspace-ai-agent"
         class="right-shell-pane"
       />
       <ReferenceDetailPanel
@@ -31,7 +28,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { isNewTab } from '../../utils/fileTypes'
 
-const AiWorkflowPanel = defineAsyncComponent(() => import('../panel/AiWorkflowPanel.vue'))
+const AiAgentPanel = defineAsyncComponent(() => import('../panel/AiAgentPanel.vue'))
 const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
 
@@ -67,9 +64,13 @@ watch(
   height: 100%;
   min-height: 0;
   padding: 30px 10px 10px;
-  background: var(--sidebar-shell-surface, color-mix(in srgb, var(--panel-surface) 56%, transparent));
+  background: var(
+    --sidebar-shell-surface,
+    color-mix(in srgb, var(--panel-surface) 56%, transparent)
+  );
   box-shadow: none;
-  backdrop-filter: blur(var(--sidebar-shell-blur, 18px)) saturate(var(--sidebar-shell-saturate, 1.08));
+  backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
+    saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .right-shell-pane {

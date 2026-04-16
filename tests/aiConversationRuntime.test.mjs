@@ -44,7 +44,7 @@ test('buildAiUserConversationMessage includes context metadata and text part', (
 test('buildAiPendingAssistantMessage creates running status part', () => {
   const message = buildAiPendingAssistantMessage({
     id: 'm2',
-    skill: { kind: 'built-in-action', titleKey: 'Grounded chat' },
+    skill: { kind: 'built-in-action', titleKey: 'Workspace agent' },
     providerState: { currentProviderLabel: 'OpenAI', model: 'gpt-5.4' },
   })
 
@@ -56,7 +56,7 @@ test('buildAiPendingAssistantMessage creates running status part', () => {
 test('applyAiToolEventToMessage merges tool events by tool id', () => {
   const message = buildAiPendingAssistantMessage({
     id: 'm-tools',
-    skill: { kind: 'built-in-action', titleKey: 'Grounded chat' },
+    skill: { kind: 'built-in-action', titleKey: 'Workspace agent' },
   })
 
   const runningMessage = applyAiToolEventToMessage(message, {
@@ -73,7 +73,8 @@ test('applyAiToolEventToMessage merges tool events by tool id', () => {
   assert.equal(runningMessage.parts.filter((part) => part.type === 'tool').length, 1)
   assert.equal(doneMessage.parts.filter((part) => part.type === 'tool').length, 1)
   assert.equal(
-    doneMessage.parts.find((part) => part.type === 'tool' && part.toolId === 'model-response')?.status,
+    doneMessage.parts.find((part) => part.type === 'tool' && part.toolId === 'model-response')
+      ?.status,
     'done'
   )
 })
@@ -81,7 +82,7 @@ test('applyAiToolEventToMessage merges tool events by tool id', () => {
 test('applyAiConversationEventToMessage streams reasoning and text into the pending message', () => {
   const message = buildAiPendingAssistantMessage({
     id: 'm-stream',
-    skill: { kind: 'built-in-action', titleKey: 'Grounded chat' },
+    skill: { kind: 'built-in-action', titleKey: 'Workspace agent' },
   })
 
   const withReasoning = applyAiConversationEventToMessage(message, {
@@ -90,12 +91,18 @@ test('applyAiConversationEventToMessage streams reasoning and text into the pend
   })
   const withText = applyAiConversationEventToMessage(withReasoning, {
     eventType: 'assistant-content',
-    text: 'Here is the grounded answer.',
+    text: 'Here is the direct answer.',
   })
 
-  assert.equal(withReasoning.parts.some((part) => part.type === 'support'), true)
-  assert.equal(withText.parts.some((part) => part.type === 'text'), true)
-  assert.equal(extractAiMessageText(withText).includes('Here is the grounded answer.'), true)
+  assert.equal(
+    withReasoning.parts.some((part) => part.type === 'support'),
+    true
+  )
+  assert.equal(
+    withText.parts.some((part) => part.type === 'text'),
+    true
+  )
+  assert.equal(extractAiMessageText(withText).includes('Here is the direct answer.'), true)
 })
 
 test('buildAiAssistantConversationMessage creates status support text and artifact parts', () => {
@@ -104,6 +111,7 @@ test('buildAiAssistantConversationMessage creates status support text and artifa
     skill: { kind: 'filesystem-skill', name: 'revise-with-citations' },
     result: {
       content: 'Fallback content',
+      transport: 'anthropic-sdk',
       events: [
         {
           toolId: 'model-response',
@@ -132,17 +140,21 @@ test('buildAiAssistantConversationMessage creates status support text and artifa
   assert.equal(message.parts[2].type, 'text')
   assert.equal(message.parts[3].type, 'note')
   assert.equal(message.parts[4].type, 'artifact')
+  assert.match(message.metadata.providerSummary, /SDK/)
 })
 
 test('buildAiFailedAssistantMessage creates an error part', () => {
   const message = buildAiFailedAssistantMessage({
     id: 'm4',
-    skill: { kind: 'built-in-action', titleKey: 'Grounded chat' },
+    skill: { kind: 'built-in-action', titleKey: 'Workspace agent' },
     error: 'Provider timeout.',
+    transport: 'http',
+    providerState: { currentProviderLabel: 'OpenAI', model: 'gpt-5.4' },
   })
 
   assert.equal(message.parts[0].type, 'error')
   assert.equal(message.content, 'Provider timeout.')
+  assert.match(message.metadata.providerSummary, /HTTP/)
 })
 
 test('extractAiMessageText joins text-like parts and falls back to content', () => {

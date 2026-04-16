@@ -1,18 +1,25 @@
 import { isAiContextAvailable } from '../../domains/ai/aiContextRuntime.js'
 import { t } from '../../i18n/index.js'
+import {
+  DEFAULT_AGENT_ACTION_ID,
+  isDefaultAgentActionId,
+  normalizeBuiltInAiActionId,
+} from './builtInActions.js'
 import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
 
-export const AI_BUILT_IN_ACTION_DEFINITIONS = [
+export const AI_AGENT_ACTION_DEFINITIONS = [
   {
-    id: 'grounded-chat',
+    id: DEFAULT_AGENT_ACTION_ID,
     kind: 'built-in-action',
-    titleKey: 'Grounded chat',
-    descriptionKey: 'Ask the AI about the active workbench context without leaving the project.',
+    titleKey: 'Workspace agent',
+    descriptionKey:
+      'Ask the agent to inspect the current workspace, use tools, and continue the task in context.',
     requiredContext: ['workspace'],
   },
 ]
 
-export const AI_SKILL_DEFINITIONS = AI_BUILT_IN_ACTION_DEFINITIONS
+export const AI_BUILT_IN_ACTION_DEFINITIONS = AI_AGENT_ACTION_DEFINITIONS
+export const AI_SKILL_DEFINITIONS = AI_AGENT_ACTION_DEFINITIONS
 
 const REQUIRED_CONTEXT_LABELS = {
   document: 'active document',
@@ -36,16 +43,12 @@ function getWorkspaceBlock(contextBundle = {}) {
 
 function getSelectionBlock(contextBundle = {}) {
   if (!contextBundle.selection?.available) return `- ${t('Selected text')}: ${t('Unavailable')}`
-  return [
-    `- ${t('Selected text')}:`,
-    '```text',
-    contextBundle.selection.text,
-    '```',
-  ].join('\n')
+  return [`- ${t('Selected text')}:`, '```text', contextBundle.selection.text, '```'].join('\n')
 }
 
 function getReferenceBlock(contextBundle = {}) {
-  if (!contextBundle.reference?.available) return `- ${t('Selected reference')}: ${t('Unavailable')}`
+  if (!contextBundle.reference?.available)
+    return `- ${t('Selected reference')}: ${t('Unavailable')}`
 
   const parts = [
     `- ${t('Selected reference title')}: ${contextBundle.reference.title || t('Untitled reference')}`,
@@ -70,27 +73,31 @@ function buildMissingContextBlock(entry = {}, contextBundle = {}) {
   return [
     `${t('Action')}: ${getDisplayTitle(entry)}`,
     '',
-    t('This action is not fully grounded yet.'),
+    t('This action is missing required workspace context.'),
     t('Missing context:'),
     ...missing.map((kind) => `- ${t(REQUIRED_CONTEXT_LABELS[kind] || kind)}`),
   ].join('\n')
 }
 
 const BUILT_IN_BRIEF_BUILDERS = {
-  'grounded-chat': (contextBundle) =>
+  [DEFAULT_AGENT_ACTION_ID]: (contextBundle) =>
     [
-      `${t('Task')}: ${t('Answer the user in a grounded way using the currently active project context.')}`,
+      `${t('Task')}: ${t('Use the current workspace as your working context and continue the user task directly.')}`,
       '',
-      `${t('Context')}:`,
+      `${t('Workspace context')}:`,
       getWorkspaceBlock(contextBundle),
       getDocumentBlock(contextBundle),
-      contextBundle.selection.available ? getSelectionBlock(contextBundle) : `- ${t('Selected text')}: ${t('Unavailable')}`,
-      contextBundle.reference.available ? getReferenceBlock(contextBundle) : `- ${t('Selected reference')}: ${t('Unavailable')}`,
+      contextBundle.selection.available
+        ? getSelectionBlock(contextBundle)
+        : `- ${t('Selected text')}: ${t('Unavailable')}`,
+      contextBundle.reference.available
+        ? getReferenceBlock(contextBundle)
+        : `- ${t('Selected reference')}: ${t('Unavailable')}`,
       '',
-      `${t('Requirements')}:`,
-      `- ${t('Stay close to the supplied project context.')}`,
-      `- ${t('Make uncertainty explicit instead of inventing support.')}`,
-      `- ${t('Keep the answer useful for a research workflow.')}`,
+      `${t('Operating rules')}:`,
+      `- ${t('Inspect the available workspace context before making claims about project state.')}`,
+      `- ${t('Prefer direct action and tool use over repeating the workflow back to the user.')}`,
+      `- ${t('Make uncertainty explicit instead of inventing file state, evidence, or citations.')}`,
     ].join('\n'),
 }
 
@@ -112,7 +119,7 @@ function buildFilesystemSkillBrief(skill = {}, contextBundle = {}) {
       ? `${t('Supporting files in skill directory')}: ${skill.supportingFiles.join(', ')}`
       : `${t('Supporting files in skill directory')}: ${t('None discovered')}`,
     '',
-    `${t('Grounded project context')}:`,
+    `${t('Workspace context')}:`,
     getWorkspaceBlock(contextBundle),
     getDocumentBlock(contextBundle),
     getSelectionBlock(contextBundle),
@@ -124,32 +131,31 @@ function buildFilesystemSkillBrief(skill = {}, contextBundle = {}) {
     '```',
     '',
     `${t('Requirements')}:`,
-    `- ${t('Follow the skill instructions as the primary workflow.')}`,
-    `- ${t('Stay grounded in the supplied Altals project context.')}`,
+    `- ${t('Treat the skill instructions as the active instruction pack.')}`,
+    `- ${t('Stay close to the supplied Altals workspace context.')}`,
     `- ${t('If the skill expects tools or files not yet available, say so explicitly instead of inventing them.')}`,
   ].join('\n')
 }
 
 export function getBuiltInAiActionById(actionId = '') {
-  return AI_BUILT_IN_ACTION_DEFINITIONS.find((action) => action.id === actionId) || null
+  const normalizedActionId = normalizeBuiltInAiActionId(actionId)
+  return AI_AGENT_ACTION_DEFINITIONS.find((action) => action.id === normalizedActionId) || null
 }
 
 export function getAiSkillById(skillId = '', altalsSkills = []) {
   return (
-    getBuiltInAiActionById(skillId)
-    || (Array.isArray(altalsSkills)
-      ? altalsSkills.find((skill) =>
-        skill.id === skillId && isAltalsManagedFilesystemSkill(skill)
-      ) || null
+    getBuiltInAiActionById(skillId) ||
+    (Array.isArray(altalsSkills)
+      ? altalsSkills.find(
+          (skill) => skill.id === skillId && isAltalsManagedFilesystemSkill(skill)
+        ) || null
       : null)
   )
 }
 
-export function buildPreparedAiBrief(skillOrId = '', contextBundle = {}, options = {}) {
+export function buildAgentContextSnapshot(skillOrId = '', contextBundle = {}, options = {}) {
   const altalsSkills = Array.isArray(options.altalsSkills) ? options.altalsSkills : []
-  const entry = typeof skillOrId === 'string'
-    ? getAiSkillById(skillOrId, altalsSkills)
-    : skillOrId
+  const entry = typeof skillOrId === 'string' ? getAiSkillById(skillOrId, altalsSkills) : skillOrId
 
   if (!entry) return ''
 
@@ -158,9 +164,19 @@ export function buildPreparedAiBrief(skillOrId = '', contextBundle = {}, options
     return buildFilesystemSkillBrief(entry, contextBundle)
   }
 
+  const normalizedEntry = isDefaultAgentActionId(entry.id)
+    ? {
+        ...entry,
+        id: DEFAULT_AGENT_ACTION_ID,
+      }
+    : entry
   const missingContextBlock = buildMissingContextBlock(entry, contextBundle)
   if (missingContextBlock) return missingContextBlock
 
-  const builder = BUILT_IN_BRIEF_BUILDERS[entry.id]
+  const builder = BUILT_IN_BRIEF_BUILDERS[normalizedEntry.id]
   return typeof builder === 'function' ? builder(contextBundle) : ''
+}
+
+export function buildPreparedAiBrief(skillOrId = '', contextBundle = {}, options = {}) {
+  return buildAgentContextSnapshot(skillOrId, contextBundle, options)
 }

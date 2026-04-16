@@ -90,7 +90,7 @@ Representative surfaces:
 - launcher: `src/components/Launcher.vue`
 - workbench chrome: `src/components/layout/WorkbenchRail.vue`
 - editor surface: `src/components/editor/EditorPane.vue`
-- AI workflow panel: `src/components/panel/AiWorkflowPanel.vue`
+- AI agent panel: `src/components/panel/AiAgentPanel.vue`
 - reference workbench: `src/components/references/ReferenceLibraryWorkbench.vue`
 - references sidebar: `src/components/sidebar/ReferencesSidebarPanel.vue`
 - reference detail panel: `src/components/panel/ReferenceDetailPanel.vue`

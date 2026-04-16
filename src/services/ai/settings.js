@@ -203,6 +203,27 @@ export function getAiProviderDefinition(providerId = 'openai') {
     || AI_PROVIDER_DEFINITION_MAP.get('custom')
 }
 
+export function providerRequiresAiApiKey(providerId = 'openai', providerConfig = null) {
+  const normalizedProviderId = normalizeAiProviderId(providerId)
+  if (normalizedProviderId !== 'anthropic') return true
+
+  const sdkConfig = normalizeAnthropicSdkConfig(providerConfig?.sdk || providerConfig?.anthropicSdk)
+  return sdkConfig.runtimeMode !== 'sdk'
+}
+
+export function isAiProviderReady(providerId = 'openai', providerConfig = null, apiKey = '') {
+  const normalizedProviderId = normalizeAiProviderId(providerId)
+  const normalizedConfig = normalizeProviderConfig(normalizedProviderId, providerConfig)
+
+  if (!String(normalizedConfig.baseUrl || '').trim()) return false
+  if (!String(normalizedConfig.model || '').trim()) return false
+  if (providerRequiresAiApiKey(normalizedProviderId, normalizedConfig)) {
+    return !!String(apiKey || '').trim()
+  }
+
+  return true
+}
+
 export function resolveAiKeychainKey(providerId = 'openai') {
   const normalizedProviderId = normalizeAiProviderId(providerId)
   return AI_KEYCHAIN_KEYS[normalizedProviderId] || AI_KEYCHAIN_KEYS.custom

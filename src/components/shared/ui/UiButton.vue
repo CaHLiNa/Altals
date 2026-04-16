@@ -7,6 +7,7 @@
     :title="title"
     :aria-label="ariaLabel || title"
     :disabled="isDisabled"
+    @click="(event) => emit('click', event)"
   >
     <span v-if="loading" class="ui-button-spinner" aria-hidden="true"></span>
     <template v-else-if="contentMode === 'raw'">
@@ -43,6 +44,8 @@ const props = defineProps({
   active: { type: Boolean, default: false },
   contentMode: { type: String, default: 'label' },
 })
+
+const emit = defineEmits(['click'])
 
 const buttonRef = ref(null)
 const isDisabled = computed(() => props.disabled || props.loading)

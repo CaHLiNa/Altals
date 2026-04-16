@@ -41,13 +41,10 @@ test('normalizeAiSessionPermissionMode maps Proma and Altals values into stable 
 
 test('deriveAiSessionTitle trims invocation prefixes and long content', () => {
   assert.equal(
-    deriveAiSessionTitle('/grounded-chat Tighten the related work framing.', 'Run 1'),
+    deriveAiSessionTitle('/workspace-agent Tighten the related work framing.', 'Run 1'),
     'Tighten the related work framing.'
   )
-  assert.match(
-    deriveAiSessionTitle('A'.repeat(80), 'Run 1'),
-    /^A{48}…$/
-  )
+  assert.match(deriveAiSessionTitle('A'.repeat(80), 'Run 1'), /^A{48}…$/)
 })
 
 test('ensureAiSessionsState creates a fallback session when state is empty', () => {
@@ -98,5 +95,8 @@ test('removeAiSessionRecord deletes the requested session id', () => {
 
   const next = removeAiSessionRecord([first, second], 's1')
 
-  assert.deepEqual(next.map((session) => session.id), ['s2'])
+  assert.deepEqual(
+    next.map((session) => session.id),
+    ['s2']
+  )
 })

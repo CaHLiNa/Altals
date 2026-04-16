@@ -28,7 +28,7 @@
         :split-pane-open="splitPaneOpen"
         :inspector-available="supportsRightSidebar"
         @open-reference-library="toggleReferenceLibrary"
-        @open-ai-workflow="openAiWorkflow"
+        @open-ai-agent="openAiAgent"
         @open-outline-inspector="openOutlineInspector"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
         @toggle-split-pane="toggleSplitPane"
@@ -278,7 +278,7 @@ function toggleReferenceLibrary() {
   }
 }
 
-function openAiWorkflow() {
+function openAiAgent() {
   workspace.setRightSidebarPanel('ai')
   workspace.openRightSidebar()
 }

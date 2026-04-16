@@ -7,10 +7,7 @@
         class="ai-session-rail__item"
         :class="{ 'is-active': session.id === currentSessionId }"
       >
-        <div
-          v-if="editingSessionId === session.id"
-          class="ai-session-rail__editor"
-        >
+        <div v-if="editingSessionId === session.id" class="ai-session-rail__editor">
           <UiInput
             ref="editingInputRef"
             :model-value="editingTitle"
@@ -30,14 +27,8 @@
           @click="$emit('switch', session.id)"
           @dblclick="beginRename(session)"
         >
-          <span class="ai-session-rail__mode">
-            {{ session.mode === 'chat' ? t('Chat') : t('Agent') }}
-          </span>
           <span class="ai-session-rail__title">{{ session.title }}</span>
-          <span
-            v-if="session.isRunning"
-            class="ai-session-rail__badge"
-          >
+          <span v-if="session.isRunning" class="ai-session-rail__badge">
             {{ t('Running') }}
           </span>
           <span
@@ -158,7 +149,8 @@ watch(
 <style scoped>
 .ai-session-rail {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 10px 14px 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 28%, transparent);
@@ -166,19 +158,22 @@ watch(
 
 .ai-session-rail__scroll {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   padding-bottom: 2px;
 }
 
 .ai-session-rail__item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 148px;
 }
 
 .ai-session-rail__main,
@@ -187,6 +182,7 @@ watch(
   align-items: center;
   gap: 6px;
   min-width: 0;
+  width: 100%;
   max-width: 240px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -212,21 +208,13 @@ watch(
 }
 
 .ai-session-rail__title {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
   line-height: 1.4;
-}
-
-.ai-session-rail__mode {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--text-secondary);
-  font-size: 10px;
 }
 
 .ai-session-rail__badge {
@@ -246,7 +234,9 @@ watch(
 .ai-session-rail__actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  padding-left: 10px;
 }
 
 .ai-session-rail__input {

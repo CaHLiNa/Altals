@@ -30,8 +30,8 @@ const INSPECTOR_ENTRY_DEFINITIONS = {
     },
     {
       key: 'ai',
-      labelKey: 'AI workflow',
-      titleKey: 'AI workflow',
+      labelKey: 'AI agent',
+      titleKey: 'AI agent',
       icon: IconSparkles,
     },
   ],

@@ -5,8 +5,10 @@ import {
   AI_PROVIDER_DEFINITIONS,
   createDefaultAiConfig,
   getAiProviderConfig,
+  isAiProviderReady,
   normalizeAiConfig,
   normalizeAiProviderId,
+  providerRequiresAiApiKey,
   resolveAiKeychainKey,
 } from '../src/services/ai/settings.js'
 
@@ -91,4 +93,47 @@ test('resolveAiKeychainKey maps provider ids to isolated credential slots', () =
   assert.equal(resolveAiKeychainKey('openai'), 'ai-api-key-openai')
   assert.equal(resolveAiKeychainKey('minimax'), 'ai-api-key-minimax')
   assert.equal(resolveAiKeychainKey('unknown-provider'), 'ai-api-key-custom')
+})
+
+test('Anthropic SDK runtime does not require an API key to be ready', () => {
+  const anthropicConfig = getAiProviderConfig(
+    {
+      currentProviderId: 'anthropic',
+      providers: {
+        anthropic: {
+          baseUrl: 'https://api.anthropic.com/v1',
+          model: 'claude-sonnet-4-5',
+          sdk: {
+            runtimeMode: 'sdk',
+          },
+        },
+      },
+    },
+    'anthropic'
+  )
+
+  assert.equal(providerRequiresAiApiKey('anthropic', anthropicConfig), false)
+  assert.equal(isAiProviderReady('anthropic', anthropicConfig, ''), true)
+})
+
+test('Anthropic HTTP runtime still requires an API key to be ready', () => {
+  const anthropicConfig = getAiProviderConfig(
+    {
+      currentProviderId: 'anthropic',
+      providers: {
+        anthropic: {
+          baseUrl: 'https://api.anthropic.com/v1',
+          model: 'claude-sonnet-4-5',
+          sdk: {
+            runtimeMode: 'http',
+          },
+        },
+      },
+    },
+    'anthropic'
+  )
+
+  assert.equal(providerRequiresAiApiKey('anthropic', anthropicConfig), true)
+  assert.equal(isAiProviderReady('anthropic', anthropicConfig, ''), false)
+  assert.equal(isAiProviderReady('anthropic', anthropicConfig, 'sk-test'), true)
 })

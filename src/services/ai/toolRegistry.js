@@ -1,10 +1,31 @@
 export const AI_TOOL_DEFINITIONS = Object.freeze([
   {
+    id: 'list-workspace-directory',
+    label: 'list_workspace_directory',
+    labelKey: 'List workspace directory',
+    description: 'List immediate files and folders inside a workspace directory.',
+    descriptionKey: 'List immediate files and folders inside a workspace directory.',
+  },
+  {
+    id: 'search-workspace-files',
+    label: 'search_workspace_files',
+    labelKey: 'Search workspace files',
+    description: 'Search workspace files by path or filename.',
+    descriptionKey: 'Search workspace files by path or filename.',
+  },
+  {
+    id: 'read-workspace-file',
+    label: 'read_workspace_file',
+    labelKey: 'Read workspace file',
+    description: 'Read any text file from the current workspace.',
+    descriptionKey: 'Read any text file from the current workspace.',
+  },
+  {
     id: 'read-active-document',
     label: 'read_active_document',
     labelKey: 'Read active document',
-    description: 'Read the current open draft as grounded project context.',
-    descriptionKey: 'Read the current open draft as grounded project context.',
+    description: 'Read the current open draft as workspace context.',
+    descriptionKey: 'Read the current open draft as workspace context.',
   },
   {
     id: 'read-editor-selection',
@@ -44,6 +65,13 @@ export const AI_TOOL_DEFINITIONS = Object.freeze([
 ])
 
 export const AI_TOOL_IDS = Object.freeze(AI_TOOL_DEFINITIONS.map((tool) => tool.id))
+export const CORE_WORKSPACE_AGENT_TOOL_IDS = Object.freeze([
+  'list-workspace-directory',
+  'search-workspace-files',
+  'read-workspace-file',
+  'read-active-document',
+  'read-editor-selection',
+])
 
 export function normalizeEnabledAiToolIds(value = undefined) {
   if (!Array.isArray(value)) {
@@ -61,6 +89,15 @@ export function normalizeEnabledAiToolIds(value = undefined) {
 export function resolveEnabledAiTools(enabledToolIds = [], allTools = AI_TOOL_DEFINITIONS) {
   const enabled = new Set(normalizeEnabledAiToolIds(enabledToolIds))
   return (Array.isArray(allTools) ? allTools : []).filter((tool) => enabled.has(tool.id))
+}
+
+export function resolveRuntimeAiToolIds(enabledToolIds = [], options = {}) {
+  const normalized = normalizeEnabledAiToolIds(enabledToolIds)
+  if (String(options?.runtimeIntent || '').trim() !== 'agent') {
+    return normalized
+  }
+
+  return [...new Set([...normalized, ...CORE_WORKSPACE_AGENT_TOOL_IDS])]
 }
 
 export function buildAiToolPromptBlock(tools = AI_TOOL_DEFINITIONS) {

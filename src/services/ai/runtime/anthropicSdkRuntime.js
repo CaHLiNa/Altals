@@ -7,12 +7,14 @@ import {
 
 export function shouldFallbackFromAnthropicSdk(error = null) {
   const message = error instanceof Error ? error.message : String(error || '')
-  return /Anthropic SDK bridge script is unavailable/i.test(message)
-    || /Cannot find package '@anthropic-ai\/claude-agent-sdk'/i.test(message)
-    || /Cannot find module '@anthropic-ai\/claude-agent-sdk'/i.test(message)
-    || /Anthropic Agent SDK is not installed/i.test(message)
-    || /Failed to spawn Anthropic Agent SDK bridge/i.test(message)
-    || /No such file or directory/i.test(message)
+  return (
+    /Anthropic SDK bridge script is unavailable/i.test(message) ||
+    /Cannot find package '@anthropic-ai\/claude-agent-sdk'/i.test(message) ||
+    /Cannot find module '@anthropic-ai\/claude-agent-sdk'/i.test(message) ||
+    /Anthropic Agent SDK is not installed/i.test(message) ||
+    /Failed to spawn Anthropic Agent SDK bridge/i.test(message) ||
+    /No such file or directory/i.test(message)
+  )
 }
 
 export async function runAnthropicAgentSdkRuntime({
@@ -23,9 +25,10 @@ export async function runAnthropicAgentSdkRuntime({
   contextBundle = {},
   onEvent,
   signal,
+  bridgeRunner = runAnthropicAgentSdkBridge,
 } = {}) {
   const sdkConfig = normalizeAnthropicSdkConfig(config?.sdk)
-  const response = await runAnthropicAgentSdkBridge(
+  const response = await bridgeRunner(
     {
       apiKey,
       baseUrl: String(config.baseUrl || '').trim(),
@@ -39,7 +42,9 @@ export async function runAnthropicAgentSdkRuntime({
       permissionMode:
         sdkConfig.approvalMode === 'plan'
           ? 'plan'
-          : (sdkConfig.autoAllowAll ? 'bypassPermissions' : 'acceptEdits'),
+          : sdkConfig.autoAllowAll
+            ? 'bypassPermissions'
+            : 'acceptEdits',
       toolPolicies: sdkConfig.toolPolicies,
       maxTurns: 8,
     },

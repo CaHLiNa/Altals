@@ -3,6 +3,7 @@ import {
   extnamePath,
   normalizeFsPath,
 } from '../../services/documentIntelligence/workspaceGraph.js'
+import { isDefaultAgentActionId } from '../../services/ai/builtInActions.js'
 
 const EMPTY_SELECTION = Object.freeze({
   filePath: '',
@@ -24,7 +25,9 @@ function trimText(value = '', maxChars = MAX_SELECTION_TEXT_CHARS) {
 }
 
 function buildPreviewText(value = '', maxChars = MAX_SELECTION_PREVIEW_CHARS) {
-  const compact = String(value || '').replace(/\s+/g, ' ').trim()
+  const compact = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (!compact) return ''
   if (compact.length <= maxChars) return compact
   return `${compact.slice(0, maxChars).trimEnd()}…`
@@ -43,11 +46,12 @@ function normalizeReference(reference = null) {
   }
 
   const authors = Array.isArray(reference.authors) ? reference.authors.filter(Boolean) : []
-  const authorLine = authors.length > 0
-    ? authors.length === 1
-      ? authors[0]
-      : `${authors[0]} et al.`
-    : String(reference.authorLine || '').trim()
+  const authorLine =
+    authors.length > 0
+      ? authors.length === 1
+        ? authors[0]
+        : `${authors[0]} et al.`
+      : String(reference.authorLine || '').trim()
 
   return {
     id: String(reference.id || '').trim(),
@@ -91,6 +95,7 @@ export function buildAiContextBundle({
   activeFile = '',
   selection = null,
   selectedReference = null,
+  referenceActive = true,
 } = {}) {
   const normalizedWorkspacePath = normalizeFsPath(workspacePath || '')
   const filePath = normalizeFsPath(activeFile || '')
@@ -98,7 +103,7 @@ export function buildAiContextBundle({
   const normalizedSelection = normalizeAiSelection(selection)
   const selectionMatchesDocument = filePath && normalizedSelection.filePath === filePath
   const activeSelection = selectionMatchesDocument ? normalizedSelection : { ...EMPTY_SELECTION }
-  const reference = normalizeReference(selectedReference)
+  const reference = referenceActive ? normalizeReference(selectedReference) : normalizeReference(null)
 
   return {
     workspace: {
@@ -136,10 +141,10 @@ export function skillHasRequiredContext(skill = {}, contextBundle = {}) {
 }
 
 function buildRecommendationReason(skillId = '', contextBundle = {}) {
-  if (skillId === 'grounded-chat') {
+  if (isDefaultAgentActionId(skillId)) {
     return contextBundle.workspace.available
-      ? 'The current folder is available, so the AI can answer in project context.'
-      : 'Open a project folder to start a grounded AI chat.'
+      ? 'The current folder is available, so the workspace agent can act in project context.'
+      : 'Open a project folder to start the workspace agent.'
   }
   if (skillId === 'revise-with-citations') {
     return contextBundle.selection.available && contextBundle.reference.available
@@ -167,9 +172,11 @@ function buildRecommendationReason(skillId = '', contextBundle = {}) {
 function computeRecommendationScore(skill = {}, contextBundle = {}) {
   const available = skillHasRequiredContext(skill, contextBundle)
 
-  if (skill.id === 'grounded-chat') {
-    if (available && contextBundle.selection.available && contextBundle.reference.available) return 90
-    if (available && contextBundle.document.available && contextBundle.selection.available) return 80
+  if (isDefaultAgentActionId(skill.id)) {
+    if (available && contextBundle.selection.available && contextBundle.reference.available)
+      return 90
+    if (available && contextBundle.document.available && contextBundle.selection.available)
+      return 80
     if (available && contextBundle.document.available) return 70
     if (available) return 55
     return 10

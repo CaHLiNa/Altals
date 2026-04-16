@@ -88,14 +88,10 @@
           size="icon-sm"
           :active="rightSidebarOpen && rightSidebarPanel === 'ai'"
           :title="
-            rightSidebarOpen && rightSidebarPanel === 'ai'
-              ? t('Hide AI workflow')
-              : t('Open AI workflow')
+            rightSidebarOpen && rightSidebarPanel === 'ai' ? t('Hide AI agent') : t('Open AI agent')
           "
           :aria-label="
-            rightSidebarOpen && rightSidebarPanel === 'ai'
-              ? t('Hide AI workflow')
-              : t('Open AI workflow')
+            rightSidebarOpen && rightSidebarPanel === 'ai' ? t('Hide AI agent') : t('Open AI agent')
           "
           data-window-drag-ignore="true"
           @click="handleAiButtonClick"
@@ -173,7 +169,7 @@ const props = defineProps({
 const emit = defineEmits([
   'toggle-left-sidebar',
   'open-reference-library',
-  'open-ai-workflow',
+  'open-ai-agent',
   'open-outline-inspector',
   'toggle-right-sidebar',
   'toggle-split-pane',
@@ -257,7 +253,7 @@ function handleAiButtonClick() {
     emit('toggle-right-sidebar')
     return
   }
-  emit('open-ai-workflow')
+  emit('open-ai-agent')
 }
 
 function handleInspectorButtonClick() {

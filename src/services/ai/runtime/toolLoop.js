@@ -23,6 +23,80 @@ export function resolveAiRuntimeTools({
   }
 
   register(
+    'list-workspace-directory',
+    {
+      name: 'list_workspace_directory',
+      description: 'List immediate files and folders inside a workspace directory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute directory path.' },
+          maxResults: { type: 'number', description: 'Maximum number of entries to return.' },
+        },
+        required: [],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.listWorkspaceDirectory?.({
+        path: args.path || '',
+        maxResults: args.maxResults,
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
+    'search-workspace-files',
+    {
+      name: 'search_workspace_files',
+      description: 'Search workspace files by path or filename.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query for file paths or filenames.' },
+          directoryPath: {
+            type: 'string',
+            description: 'Optional directory path to scope the search.',
+          },
+          maxResults: { type: 'number', description: 'Maximum number of matches to return.' },
+        },
+        required: ['query'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.searchWorkspaceFiles?.({
+        query: args.query || '',
+        directoryPath: args.directoryPath || '',
+        maxResults: args.maxResults,
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
+    'read-workspace-file',
+    {
+      name: 'read_workspace_file',
+      description: 'Read any text file from the current workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative or absolute file path.' },
+          maxBytes: { type: 'number', description: 'Maximum number of bytes to read.' },
+        },
+        required: ['path'],
+      },
+    },
+    async (toolCallId, args = {}) => {
+      const result = await toolRuntime.readWorkspaceFile?.({
+        path: args.path || '',
+        maxBytes: args.maxBytes,
+      })
+      return buildToolResult(toolCallId, JSON.stringify(result || {}, null, 2))
+    }
+  )
+
+  register(
     'read-active-document',
     {
       name: 'read_active_document',
@@ -65,7 +139,7 @@ export function resolveAiRuntimeTools({
     'load-skill-support-files',
     {
       name: 'load_skill_support_files',
-      description: 'Read text support files that belong to the active skill package.',
+      description: 'Read text support files that belong to the active instruction-pack directory.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     async (toolCallId) => {
@@ -84,11 +158,7 @@ export async function executeAiToolCalls(toolCalls = [], executors = new Map()) 
     const execute = executors.get(toolCall.name)
     if (!execute) {
       results.push(
-        buildToolResult(
-          toolCall.id,
-          `No local executor is registered for ${toolCall.name}.`,
-          true
-        )
+        buildToolResult(toolCall.id, `No local executor is registered for ${toolCall.name}.`, true)
       )
       continue
     }

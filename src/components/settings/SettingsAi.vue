@@ -1,9 +1,9 @@
 <template>
   <div class="settings-page">
-    <h3 class="settings-section-title">{{ t('AI') }}</h3>
+    <h3 class="settings-section-title">{{ t('Agent') }}</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Provider routing') }}</h4>
+      <h4 class="settings-group-title">{{ t('Agent runtime') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -43,7 +43,39 @@
     </section>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Provider configurations') }}</h4>
+      <h4 class="settings-group-title">{{ t('Built-in tools') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row is-stack">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Tool registry') }}</div>
+            <div class="settings-row-hint">
+              {{
+                t(
+                  'Internal instruction packs are automatic. Configure which built-in tools the agent can use here.'
+                )
+              }}
+            </div>
+          </div>
+          <div class="settings-row-control settings-ai-tool-list">
+            <div v-for="tool in toolDefinitions" :key="tool.id" class="settings-ai-tool-item">
+              <UiSwitch
+                :model-value="enabledToolIds.has(tool.id)"
+                @update:model-value="toggleTool(tool.id, $event)"
+              />
+              <div
+                class="settings-ai-tool-copy"
+                :title="t(tool.descriptionKey || tool.description)"
+              >
+                <span class="settings-ai-tool-label">{{ t(tool.labelKey || tool.label) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Model providers') }}</h4>
       <div class="settings-ai-provider-listbox">
         <div
           v-for="provider in providerDefinitions"
@@ -100,143 +132,142 @@
           <!-- Collapsible Body -->
           <transition name="ai-provider-collapse">
             <div class="settings-ai-provider-body" v-show="expandedProvider === provider.id">
-              <div class="settings-row settings-ai-provider-row">
-                <div class="settings-row-copy">
-                  <div class="settings-row-title">{{ t('Base URL') }}</div>
+              
+              <div class="settings-ai-provider-group">
+                <div class="settings-row settings-ai-provider-row">
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('Base URL') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <UiInput
+                      :model-value="getProviderForm(provider.id).baseUrl"
+                      size="sm"
+                      :placeholder="provider.baseUrlHint"
+                      class="settings-ai-input"
+                      @update:model-value="updateProviderField(provider.id, 'baseUrl', $event)"
+                    />
+                  </div>
                 </div>
-                <div class="settings-row-control">
-                  <UiInput
-                    :model-value="getProviderForm(provider.id).baseUrl"
-                    size="sm"
-                    :placeholder="provider.baseUrlHint"
-                    class="settings-ai-input"
-                    @update:model-value="updateProviderField(provider.id, 'baseUrl', $event)"
-                  />
-                </div>
-              </div>
 
-              <div class="settings-row settings-ai-provider-row">
-                <div class="settings-row-copy">
-                  <div class="settings-row-title">{{ t('Model') }}</div>
+                <div class="settings-row settings-ai-provider-row">
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('Model') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <UiInput
+                      :model-value="getProviderForm(provider.id).model"
+                      size="sm"
+                      :placeholder="provider.modelPlaceholder"
+                      class="settings-ai-input"
+                      @update:model-value="updateProviderField(provider.id, 'model', $event)"
+                    />
+                  </div>
                 </div>
-                <div class="settings-row-control">
-                  <UiInput
-                    :model-value="getProviderForm(provider.id).model"
-                    size="sm"
-                    :placeholder="provider.modelPlaceholder"
-                    class="settings-ai-input"
-                    @update:model-value="updateProviderField(provider.id, 'model', $event)"
-                  />
-                </div>
-              </div>
 
-              <div class="settings-row settings-ai-provider-row">
-                <div class="settings-row-copy">
-                  <div class="settings-row-title">{{ t('API key') }}</div>
-                </div>
-                <div class="settings-row-control">
-                  <UiInput
-                    :model-value="getProviderKey(provider.id)"
-                    size="sm"
-                    type="password"
-                    :placeholder="provider.id === 'custom' ? 'token-...' : 'sk-...'"
-                    class="settings-ai-input"
-                    @update:model-value="updateProviderKey(provider.id, $event)"
-                  />
+                <div class="settings-row settings-ai-provider-row">
+                  <div class="settings-row-copy">
+                    <div class="settings-row-title">{{ t('API key') }}</div>
+                  </div>
+                  <div class="settings-row-control">
+                    <UiInput
+                      :model-value="getProviderKey(provider.id)"
+                      size="sm"
+                      type="password"
+                      :placeholder="provider.id === 'custom' ? 'token-...' : 'sk-...'"
+                      class="settings-ai-input"
+                      @update:model-value="updateProviderKey(provider.id, $event)"
+                    />
+                  </div>
                 </div>
               </div>
 
               <template v-if="provider.id === 'anthropic'">
-                <div class="settings-row settings-ai-provider-row">
-                  <div class="settings-row-copy">
-                    <div class="settings-row-title">{{ t('SDK runtime') }}</div>
+                <div class="settings-ai-provider-group settings-ai-provider-group--alt">
+                  <div class="settings-row settings-ai-provider-row">
+                    <div class="settings-row-copy">
+                      <div class="settings-row-title">{{ t('SDK runtime') }}</div>
+                    </div>
+                    <div class="settings-row-control">
+                      <UiSelect
+                        :model-value="getProviderForm('anthropic').sdkRuntimeMode"
+                        size="sm"
+                        :options="anthropicRuntimeOptions"
+                        @update:model-value="updateAnthropicSdkField('sdkRuntimeMode', $event)"
+                      />
+                    </div>
                   </div>
-                  <div class="settings-row-control">
-                    <UiSelect
-                      :model-value="getProviderForm('anthropic').sdkRuntimeMode"
-                      size="sm"
-                      :options="anthropicRuntimeOptions"
-                      @update:model-value="updateAnthropicSdkField('sdkRuntimeMode', $event)"
-                    />
-                  </div>
-                </div>
 
-                <div class="settings-row settings-ai-provider-row">
-                  <div class="settings-row-copy">
-                    <div class="settings-row-title">{{ t('Approval mode') }}</div>
+                  <div class="settings-row settings-ai-provider-row">
+                    <div class="settings-row-copy">
+                      <div class="settings-row-title">{{ t('Approval mode') }}</div>
+                    </div>
+                    <div class="settings-row-control">
+                      <UiSelect
+                        :model-value="getProviderForm('anthropic').sdkApprovalMode"
+                        size="sm"
+                        :options="anthropicApprovalOptions"
+                        :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
+                        @update:model-value="updateAnthropicSdkField('sdkApprovalMode', $event)"
+                      />
+                    </div>
                   </div>
-                  <div class="settings-row-control">
-                    <UiSelect
-                      :model-value="getProviderForm('anthropic').sdkApprovalMode"
-                      size="sm"
-                      :options="anthropicApprovalOptions"
-                      :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
-                      @update:model-value="updateAnthropicSdkField('sdkApprovalMode', $event)"
-                    />
-                  </div>
-                </div>
 
-                <div
-                  class="settings-row settings-ai-provider-row settings-ai-provider-row--sdk-tools"
-                >
-                  <div class="settings-row-copy">
-                    <div class="settings-row-title">{{ t('Built-in tool policy') }}</div>
-                  </div>
-                  <div class="settings-row-control">
-                    <div class="settings-ai-tool-policy-list">
-                      <div
-                        v-for="tool in AI_ANTHROPIC_SDK_TOOL_DEFINITIONS"
-                        :key="tool.id"
-                        class="settings-ai-tool-policy-item"
-                      >
-                        <div class="settings-ai-tool-policy-copy">
-                          <div class="settings-ai-tool-policy-title">{{ tool.label }}</div>
-                          <div class="settings-ai-tool-policy-meta">
-                            {{ t(tool.descriptionKey) }}
+                  <div
+                    class="settings-row settings-ai-provider-row settings-ai-provider-row--sdk-tools"
+                  >
+                    <div class="settings-row-copy">
+                      <div class="settings-row-title">{{ t('Built-in tool policy') }}</div>
+                    </div>
+                    <div class="settings-row-control">
+                      <div class="settings-ai-tool-policy-list">
+                        <div
+                          v-for="tool in AI_ANTHROPIC_SDK_TOOL_DEFINITIONS"
+                          :key="tool.id"
+                          class="settings-ai-tool-policy-item"
+                        >
+                          <div class="settings-ai-tool-policy-copy">
+                            <div class="settings-ai-tool-policy-title">{{ tool.label }}</div>
+                            <div class="settings-ai-tool-policy-meta">
+                              {{ t(tool.descriptionKey) }}
+                            </div>
                           </div>
+                          <UiSelect
+                            :model-value="
+                              getProviderForm('anthropic').sdkToolPolicies?.[tool.id] || 'ask'
+                            "
+                            size="sm"
+                            class="settings-ai-tool-policy-select"
+                            :options="anthropicPolicyOptions"
+                            :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
+                            @update:model-value="updateAnthropicToolPolicy(tool.id, $event)"
+                          />
                         </div>
-                        <UiSelect
-                          :model-value="
-                            getProviderForm('anthropic').sdkToolPolicies?.[tool.id] || 'ask'
-                          "
-                          size="sm"
-                          class="settings-ai-tool-policy-select"
-                          :options="anthropicPolicyOptions"
-                          :disabled="getProviderForm('anthropic').sdkRuntimeMode !== 'sdk'"
-                          @update:model-value="updateAnthropicToolPolicy(tool.id, $event)"
-                        />
                       </div>
                     </div>
                   </div>
                 </div>
               </template>
 
-              <div
-                class="settings-row settings-ai-provider-row"
-                style="border-bottom: none; padding-bottom: 0"
-              >
-                <div class="settings-row-copy"></div>
-                <div class="settings-row-control" style="gap: 8px; justify-content: flex-end">
-                  <UiButton
-                    variant="secondary"
-                    size="sm"
-                    :disabled="
-                      saving || isTestingProvider(provider.id) || !canTestProvider(provider.id)
-                    "
-                    @click="handleTestProvider(provider.id)"
-                  >
-                    {{ isTestingProvider(provider.id) ? t('Testing...') : t('Test connection') }}
-                  </UiButton>
-                  <UiButton
-                    variant="danger"
-                    size="sm"
-                    style="background: transparent; color: var(--error)"
-                    :disabled="saving"
-                    @click="handleClearProvider(provider.id)"
-                  >
-                    {{ t('Clear') }}
-                  </UiButton>
-                </div>
+              <div class="settings-ai-provider-actions">
+                <UiButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="
+                    saving || isTestingProvider(provider.id) || !canTestProvider(provider.id)
+                  "
+                  @click="handleTestProvider(provider.id)"
+                >
+                  {{ isTestingProvider(provider.id) ? t('Testing...') : t('Test connection') }}
+                </UiButton>
+                <UiButton
+                  variant="danger"
+                  size="sm"
+                  style="background: transparent; color: var(--error)"
+                  :disabled="saving"
+                  @click="handleClearProvider(provider.id)"
+                >
+                  {{ t('Clear') }}
+                </UiButton>
               </div>
             </div>
           </transition>
@@ -248,22 +279,28 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
+import { useAiStore } from '../../stores/ai'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
+import UiSwitch from '../shared/ui/UiSwitch.vue'
 import {
   AI_PROVIDER_DEFINITIONS,
   clearAiApiKey,
   getAiProviderConfig,
   getAiProviderDefinition,
+  isAiProviderReady,
   loadAiApiKey,
   loadAiConfig,
+  providerRequiresAiApiKey,
   saveAiConfig,
   setCurrentAiProvider,
   storeAiApiKey,
 } from '../../services/ai/settings.js'
 import { testAiProviderConnection } from '../../services/ai/providerDiagnostics.js'
+import { AI_TOOL_DEFINITIONS } from '../../services/ai/toolRegistry.js'
 import {
   AI_ANTHROPIC_SDK_APPROVAL_OPTIONS,
   AI_ANTHROPIC_SDK_RUNTIME_OPTIONS,
@@ -273,8 +310,11 @@ import {
 } from '../../services/ai/runtime/anthropicSdkPolicy.js'
 
 const { t } = useI18n()
+const aiStore = useAiStore()
+const toastStore = useToastStore()
 
 const providerDefinitions = AI_PROVIDER_DEFINITIONS
+const toolDefinitions = AI_TOOL_DEFINITIONS
 const providerForms = ref({})
 const providerKeys = ref({})
 const providerFeedback = ref({})
@@ -289,6 +329,7 @@ const saving = ref(false)
 const testingProviderId = ref('')
 const globalError = ref('')
 const globalSuccess = ref('')
+const enabledToolIds = computed(() => new Set(loadedEnabledTools.value))
 
 const providerOptions = computed(() =>
   providerDefinitions.map((provider) => ({
@@ -302,12 +343,37 @@ const activeProviderStatusCopy = computed(() => {
   const form = getProviderForm(currentProviderId.value)
   const key = getProviderKey(currentProviderId.value)
   const feedback = providerFeedback.value[currentProviderId.value]
+  const requiresApiKey = providerRequiresAiApiKey(currentProviderId.value, {
+    baseUrl: form.baseUrl,
+    model: form.model,
+    sdk:
+      currentProviderId.value === 'anthropic'
+        ? {
+            runtimeMode: form.sdkRuntimeMode,
+            approvalMode: form.sdkApprovalMode,
+            toolPolicies: form.sdkToolPolicies,
+          }
+        : undefined,
+  })
 
   if (feedback?.type === 'success') return feedback.message
-  if (!form.baseUrl.trim() || !form.model.trim() || !key.trim()) {
-    return t(
-      'The active provider still needs a base URL, model, and API key before it can run skills.'
-    )
+  if (!isAiProviderReady(currentProviderId.value, {
+    baseUrl: form.baseUrl,
+    model: form.model,
+    sdk:
+      currentProviderId.value === 'anthropic'
+        ? {
+            runtimeMode: form.sdkRuntimeMode,
+            approvalMode: form.sdkApprovalMode,
+            toolPolicies: form.sdkToolPolicies,
+          }
+        : undefined,
+  }, key)) {
+    return requiresApiKey
+      ? t(
+          'The active provider still needs a base URL, model, and API key before the agent can run.'
+        )
+      : t('The active provider still needs a base URL and model before the agent can run.')
   }
 
   return `${provider.label} · ${form.model.trim()} · ${form.baseUrl.trim()}`
@@ -504,6 +570,22 @@ async function persistAllProviders() {
   for (const provider of providerDefinitions) {
     await storeAiApiKey(provider.id, getProviderKey(provider.id).trim())
   }
+  await aiStore.refreshProviderState()
+}
+
+async function toggleTool(toolId = '', nextValue = false) {
+  const next = new Set(loadedEnabledTools.value)
+  if (nextValue) next.add(toolId)
+  else next.delete(toolId)
+  loadedEnabledTools.value = [...next]
+
+  try {
+    await saveAiConfig(buildConfig())
+    await aiStore.refreshProviderState()
+    toastStore.show(t('Tool registry updated.'))
+  } catch (error) {
+    toastStore.show(normalizeErrorMessage(error, t('Failed to update tool registry.')), { type: 'error' })
+  }
 }
 
 async function handleSave() {
@@ -622,6 +704,37 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+.settings-row.is-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.settings-ai-tool-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px 24px;
+  width: 100%;
+}
+
+.settings-ai-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-ai-tool-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-ai-tool-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
 .settings-ai-input {
   width: 280px;
   max-width: 100%;
@@ -709,17 +822,41 @@ onMounted(() => {
 
 .settings-ai-provider-body {
   padding: 4px 16px 16px 48px;
-  background: color-mix(in srgb, var(--sidebar-item-hover) 20%, transparent);
-  border-top: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 16px 16px 48px;
+  background: color-mix(in srgb, var(--sidebar-item-hover) 15%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
 }
 
-.settings-ai-provider-body .settings-ai-provider-row {
-  padding: 12px 0;
-  border-bottom: 1px dashed color-mix(in srgb, var(--border) 30%, transparent);
+.settings-ai-provider-group {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  background: var(--surface-base);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
-.settings-ai-provider-body .settings-row-title {
-  font-size: 13px;
-  color: var(--text-secondary);
+
+.settings-ai-provider-group--alt {
+  background: color-mix(in srgb, var(--surface-overlay) 30%, transparent);
+  border-style: dashed;
+}
+
+.settings-ai-provider-group .settings-ai-provider-row {
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
+}
+.settings-ai-provider-group .settings-ai-provider-row:last-child {
+  border-bottom: none;
+}
+
+.settings-ai-provider-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .settings-ai-provider-row--sdk-tools {

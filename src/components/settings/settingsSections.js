@@ -1,4 +1,11 @@
-import { IconBooks, IconCpu, IconEdit, IconPalette, IconRefresh, IconSparkles, IconCommand } from '@tabler/icons-vue'
+import {
+  IconBooks,
+  IconCpu,
+  IconEdit,
+  IconPalette,
+  IconRefresh,
+  IconSparkles,
+} from '@tabler/icons-vue'
 
 export const SETTINGS_SECTION_DEFINITIONS = [
   {
@@ -14,16 +21,10 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     icon: IconEdit,
   },
   {
-    id: 'ai',
-    labelKey: 'AI',
-    descriptionKey: 'Grounded AI provider settings, model execution, and workbench behavior.',
+    id: 'agent',
+    labelKey: 'Agent',
+    descriptionKey: 'Agent runtime, skills, approvals, and built-in tools.',
     icon: IconSparkles,
-  },
-  {
-    id: 'skills',
-    labelKey: 'Skills',
-    descriptionKey: 'Filesystem skills, support files, and agent tool registry.',
-    icon: IconCommand,
   },
   {
     id: 'zotero',
@@ -44,3 +45,9 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     icon: IconRefresh,
   },
 ]
+
+export function normalizeSettingsSectionId(sectionId = '') {
+  const normalized = String(sectionId || '').trim()
+  if (normalized === 'ai' || normalized === 'skills') return 'agent'
+  return normalized || 'theme'
+}

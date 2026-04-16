@@ -1,33 +1,19 @@
 <template>
   <div class="settings-page">
-    <h3 class="settings-section-title">{{ t('Skills & Tools') }}</h3>
+    <h3 class="settings-section-title">{{ t('Agent Skills') }}</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Global Configuration') }}</h4>
+      <h4 class="settings-group-title">{{ t('Skill library') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Management scope') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose where newly created agent skills should live by default.') }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
-          </div>
-        </div>
-
-        <div class="settings-row is-stack">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Tool registry') }}</div>
-          </div>
-          <div class="settings-row-control settings-tool-registry-list">
-            <div v-for="tool in toolDefinitions" :key="tool.id" class="settings-tool-item">
-              <UiSwitch
-                :model-value="enabledToolIds.has(tool.id)"
-                @update:model-value="toggleTool(tool.id, $event)"
-              />
-              <div class="settings-tool-copy" :title="t(tool.descriptionKey || tool.description)">
-                <span class="settings-tool-label">{{ t(tool.labelKey || tool.label) }}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -342,7 +328,6 @@ import { useAiStore } from '../../stores/ai'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem.js'
-import { AI_TOOL_DEFINITIONS } from '../../services/ai/toolRegistry.js'
 import {
   createManagedSkill,
   deleteManagedSkill,
@@ -356,12 +341,10 @@ import {
   updateManagedSkill,
   updateWritableSkill,
 } from '../../services/ai/skillManagement.js'
-import { loadAiConfig, saveAiConfig } from '../../services/ai/settings.js'
 import SkillCreateModal from './SkillCreateModal.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
-import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
@@ -369,10 +352,8 @@ const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 
 const altalsSkills = computed(() => aiStore.altalsSkills)
-const toolDefinitions = AI_TOOL_DEFINITIONS
 const managementScope = ref('workspace')
 const searchQuery = ref('')
-const enabledToolIds = ref(new Set())
 const managedRoots = ref({ workspace: '', user: '' })
 const writableRoots = ref([])
 const createModalVisible = ref(false)
@@ -439,8 +420,7 @@ function resetMessages() {
 }
 
 async function loadPageState() {
-  const [config, roots, nextWritableRoots] = await Promise.all([
-    loadAiConfig(),
+  const [roots, nextWritableRoots] = await Promise.all([
     resolveManagedSkillRoots({
       workspacePath: workspace.path || '',
       globalConfigDir: workspace.globalConfigDir || '',
@@ -450,7 +430,6 @@ async function loadPageState() {
       globalConfigDir: workspace.globalConfigDir || '',
     }),
   ])
-  enabledToolIds.value = new Set(config.enabledTools || [])
   managedRoots.value = roots
   writableRoots.value = nextWritableRoots
 }
@@ -470,30 +449,6 @@ async function refreshSkills() {
   ])
   managedRoots.value = nextManagedRoots
   writableRoots.value = nextWritableRoots
-}
-
-async function persistToolState() {
-  const config = await loadAiConfig()
-  await saveAiConfig({
-    ...config,
-    enabledTools: [...enabledToolIds.value],
-  })
-  await aiStore.refreshProviderState()
-}
-
-async function toggleTool(toolId = '', nextValue = false) {
-  resetMessages()
-  const next = new Set(enabledToolIds.value)
-  if (nextValue) next.add(toolId)
-  else next.delete(toolId)
-  enabledToolIds.value = next
-
-  try {
-    await persistToolState()
-    pageSuccess.value = t('Tool registry updated.')
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : t('Failed to update tool registry.')
-  }
 }
 
 async function submitCreateSkill() {

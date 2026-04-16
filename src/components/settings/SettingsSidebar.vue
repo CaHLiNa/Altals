@@ -36,7 +36,7 @@ import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import UiButton from '../shared/ui/UiButton.vue'
-import { SETTINGS_SECTION_DEFINITIONS } from './settingsSections.js'
+import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './settingsSections.js'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -48,7 +48,7 @@ const sections = computed(() =>
   }))
 )
 
-const activeSection = computed(() => workspace.settingsSection || 'theme')
+const activeSection = computed(() => normalizeSettingsSectionId(workspace.settingsSection))
 </script>
 
 <style scoped>

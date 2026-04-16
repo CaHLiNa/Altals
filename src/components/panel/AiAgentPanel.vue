@@ -1,11 +1,5 @@
 <template>
-  <section class="ai-workflow-panel">
-    <AiModeSwitcher
-      :current-mode="currentMode"
-      :disabled="aiStore.isRunning"
-      @change="switchMode"
-    />
-
+  <section class="ai-agent-panel">
     <AiSessionRail
       :sessions="sessionItems"
       :current-session-id="aiStore.currentSessionId"
@@ -15,22 +9,41 @@
       @delete="deleteSession"
     />
 
+    <header class="ai-agent-panel__subnav">
+      <UiSelect
+        :model-value="aiStore.providerState.currentProviderId"
+        size="sm"
+        class="ai-agent-panel__provider-select"
+        shell-class="ai-agent-panel__provider-shell"
+        :options="providerOptions"
+        @update:model-value="switchProvider"
+      />
+      <div style="flex: 1"></div>
+      <UiButton
+        v-if="messages.length > 0"
+        variant="ghost"
+        size="sm"
+        icon-only
+        @click="aiStore.clearSession()"
+        :title="t('Clear session')"
+      >
+        <IconTrash :size="16" :stroke-width="1.5" />
+      </UiButton>
+    </header>
+
     <div
       ref="threadRef"
-      class="ai-workflow-panel__thread scrollbar-hidden"
+      class="ai-agent-panel__thread scrollbar-hidden"
       data-surface-context-guard="true"
       @contextmenu="openThreadContextMenu"
     >
-      <div class="ai-workflow-panel__messages">
-        <div
-          v-if="messages.length === 0"
-          class="ai-workflow-panel__empty"
-        >
-          <div class="ai-workflow-panel__empty-title">
-            {{ t('What do you want to build?') }}
+      <div class="ai-agent-panel__messages">
+        <div v-if="messages.length === 0" class="ai-agent-panel__empty">
+          <div class="ai-agent-panel__empty-title">
+            {{ emptyStateTitle }}
           </div>
-          <div class="ai-workflow-panel__empty-note">
-            {{ t('Operate on the current workspace or type / for commands.') }}
+          <div class="ai-agent-panel__empty-note">
+            {{ emptyStateNote }}
           </div>
         </div>
 
@@ -47,8 +60,8 @@
       <div ref="threadBottomRef"></div>
     </div>
 
-    <footer class="ai-workflow-panel__composer">
-      <div class="ai-workflow-panel__composer-card">
+    <footer class="ai-agent-panel__composer">
+      <div class="ai-agent-panel__composer-card">
         <AiPlanModeBanner v-if="isAgentMode" :plan-mode="planModeState" />
         <AiResumeBanner v-if="isAgentMode" :resume-state="resumeState" />
         <AiCompactingBanner v-if="isAgentMode" :compaction="compactionState" />
@@ -66,29 +79,26 @@
         />
         <AiActiveTasksBar v-if="isAgentMode" :tasks="activeBackgroundTasks" />
 
-        <div
-          v-if="isAgentMode && activePermissionRequest"
-          class="ai-workflow-panel__approval"
-        >
-          <div class="ai-workflow-panel__approval-copy">
-            <div class="ai-workflow-panel__approval-title">
+        <div v-if="isAgentMode && activePermissionRequest" class="ai-agent-panel__approval">
+          <div class="ai-agent-panel__approval-copy">
+            <div class="ai-agent-panel__approval-title">
               {{ activePermissionRequest.title || t('Permission request') }}
             </div>
             <div
               v-if="activePermissionRequest.description || activePermissionRequest.decisionReason"
-              class="ai-workflow-panel__approval-meta"
+              class="ai-agent-panel__approval-meta"
             >
               {{ activePermissionRequest.description || activePermissionRequest.decisionReason }}
             </div>
             <div
               v-if="activePermissionRequest.inputPreview"
-              class="ai-workflow-panel__approval-preview"
+              class="ai-agent-panel__approval-preview"
             >
               {{ activePermissionRequest.inputPreview }}
             </div>
           </div>
 
-          <div class="ai-workflow-panel__approval-actions">
+          <div class="ai-agent-panel__approval-actions">
             <UiButton
               variant="secondary"
               size="sm"
@@ -116,20 +126,17 @@
           </div>
         </div>
 
-        <AiAttachmentList
-          :attachments="attachments"
-          @remove="removeAttachment"
-        />
+        <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
-        <div class="ai-workflow-panel__composer-input">
+        <div class="ai-agent-panel__composer-input">
           <UiTextarea
             ref="composerTextareaRef"
             :model-value="aiStore.promptDraft"
             variant="ghost"
             :rows="4"
-            class="ai-workflow-panel__textarea"
-            shell-class="ai-workflow-panel__textarea-shell"
-            :placeholder="t('Ask anything about this project.')"
+            class="ai-agent-panel__textarea"
+            shell-class="ai-agent-panel__textarea-shell"
+            :placeholder="composerPlaceholder"
             @keydown="handlePromptKeydown"
             @update:model-value="aiStore.setPromptDraft($event)"
           />
@@ -142,7 +149,7 @@
           />
         </div>
 
-        <div class="ai-workflow-panel__composer-actions">
+        <div class="ai-agent-panel__composer-actions">
           <UiButton
             variant="secondary"
             size="sm"
@@ -153,48 +160,23 @@
             <IconPaperclip :size="16" :stroke-width="1.5" />
           </UiButton>
 
-          <UiSelect
-            :model-value="aiStore.providerState.currentProviderId"
-            size="sm"
-            class="ai-workflow-panel__provider-select"
-            shell-class="ai-workflow-panel__provider-shell"
-            :options="providerOptions"
-            @update:model-value="switchProvider"
-          />
-
-          <div class="ai-workflow-panel__runtime-label">
-            {{ runtimeStateLabel }}
-          </div>
-
-          <div style="flex: 1"></div>
-
-          <UiButton
-            v-if="messages.length > 0"
-            variant="secondary"
-            size="sm"
-            icon-only
-            @click="aiStore.clearSession()"
-            :title="t('Clear session')"
-          >
-            <IconTrash :size="16" :stroke-width="1.5" />
-          </UiButton>
-
-          <UiButton
-            variant="primary"
-            size="sm"
-            icon-only
-            :disabled="aiStore.isRunning || !canSend"
-            @click="runSkill"
-            :title="aiStore.isRunning ? t('Running...') : t('Submit')"
+          <button
+            type="button"
+            class="ai-agent-panel__send-button"
+            :class="{ 'is-disabled': isSendBlocked }"
+            :disabled="isSendBlocked"
+            :title="sendButtonTitle"
+            :aria-label="sendButtonTitle"
+            @click.prevent.stop="handleSendClick"
           >
             <IconPlayerStop v-if="aiStore.isRunning" :size="16" :stroke-width="1.5" />
             <IconArrowUp v-else :size="16" :stroke-width="1.5" />
-          </UiButton>
+          </button>
         </div>
       </div>
 
-      <div v-if="aiStore.lastError" class="ai-workflow-panel__error">
-        {{ aiStore.lastError }}
+      <div v-if="composerStatusMessage" class="ai-agent-panel__error">
+        {{ composerStatusMessage }}
       </div>
     </footer>
 
@@ -213,7 +195,6 @@
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
-import { useAiModesStore } from '../../stores/aiModes'
 import { useFilesStore } from '../../stores/files'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -224,7 +205,7 @@ import {
 } from '../../domains/ai/aiMentionRuntime.js'
 import { AI_PROVIDER_DEFINITIONS } from '../../services/ai/settings.js'
 import { pickAiAttachmentPaths } from '../../services/ai/attachmentStore.js'
-import { resolveEnabledAiTools } from '../../services/ai/toolRegistry.js'
+import { resolveEnabledAiTools, resolveRuntimeAiToolIds } from '../../services/ai/toolRegistry.js'
 import { IconPaperclip, IconArrowUp, IconPlayerStop, IconTrash } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -237,7 +218,6 @@ import AiCompactingBanner from './AiCompactingBanner.vue'
 import AiConversationMessage from './AiConversationMessage.vue'
 import AiExitPlanBanner from './AiExitPlanBanner.vue'
 import AiInvocationDropdown from './AiInvocationDropdown.vue'
-import AiModeSwitcher from './AiModeSwitcher.vue'
 import AiPlanModeBanner from './AiPlanModeBanner.vue'
 import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
@@ -245,7 +225,6 @@ import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const { t } = useI18n()
 const aiStore = useAiStore()
-const aiModesStore = useAiModesStore()
 const filesStore = useFilesStore()
 const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
@@ -258,6 +237,8 @@ const {
   openSurfaceContextMenu,
   handleSurfaceContextMenuSelect,
 } = useSurfaceContextMenu()
+
+aiStore.resetTransientRuntimeState()
 
 const threadRef = ref(null)
 const threadBottomRef = ref(null)
@@ -284,7 +265,13 @@ const providerOptions = AI_PROVIDER_DEFINITIONS.map((provider) => ({
   value: provider.id,
   label: provider.label,
 }))
-const enabledTools = computed(() => resolveEnabledAiTools(aiStore.enabledToolIds))
+const enabledTools = computed(() =>
+  resolveEnabledAiTools(
+    resolveRuntimeAiToolIds(aiStore.enabledToolIds, {
+      runtimeIntent: 'agent',
+    })
+  )
+)
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -292,33 +279,64 @@ const artifactsById = computed(() =>
 
 const transcriptText = computed(() =>
   messages.value
-    .map((message) => `${message.role === 'assistant' ? t('Assistant') : t('You')}\n${String(message.content || '').trim()}`)
+    .map(
+      (message) =>
+        `${message.role === 'assistant' ? t('Assistant') : t('You')}\n${String(message.content || '').trim()}`
+    )
     .filter(Boolean)
     .join('\n\n')
     .trim()
 )
 
-const currentProviderLabel = computed(() => aiStore.providerState.currentProviderLabel || 'AI')
-const currentMode = computed(() => aiStore.currentSessionMode || aiModesStore.currentMode)
-const isChatMode = computed(() => currentMode.value === 'chat')
-const isAgentMode = computed(() => currentMode.value === 'agent')
-const runtimeStateLabel = computed(() => {
-  if (isChatMode.value) {
-    return `${currentProviderLabel.value} · ${t('Chat')}`
-  }
-
-  const permissionMode = String(aiStore.currentPermissionMode || '').trim()
-  const permissionLabel = permissionMode === 'plan'
-    ? t('Plan-only mode')
-    : (permissionMode === 'bypass-permissions'
-      ? t('Auto-run tools')
-      : t('Per-tool approval'))
-
-  return `${currentProviderLabel.value} · ${permissionLabel}`
-})
-const canSend = computed(() =>
-  String(aiStore.promptDraft || '').trim().length > 0 || attachments.value.length > 0
+const isAgentMode = computed(() => true)
+const canSend = computed(
+  () => String(aiStore.promptDraft || '').trim().length > 0 || attachments.value.length > 0
 )
+const isProviderReady = computed(() => aiStore.providerState.ready === true)
+const providerNotReadyMessage = computed(() =>
+  aiStore.providerState.requiresApiKey === false
+    ? t('Agent runtime is not ready. Configure the provider and model before sending.')
+    : t('Agent runtime is not ready. Configure the provider, model, and API key before sending.')
+)
+const isSendBlocked = computed(
+  () => aiStore.isRunning || !isProviderReady.value || !canSend.value
+)
+const sendButtonTitle = computed(() => {
+  if (aiStore.isRunning) return t('Running...')
+  if (!isProviderReady.value) return providerNotReadyMessage.value
+  if (!canSend.value) return t('Type a message or attach a file to send.')
+  return t('Submit')
+})
+const composerStatusMessage = computed(() => {
+  if (aiStore.lastError) return aiStore.lastError
+  if (!isProviderReady.value) return providerNotReadyMessage.value
+  return ''
+})
+const composerPlaceholder = computed(() =>
+  isAgentMode.value
+    ? t('Describe the task. The agent can inspect files, search the workspace, and use tools here.')
+    : t('Ask anything about this project.')
+)
+const emptyStateTitle = computed(() =>
+  isAgentMode.value ? t('What needs to happen in this workspace?') : t('What do you want to build?')
+)
+const emptyStateNote = computed(() =>
+  isAgentMode.value
+    ? t(
+        'Describe the task directly. The agent already has this workspace, file context, and tool access attached.'
+      )
+    : t('Operate on the current workspace or type / for commands.')
+)
+
+function toInvocationSlug(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^[/$]+/, '')
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 const slashSuggestions = computed(() =>
   builtInActions.value.map((action) => ({
     id: action.id,
@@ -328,7 +346,7 @@ const slashSuggestions = computed(() =>
     groupLabel: t('Shell actions'),
     label: t(action.titleKey || action.id),
     description: t(action.descriptionKey || action.description || ''),
-    insertText: `/${action.id}`,
+    insertText: `/${action.id} `,
   }))
 )
 
@@ -341,10 +359,9 @@ const skillSuggestions = computed(() =>
     groupLabel: t('Skills'),
     label: skill.name || skill.slug || skill.directoryName || skill.id,
     description: skill.description || t('Filesystem skill with no description.'),
-    insertText: `$${toInvocationSlug(skill.slug || skill.name || skill.directoryName || skill.id)}`,
+    insertText: `$${toInvocationSlug(skill.slug || skill.name || skill.directoryName || skill.id)} `,
   }))
 )
-
 const composerToken = computed(() => detectAiComposerToken(aiStore.promptDraft))
 
 const composerSuggestions = computed(() => {
@@ -352,11 +369,13 @@ const composerSuggestions = computed(() => {
     prompt: aiStore.promptDraft,
     workspacePath: workspace.path || '',
     files: isAgentMode.value ? filesStore.flatFiles : [],
-    tools: isAgentMode.value ? enabledTools.value.map((tool) => ({
-      id: tool.id,
-      label: t(tool.labelKey || tool.label || tool.id),
-      description: t(tool.descriptionKey || tool.description || ''),
-    })) : [],
+    tools: isAgentMode.value
+      ? enabledTools.value.map((tool) => ({
+          id: tool.id,
+          label: t(tool.labelKey || tool.label || tool.id),
+          description: t(tool.descriptionKey || tool.description || ''),
+        }))
+      : [],
     slashSuggestions: slashSuggestions.value,
     skillSuggestions: skillSuggestions.value,
   })
@@ -368,7 +387,34 @@ const composerSuggestions = computed(() => {
 })
 
 async function runSkill() {
+  if (aiStore.isRunning) return
+  const rawTextareaValue = String(
+    composerTextareaRef.value?.textareaEl?.value ?? composerTextareaRef.value?.value ?? ''
+  )
+  if (!String(aiStore.promptDraft || '').trim() && rawTextareaValue.trim()) {
+    aiStore.setPromptDraft(rawTextareaValue)
+  }
+  if (
+    !String(aiStore.promptDraft || '').trim() &&
+    !rawTextareaValue.trim() &&
+    attachments.value.length === 0
+  ) {
+    composerTextareaRef.value?.focus?.()
+    toastStore.show(t('Type a message or attach a file to send.'), { type: 'warning' })
+    return
+  }
+  if (!isProviderReady.value) {
+    await aiStore.refreshProviderState().catch(() => {})
+    toastStore.show(providerNotReadyMessage.value, { type: 'warning' })
+    workspace.openSettings('agent')
+    return
+  }
   await aiStore.runActiveSkill()
+}
+
+function handleSendClick() {
+  if (isSendBlocked.value) return
+  void runSkill()
 }
 
 async function switchProvider(providerId = '') {
@@ -430,13 +476,6 @@ async function submitExitPlanResponse(payload = {}) {
   }
 }
 
-function switchMode(mode = 'agent') {
-  aiModesStore.setMode(mode)
-  aiStore.setSessionMode(aiModesStore.currentMode, aiStore.currentSessionId)
-  activeInvocationIndex.value = 0
-  scrollToBottom('auto')
-}
-
 async function attachFiles() {
   const selectedPaths = await pickAiAttachmentPaths()
   if (!selectedPaths.length) return
@@ -451,7 +490,7 @@ function removeAttachment(attachmentId = '') {
 }
 
 function createSession() {
-  aiStore.createSession({ mode: aiModesStore.currentMode })
+  aiStore.createSession()
   activeInvocationIndex.value = 0
   nextTick(() => {
     composerTextareaRef.value?.focus?.()
@@ -460,7 +499,6 @@ function createSession() {
 
 function switchSessionTab(sessionId = '') {
   if (!aiStore.switchSession(sessionId)) return
-  aiModesStore.setMode(aiStore.currentSessionMode)
   activeInvocationIndex.value = 0
   scrollToBottom('auto')
 }
@@ -471,30 +509,8 @@ function renameSession(payload = {}) {
 
 function deleteSession(sessionId = '') {
   if (!aiStore.deleteSession(sessionId)) return
-  aiModesStore.setMode(aiStore.currentSessionMode)
   activeInvocationIndex.value = 0
   scrollToBottom('auto')
-}
-
-function toInvocationSlug(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^[/$]+/, '')
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function launchEntry(entry = null) {
-  const insertText = String(entry?.insertText || '').trim()
-  if (!insertText) return
-
-  const currentDraft = String(aiStore.promptDraft || '').trim()
-  aiStore.setPromptDraft(currentDraft ? `${insertText} ${currentDraft}` : `${insertText} `)
-
-  nextTick(() => {
-    composerTextareaRef.value?.focus?.()
-  })
 }
 
 function applyInvocationSuggestion(suggestion = null) {
@@ -565,7 +581,8 @@ function handlePromptKeydown(event) {
 
   if (event.key === 'ArrowDown') {
     event.preventDefault()
-    activeInvocationIndex.value = (activeInvocationIndex.value + 1) % composerSuggestions.value.length
+    activeInvocationIndex.value =
+      (activeInvocationIndex.value + 1) % composerSuggestions.value.length
     return
   }
 
@@ -596,7 +613,6 @@ function scrollToBottom(behavior = 'auto') {
 
 onMounted(() => {
   aiStore.restoreWorkspaceSessions(workspace.path || '')
-  aiModesStore.setMode(aiStore.currentSessionMode)
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
@@ -604,7 +620,6 @@ onMounted(() => {
 
 onActivated(() => {
   aiStore.restoreWorkspaceSessions(workspace.path || '')
-  aiModesStore.setMode(aiStore.currentSessionMode)
   void aiStore.refreshProviderState()
   void aiStore.refreshAltalsSkills()
   scrollToBottom('auto')
@@ -614,20 +629,22 @@ watch(
   () => [workspace.path, workspace.globalConfigDir],
   () => {
     aiStore.restoreWorkspaceSessions(workspace.path || '')
-    aiModesStore.setMode(aiStore.currentSessionMode)
     void aiStore.refreshAltalsSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }
 )
 
-watch(messages, () => {
-  scrollToBottom(messages.value.length > 0 ? 'smooth' : 'auto')
-}, { deep: true })
+watch(
+  messages,
+  () => {
+    scrollToBottom(messages.value.length > 0 ? 'smooth' : 'auto')
+  },
+  { deep: true }
+)
 
 watch(
   () => aiStore.currentSessionId,
   () => {
-    aiModesStore.setMode(aiStore.currentSessionMode)
     scrollToBottom('auto')
   }
 )
@@ -650,7 +667,7 @@ watch(
 </script>
 
 <style scoped>
-.ai-workflow-panel {
+.ai-agent-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -659,20 +676,20 @@ watch(
   background: transparent;
 }
 
-.ai-workflow-panel__thread {
+.ai-agent-panel__thread {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 10px 14px 16px;
 }
 
-.ai-workflow-panel__messages {
+.ai-agent-panel__messages {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.ai-workflow-panel__composer {
+.ai-agent-panel__composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -680,18 +697,25 @@ watch(
   background: transparent;
 }
 
-.ai-workflow-panel__composer-card {
+.ai-agent-panel__subnav {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px 4px;
+  border-bottom: 1px solid transparent;
+}
+
+.ai-agent-panel__composer-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
-  background: var(--surface-base);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  padding: 10px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-flyout);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.ai-workflow-panel__approval {
+.ai-agent-panel__approval {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -702,22 +726,22 @@ watch(
   background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
-.ai-workflow-panel__approval-copy {
+.ai-agent-panel__approval-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.ai-workflow-panel__approval-title {
+.ai-agent-panel__approval-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
 }
 
-.ai-workflow-panel__approval-meta,
-.ai-workflow-panel__approval-preview {
+.ai-agent-panel__approval-meta,
+.ai-agent-panel__approval-preview {
   font-size: 11px;
   line-height: 1.5;
   color: var(--text-secondary);
@@ -725,67 +749,86 @@ watch(
   word-break: break-word;
 }
 
-.ai-workflow-panel__approval-preview {
+.ai-agent-panel__approval-preview {
   color: var(--text-tertiary);
 }
 
-.ai-workflow-panel__approval-actions {
+.ai-agent-panel__approval-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
 }
 
-.ai-workflow-panel__composer-input {
+.ai-agent-panel__composer-input {
   position: relative;
 }
 
-.ai-workflow-panel__composer-actions {
+.ai-agent-panel__composer-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  padding-top: 4px;
 }
 
-.ai-workflow-panel__runtime-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
+.ai-agent-panel__send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--button-primary-bg) 80%, var(--border-color));
+  border-radius: 14px;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 
-.ai-workflow-panel__textarea {
+.ai-agent-panel__send-button:hover:not(:disabled) {
+  background: var(--button-primary-bg-hover);
+}
+
+.ai-agent-panel__send-button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.ai-agent-panel__send-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 0 1px var(--accent);
+}
+
+.ai-agent-panel__send-button.is-disabled,
+.ai-agent-panel__send-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ai-agent-panel__textarea {
   padding: 0 !important;
   min-height: 48px;
 }
 
-.ai-workflow-panel__provider-select {
+.ai-agent-panel__provider-select {
   min-width: 88px;
   max-width: 104px;
 }
 
-
-
-.ai-workflow-panel__error {
+.ai-agent-panel__error {
   font-size: 12px;
   line-height: 1.5;
   color: var(--error);
 }
 
-.ai-workflow-panel__clear-link {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0 2px;
-  font: inherit;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-
-.ai-workflow-panel__clear-link:hover {
-  color: var(--text-secondary);
-}
-
-.ai-workflow-panel__empty {
+.ai-agent-panel__empty {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -794,96 +837,35 @@ watch(
   text-align: center;
 }
 
-.ai-workflow-panel__empty-kicker {
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.ai-workflow-panel__empty-title {
+.ai-agent-panel__empty-title {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--text-primary);
 }
 
-.ai-workflow-panel__empty-note {
+.ai-agent-panel__empty-note {
   font-size: 12px;
   line-height: 1.55;
   color: var(--text-secondary);
 }
 
-.ai-workflow-panel__launcher-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ai-workflow-panel__launcher {
-  appearance: none;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 11px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent);
-  background: color-mix(in srgb, var(--surface-base) 74%, transparent);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    transform 140ms ease;
-}
-
-.ai-workflow-panel__launcher:hover {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-base) 92%);
-  transform: translateY(-1px);
-}
-
-.ai-workflow-panel__launcher-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.ai-workflow-panel__launcher-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ai-workflow-panel__launcher-token {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-}
-
-.ai-workflow-panel__launcher-copy {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__textarea-shell) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell) {
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__textarea-shell.ui-textarea-shell--ghost:hover),
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__textarea-shell.ui-textarea-shell--ghost:focus-within) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:hover),
+.ai-agent-panel__composer
+  :deep(.ai-agent-panel__textarea-shell.ui-textarea-shell--ghost:focus-within) {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__textarea-shell .ui-textarea-control) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
   min-height: 80px;
   padding: 4px 0 5px !important;
   resize: none;
@@ -891,7 +873,7 @@ watch(
   line-height: 1.58;
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__provider-shell .ui-select-trigger) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger) {
   height: 24px;
   padding: 0 22px 0 8px;
   border-color: transparent;
@@ -901,18 +883,18 @@ watch(
   color: var(--text-tertiary);
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__provider-shell .ui-select-trigger:hover),
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__provider-shell .ui-select-trigger:focus-visible) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:hover),
+.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:focus-visible) {
   border-color: transparent;
   background: color-mix(in srgb, var(--surface-base) 72%, transparent);
   color: var(--text-secondary);
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__provider-shell .ui-select-value) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-value) {
   font-size: 11px;
 }
 
-.ai-workflow-panel__composer :deep(.ai-workflow-panel__provider-shell .ui-select-caret) {
+.ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-caret) {
   right: 6px;
   opacity: 0.7;
 }

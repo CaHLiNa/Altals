@@ -63,6 +63,12 @@ async function bootstrapWorkspaceDirs(store) {
   }).catch(() => {})
 }
 
+function normalizeSettingsSectionValue(section = '') {
+  const normalized = String(section || '').trim()
+  if (normalized === 'ai' || normalized === 'skills') return 'agent'
+  return normalized || 'theme'
+}
+
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     path: null,
@@ -219,7 +225,9 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     openSettings(section = null) {
-      this.settingsSection = section || this.settingsSection || 'theme'
+      this.settingsSection = normalizeSettingsSectionValue(
+        section || this.settingsSection || 'theme'
+      )
       this.setPrimarySurface('settings')
     },
 
@@ -228,7 +236,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     setSettingsSection(section) {
-      this.settingsSection = section || 'theme'
+      this.settingsSection = normalizeSettingsSectionValue(section)
     },
 
     toggleSoftWrap() {

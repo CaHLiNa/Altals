@@ -556,8 +556,8 @@ const ZH_MESSAGES = {
   'No files yet': '还没有文件',
   'Open files': '打开文件',
   'Open reference library': '打开文献库',
-  'Open AI workflow': '打开 AI 工作流',
-  'Hide AI workflow': '隐藏 AI 工作流',
+  'Open AI agent': '打开 AI Agent',
+  'Hide AI agent': '隐藏 AI Agent',
   'Open outline': '打开大纲',
   'Hide outline': '隐藏大纲',
   'PDF preview': 'PDF 预览',
@@ -608,15 +608,31 @@ const ZH_MESSAGES = {
   'More actions': '更多操作',
   Assistant: '助手',
   AI: 'AI',
-  'AI workflow': 'AI 工作流',
-  'Grounded context': '已绑定上下文',
+  'AI workflow': 'AI Agent',
+  'AI agent': 'AI Agent',
+  'Grounded context': '已附带上下文',
   'Current context': '当前上下文',
-  'Grounded chat': 'Grounded chat',
+  'Grounded chat': 'Workspace agent',
+  'Workspace agent': 'Workspace agent',
+  'Workspace context': '工作区上下文',
+  'Operating rules': '运行规则',
+  'This action is missing required workspace context.': '这个动作缺少必需的工作区上下文。',
+  'Use the current workspace as your working context and continue the user task directly.':
+    '以当前工作区作为工作上下文，直接继续推进用户任务。',
+  'Inspect the available workspace context before making claims about project state.':
+    '在判断项目状态前，先检查当前可用的工作区上下文。',
+  'Prefer direct action and tool use over repeating the workflow back to the user.':
+    '优先直接采取行动或使用工具，不要只是把流程复述给用户。',
+  'Make uncertainty explicit instead of inventing file state, evidence, or citations.':
+    '对不确定性要明确说明，不要臆造文件状态、证据或引用。',
+  'Stay close to the supplied Altals workspace context.': '始终贴近提供的 Altals 工作区上下文。',
   'Ask the AI about the active workbench context without leaving the project.':
-    '围绕当前工作台上下文与 AI 对话，不必离开项目。',
+    '围绕当前工作台上下文与 Agent 协作，不必离开项目。',
+  'Ask the agent to inspect the current workspace, use tools, and continue the task in context.':
+    '让 Agent 基于当前工作区检查文件、调用工具，并继续推进当前任务。',
   'Operate on the current workspace.': '围绕当前工作区执行操作。',
   'This panel already knows the current folder and can use grounded tools and skills.':
-    '这个面板已经绑定了当前文件夹，也可以直接调用 grounded tools 和 skills。',
+    '这个面板已经绑定了当前文件夹，也可以直接调用内置工具和 instruction packs。',
   'Open a draft, select text, or choose a reference to ground the next run.':
     '打开草稿、选中文本，或选择一条文献后，下一轮执行就能获得更扎实的上下文。',
   'Attach files': '添加文件附件',
@@ -639,6 +655,7 @@ const ZH_MESSAGES = {
     '运行时正在压缩更早的上下文，然后再继续执行。',
   'Context compaction completed.': '上下文压缩已完成。',
   'Background task': '后台任务',
+  Runtime: '运行时',
   'The agent started a background task.': '代理已启动一个后台任务。',
   'Auto-run tools': '自动执行工具',
   'Plan approval required': '需要审批计划',
@@ -653,12 +670,33 @@ const ZH_MESSAGES = {
   'The agent is collecting background task results before resuming.':
     '代理正在收集后台任务结果，然后继续执行。',
   'What do you want to build?': '你想构建什么？',
+  'What needs to happen in this workspace?': '这个工作区里接下来要做什么？',
   'Operate on the current workspace or type / for commands.':
     '围绕当前工作区继续操作，或者输入 / 调用命令。',
+  'Describe the task directly. The agent already has this workspace, file context, and tool access attached.':
+    '直接描述任务即可。这个 Agent 已经默认附带当前工作区、文件上下文和工具访问能力。',
+  'Describe the task. The agent can inspect files, search the workspace, and use tools here.':
+    '直接描述任务。这个 Agent 可以在这里检查文件、搜索工作区并使用工具。',
+  '{count} ready': '{count} 个可用',
+  '{count} attached': '{count} 个附件',
+  'Workspace agent attached': 'Workspace agent 已附带',
+  'Workspace agent attached to {name}': 'Workspace agent 已附带到 {name}',
+  'The agent can inspect the current workspace, search files, and use tools to continue the task.':
+    '这个 Agent 可以检查当前工作区、搜索文件，并使用工具继续推进任务。',
+  'The agent can inspect the current workspace and continue from {name}.':
+    '这个 Agent 可以检查当前工作区，并从 {name} 继续推进任务。',
+  'Agent runtime is not ready. Configure the provider, model, and API key before sending.':
+    'Agent 运行时还没准备好。先配置 provider、model 和 API key 才能发送。',
+  'Type a message or attach a file to send.': '输入消息或添加附件后才能发送。',
   'Workspace files': '工作区文件',
   Tools: '工具',
   Chat: 'Chat',
   Agent: 'Agent',
+  'Agent Skills': 'Agent Skills',
+  'Agent pages': 'Agent 子页面',
+  'Skill library': 'Skill 库',
+  'Choose where newly created agent skills should live by default.':
+    '选择新建 Agent skill 默认写入的位置。',
   'Upgrade to agent': '升级为 Agent',
   'Chat mode keeps a lightweight conversation runtime.': 'Chat 模式使用更轻量的对话运行时。',
   Document: '文档',
@@ -685,7 +723,7 @@ const ZH_MESSAGES = {
   'Refreshing...': '刷新中...',
   'No filesystem skills found yet.': '当前还没有发现 filesystem skills。',
   'Type /grounded-chat for shell actions, or $skill-name for Altals skills.':
-    '输入 /grounded-chat 使用 Shell 动作，或输入 $skill-name 调用 Altals skills。',
+    '输入 /workspace-agent 使用 Agent 动作，或输入 $skill-name 调用 Altals skills。',
   'User scope': '用户级',
   'Workspace scope': '项目级',
   'Filesystem skill with no description.': '这个 filesystem skill 还没有描述。',
@@ -719,7 +757,6 @@ const ZH_MESSAGES = {
   'Skill Library': 'Skill 库',
   'Workspace managed skills': '工作区托管 skills',
   'User managed skills': '用户托管 skills',
-  Duplicate: '复制',
   Export: '导出',
   'Export skill': '导出 skill',
   'No filesystem skills found.': '没有发现 filesystem skills。',
@@ -775,7 +812,7 @@ const ZH_MESSAGES = {
   'Skill file': 'Skill 文件',
   'Source root': '来源根目录',
   'Support files': 'Support files',
-  'Grounded conversation': 'Grounded 对话',
+  'Grounded conversation': 'Agent 对话',
   'Start from the current document context, a selected reference, or an Altals skill.':
     '从当前文档上下文、选中文献或 Altals skill 开始。',
   'Run skill': '运行技能',
@@ -783,7 +820,7 @@ const ZH_MESSAGES = {
   Artifacts: '产物',
   Active: '当前',
   'Grounded AI provider settings, model execution, and workbench behavior.':
-    '管理 grounded AI 的服务商设置、模型执行和工作台行为。',
+    '管理 Agent 运行时的服务商设置、模型执行和工作台行为。',
   'Filesystem skills, support files, and agent tool registry.':
     '管理文件系统技能、支持文件与代理工具能力。',
   'Provider status': '服务商状态',
@@ -791,10 +828,7 @@ const ZH_MESSAGES = {
   'AI provider needs setup': 'AI 服务商尚未配置',
   'Open AI settings to add a base URL, model, and API key.':
     '请先打开 AI 设置，填写 Base URL、模型和 API key。',
-  'Choose which saved provider should power grounded chat and AI skills.':
-    '选择哪个已保存的服务商用于 grounded chat 和 AI 技能。',
   'Configure AI': '配置 AI',
-  Ready: '就绪',
   'Needs context': '缺少上下文',
   'AI Agent Shell': 'AI 代理工作台',
   'Provider needs setup': '服务商需要先完成设置',
@@ -826,7 +860,7 @@ const ZH_MESSAGES = {
   'Draft a related-work paragraph from the current draft and reference.':
     '结合当前草稿和文献起草一段 related work。',
   Context: '上下文',
-  'Prepared brief': '已准备的执行摘要',
+  'Prepared brief': '上下文快照',
   'Copy brief': '复制摘要',
   'Brief copied': '已复制摘要',
   'Copy failed': '复制失败',
@@ -834,17 +868,17 @@ const ZH_MESSAGES = {
   'Ground context': '准备上下文',
   'Prepared the current document, selection, and reference context for the AI run.':
     '已为这次 AI 运行准备当前文档、选区和文献上下文。',
+  'Read the current open draft as workspace context.': '读取当前打开的草稿，作为工作区上下文。',
   'Request model response': '请求模型响应',
   'Waiting for the provider to finish the current skill run.':
-    '正在等待服务商完成当前 skill 运行。',
+    '正在等待服务商完成当前 Agent 运行。',
   'Scanning the active skill package for supporting text files.':
-    '正在扫描当前 skill 包中的 support files。',
+    '正在扫描当前 instruction pack 目录中的支持文本文件。',
   'Loaded {count} support files from the active skill package.':
-    '已从当前 skill 包加载 {count} 个 support files。',
+    '已从当前 instruction pack 目录加载 {count} 个指令支持文件。',
   'No additional support files were found for this skill.':
-    '这个 skill 没有发现额外的 support files。',
-  'Sending the grounded prompt to the current provider.':
-    '正在把 grounded prompt 发送给当前服务商。',
+    '这个 skill 没有发现额外的指令支持文件。',
+  'Sending the grounded prompt to the current provider.': '正在把 Agent prompt 发送给当前服务商。',
   'The provider returned a complete response for this run.': '服务商已返回这次运行的完整响应。',
   'The model requested a local tool call and is waiting for the result.':
     '模型请求了一个本地工具调用，正在等待返回结果。',
@@ -860,37 +894,44 @@ const ZH_MESSAGES = {
   'Prepared a reusable output artifact for this response.': '已为这次响应准备可复用的输出产物。',
   'Document patch': '文档补丁',
   'Note draft': '笔记草稿',
-  'Grounding note': 'Grounding note',
+  'Support note': 'Support note',
+  'Grounding note': 'Support note',
   Reasoning: '推理过程',
   'Citation suggestion': '引用建议',
-  '{count} support files loaded': '已加载 {count} 个 support files',
+  '{count} support files loaded': '已加载 {count} 个指令支持文件',
   'Mention document': '提及文档',
   'Mention selection': '提及选区',
   'Mention reference': '提及文献',
-  'Use the active document as the main grounding context.':
-    '请把当前文档作为主要 grounding 上下文。',
+  'Use the active document as the main grounding context.': '请把当前文档作为主要工作上下文。',
   'Focus on the current selection first.': '请优先聚焦当前选区。',
   'Use the selected reference as explicit evidence.': '请把当前选中文献作为明确依据。',
   'The assistant may ask for permission before using tools.':
     '助手在使用工具前可能会请求你的许可。',
   'The current workspace is already attached.': '当前工作区已默认附带。',
   'Skills & Actions': 'Skills 与动作',
+  'Agent runtime': 'Agent 运行时',
+  'Built-in tools': '内置工具',
+  'Model providers': '模型服务商',
+  'Agent runtime, models, approvals, and built-in tools.':
+    'Agent 运行时、模型、审批策略与内置工具。',
+  'Internal instruction packs are automatic. Configure which built-in tools the agent can use here.':
+    '内部 instruction packs 会自动路由；这里配置 Agent 可直接使用的内置工具。',
   'Type / to select action, or $ for skills...': '输入 / 选择动作，或输入 $ 调用 skills...',
   'Add parameters or instructions...': '添加参数或补充说明...',
   'Session output': '会话输出',
   'AI task': 'AI 任务',
   'Failed to load Altals skills.': '加载 Altals skills 失败。',
   'AI execution failed.': 'AI 执行失败。',
-  'Run AI skill': '运行 AI 技能',
+  'Run AI skill': '运行 Agent',
   'Add an extra instruction for this AI run...': '为这次 AI 执行补充额外指令...',
   'Clear session': '清空会话',
   'Run a skill to start an AI session grounded in the current project context.':
-    '运行一个 skill，开始基于当前项目上下文的 AI 会话。',
+    '在当前 Agent 会话里调用一个 skill，并附带当前项目上下文。',
   'No AI artifacts yet.': '还没有 AI 产物。',
   'Apply to draft': '应用到草稿',
   'Open as draft': '作为草稿打开',
   'This slice prepares grounded AI briefs inside the workbench. Model execution comes next.':
-    '当前切片先在工作台内准备 grounded AI 执行摘要，后续再接入模型执行。',
+    '当前切片先在工作台内准备 Agent 上下文快照，后续再接入模型执行。',
   'Revise with citations': '基于引用修订',
   'Rewrite the selected passage using the current reference as grounding.':
     '用当前选中文献作为依据，改写所选段落。',
@@ -920,11 +961,11 @@ const ZH_MESSAGES = {
     '这个 skill 最好在草稿中选中一段文字后使用。',
   'The active draft is available, so the AI can answer in project context.':
     '当前草稿已就绪，AI 可以在项目上下文内回答。',
-  'Open a document to start a grounded AI chat.': '请先打开文档，再开始 grounded AI 对话。',
-  'AI skill is not available.': '当前 AI 技能不可用。',
-  'The selected AI skill is missing required context.': '当前 AI 技能缺少必需上下文。',
+  'Open a document to start a grounded AI chat.': '请先打开文档，为 Agent 提供更丰富的上下文。',
+  'AI skill is not available.': '当前请求的 Agent skill 不可用。',
+  'The selected AI skill is missing required context.': '当前请求的 Agent skill 缺少必需上下文。',
   'AI settings are incomplete. Configure the provider before running a skill.':
-    'AI 设置还不完整，请先配置服务商再运行技能。',
+    'AI 设置还不完整，请先配置服务商再运行 Agent。',
   'Failed to save AI patch to the document.': '无法把 AI patch 保存到文档。',
   'AI patch applied to the active document.': 'AI patch 已应用到当前文档。',
   'AI note opened as a draft.': 'AI 笔记已作为草稿打开。',
@@ -938,8 +979,6 @@ const ZH_MESSAGES = {
   'OpenAI-compatible': 'OpenAI 兼容',
   'Active provider': '当前生效服务商',
   Available: '可用',
-  'Choose which saved provider should power grounded chat and AI skills.':
-    '选择哪个已保存的服务商用于 grounded chat 和 AI skills。',
   'All AI provider settings saved.': '全部 AI 服务商设置已保存。',
   'Active AI provider updated.': '当前 AI 服务商已更新。',
   'Save all providers': '保存全部服务商',
@@ -953,8 +992,10 @@ const ZH_MESSAGES = {
     '请填写兼容 chat-completions 的端点，例如本地中转或托管网关。',
   'The official preset is prefilled, but you can override it for mirrors or relays.':
     '官方预设已预填，但你仍然可以改成镜像或中转。',
-  'The active provider still needs a base URL, model, and API key before it can run skills.':
-    '当前生效的服务商还缺少 Base URL、模型或 API key，暂时无法运行 skills。',
+  'The active provider still needs a base URL, model, and API key before the agent can run.':
+    '当前生效的服务商还缺少 Base URL、模型或 API key，Agent 暂时无法运行。',
+  'The active provider still needs a base URL and model before the agent can run.':
+    '当前生效的服务商还缺少 Base URL 或模型，Agent 暂时无法运行。',
   'Base URL': 'Base URL',
   'Use a chat-completions compatible endpoint, for example https://api.openai.com/v1.':
     '请填写兼容 chat-completions 的端点，例如 https://api.openai.com/v1。',
@@ -969,7 +1010,6 @@ const ZH_MESSAGES = {
   'Save your provider settings, then run a connection test.':
     '先保存 provider 设置，再运行连接测试。',
   'Failed to load AI settings.': '加载 AI 设置失败。',
-  'Saving...': '保存中...',
   'Test connection': '测试连接',
   'Testing...': '测试中...',
   'AI settings saved.': 'AI 设置已保存。',
@@ -978,6 +1018,8 @@ const ZH_MESSAGES = {
   'AI connection failed.': 'AI 连接失败。',
   'AI settings cleared.': 'AI 设置已清空。',
   'Failed to clear AI settings.': '清空 AI 设置失败。',
+  'Agent runtime is not ready. Configure the provider and model before sending.':
+    'Agent 运行时尚未就绪，请先配置服务商和模型后再发送。',
   'AI base URL is missing.': '缺少 AI Base URL。',
   'AI API key is missing.': '缺少 AI API key。',
   'AI model is missing.': '缺少 AI 模型。',
@@ -1026,7 +1068,14 @@ const ZH_MESSAGES = {
   'Run shell commands': '运行 shell 命令',
   'Run shell commands from the SDK runtime.': '直接通过 SDK runtime 运行 shell 命令。',
   'Read the current open draft as grounded project context.':
-    '读取当前打开的草稿，作为 grounded 项目上下文。',
+    '读取当前打开的草稿，作为工作区上下文。',
+  'List workspace directory': '列出工作区目录',
+  'List immediate files and folders inside a workspace directory.':
+    '列出工作区目录中的直接文件和文件夹。',
+  'Search workspace files': '搜索工作区文件',
+  'Search workspace files by path or filename.': '按路径或文件名搜索工作区文件。',
+  'Read workspace file': '读取工作区文件',
+  'Read any text file from the current workspace.': '读取当前工作区中的任意文本文件。',
   'Read the current text selection from the active editor.': '读取当前编辑器里的文本选区。',
   'Read the currently selected reference metadata and citation identity.':
     '读取当前选中文献的元数据与引用标识。',
@@ -1044,7 +1093,6 @@ const ZH_MESSAGES = {
   'Reply...': '回复...',
   Submit: '提交',
   Build: '构建',
-  Export: '导出',
   'Back to list': '返回列表',
   'Back to overview': '返回概览',
   'Back to workspace': '返回工作区',
@@ -1057,7 +1105,6 @@ const ZH_MESSAGES = {
   'Low priority': '低优先级',
   Rating: '评分',
   Summary: '摘要总结',
-  Scope: '范围',
   None: '无',
   Unavailable: '不可用',
   'Active document': '当前文档',
@@ -1074,21 +1121,23 @@ const ZH_MESSAGES = {
   Type: '类型',
   'Filesystem skill': 'Filesystem skill',
   'Source path': '来源路径',
-  'Grounded project context': 'Grounded 项目上下文',
+  'Grounded project context': '工作区上下文',
   'Skill instructions (from SKILL.md)': 'Skill 指令（来自 SKILL.md）',
   'Supporting files in skill directory': 'Skill 目录中的 support files',
   'None discovered': '未发现',
   'Untitled reference': '未命名文献',
-  'This action is not fully grounded yet.': '这个动作当前还没有完全 grounded。',
+  'This action is not fully grounded yet.': '这个动作当前还没有完全接入上下文。',
   'Missing context:': '缺失上下文：',
   'Answer the user in a grounded way using the currently active project context.':
-    '基于当前激活的项目上下文，以 grounded 方式回答用户。',
+    '基于当前激活的项目上下文回答用户，不要脱离当前项目状态。',
   'Stay close to the supplied project context.': '尽量贴近提供的项目上下文。',
   'Make uncertainty explicit instead of inventing support.': '如果不确定就明确说明，不要编造依据。',
   'Keep the answer useful for a research workflow.': '让回答对科研工作流保持实际有用。',
-  'Follow the skill instructions as the primary workflow.': '把 skill 指令作为首要工作流来执行。',
-  'Stay grounded in the supplied Altals project context.':
-    '始终 grounded 在提供的 Altals 项目上下文里。',
+  'Follow the skill instructions as the primary workflow.':
+    '把 skill 指令当作当前的 instruction pack 来执行。',
+  'Treat the skill instructions as the active instruction pack.':
+    '把 skill 指令当作当前的 instruction pack 来执行。',
+  'Stay grounded in the supplied Altals project context.': '始终锚定在提供的 Altals 项目上下文里。',
   'If the skill expects tools or files not yet available, say so explicitly instead of inventing them.':
     '如果 skill 依赖的工具或文件当前不可用，请明确说明，不要编造。',
   'No workspace': '未打开工作区',
@@ -1134,7 +1183,6 @@ const ZH_MESSAGES = {
   Copy: '复制',
   'Open Link': '打开链接',
   Unknown: '未知',
-  Available: '可用',
   Publisher: '出版社',
   Language: '语言',
   Edition: '版本',
@@ -1447,7 +1495,6 @@ const ZH_MESSAGES = {
   'No LaTeX compiler found. Install System TeX or Tectonic in Environment settings.':
     '没有找到可用的 LaTeX 编译器，请在环境设置里安装系统 TeX 或 Tectonic。',
   Artifact: '产物',
-  Artifacts: '产物',
   'Review artifact': '审查产物',
   Patch: '补丁',
   'Note bundle': '笔记集合',
@@ -1466,7 +1513,6 @@ const ZH_MESSAGES = {
   'Delete this chat permanently?': '要永久删除这个聊天吗？',
   'Edit file': '编辑文件',
   'Failed to open workspace': '打开工作区失败',
-  File: '文件',
   'File edited': '文件已编辑',
   'File written': '文件已写入',
   'Magic comment': '魔法注释',
@@ -1478,7 +1524,6 @@ const ZH_MESSAGES = {
   'Refreshing workspace state...': '正在刷新工作区状态...',
   'Remove selection from this project': '从当前项目移除所选项',
   'Replaced text': '已替换文本',
-  Selection: '选区',
   'Setup failed': '设置失败',
   Sort: '排序',
   Split: '拆分',

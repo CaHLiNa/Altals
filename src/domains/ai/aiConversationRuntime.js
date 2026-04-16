@@ -11,15 +11,23 @@ function previewText(value = '', maxChars = 120) {
 }
 
 function skillLabel(skill = null) {
-  if (!skill) return t('Grounded chat')
+  if (!skill) return t('Workspace agent')
   if (skill.kind === 'filesystem-skill') return skill.name || skill.slug || t('Unnamed skill')
-  return t(skill.titleKey || skill.id || 'Grounded chat')
+  return t(skill.titleKey || skill.id || 'Workspace agent')
 }
 
-function providerSummary(providerState = {}) {
+function runtimeTransportLabel(transport = '') {
+  const normalized = trimText(transport).toLowerCase()
+  if (!normalized) return ''
+  if (normalized === 'anthropic-sdk') return 'SDK'
+  if (normalized === 'http') return 'HTTP'
+  return normalized.replace(/-/g, ' ').toUpperCase()
+}
+
+function providerSummary(providerState = {}, transport = '') {
   const label = trimText(providerState.currentProviderLabel)
   const model = trimText(providerState.model)
-  return [label, model].filter(Boolean).join(' · ')
+  return [label, model, runtimeTransportLabel(transport)].filter(Boolean).join(' · ')
 }
 
 function artifactPreview(artifact = null) {
@@ -148,7 +156,13 @@ export function extractAiMessageText(message = null) {
   if (!message) return ''
   if (Array.isArray(message.parts) && message.parts.length > 0) {
     return message.parts
-      .filter((part) => part.type === 'text' || part.type === 'support' || part.type === 'note' || part.type === 'error')
+      .filter(
+        (part) =>
+          part.type === 'text' ||
+          part.type === 'support' ||
+          part.type === 'note' ||
+          part.type === 'error'
+      )
       .map((part) => trimText(part.text))
       .filter(Boolean)
       .join('\n\n')
@@ -178,6 +192,7 @@ export function buildAiUserConversationMessage({
       },
     ],
     metadata: {
+      skillId: skill?.id || '',
       skillLabel: skillLabel(skill),
       contextChips: buildAiContextChips(contextBundle),
     },
@@ -198,6 +213,7 @@ export function buildAiPendingAssistantMessage({
     content: '',
     parts: [],
     metadata: {
+      skillId: skill?.id || '',
       skillLabel: skillLabel(skill),
       providerSummary: providerSummary(providerState),
       contextChips: buildAiContextChips(contextBundle),
@@ -220,7 +236,11 @@ export function buildAiAssistantConversationMessage({
       ? artifact.replacementText
       : artifact?.type === 'note_draft'
         ? artifact.content
-        : artifact?.content || payload.answer || payload.summary || payload.paragraph || result?.content
+        : artifact?.content ||
+          payload.answer ||
+          payload.summary ||
+          payload.paragraph ||
+          result?.content
   )
   const rationale = trimText(payload.rationale || artifact?.rationale)
   const citationSuggestion = trimText(payload.citation_suggestion || artifact?.citationSuggestion)
@@ -276,8 +296,9 @@ export function buildAiAssistantConversationMessage({
     content: mainText || rationale || trimText(result?.content),
     parts,
     metadata: {
+      skillId: skill?.id || '',
       skillLabel: skillLabel(skill),
-      providerSummary: providerSummary(providerState),
+      providerSummary: providerSummary(providerState, result?.transport),
       contextChips: buildAiContextChips(contextBundle),
     },
   }
@@ -287,6 +308,7 @@ export function buildAiFailedAssistantMessage({
   id = '',
   skill = null,
   error = '',
+  transport = '',
   providerState = {},
   contextBundle = {},
   events = [],
@@ -317,8 +339,9 @@ export function buildAiFailedAssistantMessage({
       },
     ],
     metadata: {
+      skillId: skill?.id || '',
       skillLabel: skillLabel(skill),
-      providerSummary: providerSummary(providerState),
+      providerSummary: providerSummary(providerState, transport),
       contextChips: buildAiContextChips(contextBundle),
     },
   }

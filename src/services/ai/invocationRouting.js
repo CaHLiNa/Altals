@@ -1,4 +1,5 @@
 import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
+import { DEFAULT_AGENT_ACTION_ID, matchesBuiltInAiActionId } from './builtInActions.js'
 
 function normalizeInvocationName(value = '') {
   return String(value || '')
@@ -10,7 +11,9 @@ function normalizeInvocationName(value = '') {
 }
 
 function normalizeSearchText(value = '') {
-  return String(value || '').trim().toLowerCase()
+  return String(value || '')
+    .trim()
+    .toLowerCase()
 }
 
 function tokenizePrompt(value = '') {
@@ -64,15 +67,19 @@ function buildFilesystemSuggestion(skill = {}, prefix = '/', recentSet = new Set
 }
 
 function matchBuiltInAction(name = '', actions = []) {
-  return (Array.isArray(actions) ? actions : []).find((action) =>
-    normalizeInvocationName(action.id) === name
-  ) || null
+  return (
+    (Array.isArray(actions) ? actions : []).find((action) =>
+      matchesBuiltInAiActionId(normalizeInvocationName(action.id), name)
+    ) || null
+  )
 }
 
 function matchFilesystemSkill(name = '', skills = []) {
-  return (Array.isArray(skills) ? skills : []).find((skill) =>
-    buildSkillSlug(skill) === name && isAltalsManagedFilesystemSkill(skill)
-  ) || null
+  return (
+    (Array.isArray(skills) ? skills : []).find(
+      (skill) => buildSkillSlug(skill) === name && isAltalsManagedFilesystemSkill(skill)
+    ) || null
+  )
 }
 
 function explicitSkillRequirements(skill = {}) {
@@ -164,12 +171,9 @@ function keywordBoostForSkill(skill = {}, prompt = '') {
 }
 
 function scoreSkillOverlap(skill = {}, promptTokens = []) {
-  const haystack = tokenizePrompt([
-    skill.id,
-    skill.name,
-    skill.slug,
-    skill.description,
-  ].filter(Boolean).join(' '))
+  const haystack = tokenizePrompt(
+    [skill.id, skill.name, skill.slug, skill.description].filter(Boolean).join(' ')
+  )
   if (!haystack.length || !promptTokens.length) return 0
 
   const haystackSet = new Set(haystack)
@@ -196,14 +200,26 @@ export function parseAiInvocationInput(input = '') {
 }
 
 export function inferAiSkillFromPrompt({
+  prompt = '',
   builtInActions = [],
+  altalsSkills = [],
+  contextBundle = {},
   fallbackSkill = null,
 } = {}) {
-  return (
-    matchBuiltInAction('grounded-chat', builtInActions)
-    || fallbackSkill
-    || null
-  )
+  const defaultAction =
+    matchBuiltInAction(DEFAULT_AGENT_ACTION_ID, builtInActions) || fallbackSkill || null
+  const promptTokens = tokenizePrompt(prompt)
+  const rankedSkillMatches = (Array.isArray(altalsSkills) ? altalsSkills : [])
+    .filter((skill) => isAltalsManagedFilesystemSkill(skill))
+    .filter((skill) => hasContext(contextBundle, explicitSkillRequirements(skill)))
+    .map((skill) => ({
+      skill,
+      score: keywordBoostForSkill(skill, prompt) + scoreSkillOverlap(skill, promptTokens),
+    }))
+    .filter((entry) => entry.score >= 20)
+    .sort((left, right) => right.score - left.score)
+
+  return rankedSkillMatches[0]?.skill || defaultAction
 }
 
 export function getAiInvocationSuggestions({
@@ -255,21 +271,50 @@ export function applyAiInvocationSuggestion(prompt = '', suggestion = null) {
 
 export function resolveAiInvocation({
   prompt = '',
+  mode = 'chat',
   activeSkill = null,
   builtInActions = [],
   altalsSkills = [],
   contextBundle = {},
 } = {}) {
+  const fallbackSkill = inferAiSkillFromPrompt({
+    prompt,
+    builtInActions,
+    altalsSkills,
+    contextBundle,
+    fallbackSkill: activeSkill,
+  })
   const parsed = parseAiInvocationInput(prompt)
   if (!parsed) {
     return {
-      resolvedSkill: inferAiSkillFromPrompt({
-        prompt,
-        builtInActions,
-        altalsSkills,
-        contextBundle,
-        fallbackSkill: activeSkill,
-      }),
+      resolvedSkill: fallbackSkill,
+      userInstruction: String(prompt || '').trim(),
+      invocation: null,
+    }
+  }
+
+  if (String(mode || '').trim() === 'agent') {
+    const skill = matchFilesystemSkill(parsed.name, altalsSkills)
+    if (skill && (parsed.prefix === '$' || parsed.prefix === '/')) {
+      return {
+        resolvedSkill: skill,
+        userInstruction: parsed.remainder,
+        invocation: parsed,
+      }
+    }
+
+    const action = parsed.prefix === '/' ? matchBuiltInAction(parsed.name, builtInActions) : null
+
+    if (action) {
+      return {
+        resolvedSkill: action,
+        userInstruction: parsed.remainder,
+        invocation: parsed,
+      }
+    }
+
+    return {
+      resolvedSkill: fallbackSkill,
       userInstruction: String(prompt || '').trim(),
       invocation: null,
     }
@@ -307,13 +352,7 @@ export function resolveAiInvocation({
   }
 
   return {
-    resolvedSkill: inferAiSkillFromPrompt({
-      prompt,
-      builtInActions,
-      altalsSkills,
-      contextBundle,
-      fallbackSkill: activeSkill,
-    }),
+    resolvedSkill: fallbackSkill,
     userInstruction: String(prompt || '').trim(),
     invocation: null,
   }

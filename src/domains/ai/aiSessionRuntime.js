@@ -17,9 +17,9 @@ export function normalizeAiSessionPermissionMode(value = '') {
     return 'accept-edits'
   }
   if (
-    normalized === 'bypassPermissions'
-    || normalized === 'bypass-permissions'
-    || normalized === 'auto'
+    normalized === 'bypassPermissions' ||
+    normalized === 'bypass-permissions' ||
+    normalized === 'auto'
   ) {
     return 'bypass-permissions'
   }
@@ -38,6 +38,7 @@ function normalizeAiSessionRecord(record = {}, fallbackTitle = 'New session') {
     permissionMode: normalizeAiSessionPermissionMode(
       record.permissionMode || record.runtimePermissionMode || record.approvalMode
     ),
+    runtimeTransport: String(record.runtimeTransport || '').trim(),
     title: String(record.title || fallbackTitle).trim() || fallbackTitle,
     createdAt,
     updatedAt,
@@ -53,24 +54,27 @@ function normalizeAiSessionRecord(record = {}, fallbackTitle = 'New session') {
     lastCompactAt: Number(record.lastCompactAt || 0) || 0,
     waitingResume: record.waitingResume === true,
     waitingResumeMessage: String(record.waitingResumeMessage || ''),
-    planMode: record.planMode && typeof record.planMode === 'object'
-      ? {
-        active: record.planMode.active === true,
-        summary: String(record.planMode.summary || ''),
-        note: String(record.planMode.note || ''),
-      }
-      : {
-        active: false,
-        summary: '',
-        note: '',
-      },
+    planMode:
+      record.planMode && typeof record.planMode === 'object'
+        ? {
+            active: record.planMode.active === true,
+            summary: String(record.planMode.summary || ''),
+            note: String(record.planMode.note || ''),
+          }
+        : {
+            active: false,
+            summary: '',
+            note: '',
+          },
     isRunning: record.isRunning === true,
     lastError: String(record.lastError || ''),
   }
 }
 
 export function deriveAiSessionTitle(value = '', fallbackTitle = 'New session') {
-  const normalized = String(value || '').replace(/\s+/g, ' ').trim()
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (!normalized) return fallbackTitle
 
   const withoutInvocation = normalized.replace(/^([/$][^\s]+)\s*/, '').trim()
@@ -81,7 +85,10 @@ export function deriveAiSessionTitle(value = '', fallbackTitle = 'New session') 
 }
 
 export function createAiSessionRecord(options = {}) {
-  return normalizeAiSessionRecord(options, String(options.title || 'New session').trim() || 'New session')
+  return normalizeAiSessionRecord(
+    options,
+    String(options.title || 'New session').trim() || 'New session'
+  )
 }
 
 export function ensureAiSessionsState({
@@ -101,7 +108,9 @@ export function ensureAiSessionsState({
     }
   }
 
-  const resolvedCurrentSessionId = normalizedSessions.some((session) => session.id === currentSessionId)
+  const resolvedCurrentSessionId = normalizedSessions.some(
+    (session) => session.id === currentSessionId
+  )
     ? currentSessionId
     : normalizedSessions[0].id
 
@@ -111,7 +120,11 @@ export function ensureAiSessionsState({
   }
 }
 
-export function updateAiSessionRecord(sessions = [], sessionId = '', updater = (session) => session) {
+export function updateAiSessionRecord(
+  sessions = [],
+  sessionId = '',
+  updater = (session) => session
+) {
   const normalizedId = String(sessionId || '').trim()
   if (!normalizedId) return Array.isArray(sessions) ? [...sessions] : []
 

@@ -66,8 +66,8 @@ select,
   -webkit-user-select: text;
 }
 
-.ai-workflow-panel,
-.ai-workflow-panel *,
+.ai-agent-panel,
+.ai-agent-panel *,
 .ai-conversation-message,
 .ai-conversation-message *,
 .ai-tool-line,

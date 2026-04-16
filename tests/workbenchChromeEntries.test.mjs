@@ -45,5 +45,5 @@ test('chrome entry labels and titles are localized through the provided translat
     'workspace'
   )
   assert.equal(translatedInspector[0].label, 'x:Outline')
-  assert.equal(translatedInspector[1].label, 'x:AI workflow')
+  assert.equal(translatedInspector[1].label, 'x:AI agent')
 })

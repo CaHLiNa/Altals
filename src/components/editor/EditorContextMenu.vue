@@ -135,7 +135,9 @@ async function paste() {
           })
           return
         }
-      } catch {}
+      } catch {
+        // Fall back to the app-level paste-unavailable path below.
+      }
     }
   }
   emit('paste-unavailable')

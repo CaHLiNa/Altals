@@ -31,11 +31,11 @@ test('normalizeAiArtifact creates a document patch artifact for revise-with-cita
   assert.equal(artifact.replacementText, 'Revised paragraph.')
 })
 
-test('normalizeAiArtifact does not create redundant advisory artifacts for grounded chat', () => {
+test('normalizeAiArtifact does not create redundant advisory artifacts for workspace agent', () => {
   const artifact = normalizeAiArtifact(
-    'grounded-chat',
+    'workspace-agent',
     {
-      answer: 'A grounded answer.',
+      answer: 'A direct answer.',
       rationale: 'Based on current context.',
     },
     {

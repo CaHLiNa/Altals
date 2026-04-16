@@ -1,13 +1,5 @@
 import { defineStore } from 'pinia'
 import { nanoid } from './utils'
-import {
-  applyAiConversationEventToMessage,
-  buildAiAssistantConversationMessage,
-  buildAiFailedAssistantMessage,
-  buildAiPendingAssistantMessage,
-  buildAiUserConversationMessage,
-  extractAiMessageText,
-} from '../domains/ai/aiConversationRuntime.js'
 import { normalizeAiArtifact } from '../domains/ai/aiArtifactRuntime.js'
 import {
   buildAiContextBundle,
@@ -16,15 +8,15 @@ import {
   skillHasRequiredContext,
 } from '../domains/ai/aiContextRuntime.js'
 import {
-  parseAiPromptResourceMentions,
-  resolveMentionedWorkspaceFiles,
-} from '../domains/ai/aiMentionRuntime.js'
+  applyAgentRunEventToSessionState,
+  completeAgentRunSessionState,
+  failAgentRunSessionState,
+  finalizeAgentRunSessionState,
+  startAgentRunSessionState,
+} from '../domains/ai/aiAgentRunSessionRuntime.js'
+import { mergeAgentRunToolEventState } from '../domains/ai/aiAgentRunEventState.js'
 import {
-  createAiSessionRecord,
-  deriveAiSessionTitle,
-  ensureAiSessionsState,
   normalizeAiSessionPermissionMode,
-  removeAiSessionRecord,
   updateAiSessionRecord,
 } from '../domains/ai/aiSessionRuntime.js'
 import { useEditorStore } from './editor'
@@ -32,88 +24,80 @@ import { useFilesStore } from './files'
 import { useReferencesStore } from './references'
 import { useToastStore } from './toast'
 import { t } from '../i18n/index.js'
+import { AI_AGENT_ACTION_DEFINITIONS } from '../services/ai/skillRegistry.js'
 import {
-  AI_BUILT_IN_ACTION_DEFINITIONS,
-  buildPreparedAiBrief,
-  getAiSkillById,
-} from '../services/ai/skillRegistry.js'
-import { resolveAiInvocation } from '../services/ai/invocationRouting.js'
-import { discoverAltalsSkills } from '../services/ai/skillDiscovery.js'
+  discoverAltalsSkills,
+  isAltalsManagedFilesystemSkill,
+} from '../services/ai/skillDiscovery.js'
 import {
   getAiProviderConfig,
   getAiProviderDefinition,
+  isAiProviderReady,
   loadAiApiKey,
   loadAiConfig,
+  providerRequiresAiApiKey,
   saveAiConfig,
   setCurrentAiProvider,
 } from '../services/ai/settings.js'
-import { executeAiSkill } from '../services/ai/executor.js'
 import { applyAiArtifactCapability } from '../services/ai/artifactCapabilities.js'
 import { createAiAttachmentRecord } from '../services/ai/attachmentStore.js'
-import { loadPersistedAiSessions, persistAiSessions } from '../services/ai/sessionPersistence.js'
+import {
+  listWorkspaceDirectory,
+  readWorkspaceFile,
+  searchWorkspaceFiles,
+} from '../services/ai/runtime/workspaceFileTools.js'
+import {
+  buildDefaultAgentSessionTitle,
+  createAgentSessionState,
+  createInitialAgentSessionsState,
+  deleteAgentSessionState,
+  ensureManagedAgentSessionsState,
+  persistAgentSessionsState,
+  renameAgentSessionState,
+  resolveAgentSessionRecord,
+  restoreAgentSessionsState,
+  switchAgentSessionState,
+} from '../services/ai/agentSessionManager.js'
+import { executePreparedAgentRun, prepareAgentRun } from '../services/ai/agentOrchestrator.js'
 import {
   respondAnthropicAgentSdkAskUser,
   respondAnthropicAgentSdkExitPlan,
   respondAnthropicAgentSdkPermission,
 } from '../services/ai/runtime/anthropicSdkBridge.js'
 import { useWorkspaceStore } from './workspace'
-import { isAltalsManagedFilesystemSkill } from '../services/ai/skillDiscovery.js'
-
-const RECENT_AI_SKILL_IDS_KEY = 'altals.ai.recentSkillIds'
 
 function buildDefaultSessionTitle(count = 1) {
-  return t('Run {count}', { count })
-}
-
-function createInitialAiSessionsState() {
-  const initialSession = createAiSessionRecord({
-    title: buildDefaultSessionTitle(1),
-  })
-
-  return {
-    currentSessionId: initialSession.id,
-    sessions: [initialSession],
-  }
-}
-
-function resolveAiSessionRecord(sessions = [], sessionId = '') {
-  const normalizedId = String(sessionId || '').trim()
-  if (!Array.isArray(sessions) || sessions.length === 0) return null
-  return sessions.find((session) => session?.id === normalizedId) || sessions[0] || null
+  return buildDefaultAgentSessionTitle(t, count)
 }
 
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
   const normalizedRequestId = String(requestId || '').trim()
   if (!normalizedRequestId) return null
 
-  return (Array.isArray(sessions) ? sessions : []).find((session) =>
-    Array.isArray(session?.permissionRequests)
-    && session.permissionRequests.some((request) => request.requestId === normalizedRequestId)
-  ) || null
+  return (
+    (Array.isArray(sessions) ? sessions : []).find(
+      (session) =>
+        Array.isArray(session?.permissionRequests) &&
+        session.permissionRequests.some((request) => request.requestId === normalizedRequestId)
+    ) || null
+  )
 }
 
 function findSessionByArtifactId(sessions = [], artifactId = '') {
   const normalizedArtifactId = String(artifactId || '').trim()
   if (!normalizedArtifactId) return null
 
-  return (Array.isArray(sessions) ? sessions : []).find((session) =>
-    Array.isArray(session?.artifacts)
-    && session.artifacts.some((artifact) => artifact.id === normalizedArtifactId)
-  ) || null
+  return (
+    (Array.isArray(sessions) ? sessions : []).find(
+      (session) =>
+        Array.isArray(session?.artifacts) &&
+        session.artifacts.some((artifact) => artifact.id === normalizedArtifactId)
+    ) || null
+  )
 }
 
 function currentWorkspacePath() {
   return String(useWorkspaceStore().path || '').trim()
-}
-
-function normalizeConversation(messages = []) {
-  return (Array.isArray(messages) ? messages : [])
-    .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
-    .map((message) => ({
-      role: message.role,
-      content: extractAiMessageText(message),
-    }))
-    .filter((message) => message.content)
 }
 
 function buildArtifactRecord(skillId = '', artifact = null) {
@@ -127,62 +111,10 @@ function buildArtifactRecord(skillId = '', artifact = null) {
   }
 }
 
-function readRecentSkillIds() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(RECENT_AI_SKILL_IDS_KEY) || '[]')
-    return Array.isArray(parsed)
-      ? parsed.map((item) => String(item || '').trim()).filter(Boolean)
-      : []
-  } catch {
-    return []
-  }
-}
-
-function writeRecentSkillIds(skillIds = []) {
-  try {
-    localStorage.setItem(RECENT_AI_SKILL_IDS_KEY, JSON.stringify(skillIds))
-  } catch {
-    // ignore local storage failures
-  }
-}
-
-function sortEntriesByRecentUsage(entries = [], recentSkillIds = []) {
-  const recentIndex = new Map(recentSkillIds.map((id, index) => [id, index]))
-  return [...entries].sort((left, right) => {
-    const leftIndex = recentIndex.has(left.id) ? recentIndex.get(left.id) : Number.POSITIVE_INFINITY
-    const rightIndex = recentIndex.has(right.id) ? recentIndex.get(right.id) : Number.POSITIVE_INFINITY
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex
-    return String(left.name || left.titleKey || left.id || '').localeCompare(
-      String(right.name || right.titleKey || right.id || '')
-    )
-  })
-}
-
-function mergeToolEventRecord(events = [], nextEvent = {}) {
-  const toolId = String(nextEvent.toolId || nextEvent.id || '').trim()
-  if (!toolId) return events
-
-  const nextEvents = Array.isArray(events) ? [...events] : []
-  const existingIndex = nextEvents.findIndex((event) => String(event.toolId || '') === toolId)
-
-  if (existingIndex >= 0) {
-    nextEvents.splice(existingIndex, 1, {
-      ...nextEvents[existingIndex],
-      ...nextEvent,
-      toolId,
-    })
-    return nextEvents
-  }
-
-  nextEvents.push({
-    ...nextEvent,
-    toolId,
-  })
-  return nextEvents
-}
-
 function normalizeBackgroundTaskStatus(status = 'running') {
-  const normalized = String(status || 'running').trim().toLowerCase()
+  const normalized = String(status || 'running')
+    .trim()
+    .toLowerCase()
   if (['failed', 'error'].includes(normalized)) return 'error'
   if (['done', 'completed', 'stopped'].includes(normalized)) return 'done'
   return 'running'
@@ -195,7 +127,8 @@ function findBackgroundTaskIndex(tasks = [], task = {}) {
 
   return (Array.isArray(tasks) ? tasks : []).findIndex((entry) => {
     if (normalizedTaskId && String(entry.taskId || '').trim() === normalizedTaskId) return true
-    if (normalizedToolUseId && String(entry.toolUseId || '').trim() === normalizedToolUseId) return true
+    if (normalizedToolUseId && String(entry.toolUseId || '').trim() === normalizedToolUseId)
+      return true
     if (normalizedId && String(entry.id || '').trim() === normalizedId) return true
     return false
   })
@@ -203,35 +136,34 @@ function findBackgroundTaskIndex(tasks = [], task = {}) {
 
 function buildBackgroundTaskRecord(task = {}, previous = null) {
   const taskId = String(task.taskId || previous?.taskId || '').trim()
-  const toolUseId = String(task.toolUseId || task.toolId || previous?.toolUseId || task.id || '').trim()
-  const recordId = taskId
-    ? `task:${taskId}`
-    : (toolUseId ? `tool:${toolUseId}` : '')
+  const toolUseId = String(
+    task.toolUseId || task.toolId || previous?.toolUseId || task.id || ''
+  ).trim()
+  const recordId = taskId ? `task:${taskId}` : toolUseId ? `tool:${toolUseId}` : ''
   const detail = String(
-    task.detail
-    || task.description
-    || task.summary
-    || previous?.detail
-    || ''
+    task.detail || task.description || task.summary || previous?.detail || ''
   ).trim()
   const elapsedSeconds = Number(task.elapsedSeconds)
-  const usage = task.usage && typeof task.usage === 'object'
-    ? task.usage
-    : (previous?.usage && typeof previous.usage === 'object' ? previous.usage : null)
+  const usage =
+    task.usage && typeof task.usage === 'object'
+      ? task.usage
+      : previous?.usage && typeof previous.usage === 'object'
+        ? previous.usage
+        : null
 
   return {
     id: recordId,
     taskId,
     toolUseId,
     label: String(
-      task.label
-      || task.title
-      || previous?.label
-      || task.lastToolName
-      || task.taskType
-      || toolUseId
-      || taskId
-      || t('Background task')
+      task.label ||
+        task.title ||
+        previous?.label ||
+        task.lastToolName ||
+        task.taskType ||
+        toolUseId ||
+        taskId ||
+        t('Background task')
     ).trim(),
     status: normalizeBackgroundTaskStatus(task.status || previous?.status || 'running'),
     detail,
@@ -295,7 +227,7 @@ async function readActiveDocumentRuntime(contextBundle = {}, filesStore, editorS
     content = String(filesStore.fileContents[filePath] || '')
   } else {
     try {
-      content = String(await filesStore?.readFile?.(filePath) || '')
+      content = String((await filesStore?.readFile?.(filePath)) || '')
     } catch {
       content = ''
     }
@@ -348,18 +280,37 @@ function readSkillSupportFilesRuntime(files = []) {
   }))
 }
 
+function scrubTransientAgentSessionState(session = {}) {
+  if (!session || typeof session !== 'object') return session
+
+  return {
+    ...session,
+    isRunning: false,
+    permissionRequests: [],
+    askUserRequests: [],
+    exitPlanRequests: [],
+    backgroundTasks: [],
+    isCompacting: false,
+    lastCompactAt: 0,
+    waitingResume: false,
+    waitingResumeMessage: '',
+    planMode: { active: false, summary: '', note: '' },
+  }
+}
+
 export const useAiStore = defineStore('ai', {
   state: () => ({
     editorSelection: normalizeAiSelection(),
-    activeSkillId: 'grounded-chat',
-    ...createInitialAiSessionsState(),
+    ...createInitialAgentSessionsState({
+      fallbackTitle: buildDefaultSessionTitle(1),
+    }),
     altalsSkillCatalog: [],
-    recentSkillIds: readRecentSkillIds(),
     isRefreshingAltalsSkills: false,
     lastSkillCatalogError: '',
     providerState: {
       ready: false,
       hasKey: false,
+      requiresApiKey: true,
       currentProviderId: 'openai',
       currentProviderLabel: 'OpenAI',
       enabledToolIds: [],
@@ -371,7 +322,7 @@ export const useAiStore = defineStore('ai', {
 
   getters: {
     currentSession(state) {
-      return resolveAiSessionRecord(state.sessions, state.currentSessionId)
+      return resolveAgentSessionRecord(state.sessions, state.currentSessionId)
     },
 
     sessionList(state) {
@@ -389,48 +340,31 @@ export const useAiStore = defineStore('ai', {
     currentContextBundle(state) {
       const editorStore = useEditorStore()
       const referencesStore = useReferencesStore()
+      const workspaceStore = useWorkspaceStore()
 
       return buildAiContextBundle({
-        workspacePath: useWorkspaceStore().path,
+        workspacePath: workspaceStore.path,
         activeFile: editorStore.activeTab,
         selection: state.editorSelection,
-        selectedReference: referencesStore.selectedReference,
+        selectedReference:
+          workspaceStore.isWorkspaceSurface && workspaceStore.leftSidebarPanel === 'references'
+            ? referencesStore.selectedReference
+            : null,
+        referenceActive:
+          workspaceStore.isWorkspaceSurface && workspaceStore.leftSidebarPanel === 'references',
       })
     },
 
     builtInActions() {
-      return sortEntriesByRecentUsage(
-        recommendAiSkills(this.currentContextBundle, AI_BUILT_IN_ACTION_DEFINITIONS),
-        this.recentSkillIds
-      )
-    },
-
-    recommendedSkills() {
-      return this.builtInActions
+      return recommendAiSkills(this.currentContextBundle, AI_AGENT_ACTION_DEFINITIONS)
     },
 
     altalsSkills(state) {
-      return sortEntriesByRecentUsage(
-        state.altalsSkillCatalog.filter((skill) => isAltalsManagedFilesystemSkill(skill)),
-        state.recentSkillIds
-      )
+      return state.altalsSkillCatalog.filter((skill) => isAltalsManagedFilesystemSkill(skill))
     },
 
     activeSkill(state) {
-      return (
-        getAiSkillById(state.activeSkillId, state.altalsSkillCatalog)
-        || this.altalsSkills[0]
-        || this.builtInActions[0]
-        || null
-      )
-    },
-
-    preparedBrief(state) {
-      return this.activeSkill
-        ? buildPreparedAiBrief(this.activeSkill, this.currentContextBundle, {
-          altalsSkills: state.altalsSkillCatalog,
-        })
-        : ''
+      return this.builtInActions[0] || AI_AGENT_ACTION_DEFINITIONS[0] || null
     },
 
     promptDraft() {
@@ -480,7 +414,9 @@ export const useAiStore = defineStore('ai', {
     },
 
     backgroundTasks() {
-      return Array.isArray(this.currentSession?.backgroundTasks) ? this.currentSession.backgroundTasks : []
+      return Array.isArray(this.currentSession?.backgroundTasks)
+        ? this.currentSession.backgroundTasks
+        : []
     },
 
     activeBackgroundTasks() {
@@ -499,7 +435,7 @@ export const useAiStore = defineStore('ai', {
     },
 
     currentSessionMode() {
-      return this.currentSession?.mode === 'chat' ? 'chat' : 'agent'
+      return 'agent'
     },
 
     currentPermissionMode() {
@@ -533,36 +469,38 @@ export const useAiStore = defineStore('ai', {
     persistCurrentWorkspaceSessions() {
       const workspacePath = currentWorkspacePath()
       if (!workspacePath) return
-      persistAiSessions(workspacePath, {
+      persistAgentSessionsState({
+        workspacePath,
         currentSessionId: this.currentSessionId,
         sessions: this.sessions,
       })
     },
 
     restoreWorkspaceSessions(workspacePath = '') {
-      const normalizedWorkspacePath = String(workspacePath || currentWorkspacePath()).trim()
-      if (!normalizedWorkspacePath) {
-        Object.assign(this, createInitialAiSessionsState())
-        return
-      }
-
-      const persisted = loadPersistedAiSessions(normalizedWorkspacePath)
-      if (!persisted) {
-        Object.assign(this, createInitialAiSessionsState())
-        return
-      }
-
-      const normalized = ensureAiSessionsState({
-        sessions: persisted.sessions,
-        currentSessionId: persisted.currentSessionId,
+      const normalized = restoreAgentSessionsState({
+        workspacePath: String(workspacePath || currentWorkspacePath()).trim(),
         fallbackTitle: buildDefaultSessionTitle(1),
       })
       this.sessions = normalized.sessions
       this.currentSessionId = normalized.currentSessionId
     },
 
+    resetTransientRuntimeState() {
+      const normalized = ensureManagedAgentSessionsState({
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+        fallbackTitle: buildDefaultSessionTitle(
+          Array.isArray(this.sessions) && this.sessions.length > 0 ? this.sessions.length : 1
+        ),
+      })
+
+      this.sessions = normalized.sessions.map(scrubTransientAgentSessionState)
+      this.currentSessionId = normalized.currentSessionId
+      this.persistCurrentWorkspaceSessions()
+    },
+
     ensureSessionState() {
-      const normalized = ensureAiSessionsState({
+      const normalized = ensureManagedAgentSessionsState({
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         fallbackTitle: buildDefaultSessionTitle(
@@ -583,12 +521,16 @@ export const useAiStore = defineStore('ai', {
 
       this.sessions = updateAiSessionRecord(normalized.sessions, targetSessionId, updater)
       this.persistCurrentWorkspaceSessions()
-      return resolveAiSessionRecord(this.sessions, targetSessionId)
+      return resolveAgentSessionRecord(this.sessions, targetSessionId)
     },
 
-    createSession({ title = '', activate = true, mode = 'agent' } = {}) {
-      const normalizedMode = String(mode || '').trim() === 'chat' ? 'chat' : 'agent'
-      const nextSession = createAiSessionRecord({
+    createSession({ title = '', activate = true } = {}) {
+      const normalizedMode = 'agent'
+      const nextState = createAgentSessionState({
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+        title: String(title || '').trim() || buildDefaultSessionTitle(this.sessions.length + 1),
+        activate,
         mode: normalizedMode,
         permissionMode: resolveDefaultSessionPermissionMode({
           mode: normalizedMode,
@@ -599,56 +541,58 @@ export const useAiStore = defineStore('ai', {
             },
           },
         }),
-        title: String(title || '').trim() || buildDefaultSessionTitle(this.sessions.length + 1),
       })
 
-      this.sessions = [nextSession, ...(Array.isArray(this.sessions) ? this.sessions : [])]
-      if (activate) {
-        this.currentSessionId = nextSession.id
-      }
+      this.sessions = nextState.sessions
+      this.currentSessionId = nextState.currentSessionId
       this.persistCurrentWorkspaceSessions()
-      return nextSession
+      return nextState.session
     },
 
     switchSession(sessionId = '') {
-      const normalizedSessionId = String(sessionId || '').trim()
-      if (!normalizedSessionId) return false
-      if (!this.sessions.some((session) => session.id === normalizedSessionId)) return false
-      this.currentSessionId = normalizedSessionId
+      const nextState = switchAgentSessionState({
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+        sessionId,
+      })
+      if (!nextState.success) return false
+      this.currentSessionId = nextState.currentSessionId
       this.persistCurrentWorkspaceSessions()
       return true
     },
 
     deleteSession(sessionId = '') {
-      const normalizedSessionId = String(sessionId || this.currentSessionId || '').trim()
-      if (!normalizedSessionId) return false
-      if (!Array.isArray(this.sessions) || this.sessions.length <= 1) return false
+      const nextState = deleteAgentSessionState({
+        sessions: this.sessions,
+        currentSessionId: this.currentSessionId,
+        sessionId,
+        fallbackTitle: buildDefaultSessionTitle(1),
+      })
+      if (!nextState.success) return false
 
-      this.sessions = removeAiSessionRecord(this.sessions, normalizedSessionId)
-      if (this.currentSessionId === normalizedSessionId) {
-        this.currentSessionId = this.sessions[0]?.id || ''
-      }
-      this.ensureSessionState()
+      this.sessions = nextState.sessions
+      this.currentSessionId = nextState.currentSessionId
       this.persistCurrentWorkspaceSessions()
       return true
     },
 
     renameSession(sessionId = '', title = '') {
-      const normalizedTitle = String(title || '').trim()
-      if (!normalizedTitle) return false
+      const nextState = renameAgentSessionState({
+        sessions: this.sessions,
+        sessionId: sessionId || this.currentSessionId,
+        title,
+      })
+      if (!nextState.success) return false
 
-      const updated = this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
-        ...session,
-        title: normalizedTitle,
-      }))
-      return !!updated
+      this.sessions = nextState.sessions
+      this.persistCurrentWorkspaceSessions()
+      return !!nextState.session
     },
 
-    setSessionMode(mode = 'agent', sessionId = '') {
-      const normalizedMode = String(mode || '').trim() === 'chat' ? 'chat' : 'agent'
+    setSessionMode(_mode = 'agent', sessionId = '') {
       const updated = this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
-        mode: normalizedMode,
+        mode: 'agent',
       }))
       return updated || null
     },
@@ -670,15 +614,6 @@ export const useAiStore = defineStore('ai', {
       if (!filePath || this.editorSelection.filePath === filePath) {
         this.editorSelection = normalizeAiSelection()
       }
-    },
-
-    selectSkill(skillId = '') {
-      if (!skillId) {
-        this.activeSkillId = 'grounded-chat'
-        return
-      }
-      if (!getAiSkillById(skillId, this.altalsSkillCatalog)) return
-      this.activeSkillId = skillId
     },
 
     setPromptDraft(value = '') {
@@ -732,7 +667,9 @@ export const useAiStore = defineStore('ai', {
 
       this.updateSessionById(this.currentSessionId, (session) => ({
         ...session,
-        attachments: session.attachments.filter((attachment) => attachment.id !== normalizedAttachmentId),
+        attachments: session.attachments.filter(
+          (attachment) => attachment.id !== normalizedAttachmentId
+        ),
       }))
     },
 
@@ -777,20 +714,17 @@ export const useAiStore = defineStore('ai', {
       }))
     },
 
-    async respondToAskUserRequest({
-      requestId = '',
-      answers = {},
-      sessionId = '',
-    } = {}) {
+    async respondToAskUserRequest({ requestId = '', answers = {}, sessionId = '' } = {}) {
       const normalizedRequestId = String(requestId || '').trim()
       if (!normalizedRequestId) return false
 
       const targetSession = sessionId
-        ? resolveAiSessionRecord(this.sessions, sessionId)
-        : (Array.isArray(this.sessions) ? this.sessions : []).find((session) =>
-          Array.isArray(session?.askUserRequests)
-          && session.askUserRequests.some((request) => request.requestId === normalizedRequestId)
-        ) || null
+        ? resolveAgentSessionRecord(this.sessions, sessionId)
+        : (Array.isArray(this.sessions) ? this.sessions : []).find(
+            (session) =>
+              Array.isArray(session?.askUserRequests) &&
+              session.askUserRequests.some((request) => request.requestId === normalizedRequestId)
+          ) || null
       const request = targetSession?.askUserRequests?.find(
         (item) => item.requestId === normalizedRequestId
       )
@@ -805,7 +739,8 @@ export const useAiStore = defineStore('ai', {
         this.clearAskUserRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || t('AI execution failed.'))
+        const message =
+          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
           this.updateSessionById(targetSession.id, (session) => ({
             ...session,
@@ -860,11 +795,12 @@ export const useAiStore = defineStore('ai', {
       if (!normalizedRequestId) return false
 
       const targetSession = sessionId
-        ? resolveAiSessionRecord(this.sessions, sessionId)
-        : (Array.isArray(this.sessions) ? this.sessions : []).find((session) =>
-          Array.isArray(session?.exitPlanRequests)
-          && session.exitPlanRequests.some((request) => request.requestId === normalizedRequestId)
-        ) || null
+        ? resolveAgentSessionRecord(this.sessions, sessionId)
+        : (Array.isArray(this.sessions) ? this.sessions : []).find(
+            (session) =>
+              Array.isArray(session?.exitPlanRequests) &&
+              session.exitPlanRequests.some((request) => request.requestId === normalizedRequestId)
+          ) || null
       const request = targetSession?.exitPlanRequests?.find(
         (item) => item.requestId === normalizedRequestId
       )
@@ -880,7 +816,8 @@ export const useAiStore = defineStore('ai', {
         this.clearExitPlanRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || t('AI execution failed.'))
+        const message =
+          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
           this.updateSessionById(targetSession.id, (session) => ({
             ...session,
@@ -915,9 +852,7 @@ export const useAiStore = defineStore('ai', {
       this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
         isCompacting: active === true,
-        lastCompactAt: active === true
-          ? Number(session.lastCompactAt || 0) || 0
-          : Date.now(),
+        lastCompactAt: active === true ? Number(session.lastCompactAt || 0) || 0 : Date.now(),
       }))
     },
 
@@ -951,20 +886,37 @@ export const useAiStore = defineStore('ai', {
 
       this.updateSessionById(sessionId || this.currentSessionId, (session) => ({
         ...session,
-        backgroundTasks: (session.backgroundTasks || []).filter((task) => task.id !== normalizedTaskId),
+        backgroundTasks: (session.backgroundTasks || []).filter(
+          (task) => task.id !== normalizedTaskId
+        ),
       }))
-    },
-
-    recordSkillUsage(skillId = '') {
-      const normalized = String(skillId || '').trim()
-      if (!normalized) return
-      const next = [normalized, ...this.recentSkillIds.filter((id) => id !== normalized)].slice(0, 20)
-      this.recentSkillIds = next
-      writeRecentSkillIds(next)
     },
 
     isToolEnabled(toolId = '') {
       return this.enabledToolIds.includes(String(toolId || '').trim())
+    },
+
+    async refreshAltalsSkills() {
+      const workspace = useWorkspaceStore()
+      this.isRefreshingAltalsSkills = true
+      this.lastSkillCatalogError = ''
+
+      try {
+        const skills = await discoverAltalsSkills({
+          workspacePath: workspace.path || '',
+          globalConfigDir: workspace.globalConfigDir || '',
+        })
+        this.altalsSkillCatalog = skills
+        return skills
+      } catch (error) {
+        this.lastSkillCatalogError =
+          error instanceof Error
+            ? error.message
+            : String(error || t('Failed to load Altals skills.'))
+        return []
+      } finally {
+        this.isRefreshingAltalsSkills = false
+      }
     },
 
     queuePermissionRequest(event = {}, sessionId = '') {
@@ -984,9 +936,9 @@ export const useAiStore = defineStore('ai', {
       }
 
       this.updateSessionById(sessionId || this.currentSessionId, (session) => {
-        const remaining = (Array.isArray(session.permissionRequests) ? session.permissionRequests : []).filter(
-          (request) => request.requestId !== requestId
-        )
+        const remaining = (
+          Array.isArray(session.permissionRequests) ? session.permissionRequests : []
+        ).filter((request) => request.requestId !== requestId)
 
         return {
           ...session,
@@ -1000,16 +952,17 @@ export const useAiStore = defineStore('ai', {
       if (!normalizedRequestId) return
 
       const targetSession = sessionId
-        ? resolveAiSessionRecord(this.sessions, sessionId)
+        ? resolveAgentSessionRecord(this.sessions, sessionId)
         : findSessionByPermissionRequestId(this.sessions, normalizedRequestId)
 
       if (!targetSession) return
 
       this.updateSessionById(targetSession.id, (session) => ({
         ...session,
-        permissionRequests: (Array.isArray(session.permissionRequests) ? session.permissionRequests : []).filter(
-          (request) => request.requestId !== normalizedRequestId
-        ),
+        permissionRequests: (Array.isArray(session.permissionRequests)
+          ? session.permissionRequests
+          : []
+        ).filter((request) => request.requestId !== normalizedRequestId),
       }))
     },
 
@@ -1022,7 +975,7 @@ export const useAiStore = defineStore('ai', {
       const normalizedRequestId = String(requestId || '').trim()
       if (!normalizedRequestId) return false
       const targetSession = sessionId
-        ? resolveAiSessionRecord(this.sessions, sessionId)
+        ? resolveAgentSessionRecord(this.sessions, sessionId)
         : findSessionByPermissionRequestId(this.sessions, normalizedRequestId)
       const request = targetSession?.permissionRequests?.find(
         (item) => item.requestId === normalizedRequestId
@@ -1061,7 +1014,8 @@ export const useAiStore = defineStore('ai', {
         this.clearPermissionRequest(normalizedRequestId, targetSession?.id)
         return true
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || t('AI execution failed.'))
+        const message =
+          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
         if (targetSession) {
           this.updateSessionById(targetSession.id, (session) => ({
             ...session,
@@ -1073,45 +1027,18 @@ export const useAiStore = defineStore('ai', {
       }
     },
 
-    async refreshAltalsSkills() {
-      const workspace = useWorkspaceStore()
-      this.isRefreshingAltalsSkills = true
-      this.lastSkillCatalogError = ''
-
-      try {
-        const skills = await discoverAltalsSkills({
-          workspacePath: workspace.path || '',
-          globalConfigDir: workspace.globalConfigDir || '',
-        })
-        this.altalsSkillCatalog = skills
-
-        if (!getAiSkillById(this.activeSkillId, skills)) {
-          this.activeSkillId = skills[0]?.id || 'grounded-chat'
-        }
-        return skills
-      } catch (error) {
-        this.lastSkillCatalogError = error instanceof Error
-          ? error.message
-          : String(error || t('Failed to load Altals skills.'))
-        return []
-      } finally {
-        this.isRefreshingAltalsSkills = false
-      }
-    },
-
     async refreshProviderState() {
       const config = await loadAiConfig()
       const currentProviderId = String(config?.currentProviderId || 'openai').trim()
       const providerConfig = getAiProviderConfig(config, currentProviderId)
       const providerDefinition = getAiProviderDefinition(currentProviderId)
       const apiKey = await loadAiApiKey(currentProviderId)
+      const requiresApiKey = providerRequiresAiApiKey(currentProviderId, providerConfig)
 
       this.providerState = {
-        ready:
-          !!String(providerConfig?.baseUrl || '').trim()
-          && !!String(providerConfig?.model || '').trim()
-          && !!String(apiKey || '').trim(),
+        ready: isAiProviderReady(currentProviderId, providerConfig, apiKey),
         hasKey: !!String(apiKey || '').trim(),
+        requiresApiKey,
         currentProviderId,
         currentProviderLabel: providerDefinition?.label || currentProviderId,
         enabledToolIds: Array.isArray(config?.enabledTools) ? config.enabledTools : [],
@@ -1133,162 +1060,112 @@ export const useAiStore = defineStore('ai', {
       const filesStore = useFilesStore()
       const activeSession = this.currentSession || this.createSession()
       const sessionId = activeSession.id
-      const sessionMode = activeSession.mode === 'chat' ? 'chat' : 'agent'
-      const isAgentSession = sessionMode === 'agent'
-      const promptDraft = String(activeSession.promptDraft || '')
-      const promptMentions = parseAiPromptResourceMentions(promptDraft)
-      const invocation = resolveAiInvocation({
-        prompt: promptDraft,
-        activeSkill: this.activeSkill,
-        builtInActions: this.builtInActions,
-        altalsSkills: this.altalsSkills,
-        contextBundle: this.currentContextBundle,
-      })
-      const skill = invocation.resolvedSkill
-      if (invocation.resolvedSkill?.id && invocation.resolvedSkill.id !== this.activeSkillId) {
-        this.activeSkillId = invocation.resolvedSkill.id
-      }
-      if (!skill) {
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          lastError: t('AI skill is not available.'),
-        }))
-        return null
-      }
-      if (skill.kind !== 'filesystem-skill' && !skillHasRequiredContext(skill, this.currentContextBundle)) {
-        const message = t('The selected AI skill is missing required context.')
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          lastError: message,
-        }))
-        toastStore.show(message, { type: 'warning' })
-        return null
-      }
-
-      const providerState = await this.refreshProviderState()
-      if (!providerState.ready) {
-        const message = t('AI settings are incomplete. Configure the provider before running a skill.')
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          lastError: message,
-        }))
-        toastStore.show(message, { type: 'warning' })
-        return null
-      }
-
-      const fullConfig = await loadAiConfig()
-      const providerId = String(fullConfig?.currentProviderId || 'openai').trim()
-      const [baseConfig, apiKey] = await Promise.all([
-        Promise.resolve(getAiProviderConfig(fullConfig, providerId)),
-        loadAiApiKey(providerId),
-      ])
-      const effectivePermissionMode = resolveEffectiveSessionPermissionMode({
-        session: activeSession,
-        mode: sessionMode,
-        providerId,
-        providerConfig: baseConfig,
-      })
-      const config = {
-        ...baseConfig,
-        sdk: providerId === 'anthropic'
-          ? {
-            ...(baseConfig.sdk || {}),
-            runtimeMode: !isAgentSession ? 'http' : String(baseConfig?.sdk?.runtimeMode || 'sdk'),
-            approvalMode: effectivePermissionMode === 'plan' ? 'plan' : 'per-tool',
-            autoAllowAll: effectivePermissionMode === 'bypass-permissions',
-          }
-          : baseConfig.sdk,
-      }
-      const contextBundle = this.currentContextBundle
-      const userInstruction = String(invocation.userInstruction || '').trim()
-      let referencedFiles = []
-      if (isAgentSession && promptMentions.fileMentions.length > 0) {
-        await filesStore.ensureFlatFilesReady({ force: false })
-        const mentionedEntries = resolveMentionedWorkspaceFiles(
-          promptMentions.fileMentions,
-          filesStore.flatFiles,
-          useWorkspaceStore().path || ''
-        )
-        referencedFiles = await Promise.all(
-          mentionedEntries.map(async (entry) => {
-            try {
-              const content = await filesStore.readFile(entry.path, { maxBytes: 64 * 1024 })
-              return {
-                path: entry.path,
-                relativePath: useWorkspaceStore().path && entry.path.startsWith(useWorkspaceStore().path)
-                  ? entry.path.slice(useWorkspaceStore().path.length).replace(/^\/+/, '')
-                  : entry.path,
-                content: String(content || ''),
-              }
-            } catch {
-              return {
-                path: entry.path,
-                relativePath: useWorkspaceStore().path && entry.path.startsWith(useWorkspaceStore().path)
-                  ? entry.path.slice(useWorkspaceStore().path.length).replace(/^\/+/, '')
-                  : entry.path,
-                content: '',
-              }
-            }
-          })
-        )
-      }
-      const priorConversation = normalizeConversation(
-        (activeSession.messages || []).slice(-6)
-      )
-      const userMessageId = `message:${nanoid()}`
-      const pendingAssistantId = `message:${nanoid()}`
-      const createdAt = Date.now()
-      const userMessage = buildAiUserConversationMessage({
-        id: userMessageId,
-        skill,
-        userInstruction,
-        contextBundle,
-        createdAt,
-      })
-      const pendingAssistantMessage = buildAiPendingAssistantMessage({
-        id: pendingAssistantId,
-        skill,
-        providerState,
-        contextBundle,
-        createdAt: createdAt + 1,
-      })
+      let preparedRun = null
+      let skill = null
+      let providerState = null
+      let contextBundle = this.currentContextBundle
+      let pendingAssistantId = ''
       let liveToolEvents = []
-
-      this.updateSessionById(sessionId, (session) => ({
-        ...session,
-        title: session.messages.length === 0
-          ? deriveAiSessionTitle(
-            userInstruction || promptDraft,
-            session.title || buildDefaultSessionTitle(this.sessions.length)
-          )
-          : session.title,
-        messages: [...session.messages, userMessage, pendingAssistantMessage],
-        isRunning: true,
-        lastError: '',
-        waitingResume: false,
-        waitingResumeMessage: '',
-        permissionMode: effectivePermissionMode === 'chat'
-          ? session.permissionMode
-          : normalizeAiSessionPermissionMode(effectivePermissionMode),
-      }))
+      let runStarted = false
 
       try {
-        const result = await executeAiSkill({
-          skillId: skill.id,
-          skill,
-          contextBundle,
-          config: {
-            ...config,
-            providerId,
-          },
-          apiKey: apiKey || '',
-          userInstruction,
-          conversation: priorConversation,
+        preparedRun = await prepareAgentRun({
+          activeSession,
+          activeSkill: this.builtInActions[0] || this.activeSkill,
+          builtInActions: this.builtInActions,
           altalsSkills: this.altalsSkills,
-          attachments: activeSession.attachments || [],
-          referencedFiles,
-          requestedTools: isAgentSession ? promptMentions.toolMentions : [],
+          contextBundle: this.currentContextBundle,
+          sessionMode: 'agent',
+          resolveEffectiveSessionPermissionMode,
+          skillHasRequiredContext,
+          refreshProviderState: () => this.refreshProviderState(),
+          workspacePath: useWorkspaceStore().path || '',
+          flatFiles: filesStore.flatFiles,
+          ensureFlatFilesReady: () => filesStore.ensureFlatFilesReady({ force: false }),
+          readWorkspaceFile: (path, options = {}) => filesStore.readFile(path, options),
+        })
+
+        if (!preparedRun.ok) {
+          const errorMessageByCode = {
+            SESSION_UNAVAILABLE: t('AI execution failed.'),
+            AI_SKILL_UNAVAILABLE: t('AI skill is not available.'),
+            MISSING_CONTEXT: t('The selected AI skill is missing required context.'),
+            PROVIDER_NOT_READY:
+              preparedRun.providerState?.requiresApiKey === false
+                ? t('Agent runtime is not ready. Configure the provider and model before sending.')
+                : t(
+                    'Agent runtime is not ready. Configure the provider, model, and API key before sending.'
+                  ),
+          }
+          const message = errorMessageByCode[preparedRun.code] || t('AI execution failed.')
+          this.updateSessionById(sessionId, (session) => ({
+            ...session,
+            lastError: message,
+          }))
+          if (preparedRun.code !== 'SESSION_UNAVAILABLE') {
+            toastStore.show(message, { type: 'warning' })
+          }
+          return null
+        }
+
+        ;({
+          skill,
+          providerState,
+          contextBundle,
+        } = preparedRun)
+        const { userInstruction, effectivePermissionMode, promptDraft } = preparedRun
+        const userMessageId = `message:${nanoid()}`
+        pendingAssistantId = `message:${nanoid()}`
+        const createdAt = Date.now()
+
+        this.updateSessionById(
+          sessionId,
+          (session) =>
+            startAgentRunSessionState({
+              session,
+              skill,
+              providerState,
+              contextBundle,
+              userInstruction,
+              promptDraft,
+              effectivePermissionMode,
+              userMessageId,
+              pendingAssistantId,
+              createdAt,
+              fallbackTitle: buildDefaultSessionTitle(this.sessions.length),
+            }).session
+        )
+        runStarted = true
+
+        const result = await executePreparedAgentRun(preparedRun, {
+          altalsSkills: this.altalsSkills,
           toolRuntime: {
+            listWorkspaceDirectory: async (input = {}) => {
+              await filesStore.ensureFlatFilesReady({ force: false })
+              return listWorkspaceDirectory({
+                workspacePath: useWorkspaceStore().path || '',
+                files: filesStore.flatFiles,
+                path: input.path || input.directoryPath || '',
+                maxResults: input.maxResults,
+              })
+            },
+            searchWorkspaceFiles: async (input = {}) => {
+              await filesStore.ensureFlatFilesReady({ force: false })
+              return searchWorkspaceFiles({
+                workspacePath: useWorkspaceStore().path || '',
+                files: filesStore.flatFiles,
+                query: input.query || '',
+                directoryPath: input.directoryPath || '',
+                maxResults: input.maxResults,
+              })
+            },
+            readWorkspaceFile: async (input = {}) =>
+              readWorkspaceFile({
+                workspacePath: useWorkspaceStore().path || '',
+                path: input.path || '',
+                maxBytes: input.maxBytes,
+                readFile: (path, options) => filesStore.readFile(path, options),
+              }),
             readActiveDocument: (runtimeContextBundle) =>
               readActiveDocumentRuntime(runtimeContextBundle, filesStore, editorStore),
             readEditorSelection: readEditorSelectionRuntime,
@@ -1296,185 +1173,68 @@ export const useAiStore = defineStore('ai', {
             readSkillSupportFiles: readSkillSupportFilesRuntime,
           },
           onEvent: (event) => {
-            if (event?.type === 'permission_request') {
-              this.queuePermissionRequest(event, sessionId)
-            }
-            if (event?.type === 'permission_resolved') {
-              this.clearPermissionRequest(event.requestId || event.toolUseId, sessionId)
-            }
-            if (event?.type === 'ask_user_request') {
-              this.queueAskUserRequest(event, sessionId)
-            }
-            if (event?.type === 'ask_user_resolved') {
-              this.clearAskUserRequest(event.requestId, sessionId)
-            }
-            if (event?.type === 'exit_plan_mode_request') {
-              this.queueExitPlanRequest(event, sessionId)
-            }
-            if (event?.type === 'exit_plan_mode_resolved') {
-              this.clearExitPlanRequest(event.requestId, sessionId)
-            }
-            if (event?.type === 'permission_mode_changed') {
-              this.setSessionPermissionMode(event.mode, sessionId)
-            }
-            if (event?.type === 'plan_mode_start') {
-              this.setPlanModeState(sessionId, {
-                active: true,
-                summary: event.summary,
-                note: event.note,
+            liveToolEvents = mergeAgentRunToolEventState(liveToolEvents, event)
+            this.updateSessionById(sessionId, (session) =>
+              applyAgentRunEventToSessionState({
+                session,
+                event,
+                pendingAssistantId,
+                translate: t,
               })
-            }
-            if (event?.type === 'plan_mode_end') {
-              this.setPlanModeState(sessionId, {
-                active: false,
-                summary: '',
-                note: '',
-              })
-            }
-            if (event?.type === 'compacting') {
-              this.setCompactionState(sessionId, { active: true })
-            }
-            if (event?.type === 'compact_complete') {
-              this.setCompactionState(sessionId, { active: false })
-            }
-            if (event?.type === 'waiting_resume') {
-              this.setWaitingResumeState(sessionId, {
-                active: true,
-                message: String(event.message || '').trim(),
-              })
-            }
-            if (event?.type === 'resume_start') {
-              this.setWaitingResumeState(sessionId, { active: false, message: '' })
-            }
-            if (event?.type === 'background_task') {
-              this.upsertBackgroundTask({
-                ...event,
-                toolUseId: event.id || event.toolId || '',
-              }, sessionId)
-            }
-            if (event?.type === 'task_started') {
-              this.upsertBackgroundTask({
-                taskId: event.taskId,
-                toolUseId: event.toolUseId,
-                taskType: event.taskType,
-                label: event.description || t('Background task'),
-                description: event.description,
-                status: 'running',
-              }, sessionId)
-            }
-            if (event?.type === 'task_progress') {
-              this.upsertBackgroundTask({
-                taskId: event.taskId,
-                toolUseId: event.toolUseId,
-                lastToolName: event.lastToolName,
-                detail: String(event.description || event.lastToolName || '').trim(),
-                elapsedSeconds: event.elapsedSeconds,
-                usage: event.usage,
-                status: 'running',
-              }, sessionId)
-            }
-            if (event?.type === 'task_notification') {
-              this.upsertBackgroundTask({
-                taskId: event.taskId,
-                toolUseId: event.toolUseId,
-                summary: event.summary,
-                outputFile: event.outputFile,
-                usage: event.usage,
-                status: event.status,
-              }, sessionId)
-            }
-            if (event?.eventType === 'tool' || event?.toolId) {
-              const payloadEventType = String(event?.payload?.eventType || '').trim()
-              const payloadToolName = String(event?.payload?.toolName || event.label || '').trim()
-
-              if (payloadEventType === 'tool_call_start' && payloadToolName === 'EnterPlanMode') {
-                this.setPlanModeState(sessionId, {
-                  active: true,
-                  summary: t('The agent is currently drafting a plan.'),
-                  note: t('Plan mode stays visible until the runtime exits it.'),
-                })
-              }
-
-              if (payloadEventType === 'tool_call_done' && payloadToolName === 'ExitPlanMode') {
-                this.setPlanModeState(sessionId, {
-                  active: false,
-                  summary: '',
-                  note: '',
-                })
-              }
-
-              liveToolEvents = mergeToolEventRecord(liveToolEvents, event)
-            }
-            this.updateSessionById(sessionId, (session) => ({
-              ...session,
-              messages: session.messages.map((message) =>
-                message.id === pendingAssistantId
-                  ? applyAiConversationEventToMessage(message, event)
-                  : message
-              ),
-            }))
+            )
           },
         })
 
-        const artifact = buildArtifactRecord(skill.id, normalizeAiArtifact(
+        const artifact = buildArtifactRecord(
           skill.id,
-          result.payload,
-          contextBundle,
-          result.content
-        ))
-        const assistantMessage = buildAiAssistantConversationMessage({
-          id: pendingAssistantId,
-          skill,
-          result,
-          artifact,
-          providerState,
-          contextBundle,
-          createdAt: Date.now(),
+          normalizeAiArtifact(skill.id, result.payload, contextBundle, result.content)
+        )
+        let assistantMessage = null
+        this.updateSessionById(sessionId, (session) => {
+          const nextState = completeAgentRunSessionState({
+            session,
+            pendingAssistantId,
+            skill,
+            result,
+            artifact,
+            providerState,
+            contextBundle,
+            createdAt: Date.now(),
+          })
+          assistantMessage = nextState.assistantMessage
+          return nextState.session
         })
-
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          messages: session.messages.map((message) =>
-            message.id === pendingAssistantId ? assistantMessage : message
-          ),
-          artifacts: artifact ? [artifact, ...session.artifacts] : session.artifacts,
-          attachments: [],
-          promptDraft: '',
-        }))
-        this.recordSkillUsage(skill.id)
         return { assistantMessage, artifact }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || t('AI execution failed.'))
-        const failedAssistantMessage = buildAiFailedAssistantMessage({
-          id: pendingAssistantId,
-          skill,
-          error: message,
-          providerState,
-          contextBundle,
-          events: liveToolEvents,
-          createdAt: Date.now(),
-        })
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          lastError: message,
-          messages: session.messages.map((conversationMessage) =>
-            conversationMessage.id === pendingAssistantId
-              ? failedAssistantMessage
-              : conversationMessage
-          ),
-        }))
+        const message =
+          error instanceof Error ? error.message : String(error || t('AI execution failed.'))
+        if (runStarted && pendingAssistantId) {
+          this.updateSessionById(
+            sessionId,
+            (session) =>
+              failAgentRunSessionState({
+                session,
+                pendingAssistantId,
+                skill,
+                error: message,
+                providerState,
+                contextBundle,
+                events: liveToolEvents,
+                createdAt: Date.now(),
+              }).session
+          )
+        } else {
+          this.updateSessionById(sessionId, (session) => ({
+            ...session,
+            lastError: message,
+          }))
+        }
         toastStore.show(message, { type: 'error' })
         return null
       } finally {
-        this.updateSessionById(sessionId, (session) => ({
-          ...session,
-          isRunning: false,
-          permissionRequests: [],
-          exitPlanRequests: [],
-          waitingResume: false,
-          waitingResumeMessage: '',
-          isCompacting: false,
-        }))
+        if (runStarted) {
+          this.updateSessionById(sessionId, (session) => finalizeAgentRunSessionState({ session }))
+        }
       }
     },
 
@@ -1503,7 +1263,10 @@ export const useAiStore = defineStore('ai', {
         }
         return applied
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || t('Failed to apply AI artifact.'))
+        const message =
+          error instanceof Error
+            ? error.message
+            : String(error || t('Failed to apply AI artifact.'))
         if (targetSession) {
           this.updateSessionById(targetSession.id, (session) => ({
             ...session,

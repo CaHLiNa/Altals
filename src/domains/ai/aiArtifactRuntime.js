@@ -1,3 +1,5 @@
+import { isDefaultAgentActionId } from '../../services/ai/builtInActions.js'
+
 function tryParseJson(value = '') {
   const normalized = String(value || '').trim()
   if (!normalized) return null
@@ -33,7 +35,11 @@ function buildDocPatchArtifact(payload = {}, contextBundle = {}) {
   const replacementText = String(
     payload.replacement_text || payload.revised_paragraph || payload.paragraph || ''
   ).trim()
-  if (!replacementText || !contextBundle.selection?.available || !contextBundle.document?.available) {
+  if (
+    !replacementText ||
+    !contextBundle.selection?.available ||
+    !contextBundle.document?.available
+  ) {
     return null
   }
 
@@ -57,10 +63,11 @@ function buildNoteDraftArtifact(payload = {}, contextBundle = {}) {
   if (!content) return null
 
   const suggestedTitle = String(payload.title || 'AI note').trim() || 'AI note'
-  const slug = suggestedTitle
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'ai-note'
+  const slug =
+    suggestedTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'ai-note'
 
   return {
     type: 'note_draft',
@@ -72,7 +79,12 @@ function buildNoteDraftArtifact(payload = {}, contextBundle = {}) {
   }
 }
 
-export function normalizeAiArtifact(skillId = '', payload = {}, contextBundle = {}, fallbackText = '') {
+export function normalizeAiArtifact(
+  skillId = '',
+  payload = {},
+  contextBundle = {},
+  fallbackText = ''
+) {
   if (skillId === 'revise-with-citations') {
     return buildDocPatchArtifact(payload, contextBundle)
   }
@@ -91,7 +103,7 @@ export function normalizeAiArtifact(skillId = '', payload = {}, contextBundle = 
     return buildNoteDraftArtifact(payload, contextBundle)
   }
 
-  if (skillId === 'find-supporting-references' || skillId === 'grounded-chat') {
+  if (skillId === 'find-supporting-references' || isDefaultAgentActionId(skillId)) {
     return null
   }
 

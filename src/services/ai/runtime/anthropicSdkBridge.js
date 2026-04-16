@@ -1,5 +1,9 @@
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import {
+  consumeAnthropicSdkBridgeChunk,
+  flushAnthropicSdkBridgeBuffer,
+} from './anthropicSdkEventStream.js'
 
 const AI_AGENT_SDK_STREAM_EVENT = 'ai-agent-sdk-stream'
 
@@ -8,14 +12,6 @@ function createStreamId() {
     return `ai-sdk-stream:${globalThis.crypto.randomUUID()}`
   }
   return `ai-sdk-stream:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 10)}`
-}
-
-function normalizeAgentSdkLine(line = '') {
-  try {
-    return JSON.parse(String(line || '').trim())
-  } catch {
-    return null
-  }
 }
 
 export async function respondAnthropicAgentSdkPermission({
@@ -100,37 +96,21 @@ export async function runAnthropicAgentSdkBridge(request = {}, { onEvent, signal
       }
 
       const consumeChunk = (chunk = '') => {
-        buffer += String(chunk || '')
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
+        const parsed = consumeAnthropicSdkBridgeChunk({
+          buffer,
+          chunk,
+          streamId,
+          onEvent,
+        })
+        buffer = parsed.buffer
 
-        for (const rawLine of lines) {
-          const line = rawLine.trim()
-          if (!line) continue
-          const payload = normalizeAgentSdkLine(line)
-          if (!payload) continue
+        if (parsed.done) {
+          settleResolve(parsed.done)
+          return
+        }
 
-          if (payload.kind === 'event' && payload.event) {
-            onEvent?.({
-              ...payload.event,
-              streamId,
-            })
-            continue
-          }
-
-          if (payload.kind === 'done') {
-            settleResolve({
-              content: String(payload.content || ''),
-              reasoning: String(payload.reasoning || ''),
-              stopReason: String(payload.stopReason || ''),
-            })
-            return
-          }
-
-          if (payload.kind === 'error') {
-            settleReject(new Error(String(payload.error || 'Anthropic Agent SDK run failed.')))
-            return
-          }
+        if (parsed.error) {
+          settleReject(parsed.error)
         }
       }
 
@@ -152,7 +132,22 @@ export async function runAnthropicAgentSdkBridge(request = {}, { onEvent, signal
 
             if (payload.kind === 'done') {
               if (buffer.trim()) {
-                consumeChunk('\n')
+                const parsed = flushAnthropicSdkBridgeBuffer({
+                  buffer,
+                  streamId,
+                  onEvent,
+                })
+                buffer = parsed.buffer
+
+                if (parsed.done) {
+                  settleResolve(parsed.done)
+                  return
+                }
+
+                if (parsed.error) {
+                  settleReject(parsed.error)
+                  return
+                }
               }
               if (!resolved) {
                 settleResolve({
