@@ -133,13 +133,21 @@
 
       <div class="references-sidebar-panel__section">
         <div class="references-sidebar-panel__section-title">{{ t('Tags') }}</div>
-        <div
+        <button
           v-for="tag in referencesStore.tags"
           :key="tag.key"
-          class="references-sidebar-panel__secondary"
+          type="button"
+          class="references-sidebar-panel__row references-sidebar-panel__row--secondary ui-list-row"
+          :class="{ 'is-active': tag.key === referencesStore.selectedTagKey }"
+          @click="referencesStore.setSelectedTag(tag.key)"
         >
-          {{ tag.label }}
-        </div>
+          <span class="references-sidebar-panel__row-main">
+            <span>{{ tag.label }}</span>
+          </span>
+          <span class="references-sidebar-panel__count">
+            {{ referencesStore.tagCounts[tag.key] || 0 }}
+          </span>
+        </button>
       </div>
     </div>
 
@@ -459,11 +467,9 @@ defineExpose({
   line-height: var(--workbench-line-height-secondary);
 }
 
-.references-sidebar-panel__secondary {
-  padding: 3px 10px 3px 12px;
-  color: color-mix(in srgb, var(--text-secondary) 76%, transparent);
+.references-sidebar-panel__row--secondary {
+  min-height: 26px;
   font-size: var(--sidebar-font-body);
-  line-height: 1.5;
 }
 
 .references-sidebar-panel__create-row {

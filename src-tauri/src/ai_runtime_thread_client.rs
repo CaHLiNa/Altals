@@ -290,7 +290,16 @@ pub fn map_runtime_thread_snapshot_to_session(session: &Value, snapshot: &Value)
     next_session["runtimeThreadId"] = Value::String(string_field(&thread, &["id"]));
     next_session["runtimeTurnId"] = Value::String(string_field(&thread, &["activeTurnId"]));
     next_session["isRunning"] = Value::Bool(string_field(&thread, &["status"]) == "running");
-    next_session["messages"] = Value::Array(build_session_messages_from_runtime_snapshot(snapshot));
+    let existing_messages = session
+        .get("messages")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    next_session["messages"] = if existing_messages.is_empty() {
+        Value::Array(build_session_messages_from_runtime_snapshot(snapshot))
+    } else {
+        Value::Array(existing_messages)
+    };
     next_session["permissionRequests"] = Value::Array(
         build_session_permission_requests_from_runtime_snapshot(snapshot),
     );
@@ -327,4 +336,3 @@ pub async fn ai_runtime_thread_snapshot_to_session(
         session: map_runtime_thread_snapshot_to_session(&params.session, &params.snapshot),
     })
 }
-

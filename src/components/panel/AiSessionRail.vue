@@ -1,7 +1,7 @@
 <template>
   <section class="ai-session-rail">
-    <div 
-      ref="scrollContainerRef" 
+    <div
+      ref="scrollContainerRef"
       class="ai-session-rail__scroll scrollbar-hidden"
       @wheel="handleWheelScroll"
     >
@@ -41,22 +41,16 @@
           >
             {{ t('Error') }}
           </span>
-          <span
-
-            v-if="session.id === currentSessionId && sessions.length > 1"
-
-            class="ai-session-rail__close"
-
-            :title="t('Delete session')"
-
-            @click.stop="$emit('delete', session.id)"
-
-          >
-
-            ×
-
-          </span>
-
+        </button>
+        <button
+          v-if="session.id === currentSessionId && sessions.length > 1"
+          type="button"
+          class="ai-session-rail__close"
+          :title="t('Delete session')"
+          :aria-label="t('Delete session')"
+          @click.stop="$emit('delete', session.id)"
+        >
+          <IconX :size="12" :stroke-width="2.2" />
         </button>
       </div>
     </div>
@@ -74,6 +68,7 @@
 
 <script setup>
 import { nextTick, ref, watch } from 'vue'
+import { IconX } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -184,7 +179,18 @@ watch(
   align-items: center;
   gap: 6px;
   min-width: 0;
-  flex: 0 0 auto; /* Don't grow to fill space randomly */
+  flex: 0 0 auto;
+  max-width: 240px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.ai-session-rail__item:hover,
+.ai-session-rail__item.is-active {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
+  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .ai-session-rail__main,
@@ -194,9 +200,8 @@ watch(
   gap: 6px;
   min-width: 0;
   max-width: 200px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid transparent;
+  padding: 0;
+  border: none;
   background: transparent;
 }
 
@@ -204,17 +209,14 @@ watch(
   appearance: none;
   cursor: pointer;
   color: var(--text-secondary);
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    color 140ms ease;
+  flex: 1 1 auto;
+  transition: color 140ms ease;
 }
 
 .ai-session-rail__main:hover,
+.ai-session-rail__item:hover .ai-session-rail__main,
 .ai-session-rail__main.is-active {
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-color) 72%);
-  background: color-mix(in srgb, var(--surface-hover) 28%, transparent);
 }
 
 .ai-session-rail__title {
@@ -265,24 +267,27 @@ watch(
 }
 
 .ai-session-rail__close {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1;
   padding: 0;
   cursor: pointer;
-  margin-left: 2px;
+  flex: 0 0 auto;
 }
 .ai-session-rail__close:hover {
   background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
   color: var(--text-primary);
+}
+.ai-session-rail__close:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-color) 66%);
+  background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
 }
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;

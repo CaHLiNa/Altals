@@ -254,6 +254,9 @@ const currentDocumentLabel = computed(() => {
         )?.key || 'manual'
       return t(getReferenceSourceLabelKey(sourceKey))
     }
+    if (referencesStore.selectedTag?.label) {
+      return referencesStore.selectedTag.label
+    }
     const sectionKey =
       referencesStore.librarySections.find(
         (section) => section.key === referencesStore.selectedSectionKey

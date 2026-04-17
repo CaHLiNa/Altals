@@ -57,6 +57,58 @@ function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
 }
 
+function normalizeTagKey(value = '') {
+  return String(value || '').trim().toLowerCase()
+}
+
+function normalizeTagLabel(value = '') {
+  return String(value || '').trim()
+}
+
+function normalizeTagEntry(value = null) {
+  if (typeof value === 'string') {
+    const label = normalizeTagLabel(value)
+    if (!label) return null
+    return {
+      key: normalizeTagKey(label),
+      label,
+    }
+  }
+
+  if (!value || typeof value !== 'object') return null
+
+  const label = normalizeTagLabel(value.label || value.name || value.key || '')
+  if (!label) return null
+
+  return {
+    ...value,
+    key: normalizeTagKey(value.key || label),
+    label,
+  }
+}
+
+function buildTagRegistry(existingTags = [], references = []) {
+  const registry = new Map()
+
+  for (const entry of Array.isArray(existingTags) ? existingTags : []) {
+    const normalized = normalizeTagEntry(entry)
+    if (!normalized?.key) continue
+    registry.set(normalized.key, normalized)
+  }
+
+  for (const reference of Array.isArray(references) ? references : []) {
+    for (const value of Array.isArray(reference?.tags) ? reference.tags : []) {
+      const normalized = normalizeTagEntry(value)
+      if (!normalized?.key) continue
+      if (!registry.has(normalized.key)) {
+        registry.set(normalized.key, normalized)
+      }
+    }
+  }
+
+  return [...registry.values()].sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')))
+}
+
 function resolveCollection(collections = [], collectionKey = '') {
   const normalizedKey = normalizeCollectionMembershipValue(collectionKey)
   if (!normalizedKey) return null
@@ -98,6 +150,13 @@ function filterReferenceByCollection(reference, collectionKey, collections = [])
   const collection = resolveCollection(collections, collectionKey)
   if (!collection) return false
   return referenceHasCollection(reference, collection)
+}
+
+function filterReferenceByTag(reference, tagKey = '') {
+  const normalizedTag = normalizeTagKey(tagKey)
+  if (!normalizedTag) return true
+  const tags = Array.isArray(reference?.tags) ? reference.tags : []
+  return tags.some((value) => normalizeTagKey(typeof value === 'string' ? value : value?.key || value?.label) === normalizedTag)
 }
 
 function referenceHasPdf(reference = {}) {
@@ -210,6 +269,7 @@ export const useReferencesStore = defineStore('references', {
     selectedSectionKey: 'all',
     selectedSourceKey: '',
     selectedCollectionKey: '',
+    selectedTagKey: '',
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
     searchQuery: '',
     sortKey: 'year-desc',
@@ -246,6 +306,17 @@ export const useReferencesStore = defineStore('references', {
 
     selectedCollection: (state) => resolveCollection(state.collections, state.selectedCollectionKey),
 
+    tagCounts: (state) =>
+      Object.fromEntries(
+        state.tags.map((tag) => [
+          tag.key,
+          state.references.filter((reference) => filterReferenceByTag(reference, tag.key)).length,
+        ])
+      ),
+
+    selectedTag: (state) =>
+      state.tags.find((tag) => normalizeTagKey(tag.key) === normalizeTagKey(state.selectedTagKey)) || null,
+
     filteredReferences: (state) =>
       state.references
         .filter((reference) => filterReferenceBySection(reference, state.selectedSectionKey))
@@ -253,6 +324,7 @@ export const useReferencesStore = defineStore('references', {
         .filter((reference) =>
           filterReferenceByCollection(reference, state.selectedCollectionKey, state.collections)
         )
+        .filter((reference) => filterReferenceByTag(reference, state.selectedTagKey))
         .filter((reference) => {
           const query = String(state.searchQuery || '').trim().toLowerCase()
           if (!query) return true
@@ -289,7 +361,19 @@ export const useReferencesStore = defineStore('references', {
   },
 
   actions: {
+    syncTagRegistry() {
+      this.tags = buildTagRegistry([], this.references)
+    },
+
+    ensureSelectedReferenceVisible() {
+      if (this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
+        return
+      }
+      this.selectedReferenceId = this.filteredReferences[0]?.id || ''
+    },
+
     async persistLibrarySnapshot(projectRoot = '') {
+      this.syncTagRegistry()
       const snapshot = {
         version: 2,
         citationStyle: this.citationStyle,
@@ -308,11 +392,14 @@ export const useReferencesStore = defineStore('references', {
       }
 
       this.collections = normalized.collections
-      this.tags = normalized.tags
+      this.tags = buildTagRegistry([], normalized.references)
       this.references = normalized.references
       this.citationStyle = String(normalized.citationStyle || 'apa')
       if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
         this.selectedCollectionKey = ''
+      }
+      if (!this.tags.some((tag) => normalizeTagKey(tag.key) === normalizeTagKey(this.selectedTagKey))) {
+        this.selectedTagKey = ''
       }
       if (!this.sourceSections.some((section) => section.key === this.selectedSourceKey)) {
         this.selectedSourceKey = ''
@@ -321,6 +408,7 @@ export const useReferencesStore = defineStore('references', {
       if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.references[0]?.id || ''
       }
+      this.ensureSelectedReferenceVisible()
     },
 
     async loadWorkspaceLibrary(projectRoot = '', options = {}) {
@@ -400,6 +488,7 @@ export const useReferencesStore = defineStore('references', {
           }
           if (importedSelection) this.selectedReferenceId = importedSelection.id
         }
+        this.ensureSelectedReferenceVisible()
         return importedCount
       } finally {
         this.importInFlight = false
@@ -444,6 +533,7 @@ export const useReferencesStore = defineStore('references', {
             this.selectedReferenceId = importedSelection.id
           }
         }
+        this.ensureSelectedReferenceVisible()
         return importedCount
       } finally {
         this.importInFlight = false
@@ -550,9 +640,7 @@ export const useReferencesStore = defineStore('references', {
         this.selectedCollectionKey = ''
       }
 
-      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      this.ensureSelectedReferenceVisible()
 
       await this.persistLibrarySnapshot(projectRoot)
       return true
@@ -563,6 +651,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = exists ? sectionKey : 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
+      this.selectedTagKey = ''
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -573,6 +662,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSourceKey = exists ? sourceKey : ''
       this.selectedSectionKey = 'all'
       this.selectedCollectionKey = ''
+      this.selectedTagKey = ''
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -583,6 +673,19 @@ export const useReferencesStore = defineStore('references', {
       this.selectedCollectionKey = collection?.key || ''
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
+      this.selectedTagKey = ''
+      if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
+        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
+      }
+    },
+
+    setSelectedTag(tagKey = '') {
+      const normalized = normalizeTagKey(tagKey)
+      const exists = this.tags.some((tag) => normalizeTagKey(tag.key) === normalized)
+      this.selectedTagKey = exists ? normalized : ''
+      this.selectedSectionKey = 'all'
+      this.selectedSourceKey = ''
+      this.selectedCollectionKey = ''
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -654,7 +757,9 @@ export const useReferencesStore = defineStore('references', {
       }
 
       this.references = [...this.references, nextReference]
+      this.syncTagRegistry()
       this.selectedReferenceId = nextReference.id
+      this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
       return nextReference
     },
@@ -673,6 +778,8 @@ export const useReferencesStore = defineStore('references', {
           : reference
       )
 
+      this.syncTagRegistry()
+      this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
       return true
     },
@@ -682,6 +789,7 @@ export const useReferencesStore = defineStore('references', {
       if (!target) return false
 
       this.references = this.references.filter((reference) => reference.id !== referenceId)
+      this.syncTagRegistry()
       if (this.selectedReferenceId === referenceId) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -726,6 +834,7 @@ export const useReferencesStore = defineStore('references', {
           : candidate
       )
 
+      this.ensureSelectedReferenceVisible()
       await this.persistLibrarySnapshot(projectRoot)
       return !isMember
     },
@@ -790,6 +899,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
+      this.selectedTagKey = ''
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
       this.searchQuery = ''
       this.sortKey = 'year-desc'

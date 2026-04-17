@@ -47,7 +47,7 @@
 
 /* macOS Context Menu */
 .context-menu {
-  z-index: 1000 !important;
+  z-index: 9999 !important;
   background: color-mix(in srgb, var(--surface-raised) 70%, transparent) !important;
   backdrop-filter: blur(40px) saturate(1.5);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent) !important;
@@ -61,6 +61,7 @@
   width: auto !important;
   margin-top: 0 !important;
   font-size: 13px !important;
+  pointer-events: auto !important;
 }
 
 .theme-light .context-menu {

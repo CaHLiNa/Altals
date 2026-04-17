@@ -31,7 +31,8 @@
             :rows="2"
             shell-class="inspector-input-title"
             :placeholder="t('Title')"
-            @blur="commitTitle"
+            @focus="setActiveDraftField('title')"
+            @blur="handleFieldBlur('title', commitTitle)"
           />
         </div>
       </div>
@@ -47,41 +48,99 @@
         <div class="inspector-kv-grid">
           <div class="kv-label">{{ t('Authors') }}</div>
           <div class="kv-value">
-            <UiInput v-model="draft.authorsText" variant="ghost" size="sm" @blur="commitAuthors" @keydown.enter.prevent="$event.target.blur()"/>
+            <UiInput
+              v-model="draft.authorsText"
+              variant="ghost"
+              size="sm"
+              @focus="setActiveDraftField('authorsText')"
+              @blur="handleFieldBlur('authorsText', commitAuthors)"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
           </div>
 
           <div class="kv-label">{{ t('Key') }}</div>
           <div class="kv-value">
-            <UiInput v-model="draft.citationKey" variant="ghost" size="sm" monospace @blur="commitCitationKey" @keydown.enter.prevent="$event.target.blur()"/>
+            <UiInput
+              v-model="draft.citationKey"
+              variant="ghost"
+              size="sm"
+              monospace
+              @focus="setActiveDraftField('citationKey')"
+              @blur="handleFieldBlur('citationKey', commitCitationKey)"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
           </div>
 
           <div class="kv-label">{{ t('Year') }}</div>
           <div class="kv-value">
-            <UiInput v-model="draft.year" variant="ghost" size="sm" @blur="commitYear" @keydown.enter.prevent="$event.target.blur()"/>
+            <UiInput
+              v-model="draft.year"
+              variant="ghost"
+              size="sm"
+              @focus="setActiveDraftField('year')"
+              @blur="handleFieldBlur('year', commitYear)"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
           </div>
 
           <div class="kv-label">{{ t('Source') }}</div>
           <div class="kv-value">
-            <UiInput v-model="draft.source" variant="ghost" size="sm" @blur="commitTextField('source')" @keydown.enter.prevent="$event.target.blur()"/>
+            <UiInput
+              v-model="draft.source"
+              variant="ghost"
+              size="sm"
+              @focus="setActiveDraftField('source')"
+              @blur="handleFieldBlur('source', () => commitTextField('source'))"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
           </div>
 
           <div class="kv-label">{{ t('Identifier') }}</div>
           <div class="kv-value">
-            <UiInput v-model="draft.identifier" variant="ghost" size="sm" monospace @blur="commitTextField('identifier')" @keydown.enter.prevent="$event.target.blur()"/>
+            <UiInput
+              v-model="draft.identifier"
+              variant="ghost"
+              size="sm"
+              monospace
+              @focus="setActiveDraftField('identifier')"
+              @blur="handleFieldBlur('identifier', () => commitTextField('identifier'))"
+              @keydown.enter.prevent="$event.target.blur()"
+            />
           </div>
 
           <div class="kv-label">{{ t('Volume') }}</div>
           <div class="kv-value kv-value--inline-triple">
             <div class="triple-cell">
-              <UiInput v-model="draft.volume" variant="ghost" size="sm" @blur="commitTextField('volume')" @keydown.enter.prevent="$event.target.blur()"/>
+              <UiInput
+                v-model="draft.volume"
+                variant="ghost"
+                size="sm"
+                @focus="setActiveDraftField('volume')"
+                @blur="handleFieldBlur('volume', () => commitTextField('volume'))"
+                @keydown.enter.prevent="$event.target.blur()"
+              />
             </div>
             <div class="triple-label">{{ t('Issue') }}</div>
             <div class="triple-cell">
-              <UiInput v-model="draft.issue" variant="ghost" size="sm" @blur="commitTextField('issue')" @keydown.enter.prevent="$event.target.blur()"/>
+              <UiInput
+                v-model="draft.issue"
+                variant="ghost"
+                size="sm"
+                @focus="setActiveDraftField('issue')"
+                @blur="handleFieldBlur('issue', () => commitTextField('issue'))"
+                @keydown.enter.prevent="$event.target.blur()"
+              />
             </div>
             <div class="triple-label">{{ t('Pages') }}</div>
             <div class="triple-cell triple-cell--wide">
-              <UiInput v-model="draft.pages" variant="ghost" size="sm" @blur="commitTextField('pages')" @keydown.enter.prevent="$event.target.blur()"/>
+              <UiInput
+                v-model="draft.pages"
+                variant="ghost"
+                size="sm"
+                @focus="setActiveDraftField('pages')"
+                @blur="handleFieldBlur('pages', () => commitTextField('pages'))"
+                @keydown.enter.prevent="$event.target.blur()"
+              />
             </div>
           </div>
         </div>
@@ -123,7 +182,16 @@
                 <IconX class="token-remove" :size="12" :stroke-width="2" />
               </button>
             </div>
-            <UiInput v-model="tagInput" variant="ghost" size="sm" :placeholder="t('Add tag')" @keydown.enter.prevent="addTag" @keydown="handleTagInputKeydown"/>
+            <UiInput
+              v-model="tagInput"
+              variant="ghost"
+              size="sm"
+              :placeholder="t('Add tag')"
+              @focus="setActiveDraftField('tagInput')"
+              @blur="handleTagInputBlur"
+              @keydown.enter.prevent="addTag"
+              @keydown="handleTagInputKeydown"
+            />
           </div>
         </div>
       </div>
@@ -141,7 +209,13 @@
             <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Abstract') }}
           </summary>
           <div class="inspector-details-body">
-            <UiTextarea v-model="draft.abstract" variant="ghost" :rows="5" @blur="commitTextField('abstract', { multiline: true })"/>
+            <UiTextarea
+              v-model="draft.abstract"
+              variant="ghost"
+              :rows="5"
+              @focus="setActiveDraftField('abstract')"
+              @blur="handleFieldBlur('abstract', () => commitTextField('abstract', { multiline: true }))"
+            />
           </div>
         </details>
 
@@ -150,7 +224,13 @@
             <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Notes') }}
           </summary>
           <div class="inspector-details-body">
-            <UiTextarea v-model="draft.note" variant="ghost" :rows="4" @blur="commitNote"/>
+            <UiTextarea
+              v-model="draft.note"
+              variant="ghost"
+              :rows="4"
+              @focus="setActiveDraftField('note')"
+              @blur="handleFieldBlur('note', commitNote)"
+            />
           </div>
         </details>
       </div>
@@ -241,6 +321,7 @@ const draft = reactive({
 })
 
 const tagInput = ref('')
+const activeDraftField = ref('')
 
 const selectedReference = computed(() => referencesStore.selectedReference)
 const availableCollections = computed(() => referencesStore.collections)
@@ -257,40 +338,84 @@ const citedInFiles = computed(() => {
   return referencesStore.citedIn[citationKey] || []
 })
 
-// 核心修复：只有当选中的 ID 真正改变时，才拉取并覆盖整个 draft。
-// 如果仅仅是在当前面板更新了数据导致 selectedReference 变更，我们不重置草稿，
-// 这样就不会销毁正在被点击的 DOM 元素，彻底解决“需要点两次”的失焦 Bug！
 watch(
   () => selectedReference.value,
   (reference, oldRef) => {
     if (!reference) {
       syncDraft(null)
+      clearActiveDraftField()
       return
     }
-    // 只有更换了文献，才全量重置
     if (reference.id !== oldRef?.id) {
       syncDraft(reference)
+      clearActiveDraftField()
+      return
     }
+    syncDraft(reference, { preserveField: activeDraftField.value })
   },
   { immediate: true }
 )
 
-function syncDraft(reference = null) {
-  draft.title = String(reference?.title || '')
-  draft.authorsText = Array.isArray(reference?.authors) ? reference.authors.join('; ') : ''
-  draft.citationKey = String(reference?.citationKey || '')
-  draft.year = reference?.year != null && reference?.year !== '' ? String(reference.year) : ''
-  draft.source = String(reference?.source || '')
-  draft.identifier = String(reference?.identifier || '')
-  draft.volume = String(reference?.volume || '')
-  draft.issue = String(reference?.issue || '')
-  draft.pages = String(reference?.pages || '')
-  draft.abstract = String(reference?.abstract || '')
-  draft.note = Array.isArray(reference?.notes) ? reference.notes.join('\n\n') : ''
-  draft.rating = Number(reference?.rating || 0) || 0
-  draft.collections = normalizeCollectionMemberships(reference?.collections || [])
-  draft.tags = Array.isArray(reference?.tags) ? [...reference.tags] : []
-  tagInput.value = ''
+function buildDraftSnapshot(reference = null) {
+  return {
+    title: String(reference?.title || ''),
+    authorsText: Array.isArray(reference?.authors) ? reference.authors.join('; ') : '',
+    citationKey: String(reference?.citationKey || ''),
+    year: reference?.year != null && reference?.year !== '' ? String(reference.year) : '',
+    source: String(reference?.source || ''),
+    identifier: String(reference?.identifier || ''),
+    volume: String(reference?.volume || ''),
+    issue: String(reference?.issue || ''),
+    pages: String(reference?.pages || ''),
+    abstract: String(reference?.abstract || ''),
+    note: Array.isArray(reference?.notes) ? reference.notes.join('\n\n') : '',
+    rating: Number(reference?.rating || 0) || 0,
+    collections: normalizeCollectionMemberships(reference?.collections || []),
+    tags: Array.isArray(reference?.tags) ? [...reference.tags] : [],
+  }
+}
+
+function syncDraft(reference = null, options = {}) {
+  const { preserveField = '' } = options
+  const snapshot = buildDraftSnapshot(reference)
+
+  if (preserveField !== 'title') draft.title = snapshot.title
+  if (preserveField !== 'authorsText') draft.authorsText = snapshot.authorsText
+  if (preserveField !== 'citationKey') draft.citationKey = snapshot.citationKey
+  if (preserveField !== 'year') draft.year = snapshot.year
+  if (preserveField !== 'source') draft.source = snapshot.source
+  if (preserveField !== 'identifier') draft.identifier = snapshot.identifier
+  if (preserveField !== 'volume') draft.volume = snapshot.volume
+  if (preserveField !== 'issue') draft.issue = snapshot.issue
+  if (preserveField !== 'pages') draft.pages = snapshot.pages
+  if (preserveField !== 'abstract') draft.abstract = snapshot.abstract
+  if (preserveField !== 'note') draft.note = snapshot.note
+  draft.rating = snapshot.rating
+  draft.collections = snapshot.collections
+  draft.tags = snapshot.tags
+  if (preserveField !== 'tagInput') {
+    tagInput.value = ''
+  }
+}
+
+function setActiveDraftField(field = '') {
+  activeDraftField.value = field
+}
+
+function clearActiveDraftField(field = '') {
+  if (!field || activeDraftField.value === field) {
+    activeDraftField.value = ''
+  }
+}
+
+async function handleFieldBlur(field = '', commit) {
+  try {
+    if (typeof commit === 'function') {
+      await commit()
+    }
+  } finally {
+    clearActiveDraftField(field)
+  }
 }
 
 function normalizeText(value = '') {
@@ -416,6 +541,16 @@ async function addTag(event) {
 function handleTagInputKeydown(event) {
   if (event.key === ',') {
     void addTag(event)
+  }
+}
+
+async function handleTagInputBlur(event) {
+  try {
+    if (normalizeTagValues(tagInput.value).length > 0) {
+      await addTag(event)
+    }
+  } finally {
+    clearActiveDraftField('tagInput')
   }
 }
 

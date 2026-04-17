@@ -25,9 +25,10 @@
             <div
               v-if="hasChildren(item)"
               class="context-menu-item surface-context-menu-item has-submenu"
-              :class="{ 'is-disabled': item.disabled }"
-              @mouseenter="!item.disabled && (activeSubMenu = item.key)"
-              @mouseleave="activeSubMenu = null"
+              :class="{ 'is-disabled': item.disabled, 'is-open': activeSubMenu === item.key }"
+              @mouseenter="openSubmenu(item)"
+              @mouseleave="closeSubmenu(item.key)"
+              @click.stop="toggleSubmenu(item)"
             >
               <span class="surface-context-menu-label">{{ item.label }}</span>
               <IconChevronRight
@@ -117,6 +118,22 @@ function normalizedChildren(item) {
     : []
 }
 
+function openSubmenu(item) {
+  if (!item || item.disabled || !hasChildren(item)) return
+  activeSubMenu.value = item.key
+}
+
+function closeSubmenu(key = '') {
+  if (activeSubMenu.value === key) {
+    activeSubMenu.value = null
+  }
+}
+
+function toggleSubmenu(item) {
+  if (!item || item.disabled || !hasChildren(item)) return
+  activeSubMenu.value = activeSubMenu.value === item.key ? null : item.key
+}
+
 function handleSelect(item) {
   if (!item || item.disabled || hasChildren(item)) return
   emit('select', item.key, item)
@@ -182,11 +199,11 @@ onBeforeUnmount(() => {
 
 .surface-context-menu {
   position: fixed;
+  z-index: 9999 !important;
   min-width: 220px !important;
-  max-width: min(320px, calc(100vw - 16px)) !important;
-  max-height: min(400px, calc(100vh - 16px)) !important;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  max-width: 320px !important;
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .surface-context-menu-item {
@@ -244,12 +261,12 @@ onBeforeUnmount(() => {
 }
 .submenu-popover {
   position: absolute;
+  z-index: 10000 !important;
   top: -5px;
   left: 100%;
   margin-left: 2px;
   min-width: 180px;
-  max-height: 300px;
-  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .menu-fade-enter-active {

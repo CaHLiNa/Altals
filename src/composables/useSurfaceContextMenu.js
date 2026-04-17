@@ -25,6 +25,7 @@ export function useSurfaceContextMenu() {
   const menuX = ref(0)
   const menuY = ref(0)
   const menuGroups = ref([])
+  const menuActionMap = new Map()
   const { dismissOtherTransientOverlays } = useTransientOverlayDismiss(
     'surface-context-menu',
     () => {
@@ -35,23 +36,47 @@ export function useSurfaceContextMenu() {
   function closeSurfaceContextMenu() {
     menuVisible.value = false
     menuGroups.value = []
+    menuActionMap.clear()
+  }
+
+  function indexMenuActions(groups = []) {
+    menuActionMap.clear()
+
+    const visitItems = (items = []) => {
+      for (const item of items) {
+        if (!item?.key) continue
+        if (typeof item.action === 'function') {
+          menuActionMap.set(item.key, item.action)
+        }
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          visitItems(item.children)
+        }
+      }
+    }
+
+    for (const group of Array.isArray(groups) ? groups : []) {
+      visitItems(group?.items)
+    }
   }
 
   function openSurfaceContextMenu(options = {}) {
     dismissOtherTransientOverlays()
+    const groups = Array.isArray(options.groups) ? options.groups : []
     const point = clampPointToViewport(
       normalizeCoordinate(options.x),
       normalizeCoordinate(options.y)
     )
     menuX.value = point.x
     menuY.value = point.y
-    menuGroups.value = Array.isArray(options.groups) ? options.groups : []
+    menuGroups.value = groups
+    indexMenuActions(groups)
     menuVisible.value = true
   }
 
-  function handleSurfaceContextMenuSelect(_key, item) {
+  function handleSurfaceContextMenuSelect(key) {
+    const action = menuActionMap.get(key)
     closeSurfaceContextMenu()
-    item?.action?.()
+    action?.()
   }
 
   return {

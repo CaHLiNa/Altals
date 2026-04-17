@@ -209,6 +209,27 @@ function ensureManagedAgentSessionsState({
   })
 }
 
+function mergeOverlaySessionState(existingSessions = [], nextSessions = [], fallbackTitle = 'New session') {
+  const existingById = new Map(
+    (Array.isArray(existingSessions) ? existingSessions : [])
+      .filter((session) => session?.id)
+      .map((session) => [session.id, session])
+  )
+
+  return ensureManagedAgentSessionsState({
+    sessions: (Array.isArray(nextSessions) ? nextSessions : []).map((session) => {
+      const existing = existingById.get(String(session?.id || '').trim())
+      if (!existing) return session
+      return {
+        ...existing,
+        ...session,
+      }
+    }),
+    currentSessionId: '',
+    fallbackTitle,
+  }).sessions
+}
+
 async function restoreSessionOverlayState({
   workspacePath = '',
   fallbackTitle = 'New session',
@@ -659,7 +680,11 @@ export const useAiStore = defineStore('ai', {
         workspacePath: String(workspacePath || currentWorkspacePath()).trim(),
         fallbackTitle: buildDefaultSessionTitle(1),
       })
-      this.sessions = Array.isArray(normalized?.sessions) ? normalized.sessions : []
+      this.sessions = mergeOverlaySessionState(
+        this.sessions,
+        Array.isArray(normalized?.sessions) ? normalized.sessions : [],
+        buildDefaultSessionTitle(1)
+      )
       this.currentSessionId = String(normalized?.currentSessionId || '').trim()
     },
 
@@ -745,7 +770,11 @@ export const useAiStore = defineStore('ai', {
           fallbackTitle: buildDefaultSessionTitle(1),
           cwd: useWorkspaceStore().path || '',
         })
-        this.sessions = Array.isArray(response?.state?.sessions) ? response.state.sessions : this.sessions
+        this.sessions = mergeOverlaySessionState(
+          this.sessions,
+          Array.isArray(response?.state?.sessions) ? response.state.sessions : this.sessions,
+          buildDefaultSessionTitle(1)
+        )
         this.currentSessionId = String(response?.state?.currentSessionId || this.currentSessionId).trim()
         this.persistCurrentWorkspaceSessions()
         const runtimeThreadId = String(response?.session?.runtimeThreadId || '').trim()
@@ -782,7 +811,11 @@ export const useAiStore = defineStore('ai', {
         cwd: useWorkspaceStore().path || '',
       })
 
-      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.sessions = mergeOverlaySessionState(
+        this.sessions,
+        Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : [],
+        buildDefaultSessionTitle(1)
+      )
       this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       return nextState?.session || null
@@ -797,7 +830,11 @@ export const useAiStore = defineStore('ai', {
         fallbackTitle: buildDefaultSessionTitle(1),
       })
       if (nextState?.success !== true) return false
-      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.sessions = mergeOverlaySessionState(
+        this.sessions,
+        Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : [],
+        buildDefaultSessionTitle(1)
+      )
       this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       void this.syncSessionFromCodexRuntimeThread(this.currentSessionId)
@@ -814,7 +851,11 @@ export const useAiStore = defineStore('ai', {
       })
       if (nextState?.success !== true) return false
 
-      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.sessions = mergeOverlaySessionState(
+        this.sessions,
+        Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : [],
+        buildDefaultSessionTitle(1)
+      )
       this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       return true
@@ -832,7 +873,11 @@ export const useAiStore = defineStore('ai', {
       })
       if (nextState?.success !== true) return false
 
-      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.sessions = mergeOverlaySessionState(
+        this.sessions,
+        Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : [],
+        buildDefaultSessionTitle(1)
+      )
       this.persistCurrentWorkspaceSessions()
       return !!nextState?.session
     },
@@ -1301,7 +1346,11 @@ export const useAiStore = defineStore('ai', {
           fallbackTitle: buildDefaultSessionTitle(1),
         })
         const normalized = ensureManagedAgentSessionsState({
-          sessions: Array.isArray(reconciled?.sessions) ? reconciled.sessions : [],
+          sessions: mergeOverlaySessionState(
+            this.sessions,
+            Array.isArray(reconciled?.sessions) ? reconciled.sessions : [],
+            buildDefaultSessionTitle(1)
+          ),
           currentSessionId: String(reconciled?.currentSessionId || '').trim(),
           fallbackTitle: buildDefaultSessionTitle(1),
         })
