@@ -28,6 +28,7 @@ mod fs_commands;
 mod fs_io;
 mod fs_tree;
 mod fs_tree_runtime;
+mod i18n_runtime;
 mod keychain;
 mod latex;
 mod latex_project_graph;
@@ -519,6 +520,7 @@ pub fn run() {
             fs_commands::reveal_in_file_manager,
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
+            i18n_runtime::i18n_runtime_load,
             references_backend::references_library_read_or_create,
             references_backend::references_library_write,
             references_backend::references_asset_store,
