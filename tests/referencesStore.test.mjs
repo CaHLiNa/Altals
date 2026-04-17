@@ -10,6 +10,32 @@ window.__TAURI_INTERNALS__ = {
     if (command === 'references_library_write') {
       return args.params?.snapshot || null
     }
+    if (command === 'references_find_duplicate') {
+      const existing = Array.isArray(args.params?.existing) ? args.params.existing : []
+      const candidate = args.params?.candidate || {}
+      return (
+        existing.find((reference) => {
+          if (reference.citationKey && candidate.citationKey) {
+            return reference.citationKey === candidate.citationKey
+          }
+          if (reference.identifier && candidate.identifier) {
+            return reference.identifier === candidate.identifier
+          }
+          return false
+        }) || null
+      )
+    }
+    if (command === 'references_merge_imported') {
+      const existing = Array.isArray(args.params?.existing) ? args.params.existing : []
+      const imported = Array.isArray(args.params?.imported) ? args.params.imported : []
+      const merged = [...existing]
+      for (const candidate of imported) {
+        if (!merged.some((reference) => reference.citationKey === candidate.citationKey)) {
+          merged.push(candidate)
+        }
+      }
+      return merged
+    }
     if (command === 'references_export_bibtex') {
       return `@article{ames2014,\n  title = {Control Barrier Functions},\n  doi = {10.1109/TAC.2014.1234567}\n}`
     }

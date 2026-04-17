@@ -636,20 +636,24 @@ fn parse_csl_metadata(xml: &str, filename: &str) -> Value {
         .map(|value| value.as_str().trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "Unknown Style".to_string());
-    let id = Regex::new(r"(?s)<id>(.*?)</id>")
+    let raw_id = Regex::new(r"(?s)<id>(.*?)</id>")
         .ok()
         .and_then(|regex| regex.captures(xml))
         .and_then(|captures| captures.get(1))
         .map(|value| value.as_str().trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| {
-            filename
-                .trim_end_matches(".csl")
-                .trim()
-                .to_lowercase()
-                .replace(|ch: char| !ch.is_ascii_alphanumeric(), "-")
-        });
-    let category = Regex::new(r#"citation-format=\"([^\"]+)\""#)
+        .unwrap_or_default();
+    let id = if !raw_id.is_empty() {
+        raw_id
+            .rsplit('/')
+            .next()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(raw_id.as_str())
+            .to_string()
+    } else {
+        filename.trim_end_matches(".csl").trim().to_string()
+    };
+    let category = Regex::new(r#"citation-format="([^"]+)""#)
         .ok()
         .and_then(|regex| regex.captures(xml))
         .and_then(|captures| captures.get(1))
@@ -937,7 +941,7 @@ mod tests {
             "my-style.csl",
         );
         assert_eq!(style.get("name").and_then(|value| value.as_str()), Some("My Style"));
-        assert_eq!(style.get("id").and_then(|value| value.as_str()), Some("https://www.zotero.org/styles/my-style"));
+        assert_eq!(style.get("id").and_then(|value| value.as_str()), Some("my-style"));
         assert_eq!(style.get("category").and_then(|value| value.as_str()), Some("Numeric"));
     }
 }

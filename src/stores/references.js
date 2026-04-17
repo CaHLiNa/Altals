@@ -30,7 +30,6 @@ import {
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
 import { normalizeReferenceSearchTokens } from '../domains/references/referenceInterop.js'
-import { deriveStyleId, parseCslMetadata } from '../utils/cslParser.js'
 
 function normalizedAuthorSortText(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
@@ -351,33 +350,15 @@ export const useReferencesStore = defineStore('references', {
       }
 
       const { invoke } = await import('@tauri-apps/api/core')
-      const stylesDir = `${workspacePath}/styles`
-      const exists = await invoke('path_exists', { path: stylesDir }).catch(() => false)
-      if (!exists) {
-        setUserCitationStyles([])
-        return []
-      }
+      const styles = await invoke('references_scan_workspace_styles', {
+        params: {
+          workspacePath,
+        },
+      }).catch(() => [])
 
-      const entries = await invoke('read_dir', { path: stylesDir }).catch(() => [])
-      const styles = []
-      for (const entry of Array.isArray(entries) ? entries : []) {
-        if (!entry?.name?.endsWith('.csl')) continue
-        try {
-          const xml = await invoke('read_file', { path: `${stylesDir}/${entry.name}` })
-          const metadata = parseCslMetadata(xml)
-          styles.push({
-            id: deriveStyleId(metadata.id, metadata.title),
-            name: metadata.title,
-            category: metadata.category || 'Custom',
-            filename: entry.name,
-          })
-        } catch {
-          // Skip malformed user styles.
-        }
-      }
-
-      setUserCitationStyles(styles)
-      return styles
+      const normalized = Array.isArray(styles) ? styles : []
+      setUserCitationStyles(normalized)
+      return normalized
     },
 
     async importBibTeXContent(projectRoot = '', content = '') {
@@ -390,7 +371,7 @@ export const useReferencesStore = defineStore('references', {
       const markedReferences = shouldMark
         ? importedReferences.map((reference) => ({ ...reference, _shouldersPushPending: true }))
         : importedReferences
-      const mergedReferences = mergeImportedReferences(this.references, markedReferences)
+      const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
       const importedCount = Math.max(0, mergedReferences.length - this.references.length)
 
       this.importInFlight = true
@@ -405,10 +386,18 @@ export const useReferencesStore = defineStore('references', {
         await writeReferenceLibrarySnapshot(projectRoot, snapshot)
         this.applyLibrarySnapshot(snapshot)
         if (markedReferences[0]) {
-          const importedSelection = mergedReferences.find((reference) => {
-            if (markedReferences.some((candidate) => candidate.id === reference.id)) return true
-            return Boolean(findDuplicateReference(markedReferences, reference))
-          })
+          let importedSelection = mergedReferences.find((reference) =>
+            markedReferences.some((candidate) => candidate.id === reference.id)
+          )
+          if (!importedSelection) {
+            for (const reference of mergedReferences) {
+              const duplicate = await findDuplicateReference(markedReferences, reference)
+              if (duplicate) {
+                importedSelection = reference
+                break
+              }
+            }
+          }
           if (importedSelection) this.selectedReferenceId = importedSelection.id
         }
         return importedCount
@@ -427,7 +416,7 @@ export const useReferencesStore = defineStore('references', {
         const markedReferences = shouldMark
           ? importedReferences.map((reference) => ({ ...reference, _shouldersPushPending: true }))
           : importedReferences
-        const mergedReferences = mergeImportedReferences(this.references, markedReferences)
+        const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
         const importedCount = Math.max(0, mergedReferences.length - this.references.length)
         const snapshot = {
           version: 2,
@@ -439,10 +428,18 @@ export const useReferencesStore = defineStore('references', {
         await writeReferenceLibrarySnapshot(projectRoot, snapshot)
         this.applyLibrarySnapshot(snapshot)
         if (markedReferences[0]) {
-          const importedSelection = mergedReferences.find((reference) => {
-            if (markedReferences.some((candidate) => candidate.id === reference.id)) return true
-            return Boolean(findDuplicateReference(markedReferences, reference))
-          })
+          let importedSelection = mergedReferences.find((reference) =>
+            markedReferences.some((candidate) => candidate.id === reference.id)
+          )
+          if (!importedSelection) {
+            for (const reference of mergedReferences) {
+              const duplicate = await findDuplicateReference(markedReferences, reference)
+              if (duplicate) {
+                importedSelection = reference
+                break
+              }
+            }
+          }
           if (importedSelection) {
             this.selectedReferenceId = importedSelection.id
           }
@@ -647,7 +644,7 @@ export const useReferencesStore = defineStore('references', {
         markForZoteroPush = true,
         persist = true,
       } = options
-      const duplicate = findDuplicateReference(this.references, reference)
+      const duplicate = await findDuplicateReference(this.references, reference)
       if (duplicate) return duplicate
 
       const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
@@ -756,7 +753,7 @@ export const useReferencesStore = defineStore('references', {
         const importedReference = await importReferenceFromPdf(sourcePath)
         if (!importedReference) return null
 
-        const duplicate = findDuplicateReference(this.references, importedReference)
+        const duplicate = await findDuplicateReference(this.references, importedReference)
         if (duplicate?.id) {
           return this.attachReferencePdf(projectRoot, duplicate.id, sourcePath)
         }

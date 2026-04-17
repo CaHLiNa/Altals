@@ -101,6 +101,18 @@ window.__TAURI_INTERNALS__ = {
       return []
     }
 
+    if (command === 'references_merge_imported') {
+      const existing = Array.isArray(args.params?.existing) ? args.params.existing : []
+      const imported = Array.isArray(args.params?.imported) ? args.params.imported : []
+      const merged = [...existing]
+      for (const candidate of imported) {
+        if (!merged.some((current) => current.citationKey === candidate.citationKey)) {
+          merged.push(candidate)
+        }
+      }
+      return merged
+    }
+
     if (command === 'references_export_bibtex') {
       return `@article{ames2014,\n  title = {Control Barrier Functions},\n  journal = {IEEE Transactions on Automatic Control},\n  doi = {10.1109/TAC.2014.1234567}\n}`
     }
@@ -131,7 +143,7 @@ test('parseBibTeXText parses a minimal BibTeX article entry', async () => {
   assert.equal(parsed[0].authors[0], 'Liwei An')
 })
 
-test('mergeImportedReferences skips duplicates by citation key', () => {
+test('mergeImportedReferences skips duplicates by citation key', async () => {
   const existing = [
     {
       id: 'existing-1',
@@ -158,7 +170,7 @@ test('mergeImportedReferences skips duplicates by citation key', () => {
     },
   ]
 
-  const merged = mergeImportedReferences(existing, imported)
+  const merged = await mergeImportedReferences(existing, imported)
   assert.equal(merged.length, 2)
   assert.equal(merged[1].citationKey, 'lee2025b')
 })
