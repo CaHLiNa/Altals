@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { invoke } from '@tauri-apps/api/core'
 import { nanoid } from './utils'
 import { normalizeAiArtifact } from '../domains/ai/aiArtifactRuntime.js'
 import {
@@ -12,7 +13,6 @@ import {
   buildAiContextBundle,
   normalizeAiSelection,
   recommendAiSkills,
-  skillHasRequiredContext,
 } from '../domains/ai/aiContextRuntime.js'
 import {
   applyAgentRunEventToSessionState,
@@ -24,6 +24,7 @@ import {
 import { mergeAgentRunToolEventState } from '../domains/ai/aiAgentRunEventState.js'
 import {
   createAiSessionRecord,
+  ensureAiSessionsState,
   normalizeAiSessionPermissionMode,
   updateAiSessionRecord,
 } from '../domains/ai/aiSessionRuntime.js'
@@ -38,10 +39,6 @@ import {
   discoverAltalsSkills,
   isAltalsManagedFilesystemSkill,
 } from '../services/ai/skillDiscovery.js'
-import {
-  buildAgentSystemPrompt,
-  buildAgentUserPrompt,
-} from '../services/ai/agentPromptBuilder.js'
 import {
   getAiProviderConfig,
   getAiProviderDefinition,
@@ -65,18 +62,8 @@ import {
 } from '../services/ai/runtime/workspaceFileTools.js'
 import { resolveEffectiveAiToolIds } from '../services/ai/toolRegistry.js'
 import {
-  buildDefaultAgentSessionTitle,
-  createAgentSessionState,
-  createInitialAgentSessionsState,
-  deleteAgentSessionState,
-  ensureManagedAgentSessionsState,
-  persistAgentSessionsState,
-  renameAgentSessionState,
-  resolveAgentSessionRecord,
-  restoreAgentSessionsState,
-  switchAgentSessionState,
-} from '../services/ai/agentSessionManager.js'
-import { executePreparedAgentRun, prepareAgentRun } from '../services/ai/agentOrchestrator.js'
+  executeAiAgentEntry,
+} from '../services/ai/executor.js'
 import {
   respondAnthropicAgentSdkAskUser,
   respondAnthropicAgentSdkExitPlan,
@@ -103,7 +90,176 @@ const pendingCodexRuntimeTurns = new Map()
 const pendingCodexRuntimeThreadCreations = new Map()
 
 function buildDefaultSessionTitle(count = 1) {
-  return buildDefaultAgentSessionTitle(t, count)
+  return t('Run {count}', { count })
+}
+
+function createInitialAgentSessionsState({ fallbackTitle = 'New session' } = {}) {
+  const initialSession = createAiSessionRecord({
+    title: String(fallbackTitle || 'New session').trim() || 'New session',
+  })
+
+  return {
+    currentSessionId: initialSession.id,
+    sessions: [initialSession],
+  }
+}
+
+function resolveAgentSessionRecord(sessions = [], sessionId = '') {
+  const normalizedId = String(sessionId || '').trim()
+  if (!Array.isArray(sessions) || sessions.length === 0) return null
+  return sessions.find((session) => session?.id === normalizedId) || sessions[0] || null
+}
+
+function ensureManagedAgentSessionsState({
+  sessions = [],
+  currentSessionId = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return ensureAiSessionsState({
+    sessions,
+    currentSessionId,
+    fallbackTitle,
+  })
+}
+
+async function restoreSessionOverlayState({
+  workspacePath = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_overlay_restore', {
+    params: {
+      workspacePath,
+      fallbackTitle,
+    },
+  })
+}
+
+async function saveSessionOverlayState({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+} = {}) {
+  return invoke('ai_session_overlay_save', {
+    params: {
+      workspacePath,
+      state: {
+        currentSessionId,
+        sessions,
+      },
+    },
+  })
+}
+
+async function createSessionOverlayState({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+  title = '',
+  activate = true,
+  mode = 'agent',
+  permissionMode = 'accept-edits',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_overlay_create', {
+    params: {
+      workspacePath,
+      currentSessionId,
+      sessions,
+      title,
+      activate,
+      mode,
+      permissionMode,
+      fallbackTitle,
+    },
+  })
+}
+
+async function switchSessionOverlayState({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+  sessionId = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_overlay_switch', {
+    params: {
+      workspacePath,
+      currentSessionId,
+      sessions,
+      sessionId,
+      fallbackTitle,
+    },
+  })
+}
+
+async function deleteSessionOverlayState({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+  sessionId = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_overlay_delete', {
+    params: {
+      workspacePath,
+      currentSessionId,
+      sessions,
+      sessionId,
+      fallbackTitle,
+    },
+  })
+}
+
+async function renameSessionOverlayState({
+  workspacePath = '',
+  currentSessionId = '',
+  sessions = [],
+  sessionId = '',
+  title = '',
+  fallbackTitle = 'New session',
+} = {}) {
+  return invoke('ai_session_overlay_rename', {
+    params: {
+      workspacePath,
+      currentSessionId,
+      sessions,
+      sessionId,
+      title,
+      fallbackTitle,
+    },
+  })
+}
+
+async function prepareAgentRunRust({
+  activeSession = null,
+  activeSkill = null,
+  builtInActions = [],
+  altalsSkills = [],
+  contextBundle = {},
+  sessionMode = 'chat',
+  providerState = {},
+  providerId = '',
+  providerConfig = {},
+  apiKey = '',
+  workspacePath = '',
+  flatFiles = [],
+} = {}) {
+  return invoke('ai_agent_prepare', {
+    params: {
+      activeSession,
+      activeSkill,
+      builtInActions,
+      altalsSkills,
+      contextBundle,
+      sessionMode,
+      providerState,
+      providerId,
+      providerConfig,
+      apiKey,
+      workspacePath,
+      flatFiles,
+    },
+  })
 }
 
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
@@ -537,7 +693,7 @@ export const useAiStore = defineStore('ai', {
     persistCurrentWorkspaceSessions() {
       const workspacePath = currentWorkspacePath()
       if (!workspacePath) return
-      void persistAgentSessionsState({
+      void saveSessionOverlayState({
         workspacePath,
         currentSessionId: this.currentSessionId,
         sessions: this.sessions,
@@ -545,12 +701,12 @@ export const useAiStore = defineStore('ai', {
     },
 
     async restoreWorkspaceSessions(workspacePath = '') {
-      const normalized = await restoreAgentSessionsState({
+      const normalized = await restoreSessionOverlayState({
         workspacePath: String(workspacePath || currentWorkspacePath()).trim(),
         fallbackTitle: buildDefaultSessionTitle(1),
       })
-      this.sessions = normalized.sessions
-      this.currentSessionId = normalized.currentSessionId
+      this.sessions = Array.isArray(normalized?.sessions) ? normalized.sessions : []
+      this.currentSessionId = String(normalized?.currentSessionId || '').trim()
     },
 
     resetTransientRuntimeState() {
@@ -646,7 +802,7 @@ export const useAiStore = defineStore('ai', {
 
     async createSession({ title = '', activate = true } = {}) {
       const normalizedMode = 'agent'
-      const nextState = await createAgentSessionState({
+      const nextState = await createSessionOverlayState({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -664,29 +820,29 @@ export const useAiStore = defineStore('ai', {
         }),
       })
 
-      this.sessions = nextState.sessions
-      this.currentSessionId = nextState.currentSessionId
+      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       void this.ensureCodexRuntimeThreadForSession(
-        nextState.session?.id,
-        nextState.session?.title || title
+        nextState?.session?.id,
+        nextState?.session?.title || title
       )
-      return nextState.session
+      return nextState?.session || null
     },
 
     async switchSession(sessionId = '') {
-      const nextState = await switchAgentSessionState({
+      const nextState = await switchSessionOverlayState({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         sessionId,
         fallbackTitle: buildDefaultSessionTitle(1),
       })
-      if (!nextState.success) return false
-      this.sessions = nextState.sessions
-      this.currentSessionId = nextState.currentSessionId
+      if (nextState?.success !== true) return false
+      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
-      void this.syncSessionFromCodexRuntimeThread(nextState.currentSessionId)
+      void this.syncSessionFromCodexRuntimeThread(this.currentSessionId)
       return true
     },
 
@@ -697,23 +853,23 @@ export const useAiStore = defineStore('ai', {
         void archiveCodexRuntimeThread(runtimeThreadId).catch(() => {})
       }
 
-      const nextState = await deleteAgentSessionState({
+      const nextState = await deleteSessionOverlayState({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
         sessionId,
         fallbackTitle: buildDefaultSessionTitle(1),
       })
-      if (!nextState.success) return false
+      if (nextState?.success !== true) return false
 
-      this.sessions = nextState.sessions
-      this.currentSessionId = nextState.currentSessionId
+      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
+      this.currentSessionId = String(nextState?.state?.currentSessionId || '').trim()
       this.persistCurrentWorkspaceSessions()
       return true
     },
 
     async renameSession(sessionId = '', title = '') {
-      const nextState = await renameAgentSessionState({
+      const nextState = await renameSessionOverlayState({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
         currentSessionId: this.currentSessionId,
@@ -721,11 +877,11 @@ export const useAiStore = defineStore('ai', {
         title,
         fallbackTitle: buildDefaultSessionTitle(1),
       })
-      if (!nextState.success) return false
+      if (nextState?.success !== true) return false
 
-      this.sessions = nextState.sessions
+      this.sessions = Array.isArray(nextState?.state?.sessions) ? nextState.state.sessions : []
       this.persistCurrentWorkspaceSessions()
-      if (!nextState.session) return false
+      if (!nextState?.session) return false
 
       try {
         const runtimeThreadId = await this.ensureCodexRuntimeThreadForSession(
@@ -1624,20 +1780,25 @@ export const useAiStore = defineStore('ai', {
       }
 
       try {
-        preparedRun = await prepareAgentRun({
+        providerState = await this.refreshProviderState()
+        const fullConfig = await loadAiConfig()
+        const currentProviderId = String(fullConfig?.currentProviderId || 'openai').trim()
+        const providerConfig = getAiProviderConfig(fullConfig, currentProviderId)
+        const apiKey = await loadAiApiKey(currentProviderId)
+
+        preparedRun = await prepareAgentRunRust({
           activeSession,
           activeSkill: this.builtInActions[0] || this.activeSkill,
           builtInActions: this.builtInActions,
           altalsSkills: this.altalsSkills,
           contextBundle: this.currentContextBundle,
           sessionMode: 'agent',
-          resolveEffectiveSessionPermissionMode,
-          skillHasRequiredContext,
-          refreshProviderState: () => this.refreshProviderState(),
+          providerState,
+          providerId: currentProviderId,
+          providerConfig,
+          apiKey,
           workspacePath: useWorkspaceStore().path || '',
           flatFiles: filesStore.flatFiles,
-          ensureFlatFilesReady: () => filesStore.ensureFlatFilesReady({ force: false }),
-          readWorkspaceFile: (path, options = {}) => filesStore.readFile(path, options),
         })
 
         if (!preparedRun.ok) {
@@ -1704,22 +1865,23 @@ export const useAiStore = defineStore('ai', {
                 runtimeTransport: 'codex-runtime',
               }))
 
-              const systemPrompt = buildAgentSystemPrompt({
-                skill,
-                runtimeIntent: preparedRun.runtimeIntent,
+              const promptResponse = await invoke('ai_agent_build_prompt', {
+                params: {
+                  skill,
+                  contextBundle,
+                  userInstruction: preparedRun.userInstruction,
+                  conversation: preparedRun.priorConversation,
+                  altalsSkills: this.altalsSkills,
+                  supportFiles: [],
+                  attachments: preparedRun.attachments || [],
+                  referencedFiles: preparedRun.referencedFiles || [],
+                  requestedTools: preparedRun.requestedTools || [],
+                  enabledToolIds: resolveEffectiveAiToolIds(preparedRun.config?.enabledTools),
+                  runtimeIntent: preparedRun.runtimeIntent,
+                },
               })
-              const userPrompt = buildAgentUserPrompt({
-                skill,
-                contextBundle,
-                userInstruction: preparedRun.userInstruction,
-                conversation: preparedRun.priorConversation,
-                altalsSkills: this.altalsSkills,
-                attachments: preparedRun.attachments || [],
-                referencedFiles: preparedRun.referencedFiles || [],
-                requestedTools: preparedRun.requestedTools || [],
-                enabledToolIds: resolveEffectiveAiToolIds(preparedRun.config?.enabledTools),
-                runtimeIntent: preparedRun.runtimeIntent,
-              })
+              const systemPrompt = String(promptResponse?.systemPrompt || '')
+              const userPrompt = String(promptResponse?.userPrompt || '')
 
               pendingCodexRuntimeThreads.set(runtimeThreadId, {
                 sessionId,
@@ -1782,8 +1944,22 @@ export const useAiStore = defineStore('ai', {
                 }
               })
             })()
-          : await executePreparedAgentRun(preparedRun, {
+          : await executeAiAgentEntry({
+              skillId: preparedRun.skill?.id || '',
+              skill: preparedRun.skill,
+              contextBundle: preparedRun.contextBundle,
+              config: {
+                ...preparedRun.config,
+                providerId: preparedRun.providerId,
+              },
+              apiKey: preparedRun.apiKey || '',
+              userInstruction: preparedRun.userInstruction,
+              conversation: preparedRun.priorConversation,
               altalsSkills: this.altalsSkills,
+              attachments: preparedRun.attachments || [],
+              referencedFiles: preparedRun.referencedFiles || [],
+              requestedTools: preparedRun.requestedTools || [],
+              runtimeIntent: preparedRun.runtimeIntent || 'chat',
               toolRuntime: {
                 listWorkspaceDirectory: async (input = {}) => {
                   await filesStore.ensureFlatFilesReady({ force: false })

@@ -1,11 +1,11 @@
 mod approvals;
 mod events;
-mod protocol;
-mod providers;
+pub(crate) mod protocol;
+pub(crate) mod providers;
 mod state;
 mod storage;
 mod threads;
-mod tools;
+pub(crate) mod tools;
 mod turns;
 
 use tauri::{AppHandle, Runtime, State};

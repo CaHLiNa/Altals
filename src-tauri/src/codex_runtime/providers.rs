@@ -23,7 +23,7 @@ use super::tools::{
 use super::turns::{build_runtime_item, start_turn};
 
 type RuntimeTaskMap = Mutex<HashMap<String, JoinHandle<()>>>;
-const MAX_TOOL_ROUNDS: usize = 6;
+pub(crate) const MAX_TOOL_ROUNDS: usize = 6;
 
 static RUNTIME_TURN_TASKS: OnceLock<RuntimeTaskMap> = OnceLock::new();
 
@@ -65,7 +65,7 @@ fn build_headers(values: &[(&str, String)]) -> Result<HeaderMap, String> {
 }
 
 #[derive(Debug, Clone)]
-enum RuntimeContinuationMessage {
+pub(crate) enum RuntimeContinuationMessage {
     Assistant {
         content: String,
         tool_calls: Vec<RuntimeToolCall>,
@@ -76,7 +76,7 @@ enum RuntimeContinuationMessage {
 }
 
 #[derive(Debug, Clone)]
-enum RuntimeProviderEvent {
+pub(crate) enum RuntimeProviderEvent {
     AssistantDelta(String),
     ReasoningDelta(String),
     ToolCallStart {
@@ -91,13 +91,13 @@ enum RuntimeProviderEvent {
 }
 
 #[derive(Debug, Clone)]
-struct PendingToolCall {
-    id: String,
-    name: String,
-    arguments: String,
+pub(crate) struct PendingToolCall {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) arguments: String,
 }
 
-fn build_provider_request(
+pub(crate) fn build_provider_request(
     provider: &RuntimeProviderConfig,
     history: &[(String, String)],
     user_text: &str,
@@ -535,7 +535,7 @@ fn parse_google_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
     events
 }
 
-fn parse_sse_line(provider_id: &str, line: &str) -> Vec<RuntimeProviderEvent> {
+pub(crate) fn parse_sse_line(provider_id: &str, line: &str) -> Vec<RuntimeProviderEvent> {
     match provider_id {
         "anthropic" => parse_anthropic_sse_line(line),
         "google" => parse_google_sse_line(line),
@@ -543,7 +543,7 @@ fn parse_sse_line(provider_id: &str, line: &str) -> Vec<RuntimeProviderEvent> {
     }
 }
 
-fn collect_pending_tool_calls(
+pub(crate) fn collect_pending_tool_calls(
     pending_tool_calls: &HashMap<String, PendingToolCall>,
 ) -> Vec<RuntimeToolCall> {
     pending_tool_calls

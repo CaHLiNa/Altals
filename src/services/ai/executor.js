@@ -1,14 +1,9 @@
 import { normalizeAiArtifact } from '../../domains/ai/aiArtifactRuntime.js'
+import { invoke } from '@tauri-apps/api/core'
 import { getAiSkillBehaviorId, getAiSkillById } from './skillRegistry.js'
 import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
 import { loadSkillSupportingFiles } from './skillSupportFiles.js'
 import { resolveRuntimeAiToolIds } from './toolRegistry.js'
-import {
-  buildAgentSystemPrompt,
-  buildAgentUserPrompt,
-  requiresStructuredAgentResponse,
-} from './agentPromptBuilder.js'
-import { runAiAgentExecutionRuntime } from './agentExecutionRuntime.js'
 
 export async function executeAiAgentEntry({
   skillId = '',
@@ -47,45 +42,43 @@ export async function executeAiAgentEntry({
     supportFiles = await loadSkillSupportingFiles(resolvedSkill)
   }
 
-  const behaviorId = getAiSkillBehaviorId(resolvedSkill, skillId)
-  const structured = requiresStructuredAgentResponse({
-    behaviorId,
-    runtimeIntent,
+  const promptResponse = await invoke('ai_agent_build_prompt', {
+    params: {
+      skill: promptSkill,
+      contextBundle,
+      userInstruction,
+      conversation,
+      altalsSkills,
+      supportFiles,
+      attachments,
+      referencedFiles,
+      requestedTools,
+      enabledToolIds,
+      runtimeIntent,
+    },
   })
-  const systemPrompt = buildAgentSystemPrompt({
-    skill: resolvedSkill,
-    runtimeIntent,
-    behaviorId,
-    structured,
-  })
-  const userPrompt = buildAgentUserPrompt({
-    skill: promptSkill,
-    contextBundle,
-    userInstruction,
-    conversation,
-    altalsSkills,
-    supportFiles,
-    attachments,
-    referencedFiles,
-    requestedTools,
-    enabledToolIds,
-    runtimeIntent,
+  const behaviorId = String(promptResponse?.behaviorId || getAiSkillBehaviorId(resolvedSkill, skillId))
+  const systemPrompt = String(promptResponse?.systemPrompt || '')
+  const userPrompt = String(promptResponse?.userPrompt || '')
+
+  const { content, payload, events, transport } = await invoke('ai_agent_execute', {
+    params: {
+      providerId: config.providerId || 'openai',
+      config,
+      apiKey,
+      conversation,
+      userPrompt,
+      systemPrompt,
+      contextBundle,
+      supportFiles,
+      enabledToolIds,
+      workspacePath: String(contextBundle?.workspace?.path || '').trim(),
+    },
   })
 
-  const { content, payload, events, transport } = await runAiAgentExecutionRuntime({
-    providerId: config.providerId || 'openai',
-    config,
-    apiKey,
-    conversation,
-    userPrompt,
-    systemPrompt,
-    contextBundle,
-    supportFiles,
-    enabledToolIds,
-    toolRuntime,
-    onEvent,
-    signal,
-  })
+  for (const event of Array.isArray(events) ? events : []) {
+    onEvent?.(event, Array.isArray(events) ? events : [])
+  }
 
   const artifact = normalizeAiArtifact(behaviorId, payload, contextBundle, content)
 

@@ -638,4 +638,86 @@ mod tests {
         let _ = fs::remove_file(&path);
         let _ = fs::remove_dir_all(path.parent().unwrap_or_else(|| Path::new("")));
     }
+
+    #[tokio::test]
+    async fn lifecycle_commands_manage_sessions_without_frontend_state_machine() {
+        let created = ai_session_overlay_create(AiSessionOverlayCreateParams {
+            workspace_path: String::new(),
+            current_session_id: String::new(),
+            sessions: Vec::new(),
+            title: "Session A".to_string(),
+            activate: true,
+            mode: "agent".to_string(),
+            permission_mode: "accept-edits".to_string(),
+            fallback_title: "Run 1".to_string(),
+        })
+        .await
+        .expect("create");
+        assert!(created.success);
+        assert_eq!(created.state.sessions.len(), 2);
+        assert_eq!(
+            created
+                .session
+                .as_ref()
+                .map(|session| session.title.as_str()),
+            Some("Session A")
+        );
+
+        let initial_session_id = created
+            .state
+            .sessions
+            .iter()
+            .find(|session| session.title == "Run 1")
+            .map(|session| session.id.clone())
+            .expect("initial session");
+
+        let switched = ai_session_overlay_switch(AiSessionOverlaySwitchParams {
+            workspace_path: String::new(),
+            current_session_id: created.state.current_session_id.clone(),
+            sessions: created.state.sessions.clone(),
+            session_id: initial_session_id.clone(),
+            fallback_title: "Run 1".to_string(),
+        })
+        .await
+        .expect("switch");
+        assert!(switched.success);
+        assert_eq!(switched.state.current_session_id, initial_session_id);
+
+        let renamed = ai_session_overlay_rename(AiSessionOverlayRenameParams {
+            workspace_path: String::new(),
+            current_session_id: switched.state.current_session_id.clone(),
+            sessions: switched.state.sessions.clone(),
+            session_id: switched.state.current_session_id.clone(),
+            title: "Renamed Session".to_string(),
+            fallback_title: "Run 1".to_string(),
+        })
+        .await
+        .expect("rename");
+        assert!(renamed.success);
+        assert_eq!(
+            renamed
+                .session
+                .as_ref()
+                .map(|session| session.title.as_str()),
+            Some("Renamed Session")
+        );
+
+        let created_session_id = created
+            .session
+            .as_ref()
+            .map(|session| session.id.clone())
+            .expect("created session id");
+        let deleted = ai_session_overlay_delete(AiSessionOverlayDeleteParams {
+            workspace_path: String::new(),
+            current_session_id: renamed.state.current_session_id.clone(),
+            sessions: renamed.state.sessions.clone(),
+            session_id: created_session_id,
+            fallback_title: "Run 1".to_string(),
+        })
+        .await
+        .expect("delete");
+        assert!(deleted.success);
+        assert_eq!(deleted.state.sessions.len(), 1);
+        assert_eq!(deleted.state.sessions[0].title, "Renamed Session");
+    }
 }

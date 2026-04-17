@@ -1,4 +1,7 @@
 mod ai_runtime;
+mod ai_agent_prepare;
+mod ai_agent_prompt;
+mod ai_agent_execute;
 mod ai_session_storage;
 mod app_dirs;
 mod codex_runtime;
@@ -427,6 +430,9 @@ pub fn run() {
             ai_runtime::respond_ai_anthropic_sdk_permission,
             ai_runtime::respond_ai_anthropic_sdk_ask_user,
             ai_runtime::respond_ai_anthropic_sdk_exit_plan,
+            ai_agent_prepare::ai_agent_prepare,
+            ai_agent_prompt::ai_agent_build_prompt,
+            ai_agent_execute::ai_agent_execute,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
             ai_session_storage::ai_session_overlay_restore,

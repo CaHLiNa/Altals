@@ -1,0 +1,800 @@
+use serde::Deserialize;
+use serde_json::{json, Map, Value};
+use std::path::Path;
+use tokio::task;
+
+use crate::fs_io::read_text_file_with_limit;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAgentPrepareParams {
+    pub active_session: Value,
+    #[serde(default)]
+    pub active_skill: Option<Value>,
+    #[serde(default)]
+    pub built_in_actions: Vec<Value>,
+    #[serde(default)]
+    pub altals_skills: Vec<Value>,
+    #[serde(default)]
+    pub context_bundle: Value,
+    #[serde(default)]
+    pub session_mode: String,
+    #[serde(default)]
+    pub provider_state: Value,
+    #[serde(default)]
+    pub provider_id: String,
+    #[serde(default)]
+    pub provider_config: Value,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
+    pub flat_files: Vec<Value>,
+}
+
+fn string_field<'a>(value: &'a Value, keys: &[&str]) -> String {
+    for key in keys {
+        if let Some(entry) = value.get(*key).and_then(|entry| entry.as_str()) {
+            let normalized = entry.trim();
+            if !normalized.is_empty() {
+                return normalized.to_string();
+            }
+        }
+    }
+    String::new()
+}
+
+fn bool_field(value: &Value, keys: &[&str]) -> bool {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(|entry| entry.as_bool()))
+        .unwrap_or(false)
+}
+
+fn array_field<'a>(value: &'a Value, keys: &[&str]) -> Vec<Value> {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(|entry| entry.as_array()).cloned())
+        .unwrap_or_default()
+}
+
+fn normalize_invocation_name(value: &str) -> String {
+    let trimmed = value.trim().trim_start_matches(['/', '$']);
+    let mut out = String::new();
+    let mut last_dash = false;
+    for ch in trimmed.chars().flat_map(|ch| ch.to_lowercase()) {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
+fn normalize_search_text(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn tokenize_prompt(value: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    for ch in normalize_search_text(value).chars() {
+        if ch.is_ascii_alphanumeric() || ('\u{4e00}'..='\u{9fff}').contains(&ch) {
+            current.push(ch);
+        } else if current.chars().count() >= 2 {
+            tokens.push(std::mem::take(&mut current));
+        } else {
+            current.clear();
+        }
+    }
+    if current.chars().count() >= 2 {
+        tokens.push(current);
+    }
+    tokens
+}
+
+fn parse_ai_prompt_resource_mentions(prompt: &str) -> (Vec<String>, Vec<String>) {
+    let mut file_mentions = Vec::new();
+    let mut tool_mentions = Vec::new();
+    for token in prompt.split_whitespace() {
+        if let Some(rest) = token.strip_prefix('@') {
+            let normalized = rest.trim();
+            if !normalized.is_empty() && !file_mentions.iter().any(|entry| entry == normalized) {
+                file_mentions.push(normalized.to_string());
+            }
+        }
+        if let Some(rest) = token.strip_prefix('#') {
+            let normalized = normalize_invocation_name(rest);
+            if !normalized.is_empty() && !tool_mentions.iter().any(|entry| entry == &normalized) {
+                tool_mentions.push(normalized);
+            }
+        }
+    }
+    (file_mentions, tool_mentions)
+}
+
+fn relative_workspace_path(workspace_path: &str, target_path: &str) -> String {
+    let root = workspace_path.trim_end_matches('/');
+    let target = target_path.trim();
+    if root.is_empty() || !target.starts_with(root) {
+        return target.to_string();
+    }
+    target
+        .trim_start_matches(root)
+        .trim_start_matches('/')
+        .to_string()
+}
+
+fn basename_path(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path)
+        .to_string()
+}
+
+fn resolve_mentioned_workspace_files(
+    file_mentions: &[String],
+    files: &[Value],
+    workspace_path: &str,
+) -> Vec<Value> {
+    file_mentions
+        .iter()
+        .filter_map(|mention| {
+            let normalized_mention = normalize_search_text(mention);
+            files.iter().find(|entry| {
+                if bool_field(entry, &["is_dir", "isDir"]) {
+                    return false;
+                }
+                let path = string_field(entry, &["path"]);
+                if path.is_empty() {
+                    return false;
+                }
+                let relative_path = relative_workspace_path(workspace_path, &path);
+                normalize_search_text(&relative_path) == normalized_mention
+                    || normalize_search_text(&path) == normalized_mention
+                    || normalize_search_text(&string_field(entry, &["name"])) == normalized_mention
+                    || normalize_search_text(&basename_path(&relative_path)) == normalized_mention
+            })
+        })
+        .cloned()
+        .collect()
+}
+
+fn match_built_in_action(name: &str, actions: &[Value]) -> Option<Value> {
+    actions
+        .iter()
+        .find(|action| normalize_invocation_name(&string_field(action, &["id"])) == name)
+        .cloned()
+}
+
+fn build_skill_slug(skill: &Value) -> String {
+    normalize_invocation_name(&string_field(
+        skill,
+        &["slug", "name", "directoryName", "directory_name", "id"],
+    ))
+}
+
+fn is_filesystem_skill(skill: &Value) -> bool {
+    string_field(skill, &["kind"]) == "filesystem-skill"
+}
+
+fn match_filesystem_skill(name: &str, skills: &[Value]) -> Option<Value> {
+    skills
+        .iter()
+        .find(|skill| is_filesystem_skill(skill) && build_skill_slug(skill) == name)
+        .cloned()
+}
+
+fn explicit_skill_requirements(skill: &Value) -> Vec<String> {
+    let required = array_field(skill, &["requiredContext", "required_context"])
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.trim().to_string()))
+        .filter(|entry| !entry.is_empty())
+        .collect::<Vec<_>>();
+    if !required.is_empty() {
+        return required;
+    }
+
+    let slug = build_skill_slug(skill);
+    if slug.contains("revise-with-citations") {
+        return vec!["workspace", "selection", "reference"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    }
+    if slug.contains("summarize-selection") {
+        return vec!["workspace", "selection"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    }
+    if slug.contains("draft-related-work") {
+        return vec!["workspace", "document", "reference"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    }
+    if slug.contains("find-supporting-references") {
+        return vec!["workspace", "selection"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    }
+
+    vec!["workspace".to_string()]
+}
+
+fn context_available(kind: &str, context_bundle: &Value) -> bool {
+    let section = context_bundle.get(kind).unwrap_or(&Value::Null);
+    bool_field(section, &["available"])
+}
+
+fn has_context(required_context: &[String], context_bundle: &Value) -> bool {
+    required_context
+        .iter()
+        .all(|kind| context_available(kind, context_bundle))
+}
+
+fn score_prompt_against_keywords(prompt: &str, keywords: &[&str]) -> i32 {
+    let normalized_prompt = normalize_search_text(prompt);
+    keywords.iter().fold(0, |score, keyword| {
+        score + if normalized_prompt.contains(keyword) { 18 } else { 0 }
+    })
+}
+
+fn keyword_boost_for_skill(skill: &Value, prompt: &str) -> i32 {
+    let slug = build_skill_slug(skill);
+    if slug.contains("revise-with-citations") {
+        return score_prompt_against_keywords(
+            prompt,
+            &["revise", "rewrite", "tighten", "polish", "citation", "cite", "改写", "润色", "引用", "补引用"],
+        );
+    }
+    if slug.contains("summarize-selection") {
+        return score_prompt_against_keywords(
+            prompt,
+            &["summarize", "summary", "note", "takeaway", "总结", "摘要", "笔记", "提炼"],
+        );
+    }
+    if slug.contains("draft-related-work") {
+        return score_prompt_against_keywords(
+            prompt,
+            &["related work", "related-work", "literature review", "compare", "position", "相关工作", "综述", "对比"],
+        );
+    }
+    if slug.contains("find-supporting-references") {
+        return score_prompt_against_keywords(
+            prompt,
+            &["support", "evidence", "missing citation", "need citation", "reference gap", "支撑", "证据", "缺引用", "补文献"],
+        );
+    }
+    0
+}
+
+fn score_skill_overlap(skill: &Value, prompt_tokens: &[String]) -> i32 {
+    if prompt_tokens.is_empty() {
+        return 0;
+    }
+    let haystack = tokenize_prompt(
+        &[
+            string_field(skill, &["id"]),
+            string_field(skill, &["name"]),
+            string_field(skill, &["slug"]),
+            string_field(skill, &["description"]),
+        ]
+        .join(" "),
+    );
+    if haystack.is_empty() {
+        return 0;
+    }
+    let haystack_set = haystack.into_iter().collect::<std::collections::HashSet<_>>();
+    prompt_tokens
+        .iter()
+        .fold(0, |score, token| score + if haystack_set.contains(token) { 5 } else { 0 })
+}
+
+fn infer_skill_from_prompt(
+    prompt: &str,
+    built_in_actions: &[Value],
+    altals_skills: &[Value],
+    context_bundle: &Value,
+    fallback_skill: Option<Value>,
+) -> Option<Value> {
+    let default_action = match_built_in_action("workspace-agent", built_in_actions).or(fallback_skill);
+    let prompt_tokens = tokenize_prompt(prompt);
+    let ranked = altals_skills
+        .iter()
+        .filter(|skill| is_filesystem_skill(skill))
+        .filter(|skill| has_context(&explicit_skill_requirements(skill), context_bundle))
+        .map(|skill| {
+            (
+                keyword_boost_for_skill(skill, prompt) + score_skill_overlap(skill, &prompt_tokens),
+                skill.clone(),
+            )
+        })
+        .filter(|(score, _)| *score >= 20)
+        .max_by_key(|(score, _)| *score);
+    ranked.map(|(_, skill)| skill).or(default_action)
+}
+
+fn parse_ai_invocation_input(input: &str) -> Option<(String, String, String, String)> {
+    let normalized = input.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+    let mut chars = normalized.chars();
+    let prefix = chars.next()?;
+    if prefix != '/' && prefix != '$' {
+        return None;
+    }
+    let rest = chars.collect::<String>();
+    let mut parts = rest.splitn(2, char::is_whitespace);
+    let raw_name = parts.next().unwrap_or_default();
+    if raw_name.trim().is_empty() {
+        return None;
+    }
+    let remainder = parts.next().unwrap_or_default().trim().to_string();
+    Some((
+        prefix.to_string(),
+        normalize_invocation_name(raw_name),
+        raw_name.to_string(),
+        remainder,
+    ))
+}
+
+fn resolve_ai_invocation(
+    prompt: &str,
+    mode: &str,
+    active_skill: Option<Value>,
+    built_in_actions: &[Value],
+    altals_skills: &[Value],
+    context_bundle: &Value,
+) -> (Option<Value>, String, Option<Value>) {
+    let fallback_skill =
+        infer_skill_from_prompt(prompt, built_in_actions, altals_skills, context_bundle, active_skill);
+    let Some((prefix, name, raw_name, remainder)) = parse_ai_invocation_input(prompt) else {
+        return (fallback_skill, prompt.trim().to_string(), None);
+    };
+
+    let invocation = json!({
+        "prefix": prefix,
+        "name": name,
+        "rawName": raw_name,
+        "remainder": remainder,
+    });
+
+    if mode == "agent" {
+        if let Some(skill) = match_filesystem_skill(
+            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            altals_skills,
+        ) {
+            return (
+                Some(skill),
+                invocation
+                    .get("remainder")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                Some(invocation),
+            );
+        }
+
+        if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
+            if let Some(action) = match_built_in_action(
+                invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+                built_in_actions,
+            ) {
+                return (
+                    Some(action),
+                    invocation
+                        .get("remainder")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    Some(invocation),
+                );
+            }
+        }
+
+        return (fallback_skill, prompt.trim().to_string(), None);
+    }
+
+    if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
+        if let Some(skill) = match_filesystem_skill(
+            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            altals_skills,
+        ) {
+            return (
+                Some(skill),
+                invocation
+                    .get("remainder")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                Some(invocation),
+            );
+        }
+        if let Some(action) = match_built_in_action(
+            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            built_in_actions,
+        ) {
+            return (
+                Some(action),
+                invocation
+                    .get("remainder")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                Some(invocation),
+            );
+        }
+    }
+
+    if invocation.get("prefix").and_then(Value::as_str) == Some("$") {
+        if let Some(skill) = match_filesystem_skill(
+            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            altals_skills,
+        ) {
+            return (
+                Some(skill),
+                invocation
+                    .get("remainder")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                Some(invocation),
+            );
+        }
+    }
+
+    (fallback_skill, prompt.trim().to_string(), None)
+}
+
+fn normalize_permission_mode(value: &str) -> String {
+    let normalized = value.trim();
+    if normalized == "plan" {
+        "plan".to_string()
+    } else if ["acceptEdits", "accept-edits", "per-tool"].contains(&normalized) {
+        "accept-edits".to_string()
+    } else if ["bypassPermissions", "bypass-permissions", "auto"].contains(&normalized) {
+        "bypass-permissions".to_string()
+    } else {
+        "accept-edits".to_string()
+    }
+}
+
+fn resolve_default_permission_mode(mode: &str, provider_id: &str, provider_config: &Value) -> String {
+    if mode == "chat" {
+        return "accept-edits".to_string();
+    }
+    if provider_id == "anthropic" {
+        return normalize_permission_mode(&string_field(
+            provider_config.get("sdk").unwrap_or(&Value::Null),
+            &["approvalMode", "approval_mode"],
+        ));
+    }
+    "accept-edits".to_string()
+}
+
+fn normalize_conversation(messages: &[Value]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter_map(|message| {
+            let role = string_field(message, &["role"]);
+            if role != "user" && role != "assistant" {
+                return None;
+            }
+            let content = string_field(message, &["content"]);
+            if content.is_empty() {
+                return None;
+            }
+            Some(json!({
+                "role": role,
+                "content": content,
+            }))
+        })
+        .collect()
+}
+
+fn build_error(code: &str, extra: Value) -> Value {
+    let mut payload = Map::new();
+    payload.insert("ok".to_string(), Value::Bool(false));
+    payload.insert("code".to_string(), Value::String(code.to_string()));
+    if let Some(extra_map) = extra.as_object() {
+        for (key, value) in extra_map {
+            payload.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(payload)
+}
+
+#[tauri::command]
+pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String> {
+    let session = params.active_session;
+    if !session.is_object() {
+        return Ok(build_error("SESSION_UNAVAILABLE", json!({})));
+    }
+
+    let normalized_session_mode = if params.session_mode.trim() == "chat"
+        || string_field(&session, &["mode"]) == "chat"
+    {
+        "chat".to_string()
+    } else {
+        "agent".to_string()
+    };
+    let is_agent_session = normalized_session_mode == "agent";
+    let prompt_draft = string_field(&session, &["promptDraft", "prompt_draft"]);
+    let (file_mentions, tool_mentions) = parse_ai_prompt_resource_mentions(&prompt_draft);
+    let default_agent_skill = match_built_in_action("workspace-agent", &params.built_in_actions)
+        .or(params.active_skill.clone());
+    let (resolved_skill, user_instruction, invocation) = resolve_ai_invocation(
+        &prompt_draft,
+        &normalized_session_mode,
+        if is_agent_session {
+            default_agent_skill.clone()
+        } else {
+            params.active_skill.clone()
+        },
+        &params.built_in_actions,
+        &params.altals_skills,
+        &params.context_bundle,
+    );
+    let Some(skill) = resolved_skill else {
+        return Ok(build_error(
+            "AI_SKILL_UNAVAILABLE",
+            json!({
+                "promptDraft": prompt_draft,
+                "invocation": invocation,
+            }),
+        ));
+    };
+
+    if string_field(&skill, &["kind"]) != "filesystem-skill" {
+        let required_context = array_field(&skill, &["requiredContext", "required_context"])
+            .into_iter()
+            .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+            .collect::<Vec<_>>();
+        if !required_context.iter().all(|kind| context_available(kind, &params.context_bundle)) {
+            return Ok(build_error(
+                "MISSING_CONTEXT",
+                json!({
+                    "skill": skill,
+                    "invocation": invocation,
+                    "promptDraft": prompt_draft,
+                }),
+            ));
+        }
+    } else if !array_field(&skill, &["requiredContext", "required_context"])
+        .into_iter()
+        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+        .all(|kind| context_available(&kind, &params.context_bundle))
+    {
+        return Ok(build_error(
+            "MISSING_CONTEXT",
+            json!({
+                "skill": skill,
+                "invocation": invocation,
+                "promptDraft": prompt_draft,
+            }),
+        ));
+    }
+
+    if !bool_field(&params.provider_state, &["ready"]) {
+        return Ok(build_error(
+            "PROVIDER_NOT_READY",
+            json!({
+                "skill": skill,
+                "invocation": invocation,
+                "providerState": params.provider_state,
+                "promptDraft": prompt_draft,
+            }),
+        ));
+    }
+
+    let provider_id = params.provider_id.trim().to_string();
+    let effective_permission_mode = if normalized_session_mode == "chat" {
+        "chat".to_string()
+    } else {
+        let fallback = resolve_default_permission_mode("agent", &provider_id, &params.provider_config);
+        let session_mode = string_field(&session, &["permissionMode", "permission_mode"]);
+        if session_mode.is_empty() {
+            fallback
+        } else {
+            normalize_permission_mode(&session_mode)
+        }
+    };
+
+    let mut config = params.provider_config.clone();
+    if let Some(map) = config.as_object_mut() {
+        let existing_sdk = map.get("sdk").cloned().unwrap_or(Value::Null);
+        map.insert(
+            "enabledTools".to_string(),
+            params
+                .provider_state
+                .get("enabledToolIds")
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new())),
+        );
+        if provider_id == "anthropic" {
+            let mut sdk = existing_sdk
+                .as_object()
+                .cloned()
+                .unwrap_or_default();
+            let runtime_mode = string_field(&existing_sdk, &["runtimeMode", "runtime_mode"]);
+            sdk.insert(
+                "runtimeMode".to_string(),
+                Value::String(if !is_agent_session {
+                    "http".to_string()
+                } else {
+                    if runtime_mode.is_empty() {
+                        "sdk".to_string()
+                    } else {
+                        runtime_mode
+                    }
+                }),
+            );
+            sdk.insert(
+                "approvalMode".to_string(),
+                Value::String(if effective_permission_mode == "plan" {
+                    "plan".to_string()
+                } else {
+                    "per-tool".to_string()
+                }),
+            );
+            sdk.insert(
+                "autoAllowAll".to_string(),
+                Value::Bool(effective_permission_mode == "bypass-permissions"),
+            );
+            map.insert("sdk".to_string(), Value::Object(sdk));
+        }
+    }
+
+    let referenced_entries =
+        resolve_mentioned_workspace_files(&file_mentions, &params.flat_files, &params.workspace_path);
+    let referenced_files = task::spawn_blocking(move || {
+        referenced_entries
+            .into_iter()
+            .map(|entry| {
+                let path = string_field(&entry, &["path"]);
+                let content = if path.is_empty() {
+                    String::new()
+                } else {
+                    read_text_file_with_limit(Path::new(&path), Some(64 * 1024)).unwrap_or_default()
+                };
+                json!({
+                    "path": path,
+                    "relativePath": relative_workspace_path(&params.workspace_path, &string_field(&entry, &["path"])),
+                    "content": content,
+                })
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|error| format!("Background task failed: {error}"))?;
+
+    let prior_messages = array_field(&session, &["messages"]);
+    let prior_conversation = normalize_conversation(
+        &prior_messages
+            .into_iter()
+            .rev()
+            .take(6)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>(),
+    );
+
+    Ok(json!({
+        "ok": true,
+        "session": session,
+        "sessionMode": normalized_session_mode,
+        "isAgentSession": is_agent_session,
+        "promptDraft": prompt_draft,
+        "promptMentions": {
+            "fileMentions": file_mentions,
+            "toolMentions": tool_mentions,
+        },
+        "invocation": invocation,
+        "skill": skill,
+        "providerState": params.provider_state,
+        "providerId": provider_id,
+        "apiKey": params.api_key,
+        "effectivePermissionMode": effective_permission_mode,
+        "config": config,
+        "contextBundle": params.context_bundle,
+        "userInstruction": if is_agent_session && user_instruction.is_empty() {
+            prompt_draft
+        } else {
+            user_instruction
+        },
+        "runtimeIntent": if is_agent_session {
+            "agent"
+        } else if invocation.is_some() {
+            "skill"
+        } else {
+            "chat"
+        },
+        "referencedFiles": referenced_files,
+        "priorConversation": prior_conversation,
+        "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "requestedTools": if is_agent_session { Value::Array(tool_mentions.into_iter().map(Value::String).collect()) } else { Value::Array(Vec::new()) },
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn prepare_resolves_agent_invocation_and_referenced_files() {
+        let prepared = ai_agent_prepare(AiAgentPrepareParams {
+            active_session: json!({
+                "id": "session-1",
+                "mode": "agent",
+                "promptDraft": "/workspace-agent inspect @README.md #read-workspace-file",
+                "messages": [
+                    { "role": "user", "content": "Earlier prompt" },
+                    { "role": "assistant", "content": "Earlier response" }
+                ],
+                "attachments": [{ "id": "att-1" }],
+                "permissionMode": "accept-edits"
+            }),
+            active_skill: None,
+            built_in_actions: vec![json!({
+                "id": "workspace-agent",
+                "kind": "built-in-action",
+                "requiredContext": ["workspace"]
+            })],
+            altals_skills: vec![],
+            context_bundle: json!({
+                "workspace": { "available": true },
+                "document": { "available": true },
+                "selection": { "available": false },
+                "reference": { "available": false }
+            }),
+            session_mode: "agent".to_string(),
+            provider_state: json!({
+                "ready": true,
+                "requiresApiKey": true,
+                "enabledToolIds": ["read-workspace-file"]
+            }),
+            provider_id: "openai".to_string(),
+            provider_config: json!({
+                "model": "gpt-5",
+                "baseUrl": "https://api.openai.com/v1"
+            }),
+            api_key: "key".to_string(),
+            workspace_path: "/workspace".to_string(),
+            flat_files: vec![json!({
+                "path": "/workspace/README.md",
+                "name": "README.md",
+                "is_dir": false
+            })],
+        })
+        .await
+        .expect("prepare");
+
+        assert_eq!(prepared.get("ok").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            prepared
+                .get("skill")
+                .and_then(|skill| skill.get("id"))
+                .and_then(Value::as_str),
+            Some("workspace-agent")
+        );
+        assert_eq!(
+            prepared.get("requestedTools").and_then(Value::as_array).map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            prepared
+                .get("referencedFiles")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(1)
+        );
+    }
+}
