@@ -234,7 +234,10 @@ pub async fn start_ai_anthropic_sdk_stream<R: Runtime>(
                             )),
                         },
                     );
-                    let _ = ai_agent_sdk_tasks().lock().await.remove(&stream_id_for_task);
+                    let _ = ai_agent_sdk_tasks()
+                        .lock()
+                        .await
+                        .remove(&stream_id_for_task);
                     return;
                 }
             }
@@ -290,7 +293,10 @@ pub async fn start_ai_anthropic_sdk_stream<R: Runtime>(
             }
         }
 
-        let _ = ai_agent_sdk_tasks().lock().await.remove(&stream_id_for_task);
+        let _ = ai_agent_sdk_tasks()
+            .lock()
+            .await
+            .remove(&stream_id_for_task);
     });
 
     tasks.insert(
@@ -310,7 +316,11 @@ pub async fn abort_ai_anthropic_sdk_stream(stream_id: String) -> Result<(), Stri
         return Ok(());
     }
 
-    if let Some(entry) = ai_agent_sdk_tasks().lock().await.remove(&normalized_stream_id) {
+    if let Some(entry) = ai_agent_sdk_tasks()
+        .lock()
+        .await
+        .remove(&normalized_stream_id)
+    {
         entry.handle.abort();
     }
 
@@ -351,11 +361,12 @@ pub async fn respond_ai_anthropic_sdk_permission(
     stdin_guard
         .write_all(format!("{line}\n").as_bytes())
         .await
-        .map_err(|error| format!("Failed to send permission response to the SDK bridge: {error}"))?;
-    stdin_guard
-        .flush()
-        .await
-        .map_err(|error| format!("Failed to flush permission response to the SDK bridge: {error}"))?;
+        .map_err(|error| {
+            format!("Failed to send permission response to the SDK bridge: {error}")
+        })?;
+    stdin_guard.flush().await.map_err(|error| {
+        format!("Failed to flush permission response to the SDK bridge: {error}")
+    })?;
 
     Ok(())
 }
@@ -435,10 +446,9 @@ pub async fn respond_ai_anthropic_sdk_exit_plan(
         .write_all(format!("{line}\n").as_bytes())
         .await
         .map_err(|error| format!("Failed to send exit-plan response to the SDK bridge: {error}"))?;
-    stdin_guard
-        .flush()
-        .await
-        .map_err(|error| format!("Failed to flush exit-plan response to the SDK bridge: {error}"))?;
+    stdin_guard.flush().await.map_err(|error| {
+        format!("Failed to flush exit-plan response to the SDK bridge: {error}")
+    })?;
 
     Ok(())
 }

@@ -241,7 +241,12 @@ fn has_context(required_context: &[String], context_bundle: &Value) -> bool {
 fn score_prompt_against_keywords(prompt: &str, keywords: &[&str]) -> i32 {
     let normalized_prompt = normalize_search_text(prompt);
     keywords.iter().fold(0, |score, keyword| {
-        score + if normalized_prompt.contains(keyword) { 18 } else { 0 }
+        score
+            + if normalized_prompt.contains(keyword) {
+                18
+            } else {
+                0
+            }
     })
 }
 
@@ -250,25 +255,64 @@ fn keyword_boost_for_skill(skill: &Value, prompt: &str) -> i32 {
     if slug.contains("revise-with-citations") {
         return score_prompt_against_keywords(
             prompt,
-            &["revise", "rewrite", "tighten", "polish", "citation", "cite", "改写", "润色", "引用", "补引用"],
+            &[
+                "revise",
+                "rewrite",
+                "tighten",
+                "polish",
+                "citation",
+                "cite",
+                "改写",
+                "润色",
+                "引用",
+                "补引用",
+            ],
         );
     }
     if slug.contains("summarize-selection") {
         return score_prompt_against_keywords(
             prompt,
-            &["summarize", "summary", "note", "takeaway", "总结", "摘要", "笔记", "提炼"],
+            &[
+                "summarize",
+                "summary",
+                "note",
+                "takeaway",
+                "总结",
+                "摘要",
+                "笔记",
+                "提炼",
+            ],
         );
     }
     if slug.contains("draft-related-work") {
         return score_prompt_against_keywords(
             prompt,
-            &["related work", "related-work", "literature review", "compare", "position", "相关工作", "综述", "对比"],
+            &[
+                "related work",
+                "related-work",
+                "literature review",
+                "compare",
+                "position",
+                "相关工作",
+                "综述",
+                "对比",
+            ],
         );
     }
     if slug.contains("find-supporting-references") {
         return score_prompt_against_keywords(
             prompt,
-            &["support", "evidence", "missing citation", "need citation", "reference gap", "支撑", "证据", "缺引用", "补文献"],
+            &[
+                "support",
+                "evidence",
+                "missing citation",
+                "need citation",
+                "reference gap",
+                "支撑",
+                "证据",
+                "缺引用",
+                "补文献",
+            ],
         );
     }
     0
@@ -290,10 +334,12 @@ fn score_skill_overlap(skill: &Value, prompt_tokens: &[String]) -> i32 {
     if haystack.is_empty() {
         return 0;
     }
-    let haystack_set = haystack.into_iter().collect::<std::collections::HashSet<_>>();
-    prompt_tokens
-        .iter()
-        .fold(0, |score, token| score + if haystack_set.contains(token) { 5 } else { 0 })
+    let haystack_set = haystack
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    prompt_tokens.iter().fold(0, |score, token| {
+        score + if haystack_set.contains(token) { 5 } else { 0 }
+    })
 }
 
 fn infer_skill_from_prompt(
@@ -303,7 +349,8 @@ fn infer_skill_from_prompt(
     context_bundle: &Value,
     fallback_skill: Option<Value>,
 ) -> Option<Value> {
-    let default_action = match_built_in_action("workspace-agent", built_in_actions).or(fallback_skill);
+    let default_action =
+        match_built_in_action("workspace-agent", built_in_actions).or(fallback_skill);
     let prompt_tokens = tokenize_prompt(prompt);
     let ranked = altals_skills
         .iter()
@@ -353,8 +400,13 @@ fn resolve_ai_invocation(
     altals_skills: &[Value],
     context_bundle: &Value,
 ) -> (Option<Value>, String, Option<Value>) {
-    let fallback_skill =
-        infer_skill_from_prompt(prompt, built_in_actions, altals_skills, context_bundle, active_skill);
+    let fallback_skill = infer_skill_from_prompt(
+        prompt,
+        built_in_actions,
+        altals_skills,
+        context_bundle,
+        active_skill,
+    );
     let Some((prefix, name, raw_name, remainder)) = parse_ai_invocation_input(prompt) else {
         return (fallback_skill, prompt.trim().to_string(), None);
     };
@@ -368,7 +420,10 @@ fn resolve_ai_invocation(
 
     if mode == "agent" {
         if let Some(skill) = match_filesystem_skill(
-            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            invocation
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
             altals_skills,
         ) {
             return (
@@ -384,7 +439,10 @@ fn resolve_ai_invocation(
 
         if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
             if let Some(action) = match_built_in_action(
-                invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+                invocation
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
                 built_in_actions,
             ) {
                 return (
@@ -404,7 +462,10 @@ fn resolve_ai_invocation(
 
     if invocation.get("prefix").and_then(Value::as_str) == Some("/") {
         if let Some(skill) = match_filesystem_skill(
-            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            invocation
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
             altals_skills,
         ) {
             return (
@@ -418,7 +479,10 @@ fn resolve_ai_invocation(
             );
         }
         if let Some(action) = match_built_in_action(
-            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            invocation
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
             built_in_actions,
         ) {
             return (
@@ -435,7 +499,10 @@ fn resolve_ai_invocation(
 
     if invocation.get("prefix").and_then(Value::as_str) == Some("$") {
         if let Some(skill) = match_filesystem_skill(
-            invocation.get("name").and_then(Value::as_str).unwrap_or_default(),
+            invocation
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
             altals_skills,
         ) {
             return (
@@ -466,7 +533,11 @@ fn normalize_permission_mode(value: &str) -> String {
     }
 }
 
-fn resolve_default_permission_mode(mode: &str, provider_id: &str, provider_config: &Value) -> String {
+fn resolve_default_permission_mode(
+    mode: &str,
+    provider_id: &str,
+    provider_config: &Value,
+) -> String {
     if mode == "chat" {
         return "accept-edits".to_string();
     }
@@ -518,13 +589,12 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
         return Ok(build_error("SESSION_UNAVAILABLE", json!({})));
     }
 
-    let normalized_session_mode = if params.session_mode.trim() == "chat"
-        || string_field(&session, &["mode"]) == "chat"
-    {
-        "chat".to_string()
-    } else {
-        "agent".to_string()
-    };
+    let normalized_session_mode =
+        if params.session_mode.trim() == "chat" || string_field(&session, &["mode"]) == "chat" {
+            "chat".to_string()
+        } else {
+            "agent".to_string()
+        };
     let is_agent_session = normalized_session_mode == "agent";
     let prompt_draft = string_field(&session, &["promptDraft", "prompt_draft"]);
     let (file_mentions, tool_mentions) = parse_ai_prompt_resource_mentions(&prompt_draft);
@@ -557,7 +627,10 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
             .into_iter()
             .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
             .collect::<Vec<_>>();
-        if !required_context.iter().all(|kind| context_available(kind, &params.context_bundle)) {
+        if !required_context
+            .iter()
+            .all(|kind| context_available(kind, &params.context_bundle))
+        {
             return Ok(build_error(
                 "MISSING_CONTEXT",
                 json!({
@@ -598,7 +671,8 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
     let effective_permission_mode = if normalized_session_mode == "chat" {
         "chat".to_string()
     } else {
-        let fallback = resolve_default_permission_mode("agent", &provider_id, &params.provider_config);
+        let fallback =
+            resolve_default_permission_mode("agent", &provider_id, &params.provider_config);
         let session_mode = string_field(&session, &["permissionMode", "permission_mode"]);
         if session_mode.is_empty() {
             fallback
@@ -619,10 +693,7 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
                 .unwrap_or_else(|| Value::Array(Vec::new())),
         );
         if provider_id == "anthropic" {
-            let mut sdk = existing_sdk
-                .as_object()
-                .cloned()
-                .unwrap_or_default();
+            let mut sdk = existing_sdk.as_object().cloned().unwrap_or_default();
             let runtime_mode = string_field(&existing_sdk, &["runtimeMode", "runtime_mode"]);
             sdk.insert(
                 "runtimeMode".to_string(),
@@ -652,8 +723,11 @@ pub async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, Str
         }
     }
 
-    let referenced_entries =
-        resolve_mentioned_workspace_files(&file_mentions, &params.flat_files, &params.workspace_path);
+    let referenced_entries = resolve_mentioned_workspace_files(
+        &file_mentions,
+        &params.flat_files,
+        &params.workspace_path,
+    );
     let referenced_files = task::spawn_blocking(move || {
         referenced_entries
             .into_iter()
@@ -786,7 +860,10 @@ mod tests {
             Some("workspace-agent")
         );
         assert_eq!(
-            prepared.get("requestedTools").and_then(Value::as_array).map(Vec::len),
+            prepared
+                .get("requestedTools")
+                .and_then(Value::as_array)
+                .map(Vec::len),
             Some(1)
         );
         assert_eq!(

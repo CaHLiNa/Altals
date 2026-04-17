@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::ai_skill_support::load_skill_supporting_files;
+
 const DEFAULT_AGENT_ACTION_ID: &str = "workspace-agent";
 const ALWAYS_AVAILABLE_AI_TOOL_IDS: &[&str] = &[
     "list-workspace-directory",
@@ -107,12 +109,22 @@ fn get_tool_definition(tool_id: &str) -> Option<(&'static str, &'static str)> {
             "list_workspace_directory",
             "List immediate files and folders inside a workspace directory.",
         )),
-        "search-workspace-files" => {
-            Some(("search_workspace_files", "Search workspace files by path or filename."))
-        }
-        "read-workspace-file" => Some(("read_workspace_file", "Read any text file from the current workspace.")),
-        "read-active-document" => Some(("read_active_document", "Read the current open draft as workspace context.")),
-        "read-editor-selection" => Some(("read_editor_selection", "Read the current text selection from the active editor.")),
+        "search-workspace-files" => Some((
+            "search_workspace_files",
+            "Search workspace files by path or filename.",
+        )),
+        "read-workspace-file" => Some((
+            "read_workspace_file",
+            "Read any text file from the current workspace.",
+        )),
+        "read-active-document" => Some((
+            "read_active_document",
+            "Read the current open draft as workspace context.",
+        )),
+        "read-editor-selection" => Some((
+            "read_editor_selection",
+            "Read the current text selection from the active editor.",
+        )),
         "read-selected-reference" => Some((
             "read_selected_reference",
             "Read the currently selected reference metadata and citation identity.",
@@ -125,19 +137,22 @@ fn get_tool_definition(tool_id: &str) -> Option<(&'static str, &'static str)> {
             "write_workspace_file",
             "Write text content to a workspace file and optionally open it in the editor.",
         )),
-        "open-workspace-file" => {
-            Some(("open_workspace_file", "Open an existing workspace file in the editor."))
-        }
-        "delete-workspace-path" => {
-            Some(("delete_workspace_path", "Delete a file or folder inside the current workspace."))
-        }
+        "open-workspace-file" => Some((
+            "open_workspace_file",
+            "Open an existing workspace file in the editor.",
+        )),
+        "delete-workspace-path" => Some((
+            "delete_workspace_path",
+            "Delete a file or folder inside the current workspace.",
+        )),
         "apply-document-patch" => Some((
             "apply_document_patch",
             "Write a replacement patch back into the active draft selection.",
         )),
-        "open-note-draft" => {
-            Some(("open_note_draft", "Create and open a markdown draft from AI output."))
-        }
+        "open-note-draft" => Some((
+            "open_note_draft",
+            "Create and open a markdown draft from AI output.",
+        )),
         "load-skill-support-files" => Some((
             "load_skill_support_files",
             "Load text support files that live alongside a discovered SKILL.md package.",
@@ -230,24 +245,24 @@ fn build_referenced_files_block(referenced_files: &[Value]) -> String {
     }
     let mut lines = vec!["Referenced files:".to_string()];
     for file in referenced_files {
-        let header = format!(
-            "- {}",
-            {
-                let relative = string_field(file, &["relativePath", "relative_path"]);
-                if relative.is_empty() {
-                    string_field(file, &["path"])
-                } else {
-                    relative
-                }
+        let header = format!("- {}", {
+            let relative = string_field(file, &["relativePath", "relative_path"]);
+            if relative.is_empty() {
+                string_field(file, &["path"])
+            } else {
+                relative
             }
-        );
+        });
         let content = string_field(file, &["content"]);
         if content.is_empty() {
             lines.push(header);
             lines.push("  (content unavailable)".to_string());
         } else {
             let limited = if content.chars().count() > 5000 {
-                format!("{}…", content.chars().take(5000).collect::<String>().trim_end())
+                format!(
+                    "{}…",
+                    content.chars().take(5000).collect::<String>().trim_end()
+                )
             } else {
                 content
             };
@@ -266,18 +281,14 @@ fn build_attachment_block(attachments: &[Value]) -> String {
     }
     let mut lines = vec!["Attached files:".to_string()];
     for attachment in attachments {
-        let summary = format!(
-            "- {} ({})",
-            string_field(attachment, &["name"]),
-            {
-                let media_type = string_field(attachment, &["mediaType", "media_type"]);
-                if media_type.is_empty() {
-                    "unknown".to_string()
-                } else {
-                    media_type
-                }
+        let summary = format!("- {} ({})", string_field(attachment, &["name"]), {
+            let media_type = string_field(attachment, &["mediaType", "media_type"]);
+            if media_type.is_empty() {
+                "unknown".to_string()
+            } else {
+                media_type
             }
-        );
+        });
         if !bool_field(attachment, &["isText", "is_text"]) {
             lines.push(summary);
             lines.push(
@@ -366,24 +377,42 @@ fn build_workspace_context_prompt_block(context_bundle: &Value) -> String {
 
     [
         "Workspace context:".to_string(),
-        format!("- Folder: {}", if workspace_path.is_empty() { "Unavailable".to_string() } else { workspace_path }),
-        format!("- Active document: {}", if document_path.is_empty() { "Unavailable".to_string() } else { document_path }),
-        format!("- Selection: {}", if selection_text.is_empty() { "Unavailable".to_string() } else { selection_text }),
         format!(
-            "- Reference: {}",
-            {
-                let combined = [reference_key, reference_title]
-                    .into_iter()
-                    .filter(|entry| !entry.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" · ");
-                if combined.is_empty() {
-                    "Unavailable".to_string()
-                } else {
-                    combined
-                }
+            "- Folder: {}",
+            if workspace_path.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                workspace_path
             }
         ),
+        format!(
+            "- Active document: {}",
+            if document_path.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                document_path
+            }
+        ),
+        format!(
+            "- Selection: {}",
+            if selection_text.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                selection_text
+            }
+        ),
+        format!("- Reference: {}", {
+            let combined = [reference_key, reference_title]
+                .into_iter()
+                .filter(|entry| !entry.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ");
+            if combined.is_empty() {
+                "Unavailable".to_string()
+            } else {
+                combined
+            }
+        }),
     ]
     .join("\n")
 }
@@ -393,7 +422,10 @@ fn build_available_skills_block(altals_skills: &[Value]) -> String {
         .iter()
         .filter(|skill| string_field(skill, &["kind"]) == "filesystem-skill")
         .filter_map(|skill| {
-            let name = string_field(skill, &["name", "slug", "directoryName", "directory_name", "id"]);
+            let name = string_field(
+                skill,
+                &["name", "slug", "directoryName", "directory_name", "id"],
+            );
             if name.is_empty() {
                 return None;
             }
@@ -442,7 +474,8 @@ fn build_skill_support_prompt_block(files: &[Value]) -> String {
     if files.is_empty() {
         return "Instruction-pack support files loaded: none.".to_string();
     }
-    let mut lines = vec!["Instruction-pack support files loaded from the current skill directory:".to_string()];
+    let mut lines =
+        vec!["Instruction-pack support files loaded from the current skill directory:".to_string()];
     for file in files {
         lines.push(format!(
             "- {}",
@@ -528,7 +561,10 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
         .join("\n");
     }
 
-    format!("Action: {}", string_field(skill, &["titleKey", "name", "id"]))
+    format!(
+        "Action: {}",
+        string_field(skill, &["titleKey", "name", "id"])
+    )
 }
 
 fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
@@ -605,7 +641,10 @@ fn build_skill_mode_user_prompt(
     lines.push(if params.user_instruction.trim().is_empty() {
         "Additional user instruction:\nNone.".to_string()
     } else {
-        format!("Additional user instruction:\n{}", params.user_instruction.trim())
+        format!(
+            "Additional user instruction:\n{}",
+            params.user_instruction.trim()
+        )
     });
     if structured {
         lines.push(String::new());
@@ -618,6 +657,16 @@ fn build_skill_mode_user_prompt(
 pub async fn ai_agent_build_prompt(
     params: AiAgentPromptParams,
 ) -> Result<AiAgentPromptResponse, String> {
+    let mut params = params;
+    if params.support_files.is_empty()
+        && string_field(&params.skill, &["kind"]) == "filesystem-skill"
+        && params
+            .enabled_tool_ids
+            .iter()
+            .any(|tool_id| tool_id.trim() == "load-skill-support-files")
+    {
+        params.support_files = load_skill_supporting_files(&params.skill);
+    }
     let behavior_id = get_ai_skill_behavior_id(&params.skill);
     let structured = requires_structured_agent_response(&behavior_id, &params.runtime_intent);
     let system_prompt = {
@@ -647,18 +696,22 @@ pub async fn ai_agent_build_prompt(
         }
         lines.join(" ")
     };
-    let user_prompt = if params.runtime_intent.trim() == "agent" && is_default_agent_action_id(&behavior_id) {
-        build_agent_mode_user_prompt(&params)
-    } else {
-        build_skill_mode_user_prompt(&params, &behavior_id, structured)
-    };
+    let user_prompt =
+        if params.runtime_intent.trim() == "agent" && is_default_agent_action_id(&behavior_id) {
+            build_agent_mode_user_prompt(&params)
+        } else {
+            build_skill_mode_user_prompt(&params, &behavior_id, structured)
+        };
 
     Ok(AiAgentPromptResponse {
         system_prompt,
         user_prompt,
         behavior_id,
         structured,
-        enabled_tool_ids: resolve_effective_tool_ids(&params.enabled_tool_ids, &params.runtime_intent),
+        enabled_tool_ids: resolve_effective_tool_ids(
+            &params.enabled_tool_ids,
+            &params.runtime_intent,
+        ),
     })
 }
 
@@ -689,7 +742,9 @@ mod tests {
             })],
             support_files: Vec::new(),
             attachments: Vec::new(),
-            referenced_files: vec![json!({ "relativePath": "src/app.ts", "content": "export const broken = true" })],
+            referenced_files: vec![
+                json!({ "relativePath": "src/app.ts", "content": "export const broken = true" }),
+            ],
             requested_tools: vec![json!("Edit"), json!("Bash")],
             enabled_tool_ids: vec![
                 "create-workspace-file".to_string(),
@@ -703,8 +758,12 @@ mod tests {
 
         assert!(response.system_prompt.contains("Altals Agent"));
         assert!(response.user_prompt.contains("Current task:"));
-        assert!(response.user_prompt.contains("Available filesystem skills:"));
-        assert!(response.user_prompt.contains("Available tools in this Altals runtime:"));
+        assert!(response
+            .user_prompt
+            .contains("Available filesystem skills:"));
+        assert!(response
+            .user_prompt
+            .contains("Available tools in this Altals runtime:"));
         assert!(response.user_prompt.contains("Referenced files:"));
         assert!(response.user_prompt.contains("User-mentioned tools:"));
         assert!(response.user_prompt.contains("Recent conversation:"));

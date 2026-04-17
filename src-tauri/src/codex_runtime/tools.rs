@@ -46,13 +46,14 @@ fn clamp_results(value: Option<u64>, fallback: usize) -> usize {
 fn normalize_workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
     let trimmed = workspace_path.trim();
     if trimmed.is_empty() {
-      return Err("No workspace is currently open.".to_string());
+        return Err("No workspace is currently open.".to_string());
     }
     let root = PathBuf::from(trimmed);
     if !root.exists() || !root.is_dir() {
-      return Err("Workspace path is unavailable.".to_string());
+        return Err("Workspace path is unavailable.".to_string());
     }
-    root.canonicalize().map_err(|error| format!("Failed to resolve workspace path: {error}"))
+    root.canonicalize()
+        .map_err(|error| format!("Failed to resolve workspace path: {error}"))
 }
 
 fn resolve_workspace_target(
@@ -88,7 +89,10 @@ fn normalize_candidate_path(
 ) -> Result<PathBuf, String> {
     let workspace_components = workspace_root.components().collect::<Vec<_>>();
     let mut normalized = if candidate.is_absolute() {
-        candidate.components().take(workspace_components.len()).collect::<PathBuf>()
+        candidate
+            .components()
+            .take(workspace_components.len())
+            .collect::<PathBuf>()
     } else {
         workspace_root.to_path_buf()
     };
@@ -101,7 +105,9 @@ fn normalize_candidate_path(
             Component::CurDir => {}
             Component::ParentDir => {
                 if normalized == workspace_root {
-                    return Err("Requested path must stay inside the current workspace.".to_string());
+                    return Err(
+                        "Requested path must stay inside the current workspace.".to_string()
+                    );
                 }
                 normalized.pop();
             }
@@ -177,7 +183,9 @@ pub fn resolve_runtime_tool_definitions_with_context(
         .collect::<Vec<_>>();
 
     let mut tools = Vec::new();
-    let register = |tools: &mut Vec<RuntimeToolDefinition>, id: &'static str, definition: RuntimeToolDefinition| {
+    let register = |tools: &mut Vec<RuntimeToolDefinition>,
+                    id: &'static str,
+                    definition: RuntimeToolDefinition| {
         if enabled.iter().any(|value| value == id) {
             tools.push(definition);
         }
@@ -298,7 +306,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         "write-workspace-file",
         RuntimeToolDefinition {
             name: "write_workspace_file",
-            description: "Write text content to a workspace file and optionally open it in the editor.",
+            description:
+                "Write text content to a workspace file and optionally open it in the editor.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -346,7 +355,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
             "load-skill-support-files",
             RuntimeToolDefinition {
                 name: "load_skill_support_files",
-                description: "Read text support files that belong to the active instruction-pack directory.",
+                description:
+                    "Read text support files that belong to the active instruction-pack directory.",
                 parameters: json!({
                     "type": "object",
                     "properties": {},
@@ -374,17 +384,24 @@ pub fn execute_runtime_tool_calls_with_context(
 ) -> Vec<RuntimeToolResult> {
     tool_calls
         .iter()
-        .map(|tool_call| match execute_runtime_tool_call(workspace_path, tool_call, context_bundle, support_files) {
-            Ok(content) => RuntimeToolResult {
-                tool_call_id: tool_call.id.clone(),
-                content,
-                is_error: false,
-            },
-            Err(error) => RuntimeToolResult {
-                tool_call_id: tool_call.id.clone(),
-                content: error,
-                is_error: true,
-            },
+        .map(|tool_call| {
+            match execute_runtime_tool_call(
+                workspace_path,
+                tool_call,
+                context_bundle,
+                support_files,
+            ) {
+                Ok(content) => RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content,
+                    is_error: false,
+                },
+                Err(error) => RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: error,
+                    is_error: true,
+                },
+            }
         })
         .collect()
 }
@@ -407,7 +424,10 @@ fn execute_runtime_tool_call(
                 .get("path")
                 .and_then(|value| value.as_str())
                 .unwrap_or_default();
-            let max_results = tool_call.arguments.get("maxResults").and_then(|value| value.as_u64());
+            let max_results = tool_call
+                .arguments
+                .get("maxResults")
+                .and_then(|value| value.as_u64());
             let directory = resolve_workspace_target(&workspace_root, path, true)?;
             let entries = read_dir_shallow_entries(&directory)?;
             let result = entries
@@ -447,7 +467,10 @@ fn execute_runtime_tool_call(
                 .get("directoryPath")
                 .and_then(|value| value.as_str())
                 .unwrap_or_default();
-            let max_results = tool_call.arguments.get("maxResults").and_then(|value| value.as_u64());
+            let max_results = tool_call
+                .arguments
+                .get("maxResults")
+                .and_then(|value| value.as_u64());
             let scope = if directory_path.trim().is_empty() {
                 workspace_root.clone()
             } else {
@@ -472,9 +495,11 @@ fn execute_runtime_tool_call(
                 })
                 .collect::<Vec<_>>();
             matches.sort_by(|left, right| {
-                left.0
-                    .cmp(&right.0)
-                    .then_with(|| left.1["relativePath"].as_str().cmp(&right.1["relativePath"].as_str()))
+                left.0.cmp(&right.0).then_with(|| {
+                    left.1["relativePath"]
+                        .as_str()
+                        .cmp(&right.1["relativePath"].as_str())
+                })
             });
             json!({
                 "query": query,
@@ -512,7 +537,10 @@ fn execute_runtime_tool_call(
             })
         }
         "read_active_document" => {
-            let document = context_bundle.get("document").cloned().unwrap_or(Value::Null);
+            let document = context_bundle
+                .get("document")
+                .cloned()
+                .unwrap_or(Value::Null);
             json!({
                 "available": context_available("document", context_bundle),
                 "filePath": document.get("filePath").cloned().unwrap_or(Value::String(String::new())),
@@ -523,7 +551,10 @@ fn execute_runtime_tool_call(
             })
         }
         "read_editor_selection" => {
-            let selection = context_bundle.get("selection").cloned().unwrap_or(Value::Null);
+            let selection = context_bundle
+                .get("selection")
+                .cloned()
+                .unwrap_or(Value::Null);
             json!({
                 "available": context_available("selection", context_bundle),
                 "filePath": selection.get("filePath").cloned().unwrap_or(Value::String(String::new())),
@@ -535,7 +566,10 @@ fn execute_runtime_tool_call(
             })
         }
         "read_selected_reference" => {
-            let reference = context_bundle.get("reference").cloned().unwrap_or(Value::Null);
+            let reference = context_bundle
+                .get("reference")
+                .cloned()
+                .unwrap_or(Value::Null);
             json!({
                 "available": context_available("reference", context_bundle),
                 "id": reference.get("id").cloned().unwrap_or(Value::String(String::new())),
@@ -561,12 +595,14 @@ fn execute_runtime_tool_call(
                 .unwrap_or_default();
             let target = resolve_workspace_target(&workspace_root, path, false)?;
             if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|error| format!("Failed to create directory: {error}"))?;
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("Failed to create directory: {error}"))?;
             }
             if target.exists() {
                 return Err("File already exists.".to_string());
             }
-            fs::write(&target, content).map_err(|error| format!("Failed to create file: {error}"))?;
+            fs::write(&target, content)
+                .map_err(|error| format!("Failed to create file: {error}"))?;
             json!({
                 "path": target.to_string_lossy().to_string(),
                 "relativePath": to_relative_path(&workspace_root, &target),
@@ -596,9 +632,11 @@ fn execute_runtime_tool_call(
                 .unwrap_or(false);
             let target = resolve_workspace_target(&workspace_root, path, false)?;
             if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|error| format!("Failed to create directory: {error}"))?;
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("Failed to create directory: {error}"))?;
             }
-            fs::write(&target, content).map_err(|error| format!("Failed to write file: {error}"))?;
+            fs::write(&target, content)
+                .map_err(|error| format!("Failed to write file: {error}"))?;
             json!({
                 "path": target.to_string_lossy().to_string(),
                 "relativePath": to_relative_path(&workspace_root, &target),
@@ -633,9 +671,11 @@ fn execute_runtime_tool_call(
                 .unwrap_or_default();
             let target = resolve_workspace_target(&workspace_root, path, false)?;
             if target.is_dir() {
-                fs::remove_dir_all(&target).map_err(|error| format!("Failed to delete directory: {error}"))?;
+                fs::remove_dir_all(&target)
+                    .map_err(|error| format!("Failed to delete directory: {error}"))?;
             } else {
-                fs::remove_file(&target).map_err(|error| format!("Failed to delete file: {error}"))?;
+                fs::remove_file(&target)
+                    .map_err(|error| format!("Failed to delete file: {error}"))?;
             }
             json!({
                 "path": target.to_string_lossy().to_string(),
@@ -644,10 +684,16 @@ fn execute_runtime_tool_call(
             })
         }
         "load_skill_support_files" => json!(support_files),
-        _ => return Err(format!("No Rust runtime executor is registered for {}.", tool_call.name)),
+        _ => {
+            return Err(format!(
+                "No Rust runtime executor is registered for {}.",
+                tool_call.name
+            ))
+        }
     };
 
-    serde_json::to_string_pretty(&content).map_err(|error| format!("Failed to serialize tool result: {error}"))
+    serde_json::to_string_pretty(&content)
+        .map_err(|error| format!("Failed to serialize tool result: {error}"))
 }
 
 #[cfg(test)]

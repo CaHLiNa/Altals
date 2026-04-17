@@ -296,7 +296,8 @@ fn persist_state_for_workspace(
 fn overlays_dir() -> Result<PathBuf, String> {
     let dir = app_dirs::data_root_dir()?.join("ai-session-overlays");
     if !dir.exists() {
-        fs::create_dir_all(&dir).map_err(|error| format!("Failed to create overlays dir: {error}"))?;
+        fs::create_dir_all(&dir)
+            .map_err(|error| format!("Failed to create overlays dir: {error}"))?;
     }
     Ok(dir)
 }
@@ -334,7 +335,8 @@ fn save_overlay_state_to_path(path: &Path, state: &AiSessionOverlayState) -> Res
 
     let serialized = serde_json::to_string_pretty(state)
         .map_err(|error| format!("Failed to serialize session overlay state: {error}"))?;
-    fs::write(path, serialized).map_err(|error| format!("Failed to write session overlay state: {error}"))
+    fs::write(path, serialized)
+        .map_err(|error| format!("Failed to write session overlay state: {error}"))
 }
 
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
@@ -493,7 +495,10 @@ pub async fn ai_session_overlay_delete(
             params.session_id.trim().to_string()
         };
         if state.sessions.len() <= 1
-            || !state.sessions.iter().any(|session| session.id == normalized_session_id)
+            || !state
+                .sessions
+                .iter()
+                .any(|session| session.id == normalized_session_id)
         {
             let session = find_session(&state, &state.current_session_id);
             return Ok(AiSessionOverlayMutationResponse {

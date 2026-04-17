@@ -241,7 +241,10 @@ pub async fn proxy_ai_chat_completion(
     };
 
     let headers = build_headers(&HashMap::from([
-        ("authorization".to_string(), format!("Bearer {}", request.api_key)),
+        (
+            "authorization".to_string(),
+            format!("Bearer {}", request.api_key),
+        ),
         ("content-type".to_string(), "application/json".to_string()),
     ]))?;
     let method = reqwest::Method::POST;

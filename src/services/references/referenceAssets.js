@@ -13,28 +13,6 @@ function normalizePath(path = '') {
   return String(path || '').trim()
 }
 
-function sanitizeAssetSegment(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function resolveAssetBaseName(reference = {}) {
-  const primary = sanitizeAssetSegment(reference.citationKey || reference.id || reference.title || '')
-  return primary || `reference-${Date.now()}`
-}
-
-function resolveFileExtension(filePath = '', fallback = '.pdf') {
-  const normalized = normalizePath(filePath)
-  const lastDot = normalized.lastIndexOf('.')
-  if (lastDot === -1) return fallback
-  const extension = normalized.slice(lastDot).toLowerCase()
-  return extension || fallback
-}
-
 function isWithinDirectory(path = '', root = '') {
   const normalizedPath = normalizeRoot(path)
   const normalizedRoot = normalizeRoot(root)
@@ -69,49 +47,41 @@ export async function ensureGlobalReferenceAssetDirs(globalConfigDir = '') {
   await invoke('create_dir', { path: fulltextDir })
 }
 
-export async function storeReferencePdf(globalConfigDir = '', reference = {}, sourcePath = '') {
+async function storeReferencePdfWithOptions(
+  globalConfigDir = '',
+  reference = {},
+  sourcePath = '',
+  options = {}
+) {
   const normalizedSource = normalizePath(sourcePath)
   if (!globalConfigDir || !normalizedSource) return reference
 
-  await ensureGlobalReferenceAssetDirs(globalConfigDir)
-
-  const pdfsDir = resolveGlobalReferencePdfsDir(globalConfigDir)
-  const fulltextDir = resolveGlobalReferenceFulltextDir(globalConfigDir)
-  const extension = resolveFileExtension(normalizedSource, '.pdf')
-  const baseName = resolveAssetBaseName(reference)
-  const destPdfPath = `${pdfsDir}/${baseName}${extension}`
-  const destTextPath = `${fulltextDir}/${baseName}.txt`
-
-  if (normalizeRoot(normalizedSource) !== normalizeRoot(destPdfPath)) {
-    await invoke('copy_file', { src: normalizedSource, dest: destPdfPath })
-  }
-
-  let fulltextPath = ''
+  let extractedText = ''
   try {
-    const text = await extractTextFromPdf(destPdfPath)
-    if (text.trim()) {
-      await invoke('write_file', { path: destTextPath, content: text })
-      fulltextPath = destTextPath
-    }
+    extractedText = await extractTextFromPdf(normalizedSource)
   } catch (error) {
     console.warn('[references] Failed to extract full text from PDF:', error)
   }
 
-  return {
-    ...reference,
-    pdfPath: destPdfPath,
-    hasPdf: true,
-    fulltextPath,
-    hasFullText: Boolean(fulltextPath),
-  }
+  return invoke('references_asset_store', {
+    params: {
+      globalConfigDir,
+      reference,
+      sourcePath: normalizedSource,
+      extractedText,
+      existingFulltextSourcePath: options.existingFulltextSourcePath || '',
+    },
+  })
+}
+
+export async function storeReferencePdf(globalConfigDir = '', reference = {}, sourcePath = '') {
+  return storeReferencePdfWithOptions(globalConfigDir, reference, sourcePath)
 }
 
 export async function migrateReferenceAssets(globalConfigDir = '', references = []) {
   if (!globalConfigDir || !Array.isArray(references) || references.length === 0) return references
 
   const pdfsDir = resolveGlobalReferencePdfsDir(globalConfigDir)
-  const fulltextDir = resolveGlobalReferenceFulltextDir(globalConfigDir)
-  await ensureGlobalReferenceAssetDirs(globalConfigDir)
 
   const migrated = []
   for (const reference of references) {
@@ -124,14 +94,11 @@ export async function migrateReferenceAssets(globalConfigDir = '', references = 
     }
 
     try {
-      const nextReference = await storeReferencePdf(globalConfigDir, reference, pdfPath)
-      if (fulltextPath && !nextReference.fulltextPath) {
-        const destFulltextPath = `${fulltextDir}/${resolveAssetBaseName(reference)}.txt`
-        await invoke('copy_file', { src: fulltextPath, dest: destFulltextPath }).catch(() => {})
-        nextReference.fulltextPath = destFulltextPath
-        nextReference.hasFullText = true
-      }
-      migrated.push(nextReference)
+      migrated.push(
+        await storeReferencePdfWithOptions(globalConfigDir, reference, pdfPath, {
+          existingFulltextSourcePath: fulltextPath,
+        })
+      )
     } catch (error) {
       console.warn('[references] Failed to migrate project reference assets:', error)
       migrated.push(reference)

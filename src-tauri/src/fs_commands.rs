@@ -14,7 +14,6 @@ use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
 
-
 async fn run_blocking<F, T>(operation: F) -> Result<T, String>
 where
     F: FnOnce() -> Result<T, String> + Send + 'static,

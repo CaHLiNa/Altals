@@ -32,11 +32,19 @@ fn runtime_turn_tasks() -> &'static RuntimeTaskMap {
 }
 
 fn normalize_openai_base_url(base_url: &str) -> String {
-    base_url.trim().trim_end_matches('/').trim_end_matches("/chat/completions").to_string()
+    base_url
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches("/chat/completions")
+        .to_string()
 }
 
 fn normalize_anthropic_base_url(base_url: &str) -> String {
-    let mut url = base_url.trim().trim_end_matches('/').trim_end_matches("/messages").to_string();
+    let mut url = base_url
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches("/messages")
+        .to_string();
     if !url.ends_with("/v1") {
         url = format!("{url}/v1");
     }
@@ -108,7 +116,10 @@ pub(crate) fn build_provider_request(
     let encoded_api_key = url::form_urlencoded::byte_serialize(provider.api_key.trim().as_bytes())
         .collect::<String>();
     let url = match provider_id.as_str() {
-        "anthropic" => format!("{}/messages", normalize_anthropic_base_url(&provider.base_url)),
+        "anthropic" => format!(
+            "{}/messages",
+            normalize_anthropic_base_url(&provider.base_url)
+        ),
         "google" => format!(
             "{}/v1beta/models/{}:streamGenerateContent?alt=sse&key={}",
             normalize_google_base_url(&provider.base_url),
@@ -139,7 +150,10 @@ pub(crate) fn build_provider_request(
             }));
             for message in continuation_messages {
                 match message {
-                    RuntimeContinuationMessage::Assistant { content, tool_calls } => {
+                    RuntimeContinuationMessage::Assistant {
+                        content,
+                        tool_calls,
+                    } => {
                         let mut blocks = Vec::new();
                         if !content.trim().is_empty() {
                             blocks.push(json!({
@@ -245,7 +259,10 @@ pub(crate) fn build_provider_request(
             }));
             for message in continuation_messages {
                 match message {
-                    RuntimeContinuationMessage::Assistant { content, tool_calls } => {
+                    RuntimeContinuationMessage::Assistant {
+                        content,
+                        tool_calls,
+                    } => {
                         messages.push(json!({
                             "role": "assistant",
                             "content": if content.trim().is_empty() { Value::Null } else { Value::String(content.clone()) },
@@ -313,13 +330,19 @@ pub(crate) fn build_provider_request(
     let headers = match provider_id.as_str() {
         "anthropic" => build_headers(&[
             ("x-api-key", provider.api_key.trim().to_string()),
-            ("authorization", format!("Bearer {}", provider.api_key.trim())),
+            (
+                "authorization",
+                format!("Bearer {}", provider.api_key.trim()),
+            ),
             ("anthropic-version", "2023-06-01".to_string()),
             ("content-type", "application/json".to_string()),
         ])?,
         "google" => build_headers(&[("content-type", "application/json".to_string())])?,
         _ => build_headers(&[
-            ("authorization", format!("Bearer {}", provider.api_key.trim())),
+            (
+                "authorization",
+                format!("Bearer {}", provider.api_key.trim()),
+            ),
             ("content-type", "application/json".to_string()),
         ])?,
     };
@@ -388,7 +411,10 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                 events.push(RuntimeProviderEvent::AssistantDelta(text.to_string()));
             }
         }
-        if let Some(text) = delta.get("reasoning_content").and_then(|value| value.as_str()) {
+        if let Some(text) = delta
+            .get("reasoning_content")
+            .and_then(|value| value.as_str())
+        {
             if !text.is_empty() {
                 events.push(RuntimeProviderEvent::ReasoningDelta(text.to_string()));
             }
@@ -511,12 +537,12 @@ fn parse_google_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
         for part in parts {
             if let Some(text) = part.get("text").and_then(|value| value.as_str()) {
                 if !text.is_empty() {
-                    let kind = if part.get("thought").and_then(|value| value.as_bool()) == Some(true)
-                    {
-                        RuntimeProviderEvent::ReasoningDelta(text.to_string())
-                    } else {
-                        RuntimeProviderEvent::AssistantDelta(text.to_string())
-                    };
+                    let kind =
+                        if part.get("thought").and_then(|value| value.as_bool()) == Some(true) {
+                            RuntimeProviderEvent::ReasoningDelta(text.to_string())
+                        } else {
+                            RuntimeProviderEvent::AssistantDelta(text.to_string())
+                        };
                     events.push(kind);
                 }
             }
@@ -1077,11 +1103,13 @@ pub async fn run_turn<R: Runtime>(
                                 tool_name,
                             } => {
                                 current_tool_call_id = tool_call_id.clone();
-                                pending_tool_calls.entry(tool_call_id.clone()).or_insert(PendingToolCall {
-                                    id: tool_call_id,
-                                    name: tool_name,
-                                    arguments: String::new(),
-                                });
+                                pending_tool_calls.entry(tool_call_id.clone()).or_insert(
+                                    PendingToolCall {
+                                        id: tool_call_id,
+                                        name: tool_name,
+                                        arguments: String::new(),
+                                    },
+                                );
                             }
                             RuntimeProviderEvent::ToolCallDelta {
                                 tool_call_id,
@@ -1105,10 +1133,12 @@ pub async fn run_turn<R: Runtime>(
             }
 
             let tool_calls = collect_pending_tool_calls(&pending_tool_calls);
-            let should_continue_with_tools =
-                !tool_calls.is_empty()
-                    && matches!(stop_reason.as_str(), "tool_calls" | "tool_use" | "TOOL_CALL" | "STOP_REASON_TOOL_CALL")
-                    && !workspace_path.trim().is_empty();
+            let should_continue_with_tools = !tool_calls.is_empty()
+                && matches!(
+                    stop_reason.as_str(),
+                    "tool_calls" | "tool_use" | "TOOL_CALL" | "STOP_REASON_TOOL_CALL"
+                )
+                && !workspace_path.trim().is_empty();
 
             if should_continue_with_tools {
                 let tool_results = execute_runtime_tool_calls(&workspace_path, &tool_calls);
@@ -1146,7 +1176,10 @@ pub async fn run_turn<R: Runtime>(
         let _ = runtime_turn_tasks().lock().await.remove(&turn_id);
     });
 
-    runtime_turn_tasks().lock().await.insert(turn.id.clone(), handle);
+    runtime_turn_tasks()
+        .lock()
+        .await
+        .insert(turn.id.clone(), handle);
 
     Ok(RuntimeTurnRunResponse {
         thread,

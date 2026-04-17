@@ -4,8 +4,8 @@ use uuid::Uuid;
 use super::protocol::{
     RuntimeThread, RuntimeThreadArchiveResponse, RuntimeThreadForkResponse,
     RuntimeThreadReadResponse, RuntimeThreadRenameResponse, RuntimeThreadRollbackResponse,
-    RuntimeThreadSnapshot, RuntimeThreadStartParams, RuntimeThreadUnarchiveResponse,
-    ThreadStatus, TurnStatus,
+    RuntimeThreadSnapshot, RuntimeThreadStartParams, RuntimeThreadUnarchiveResponse, ThreadStatus,
+    TurnStatus,
 };
 use super::state::CodexRuntimeState;
 
@@ -21,7 +21,10 @@ fn build_thread_title(state: &CodexRuntimeState, requested_title: &str) -> Strin
     format!("Thread {}", state.ordered_thread_ids.len() + 1)
 }
 
-fn build_thread_snapshot(state: &CodexRuntimeState, thread: RuntimeThread) -> RuntimeThreadSnapshot {
+fn build_thread_snapshot(
+    state: &CodexRuntimeState,
+    thread: RuntimeThread,
+) -> RuntimeThreadSnapshot {
     let turns = thread
         .turn_ids
         .iter()
@@ -481,7 +484,10 @@ mod tests {
         let response = rename_thread(&mut state, &thread.id, "Renamed").expect("rename");
         assert_eq!(response.thread.title, "Renamed");
         assert_eq!(
-            state.threads.get(&thread.id).map(|entry| entry.title.as_str()),
+            state
+                .threads
+                .get(&thread.id)
+                .map(|entry| entry.title.as_str()),
             Some("Renamed")
         );
     }

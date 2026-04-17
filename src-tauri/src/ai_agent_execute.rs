@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::ai_skill_support::load_skill_supporting_files;
 use crate::codex_runtime::providers::{
     build_provider_request, collect_pending_tool_calls, parse_sse_line, PendingToolCall,
     RuntimeContinuationMessage, RuntimeProviderEvent, MAX_TOOL_ROUNDS,
@@ -18,6 +19,8 @@ use crate::codex_runtime::tools::{
 pub struct AiAgentExecuteParams {
     #[serde(default)]
     pub provider_id: String,
+    #[serde(default)]
+    pub skill: Value,
     #[serde(default)]
     pub config: Value,
     #[serde(default)]
@@ -48,7 +51,9 @@ pub struct AiAgentExecuteResponse {
     pub events: Vec<Value>,
 }
 
-fn build_provider_config(params: &AiAgentExecuteParams) -> crate::codex_runtime::protocol::RuntimeProviderConfig {
+fn build_provider_config(
+    params: &AiAgentExecuteParams,
+) -> crate::codex_runtime::protocol::RuntimeProviderConfig {
     crate::codex_runtime::protocol::RuntimeProviderConfig {
         provider_id: params.provider_id.clone(),
         base_url: params
@@ -84,7 +89,11 @@ fn normalize_history(messages: &[Value]) -> Vec<(String, String)> {
     messages
         .iter()
         .filter_map(|message| {
-            let role = message.get("role").and_then(Value::as_str)?.trim().to_string();
+            let role = message
+                .get("role")
+                .and_then(Value::as_str)?
+                .trim()
+                .to_string();
             if role != "user" && role != "assistant" {
                 return None;
             }
@@ -143,7 +152,24 @@ fn fallback_payload(content: &str, reasoning: &str) -> Value {
 }
 
 #[tauri::command]
-pub async fn ai_agent_execute(params: AiAgentExecuteParams) -> Result<AiAgentExecuteResponse, String> {
+pub async fn ai_agent_execute(
+    params: AiAgentExecuteParams,
+) -> Result<AiAgentExecuteResponse, String> {
+    let mut params = params;
+    if params.support_files.is_empty()
+        && params
+            .skill
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            == "filesystem-skill"
+        && params
+            .enabled_tool_ids
+            .iter()
+            .any(|tool_id| tool_id.trim() == "load-skill-support-files")
+    {
+        params.support_files = load_skill_supporting_files(&params.skill);
+    }
     let provider = build_provider_config(&params);
     let history = normalize_history(&params.conversation);
     let tool_definitions = resolve_runtime_tool_definitions_with_context(
@@ -197,8 +223,8 @@ pub async fn ai_agent_execute(params: AiAgentExecuteParams) -> Result<AiAgentExe
         let mut reasoning_text = String::new();
 
         while let Some(chunk_result) = stream.next().await {
-            let bytes = chunk_result
-                .map_err(|error| format!("Runtime provider stream failed: {error}"))?;
+            let bytes =
+                chunk_result.map_err(|error| format!("Runtime provider stream failed: {error}"))?;
             buffer.push_str(&String::from_utf8_lossy(&bytes));
             let mut lines = buffer
                 .split('\n')
@@ -235,11 +261,13 @@ pub async fn ai_agent_execute(params: AiAgentExecuteParams) -> Result<AiAgentExe
                             tool_name,
                         } => {
                             current_tool_call_id = tool_call_id.clone();
-                            pending_tool_calls.entry(tool_call_id.clone()).or_insert(PendingToolCall {
-                                id: tool_call_id,
-                                name: tool_name,
-                                arguments: String::new(),
-                            });
+                            pending_tool_calls.entry(tool_call_id.clone()).or_insert(
+                                PendingToolCall {
+                                    id: tool_call_id,
+                                    name: tool_name,
+                                    arguments: String::new(),
+                                },
+                            );
                         }
                         RuntimeProviderEvent::ToolCallDelta {
                             tool_call_id,

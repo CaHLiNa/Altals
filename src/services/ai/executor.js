@@ -2,7 +2,6 @@ import { normalizeAiArtifact } from '../../domains/ai/aiArtifactRuntime.js'
 import { invoke } from '@tauri-apps/api/core'
 import { getAiSkillBehaviorId, getAiSkillById } from './skillRegistry.js'
 import { isAltalsManagedFilesystemSkill } from './skillDiscovery.js'
-import { loadSkillSupportingFiles } from './skillSupportFiles.js'
 import { resolveRuntimeAiToolIds } from './toolRegistry.js'
 
 export async function executeAiAgentEntry({
@@ -31,15 +30,9 @@ export async function executeAiAgentEntry({
   }
 
   const enabledToolIds = resolveRuntimeAiToolIds(config?.enabledTools, { runtimeIntent })
-  const enabledToolSet = new Set(enabledToolIds)
   const promptSkill = {
     ...resolvedSkill,
     enabledToolIds,
-  }
-
-  let supportFiles = []
-  if (resolvedSkill.kind === 'filesystem-skill' && enabledToolSet.has('load-skill-support-files')) {
-    supportFiles = await loadSkillSupportingFiles(resolvedSkill)
   }
 
   const promptResponse = await invoke('ai_agent_build_prompt', {
@@ -49,7 +42,6 @@ export async function executeAiAgentEntry({
       userInstruction,
       conversation,
       altalsSkills,
-      supportFiles,
       attachments,
       referencedFiles,
       requestedTools,
@@ -64,13 +56,13 @@ export async function executeAiAgentEntry({
   const { content, payload, events, transport } = await invoke('ai_agent_execute', {
     params: {
       providerId: config.providerId || 'openai',
+      skill: promptSkill,
       config,
       apiKey,
       conversation,
       userPrompt,
       systemPrompt,
       contextBundle,
-      supportFiles,
       enabledToolIds,
       workspacePath: String(contextBundle?.workspace?.path || '').trim(),
     },
@@ -85,7 +77,7 @@ export async function executeAiAgentEntry({
   return {
     skill: resolvedSkill,
     behaviorId,
-    supportFiles,
+    supportFiles: [],
     events,
     transport,
     content,

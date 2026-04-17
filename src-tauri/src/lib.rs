@@ -1,8 +1,10 @@
-mod ai_runtime;
+mod ai_agent_execute;
 mod ai_agent_prepare;
 mod ai_agent_prompt;
-mod ai_agent_execute;
+mod ai_agent_run;
+mod ai_runtime;
 mod ai_session_storage;
+mod ai_skill_support;
 mod app_dirs;
 mod codex_runtime;
 mod fs_commands;
@@ -13,6 +15,7 @@ mod latex;
 mod latex_tools;
 mod network;
 mod process_utils;
+mod references_backend;
 mod security;
 mod workspace_access;
 
@@ -433,6 +436,7 @@ pub fn run() {
             ai_agent_prepare::ai_agent_prepare,
             ai_agent_prompt::ai_agent_build_prompt,
             ai_agent_execute::ai_agent_execute,
+            ai_agent_run::ai_agent_run,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
             ai_session_storage::ai_session_overlay_restore,
@@ -464,6 +468,9 @@ pub fn run() {
             fs_commands::reveal_in_file_manager,
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
+            references_backend::references_library_read_or_create,
+            references_backend::references_library_write,
+            references_backend::references_asset_store,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,

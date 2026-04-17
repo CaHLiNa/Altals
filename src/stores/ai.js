@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
 import { nanoid } from './utils'
-import { normalizeAiArtifact } from '../domains/ai/aiArtifactRuntime.js'
 import {
   buildSessionAskUserRequestsFromRuntimeSnapshot,
   buildSessionExitPlanRequestsFromRuntimeSnapshot,
@@ -51,19 +50,7 @@ import {
 } from '../services/ai/settings.js'
 import { applyAiArtifactCapability } from '../services/ai/artifactCapabilities.js'
 import { createAiAttachmentRecord } from '../services/ai/attachmentStore.js'
-import {
-  createWorkspaceFile as createWorkspaceFileTool,
-  deleteWorkspacePath as deleteWorkspacePathTool,
-  openWorkspaceFile as openWorkspaceFileTool,
-  listWorkspaceDirectory,
-  readWorkspaceFile,
-  searchWorkspaceFiles,
-  writeWorkspaceFile as writeWorkspaceFileTool,
-} from '../services/ai/runtime/workspaceFileTools.js'
 import { resolveEffectiveAiToolIds } from '../services/ai/toolRegistry.js'
-import {
-  executeAiAgentEntry,
-} from '../services/ai/executor.js'
 import {
   respondAnthropicAgentSdkAskUser,
   respondAnthropicAgentSdkExitPlan,
@@ -428,73 +415,6 @@ function resolveEffectiveSessionPermissionMode({
   })
 
   return normalizeAiSessionPermissionMode(session?.permissionMode || fallback)
-}
-
-async function readActiveDocumentRuntime(contextBundle = {}, filesStore, editorStore) {
-  const filePath = String(contextBundle?.document?.filePath || '').trim()
-  if (!filePath) {
-    return { available: false }
-  }
-
-  let content = ''
-  const view = editorStore?.getAnyEditorView?.(filePath)
-  if (view?.altalsGetContent) {
-    content = String(view.altalsGetContent() || '')
-  } else if (filePath in (filesStore?.fileContents || {})) {
-    content = String(filesStore.fileContents[filePath] || '')
-  } else {
-    try {
-      content = String((await filesStore?.readFile?.(filePath)) || '')
-    } catch {
-      content = ''
-    }
-  }
-
-  return {
-    available: true,
-    filePath,
-    label: contextBundle?.document?.label || '',
-    extension: contextBundle?.document?.extension || '',
-    content,
-  }
-}
-
-function readEditorSelectionRuntime(contextBundle = {}) {
-  if (!contextBundle?.selection?.available) {
-    return { available: false }
-  }
-
-  return {
-    available: true,
-    filePath: contextBundle.selection.filePath,
-    from: contextBundle.selection.from,
-    to: contextBundle.selection.to,
-    text: contextBundle.selection.text,
-    preview: contextBundle.selection.preview,
-  }
-}
-
-function readSelectedReferenceRuntime(contextBundle = {}) {
-  if (!contextBundle?.reference?.available) {
-    return { available: false }
-  }
-
-  return {
-    available: true,
-    id: contextBundle.reference.id,
-    title: contextBundle.reference.title,
-    citationKey: contextBundle.reference.citationKey,
-    year: contextBundle.reference.year,
-    authorLine: contextBundle.reference.authorLine,
-  }
-}
-
-function readSkillSupportFilesRuntime(files = []) {
-  return (Array.isArray(files) ? files : []).map((file) => ({
-    path: file.path,
-    relativePath: file.relativePath,
-    content: file.content,
-  }))
 }
 
 function scrubTransientAgentSessionState(session = {}) {
@@ -1759,7 +1679,6 @@ export const useAiStore = defineStore('ai', {
 
     async runActiveSkill(options = {}) {
       const toastStore = useToastStore()
-      const editorStore = useEditorStore()
       const filesStore = useFilesStore()
       const requestedSessionId = String(options?.sessionId || this.currentSessionId || '').trim()
       const activeSession =
@@ -1944,105 +1863,39 @@ export const useAiStore = defineStore('ai', {
                 }
               })
             })()
-          : await executeAiAgentEntry({
-              skillId: preparedRun.skill?.id || '',
-              skill: preparedRun.skill,
-              contextBundle: preparedRun.contextBundle,
-              config: {
-                ...preparedRun.config,
-                providerId: preparedRun.providerId,
-              },
-              apiKey: preparedRun.apiKey || '',
-              userInstruction: preparedRun.userInstruction,
-              conversation: preparedRun.priorConversation,
-              altalsSkills: this.altalsSkills,
-              attachments: preparedRun.attachments || [],
-              referencedFiles: preparedRun.referencedFiles || [],
-              requestedTools: preparedRun.requestedTools || [],
-              runtimeIntent: preparedRun.runtimeIntent || 'chat',
-              toolRuntime: {
-                listWorkspaceDirectory: async (input = {}) => {
-                  await filesStore.ensureFlatFilesReady({ force: false })
-                  return listWorkspaceDirectory({
-                    workspacePath: useWorkspaceStore().path || '',
-                    files: filesStore.flatFiles,
-                    path: input.path || input.directoryPath || '',
-                    maxResults: input.maxResults,
-                  })
+          : await invoke('ai_agent_run', {
+              params: {
+                skill: preparedRun.skill,
+                contextBundle: preparedRun.contextBundle,
+                config: {
+                  ...preparedRun.config,
+                  providerId: preparedRun.providerId,
+                  enabledTools: resolveEffectiveAiToolIds(preparedRun.config?.enabledTools),
                 },
-                searchWorkspaceFiles: async (input = {}) => {
-                  await filesStore.ensureFlatFilesReady({ force: false })
-                  return searchWorkspaceFiles({
-                    workspacePath: useWorkspaceStore().path || '',
-                    files: filesStore.flatFiles,
-                    query: input.query || '',
-                    directoryPath: input.directoryPath || '',
-                    maxResults: input.maxResults,
-                  })
-                },
-                readWorkspaceFile: async (input = {}) =>
-                  readWorkspaceFile({
-                    workspacePath: useWorkspaceStore().path || '',
-                    path: input.path || '',
-                    maxBytes: input.maxBytes,
-                    readFile: (path, options) => filesStore.readFile(path, options),
-                  }),
-                createWorkspaceFile: async (input = {}) =>
-                  createWorkspaceFileTool({
-                    workspacePath: useWorkspaceStore().path || '',
-                    path: input.path || '',
-                    content: input.content || '',
-                    createFile: (dirPath, name, options = {}) =>
-                      filesStore.createFile(dirPath, name, options),
-                    openFile: (path) => editorStore.openFile(path),
-                  }),
-                writeWorkspaceFile: async (input = {}) =>
-                  writeWorkspaceFileTool({
-                    workspacePath: useWorkspaceStore().path || '',
-                    path: input.path || '',
-                    content: input.content || '',
-                    openAfterWrite: input.openAfterWrite,
-                    saveFile: (path, content) => filesStore.saveFile(path, content),
-                    openFile: (path) => editorStore.openFile(path),
-                  }),
-                openWorkspaceFile: async (input = {}) =>
-                  openWorkspaceFileTool({
-                    workspacePath: useWorkspaceStore().path || '',
-                    path: input.path || '',
-                    openFile: (path) => editorStore.openFile(path),
-                  }),
-                deleteWorkspacePath: async (input = {}) =>
-                  deleteWorkspacePathTool({
-                    workspacePath: useWorkspaceStore().path || '',
-                    path: input.path || '',
-                    deletePath: (path) => filesStore.deletePath(path),
-                  }),
-                readActiveDocument: (runtimeContextBundle) =>
-                  readActiveDocumentRuntime(runtimeContextBundle, filesStore, editorStore),
-                readEditorSelection: readEditorSelectionRuntime,
-                readSelectedReference: readSelectedReferenceRuntime,
-                readSkillSupportFiles: readSkillSupportFilesRuntime,
+                apiKey: preparedRun.apiKey || '',
+                userInstruction: preparedRun.userInstruction,
+                conversation: preparedRun.priorConversation,
+                altalsSkills: this.altalsSkills,
+                attachments: preparedRun.attachments || [],
+                referencedFiles: preparedRun.referencedFiles || [],
+                requestedTools: preparedRun.requestedTools || [],
+                runtimeIntent: preparedRun.runtimeIntent || 'chat',
               },
-              onEvent: (event) => {
-                liveToolEvents = mergeAgentRunToolEventState(liveToolEvents, event)
-                this.updateSessionById(sessionId, (session) =>
-                  applyAgentRunEventToSessionState({
-                    session,
-                    event,
-                    pendingAssistantId,
-                    translate: t,
-                  })
-                )
-              },
-              signal: abortController.signal,
             })
 
-        const artifact = result?.payload
-          ? buildArtifactRecord(
-              skill.id,
-              normalizeAiArtifact(skill.id, result.payload, contextBundle, result.content)
-            )
-          : null
+        for (const event of Array.isArray(result?.events) ? result.events : []) {
+          liveToolEvents = mergeAgentRunToolEventState(liveToolEvents, event)
+          this.updateSessionById(sessionId, (session) =>
+            applyAgentRunEventToSessionState({
+              session,
+              event,
+              pendingAssistantId,
+              translate: t,
+            })
+          )
+        }
+
+        const artifact = buildArtifactRecord(skill.id, result?.artifact || null)
         let assistantMessage = null
         this.updateSessionById(sessionId, (session) => {
           const nextState = completeAgentRunSessionState({

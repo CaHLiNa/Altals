@@ -8,6 +8,7 @@ import {
   normalizeReferenceLibrarySnapshot,
   resolveReferenceLibraryFile,
   resolveReferencesDataDir,
+  writeReferenceLibrarySnapshot,
 } from '../src/services/references/referenceLibraryIO.js'
 
 test('reference library paths resolve inside the app global config directory', () => {
@@ -78,73 +79,30 @@ test('normalizing a saved library snapshot backfills citation style', () => {
   assert.equal(snapshot.legacyMigrationComplete, false)
 })
 
-test('readOrCreateReferenceLibrarySnapshot migrates legacy project references into an existing empty global library', async () => {
-  const files = new Map()
-  const dirs = new Set()
-
-  const globalLibrary = '/tmp/.altals/references/library.json'
-  const projectLibrary = '/tmp/project/references/library.json'
-
-  files.set(
-    globalLibrary,
-    JSON.stringify({
-      version: 2,
-      citationStyle: 'apa',
-      collections: [],
-      tags: [],
-      references: [],
-    })
-  )
-  files.set(
-    projectLibrary,
-    JSON.stringify({
-      version: 2,
-      citationStyle: 'apa',
-      collections: [{ key: 'control-theory', label: '控制理论' }],
-      tags: [],
-      references: [
-        {
-          id: 'legacy-ref-1',
-          typeKey: 'journal-article',
-          title: 'Legacy Paper',
-          authors: ['Author One'],
-          authorLine: 'Author One',
-          year: 2024,
-          source: 'Journal',
-          identifier: '10.1000/legacy',
-          pages: '',
-          citationKey: 'legacy2024',
-          collections: ['control-theory'],
-          tags: [],
-          abstract: '',
-          annotations: [],
-        },
-      ],
-    })
-  )
-
+test('readOrCreateReferenceLibrarySnapshot forwards params to the Rust backend', async () => {
+  const calls = []
   globalThis.window = globalThis.window || {}
   window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ || {}
   const previousInvoke = window.__TAURI_INTERNALS__.invoke
   window.__TAURI_INTERNALS__.invoke = async (command, args = {}) => {
-    if (command === 'create_dir') {
-      dirs.add(args.path)
-      return null
-    }
-    if (command === 'path_exists') {
-      return files.has(args.path) || dirs.has(args.path)
-    }
-    if (command === 'read_file') {
-      return files.get(args.path)
-    }
-    if (command === 'write_file') {
-      files.set(args.path, args.content)
-      return null
-    }
-    if (command === 'copy_file') {
-      const source = files.get(args.src)
-      if (source != null) files.set(args.dest, source)
-      return null
+    calls.push({ command, args })
+    if (command === 'references_library_read_or_create') {
+      return {
+        version: 2,
+        legacyMigrationComplete: true,
+        citationStyle: 'apa',
+        collections: [{ key: 'control-theory', label: '控制理论' }],
+        tags: [],
+        references: [
+          {
+            id: 'legacy-ref-1',
+            typeKey: 'journal-article',
+            title: 'Legacy Paper',
+            authors: ['Author One'],
+            citationKey: 'legacy2024',
+          },
+        ],
+      }
     }
     throw new Error(`Unexpected invoke command: ${command}`)
   }
@@ -153,105 +111,58 @@ test('readOrCreateReferenceLibrarySnapshot migrates legacy project references in
     const snapshot = await readOrCreateReferenceLibrarySnapshot('/tmp/.altals', {
       legacyProjectRoot: '/tmp/project',
     })
+
     assert.equal(snapshot.references.length, 1)
     assert.equal(snapshot.references[0].id, 'legacy-ref-1')
     assert.equal(snapshot.collections.length, 1)
     assert.equal(snapshot.legacyMigrationComplete, true)
-
-    const persisted = JSON.parse(files.get(globalLibrary))
-    assert.equal(persisted.references.length, 1)
-    assert.equal(persisted.references[0].id, 'legacy-ref-1')
-    assert.equal(persisted.legacyMigrationComplete, true)
+    assert.deepEqual(calls[0], {
+      command: 'references_library_read_or_create',
+      args: {
+        params: {
+          globalConfigDir: '/tmp/.altals',
+          legacyWorkspaceDataDir: '',
+          legacyProjectRoot: '/tmp/project',
+        },
+      },
+    })
   } finally {
     window.__TAURI_INTERNALS__.invoke = previousInvoke
   }
 })
 
-test('readOrCreateReferenceLibrarySnapshot does not re-import legacy entries after migration completed', async () => {
-  const files = new Map()
-  const dirs = new Set()
-
-  const globalLibrary = '/tmp/.altals/references/library.json'
-  const projectLibrary = '/tmp/project/references/library.json'
-
-  files.set(
-    globalLibrary,
-    JSON.stringify({
-      version: 2,
-      legacyMigrationComplete: true,
-      citationStyle: 'apa',
-      collections: [],
-      tags: [],
-      references: [],
-    })
-  )
-  files.set(
-    projectLibrary,
-    JSON.stringify({
-      version: 2,
-      citationStyle: 'apa',
-      collections: [{ key: 'control-theory', label: '控制理论' }],
-      tags: [],
-      references: [
-        {
-          id: 'legacy-ref-1',
-          typeKey: 'journal-article',
-          title: 'Legacy Paper',
-          authors: ['Author One'],
-          authorLine: 'Author One',
-          year: 2024,
-          source: 'Journal',
-          identifier: '10.1000/legacy',
-          pages: '',
-          citationKey: 'legacy2024',
-          collections: ['control-theory'],
-          tags: [],
-          abstract: '',
-          annotations: [],
-        },
-      ],
-    })
-  )
-
+test('writeReferenceLibrarySnapshot sends normalized snapshots to the Rust backend', async () => {
+  const calls = []
   globalThis.window = globalThis.window || {}
   window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ || {}
   const previousInvoke = window.__TAURI_INTERNALS__.invoke
   window.__TAURI_INTERNALS__.invoke = async (command, args = {}) => {
-    if (command === 'create_dir') {
-      dirs.add(args.path)
-      return null
-    }
-    if (command === 'path_exists') {
-      return files.has(args.path) || dirs.has(args.path)
-    }
-    if (command === 'read_file') {
-      return files.get(args.path)
-    }
-    if (command === 'write_file') {
-      files.set(args.path, args.content)
-      return null
-    }
-    if (command === 'copy_file') {
-      const source = files.get(args.src)
-      if (source != null) files.set(args.dest, source)
+    calls.push({ command, args })
+    if (command === 'references_library_write') {
       return null
     }
     throw new Error(`Unexpected invoke command: ${command}`)
   }
 
   try {
-    const snapshot = await readOrCreateReferenceLibrarySnapshot('/tmp/.altals', {
-      legacyProjectRoot: '/tmp/project',
+    await writeReferenceLibrarySnapshot('/tmp/.altals', {
+      version: 2,
+      references: [
+        {
+          id: 'user-2',
+          title: 'PDF-backed paper',
+          typeLabel: '期刊论文',
+          pdfPath: '/tmp/paper.pdf',
+          hasPdf: false,
+        },
+      ],
     })
 
-    assert.equal(snapshot.references.length, 0)
-    assert.equal(snapshot.collections.length, 0)
-    assert.equal(snapshot.legacyMigrationComplete, true)
-
-    const persisted = JSON.parse(files.get(globalLibrary))
-    assert.equal(persisted.references.length, 0)
-    assert.equal(persisted.collections.length, 0)
-    assert.equal(persisted.legacyMigrationComplete, true)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].command, 'references_library_write')
+    assert.equal(calls[0].args.params.globalConfigDir, '/tmp/.altals')
+    assert.equal(calls[0].args.params.snapshot.references[0].typeKey, 'journal-article')
+    assert.equal(calls[0].args.params.snapshot.references[0].hasPdf, true)
   } finally {
     window.__TAURI_INTERNALS__.invoke = previousInvoke
   }
