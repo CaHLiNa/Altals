@@ -127,7 +127,14 @@
                   @click="togglePlanMode(!isPlanModeEnabled)"
                 >
                   <IconChecklist :size="15" :stroke-width="1.9" />
-                  <span class="ai-agent-panel__policy-label" aria-hidden="true">PLAN</span>
+                  <span
+                    class="ai-agent-panel__policy-indicator"
+                    :class="{ 'is-plan-active': isPlanModeEnabled }"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
+                    {{ planModeCompactLabel }}
+                  </span>
                 </button>
 
                 <button
@@ -154,13 +161,10 @@
                   />
                   <span
                     class="ai-agent-panel__policy-indicator"
-                    :class="{
-                      'is-full-access': isFullAccessMode,
-                      'is-plan-active': isPlanModeEnabled,
-                    }"
+                    :class="{ 'is-full-access': isFullAccessMode }"
                     aria-hidden="true"
                   ></span>
-                  <span class="ai-agent-panel__policy-label" aria-hidden="true">
+                  <span class="ai-agent-panel__policy-label" :class="{ 'is-zh': isZh }" aria-hidden="true">
                     {{ permissionModeCompactLabel }}
                   </span>
                 </button>
@@ -271,7 +275,7 @@ import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
-const { t } = useI18n()
+const { t, isZh } = useI18n()
 const aiStore = useAiStore()
 const filesStore = useFilesStore()
 const toastStore = useToastStore()
@@ -377,7 +381,8 @@ const resolvedPermissionMode = computed(() =>
 )
 const isFullAccessMode = computed(() => resolvedPermissionMode.value === 'bypass-permissions')
 const isExecutionPolicyLocked = computed(() => aiStore.isRunning || hasBlockingState.value)
-const permissionModeCompactLabel = computed(() => (isFullAccessMode.value ? 'FULL' : 'ASK'))
+const planModeCompactLabel = computed(() => t('PLAN'))
+const permissionModeCompactLabel = computed(() => (isFullAccessMode.value ? t('FULL') : t('ASK')))
 const executionPolicyControlTitle = computed(() => {
   if (aiStore.isRunning) return t('Execution mode cannot change while a task is running.')
   if (hasBlockingState.value) {
@@ -1105,7 +1110,7 @@ watch(
 
 .ai-agent-panel__policy-button:hover:not(:disabled) {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-hover) 9%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 4%, transparent);
   transform: translateY(-0.5px);
 }
 
@@ -1125,12 +1130,10 @@ watch(
 
 .ai-agent-panel__policy-button--plan.is-active {
   color: color-mix(in srgb, var(--accent) 82%, var(--text-primary) 18%);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .ai-agent-panel__policy-button--permission.is-active {
   color: color-mix(in srgb, var(--warning) 82%, var(--text-primary) 18%);
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
 .ai-agent-panel__policy-indicator {
@@ -1162,6 +1165,13 @@ watch(
   text-transform: uppercase;
   color: currentColor;
   pointer-events: none;
+}
+
+.ai-agent-panel__policy-label.is-zh {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .ai-agent-panel__composer-primary {
