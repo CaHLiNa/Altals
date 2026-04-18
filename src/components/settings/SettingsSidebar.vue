@@ -4,14 +4,18 @@
       <UiButton
         class="settings-sidebar-back"
         variant="ghost"
-        size="icon-md"
+        size="icon-sm"
         icon-only
         :title="t('Back to workspace')"
         :aria-label="t('Back to workspace')"
         @click="workspace.closeSettings()"
       >
-        <IconArrowLeft :size="20" :stroke-width="1.9" />
+        <IconArrowLeft :size="18" :stroke-width="2" />
       </UiButton>
+
+      <div class="settings-sidebar-header-copy" aria-hidden="true">
+        <span class="settings-sidebar-title">{{ t('Settings') }}</span>
+      </div>
     </div>
 
     <nav class="settings-sidebar-nav" :aria-label="t('Settings sections')">
@@ -63,10 +67,11 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 40px 14px 18px 10px;
-  background: var(
-    --sidebar-shell-surface,
-    color-mix(in srgb, var(--panel-surface) 56%, transparent)
+  padding: 28px 14px 18px 10px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-surface) 28%, transparent) 0%,
+    color-mix(in srgb, var(--panel-surface) 14%, transparent) 100%
   );
   box-shadow: none;
   backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
@@ -84,7 +89,21 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 .settings-sidebar-header {
   display: flex;
   align-items: center;
-  padding: 0 10px 18px;
+  gap: 10px;
+  padding: 0 12px 16px;
+}
+
+.settings-sidebar-header-copy {
+  min-width: 0;
+}
+
+.settings-sidebar-title {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
 }
 
 .settings-sidebar-nav {
@@ -132,23 +151,23 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
 }
 
 .settings-sidebar-back {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
-  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  box-shadow: 0 8px 20px -18px rgba(15, 23, 42, 0.42);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
 .settings-sidebar-back :deep(svg) {
-  opacity: 0.94;
+  opacity: 0.96;
 }
 
 .settings-sidebar-back:hover:not(:disabled) {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 22%, transparent);
+  border-color: color-mix(in srgb, var(--border) 36%, transparent);
 }
 
 .settings-sidebar-back:hover:not(:disabled) :deep(svg) {
