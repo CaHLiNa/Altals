@@ -1151,6 +1151,7 @@ defineExpose({
   outline: none;
   background: transparent;
   color: transparent;
+  -webkit-text-fill-color: transparent;
   caret-color: var(--text-primary);
   padding: 28px 32px 48px;
   font-family: var(--font-mono);
