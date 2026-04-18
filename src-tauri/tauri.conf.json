@@ -1,6 +1,6 @@
 {
   "productName": "Altals",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "identifier": "com.altals.desktop",
   "build": {
     "frontendDist": "../dist",

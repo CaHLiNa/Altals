@@ -1,16 +1,5 @@
 <template>
   <section class="ai-agent-panel">
-    <AiSessionRail
-      :sessions="sessionItems"
-      :current-session-id="aiStore.currentSessionId"
-      @create="createSession"
-      @switch="switchSessionTab"
-      @rename="renameSession"
-      @delete="deleteSession"
-    />
-
-    
-
     <div
       ref="threadRef"
       class="ai-agent-panel__thread scrollbar-hidden"
@@ -108,70 +97,86 @@
 
         <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
-        <div class="ai-agent-panel__composer-input">
-          <UiTextarea
-            ref="composerTextareaRef"
-            :model-value="aiStore.promptDraft"
-            variant="ghost"
-            :rows="4"
-            class="ai-agent-panel__textarea"
-            shell-class="ai-agent-panel__textarea-shell"
-            :placeholder="composerPlaceholder"
-            @keydown="handlePromptKeydown"
-            @update:model-value="aiStore.setPromptDraft($event)"
+        <div class="ai-agent-panel__control-bar">
+          <div class="ai-agent-panel__session-control">
+          <AiSessionRail
+            :sessions="sessionItems"
+            :current-session-id="aiStore.currentSessionId"
+            @create="createSession"
+            @switch="switchSessionTab"
+            @rename="renameSession"
+            @delete="deleteSession"
           />
+          </div>
 
-          <AiInvocationDropdown
-            :visible="composerSuggestions.length > 0"
-            :suggestions="composerSuggestions"
-            :active-index="activeInvocationIndex"
-            @select="applyInvocationSuggestion"
+          <UiSelect
+            :model-value="aiStore.providerState.currentProviderId"
+            size="sm"
+            class="ai-agent-panel__provider-select-inline"
+            shell-class="ai-agent-panel__provider-shell"
+            :options="providerOptions"
+            @update:model-value="switchProvider"
           />
         </div>
 
-        <div class="ai-agent-panel__composer-actions">
-          <div class="ai-agent-panel__composer-tools">
-            <UiButton
+        <div class="ai-agent-panel__composer-well">
+          <div class="ai-agent-panel__composer-input">
+            <UiTextarea
+              ref="composerTextareaRef"
+              :model-value="aiStore.promptDraft"
               variant="ghost"
-              size="sm"
-              icon-only
-              @click="attachFiles"
-              :title="t('Attach files')"
-            >
-              <IconPaperclip :size="16" :stroke-width="1.5" />
-            </UiButton>
-            <UiSelect
-              :model-value="aiStore.providerState.currentProviderId"
-              size="sm"
-              class="ai-agent-panel__provider-select-inline"
-              shell-class="ai-agent-panel__provider-shell"
-              :options="providerOptions"
-              @update:model-value="switchProvider"
+              :rows="4"
+              class="ai-agent-panel__textarea"
+              shell-class="ai-agent-panel__textarea-shell"
+              :placeholder="composerPlaceholder"
+              @keydown="handlePromptKeydown"
+              @update:model-value="aiStore.setPromptDraft($event)"
+            />
+
+            <AiInvocationDropdown
+              :visible="composerSuggestions.length > 0"
+              :suggestions="composerSuggestions"
+              :active-index="activeInvocationIndex"
+              @select="applyInvocationSuggestion"
             />
           </div>
 
-          <div class="ai-agent-panel__composer-primary">
-            <button
-              v-if="aiStore.isRunning"
-              type="button"
-              class="ai-agent-panel__send-button ai-agent-panel__stop-button"
-              :title="stopButtonTitle"
-              :aria-label="stopButtonTitle"
-              @click.prevent.stop="handleStopClick"
-            >
-              <IconPlayerStop :size="14" :stroke-width="2.2" />
-            </button>
-            <button
-              type="button"
-              class="ai-agent-panel__send-button"
-              :class="{ 'is-disabled': isSendBlocked }"
-              :disabled="isSendBlocked"
-              :title="sendButtonTitle"
-              :aria-label="sendButtonTitle"
-              @click.prevent.stop="handleSendClick"
-            >
-              <IconArrowUp :size="14" :stroke-width="2.5" />
-            </button>
+          <div class="ai-agent-panel__composer-actions">
+            <div class="ai-agent-panel__composer-tools">
+              <UiButton
+                variant="ghost"
+                size="sm"
+                icon-only
+                @click="attachFiles"
+                :title="t('Attach files')"
+              >
+                <IconPaperclip :size="16" :stroke-width="1.5" />
+              </UiButton>
+            </div>
+
+            <div class="ai-agent-panel__composer-primary">
+              <button
+                v-if="aiStore.isRunning"
+                type="button"
+                class="ai-agent-panel__send-button ai-agent-panel__stop-button"
+                :title="stopButtonTitle"
+                :aria-label="stopButtonTitle"
+                @click.prevent.stop="handleStopClick"
+              >
+                <IconPlayerStop :size="14" :stroke-width="2.2" />
+              </button>
+              <button
+                type="button"
+                class="ai-agent-panel__send-button"
+                :class="{ 'is-disabled': isSendBlocked }"
+                :disabled="isSendBlocked"
+                :title="sendButtonTitle"
+                :aria-label="sendButtonTitle"
+                @click.prevent.stop="handleSendClick"
+              >
+                <IconArrowUp :size="14" :stroke-width="2.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -745,11 +750,49 @@ watch(
 .ai-agent-panel__composer-card {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-raised) 66%, transparent),
+      color-mix(in srgb, var(--panel-surface) 92%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 58%, transparent),
+    0 12px 32px color-mix(in srgb, black 8%, transparent);
+}
+
+.ai-agent-panel__control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ai-agent-panel__session-control {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-agent-panel__composer-well {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
-  background: transparent;
+  padding: 10px 12px 10px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 36%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 86%, transparent),
+      color-mix(in srgb, var(--surface-base) 92%, transparent)
+    );
 }
 
 .ai-agent-panel__approval {
@@ -805,7 +848,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 4px;
+  min-height: 34px;
+  padding-top: 2px;
 }
 
 .ai-agent-panel__composer-tools {
@@ -822,7 +866,8 @@ watch(
 
 .ai-agent-panel__provider-select-inline {
   width: auto;
-  max-width: 140px;
+  max-width: 132px;
+  flex: 0 0 auto;
 }
 
 .ai-agent-panel__send-button {
@@ -928,36 +973,38 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 80px;
-  padding: 4px 0 5px !important;
+  min-height: 112px;
+  padding: 2px 0 6px !important;
   resize: none;
   font-size: 13px;
-  line-height: 1.58;
+  line-height: 1.62;
+  color: var(--text-primary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger) {
-  height: 24px;
-  padding: 0 22px 0 8px;
-  border-color: transparent;
-  border-radius: 999px;
-  background: transparent;
+  height: 30px;
+  padding: 0 24px 0 10px;
+  border-color: color-mix(in srgb, var(--border-color) 46%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-base) 88%, transparent);
   box-shadow: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:hover),
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-trigger:focus-visible) {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-hover) 40%, transparent);
-  color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border-color) 74%);
+  background: color-mix(in srgb, var(--surface-hover) 26%, transparent);
+  color: var(--text-primary);
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-value) {
   font-size: 11px;
+  font-weight: 600;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__provider-shell .ui-select-caret) {
-  right: 6px;
+  right: 7px;
   opacity: 0.7;
 }
 </style>
