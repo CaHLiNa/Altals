@@ -1,5 +1,19 @@
 <template>
   <div class="left-shell-sidebar settings-sidebar-shell" data-surface-context-guard="true">
+    <div class="settings-sidebar-header">
+      <UiButton
+        class="settings-sidebar-back"
+        variant="ghost"
+        size="icon-sm"
+        icon-only
+        :title="t('Back to workspace')"
+        :aria-label="t('Back to workspace')"
+        @click="workspace.closeSettings()"
+      >
+        <IconChevronLeft :size="16" :stroke-width="1.8" />
+      </UiButton>
+    </div>
+
     <nav class="settings-sidebar-nav" :aria-label="t('Settings sections')">
       <UiButton
         v-for="item in sections"
@@ -17,22 +31,12 @@
         {{ item.label }}
       </UiButton>
     </nav>
-
-    <div class="settings-sidebar-footer">
-      <UiButton
-        class="settings-sidebar-back"
-        variant="ghost"
-        size="sm"
-        @click="workspace.closeSettings()"
-      >
-        {{ t('Back to workspace') }}
-      </UiButton>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { IconChevronLeft } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -59,7 +63,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 24px 14px 84px 6px;
+  padding: 18px 14px 18px 6px;
   background: var(
     --sidebar-shell-surface,
     color-mix(in srgb, var(--panel-surface) 56%, transparent)
@@ -77,6 +81,12 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   min-height: 0;
 }
 
+.settings-sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 12px;
+}
+
 .settings-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -84,7 +94,7 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   min-height: 0;
   overflow-y: auto;
   gap: 4px;
-  padding: 30px 8px 0;
+  padding: 0 8px;
 }
 
 .settings-sidebar-item {
@@ -121,49 +131,19 @@ const activeSection = computed(() => normalizeSettingsSectionId(workspace.settin
   color: color-mix(in srgb, var(--accent) 44%, currentColor);
 }
 
-.settings-sidebar-footer {
-  position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  display: flex;
-  align-items: flex-end;
-  padding: 0;
+.settings-sidebar-back {
+  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
 }
 
-.settings-sidebar-footer :deep(.ui-button) {
-  justify-content: flex-start;
-  min-height: auto !important;
-  width: auto !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
-  font-size: 13px;
-  line-height: 1.2;
+.settings-sidebar-back :deep(svg) {
+  opacity: 0.88;
 }
 
-.settings-sidebar-footer :deep(.settings-sidebar-back) {
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.settings-sidebar-footer :deep(.settings-sidebar-back:hover:not(:disabled)) {
-  background: transparent !important;
-  border-color: transparent !important;
+.settings-sidebar-back:hover:not(:disabled) {
   color: var(--text-primary);
 }
 
-.settings-sidebar-footer :deep(.settings-sidebar-back:active:not(:disabled)) {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  transform: none;
-}
-
-.settings-sidebar-footer :deep(.settings-sidebar-back:focus-visible) {
-  box-shadow: none !important;
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
+.settings-sidebar-back:hover:not(:disabled) :deep(svg) {
+  opacity: 1;
 }
 </style>
