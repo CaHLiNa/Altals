@@ -1,4 +1,5 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
+import { resolveDocumentWorkflowAction } from '../../services/documentWorkflow/actionRuntimeBridge.js'
 
 const WORKSPACE_PREVIEW_DELIVERY = 'workspace'
 const LEGACY_PANE_PREVIEW_DELIVERY = 'legacy-pane'
@@ -13,16 +14,6 @@ function resolvePreviewDelivery(options = {}) {
   return options.allowLegacyPaneResult === true
     ? LEGACY_PANE_PREVIEW_DELIVERY
     : WORKSPACE_PREVIEW_DELIVERY
-}
-
-function usesLegacyPanePreviewDelivery(options = {}) {
-  return resolvePreviewDelivery(options) === LEGACY_PANE_PREVIEW_DELIVERY
-}
-
-function resolvePreviewModeFromKind(previewKind) {
-  if (previewKind === 'html') return 'markdown'
-  if (previewKind === 'pdf') return 'pdf-artifact'
-  return previewKind || null
 }
 
 function createLegacyPanePreviewToggle(workflowStore, filePath, options = {}) {
@@ -43,149 +34,112 @@ export function createDocumentWorkflowActionRuntime({
   getBuildOperationRuntime = () => createDocumentWorkflowBuildOperationRuntime(),
   openOutputPath = async () => false,
 } = {}) {
+  async function resolveActionPlan(filePath, intent, options = {}) {
+    const workflowStore = getWorkflowStore?.() || null
+    if (!filePath || !workflowStore) return null
+
+    const uiState = options.uiState || null
+    const previewState = resolveWorkspacePreviewState(filePath, options)
+    const artifactPath = workflowStore.getArtifactPathForFile?.(filePath, options.buildOptions || {}) || ''
+
+    return resolveDocumentWorkflowAction({
+      filePath,
+      intent,
+      previewDelivery: resolvePreviewDelivery(options),
+      uiState,
+      previewState,
+      artifactPath,
+    }).catch(() => null)
+  }
+
+  async function executeActionPlan(filePath, plan = null, options = {}) {
+    if (!filePath || !plan?.actionType) return null
+
+    const workflowStore = getWorkflowStore?.() || null
+    if (!workflowStore) return null
+
+    switch (plan.actionType) {
+      case 'run-build': {
+        const buildOperationRuntime = getBuildOperationRuntime?.() || null
+        return buildOperationRuntime?.runBuildForFile?.(filePath, {
+          ...(options.buildOptions || {}),
+          sourcePaneId: options.sourcePaneId,
+          trigger: options.trigger || `${options.uiState?.kind || 'document'}-compile-button`,
+        }) || null
+      }
+      case 'legacy-toggle-preview':
+        return createLegacyPanePreviewToggle(workflowStore, filePath, {
+          previewKind: plan.previewKind || options.previewKind,
+          jump: plan.jump === true,
+          sourcePaneId: options.sourcePaneId,
+          trigger: options.trigger || 'workflow-toggle-preview',
+        })
+      case 'show-workspace-preview':
+        return workflowStore.showWorkspacePreviewForFile?.(filePath, {
+          previewKind: plan.previewKind || options.previewKind,
+          persistPreference: plan.persistPreference !== false,
+          sourcePaneId: options.sourcePaneId,
+          trigger: options.trigger || 'workflow-toggle-preview',
+        }) || null
+      case 'hide-workspace-preview':
+        return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
+      case 'open-external-output': {
+        const artifactPath = String(plan.artifactPath || '').trim()
+        if (!artifactPath) return null
+        await openOutputPath(artifactPath)
+        return {
+          type: 'external-output-opened',
+          filePath,
+          artifactPath,
+          trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
+        }
+      }
+      default:
+        return null
+    }
+  }
+
   function resolveWorkspacePreviewState(filePath, options = {}) {
     const workflowStore = getWorkflowStore?.() || null
     return workflowStore?.getWorkspacePreviewStateForFile?.(filePath, options.buildOptions || {}) || null
   }
 
-  function toggleMarkdownPreviewForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const workflowStore = getWorkflowStore?.() || null
-    if (!workflowStore) return null
-
-    if (usesLegacyPanePreviewDelivery(options)) {
-      return createLegacyPanePreviewToggle(workflowStore, filePath, {
-        previewKind: 'html',
-        sourcePaneId: options.sourcePaneId,
-        trigger: options.trigger || 'markdown-preview-toggle',
-      })
-    }
-
-    const previewState = resolveWorkspacePreviewState(filePath, options)
-    if (previewState?.previewVisible && previewState?.previewMode === 'markdown') {
-      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
-    }
-    return workflowStore.showWorkspacePreviewForFile?.(filePath, {
+  async function toggleMarkdownPreviewForFile(filePath, options = {}) {
+    const plan = await resolveActionPlan(filePath, 'toggle-markdown-preview', {
+      ...options,
+      uiState: options.uiState || { kind: 'markdown', previewKind: 'html' },
+    })
+    return executeActionPlan(filePath, plan, {
+      ...options,
       previewKind: 'html',
-      sourcePaneId: options.sourcePaneId,
       trigger: options.trigger || 'markdown-preview-toggle',
-    }) || null
+    })
   }
 
   async function openWorkflowOutputForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const workflowStore = getWorkflowStore?.() || null
-    if (!workflowStore) return null
-
-    const artifactPath = workflowStore.getArtifactPathForFile?.(filePath, options.buildOptions || {}) || ''
-    if (!artifactPath) return null
-
-    await openOutputPath(artifactPath)
-    return {
-      type: 'external-output-opened',
-      filePath,
-      artifactPath,
+    const plan = await resolveActionPlan(filePath, 'open-output', options)
+    return executeActionPlan(filePath, plan, {
+      ...options,
       trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
-    }
-  }
-
-  function showWorkspacePdfPreviewForFile(filePath, options = {}) {
-    const workflowStore = getWorkflowStore?.() || null
-    if (!workflowStore) return null
-    return workflowStore.showWorkspacePreviewForFile?.(filePath, {
-      previewKind: 'pdf',
-      persistPreference: false,
-      sourcePaneId: options.sourcePaneId,
-      trigger: options.trigger || `${options.uiState?.kind || options.adapterKind || 'document'}-open-output`,
-    }) || null
+    })
   }
 
   async function runPrimaryActionForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const uiState = options.uiState || null
-    if (!uiState?.kind || uiState.kind === 'text') return null
-
-    if (uiState.kind === 'markdown') {
-      return toggleMarkdownPreviewForFile(filePath, options)
-    }
-
-    if (uiState.kind === 'latex') {
-      const buildOperationRuntime = getBuildOperationRuntime?.() || null
-      return buildOperationRuntime?.runBuildForFile?.(filePath, {
-        ...(options.buildOptions || {}),
-        sourcePaneId: options.sourcePaneId,
-        trigger: options.trigger || `${uiState.kind}-compile-button`,
-      }) || null
-    }
-
-    return null
+    const plan = await resolveActionPlan(filePath, 'primary-action', options)
+    return executeActionPlan(filePath, plan, options)
   }
 
   async function revealPreviewForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const workflowStore = getWorkflowStore?.() || null
-    const uiState = options.uiState || null
-    if (!uiState?.kind || uiState.kind === 'text') return null
-
-    if (uiState.kind === 'markdown') {
-      return toggleMarkdownPreviewForFile(filePath, {
-        ...options,
-        trigger: options.trigger || 'workflow-toggle-preview',
-      })
-    }
-
-    const requestedPreviewKind = uiState.previewKind
-
-    if (!workflowStore || !requestedPreviewKind) return null
-
-    if (usesLegacyPanePreviewDelivery(options)) {
-      return createLegacyPanePreviewToggle(workflowStore, filePath, {
-        previewKind: requestedPreviewKind,
-        jump: true,
-        sourcePaneId: options.sourcePaneId,
-        trigger: options.trigger || 'workflow-toggle-preview',
-      })
-    }
-
-    const previewState = resolveWorkspacePreviewState(filePath, options)
-    if (
-      previewState?.previewVisible
-      && previewState?.previewMode === resolvePreviewModeFromKind(requestedPreviewKind)
-    ) {
-      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
-    }
-
-    return workflowStore.showWorkspacePreviewForFile?.(filePath, {
-      previewKind: requestedPreviewKind,
-      sourcePaneId: options.sourcePaneId,
+    const plan = await resolveActionPlan(filePath, 'reveal-preview', options)
+    return executeActionPlan(filePath, plan, {
+      ...options,
       trigger: options.trigger || 'workflow-toggle-preview',
-    }) || null
+    })
   }
 
-  function togglePdfPreviewForFile(filePath, options = {}) {
-    if (!filePath) return null
-
-    const workflowStore = getWorkflowStore?.() || null
-    if (!workflowStore) return null
-
-    const previewState = resolveWorkspacePreviewState(filePath, options)
-    if (previewState?.previewVisible && previewState?.previewMode === 'pdf-artifact') {
-      return workflowStore.hideWorkspacePreviewForFile?.(filePath) || null
-    }
-
-    const artifactPath = workflowStore.getArtifactPathForFile?.(filePath, options.buildOptions || {}) || ''
-    if (!artifactPath) {
-      return openWorkflowOutputForFile(filePath, {
-        ...options,
-        trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
-      })
-    }
-
-    return showWorkspacePdfPreviewForFile(filePath, {
+  async function togglePdfPreviewForFile(filePath, options = {}) {
+    const plan = await resolveActionPlan(filePath, 'toggle-pdf-preview', options)
+    return executeActionPlan(filePath, plan, {
       ...options,
       trigger: options.trigger || `${options.adapterKind || options.uiState?.kind || 'document'}-open-output`,
     })

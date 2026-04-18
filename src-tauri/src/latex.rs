@@ -10,8 +10,8 @@ use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::latex_tools::{
-    scribeflow_bin_dir, binary_status, find_chktex, find_latexindent, find_synctex, find_system_tex,
-    find_tectonic, tectonic_binary_name, LatexCompilerStatus, LatexToolStatus,
+    binary_status, find_chktex, find_latexindent, find_synctex, find_system_tex, find_tectonic,
+    scribeflow_bin_dir, tectonic_binary_name, LatexCompilerStatus, LatexToolStatus,
 };
 use crate::process_utils::{background_command, background_tokio_command};
 
@@ -1158,7 +1158,8 @@ fn tectonic_download_url() -> Result<(String, bool), String> {
 
 #[tauri::command]
 pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> {
-    let bin_dir = scribeflow_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    let bin_dir =
+        scribeflow_bin_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Cannot create directory: {}", e))?;
 
     let (url, is_zip) = tectonic_download_url()?;

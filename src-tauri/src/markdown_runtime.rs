@@ -137,7 +137,7 @@ fn walk_headings(node: &Node, items: &mut Vec<MarkdownHeadingItem>) {
     }
 }
 
-fn extract_markdown_headings(content: &str) -> Result<Vec<MarkdownHeadingItem>, String> {
+pub(crate) fn extract_markdown_headings(content: &str) -> Result<Vec<MarkdownHeadingItem>, String> {
     let tree = to_mdast(content, &markdown_parse_options())
         .map_err(|error| format!("Failed to parse markdown headings: {error}"))?;
     let mut items = Vec::new();

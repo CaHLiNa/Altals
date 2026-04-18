@@ -23,7 +23,12 @@ mod ai_skill_text;
 mod ai_tool_catalog;
 mod app_dirs;
 mod codex_runtime;
+mod document_outline;
 mod document_workflow;
+mod document_workflow_action;
+mod document_workflow_controller;
+mod document_workspace_preview;
+mod document_workspace_preview_state;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -325,7 +330,10 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     )?;
 
     let app_menu = SubmenuBuilder::new(app, "ScribeFlow")
-        .about_with_text(label("关于 ScribeFlow", "About ScribeFlow"), Some(about_metadata))
+        .about_with_text(
+            label("关于 ScribeFlow", "About ScribeFlow"),
+            Some(about_metadata),
+        )
         .item(&open_settings)
         .separator()
         .services_with_text(label("服务", "Services"))
@@ -549,6 +557,11 @@ pub fn run() {
             references_zotero::references_zotero_fetch_collections,
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_delete_item,
+            document_outline::document_outline_resolve,
+            document_workflow_action::document_workflow_action_resolve,
+            document_workflow_controller::document_workflow_controller_execute,
+            document_workspace_preview::document_workspace_preview_mutate,
+            document_workspace_preview_state::document_workspace_preview_state_resolve,
             markdown_runtime::markdown_extract_headings,
             latex_project_graph::latex_project_graph_resolve,
             latex_project_graph::latex_compile_request_resolve,

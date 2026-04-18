@@ -10,6 +10,16 @@ import {
 
 const SOURCE_GRAPH_CACHE = new Map()
 
+function stableContentFingerprint(value = '') {
+  const text = String(value || '')
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${text.length}:${(hash >>> 0).toString(16)}`
+}
+
 async function listWorkspaceFiles(options = {}) {
   const workspacePath = normalizeFsPath(options.workspacePath || '')
   const filesStore = options.filesStore
@@ -49,13 +59,17 @@ function buildGraphCacheKey(sourcePath, options = {}) {
   const flatFiles = Array.isArray(options.flatFiles)
     ? options.flatFiles.map((entry) => normalizeFsPath(entry.path || entry)).filter(Boolean)
     : []
-  const overrideKeys = Object.keys(options.contentOverrides || {})
-    .map((path) => normalizeFsPath(path))
-    .sort()
+  const overrideEntries = Object.entries(options.contentOverrides || {})
+    .map(([path, content]) => ({
+      path: normalizeFsPath(path),
+      fingerprint: stableContentFingerprint(content),
+    }))
+    .filter((entry) => entry.path)
+    .sort((left, right) => left.path.localeCompare(right.path))
   return JSON.stringify({
     sourcePath: normalizedSource,
     flatFiles,
-    overrideKeys,
+    overrideEntries,
   })
 }
 
@@ -105,6 +119,25 @@ export async function resolveLatexProjectGraph(sourcePath, options = {}) {
 
 export async function resolveLatexProjectContext(sourcePath, options = {}) {
   return resolveLatexProjectGraph(sourcePath, options)
+}
+
+export async function resolveLatexOutlineItems(sourcePath, options = {}) {
+  const normalizedSource = normalizeFsPath(sourcePath)
+  if (!normalizedSource) return []
+
+  const contentOverrides = options.sourceContent === undefined
+    ? (options.contentOverrides || {})
+    : {
+        ...(options.contentOverrides || {}),
+        [normalizedSource]: options.sourceContent,
+      }
+
+  const graph = await resolveLatexProjectGraph(normalizedSource, {
+    ...options,
+    contentOverrides,
+  }).catch(() => null)
+
+  return Array.isArray(graph?.outlineItems) ? graph.outlineItems : []
 }
 
 export function buildRelativeLatexInputPath(fromFilePath, targetPath) {

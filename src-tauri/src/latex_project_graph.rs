@@ -876,7 +876,7 @@ fn build_preview_path(root_path: &str) -> String {
     }
 }
 
-fn resolve_graph_internal(params: &LatexProjectGraphParams) -> Option<Value> {
+pub(crate) fn resolve_graph_value(params: &LatexProjectGraphParams) -> Option<Value> {
     let normalized_source = normalize_fs_path(&params.source_path);
     if normalized_source.is_empty() {
         return None;
@@ -1079,7 +1079,7 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 
     let mut affected = HashMap::new();
     for file_path in latex_files {
-        let graph = resolve_graph_internal(&LatexProjectGraphParams {
+        let graph = resolve_graph_value(&LatexProjectGraphParams {
             source_path: file_path.clone(),
             flat_files: params.flat_files.clone(),
             content_overrides: params.content_overrides.clone(),
@@ -1128,14 +1128,14 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 
 #[tauri::command]
 pub async fn latex_project_graph_resolve(params: LatexProjectGraphParams) -> Result<Value, String> {
-    Ok(resolve_graph_internal(&params).unwrap_or(Value::Null))
+    Ok(resolve_graph_value(&params).unwrap_or(Value::Null))
 }
 
 #[tauri::command]
 pub async fn latex_compile_request_resolve(
     params: LatexProjectGraphParams,
 ) -> Result<Value, String> {
-    let graph = resolve_graph_internal(&params).unwrap_or(Value::Null);
+    let graph = resolve_graph_value(&params).unwrap_or(Value::Null);
     if graph.is_null() {
         return Ok(json!({
             "sourcePath": normalize_fs_path(&params.source_path),

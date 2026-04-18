@@ -1,11 +1,23 @@
+import { executeDocumentWorkflowController } from '../../services/documentWorkflow/controllerBridge.js'
+
+function normalizeBinding(binding = null) {
+  if (!binding || typeof binding !== 'object') return null
+  if (!binding.previewPath || !binding.sourcePath) return null
+  return {
+    previewPath: String(binding.previewPath),
+    sourcePath: String(binding.sourcePath),
+    previewKind: binding.previewKind || null,
+    kind: binding.kind || null,
+    paneId: binding.paneId || null,
+    detachOnClose: binding.detachOnClose !== false,
+  }
+}
+
 export function createDocumentWorkflowRuntime({
   getSession,
   getPreviewPrefs,
-  getPreviewBinding,
   getPreviewBindings,
-  inferPreviewKind,
   bindPreview,
-  getOpenPreviewPathForSource,
   getPreferredPreviewKind,
   clearDetached,
   handlePreviewClosed,
@@ -14,245 +26,158 @@ export function createDocumentWorkflowRuntime({
   setIsReconciling,
   setLastTrigger,
   getEditorStore,
-  getDocumentWorkflowKindImpl,
-  createWorkspacePreviewAction,
-  getPreferredWorkflowPreviewKind,
-  createWorkflowPreviewPath,
-  reconcileDocumentWorkflowImpl,
-  findWorkflowPreviewPaneImpl,
   jumpPreviewToCursor,
 } = {}) {
-  async function reconcile(options = {}) {
-    if (getIsReconciling?.()) return null
-
+  async function invokeController(operation, params = {}) {
     const editorStore = getEditorStore?.()
     if (!editorStore) return null
 
+    return executeDocumentWorkflowController({
+      operation,
+      activeFile: params.activeFile || editorStore.activeTab || '',
+      activePaneId: params.activePaneId || editorStore.activePaneId || '',
+      paneTree: editorStore.paneTree || null,
+      previewPrefs: getPreviewPrefs?.() || {},
+      detachedSources: getSession?.()?.detachedSources || {},
+      previewBindings: Object.values(getPreviewBindings?.() || {}),
+      session: getSession?.() || {},
+      ...params,
+    }).catch(() => null)
+  }
+
+  async function applyPlan(plan = null) {
+    const editorStore = getEditorStore?.()
+    if (!editorStore || !plan || typeof plan !== 'object') return null
+
+    const result = plan.result || null
+    const trigger = result?.trigger || plan.followupRequest?.trigger || ''
+    if (trigger) {
+      setLastTrigger?.(trigger)
+    }
+
+    if (typeof plan.clearDetachedSourcePath === 'string' && plan.clearDetachedSourcePath) {
+      clearDetached?.(plan.clearDetachedSourcePath)
+    }
+
+    const binding = normalizeBinding(plan.bindPreview)
+    if (binding) {
+      bindPreview?.(binding)
+    }
+
+    if (plan.sessionState && typeof plan.sessionState === 'object') {
+      setSessionState?.(plan.sessionState)
+    }
+
+    if (typeof plan.closePreviewPath === 'string' && plan.closePreviewPath) {
+      handlePreviewClosed?.(plan.closePreviewPath)
+      editorStore.closeFileFromAllPanes(plan.closePreviewPath)
+    }
+
+    const paneAction = plan.paneAction || null
+    if (paneAction?.type === 'open-file-in-pane') {
+      const previewPath = String(paneAction.previewPath || '')
+      const previewPaneId = String(paneAction.previewPaneId || '')
+      if (previewPath && previewPaneId) {
+        editorStore.openFileInPane(previewPath, previewPaneId, {
+          activatePane: paneAction.activatePane === true,
+        })
+      }
+    } else if (paneAction?.type === 'split-pane-with-preview') {
+      const previewPath = String(paneAction.previewPath || '')
+      const sourcePaneId = String(paneAction.sourcePaneId || '')
+      if (previewPath && sourcePaneId) {
+        editorStore.splitPaneWith(sourcePaneId, 'vertical', previewPath)
+      }
+    }
+
+    if (plan.followupRequest && typeof plan.followupRequest === 'object') {
+      const followup = await invokeController('reconcile', {
+        activeFile: String(plan.followupRequest.activeFile || ''),
+        activePaneId: String(plan.followupRequest.activePaneId || ''),
+        trigger: String(plan.followupRequest.trigger || ''),
+        force: plan.followupRequest.force === true,
+        previewKindOverride: String(plan.followupRequest.previewKindOverride || ''),
+        allowLegacyPaneResult: plan.followupRequest.allowLegacyPaneResult === true,
+      })
+      return applyPlan(followup)
+    }
+
+    return result
+  }
+
+  async function reconcile(options = {}) {
+    if (getIsReconciling?.()) return null
     setIsReconciling?.(true)
     try {
-      const result = await reconcileDocumentWorkflowImpl?.({
-        activeFile: editorStore.activeTab,
-        activePaneId: editorStore.activePaneId,
-        paneTree: editorStore.paneTree,
+      const plan = await invokeController('reconcile', {
         trigger: options.trigger || 'manual',
-        workflowStore: {
-          previewPrefs: getPreviewPrefs?.() || {},
-          previewBindings: getPreviewBindings?.() || {},
-          session: {
-            detachedSources: getSession?.()?.detachedSources || {},
-          },
-          getPreviewBinding: (previewPath) => getPreviewBinding?.(previewPath),
-          inferPreviewKind: (sourcePath, previewPath) => inferPreviewKind?.(sourcePath, previewPath),
-        },
         force: options.force === true,
-        createWorkspacePreviewAction,
-        getDocumentWorkflowKind: getDocumentWorkflowKindImpl,
-        getPreferredWorkflowPreviewKind,
-        createWorkflowPreviewPath,
-        previewKindOverride: options.previewKindOverride || null,
+        previewKindOverride: options.previewKindOverride || '',
         allowLegacyPaneResult: options.allowLegacyPaneResult === true,
-      }) || null
-
-      setLastTrigger?.(result?.trigger || options.trigger || 'manual')
-
-      if (!result || result.type === 'inactive') {
-        setSessionState?.({
-          activeFile: null,
-          activeKind: null,
-          sourcePaneId: editorStore.activePaneId,
-          previewPaneId: null,
-          previewKind: null,
-          previewSourcePath: null,
-          state: 'inactive',
-        })
-        return result
-      }
-
-      if (result.type === 'detached') {
-        setSessionState?.({
-          activeFile: result.sourcePath,
-          activeKind: result.kind,
-          sourcePaneId: result.sourcePaneId,
-          previewPaneId: null,
-          previewKind: result.previewKind,
-          previewSourcePath: result.sourcePath,
-          state: 'detached-by-user',
-        })
-        return result
-      }
-
-      if (result.type === 'source-only') {
-        setSessionState?.({
-          activeFile: result.sourcePath,
-          activeKind: result.kind,
-          sourcePaneId: result.sourcePaneId,
-          previewPaneId: null,
-          previewKind: result.previewKind,
-          previewSourcePath: result.sourcePath,
-          state: 'source-only',
-        })
-        return result
-      }
-
-      if (result.type === 'workspace-preview') {
-        if (result.preserveOpenLegacy && result.legacyPreviewPath) {
-          bindPreview?.({
-            previewPath: result.legacyPreviewPath,
-            sourcePath: result.sourcePath || result.filePath,
-            previewKind: result.previewKind,
-            kind: result.kind,
-            paneId: result.legacyPreviewPaneId || null,
-            detachOnClose: false,
-          })
-        }
-        setSessionState?.({
-          activeFile: result.sourcePath || result.filePath,
-          activeKind: result.kind,
-          sourcePaneId: result.sourcePaneId,
-          previewPaneId: null,
-          previewKind: result.previewKind,
-          previewSourcePath: result.sourcePath || result.filePath,
-          state: 'workspace-preview',
-        })
-        return {
-          ...result,
-          previewPaneId: null,
-          previewPath: null,
-        }
-      }
-
-      let previewPaneId = result.previewPaneId
-      let previewPath = result.previewPath
-
-      if (result.type === 'open-neighbor' && previewPaneId && previewPath) {
-        editorStore.openFileInPane(previewPath, previewPaneId, { activatePane: false })
-      } else if (result.type === 'split-right' && previewPath) {
-        previewPaneId = editorStore.splitPaneWith(result.sourcePaneId, 'vertical', previewPath)
-      } else if (result.type === 'ready-existing' && previewPaneId && previewPath && options.force) {
-        editorStore.openFileInPane(previewPath, previewPaneId, { activatePane: false })
-      }
-
-      if (previewPath) {
-        const previewLeaf = findWorkflowPreviewPaneImpl?.(editorStore.paneTree, previewPath)
-        if (previewLeaf?.id) {
-          previewPaneId = previewLeaf.id
-        }
-        bindPreview?.({
-          previewPath,
-          sourcePath: result.sourcePath,
-          previewKind: result.previewKind,
-          kind: result.kind,
-          paneId: previewPaneId,
-        })
-      }
-
-      setSessionState?.({
-        activeFile: result.sourcePath,
-        activeKind: result.kind,
-        sourcePaneId: result.sourcePaneId,
-        previewPaneId: previewPaneId || null,
-        previewKind: result.previewKind,
-        previewSourcePath: result.sourcePath,
-        state: previewPaneId ? 'ready' : result.state,
       })
-
-      return {
-        ...result,
-        previewPaneId: previewPaneId || null,
-        previewPath,
-      }
+      return applyPlan(plan)
     } finally {
       setIsReconciling?.(false)
     }
   }
 
   async function closePreviewForSource(sourcePath, options = {}) {
-    const editorStore = getEditorStore?.()
-    const kind = getDocumentWorkflowKindImpl?.(sourcePath)
-    if (!kind || !editorStore) return null
-
-    const previewKind = options.previewKind || getPreferredPreviewKind?.(kind)
-    const previewPath = getOpenPreviewPathForSource?.(sourcePath, previewKind)
-    if (!previewPath) return null
-
-    handlePreviewClosed?.(previewPath)
-    editorStore.closeFileFromAllPanes(previewPath)
-
-    if (options.reconcile !== false) {
-      await reconcile({
-        trigger: options.trigger || 'close-preview',
-        previewKindOverride: previewKind,
-      })
-    }
-
-    return {
-      type: 'closed-preview',
-      kind,
+    if (!sourcePath) return null
+    const kind = options.kind || null
+    const previewKind = options.previewKind || (kind ? getPreferredPreviewKind?.(kind) : null) || ''
+    const plan = await invokeController('close-preview', {
       sourcePath,
       previewKind,
-      previewPath,
-    }
+      trigger: options.trigger || 'close-preview',
+      reconcileAfterClose: options.reconcile !== false,
+    })
+    return applyPlan(plan)
   }
 
   async function ensurePreviewForSource(sourcePath, options = {}) {
     const editorStore = getEditorStore?.()
-    const kind = getDocumentWorkflowKindImpl?.(sourcePath)
-    if (!kind || !editorStore) return null
-
-    const previewKind = options.previewKind || getPreferredPreviewKind?.(kind)
-    clearDetached?.(sourcePath)
+    if (!sourcePath || !editorStore) return null
 
     const previousActivePaneId = editorStore.activePaneId
     const previousActiveTab = editorStore.activeTab
+    const previewKind = options.previewKind || ''
 
-    editorStore.activePaneId = options.sourcePaneId || editorStore.activePaneId
-
-    const result = await reconcile({
+    const result = await applyPlan(await invokeController('ensure-preview', {
+      sourcePath,
+      sourcePaneId: options.sourcePaneId || editorStore.activePaneId || '',
+      previewKind,
       trigger: options.trigger || 'manual-open-preview',
-      force: true,
-      previewKindOverride: previewKind,
-    })
+      activatePreview: options.activatePreview === true,
+    }))
 
-    if (!options.activatePreview) {
+    if (options.activatePreview !== true) {
       editorStore.activePaneId = previousActivePaneId
-      if (previousActiveTab && previousActivePaneId) {
+      if (previousActivePaneId && previousActiveTab) {
         editorStore.setActiveTab(previousActivePaneId, previousActiveTab)
-      }
-    } else if (result?.previewPaneId && result.previewPath) {
-      editorStore.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
-    }
-
-    return result
-  }
-
-  async function revealPreview(sourcePath, options = {}) {
-    const result = await ensurePreviewForSource(sourcePath, {
-      force: true,
-      activatePreview: true,
-      previewKind: options.previewKind,
-      sourcePaneId: options.sourcePaneId,
-      trigger: options.trigger || 'reveal-preview',
-    })
-
-    if (result?.type === 'workspace-preview') {
-      if (options.jump) {
-        jumpPreviewToCursor?.({
-          kind: result.kind,
-          previewKind: result.previewKind,
-          sourcePath,
-        })
       }
       return result
     }
 
-    if (!result?.previewPaneId || !result?.previewPath) return result
+    if (result?.previewPaneId && result?.previewPath) {
+      editorStore.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
+    }
+    return result
+  }
 
-    const editorStore = getEditorStore?.()
-    if (!editorStore) return result
+  async function revealPreview(sourcePath, options = {}) {
+    const result = await applyPlan(await invokeController('reveal-preview', {
+      sourcePath,
+      sourcePaneId: options.sourcePaneId || getEditorStore?.()?.activePaneId || '',
+      previewKind: options.previewKind || '',
+      trigger: options.trigger || 'reveal-preview',
+      activatePreview: true,
+    }))
 
-    editorStore.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
+    if (result?.previewPaneId && result?.previewPath) {
+      getEditorStore?.()?.openFileInPane(result.previewPath, result.previewPaneId, { activatePane: true })
+    }
 
-    if (options.jump) {
+    if (options.jump && result) {
       jumpPreviewToCursor?.({
         kind: result.kind,
         previewKind: result.previewKind,

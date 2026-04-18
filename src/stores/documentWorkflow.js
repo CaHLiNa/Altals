@@ -22,16 +22,10 @@ import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkf
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
-import {
-  findWorkflowPreviewPane,
-} from '../domains/document/documentWorkflowReconcileRuntime.js'
-import { reconcileDocumentWorkflow } from '../services/documentWorkflow/reconcile.js'
 import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
-import {
-  createDocumentWorkspacePreviewAction as createWorkspacePreviewAction,
-  createWorkspacePreviewSessionState,
-} from '../domains/document/documentWorkspacePreviewRuntime.js'
 import { openLocalPath } from '../services/localFileOpen.js'
+import { mutateDocumentWorkspacePreview } from '../services/documentWorkflow/workspacePreviewBridge.js'
+import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
 
@@ -74,6 +68,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     markdownPreviewState: {},
     workspacePreviewVisibility: {},
     workspacePreviewRequests: {},
+    resolvedWorkspacePreviewStates: {},
     _isReconciling: false,
     _lastTrigger: null,
   }),
@@ -88,11 +83,8 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         this._documentWorkflowRuntime = createDocumentWorkflowRuntime({
           getSession: () => this.session,
           getPreviewPrefs: () => this.previewPrefs,
-          getPreviewBinding: (previewPath) => this.getPreviewBinding(previewPath),
           getPreviewBindings: () => this.previewBindings,
-          inferPreviewKind: (sourcePath, previewPath) => this.inferPreviewKind(sourcePath, previewPath),
           bindPreview: (binding) => this.bindPreview(binding),
-          getOpenPreviewPathForSource: (sourcePath, previewKind) => this.getOpenPreviewPathForSource(sourcePath, previewKind),
           getPreferredPreviewKind: (kind) => this.getPreferredPreviewKind(kind),
           clearDetached: (sourcePath) => this.clearDetached(sourcePath),
           handlePreviewClosed: (previewPath) => this.handlePreviewClosed(previewPath),
@@ -105,12 +97,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
             this._lastTrigger = value
           },
           getEditorStore: () => useEditorStore(),
-          getDocumentWorkflowKindImpl: getDocumentWorkflowKind,
-          createWorkspacePreviewAction,
-          getPreferredWorkflowPreviewKind,
-          createWorkflowPreviewPath,
-          reconcileDocumentWorkflowImpl: reconcileDocumentWorkflow,
-          findWorkflowPreviewPaneImpl: findWorkflowPreviewPane,
           jumpPreviewToCursor: ({ kind, previewKind, sourcePath }) => {
             if (kind === 'latex') {
               window.dispatchEvent(new CustomEvent('latex-request-cursor', {
@@ -269,6 +255,81 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         ...this.workspacePreviewVisibility,
         [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
       }
+    },
+
+    buildResolvedWorkspacePreviewStateKey(request = {}) {
+      return JSON.stringify({
+        path: String(request.path || ''),
+        sourcePath: String(request.sourcePath || ''),
+        workflowKind: String(request.workflowKind || ''),
+        workflowPreviewKind: String(request.workflowPreviewKind || ''),
+        previewKind: String(request.previewKind || ''),
+        resolvedTargetPath: String(request.resolvedTargetPath || ''),
+        targetResolution: String(request.targetResolution || ''),
+        hiddenByUser: request.hiddenByUser === true,
+        previewRequested: request.previewRequested === true,
+        artifactReady: request.artifactReady === true,
+        preserveOpenLegacy: request.preserveOpenLegacy === true,
+        hasOpenLegacyPreview: request.hasOpenLegacyPreview === true,
+      })
+    },
+
+    getResolvedWorkspacePreviewState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+      const entry = this.resolvedWorkspacePreviewStates[normalizedPath] || null
+      if (!entry) return null
+      const key = this.buildResolvedWorkspacePreviewStateKey(request)
+      return entry.key === key ? entry.state : null
+    },
+
+    setResolvedWorkspacePreviewState(filePath, request = {}, state = null) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return
+      this.resolvedWorkspacePreviewStates = {
+        ...this.resolvedWorkspacePreviewStates,
+        [normalizedPath]: {
+          key: this.buildResolvedWorkspacePreviewStateKey(request),
+          state,
+        },
+      }
+    },
+
+    async refreshResolvedWorkspacePreviewState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+
+      if (!this._resolvedWorkspacePreviewStateInflight) {
+        this._resolvedWorkspacePreviewStateInflight = new Map()
+      }
+
+      const key = this.buildResolvedWorkspacePreviewStateKey(request)
+      const inflightKey = `${normalizedPath}::${key}`
+      if (this._resolvedWorkspacePreviewStateInflight.has(inflightKey)) {
+        return this._resolvedWorkspacePreviewStateInflight.get(inflightKey)
+      }
+
+      const task = resolveDocumentWorkspacePreviewStateFromBackend(request)
+        .then((state) => {
+          this.setResolvedWorkspacePreviewState(normalizedPath, request, state)
+          return state
+        })
+        .catch(() => null)
+        .finally(() => {
+          this._resolvedWorkspacePreviewStateInflight.delete(inflightKey)
+        })
+
+      this._resolvedWorkspacePreviewStateInflight.set(inflightKey, task)
+      return task
+    },
+
+    ensureResolvedWorkspacePreviewState(filePath, request = {}) {
+      const normalizedPath = String(filePath || '')
+      if (!normalizedPath) return null
+      const cached = this.getResolvedWorkspacePreviewState(normalizedPath, request)
+      if (cached) return cached
+      void this.refreshResolvedWorkspacePreviewState(normalizedPath, request)
+      return null
     },
 
     setWorkspacePreviewRequestForFile(filePath, previewKind = null) {
@@ -442,52 +503,71 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowBuildRuntime().getWorkspacePreviewStateForFile(filePath, options)
     },
 
-    showWorkspacePreviewForFile(filePath, options = {}) {
+    async showWorkspacePreviewForFile(filePath, options = {}) {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
       const previewKind = options.previewKind || this.getPreferredPreviewKind(kind)
       const preferredPreviewKind = this.getPreferredPreviewKind(kind)
-      if (previewKind && options.persistPreference !== false) {
-        this.setPreferredPreviewKind(kind, previewKind)
-      }
-      this.setWorkspacePreviewRequestForFile(
-        filePath,
-        previewKind && previewKind !== preferredPreviewKind ? previewKind : null,
-      )
-      this.setWorkspacePreviewVisibility(filePath, 'visible')
-      this.clearDetached(filePath)
-      const sessionState = createWorkspacePreviewSessionState({
+
+      const mutation = await mutateDocumentWorkspacePreview({
+        intent: 'show',
         filePath,
         kind,
         previewKind,
+        preferredPreviewKind,
+        persistPreference: options.persistPreference !== false,
         sourcePaneId: options.sourcePaneId,
         currentSession: this.session,
       })
-      if (sessionState) {
-        this.setSessionState(sessionState)
+
+      if (!mutation || typeof mutation !== 'object') return null
+
+      if (mutation.persistedPreviewKind) {
+        this.setPreferredPreviewKind(kind, String(mutation.persistedPreviewKind))
       }
-      return {
-        type: 'workspace-preview',
+      this.setWorkspacePreviewRequestForFile(
         filePath,
-        previewKind,
-        legacyReadOnly: false,
+        typeof mutation.requestValue === 'string' ? mutation.requestValue : null,
+      )
+      if (typeof mutation.visibility === 'string') {
+        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
       }
+      if (typeof mutation.clearDetachedSourcePath === 'string' && mutation.clearDetachedSourcePath) {
+        this.clearDetached(mutation.clearDetachedSourcePath)
+      }
+      if (mutation.sessionState && typeof mutation.sessionState === 'object') {
+        this.setSessionState(mutation.sessionState)
+      }
+
+      return mutation.result || null
     },
 
     switchWorkspacePreviewModeForFile(filePath, options = {}) {
       return this.showWorkspacePreviewForFile(filePath, options)
     },
 
-    hideWorkspacePreviewForFile(filePath) {
+    async hideWorkspacePreviewForFile(filePath) {
       const kind = getDocumentWorkflowKind(filePath)
       if (!kind) return null
-      this.setWorkspacePreviewRequestForFile(filePath, null)
-      this.setWorkspacePreviewVisibility(filePath, 'hidden')
-      return {
-        type: 'workspace-preview-hidden',
+
+      const mutation = await mutateDocumentWorkspacePreview({
+        intent: 'hide',
         filePath,
-        legacyReadOnly: false,
+        kind,
+        currentSession: this.session,
+      })
+
+      if (!mutation || typeof mutation !== 'object') return null
+
+      this.setWorkspacePreviewRequestForFile(filePath, null)
+      if (typeof mutation.visibility === 'string') {
+        this.setWorkspacePreviewVisibility(filePath, mutation.visibility)
       }
+      if (mutation.sessionState && typeof mutation.sessionState === 'object') {
+        this.setSessionState(mutation.sessionState)
+      }
+
+      return mutation.result || null
     },
 
     runBuildForFile(filePath, options = {}) {
@@ -537,8 +617,10 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.markdownPreviewState = {}
       this.workspacePreviewVisibility = {}
       this.workspacePreviewRequests = {}
+      this.resolvedWorkspacePreviewStates = {}
       this._isReconciling = false
       this._lastTrigger = null
+      this._resolvedWorkspacePreviewStateInflight?.clear?.()
     },
   },
 })

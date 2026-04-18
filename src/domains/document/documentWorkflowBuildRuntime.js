@@ -93,23 +93,18 @@ function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, w
   return true
 }
 
-function resolvePreviewState(filePath, adapter, context, options = {}) {
+function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
   const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
-  return resolveDocumentWorkspacePreviewState({
+  return {
     path: filePath,
-    workflowUiState: { kind: adapter.kind, previewKind: requestedPreviewKind },
+    sourcePath: options.sourcePath || '',
+    workflowKind: adapter.kind,
+    workflowPreviewKind: requestedPreviewKind || '',
     previewKind: requestedPreviewKind,
     resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
-    expectedTargetPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
-    nativePreviewSupported: resolveNativePreviewSupported(
-      filePath,
-      adapter,
-      context,
-      requestedPreviewKind,
-      options,
-    ),
+    targetResolution: options.targetResolution || '',
     previewRequested: resolvePreviewRequested(
       filePath,
       requestedPreviewKind,
@@ -120,6 +115,36 @@ function resolvePreviewState(filePath, adapter, context, options = {}) {
     hasOpenLegacyPreview: options.hasOpenLegacyPreview === true,
     preserveOpenLegacy: options.preserveOpenLegacy === true,
     hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
+  }
+}
+
+function resolvePreviewState(filePath, adapter, context, options = {}) {
+  if (!adapter) return null
+
+  const request = buildPreviewStateRequest(filePath, adapter, context, options)
+  const cached = context.workflowStore?.getResolvedWorkspacePreviewState?.(filePath, request) || null
+  context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request)
+  if (cached) return cached
+
+  return resolveDocumentWorkspacePreviewState({
+    path: request.path,
+    sourcePath: request.sourcePath,
+    workflowUiState: { kind: request.workflowKind, previewKind: request.workflowPreviewKind || null },
+    previewKind: request.previewKind,
+    resolvedTargetPath: request.resolvedTargetPath,
+    expectedTargetPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
+    nativePreviewSupported: resolveNativePreviewSupported(
+      filePath,
+      adapter,
+      context,
+      request.previewKind,
+      options,
+    ),
+    previewRequested: request.previewRequested,
+    artifactReady: request.artifactReady,
+    hasOpenLegacyPreview: request.hasOpenLegacyPreview,
+    preserveOpenLegacy: request.preserveOpenLegacy,
+    hiddenByUser: request.hiddenByUser,
   })
 }
 

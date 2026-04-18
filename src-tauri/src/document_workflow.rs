@@ -26,11 +26,11 @@ pub struct DocumentWorkflowReconcileParams {
     pub allow_legacy_pane_result: bool,
 }
 
-fn is_preview_path(path: &str) -> bool {
+pub(crate) fn is_preview_path(path: &str) -> bool {
     path.starts_with("preview:")
 }
 
-fn is_new_tab(path: &str) -> bool {
+pub(crate) fn is_new_tab(path: &str) -> bool {
     path.starts_with("newtab:")
 }
 
@@ -44,7 +44,7 @@ fn is_latex(path: &str) -> bool {
     path.ends_with(".tex") || path.ends_with(".latex")
 }
 
-fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
+pub(crate) fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
     if path.trim().is_empty() || is_preview_path(path) || is_new_tab(path) {
         return None;
     }
@@ -57,7 +57,7 @@ fn get_document_workflow_kind(path: &str) -> Option<&'static str> {
     None
 }
 
-fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'static str> {
+pub(crate) fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'static str> {
     let preferred = prefs
         .get(kind)
         .and_then(|value| value.get("preferredPreview"))
@@ -76,7 +76,7 @@ fn preferred_preview_kind(kind: &str, prefs: &Value) -> Option<&'static str> {
     }
 }
 
-fn create_workflow_preview_path(
+pub(crate) fn create_workflow_preview_path(
     source_path: &str,
     kind: &str,
     preview_kind: Option<&str>,
@@ -90,7 +90,10 @@ fn create_workflow_preview_path(
     }
 }
 
-fn infer_workflow_preview_kind(source_path: &str, preview_path: &str) -> Option<&'static str> {
+pub(crate) fn infer_workflow_preview_kind(
+    source_path: &str,
+    preview_path: &str,
+) -> Option<&'static str> {
     if preview_path == format!("preview:{source_path}") {
         Some("html")
     } else {
@@ -113,7 +116,7 @@ fn get_leaves(node: &Value, leaves: &mut Vec<Value>) {
     }
 }
 
-fn find_right_neighbor_leaf(node: &Value, pane_id: &str) -> Option<Value> {
+pub(crate) fn find_right_neighbor_leaf(node: &Value, pane_id: &str) -> Option<Value> {
     if node.get("type").and_then(Value::as_str) != Some("split")
         || node.get("direction").and_then(Value::as_str) != Some("vertical")
     {
@@ -128,7 +131,7 @@ fn find_right_neighbor_leaf(node: &Value, pane_id: &str) -> Option<Value> {
     None
 }
 
-fn find_first_leaf(node: &Value) -> Option<Value> {
+pub(crate) fn find_first_leaf(node: &Value) -> Option<Value> {
     if node.get("type").and_then(Value::as_str) == Some("leaf") {
         return Some(node.clone());
     }
@@ -145,7 +148,7 @@ fn is_preview_capable_leaf(leaf: &Value) -> bool {
     active_tab.is_empty() || is_preview_path(active_tab)
 }
 
-fn matches_preview_binding(
+pub(crate) fn matches_preview_binding(
     tab_path: &str,
     source_path: &str,
     preferred_preview: Option<&str>,
@@ -169,10 +172,7 @@ fn matches_preview_binding(
     inferred.is_some() && (preferred_preview.is_none() || inferred == preferred_preview)
 }
 
-#[tauri::command]
-pub async fn document_workflow_reconcile(
-    params: DocumentWorkflowReconcileParams,
-) -> Result<Value, String> {
+pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcileParams) -> Value {
     let trigger = if params.trigger.trim().is_empty() {
         "manual".to_string()
     } else {
@@ -180,7 +180,7 @@ pub async fn document_workflow_reconcile(
     };
     let kind = get_document_workflow_kind(&params.active_file);
     if kind.is_none() {
-        return Ok(json!({
+        return json!({
             "type": "inactive",
             "trigger": trigger,
             "kind": null,
@@ -190,7 +190,7 @@ pub async fn document_workflow_reconcile(
             "sourcePaneId": if params.active_pane_id.trim().is_empty() { Value::Null } else { Value::String(params.active_pane_id.clone()) },
             "previewPaneId": null,
             "state": "inactive",
-        }));
+        });
     }
     let kind = kind.unwrap();
     let source_path = params.active_file.trim().to_string();
@@ -207,7 +207,7 @@ pub async fn document_workflow_reconcile(
         .unwrap_or(false);
 
     if params.allow_legacy_pane_result && is_detached && !params.force {
-        return Ok(json!({
+        return json!({
             "type": "detached",
             "kind": kind,
             "sourcePath": source_path,
@@ -217,7 +217,7 @@ pub async fn document_workflow_reconcile(
             "previewPaneId": null,
             "trigger": trigger,
             "state": "detached-by-user",
-        }));
+        });
     }
 
     let mut matched_legacy_preview: Option<(String, String)> = None;
@@ -246,7 +246,7 @@ pub async fn document_workflow_reconcile(
     }
 
     if !params.allow_legacy_pane_result && kind == "markdown" {
-        return Ok(json!({
+        return json!({
             "type": "workspace-preview",
             "kind": kind,
             "filePath": source_path,
@@ -262,11 +262,11 @@ pub async fn document_workflow_reconcile(
             "legacyReadOnly": false,
             "legacyPreviewPath": matched_legacy_preview.as_ref().map(|value| value.0.clone()).unwrap_or_default(),
             "legacyPreviewPaneId": matched_legacy_preview.as_ref().map(|value| value.1.clone()),
-        }));
+        });
     }
 
     if preferred_preview.is_none() || preview_path.is_none() {
-        return Ok(json!({
+        return json!({
             "type": "source-only",
             "kind": kind,
             "sourcePath": source_path,
@@ -276,11 +276,11 @@ pub async fn document_workflow_reconcile(
             "trigger": trigger,
             "previewPaneId": null,
             "state": "source-only",
-        }));
+        });
     }
 
     if let Some((matched_path, matched_pane_id)) = matched_legacy_preview {
-        return Ok(json!({
+        return json!({
             "type": "ready-existing",
             "kind": kind,
             "sourcePath": source_path,
@@ -290,11 +290,11 @@ pub async fn document_workflow_reconcile(
             "trigger": trigger,
             "previewPaneId": matched_pane_id,
             "state": "ready",
-        }));
+        });
     }
 
     if !params.force {
-        return Ok(json!({
+        return json!({
             "type": "source-only",
             "kind": kind,
             "sourcePath": source_path,
@@ -304,12 +304,12 @@ pub async fn document_workflow_reconcile(
             "trigger": trigger,
             "previewPaneId": null,
             "state": "source-only",
-        }));
+        });
     }
 
     if let Some(neighbor) = find_right_neighbor_leaf(&params.pane_tree, &params.active_pane_id) {
         if is_preview_capable_leaf(&neighbor) {
-            return Ok(json!({
+            return json!({
                 "type": "open-neighbor",
                 "kind": kind,
                 "sourcePath": source_path,
@@ -319,11 +319,11 @@ pub async fn document_workflow_reconcile(
                 "trigger": trigger,
                 "previewPaneId": neighbor.get("id").and_then(Value::as_str),
                 "state": "needs-preview",
-            }));
+            });
         }
     }
 
-    Ok(json!({
+    json!({
         "type": "split-right",
         "kind": kind,
         "sourcePath": source_path,
@@ -333,5 +333,12 @@ pub async fn document_workflow_reconcile(
         "trigger": trigger,
         "previewPaneId": null,
         "state": "needs-preview",
-    }))
+    })
+}
+
+#[tauri::command]
+pub async fn document_workflow_reconcile(
+    params: DocumentWorkflowReconcileParams,
+) -> Result<Value, String> {
+    Ok(document_workflow_reconcile_value(params))
 }
