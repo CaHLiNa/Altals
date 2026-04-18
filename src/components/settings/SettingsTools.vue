@@ -32,6 +32,41 @@
     </section>
 
     <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Selection precedence') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row is-stack">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('How skills and tools are chosen') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Altals resolves explicit requests first, then falls back to built-in local capability before external MCP tools.') }}
+            </div>
+          </div>
+
+          <div class="settings-row-control settings-ai-precedence-list">
+            <div class="settings-ai-precedence-item">
+              <div class="settings-ai-precedence-label">{{ t('1. $skill sets the workflow') }}</div>
+              <div class="settings-ai-precedence-copy">
+                {{ t('When you explicitly invoke a skill, that skill becomes the active workflow instead of prompt-based inference.') }}
+              </div>
+            </div>
+            <div class="settings-ai-precedence-item">
+              <div class="settings-ai-precedence-label">{{ t('2. #tool narrows tool choice') }}</div>
+              <div class="settings-ai-precedence-copy">
+                {{ t('When you explicitly name tools, Altals prefers those tools inside the selected workflow before implicit tool choice.') }}
+              </div>
+            </div>
+            <div class="settings-ai-precedence-item">
+              <div class="settings-ai-precedence-label">{{ t('3. Built-in before MCP by default') }}</div>
+              <div class="settings-ai-precedence-copy">
+                {{ t('Without an explicit #tool request, Altals prefers built-in workspace tools for local file work and reaches for MCP only when external capability is needed.') }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Runtime tools') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row is-stack">
@@ -264,6 +299,35 @@ onMounted(() => {
 .settings-ai-tool-label {
   font-size: 13px;
   color: var(--text-primary);
+}
+
+.settings-ai-precedence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.settings-ai-precedence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 16%, transparent);
+  background: color-mix(in srgb, var(--panel-muted) 5%, transparent);
+}
+
+.settings-ai-precedence-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-ai-precedence-copy {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
 }
 
 .settings-ai-runtime-groups {

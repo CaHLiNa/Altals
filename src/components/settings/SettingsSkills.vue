@@ -20,6 +20,20 @@
     </section>
 
     <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Skill routing') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row is-stack">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Skill precedence') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Use $skill to pin a workflow explicitly. If you also name #tool, the skill still defines the workflow and the tool request narrows execution inside it.') }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
       <div
         class="settings-skills-header-row"
         style="display: flex; align-items: center; justify-content: space-between"

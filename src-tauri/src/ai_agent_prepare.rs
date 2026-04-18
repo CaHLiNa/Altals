@@ -408,9 +408,13 @@ fn resolve_ai_invocation(
     active_skill: Option<Value>,
     altals_skills: &[Value],
     context_bundle: &Value,
+    has_explicit_tool_mentions: bool,
 ) -> (Option<Value>, String, Option<Value>) {
-    let fallback_skill =
-        infer_skill_from_prompt(prompt, altals_skills, context_bundle, active_skill);
+    let fallback_skill = if mode == "agent" && has_explicit_tool_mentions {
+        active_skill
+    } else {
+        infer_skill_from_prompt(prompt, altals_skills, context_bundle, active_skill)
+    };
     let Some((prefix, name, raw_name, remainder)) = parse_ai_invocation_input(prompt) else {
         return (fallback_skill, prompt.trim().to_string(), None);
     };
@@ -550,6 +554,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         params.active_skill.clone(),
         &params.altals_skills,
         &params.context_bundle,
+        !tool_mentions.is_empty(),
     );
     let skill = resolved_skill.unwrap_or(Value::Null);
     if skill.is_null() && !is_agent_session {
@@ -725,7 +730,17 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
             "fileMentions": file_mentions,
             "toolMentions": tool_mentions,
         },
+        "requestedToolMentions": if is_agent_session {
+            Value::Array(tool_mentions.iter().cloned().map(Value::String).collect())
+        } else {
+            Value::Array(Vec::new())
+        },
         "invocation": invocation,
+        "selectionPolicy": {
+            "explicitSkillWins": true,
+            "explicitToolsWinOverInference": true,
+            "builtInToolsBeforeMcpByDefault": true,
+        },
         "skill": skill,
         "providerState": params.provider_state,
         "providerId": provider_id,

@@ -29,6 +29,23 @@ Representative current entry points:
 
 ## Product direction
 
+### Research workbench thesis
+
+Altals is not optimizing for isolated features like “just writing”, “just references”, or “just AI”.
+
+The intended user job is one continuous research loop:
+
+1. collect or open source material
+2. organize references and project context
+3. read and extract what matters
+4. write the draft
+5. use grounded AI help against the active project and draft
+6. insert citations at the point of writing
+7. generate or maintain bibliography output
+8. revise safely inside the same desktop workspace
+
+The product should keep users inside that loop instead of pushing them into disconnected tools.
+
 ### Current shipped build
 
 The current shipped build remains centered on:
@@ -54,6 +71,34 @@ The next product expansion is not a separate surface. It is a deepening of the s
 - project-local context preparation plus optional plugin-capable model integrations
 
 The workbench can already open supporting files such as standalone PDFs, `.txt`, `.bib`, and common LaTeX sidecar text files. The next step is to turn that support into a coherent academic research loop rather than treat those files as second-class attachments.
+
+### Near-term delivery tracks
+
+The near-term product deepening is intentionally phased around the same workbench:
+
+#### Project references foundation
+
+- make references a real project asset instead of a loose set of imported files
+- keep references project-scoped first
+- make citation insertion dependable for both Markdown and LaTeX
+
+#### In-app reading loop
+
+- keep PDFs and source reading close to the active draft
+- preserve reading context inside the workspace instead of forcing app-switching
+- support draft-adjacent reading workflows
+
+#### Bibliography and metadata reliability
+
+- make imported references production-usable
+- improve duplicate handling, validation, and normalization
+- keep bibliography output predictable instead of fragile
+
+#### Grounded AI workflows
+
+- keep AI tied to the active draft, selected references, reader context, and project state
+- treat AI as an embedded workbench agent shell, not a detached chat product
+- keep the core app useful without AI
 
 ## Core surfaces
 
@@ -116,5 +161,4 @@ Citations and bibliography behavior should adapt to each format instead of forci
 
 - `docs/ARCHITECTURE.md`
 - `docs/DOMAINS.md`
-- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
 - `docs/DOCUMENT_WORKFLOW.md`

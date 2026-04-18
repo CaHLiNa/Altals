@@ -17,6 +17,8 @@ pub struct RuntimeToolDefinition {
     pub name: &'static str,
     pub description: &'static str,
     pub parameters: Value,
+    pub source_kind: &'static str,
+    pub invocation_name: &'static str,
 }
 
 #[derive(Debug, Clone)]
@@ -163,9 +165,51 @@ fn score_match(query: &str, relative_path: &str) -> Option<usize> {
     None
 }
 
+fn normalize_invocation_name(value: &str) -> String {
+    let mut output = String::new();
+    let mut last_dash = false;
+    for ch in value.trim().chars().flat_map(|ch| ch.to_lowercase()) {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            output.push('-');
+            last_dash = true;
+        }
+    }
+    output.trim_matches('-').to_string()
+}
+
+fn requested_tool_priority(
+    definition: &RuntimeToolDefinition,
+    requested_tool_mentions: &[String],
+) -> usize {
+    if requested_tool_mentions.is_empty() {
+        return if definition.source_kind == "mcp" {
+            2
+        } else {
+            1
+        };
+    }
+
+    let invocation = normalize_invocation_name(definition.invocation_name);
+    let name = normalize_invocation_name(definition.name);
+    if requested_tool_mentions.iter().any(|mention| {
+        let normalized = normalize_invocation_name(mention);
+        !normalized.is_empty() && (normalized == invocation || normalized == name)
+    }) {
+        0
+    } else if definition.source_kind == "mcp" {
+        2
+    } else {
+        1
+    }
+}
+
 pub fn resolve_runtime_tool_definitions_with_context(
     workspace_path: &str,
     enabled_tool_ids: &[String],
+    requested_tool_mentions: &[String],
     _context_bundle: &Value,
     _support_files: &[Value],
 ) -> Vec<RuntimeToolDefinition> {
@@ -190,6 +234,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
             name: "read_extension_catalog",
             description:
                 "Inspect configured MCP servers and extension sources available to this runtime.",
+            source_kind: "built-in",
+            invocation_name: "read-extension-catalog",
             parameters: json!({
                 "type": "object",
                 "properties": {},
@@ -203,6 +249,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "list_workspace_directory",
             description: "List immediate files and folders inside a workspace directory.",
+            source_kind: "built-in",
+            invocation_name: "list-workspace-directory",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -219,6 +267,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "search_workspace_files",
             description: "Search workspace files by path or filename.",
+            source_kind: "built-in",
+            invocation_name: "search-workspace-files",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -236,6 +286,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "read_workspace_file",
             description: "Read any text file from the current workspace.",
+            source_kind: "built-in",
+            invocation_name: "read-workspace-file",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -252,6 +304,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "create_workspace_file",
             description: "Create a new text file inside the workspace and open it in the editor.",
+            source_kind: "built-in",
+            invocation_name: "create-workspace-file",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -269,6 +323,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
             name: "write_workspace_file",
             description:
                 "Write text content to a workspace file and optionally open it in the editor.",
+            source_kind: "built-in",
+            invocation_name: "write-workspace-file",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -286,6 +342,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "open_workspace_file",
             description: "Open an existing workspace file in the editor.",
+            source_kind: "built-in",
+            invocation_name: "open-workspace-file",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -301,6 +359,8 @@ pub fn resolve_runtime_tool_definitions_with_context(
         RuntimeToolDefinition {
             name: "delete_workspace_path",
             description: "Delete a file or folder inside the workspace.",
+            source_kind: "built-in",
+            invocation_name: "delete-workspace-path",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -327,10 +387,24 @@ pub fn resolve_runtime_tool_definitions_with_context(
                         }
                         .into_boxed_str(),
                     ),
+                    source_kind: "mcp",
+                    invocation_name: Box::leak(
+                        normalize_invocation_name(&format!(
+                            "mcp {} {}",
+                            tool.server_name, tool.tool_name
+                        ))
+                        .into_boxed_str(),
+                    ),
                     parameters: tool.parameters,
                 }),
         );
     }
+
+    tools.sort_by(|left, right| {
+        requested_tool_priority(left, requested_tool_mentions)
+            .cmp(&requested_tool_priority(right, requested_tool_mentions))
+            .then_with(|| left.name.cmp(right.name))
+    });
 
     tools
 }

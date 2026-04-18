@@ -17,12 +17,9 @@ Turn the current Altals AI panel into a Codex Desktop-like agent surface.
 - Phase 4: active
 - Phase 5: pending
 
-Reference documents:
+Reference document:
 
-- runtime boundary: `docs/AI_CODEX_PHASE1_RUNTIME_AUDIT.md`
-- desktop interaction plan: `docs/AI_CODEX_PHASE2_DESKTOP_PARITY_PLAN.md`
-- control-state parity plan: `docs/AI_CODEX_PHASE3_CONTROL_STATE_PLAN.md`
-- extension parity plan: `docs/AI_CODEX_PHASE4_EXTENSION_MCP_PLAN.md`
+- consolidated phase record: `docs/AI_CODEX_DESKTOP_REPLICATION.md`
 
 This is not a Codex CLI UI clone. The target is:
 

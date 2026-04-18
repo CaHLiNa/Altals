@@ -438,6 +438,8 @@ pub struct RuntimeTurnRunParams {
     pub workspace_path: String,
     #[serde(default)]
     pub enabled_tool_ids: Vec<String>,
+    #[serde(default)]
+    pub requested_tool_mentions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

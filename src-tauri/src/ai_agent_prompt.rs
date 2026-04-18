@@ -10,6 +10,8 @@ pub struct AiAgentPromptParams {
     #[serde(default)]
     pub skill: Value,
     #[serde(default)]
+    pub invocation: Value,
+    #[serde(default)]
     pub extension_catalog: Value,
     #[serde(default)]
     pub context_bundle: Value,
@@ -27,6 +29,8 @@ pub struct AiAgentPromptParams {
     pub referenced_files: Vec<Value>,
     #[serde(default)]
     pub requested_tools: Vec<Value>,
+    #[serde(default)]
+    pub requested_tool_mentions: Vec<String>,
     #[serde(default)]
     pub enabled_tool_ids: Vec<String>,
     #[serde(default)]
@@ -223,6 +227,49 @@ fn build_requested_tools_block(requested_tools: &[Value]) -> String {
     }
     let mut lines = vec!["User-mentioned tools:".to_string()];
     lines.extend(entries.into_iter().map(|tool| format!("- {tool}")));
+    lines.join("\n")
+}
+
+fn build_selection_precedence_block(params: &AiAgentPromptParams) -> String {
+    let has_explicit_skill = params.invocation.get("prefix").and_then(Value::as_str) == Some("$");
+    let skill_name = string_field(&params.invocation, &["rawName", "name"]);
+    let has_explicit_tools = !params.requested_tool_mentions.is_empty();
+
+    let mut lines = vec!["Selection precedence:".to_string()];
+    if has_explicit_skill {
+        lines.push(format!(
+            "- Explicit skill invocation wins for workflow selection: ${}.",
+            if skill_name.is_empty() {
+                "skill".to_string()
+            } else {
+                skill_name
+            }
+        ));
+    } else {
+        lines.push(
+            "- If the user explicitly invokes a skill with $skill, treat that skill as the active workflow."
+                .to_string(),
+        );
+    }
+    if has_explicit_tools {
+        lines.push(format!(
+            "- Explicit tool requests take precedence over implicit tool choice inside that workflow: {}.",
+            params.requested_tool_mentions.join(", ")
+        ));
+    } else {
+        lines.push(
+            "- If the user explicitly names tools with #tool, prefer those tools before falling back to implicit selection."
+                .to_string(),
+        );
+    }
+    lines.push(
+        "- When no explicit tool is requested, prefer built-in workspace tools before MCP tools for local file and directory work."
+            .to_string(),
+    );
+    lines.push(
+        "- Use MCP tools only when the task needs external capability or when the user explicitly asks for that external tool."
+            .to_string(),
+    );
     lines.join("\n")
 }
 
@@ -513,6 +560,8 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         String::new(),
         build_available_skills_block(&params.altals_skills),
         String::new(),
+        build_selection_precedence_block(params),
+        String::new(),
         build_available_extensions_block(&params.extension_catalog),
         String::new(),
         build_available_tools_block(&params.enabled_tool_ids, &params.runtime_intent),
@@ -549,6 +598,8 @@ fn build_skill_mode_user_prompt(
         build_agent_context_snapshot(&params.skill, &params.context_bundle),
         String::new(),
         build_skill_support_prompt_block(&params.support_files),
+        String::new(),
+        build_selection_precedence_block(params),
         String::new(),
         build_available_extensions_block(&params.extension_catalog),
         String::new(),

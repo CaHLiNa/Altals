@@ -44,7 +44,11 @@ pub struct AiAgentRunParams {
     #[serde(default)]
     pub requested_tools: Vec<Value>,
     #[serde(default)]
+    pub requested_tool_mentions: Vec<String>,
+    #[serde(default)]
     pub runtime_intent: String,
+    #[serde(default)]
+    pub invocation: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -407,8 +411,10 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         attachments: params.attachments.clone(),
         referenced_files: params.referenced_files.clone(),
         requested_tools: params.requested_tools.clone(),
+        requested_tool_mentions: params.requested_tool_mentions.clone(),
         enabled_tool_ids: enabled_tool_ids.clone(),
         runtime_intent: params.runtime_intent.clone(),
+        invocation: params.invocation.clone(),
     })
     .await?;
 
@@ -428,6 +434,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         context_bundle: params.context_bundle.clone(),
         support_files: Vec::new(),
         enabled_tool_ids: prompt.enabled_tool_ids.clone(),
+        requested_tool_mentions: params.requested_tool_mentions.clone(),
         workspace_path,
     })
     .await?;
@@ -474,6 +481,20 @@ async fn ai_agent_run_started_session<R: Runtime>(
     let attachments = array_field(&prepared_run, &["attachments"]);
     let referenced_files = array_field(&prepared_run, &["referencedFiles"]);
     let requested_tools = array_field(&prepared_run, &["requestedTools"]);
+    let requested_tool_mentions = prepared_run
+        .get("requestedToolMentions")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let invocation = prepared_run
+        .get("invocation")
+        .cloned()
+        .unwrap_or(Value::Null);
 
     let execution_result: Result<(Value, Option<Value>, Option<Value>), String> = async {
         if should_use_codex_runtime_run(&prepared_run) {
@@ -514,8 +535,10 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 attachments: attachments.clone(),
                 referenced_files: referenced_files.clone(),
                 requested_tools: requested_tools.clone(),
+                requested_tool_mentions: requested_tool_mentions.clone(),
                 enabled_tool_ids,
                 runtime_intent: runtime_intent.clone(),
+                invocation: invocation.clone(),
             })
             .await?;
 
@@ -536,6 +559,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                         &["path"],
                     ),
                     enabled_tool_ids: prompt.enabled_tool_ids,
+                    requested_tool_mentions: requested_tool_mentions.clone(),
                 },
             )
             .await?;
@@ -561,7 +585,9 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 attachments: attachments.clone(),
                 referenced_files: referenced_files.clone(),
                 requested_tools: requested_tools.clone(),
+                requested_tool_mentions: requested_tool_mentions.clone(),
                 runtime_intent: runtime_intent.clone(),
+                invocation: invocation.clone(),
             })
             .await?;
 

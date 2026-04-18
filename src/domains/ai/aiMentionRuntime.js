@@ -59,6 +59,12 @@ function buildFileSuggestion(entry = {}, workspacePath = '') {
 
 function buildToolSuggestion(tool = {}) {
   const invocationName = String(tool.invocationName || '').trim()
+  const sourceKind = String(tool.sourceKind || '').trim()
+  const sourceLabel = String(tool.sourceLabel || '').trim()
+  const normalizedDescription = String(tool.description || '').trim()
+  const description = sourceKind === 'mcp'
+    ? [sourceLabel ? `MCP · ${sourceLabel}` : 'MCP', normalizedDescription].filter(Boolean).join(' · ')
+    : [sourceLabel === 'Altals' ? 'Built-in' : sourceLabel, normalizedDescription].filter(Boolean).join(' · ')
   return {
     id: tool.id,
     kind: 'tool',
@@ -66,13 +72,33 @@ function buildToolSuggestion(tool = {}) {
     groupKey: tool.groupKey || 'tools',
     groupLabel: tool.groupLabel || 'Tools',
     label: tool.label,
-    description: tool.description,
+    description,
     insertText: `#${normalizeSlug(invocationName || tool.label || tool.id)}`,
     toolId: tool.id,
-    sourceKind: tool.sourceKind || '',
-    sourceLabel: tool.sourceLabel || '',
+    sourceKind,
+    sourceLabel,
     invocationName,
   }
+}
+
+function scoreToolEntry(tool = {}, query = '') {
+  const invocationName = String(tool.invocationName || '').trim().toLowerCase()
+  const toolId = String(tool.id || '').trim().toLowerCase()
+  const label = String(tool.label || '').trim().toLowerCase()
+  const description = String(tool.description || '').trim().toLowerCase()
+  const sourceLabel = String(tool.sourceLabel || '').trim().toLowerCase()
+  const haystack = `${invocationName} ${toolId} ${label} ${description} ${sourceLabel}`.trim()
+  const normalizedQuery = normalizeSearch(query)
+  const sourcePenalty = String(tool.sourceKind || '').trim() === 'mcp' ? 10 : 0
+
+  if (!normalizedQuery) return sourcePenalty
+  if (invocationName === normalizedQuery) return sourcePenalty
+  if (toolId === normalizedQuery) return sourcePenalty + 1
+  if (label === normalizedQuery) return sourcePenalty + 2
+  if (invocationName.startsWith(normalizedQuery)) return sourcePenalty + 3
+  if (label.startsWith(normalizedQuery)) return sourcePenalty + 4
+  if (haystack.includes(normalizedQuery)) return sourcePenalty + 8
+  return Number.POSITIVE_INFINITY
 }
 
 function scoreFileEntry(entry = {}, query = '', workspacePath = '') {
@@ -116,12 +142,17 @@ export function getAiComposerSuggestions({
   if (token.prefix === '#') {
     const normalizedQuery = token.normalizedQuery
     return (Array.isArray(tools) ? tools : [])
-      .filter((tool) => {
-        const haystack = `${tool.id} ${tool.label} ${tool.description}`.toLowerCase()
-        return !normalizedQuery || haystack.includes(normalizedQuery)
+      .map((tool) => ({
+        tool,
+        score: scoreToolEntry(tool, normalizedQuery),
+      }))
+      .filter((entry) => Number.isFinite(entry.score))
+      .sort((left, right) => {
+        if (left.score !== right.score) return left.score - right.score
+        return String(left.tool.label || '').localeCompare(String(right.tool.label || ''))
       })
       .slice(0, 8)
-      .map((tool) => buildToolSuggestion(tool))
+      .map(({ tool }) => buildToolSuggestion(tool))
   }
 
   if (token.prefix === '/') {

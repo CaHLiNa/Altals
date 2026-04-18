@@ -38,6 +38,8 @@ pub struct AiAgentExecuteParams {
     #[serde(default)]
     pub enabled_tool_ids: Vec<String>,
     #[serde(default)]
+    pub requested_tool_mentions: Vec<String>,
+    #[serde(default)]
     pub workspace_path: String,
 }
 
@@ -228,6 +230,7 @@ pub async fn ai_agent_execute(
     let tool_definitions = resolve_runtime_tool_definitions_with_context(
         &params.workspace_path,
         &params.enabled_tool_ids,
+        &params.requested_tool_mentions,
         &params.context_bundle,
         &params.support_files,
     );

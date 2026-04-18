@@ -1,6 +1,43 @@
 # Operations
 
-This doc tracks repository operations that keep the desktop app and its review workflow coherent.
+This doc tracks repository operations, contributor workflow, and build/release expectations that keep the desktop app and its review workflow coherent.
+
+## Contributor workflow
+
+### Before changing code
+
+- read `AGENTS.md`
+- for meaningful product work, start with `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`
+- consult `docs/DOCUMENT_WORKFLOW.md` when changing preview, compile, or editor workflow behavior
+- use this document when the change touches agent workflow, release steps, validation commands, or environment-dependent operations
+
+### Working expectations
+
+- investigate first, then change
+- update docs in the same slice when behavior or repo policy changes
+- prefer deleting stale architecture over preserving dead systems
+- do not let the `web/` directory drive desktop app decisions unless explicitly requested
+- keep the desktop app as the primary product surface for decision-making
+
+### Practical contribution flow
+
+1. identify the smallest meaningful slice
+2. read the relevant product, architecture, and subsystem docs
+3. inspect the live code before proposing structural changes
+4. implement the change without speculative expansions
+5. run the minimum relevant validation command for the touched slice
+6. run broader checks when the slice affects meaningful frontend or integration behavior
+7. update docs when repository expectations changed
+
+### When docs must change too
+
+Update docs in the same slice when you change:
+
+- product scope or boundaries
+- architectural ownership or directory responsibilities
+- document workflow behavior
+- repository validation or release expectations
+- required contributor workflow commands
 
 ## Local development operations
 
@@ -33,6 +70,38 @@ For native editor work, prefer helper-backed slices that keep the active workben
 - keep save-time document materialization aligned with `native_editor_document_state`
 - keep interaction analysis and text replacement planning aligned with Rust-backed inspection commands
 - avoid reintroducing legacy Web-editor fallbacks, user-visible experimental settings, or placeholder editor panes
+
+## Build and packaging system
+
+### Public script entry points
+
+The root `package.json` currently exposes these main build-related scripts:
+
+- `npm run dev`
+- `npm run build`
+- `npm run preview`
+- `npm run tauri -- dev`
+- `npm run tauri -- build`
+- `npm run build:macos:app`
+- `npm run build:macos:dmg`
+- `npm run version:check`
+- `npm run version:bump:*`
+
+### Tooling entry points
+
+- `package.json` defines public scripts
+- `scripts/frontendBaselineTooling.mjs` owns the frontend lint/format baseline
+- `scripts/run-tauri.mjs` is the main Tauri entry
+- `scripts/version-utils.mjs` and `scripts/bump-version.mjs` manage version checks and bumps
+- `scripts/build-macos-dmg.mjs` builds the helper DMG
+- `.github/workflows/release-on-version-bump.yml` handles version-bump-to-tag flow
+- `.github/workflows/release.yml` builds and publishes release artifacts from tags or manual dispatch
+
+### Build layers
+
+- Vite builds the frontend bundles used by the desktop app
+- Tauri packages the desktop shell around the frontend build output
+- the Rust backend under `src-tauri/` provides the native integration layer
 
 ## Environment-dependent operations
 
@@ -85,5 +154,5 @@ Current release flow:
 
 ## See also
 
-- `docs/BUILD_SYSTEM.md`
-- `docs/CONTRIBUTING.md`
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`

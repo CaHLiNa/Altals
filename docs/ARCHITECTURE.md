@@ -233,5 +233,5 @@ Repository automation is split between:
 
 - `docs/PRODUCT.md`
 - `docs/DOMAINS.md`
-- `docs/ACADEMIC_PLATFORM_DIRECTION.md`
+- `docs/PRODUCT.md`
 - `docs/DOCUMENT_WORKFLOW.md`

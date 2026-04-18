@@ -929,6 +929,7 @@ pub async fn run_turn<R: Runtime>(
     let user_text = params.user_text.clone();
     let workspace_path = params.workspace_path.clone();
     let enabled_tool_ids = params.enabled_tool_ids.clone();
+    let requested_tool_mentions = params.requested_tool_mentions.clone();
     let runtime_for_task = runtime.clone();
     let app_for_task = app.clone();
     let assistant_item_id = assistant_item.id.clone();
@@ -939,6 +940,7 @@ pub async fn run_turn<R: Runtime>(
         let tool_definitions = resolve_runtime_tool_definitions_with_context(
             &workspace_path,
             &enabled_tool_ids,
+            &requested_tool_mentions,
             &Value::Null,
             &[],
         );
