@@ -1,7 +1,7 @@
 {
-  "productName": "Altals",
+  "productName": "ScribeFlow",
   "version": "1.0.11",
-  "identifier": "com.altals.desktop",
+  "identifier": "com.scribeflow.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Altals",
+        "title": "ScribeFlow",
         "width": 1120,
         "height": 720,
         "minWidth": 1120,

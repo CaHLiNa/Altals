@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 const CROSSREF_API: &str = "https://api.crossref.org/works";
 const DOI_API: &str = "https://doi.org";
-const CROSSREF_USER_AGENT: &str = "Altals/1.0 (desktop references)";
+const CROSSREF_USER_AGENT: &str = "ScribeFlow/1.0 (desktop references)";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

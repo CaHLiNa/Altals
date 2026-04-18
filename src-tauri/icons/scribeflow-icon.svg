@@ -1,0 +1,67 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="112" y1="90" x2="918" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF9F0" />
+      <stop offset="1" stop-color="#E7D2AE" />
+    </linearGradient>
+    <radialGradient id="paperGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(310 238) rotate(40.8) scale(648 572)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.9" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="nibFill" x1="318" y1="282" x2="688" y2="828" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E4276" />
+      <stop offset="1" stop-color="#0E2344" />
+    </linearGradient>
+    <linearGradient id="nibFacet" x1="430" y1="358" x2="576" y2="688" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B84C5" />
+      <stop offset="1" stop-color="#274A80" />
+    </linearGradient>
+    <filter id="softShadow" x="168" y="170" width="688" height="740" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="24" />
+      <feGaussianBlur stdDeviation="26" />
+      <feColorMatrix
+        type="matrix"
+        values="0 0 0 0 0.0862745 0 0 0 0 0.152941 0 0 0 0 0.258824 0 0 0 0.18 0"
+      />
+      <feBlend in2="SourceGraphic" result="shape" />
+    </filter>
+    <filter id="ribbonShadow" x="148" y="150" width="728" height="566" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="18" />
+      <feGaussianBlur stdDeviation="18" />
+      <feColorMatrix
+        type="matrix"
+        values="0 0 0 0 0.305882 0 0 0 0 0.0862745 0 0 0 0 0.0431373 0 0 0 0.18 0"
+      />
+      <feBlend in2="SourceGraphic" result="shape" />
+    </filter>
+  </defs>
+
+  <rect x="40" y="40" width="944" height="944" rx="228" fill="url(#bg)" />
+  <rect x="58" y="58" width="908" height="908" rx="210" stroke="#7D6648" stroke-opacity="0.14" stroke-width="4" />
+  <rect x="40" y="40" width="944" height="944" rx="228" fill="url(#paperGlow)" />
+
+  <g filter="url(#ribbonShadow)">
+    <path
+      d="M248 332C330 248 441 210 560 226C669 241 770 302 786 403C803 511 708 598 589 614C532 621 473 614 417 641C382 658 355 682 332 712"
+      stroke="#CC5A38"
+      stroke-width="106"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle cx="248" cy="332" r="26" fill="#CC5A38" />
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path
+      d="M512 216L738 442L590 804C578 833 548 852 518 852H506C476 852 446 833 434 804L286 442L512 216Z"
+      fill="url(#nibFill)"
+    />
+    <path
+      d="M512 330L632 450L553 700C548 716 534 727 518 729H506C490 727 476 716 471 700L392 450L512 330Z"
+      fill="url(#nibFacet)"
+    />
+    <circle cx="512" cy="518" r="52" fill="#F8F1E2" />
+    <path d="M512 332V804" stroke="#F8F1E2" stroke-width="24" stroke-linecap="round" />
+    <path d="M452 742L512 846L572 742H452Z" fill="#5B84C5" />
+  </g>
+</svg>

@@ -5,9 +5,9 @@ import {
   setWorkbenchMotionSourceActive,
 } from '../domains/workbench/workbenchMotionRuntime.js'
 
-export const SHELL_RESIZE_BODY_CLASS = 'altals-shell-resizing'
-export const SHELL_RESIZE_START_EVENT = 'altals-shell-resize-start'
-export const SHELL_RESIZE_END_EVENT = 'altals-shell-resize-end'
+export const SHELL_RESIZE_BODY_CLASS = 'scribeflow-shell-resizing'
+export const SHELL_RESIZE_START_EVENT = 'scribeflow-shell-resize-start'
+export const SHELL_RESIZE_END_EVENT = 'scribeflow-shell-resize-end'
 export const SHELL_RESIZE_PHASE_EVENT = WORKBENCH_MOTION_PHASE_EVENT
 
 const activeShellResizeSources = new Set()

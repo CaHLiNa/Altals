@@ -511,11 +511,11 @@ function handleOpenExternalPdf() {
 watch(
   [activeEditorRuntime, activeTabRef, workflowUiState, workflowProblems],
   ([runtime, activeTab, uiState, problems]) => {
-    if (runtime?.altalsSetDiagnostics) {
-      runtime.altalsSetDiagnostics(Array.isArray(problems) ? problems : [])
+    if (runtime?.scribeflowSetDiagnostics) {
+      runtime.scribeflowSetDiagnostics(Array.isArray(problems) ? problems : [])
     }
-    if (runtime?.altalsSetOutlineContext) {
-      runtime.altalsSetOutlineContext(
+    if (runtime?.scribeflowSetOutlineContext) {
+      runtime.scribeflowSetOutlineContext(
         activeTab
           ? {
               filePath: activeTab,

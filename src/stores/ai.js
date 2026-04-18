@@ -358,7 +358,7 @@ async function switchSessionOverlayState({
 async function prepareAgentRunFromCurrentConfigRust({
   activeSession = null,
   activeSkill = null,
-  altalsSkills = [],
+  scribeflowSkills = [],
   contextBundle = {},
   sessionMode = 'chat',
   workspacePath = '',
@@ -368,7 +368,7 @@ async function prepareAgentRunFromCurrentConfigRust({
     params: {
       activeSession,
       activeSkill,
-      altalsSkills,
+      scribeflowSkills,
       contextBundle,
       sessionMode,
       workspacePath,
@@ -522,8 +522,8 @@ export const useAiStore = defineStore('ai', {
     ...createInitialAgentSessionsState({
       fallbackTitle: buildDefaultSessionTitle(1),
     }),
-    altalsSkillCatalog: [],
-    isRefreshingAltalsSkills: false,
+    scribeflowSkillCatalog: [],
+    isRefreshingScribeFlowSkills: false,
     lastSkillCatalogError: '',
     providerState: {
       ready: false,
@@ -577,8 +577,8 @@ export const useAiStore = defineStore('ai', {
       })
     },
 
-    altalsSkills(state) {
-      return Array.isArray(state.altalsSkillCatalog) ? state.altalsSkillCatalog : []
+    scribeflowSkills(state) {
+      return Array.isArray(state.scribeflowSkillCatalog) ? state.scribeflowSkillCatalog : []
     },
 
     promptDraft() {
@@ -1165,9 +1165,9 @@ export const useAiStore = defineStore('ai', {
       return this.enabledToolIds.includes(String(toolId || '').trim())
     },
 
-    async refreshAltalsSkills() {
+    async refreshScribeFlowSkills() {
       const workspace = useWorkspaceStore()
-      this.isRefreshingAltalsSkills = true
+      this.isRefreshingScribeFlowSkills = true
       this.lastSkillCatalogError = ''
 
       try {
@@ -1178,7 +1178,7 @@ export const useAiStore = defineStore('ai', {
           },
         })
         const skills = Array.isArray(response?.skills) ? response.skills : []
-        this.altalsSkillCatalog = skills
+        this.scribeflowSkillCatalog = skills
         return skills
       } catch (error) {
         this.lastSkillCatalogError =
@@ -1187,7 +1187,7 @@ export const useAiStore = defineStore('ai', {
             : String(error || t('Failed to load skills.'))
         return []
       } finally {
-        this.isRefreshingAltalsSkills = false
+        this.isRefreshingScribeFlowSkills = false
       }
     },
 
@@ -1524,7 +1524,7 @@ export const useAiStore = defineStore('ai', {
         preparedRun = await prepareAgentRunFromCurrentConfigRust({
           activeSession,
           activeSkill: null,
-          altalsSkills: this.altalsSkills,
+          scribeflowSkills: this.scribeflowSkills,
           contextBundle: this.currentContextBundle,
           sessionMode: 'agent',
           workspacePath: useWorkspaceStore().path || '',
@@ -1662,7 +1662,7 @@ export const useAiStore = defineStore('ai', {
         const runResponse = await runPreparedAgentSessionRust({
           session: runSessionBase,
           preparedRun,
-          altalsSkills: this.altalsSkills,
+          scribeflowSkills: this.scribeflowSkills,
           pendingAssistantId,
           userMessageId,
           createdAt: Date.now(),
@@ -1772,8 +1772,8 @@ export const useAiStore = defineStore('ai', {
           let currentContent = ''
           const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
             || editorStore.getAnyEditorView(artifact.filePath)
-          if (editorRuntime?.altalsGetContent) {
-            currentContent = editorRuntime.altalsGetContent()
+          if (editorRuntime?.scribeflowGetContent) {
+            currentContent = editorRuntime.scribeflowGetContent()
           } else if (artifact.filePath in filesStore.fileContents) {
             currentContent = filesStore.fileContents[artifact.filePath]
           } else {
@@ -1791,8 +1791,8 @@ export const useAiStore = defineStore('ai', {
           if (!saved) {
             throw new Error(t('Failed to save AI patch to the document.'))
           }
-          if (editorRuntime?.altalsApplyExternalContent) {
-            await editorRuntime.altalsApplyExternalContent(nextContent)
+          if (editorRuntime?.scribeflowApplyExternalContent) {
+            await editorRuntime.scribeflowApplyExternalContent(nextContent)
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'

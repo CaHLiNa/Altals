@@ -1,48 +1,48 @@
-# Altals Rust-Native Editor Feature Recovery Plan
+# ScribeFlow Rust-Native Editor 功能恢复计划
 
-> **For agentic workers:** this plan starts after the Rust-native editor migration cutover is already closed. Do not reintroduce CodeMirror, do not add a user-facing fallback editor, and do not turn `NativePrimaryTextSurface.vue` back into a large semantics component.
+> **面向 agent worker：** 本计划开始执行时，Rust-native editor 迁移切换已经结束。不要重新引入 CodeMirror，不要新增面向用户的 fallback editor，也不要把 `NativePrimaryTextSurface.vue` 再次做回一个大型语义组件。
 
-**Goal:** Rebuild the missing editor presentation and assist-layer capabilities on top of the Rust-native editor path so Markdown and LaTeX authoring regain the usability that existed before CodeMirror was removed.
+**目标：** 在 Rust-native editor 路径之上，重新补齐缺失的编辑器呈现层与辅助能力，使 Markdown 与 LaTeX 写作恢复到移除 CodeMirror 之前的可用性水平。
 
-**Architecture:** Rust owns editor semantics, context inspection, completion/snippet planning, and presentation snapshot generation. Vue owns host DOM, popups, menus, overlays, and workbench-level side effects.
+**架构：** Rust 负责编辑器语义、上下文检查、completion / snippet planning 与 presentation snapshot generation。Vue 负责 host DOM、popup、menu、overlay 以及 workbench 级副作用。
 
-**Non-goal:** This is not a migration plan and not a visual redesign. It is a post-cutover capability recovery plan.
-
----
-
-## Current Gap Inventory
-
-The active native primary surface is still missing these capability groups:
-
-1. syntax highlighting and token theming
-2. gutter rendering for line numbers and fold affordances
-3. active-line / selection-match / bracket-match / drop-cursor visual feedback
-4. Markdown footnote and math hover preview
-5. Markdown formatting shortcuts
-6. Markdown slash snippets popup
-7. wiki-link autocomplete
-8. Markdown inline semantic decorations for wiki links and citations
-9. Markdown table insert / format commands
-10. LaTeX autocomplete popup
-11. project-aware LaTeX completions for cite/ref/input/bibliography flows
-12. LaTeX inline citation decorations and annotation
-13. editor context menu parity
+**非目标：** 这不是迁移计划，也不是视觉重设计。这是一份切换完成之后的能力恢复计划。
 
 ---
 
-## Guardrails
+## 当前缺口清单
 
-- Do not reintroduce CodeMirror code or dependencies.
-- Do not rebuild long-term editor semantics as Vue-only regex logic if the same logic belongs in Rust.
-- Keep `NativePrimaryTextSurface.vue` thin; move policy and semantic planning into Rust or `src/domains/editor/*`.
-- Preserve the existing desktop shell look and feel unless a minimal visual change is required to restore parity.
-- Maintain Markdown and LaTeX workflow compatibility while rebuilding assist layers.
+当前 native primary surface 仍然缺失以下能力组：
+
+1. syntax highlighting 与 token theming
+2. 用于行号与折叠提示的 gutter rendering
+3. active-line / selection-match / bracket-match / drop-cursor 视觉反馈
+4. Markdown footnote 与数学公式 hover 预览
+5. Markdown 格式快捷键
+6. Markdown slash snippet 弹窗
+7. wiki-link 自动补全
+8. Markdown wiki-link 与 citation 的 inline semantic decoration
+9. Markdown 表格插入 / 格式化命令
+10. LaTeX 自动补全弹窗
+11. 面向项目图谱的 LaTeX cite / ref / input / bibliography completion
+12. LaTeX citation decoration 与 annotation
+13. editor context menu 对齐
 
 ---
 
-## Primary Files
+## 护栏
 
-### Native/runtime side
+- 不要重新引入 CodeMirror 代码或依赖。
+- 如果同样的逻辑本应属于 Rust，就不要用 Vue-only 的 regex 逻辑重建长期编辑器语义。
+- 保持 `NativePrimaryTextSurface.vue` 轻量，把策略和语义 planning 放进 Rust 或 `src/domains/editor/*`。
+- 除非更优且能恢复一致性的视觉结果确实需要更宽范围但连贯的改动，否则应保留现有桌面 shell 的视觉与交互方向。
+- 在补回辅助层能力时，必须保持 Markdown 与 LaTeX 工作流兼容。
+
+---
+
+## 主要文件
+
+### Native / runtime 侧
 
 - `src-tauri/src/native_editor_bridge.rs`
 - `src-tauri/src/native_editor_runtime.rs`
@@ -50,13 +50,13 @@ The active native primary surface is still missing these capability groups:
 - `src/services/editorRuntime/nativeBridge.js`
 - `src/stores/editorRuntime.js`
 
-### Domain and host side
+### Domain 与 host 侧
 
 - `src/domains/editor/nativePrimarySurfaceRuntime.js`
 - `src/components/editor/NativePrimaryTextSurface.vue`
 - `src/components/editor/EditorContextMenu.vue`
 
-### Existing workflow surfaces that must keep working
+### 必须保持可用的既有工作流界面
 
 - `src/components/editor/DocumentWorkflowBar.vue`
 - `src/services/documentWorkflow/adapters/markdown.js`
@@ -67,288 +67,288 @@ The active native primary surface is still missing these capability groups:
 
 ---
 
-## Task 1: Rebuild Rust-Native Presentation Primitives
+## 任务 1：重建 Rust-Native 呈现层基础能力
 
-**Status:** pending
+**状态：** 待处理
 
-**Goal:** restore the visual/editorial affordances that disappeared when CodeMirror rendering was removed.
+**目标：** 恢复在移除 CodeMirror 渲染后消失的视觉与编辑反馈能力。
 
-- [ ] **Step 1: Define a native presentation snapshot contract**
+- [ ] **步骤 1：定义 native presentation snapshot contract**
 
-Rust should expose a typed visible-slice snapshot that can describe:
+Rust 应暴露一套类型化的 visible-slice snapshot，至少能描述：
 
-- per-line visible spans
-- token classes for syntax highlighting
-- semantic marks for wiki links and citations
+- 每行可见 span
+- syntax highlighting 的 token class
+- wiki-link 与 citation 的 semantic mark
 - active line
-- selection ranges
-- selection-match ranges
-- bracket-match ranges
-- optional drop-cursor position
+- selection 范围
+- selection-match 范围
+- bracket-match 范围
+- 可选 drop-cursor position
 
-- [ ] **Step 2: Implement Rust-side visible-slice tokenization hooks**
+- [ ] **步骤 2：实现 Rust 侧 visible-slice tokenization hook**
 
-Start with Markdown and LaTeX token classes only. The first version must not hardcode tokenization in Vue.
+第一版先覆盖 Markdown 与 LaTeX token class，不允许在 Vue 中硬编码 tokenization。
 
-Minimum Rust-provided token/semantic coverage:
+Rust 第一版最少应提供这些 token / semantic coverage：
 
-- headings
-- emphasis and strong
-- code spans and fences
-- links and URLs
-- list markers
-- LaTeX commands
-- LaTeX math-ish command spans
-- comments where applicable
-- citation and wikilink semantic spans
+- heading
+- emphasis 与 strong
+- code span 与 fenced code
+- link 与 URL
+- list marker
+- LaTeX 命令
+- LaTeX 数学命令片段
+- comment（如适用）
+- citation 与 wikilink semantic span
 
-- [ ] **Step 3: Add a Vue host rendering layer without reintroducing CodeMirror**
+- [ ] **步骤 3：在不重新引入 CodeMirror 的前提下补一层 Vue host rendering**
 
-`NativePrimaryTextSurface.vue` should render a visual text layer using Rust-provided presentation spans.
+`NativePrimaryTextSurface.vue` 应基于 Rust 提供的 presentation span 渲染视觉文本层。
 
-Expected output:
+期望输出：
 
-- syntax-highlighted visible text
-- semantic decoration classes for wiki links and citations
-- active-line visual state
-- selection and reveal visuals consistent with the current editor chrome
+- 可见文本的 syntax highlight
+- wiki-link 与 citation 的 semantic decoration class
+- active-line 视觉状态
+- 与当前 editor chrome 一致的 selection 与 reveal 视觉反馈
 
-- [ ] **Step 4: Restore gutter rendering**
+- [ ] **步骤 4：恢复 gutter rendering**
 
-Requirements:
+要求：
 
-- stable line-number alignment
-- no layout jitter on scroll
-- current-line emphasis remains intact
-- gutter does not break Markdown/LaTeX preview sync interactions
+- 行号对齐稳定
+- 滚动时不能出现布局抖动
+- current-line emphasis 保持完整
+- gutter 不应破坏 Markdown / LaTeX 的 preview sync 交互
 
-- [ ] **Step 5: Restore editor visual feedback primitives**
+- [ ] **步骤 5：恢复编辑器视觉反馈基础能力**
 
-Restore:
+恢复：
 
 - active line
-- selection matches
+- selection match
 - bracket match
-- reveal target highlight
-- drop cursor visualization for file drops
+- reveal target 高亮
+- 文件拖入时的 drop cursor visualization
 
-- [ ] **Step 6: Verify presentation parity**
+- [ ] **步骤 6：验证呈现层对齐情况**
 
-Run:
+运行：
 
 ```bash
 npm run build
 ```
 
-Then manually verify on both Markdown and LaTeX files:
+然后分别在 Markdown 与 LaTeX 文件上手动验证：
 
-- syntax colors are present
-- gutter is present
-- active line and reveal highlight are visible
-- file-drop insertion still shows an intelligible target
+- syntax color 正常出现
+- gutter 正常出现
+- active line 与 reveal highlight 可见
+- 文件拖拽插入时仍能看到清晰的目标位置
 
 ---
 
-## Task 2: Rebuild Markdown Assist and Semantic Editing
+## 任务 2：重建 Markdown 辅助与语义编辑能力
 
-**Status:** pending
+**状态：** 待处理
 
-**Goal:** restore Markdown authoring ergonomics without putting long-term editor semantics back into Vue-only logic.
+**目标：** 恢复 Markdown 写作 ergonomics，同时避免把长期编辑器语义重新塞回 Vue-only 逻辑。
 
-- [ ] **Step 1: Rebuild Markdown formatting shortcuts**
+- [ ] **步骤 1：恢复 Markdown formatting shortcut**
 
-Restore:
+恢复：
 
 - `Mod-b` bold toggle
 - `Mod-i` italic toggle
 - `Mod-Shift-x` strikethrough toggle
 - `Mod-e` inline code toggle
 - `Mod-k` insert link
-- blockquote toggle
-- ordered-list toggle
-- unordered-list toggle
+- blockquote 切换
+- 有序列表切换
+- 无序列表切换
 
-Transformation planning should come from Rust.
+这些 transformation planning 应由 Rust 提供。
 
-- [ ] **Step 2: Rebuild Markdown slash snippets**
+- [ ] **步骤 2：恢复 Markdown slash snippet**
 
-Restore commands such as:
+恢复如下命令：
 
-- `/h1`, `/h2`, `/h3`
+- `/h1`、`/h2`、`/h3`
 - `/quote`
-- `/list`, `/olist`
+- `/list`、`/olist`
 - `/code`
 - `/math`
 - `/footnote`
 - `/image`
 - `/table`
 
-Requirements:
+要求：
 
-- Rust identifies snippet-trigger context and candidate set
-- Vue hosts the popup and applies the selected replacement plan
-- snippets must not trigger inside code spans or fences
+- Rust 负责识别 snippet trigger context 与 candidate set
+- Vue 负责承载 popup 并应用用户选中的 replacement plan
+- snippet 不能在 code span 或 fence 内触发
 
-- [ ] **Step 3: Rebuild wiki-link autocomplete**
+- [ ] **步骤 3：恢复 wiki-link autocomplete**
 
-Restore:
+恢复：
 
-- file name completion
-- heading completion after `#`
-- proper replacement and cursor placement
-- no activation inside code contexts
+- 文件名 completion
+- `#` 后的标题 completion
+- 正确的 replacement 与 cursor placement
+- 在 code context 中不应激活
 
-- [ ] **Step 4: Rebuild Markdown inline semantic decorations**
+- [ ] **步骤 4：恢复 Markdown inline semantic decoration**
 
-Restore visible differentiation for:
+恢复以下可见区分：
 
-- valid wiki links
-- broken wiki links
-- citation groups
-- broken citation keys
+- 有效 wiki-link
+- 失效 wiki-link
+- citation 分组
+- 失效 citation key
 
-- [ ] **Step 5: Rebuild Markdown hover affordances**
+- [ ] **步骤 5：恢复 Markdown hover affordance**
 
-Restore:
+恢复：
 
-- footnote hover preview
-- inline math hover preview
-- display math hover preview
+- footnote 悬停预览
+- inline math 悬停预览
+- display math 悬停预览
 
-- [ ] **Step 6: Rebuild Markdown table commands**
+- [ ] **步骤 6：恢复 Markdown 表格命令**
 
-Restore:
+恢复：
 
-- insert table action
-- format current table action
-- keyboard shortcuts for table commands
-- context menu exposure where previously available
+- 插入表格
+- 格式化当前表格
+- 表格相关 keyboard shortcut
+- 原先存在时，在 context menu 中重新暴露
 
-- [ ] **Step 7: Verify Markdown assist parity**
+- [ ] **步骤 7：验证 Markdown 辅助能力对齐**
 
-Manual acceptance must cover:
+手动验收必须覆盖：
 
-- shortcut toggles
-- slash snippets
-- wikilink completion
-- broken-link styling
-- footnote/math hover
-- table insert/format
+- shortcut 切换
+- slash snippet
+- wikilink 自动补全
+- broken-link 样式
+- footnote / math 悬停
+- 表格插入 / 格式化
 
 ---
 
-## Task 3: Rebuild LaTeX Assist and Semantic Editing
+## 任务 3：重建 LaTeX 辅助与语义编辑能力
 
-**Status:** pending
+**状态：** 待处理
 
-**Goal:** restore LaTeX authoring assist, project-aware completions, and visual semantic cues.
+**目标：** 恢复 LaTeX 写作辅助、面向项目的 completion，以及可见语义反馈。
 
-- [ ] **Step 1: Rebuild static LaTeX command autocomplete**
+- [ ] **步骤 1：恢复静态 LaTeX command autocomplete**
 
-Restore structured completion for:
+恢复结构化 completion，至少包括：
 
-- sectioning commands
-- text formatting commands
-- environment snippets
-- math commands
-- include / bibliography commands
-- document setup commands
+- sectioning 命令
+- 文本格式命令
+- environment snippet
+- 数学命令
+- include / bibliography 命令
+- 文档初始化相关 command
 
-- [ ] **Step 2: Rebuild project-aware LaTeX completions**
+- [ ] **步骤 2：恢复面向项目的 LaTeX completion**
 
-Restore completion flows for:
+恢复以下 completion flow：
 
 - cite / nocite
 - ref / eqref / pageref / autoref / cref
 - input / include / subfile
 - bibliography / addbibresource
 
-This work should reuse existing project graph/document intelligence services as data inputs while keeping completion context parsing in Rust.
+这部分应复用现有 project graph / document intelligence service 作为数据输入，同时把 completion context parsing 放在 Rust。
 
-- [ ] **Step 3: Rebuild LaTeX citation decorations**
+- [ ] **步骤 3：恢复 LaTeX citation decoration**
 
-Restore visible differentiation for:
+恢复以下可见区分：
 
-- LaTeX citation commands
-- citation keys
-- broken citation keys
-- optional post-citation inline annotation such as author/year
+- LaTeX citation 命令
+- citation key
+- 失效 citation key
+- 可选的 post-citation inline annotation，例如 author / year
 
-- [ ] **Step 4: Preserve formatter integration on the native path**
+- [ ] **步骤 4：在 native 路径上保持 formatter integration**
 
-Ensure the native path still fully supports:
+确保 native 路径仍完整支持：
 
-- explicit format-document command
+- 显式 format-document 命令
 - format-on-save
-- no cursor corruption after formatting
-- no dirty-state desynchronization after formatting
+- 格式化后不会破坏 cursor
+- 格式化后不会造成 dirty-state desynchronization
 
-- [ ] **Step 5: Verify LaTeX assist parity**
+- [ ] **步骤 5：验证 LaTeX 辅助能力对齐**
 
-Manual acceptance must cover:
+手动验收必须覆盖：
 
-- autocomplete popup appearance and insertion
-- cite/ref/input completions against a real project graph
-- citation decoration visibility
+- autocomplete popup 的出现与插入
+- 基于真实 project graph 的 cite / ref / input completion
+- citation decoration 可见
 - format document
 - format on save
 
 ---
 
-## Task 4: Rebuild Shell-Level Editor Interaction Parity
+## 任务 4：重建 shell 级编辑器交互一致性
 
-**Status:** pending
+**状态：** 待处理
 
-**Goal:** restore the remaining shell behaviors that were previously provided by the old editor path.
+**目标：** 恢复原旧编辑器路径曾提供、但当前仍缺失的 shell 行为。
 
-- [ ] **Step 1: Reconnect the editor context menu**
+- [ ] **步骤 1：重新接上 editor context menu**
 
-Restore `EditorContextMenu.vue` integration for:
+恢复 `EditorContextMenu.vue` 的集成，至少包括：
 
-- right-click / control-click open behavior
-- selection-aware actions
-- Markdown table actions where applicable
-- LaTeX format-document action where applicable
+- right-click / control-click 打开行为
+- 感知选区的 action
+- 适用时的 Markdown table action
+- 适用时的 LaTeX format-document action
 
-- [ ] **Step 2: Rebuild command routing for context-sensitive actions**
+- [ ] **步骤 2：恢复上下文敏感 action 的命令路由**
 
-The native surface should expose:
+native surface 应暴露：
 
 - format document
-- insert Markdown table
-- format Markdown table
-- citation edit/insert where contextually valid
+- 插入 Markdown 表格
+- 格式化 Markdown 表格
+- 在上下文有效时进行 citation edit / insert
 
-- [ ] **Step 3: Verify selection and interaction fidelity**
+- [ ] **步骤 3：验证选区与交互保真度**
 
-Check:
+检查：
 
-- double-click behavior
-- right-click does not destroy selection unexpectedly
-- keyboard save and formatting commands still work
-- drag insertion still works after context-menu and presentation changes
+- double-click 行为
+- right-click 不应意外破坏当前 selection
+- keyboard save 与 formatting command 仍然有效
+- context menu 与 presentation 变化后，drag insertion 仍然可用
 
-- [ ] **Step 4: Document the final host/runtime responsibility split**
+- [ ] **步骤 4：记录最终 host / runtime 职责拆分**
 
-Update docs so the architecture is explicit:
+更新文档，明确写清：
 
-- Rust owns editor semantics, context inspection, completion planning, and presentation snapshots
-- Vue owns host DOM, popups, menus, and workbench-level side effects
+- Rust 负责 editor semantics、context inspection、completion planning 与 presentation snapshot
+- Vue 负责 host DOM、popup、menu 与 workbench-level side effect
 
 ---
 
-## Task 5: Final Recovery Audit and Sign-Off
+## 任务 5：最终恢复审计与签收
 
-**Status:** pending
+**状态：** 待处理
 
-**Goal:** close the feature recovery work with a verification loop that matches the real editor feature surface.
+**目标：** 通过一轮与真实编辑器能力面一致的验证闭环，完成恢复工作签收。
 
-- [ ] **Step 1: Run code-level verification**
+- [ ] **步骤 1：运行代码级验证**
 
-Run the smallest complete set available for the changed slice:
+针对改动切片，运行当前最强的实用验证组合：
 
 ```bash
-cargo test --manifest-path src-tauri/Cargo.toml -p altals-editor-core
+cargo test --manifest-path src-tauri/Cargo.toml -p scribeflow-editor-core
 ```
 
 ```bash
@@ -359,61 +359,61 @@ cargo build --manifest-path src-tauri/Cargo.toml
 npm run build
 ```
 
-- [ ] **Step 2: Run desktop workflow verification**
+- [ ] **步骤 2：运行桌面工作流验证**
 
-Run:
+运行：
 
 ```bash
 npm run tauri -- dev
 ```
 
-Verify at minimum:
+最少验证以下路径：
 
-- Markdown draft with toolbar and preview
-- Markdown formatting shortcuts
-- Markdown snippets and wikilinks
-- LaTeX toolbar, compile, preview, and SyncTeX
-- LaTeX autocomplete and formatter integration
-- file-tree drag insertion
-- citation insert and citation edit
+- Markdown draft 配合 toolbar 与 preview
+- Markdown 格式快捷键
+- Markdown snippet 与 wikilink
+- LaTeX toolbar、compile、preview 与 SyncTeX
+- LaTeX autocomplete 与 formatter integration
+- file-tree 拖拽插入
+- citation insert 与 citation edit
 
-- [ ] **Step 3: Run a checklist against the full missing-groups inventory**
+- [ ] **步骤 3：对照完整缺口清单逐项核对**
 
-This work cannot be signed off until all 13 missing groups listed at the top are marked resolved with evidence.
+只有在文首列出的 13 个缺失能力组全部有证据标记为 resolved 之后，才能签收这项工作。
 
-- [ ] **Step 4: Run final postflight audit**
+- [ ] **步骤 4：执行最终 postflight 审计**
 
-If the repository script is usable, run:
+如果仓库脚本可用，运行：
 
 ```bash
 npm run agent:codex-postflight -- --plan docs/superpowers/plans/2026-04-19-rust-native-editor-feature-recovery.md
 ```
 
-If that script is not usable in the environment, perform a manual audit and record:
+如果当前环境无法运行该脚本，则手动审计并记录：
 
-- completed tasks
-- pending tasks
-- deviations
-- risks
-- verification evidence
-- next step
+- 已完成任务
+- 待完成任务
+- 偏离项
+- 风险
+- 验证证据
+- 下一步
 
-- [ ] **Step 5: Only then declare feature recovery complete**
+- [ ] **步骤 5：只有在此之后才能宣告功能恢复完成**
 
-Completion criteria:
+完成标准：
 
-- all 13 missing groups are resolved
-- no user-visible workflow still depends on deleted CodeMirror code
-- docs describe the native editor architecture accurately
+- 文首列出的 13 个缺失能力组全部解决
+- 没有任何面向用户的工作流仍依赖已删除的 CodeMirror 代码
+- 文档对 native editor 架构的描述准确无误
 
 ---
 
-## Recommended Execution Order
+## 推荐执行顺序
 
-1. Task 1: presentation primitives
-2. Task 2: Markdown assist
-3. Task 3: LaTeX assist
-4. Task 4: shell interaction parity
-5. Task 5: final audit and sign-off
+1. 任务 1：presentation primitive
+2. 任务 2：Markdown assist
+3. 任务 3：LaTeX assist
+4. 任务 4：shell interaction parity
+5. 任务 5：最终审计与签收
 
-Do not stop after restoring only one or two obvious regressions.
+不要在只恢复一两个最明显回归点之后就停止。

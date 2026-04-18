@@ -1,5 +1,5 @@
 [package]
-name = "altals-editor-core"
+name = "scribeflow-editor-core"
 version = "0.1.0"
 edition = "2021"
 

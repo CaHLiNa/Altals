@@ -1,25 +1,25 @@
-# Architecture
+# 架构说明
 
-## Default structure
+## 默认结构
 
-- `src/app`: shell lifecycle, app boot, and desktop orchestration
-- `src/domains/*`: product policy and reusable runtime decisions
-- `src/services/*`: effectful integrations and bridge code
-- `src/stores/*`: reactive state and thin coordination
-- `src/components/*`: UI rendering and user intent emission
-- `src/composables/*`: reusable UI glue
-- `src-tauri/*`: native backend commands, process execution, filesystem access, and typed desktop seams
+- `src/app`：shell 生命周期、应用启动与桌面编排。
+- `src/domains/*`：产品策略与可复用的运行时决策。
+- `src/services/*`：带副作用的集成层与桥接代码。
+- `src/stores/*`：响应式状态与轻量协调。
+- `src/components/*`：UI 渲染与用户意图发射。
+- `src/composables/*`：可复用的 UI 胶水。
+- `src-tauri/*`：原生后端命令、进程执行、文件系统访问与类型化桌面接缝。
 
-## Directional rules
+## 方向性规则
 
-- Keep product policy out of components when it can live in `domains`.
-- Keep `services` effectful but policy-light.
-- Keep stores thin over time instead of turning them into another policy layer.
-- Prefer Rust-owned runtime authority for AI/session/tool behavior.
-- Prefer small, validated slices over big-bang rewrites.
+- 能放在 `domains` 的产品策略，不要留在组件层。
+- `services` 保持有副作用，但策略要尽量轻。
+- `stores` 要持续保持薄，不要演化成另一层策略中心。
+- AI / session / tool 相关的运行时权威优先由 Rust 持有。
+- 优先做边界明确、可验证、并能把系统推向最优架构的切片，而不是保守地做无效增量。
 
-## Desktop UX guardrail
+## 桌面 UX 护栏
 
-- Preserve the existing desktop look and feel unless the user explicitly approves broader UI change.
-- If a frontend change is needed for a bug fix, keep the visual impact minimal.
-- Prefer a polished macOS-native direction over generic cross-platform chrome.
+- 除非用户明确批准更大范围的 UI 变化，否则应保留现有桌面端视觉与交互方向。
+- 如果为了修复 bug 必须改前端，应追求最优且一致的 UI 结果，而不是为了“少改一点”牺牲质量。
+- 优先选择精致的 macOS 原生体验，而不是泛化的跨平台外壳。

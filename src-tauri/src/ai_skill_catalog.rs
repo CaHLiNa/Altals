@@ -55,7 +55,7 @@ pub(crate) fn managed_skill_roots(
             if workspace.is_empty() {
                 String::new()
             } else {
-                format!("{workspace}/.altals/skills")
+                format!("{workspace}/.scribeflow/skills")
             },
         ),
         (
@@ -101,7 +101,7 @@ pub(crate) fn build_skill_search_roots(
         (!global.is_empty()).then(|| SkillRoot {
             path: format!("{global}/skills"),
             scope: "user".to_string(),
-            source: "altals-global".to_string(),
+            source: "scribeflow-global".to_string(),
         }),
         (!workspace.is_empty()).then(|| SkillRoot {
             path: format!("{workspace}/.claude/skills"),
@@ -124,9 +124,9 @@ pub(crate) fn build_skill_search_roots(
             source: "goose-workspace".to_string(),
         }),
         (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.altals/skills"),
+            path: format!("{workspace}/.scribeflow/skills"),
             scope: "workspace".to_string(),
-            source: "altals-workspace".to_string(),
+            source: "scribeflow-workspace".to_string(),
         }),
     ];
 
@@ -231,10 +231,10 @@ fn discover_skills_in_root(
         collect_supporting_files(&entry_path, &entry_path, &mut supporting_files);
         supporting_files.sort();
 
-        let managed_by_altals = managed_roots.values().any(|managed_root| {
+        let managed_by_scribeflow = managed_roots.values().any(|managed_root| {
             !managed_root.is_empty() && path_starts_with(&directory_path, managed_root)
         });
-        let writable_by_altals = writable_roots
+        let writable_by_scribeflow = writable_roots
             .iter()
             .any(|writable_root| path_starts_with(&directory_path, writable_root));
 
@@ -261,8 +261,8 @@ fn discover_skills_in_root(
             "sourceRootPath": source_root_path,
             "precedence": precedence,
             "supportingFiles": supporting_files,
-            "managedByAltals": managed_by_altals,
-            "writableByAltals": writable_by_altals,
+            "managedByScribeFlow": managed_by_scribeflow,
+            "writableByScribeFlow": writable_by_scribeflow,
         }));
     }
 

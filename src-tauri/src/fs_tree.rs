@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 const HIDDEN_WORKSPACE_FILES: &[&str] = &[
-    ".altals-latex-sync-debug.jsonl",
+    ".scribeflow-latex-sync-debug.jsonl",
     "_instructions.md",
     "instructions.md",
 ];

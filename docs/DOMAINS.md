@@ -1,26 +1,26 @@
-# Domains
+# Domains 说明
 
-## Purpose
+## 目的
 
-`src/domains/*` holds reusable product policy and runtime decision code that should not live in Vue components.
+`src/domains/*` 用来承载可复用的产品策略与运行时决策代码，这些逻辑不应直接放进 Vue 组件。
 
-## Current domain areas
+## 当前领域划分
 
 - `src/domains/ai`
-  AI runtime-facing presentation and context helpers that remain on the frontend side.
+  面向 AI 运行时的前端展示与上下文辅助逻辑。
 - `src/domains/document`
-  Document workflow resolution, build orchestration, preview adapters, and reconcile logic.
+  文档工作流解析、构建编排、预览适配与对账逻辑。
 - `src/domains/editor`
-  Pane-tree, tab, cleanup, restore, and editor-runtime coordination rules.
+  Pane 树、标签、清理、恢复与编辑器运行时协调规则。
 - `src/domains/files`
-  File creation, content, tree refresh, hydration, cache, and watcher policy.
+  文件创建、内容处理、树刷新、hydrate、缓存与 watcher 策略。
 - `src/domains/references`
-  Reference normalization, CSL conversion, and presentation helpers.
+  文献归一化、CSL 转换与展示辅助逻辑。
 - `src/domains/workbench`
-  Workbench motion and shell-level coordination helpers.
+  工作台动效与 shell 级协调辅助逻辑。
 - `src/domains/workspace`
-  Workspace template and starter logic.
+  工作区模板与启动逻辑。
 
-## Rule
+## 规则
 
-If behavior is product policy rather than side-effect plumbing, prefer `domains` over `components`, `services`, or `stores`.
+如果某段行为属于产品策略，而不是单纯副作用 plumbing，就优先放进 `domains`，而不是 `components`、`services` 或 `stores`。

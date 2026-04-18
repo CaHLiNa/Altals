@@ -88,7 +88,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     isOpen: (state) => !!state.path,
     isWorkspaceSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'workspace',
     isSettingsSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'settings',
-    altalsDir: (state) => state.workspaceDataDir || null,
+    scribeflowDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => (state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null),
     claudeDir: (state) => state.claudeConfigDir || null,
     claudeHooksDir: (state) =>

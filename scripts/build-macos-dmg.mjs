@@ -116,7 +116,7 @@ function main() {
 
   const target = getArg('--target')
   const config = readTauriConfig()
-  const productName = config.productName || 'Altals'
+  const productName = config.productName || 'ScribeFlow'
   const version = config.version
   const appPath = path.resolve(getArg('--app-path') || defaultAppPath(target, productName))
   const outputPath = path.resolve(getArg('--output') || defaultDmgPath(target, productName, version))
@@ -130,7 +130,7 @@ function main() {
     fs.rmSync(outputPath, { force: true })
   }
 
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'altals-dmg-'))
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scribeflow-dmg-'))
   const stagingDir = path.join(tempRoot, 'staging')
   fs.mkdirSync(stagingDir, { recursive: true })
 

@@ -246,7 +246,7 @@ function postLatexViewerMessage(type, payload = {}) {
   if (!frameWindow) return false
   frameWindow.postMessage(
     {
-      channel: 'altals-latex-sync',
+      channel: 'scribeflow-latex-sync',
       type,
       ...payload,
     },
@@ -310,19 +310,19 @@ function applyCanvasFilterFallback() {
   const useFallback = shouldUseCanvasFilterFallback()
   const pageBackground = resolvePdfPageBackground()
   const fallbackMode = resolvePdfCanvasFallbackMode(pageBackground)
-  root.dataset.altalsCanvasFilterFallback = useFallback ? 'true' : 'false'
+  root.dataset.scribeflowCanvasFilterFallback = useFallback ? 'true' : 'false'
   root.style.setProperty(
-    '--altals-pdf-page-bg',
+    '--scribeflow-pdf-page-bg',
     useFallback && pageBackground ? pageBackground : ''
   )
   root.style.setProperty(
-    '--altals-pdf-canvas-filter',
+    '--scribeflow-pdf-canvas-filter',
     useFallback && fallbackMode === 'dark'
       ? 'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)'
       : 'none'
   )
   root.style.setProperty(
-    '--altals-pdf-canvas-blend-mode',
+    '--scribeflow-pdf-canvas-blend-mode',
     useFallback ? (fallbackMode === 'dark' ? 'screen' : 'multiply') : 'normal'
   )
 }
@@ -334,13 +334,13 @@ function applyTheme() {
   const pdfSurfaceBackground = resolvePdfSurfaceBackground()
   const pageBackground = resolvePdfPageBackground()
   const tokenMap = new Map([
-    ['--altals-surface-base', '--surface-base'],
-    ['--altals-surface-raised', '--surface-raised'],
-    ['--altals-surface-hover', '--surface-hover'],
-    ['--altals-border-subtle', '--border-subtle'],
-    ['--altals-text-primary', '--text-primary'],
-    ['--altals-text-muted', '--text-muted'],
-    ['--altals-focus-ring', '--focus-ring'],
+    ['--scribeflow-surface-base', '--surface-base'],
+    ['--scribeflow-surface-raised', '--surface-raised'],
+    ['--scribeflow-surface-hover', '--surface-hover'],
+    ['--scribeflow-border-subtle', '--border-subtle'],
+    ['--scribeflow-text-primary', '--text-primary'],
+    ['--scribeflow-text-muted', '--text-muted'],
+    ['--scribeflow-focus-ring', '--focus-ring'],
   ])
 
   root.style.setProperty('color-scheme', getResolvedTheme())
@@ -352,8 +352,8 @@ function applyTheme() {
   }
 
   if (pdfSurfaceBackground) {
-    root.style.setProperty('--altals-shell-preview-surface', pdfSurfaceBackground)
-    root.style.setProperty('--altals-pdf-page-bg', pageBackground)
+    root.style.setProperty('--scribeflow-shell-preview-surface', pdfSurfaceBackground)
+    root.style.setProperty('--scribeflow-pdf-page-bg', pageBackground)
     root.style.setProperty('--body-bg-color', pdfSurfaceBackground)
     root.style.setProperty('--page-bg-color', pageBackground)
 
@@ -901,7 +901,7 @@ async function handleIframeViewerMessage(event) {
   const data = event.data
   if (!data || typeof data !== 'object') return
 
-  if (data.channel === 'altals-pdf-debug') {
+  if (data.channel === 'scribeflow-pdf-debug') {
     if (data.type === 'document-error' || data.type === 'open-failure') {
       if (
         fallbackToBlobAfterProtocolFailure({
@@ -931,7 +931,7 @@ async function handleIframeViewerMessage(event) {
     return
   }
 
-  if (data.channel !== 'altals-latex-sync') return
+  if (data.channel !== 'scribeflow-latex-sync') return
 
   if (data.type === 'loaded' || data.type === 'pagesinit') {
     latexViewerReady.value = true

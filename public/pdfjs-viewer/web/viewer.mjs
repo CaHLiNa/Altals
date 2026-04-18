@@ -17069,9 +17069,9 @@ const PDFViewerApplication = {
   _globalAbortController: new AbortController(),
   documentInfo: null,
   metadata: null,
-  _altalsInitPhase: "boot",
-  _altalsRunPhase: "boot",
-  _altalsOpenPhase: "idle",
+  _scribeflowInitPhase: "boot",
+  _scribeflowRunPhase: "boot",
+  _scribeflowOpenPhase: "idle",
   _contentDispositionFilename: null,
   _contentLength: null,
   _saveInProgress: false,
@@ -17090,10 +17090,10 @@ const PDFViewerApplication = {
   editorUndoBar: null,
   _printPermissionPromise: null,
   async initialize(appConfig) {
-    this._altalsInitPhase = "initialize:start";
+    this._scribeflowInitPhase = "initialize:start";
     this.appConfig = appConfig;
     try {
-      this._altalsInitPhase = "initialize:preferences";
+      this._scribeflowInitPhase = "initialize:preferences";
       await this.preferences.initializedPromise;
     } catch (ex) {
       console.error("initialize:", ex);
@@ -17113,21 +17113,21 @@ const PDFViewerApplication = {
     if (mode) {
       docStyle.setProperty("color-scheme", mode);
     }
-    this._altalsInitPhase = "initialize:create-l10n";
+    this._scribeflowInitPhase = "initialize:create-l10n";
     this.l10n = await this.externalServices.createL10n();
-    this._altalsInitPhase = "initialize:translate";
+    this._scribeflowInitPhase = "initialize:translate";
     document.getElementsByTagName("html")[0].dir = this.l10n.getDirection();
     this.l10n.translate(appConfig.appContainer || document.documentElement);
     if (this.isViewerEmbedded && AppOptions.get("externalLinkTarget") === LinkTarget.NONE) {
       AppOptions.set("externalLinkTarget", LinkTarget.TOP);
     }
-    this._altalsInitPhase = "initialize:components";
+    this._scribeflowInitPhase = "initialize:components";
     await this._initializeViewerComponents();
     this.pdfTextExtractor = new PdfTextExtractor(this.externalServices);
-    this._altalsInitPhase = "initialize:bind-events";
+    this._scribeflowInitPhase = "initialize:bind-events";
     this.bindEvents();
     this.bindWindowEvents();
-    this._altalsInitPhase = "initialize:ready";
+    this._scribeflowInitPhase = "initialize:ready";
     this._initializedCapability.settled = true;
     this._initializedCapability.resolve();
   },
@@ -17444,7 +17444,7 @@ const PDFViewerApplication = {
     }
   },
   async run(config) {
-    this._altalsRunPhase = "run:start";
+    this._scribeflowRunPhase = "run:start";
     const queryString = document.location.search.substring(1);
     const params = parseQueryString(queryString);
     const viewerQueryOptions = {
@@ -17460,17 +17460,17 @@ const PDFViewerApplication = {
         AppOptions.set(name, check(params.get(key)));
       }
     }
-    this._altalsRunPhase = "run:initialize";
+    this._scribeflowRunPhase = "run:initialize";
     await this.initialize(config);
-    this._altalsRunPhase = "run:initialized";
+    this._scribeflowRunPhase = "run:initialized";
     const {
       appConfig,
       eventBus
     } = this;
     let file;
     file = params.get("file") ?? AppOptions.get("defaultUrl");
-    this._altalsRunPhase = "run:file-param";
-    postAltalsDebugMessage("run-file", {
+    this._scribeflowRunPhase = "run:file-param";
+    postScribeFlowDebugMessage("run-file", {
       file: file || ""
     });
     try {
@@ -17478,10 +17478,10 @@ const PDFViewerApplication = {
     } catch {
       file = encodeURIComponent(file).replaceAll("%2F", "/");
     }
-    postAltalsDebugMessage("resolved-file", {
+    postScribeFlowDebugMessage("resolved-file", {
       file: file || ""
     });
-    this._altalsRunPhase = "run:file-resolved";
+    this._scribeflowRunPhase = "run:file-resolved";
     validateFileURL(file);
     const fileInput = this._openFileInput = document.createElement("input");
     fileInput.id = "fileInput";
@@ -17544,7 +17544,7 @@ const PDFViewerApplication = {
       appConfig.findBar?.toggleButton?.classList.add("hidden");
     }
     if (file) {
-      this._altalsRunPhase = "run:open-dispatched";
+      this._scribeflowRunPhase = "run:open-dispatched";
       this.open({
         url: file
       });
@@ -17735,11 +17735,11 @@ const PDFViewerApplication = {
     await Promise.all(promises);
   },
   async open(args) {
-    this._altalsOpenPhase = "open:start";
+    this._scribeflowOpenPhase = "open:start";
     if (this.pdfLoadingTask) {
       await this.close();
     }
-    postAltalsDebugMessage("open-start", {
+    postScribeFlowDebugMessage("open-start", {
       url: args?.url || "",
       originalUrl: args?.originalUrl || ""
     });
@@ -17764,15 +17764,15 @@ const PDFViewerApplication = {
     };
     loadingTask.onProgress = evt => this.progress(evt.percent);
     return loadingTask.promise.then(pdfDocument => {
-      this._altalsOpenPhase = "open:success";
-      postAltalsDebugMessage("open-success", {
+      this._scribeflowOpenPhase = "open:success";
+      postScribeFlowDebugMessage("open-success", {
         url: args?.url || "",
         pages: pdfDocument?.numPages || 0
       });
       this.load(pdfDocument);
     }, reason => {
-      this._altalsOpenPhase = "open:failure";
-      postAltalsDebugMessage("open-failure", {
+      this._scribeflowOpenPhase = "open:failure";
+      postScribeFlowDebugMessage("open-failure", {
         url: args?.url || "",
         name: reason?.name || "",
         message: reason?.message || String(reason || "")
@@ -17838,7 +17838,7 @@ const PDFViewerApplication = {
   async _documentError(key, moreInfo = null) {
     this._unblockDocumentLoadEvent();
     const message = await this._otherError(key || "pdfjs-loading-error", moreInfo);
-    postAltalsDebugMessage("document-error", {
+    postScribeFlowDebugMessage("document-error", {
       key: key || "pdfjs-loading-error",
       message,
       reason: moreInfo?.message ?? null,
@@ -17880,7 +17880,7 @@ const PDFViewerApplication = {
   },
   load(pdfDocument) {
     this.pdfDocument = pdfDocument;
-    postAltalsDebugMessage("document-load", {
+    postScribeFlowDebugMessage("document-load", {
       url: this.url || "",
       pages: pdfDocument?.numPages || 0
     });
@@ -18592,10 +18592,10 @@ const PDFViewerApplication = {
     return this.pdfScriptingManager.ready;
   }
 };
-function postAltalsDebugMessage(type, payload = {}) {
+function postScribeFlowDebugMessage(type, payload = {}) {
   try {
     window.parent?.postMessage({
-      channel: "altals-pdf-debug",
+      channel: "scribeflow-pdf-debug",
       type,
       ...payload
     }, "*");
@@ -18614,7 +18614,7 @@ initCom(PDFViewerApplication);
     if (String(file).startsWith("blob:")) {
       return;
     }
-    if (String(file).startsWith("altals-workspace://")) {
+    if (String(file).startsWith("scribeflow-workspace://")) {
       return;
     }
     const viewerOrigin = parseUrlOrNull(window.location)?.origin || "null";

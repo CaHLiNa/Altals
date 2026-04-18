@@ -159,7 +159,7 @@ export async function waitForLatexEditorView(editorStore, targetPath, timeoutMs 
 }
 
 export function resolveLatexEditorSelectionFromContext(targetRuntime, location = {}) {
-  const text = targetRuntime?.altalsGetContent?.() || ''
+  const text = targetRuntime?.scribeflowGetContent?.() || ''
   const line = Number(location?.line || 0)
   if (!text || !Number.isInteger(line) || line < 1) return null
 
@@ -224,13 +224,13 @@ export async function revealLatexSourceLocation(editorStore, location, options =
 
   const resolvedSelection = resolveLatexEditorSelectionFromContext(targetRuntime, location)
   if (resolvedSelection?.from != null) {
-    return !!targetRuntime?.altalsRevealRange?.(
+    return !!targetRuntime?.scribeflowRevealRange?.(
       resolvedSelection.from,
       resolvedSelection.to,
       options,
     )
   }
 
-  const from = lineStartOffset(targetRuntime?.altalsGetContent?.() || '', line)
-  return !!targetRuntime?.altalsRevealRange?.(from, from, options)
+  const from = lineStartOffset(targetRuntime?.scribeflowGetContent?.() || '', line)
+  return !!targetRuntime?.scribeflowRevealRange?.(from, from, options)
 }

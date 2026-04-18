@@ -1,89 +1,124 @@
-# Altals Agent Constitution
+# ScribeFlow Agent 宪章
 
-Scope: repository-wide.
+适用范围：整个仓库。
 
-Read `docs/PRODUCT.md` and `docs/ARCHITECTURE.md` before making meaningful changes.
-Consult `docs/DOCUMENT_WORKFLOW.md` for preview/compile/editor workflow work and `docs/OPERATIONS.md` for agent/release workflow commands.
+在进行有实质影响的修改前，先阅读 `docs/PRODUCT.md` 和 `docs/ARCHITECTURE.md`。  
+涉及预览、编译、编辑器工作流时，查阅 `docs/DOCUMENT_WORKFLOW.md`；涉及 agent / release 工作流命令时，查阅 `docs/OPERATIONS.md`。
 
-## Mission
+## 文档语言规则
 
-Altals is a local-first desktop academic research platform for Markdown and LaTeX, with integrated project-level references, reading, and citation workflows.
+- 仓库内所有正式文档默认必须使用中文编写，包括 `AGENTS.md`、`docs/*.md`、方案文档、计划文档、架构说明、操作说明和验收记录。
+- 允许保留必要的英文术语、命令、协议名、代码标识、路径、crate 名、组件名和接口名，但解释、结论、规则和正文叙述必须使用中文。
+- 修改现有文档时，如果发现仍有英文正文，应优先同步中文化，而不是继续沿用英文补写。
+- 新增文档时，除非用户明确要求使用其他语言，否则不得提交英文主文档。
 
-The product is centered on one practical workbench:
+## 使命
 
-- open a local project directory
-- browse project files and project references from the same workspace
-- read source material without leaving the desktop app
-- write Markdown and LaTeX documents
-- insert citations and maintain bibliography output in context
-- compile and preview documents correctly
-- inspect outline and other research-adjacent context in the right-side inspection area
+ScribeFlow 是一个本地优先的桌面学术研究平台，围绕 Markdown、LaTeX，以及项目级文献、阅读、引用工作流构建。
 
-## Product Boundaries
+产品围绕一个实用的研究工作台展开：
 
-- The desktop Tauri app is the primary product surface.
-- The core scope is one academic research workbench for writing, references, reading, citation, compile, and preview flows.
-- The left sidebar remains project-tree-first even when reference entry points are added.
-- The right-side inspection area is currently outline-first, but may grow to support directly related reading or citation context.
-- Do not add new product surfaces, new workflow systems, or speculative platform expansions.
-- The `web/` directory is not the primary product and should not drive decisions for the desktop app.
+- 打开本地项目目录
+- 在同一工作区中浏览项目文件与项目文献
+- 不离开桌面应用即可阅读源材料
+- 编写 Markdown 和 LaTeX 文档
+- 在上下文中插入引用并维护 bibliography 输出
+- 正确完成编译与预览
+- 在右侧检查区查看大纲和其他与研究相关的上下文
 
-## Current Direction
+## 产品边界
 
-- Stabilize the current desktop research workflow while extending it into a coherent references, reading, and writing loop.
-- Prefer removing stale systems over preserving dead architecture.
-- Project-scoped references, in-app reading, writing, and citation insertion are peer parts of the active product direction.
-- Future AI workflows and PDF translation should support a plugin-capable extension model rather than being welded into the core app from day one.
-- Do not turn the app into a generic PKM, chat shell, or disconnected library manager.
-- When making desktop UX decisions, prefer a polished macOS-native direction over generic cross-platform chrome.
+- 桌面端 Tauri 应用是唯一产品界面。
+- 核心范围是一个面向写作、文献、阅读、引用、编译和预览流的学术研究工作台。
+- 即使加入文献入口，左侧边栏也必须保持“项目树优先”。
+- 右侧检查区当前以大纲为主，但可以逐步扩展为展示与阅读或引用直接相关的上下文。
+- 不要新增产品表面、全新工作流系统，或任何投机性的产品扩展。
+- `web/` 目录不是主产品，不应主导桌面端决策。
 
-## Working Rules
+## 当前方向
 
-- First investigate, then change.
-- Do not make speculative or opportunistic expansions while fixing current behavior.
-- Prefer deleting obsolete systems over layering compatibility glue on top of them.
-- Keep work desktop-first and local-first.
-- Update tests and docs in the same slice when behavior, architecture, or repo policy changes.
-- Do not touch the separate `web/` project unless the user explicitly asks.
+- 优先把当前桌面研究工作流提升到最优状态，并把文献、阅读、写作串成一个连贯闭环。
+- 当前工程方向是 Rust-first 迁移：凡是可以稳定下沉到运行时的底层能力，优先逐步替换为 Rust 实现。
+- 优先移除陈旧系统，而不是保留死掉的架构。
+- 项目级文献、应用内阅读、写作与引用插入，是当前产品方向中的并列核心能力。
+- 未来的 AI 工作流与 PDF 翻译应支持插件化扩展模型，而不是一开始就硬焊进核心应用。
+- 不要把应用做成通用 PKM、聊天壳子，或割裂的文献管理器。
+- 做桌面端 UX 决策时，优先追求精致的 macOS 原生体验，而不是泛化的跨平台外壳。
 
-## Frontend Guardrail
+## Rust 迁移原则
 
-- The existing frontend look and feel is intentionally preserved.
-- Do not restyle, redesign, or significantly rework frontend interaction patterns without explicit user approval.
-- If a frontend change is necessary to complete a bug fix, keep the visual change minimal and confirm with the user before making broader UI adjustments.
+- 默认目标是把可替换的底层能力迁移到 Rust，而不是继续在 JavaScript / TypeScript 中扩张运行时核心逻辑。
+- 优先 Rust 化的区域包括：文档模型、解析与转换、工作区运行时规则、编译 / 预览协调、文件系统访问、进程执行、引用 / 文献运行时、编辑器底层能力。
+- 前端 UI 渲染、视图层状态、样式、交互编排，不因为“全 Rust”目标而强行迁移；除非用户明确要求，否则保持在现有前端栈中。
+- 如果某段逻辑是否应迁到 Rust 不明确，默认先判断它是“产品策略 / 运行时能力”还是“纯 UI 胶水”；前者必须优先 Rust，后者保留前端。
+- 新增底层能力时，默认禁止再用 JavaScript / TypeScript 实现可由 Rust 承担的运行时核心逻辑。
+- 新增文件系统、进程、解析、编译、文档状态机、引用处理、同步协议、运行时规则时，默认落点必须是 `src-tauri/*` 或 Rust crate，而不是 `src/services/*`、`src/stores/*` 或组件层。
+- 前端层默认只负责渲染、交互、轻量状态协调和调用 Rust 暴露的能力；前端不应再成为底层业务规则的最终权威。
+- 默认禁止制造长期双实现。若因迁移阶段不得不保留桥接层，必须满足三个条件：范围清晰、生命周期短、后续删除条件明确。
+- 任何临时 JS / TS 桥接实现都必须标明其 Rust 替代目标，且不能被继续扩张成功能中心。
+- 一旦 Rust 实现已经覆盖旧行为，优先在同一阶段或紧随其后的切片中删除旧的 JS / TS 底层实现，而不是长期保留兼容分支。
+- 迁移时要避免“双权威”状态：同一条产品规则、同一份运行时状态、同一套文档处理逻辑，不应同时由 Rust 和前端各自维护一份真实来源。
 
-## Architecture Guidance
+## 工作规则
 
-Use this direction unless the user explicitly approves a different structure:
+- 先调查，再修改。
+- 修复当前行为时，不要顺手做投机性扩展或机会主义加功能；但一旦方向明确，默认追求当前上下文下的最优实现，而不是停在勉强可用的修补。
+- 与其叠兼容胶水，不如优先删除过时系统。
+- 始终保持桌面优先、本地优先。
+- 触及可替换的底层模块时，先判断这次是否应该顺手完成 Rust 迁移，而不是继续加深前端或脚本层依赖。
+- 只要正在修改的旧 JS / TS 模块属于可 Rust 化范围，就默认应评估“直接迁移”而不是“继续补丁式维护”；若本次不迁移，必须有明确阻塞理由。
+- 不要为了赶进度把新底层逻辑继续塞进 store、component、composable 或前端 service，除非用户明确要求接受这种技术债。
+- 当行为、架构或仓库策略发生变化时，在同一改动切片里同步更新测试和文档。
+- 除非用户明确要求，否则不要碰独立的 `web/` 项目。
 
-- `src/app`: shell lifecycle, app boot, and desktop orchestration
-- `src/domains/*`: document, reference, citation, reader, and workspace workflow rules plus reusable runtime decisions
-- `src/services/*`: effectful integrations such as filesystem access, compile runners, preview bridges, importers, metadata adapters, and external tool seams
-- `src/stores/*`: reactive state and thin coordination
-- `src/components/*`: UI rendering and user intent emission
-- `src/composables/*`: reusable UI glue, not product policy
-- `src-tauri/*`: backend commands, native integration, filesystem/process execution, and typed desktop seams
+## 前端护栏
 
-Keep policy out of components when it can live in `domains`. Keep `services` effectful but policy-light. Keep stores thinner over time instead of turning them into another policy layer.
+- 现有前端的视觉和交互风格是有意保留的。
+- 未经用户明确批准，不要重做样式、重新设计，或大幅改写前端交互模式。
+- 如果为了修复 bug 必须改前端，优先追求最优的界面质量与一致性，而不是机械压缩改动面；若需要更宽范围的 UI 调整，先与用户确认。
 
-## Change Shape
+## 架构指导
 
-- Prefer small, validated slices when investigating or de-risking a change.
-- Once the root cause is clear, implement the complete and correct fix instead of stopping at a temporary patch.
-- Avoid big-bang rewrites unless the user explicitly asks for one.
-- Preserve working compile/preview behavior while replacing internals.
+除非用户明确批准采用不同结构，否则按以下方向组织代码：
 
-## Validation
+- `src/app`：shell 生命周期、应用启动、桌面编排
+- `src/domains/*`：文档、文献、引用、阅读器、工作区等工作流规则，以及可复用的运行时决策
+- `src/services/*`：带副作用的集成层，例如文件系统访问、编译运行器、预览桥接、导入器、元数据适配器、外部工具接缝
+- `src/stores/*`：响应式状态与轻量协调
+- `src/components/*`：UI 渲染与用户意图发射
+- `src/composables/*`：可复用的 UI 胶水，不承载产品策略
+- `src-tauri/*`：后端命令、原生集成、文件系统 / 进程执行、类型化桌面接缝
 
-- Run the smallest relevant verification commands during investigation.
-- Before claiming completion, run the targeted tests for the changed slice.
-- Run `npm run build` for meaningful frontend or integration changes.
-- If repo policy or docs change, update the related audit tests in the same slice.
-- If something cannot be verified, say so explicitly.
+如果策略逻辑可以放进 `domains`，就不要留在 `components`。  
+`services` 保持有副作用，但尽量少承载策略。  
+`stores` 要随着时间推移保持更薄，而不是演化成另一层策略中心。
+只要某项运行时权威可以安全下沉到 `src-tauri/*`，默认优先 Rust，而不是继续停留在前端层。
+除纯 UI 胶水外，不要再向前端层新增“未来还要迁走”的临时底层模块。
 
-## AI Review Workflow
+## 变更形态
 
-- For Claude Code work in this repository, keep the Codex stop-time review gate enabled. Run `npm run agent:enable-codex-gate` once in the repo when setting up a machine or fresh checkout.
-- After Claude-authored code changes, expect a Codex review before sign-off. Use `/codex:review --base main` in Claude Code or `npm run agent:codex-review`.
-- After Codex-authored changes that are meant to implement a plan, run `npm run agent:codex-postflight -- --plan <path-to-plan>` before claiming completion.
-- The Claude postflight audit compares the current branch against the chosen plan and reports `Completed`, `Pending`, `Deviations`, `Risks`, `Verification`, and `Next step`.
+- 调查或降风险时，优先做边界清晰且可验证、同时能通向最优结果的切片。
+- 一旦根因明确，就实现完整且正确的修复，而不是停在临时补丁。
+- 除非用户明确要求，否则不要做无边界的大爆炸式重写；但只要边界清晰且收益成立，应允许为了最优结果进行完整替换。
+- 替换内部实现时，不仅要避免破坏现有可用的编译 / 预览行为，还应以更优的稳定性、一致性和可维护性为目标。
+- Rust 迁移要沿着清晰边界推进，例如“一个 runtime 模块 / 一条文档能力链 / 一个解析器”，不要在一次改动里同时重写过多子系统。
+- 允许分阶段迁移，但每个阶段都必须让 Rust 侧真实接管一部分权威，而不是只增加一层包装。
+- 如果一次改动引入了 Rust 实现，却没有减少旧实现的职责、代码路径或状态权威，应视为迁移不完整。
+
+## 验证
+
+- 调查阶段运行当前问题下最优覆盖的验证命令，而不是只满足最低验证门槛。
+- 在宣称完成前，先运行与改动切片对应的目标测试。
+- 只要前端或集成层有实质性变化，就运行 `npm run build`。
+- 只要有实质性的 Rust / Tauri 改动，就至少运行 `cargo check --manifest-path src-tauri/Cargo.toml`；若相关 crate 有测试，再运行对应测试。
+- 对 Rust 迁移类改动，验证说明里必须明确三件事：哪些职责已迁到 Rust、哪些旧实现已删除或降权、剩余未迁部分的阻塞点是什么。
+- 如果仓库策略或文档变了，要在同一切片里更新对应的审计测试。
+- 如果某项内容无法验证，要明确说明。
+
+## AI 审查工作流
+
+- 本仓库默认只保留 Codex 工作流，不再依赖其他 AI 审查链路。
+- 如需启用仓库内的 Codex 审查门禁，在新机器或全新 checkout 初始化时运行一次 `npm run agent:enable-codex-gate`。
+- 需要进行 Codex 审查时，统一使用 `npm run agent:codex-review`。
+- 对于按 plan 执行的改动，在宣称完成前运行 `npm run agent:codex-postflight -- --plan <path-to-plan>`。
+- postflight 审计应输出并核对 `Completed`、`Pending`、`Deviations`、`Risks`、`Verification` 和 `Next step`。

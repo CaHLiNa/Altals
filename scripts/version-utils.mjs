@@ -48,7 +48,7 @@ export function readVersions() {
   const cargoLock = readText(files.cargoLock)
 
   const cargoTomlVersion = cargoToml.match(/^version = "([^"]+)"$/m)?.[1]
-  const cargoLockVersion = cargoLock.match(/name = "altals"\nversion = "([^"]+)"/)?.[1]
+  const cargoLockVersion = cargoLock.match(/name = "scribeflow"\nversion = "([^"]+)"/)?.[1]
 
   return {
     packageJson: packageJson.version,
@@ -168,9 +168,9 @@ export function updateVersions(nextVersion) {
     files.cargoLock,
     updateSingleMatch(
       cargoLock,
-      /name = "altals"\nversion = "[^"]+"/,
-      `name = "altals"\nversion = "${nextVersion}"`,
-      'src-tauri/Cargo.lock altals package version'
+      /name = "scribeflow"\nversion = "[^"]+"/,
+      `name = "scribeflow"\nversion = "${nextVersion}"`,
+      'src-tauri/Cargo.lock scribeflow package version'
     )
   )
 }

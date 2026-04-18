@@ -1,4 +1,4 @@
-export const WORKBENCH_MOTION_PHASE_EVENT = 'altals-shell-resize-phase'
+export const WORKBENCH_MOTION_PHASE_EVENT = 'scribeflow-shell-resize-phase'
 
 const MOTION_PHASE_IDLE = 'idle'
 const MOTION_PHASE_LIVE_RESIZE = 'live-resize'

@@ -1,4 +1,4 @@
-const CHANNEL = 'altals-latex-sync'
+const CHANNEL = 'scribeflow-latex-sync'
 
 function postToParent(type, payload = {}) {
   try {

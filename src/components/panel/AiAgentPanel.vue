@@ -320,7 +320,7 @@ const respondingExitPlanRequestId = ref('')
 const COMPOSER_MIN_HEIGHT = 38
 const COMPOSER_MAX_HEIGHT = 220
 
-const altalsSkills = computed(() => aiStore.altalsSkills)
+const scribeflowSkills = computed(() => aiStore.scribeflowSkills)
 const messages = computed(() => aiStore.messages)
 const artifacts = computed(() => aiStore.artifacts)
 const attachments = computed(() => aiStore.attachments)
@@ -550,7 +550,7 @@ function summarizeStatusDetail(value = '', maxLength = 72) {
 }
 
 const skillSuggestions = computed(() =>
-  altalsSkills.value.map((skill) => ({
+  scribeflowSkills.value.map((skill) => ({
     id: skill.id,
     kind: 'filesystem-skill',
     prefix: '$',
@@ -942,7 +942,7 @@ onMounted(() => {
   void refreshEnabledTools()
   void refreshProviderRuntime()
   void refreshExtensionRuntimeState()
-  void aiStore.refreshAltalsSkills()
+  void aiStore.refreshScribeFlowSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
 })
@@ -952,7 +952,7 @@ onActivated(() => {
   void refreshEnabledTools()
   void refreshProviderRuntime()
   void refreshExtensionRuntimeState()
-  void aiStore.refreshAltalsSkills()
+  void aiStore.refreshScribeFlowSkills()
   scrollToBottom('auto')
   syncComposerTextareaHeight()
 })
@@ -963,7 +963,7 @@ watch(
     void hydrateWorkspaceSessions()
     void refreshEnabledTools()
     void refreshExtensionRuntimeState()
-    void aiStore.refreshAltalsSkills()
+    void aiStore.refreshScribeFlowSkills()
     void filesStore.ensureFlatFilesReady({ force: true }).catch(() => {})
   }
 )

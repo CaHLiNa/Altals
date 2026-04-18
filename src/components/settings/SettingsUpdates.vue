@@ -5,16 +5,16 @@
     <div class="updates-hero">
       <!-- 彻底去掉多余的边框和阴影，还原干净图标 -->
       <div class="app-icon-container">
-        <img src="/icon.png" :alt="t('Altals Logo')" class="app-icon" draggable="false" />
+        <img src="/icon.png" :alt="t('ScribeFlow Logo')" class="app-icon" draggable="false" />
       </div>
 
       <div class="app-info">
-        <h1 class="app-title">Altals</h1>
+        <h1 class="app-title">ScribeFlow</h1>
         <div class="app-version">{{ t('Version') }} {{ appVersion }}</div>
       </div>
 
       <div class="app-description">
-        {{ t('Altals is a local-first workspace for academic writing and research.') }}
+        {{ t('ScribeFlow is a local-first workspace for academic writing and research.') }}
       </div>
 
       <div class="app-status" :class="{ 'is-empty': !statusMessage }" aria-live="polite">

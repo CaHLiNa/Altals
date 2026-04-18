@@ -3,8 +3,8 @@ import {
   REFERENCE_TAGS,
 } from '../../services/references/referenceLibraryFixtures.js'
 
-export const BROWSER_PREVIEW_WORKSPACE_PATH = '/Altals Preview Workspace'
-export const BROWSER_PREVIEW_GLOBAL_CONFIG_DIR = '/.altals-preview'
+export const BROWSER_PREVIEW_WORKSPACE_PATH = '/ScribeFlow Preview Workspace'
+export const BROWSER_PREVIEW_GLOBAL_CONFIG_DIR = '/.scribeflow-preview'
 export const BROWSER_PREVIEW_WORKSPACE_ID = 'browser-preview'
 export const BROWSER_PREVIEW_WORKSPACE_DATA_DIR = `${BROWSER_PREVIEW_GLOBAL_CONFIG_DIR}/workspaces/${BROWSER_PREVIEW_WORKSPACE_ID}`
 export const BROWSER_PREVIEW_CLAUDE_DIR = `${BROWSER_PREVIEW_GLOBAL_CONFIG_DIR}/claude`
@@ -12,7 +12,7 @@ export const BROWSER_PREVIEW_CLAUDE_DIR = `${BROWSER_PREVIEW_GLOBAL_CONFIG_DIR}/
 export const BROWSER_PREVIEW_PRIMARY_DOCUMENT = `${BROWSER_PREVIEW_WORKSPACE_PATH}/drafts/introduction.md`
 
 const DEFAULT_PREVIEW_FILES = Object.freeze({
-  [`${BROWSER_PREVIEW_WORKSPACE_PATH}/README.md`]: `# Altals Browser Preview
+  [`${BROWSER_PREVIEW_WORKSPACE_PATH}/README.md`]: `# ScribeFlow Browser Preview
 
 This route is a browser-only preview shell for the desktop workbench.
 
@@ -22,7 +22,7 @@ This route is a browser-only preview shell for the desktop workbench.
 `,
   [`${BROWSER_PREVIEW_WORKSPACE_PATH}/drafts/introduction.md`]: `# Introduction
 
-Altals keeps writing, reading, and references inside one local-first desktop workbench.
+ScribeFlow keeps writing, reading, and references inside one local-first desktop workbench.
 
 ## Preview Goals
 
@@ -34,7 +34,7 @@ Altals keeps writing, reading, and references inside one local-first desktop wor
 `,
   [`${BROWSER_PREVIEW_WORKSPACE_PATH}/drafts/method.tex`]: `\\documentclass{article}
 \\usepackage{amsmath}
-\\title{Altals Preview Draft}
+\\title{ScribeFlow Preview Draft}
 \\author{Browser Preview Mode}
 \\begin{document}
 \\maketitle
@@ -44,9 +44,9 @@ This preview route exists so internal desktop surfaces can be reviewed in a brow
 
 \\end{document}
 `,
-  [`${BROWSER_PREVIEW_WORKSPACE_PATH}/references/library.bib`]: `@article{altals-preview,
-  title={Altals Browser Preview Mode},
-  author={Altals Team},
+  [`${BROWSER_PREVIEW_WORKSPACE_PATH}/references/library.bib`]: `@article{scribeflow-preview,
+  title={ScribeFlow Browser Preview Mode},
+  author={ScribeFlow Team},
   journal={Local-first Research Systems},
   year={2026}
 }

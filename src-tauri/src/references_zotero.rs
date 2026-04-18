@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 const ZOTERO_API_BASE: &str = "https://api.zotero.org";
-const ZOTERO_USER_AGENT: &str = "Altals-Desktop/1.0";
+const ZOTERO_USER_AGENT: &str = "ScribeFlow-Desktop/1.0";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

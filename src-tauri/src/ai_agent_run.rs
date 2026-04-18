@@ -36,7 +36,7 @@ pub struct AiAgentRunParams {
     #[serde(default)]
     pub conversation: Vec<Value>,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub attachments: Vec<Value>,
     #[serde(default)]
@@ -71,7 +71,7 @@ pub struct AiAgentRunStartedSessionParams {
     #[serde(default)]
     pub prepared_run: Value,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub pending_assistant_id: String,
     #[serde(default)]
@@ -88,7 +88,7 @@ pub struct AiAgentRunPreparedSessionParams {
     #[serde(default)]
     pub prepared_run: Value,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub pending_assistant_id: String,
     #[serde(default)]
@@ -406,7 +406,7 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         context_bundle: params.context_bundle.clone(),
         user_instruction: params.user_instruction.clone(),
         conversation: params.conversation.clone(),
-        altals_skills: params.altals_skills.clone(),
+        scribeflow_skills: params.scribeflow_skills.clone(),
         support_files: Vec::new(),
         attachments: params.attachments.clone(),
         referenced_files: params.referenced_files.clone(),
@@ -530,7 +530,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 context_bundle: context_bundle.clone(),
                 user_instruction: user_instruction.clone(),
                 conversation: prior_conversation.clone(),
-                altals_skills: params.altals_skills.clone(),
+                scribeflow_skills: params.scribeflow_skills.clone(),
                 support_files: Vec::new(),
                 attachments: attachments.clone(),
                 referenced_files: referenced_files.clone(),
@@ -581,7 +581,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 api_key: api_key.clone(),
                 user_instruction: user_instruction.clone(),
                 conversation: prior_conversation.clone(),
-                altals_skills: params.altals_skills.clone(),
+                scribeflow_skills: params.scribeflow_skills.clone(),
                 attachments: attachments.clone(),
                 referenced_files: referenced_files.clone(),
                 requested_tools: requested_tools.clone(),
@@ -721,7 +721,7 @@ pub async fn ai_agent_run_prepared_session<R: Runtime>(
         AiAgentRunStartedSessionParams {
             session: started.session,
             prepared_run: params.prepared_run,
-            altals_skills: params.altals_skills,
+            scribeflow_skills: params.scribeflow_skills,
             pending_assistant_id: params.pending_assistant_id,
             created_at: params.created_at,
             cwd: params.cwd,

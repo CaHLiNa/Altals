@@ -100,8 +100,8 @@ let markdownOutlineRequestId = 0
 
 function currentDocumentText(path) {
   const runtime = editorStore.getAnyEditorRuntime?.(path) || editorStore.getAnyEditorView(path)
-  if (runtime?.altalsGetContent) {
-    return runtime.altalsGetContent()
+  if (runtime?.scribeflowGetContent) {
+    return runtime.scribeflowGetContent()
   }
   if (runtime?.state?.doc) {
     return runtime.state.doc.toString()
@@ -240,8 +240,8 @@ function focusTextOffset(path, offset, attempts = 0) {
     return
   }
 
-  if (targetRuntime?.altalsRevealOffset) {
-    targetRuntime.altalsRevealOffset(offset, {
+  if (targetRuntime?.scribeflowRevealOffset) {
+    targetRuntime.scribeflowRevealOffset(offset, {
       focus: true,
       center: true,
     })

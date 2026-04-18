@@ -64,7 +64,7 @@ function buildToolSuggestion(tool = {}) {
   const normalizedDescription = String(tool.description || '').trim()
   const description = sourceKind === 'mcp'
     ? [sourceLabel ? `MCP · ${sourceLabel}` : 'MCP', normalizedDescription].filter(Boolean).join(' · ')
-    : [sourceLabel === 'Altals' ? 'Built-in' : sourceLabel, normalizedDescription].filter(Boolean).join(' · ')
+    : [sourceLabel === 'ScribeFlow' ? 'Built-in' : sourceLabel, normalizedDescription].filter(Boolean).join(' · ')
   return {
     id: tool.id,
     kind: 'tool',

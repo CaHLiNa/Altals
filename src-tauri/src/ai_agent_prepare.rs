@@ -16,7 +16,7 @@ pub struct AiAgentPrepareParams {
     #[serde(default)]
     pub active_skill: Option<Value>,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub context_bundle: Value,
     #[serde(default)]
@@ -42,7 +42,7 @@ pub struct AiAgentPrepareCurrentConfigParams {
     #[serde(default)]
     pub active_skill: Option<Value>,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub context_bundle: Value,
     #[serde(default)]
@@ -357,12 +357,12 @@ fn score_skill_overlap(skill: &Value, prompt_tokens: &[String]) -> i32 {
 
 fn infer_skill_from_prompt(
     prompt: &str,
-    altals_skills: &[Value],
+    scribeflow_skills: &[Value],
     context_bundle: &Value,
     fallback_skill: Option<Value>,
 ) -> Option<Value> {
     let prompt_tokens = tokenize_prompt(prompt);
-    let ranked = altals_skills
+    let ranked = scribeflow_skills
         .iter()
         .filter(|skill| is_filesystem_skill(skill))
         .filter(|skill| has_context(&explicit_skill_requirements(skill), context_bundle))
@@ -406,14 +406,14 @@ fn resolve_ai_invocation(
     prompt: &str,
     mode: &str,
     active_skill: Option<Value>,
-    altals_skills: &[Value],
+    scribeflow_skills: &[Value],
     context_bundle: &Value,
     has_explicit_tool_mentions: bool,
 ) -> (Option<Value>, String, Option<Value>) {
     let fallback_skill = if mode == "agent" && has_explicit_tool_mentions {
         active_skill
     } else {
-        infer_skill_from_prompt(prompt, altals_skills, context_bundle, active_skill)
+        infer_skill_from_prompt(prompt, scribeflow_skills, context_bundle, active_skill)
     };
     let Some((prefix, name, raw_name, remainder)) = parse_ai_invocation_input(prompt) else {
         return (fallback_skill, prompt.trim().to_string(), None);
@@ -432,7 +432,7 @@ fn resolve_ai_invocation(
                 .get("name")
                 .and_then(Value::as_str)
                 .unwrap_or_default(),
-            altals_skills,
+            scribeflow_skills,
         ) {
             return (
                 Some(skill),
@@ -454,7 +454,7 @@ fn resolve_ai_invocation(
                 .get("name")
                 .and_then(Value::as_str)
                 .unwrap_or_default(),
-            altals_skills,
+            scribeflow_skills,
         ) {
             return (
                 Some(skill),
@@ -552,7 +552,7 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
         &prompt_draft,
         &normalized_session_mode,
         params.active_skill.clone(),
-        &params.altals_skills,
+        &params.scribeflow_skills,
         &params.context_bundle,
         !tool_mentions.is_empty(),
     );
@@ -793,7 +793,7 @@ pub async fn ai_agent_prepare_current_config(
     ai_agent_prepare(AiAgentPrepareParams {
         active_session: params.active_session,
         active_skill: params.active_skill,
-        altals_skills: params.altals_skills,
+        scribeflow_skills: params.scribeflow_skills,
         context_bundle: params.context_bundle,
         session_mode: params.session_mode,
         provider_state,

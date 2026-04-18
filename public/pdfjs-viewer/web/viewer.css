@@ -18,20 +18,20 @@
   top: 0;
   left: 0;
   z-index: 100000;
-  border: 0.2em solid color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 80%, white);
+  border: 0.2em solid color-mix(in srgb, var(--scribeflow-focus-ring, #3b82f6) 80%, white);
   border-radius: 50%;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 16%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--scribeflow-focus-ring, #3b82f6) 16%, transparent);
 }
 
 @keyframes synctex-indicator-fadeOut {
   0% {
-    background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 22%, transparent);
+    background-color: color-mix(in srgb, var(--scribeflow-focus-ring, #3b82f6) 22%, transparent);
   }
   25% {
-    background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 22%, transparent);
+    background-color: color-mix(in srgb, var(--scribeflow-focus-ring, #3b82f6) 22%, transparent);
   }
   100% {
     background-color: transparent;
@@ -41,7 +41,7 @@
 .synctex-indicator-rect {
   position: absolute;
   z-index: 100000;
-  background-color: color-mix(in srgb, var(--altals-focus-ring, #3b82f6) 28%, transparent);
+  background-color: color-mix(in srgb, var(--scribeflow-focus-ring, #3b82f6) 28%, transparent);
   pointer-events: none;
   animation: synctex-indicator-fadeOut 1s forwards;
 }
@@ -8659,33 +8659,33 @@ dialog :link{
   }
 }
 
-/* Altals PDF viewer normalization */
+/* ScribeFlow PDF viewer normalization */
 :root{
   --toolbar-height:30px;
   --toolbar-horizontal-padding:6px;
   --toolbar-vertical-padding:1px;
   --icon-size:14px;
-  --altals-surface-base:#ffffff;
-  --altals-surface-raised:#f8f6f3;
-  --altals-surface-hover:rgb(0 0 0 / 0.06);
-  --altals-border-subtle:rgb(0 0 0 / 0.1);
-  --altals-text-primary:#191714;
-  --altals-text-muted:#6f6962;
-  --altals-shell-preview-surface:#ffffff;
-  --altals-focus-ring:#8ca8ff;
+  --scribeflow-surface-base:#ffffff;
+  --scribeflow-surface-raised:#f8f6f3;
+  --scribeflow-surface-hover:rgb(0 0 0 / 0.06);
+  --scribeflow-border-subtle:rgb(0 0 0 / 0.1);
+  --scribeflow-text-primary:#191714;
+  --scribeflow-text-muted:#6f6962;
+  --scribeflow-shell-preview-surface:#ffffff;
+  --scribeflow-focus-ring:#8ca8ff;
 }
 
 body{
-  background:var(--altals-shell-preview-surface);
+  background:var(--scribeflow-shell-preview-surface);
 }
 
 #toolbarContainer{
   --menuitem-height:32px;
   height:30px;
   padding:1px 6px;
-  background:color-mix(in srgb, var(--altals-shell-preview-surface) 92%, var(--altals-surface-base));
+  background:color-mix(in srgb, var(--scribeflow-shell-preview-surface) 92%, var(--scribeflow-surface-base));
   box-shadow:none;
-  border-bottom:1px solid color-mix(in srgb, var(--altals-border-subtle) 24%, transparent);
+  border-bottom:1px solid color-mix(in srgb, var(--scribeflow-border-subtle) 24%, transparent);
   backdrop-filter:saturate(1.02) blur(10px);
 }
 
@@ -8721,11 +8721,11 @@ body{
   justify-self:end;
 }
 
-#toolbarViewerRight > :not(.altalsPageGroup){
+#toolbarViewerRight > :not(.scribeflowPageGroup){
   display:none !important;
 }
 
-.altalsPageGroup{
+.scribeflowPageGroup{
   margin-left:0;
   display:flex;
   align-items:center;
@@ -8758,40 +8758,40 @@ body{
 .toolbarButton{
   width:22px;
   border-radius:6px;
-  color:var(--altals-text-muted);
+  color:var(--scribeflow-text-muted);
   opacity:0.86;
 }
 
 .toolbarButton::before{
   opacity:1;
-  background-color:var(--altals-text-muted);
+  background-color:var(--scribeflow-text-muted);
 }
 
 .toolbarButton:is(:hover,:focus-visible){
-  background:color-mix(in srgb, var(--altals-surface-hover) 12%, transparent);
+  background:color-mix(in srgb, var(--scribeflow-surface-hover) 12%, transparent);
   opacity:1;
 }
 
 .toolbarButton:is(:hover,:focus-visible)::before{
-  background-color:var(--altals-text-primary);
+  background-color:var(--scribeflow-text-primary);
 }
 
 .toolbarButton.toggled{
-  background:color-mix(in srgb, var(--altals-surface-hover) 14%, transparent);
-  color:var(--altals-text-primary);
+  background:color-mix(in srgb, var(--scribeflow-surface-hover) 14%, transparent);
+  color:var(--scribeflow-text-primary);
   opacity:1;
 }
 
 .toolbarButton.toggled::before{
-  background-color:var(--altals-text-primary);
+  background-color:var(--scribeflow-text-primary);
 }
 
 .toolbarButton:focus-visible,
 .toolbarField:focus,
 #scaleSelect:focus-visible{
   outline:none;
-  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--altals-focus-ring) 52%, transparent);
-  border-color:color-mix(in srgb, var(--altals-focus-ring) 52%, var(--altals-border-subtle)) !important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--scribeflow-focus-ring) 52%, transparent);
+  border-color:color-mix(in srgb, var(--scribeflow-focus-ring) 52%, var(--scribeflow-border-subtle)) !important;
 }
 
 .toolbarHorizontalGroup{
@@ -8805,7 +8805,7 @@ body{
   border-radius:0;
   border:0;
   background:transparent;
-  color:var(--altals-text-primary);
+  color:var(--scribeflow-text-primary);
   font:inherit;
   font-size:11px;
   font-weight:500;
@@ -8822,7 +8822,7 @@ body{
 }
 
 #numPages.toolbarLabel{
-  color:var(--altals-text-muted);
+  color:var(--scribeflow-text-muted);
   font:inherit;
   font-size:11px;
   font-weight:500;
@@ -8846,8 +8846,8 @@ body{
   width:100%;
   padding-inline:12px 26px;
   border:none;
-  background:color-mix(in srgb, var(--altals-surface-base) 5%, transparent);
-  color:var(--altals-text-primary);
+  background:color-mix(in srgb, var(--scribeflow-surface-base) 5%, transparent);
+  color:var(--scribeflow-text-primary);
   font:inherit;
   font-size:12px;
   font-weight:500;
@@ -8858,7 +8858,7 @@ body{
   -moz-appearance:none;
   appearance:none;
   outline:none;
-  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--altals-border-subtle) 24%, transparent) !important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--scribeflow-border-subtle) 24%, transparent) !important;
   border-radius:8px;
 }
 
@@ -8868,7 +8868,7 @@ body{
   transform:translateY(-50%);
   width:8px;
   height:8px;
-  background-color:color-mix(in srgb, var(--altals-text-muted) 90%, transparent);
+  background-color:color-mix(in srgb, var(--scribeflow-text-muted) 90%, transparent);
 }
 
 #scaleSelectContainer{
@@ -8877,12 +8877,12 @@ body{
 
 #pageNumber:focus,
 #scaleSelect:focus-visible{
-  background:color-mix(in srgb, var(--altals-surface-hover) 8%, transparent);
+  background:color-mix(in srgb, var(--scribeflow-surface-hover) 8%, transparent);
   border-radius:6px;
 }
 
 .toolbarLabel{
-  color:var(--altals-text-muted);
+  color:var(--scribeflow-text-muted);
   font:inherit;
   font-size:11px;
 }
@@ -8891,8 +8891,8 @@ body{
   border-radius:14px;
   box-shadow:
     0 18px 38px color-mix(in srgb, black 12%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--altals-border-subtle) 52%, transparent);
-  background:color-mix(in srgb, var(--altals-surface-raised) 94%, var(--altals-surface-base));
+    0 0 0 1px color-mix(in srgb, var(--scribeflow-border-subtle) 52%, transparent);
+  background:color-mix(in srgb, var(--scribeflow-surface-raised) 94%, var(--scribeflow-surface-base));
 }
 
 #findbar .toolbarField{
@@ -8904,27 +8904,27 @@ body{
 }
 
 #viewsManager{
-  --sidebar-bg-color:var(--altals-surface-raised);
+  --sidebar-bg-color:var(--scribeflow-surface-raised);
   --sidebar-width:132px;
   --viewsManager-width:132px;
-  --text-color:var(--altals-text-primary);
-  --button-fg:var(--altals-text-muted);
-  --button-bg:color-mix(in srgb, var(--altals-surface-base) 78%, transparent);
-  --button-hover-bg:color-mix(in srgb, var(--altals-surface-hover) 18%, transparent);
-  --button-hover-fg:var(--altals-text-primary);
-  --button-active-bg:color-mix(in srgb, var(--altals-surface-hover) 24%, transparent);
-  --button-active-fg:var(--altals-text-primary);
-  --button-focus-outline-color:var(--altals-focus-ring);
-  --button-focus-border-color:color-mix(in srgb, var(--altals-focus-ring) 54%, var(--altals-border-subtle));
+  --text-color:var(--scribeflow-text-primary);
+  --button-fg:var(--scribeflow-text-muted);
+  --button-bg:color-mix(in srgb, var(--scribeflow-surface-base) 78%, transparent);
+  --button-hover-bg:color-mix(in srgb, var(--scribeflow-surface-hover) 18%, transparent);
+  --button-hover-fg:var(--scribeflow-text-primary);
+  --button-active-bg:color-mix(in srgb, var(--scribeflow-surface-hover) 24%, transparent);
+  --button-active-fg:var(--scribeflow-text-primary);
+  --button-focus-outline-color:var(--scribeflow-focus-ring);
+  --button-focus-border-color:color-mix(in srgb, var(--scribeflow-focus-ring) 54%, var(--scribeflow-border-subtle));
   --header-shadow:none;
   --image-border-width:2px;
-  --image-border-color:color-mix(in srgb, var(--altals-border-subtle) 40%, transparent);
-  --image-hover-border-color:color-mix(in srgb, var(--altals-border-subtle) 54%, transparent);
-  --image-current-border-color:color-mix(in srgb, var(--altals-focus-ring) 52%, transparent);
-  --image-page-number-bg:color-mix(in srgb, var(--altals-surface-base) 92%, transparent);
-  --image-page-number-fg:var(--altals-text-primary);
-  --image-current-page-number-bg:color-mix(in srgb, var(--altals-surface-hover) 14%, transparent);
-  --image-current-page-number-fg:var(--altals-text-primary);
+  --image-border-color:color-mix(in srgb, var(--scribeflow-border-subtle) 40%, transparent);
+  --image-hover-border-color:color-mix(in srgb, var(--scribeflow-border-subtle) 54%, transparent);
+  --image-current-border-color:color-mix(in srgb, var(--scribeflow-focus-ring) 52%, transparent);
+  --image-page-number-bg:color-mix(in srgb, var(--scribeflow-surface-base) 92%, transparent);
+  --image-page-number-fg:var(--scribeflow-text-primary);
+  --image-current-page-number-bg:color-mix(in srgb, var(--scribeflow-surface-hover) 14%, transparent);
+  --image-current-page-number-fg:var(--scribeflow-text-primary);
   --image-shadow:none;
   --image-hover-shadow:none;
   --image-current-shadow:
@@ -9017,32 +9017,32 @@ body{
 
 #viewerContainer{
   inset:30px 0 0;
-  background:var(--altals-shell-preview-surface);
+  background:var(--scribeflow-shell-preview-surface);
 }
 
-html[data-altals-canvas-filter-fallback="true"] .pdfViewer .page{
+html[data-scribeflow-canvas-filter-fallback="true"] .pdfViewer .page{
   background-color:transparent !important;
   background-clip:border-box;
   border:none !important;
 }
 
-html[data-altals-canvas-filter-fallback="true"] body,
-html[data-altals-canvas-filter-fallback="true"] #outerContainer,
-html[data-altals-canvas-filter-fallback="true"] #mainContainer,
-html[data-altals-canvas-filter-fallback="true"] #viewerContainer,
-html[data-altals-canvas-filter-fallback="true"] .pdfViewer{
+html[data-scribeflow-canvas-filter-fallback="true"] body,
+html[data-scribeflow-canvas-filter-fallback="true"] #outerContainer,
+html[data-scribeflow-canvas-filter-fallback="true"] #mainContainer,
+html[data-scribeflow-canvas-filter-fallback="true"] #viewerContainer,
+html[data-scribeflow-canvas-filter-fallback="true"] .pdfViewer{
   background:transparent !important;
 }
 
-html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
-html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage :is(canvas, img){
-  filter:var(--altals-pdf-canvas-filter);
-  mix-blend-mode:var(--altals-pdf-canvas-blend-mode, screen);
+html[data-scribeflow-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper canvas,
+html[data-scribeflow-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage :is(canvas, img){
+  filter:var(--scribeflow-pdf-canvas-filter);
+  mix-blend-mode:var(--scribeflow-pdf-canvas-blend-mode, screen);
 }
 
-html[data-altals-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper,
-html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage{
-  background:var(--altals-pdf-page-bg);
+html[data-scribeflow-canvas-filter-fallback="true"] .pdfViewer .canvasWrapper,
+html[data-scribeflow-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage{
+  background:var(--scribeflow-pdf-page-bg);
   isolation:isolate;
 }
 
@@ -9051,7 +9051,7 @@ html[data-altals-canvas-filter-fallback="true"] #thumbnailsView .thumbnailImage{
 #sidebarContainer,
 #viewsManager,
 #sidebarContent{
-  background:var(--altals-shell-preview-surface);
+  background:var(--scribeflow-shell-preview-surface);
 }
 
 @media all and (max-width: 560px){

@@ -51,7 +51,7 @@ export function runTauriCli() {
   if (developerDir) {
     env.DEVELOPER_DIR = developerDir
     process.stderr.write(
-      `[altals] xcrun could not resolve developer tools; falling back to ${developerDir}\n`,
+      `[scribeflow] xcrun could not resolve developer tools; falling back to ${developerDir}\n`,
     )
   }
 

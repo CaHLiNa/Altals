@@ -1,7 +1,7 @@
 // GET /api/v1/auth/github/callback?code=xxx&state=xxx
 // GitHub redirects here after user authorizes the OAuth app
 // Exchanges the code for a GitHub access token, then either stores it for polling
-// (dev) or redirects back to the desktop app via altals:// (production)
+// (dev) or redirects back to the desktop app via scribeflow:// (production)
 
 import { hashValue, setGitHubToken, markCodeUsed, isCodeUsed } from '../../../../utils/githubTokenStore.js'
 import { verifySignedOAuthState } from '../../../../utils/githubOAuthState.js'
@@ -32,7 +32,7 @@ function buildDeepLinkUrl({ state, token, error = '' }) {
   const params = new URLSearchParams({ state })
   if (token) params.set('token', token)
   if (error) params.set('error', error)
-  return `altals://auth/github?${params.toString()}`
+  return `scribeflow://auth/github?${params.toString()}`
 }
 
 function buildLoopbackReturnUrl(baseUrl, { state, token, error = '' }) {
@@ -53,7 +53,7 @@ function buildDeepLinkHtml(url, title, message) {
     <h2 style="margin: 0 0 12px;">${escapeHtml(title)}</h2>
     <p style="margin: 0 0 18px; line-height: 1.5;">${escapeHtml(message)}</p>
     <a href="${safeUrl}" style="display: inline-block; padding: 10px 16px; border-radius: 999px; background: #9ece6a; color: #1a1b26; text-decoration: none; font-weight: 600;">
-      Return to Altals
+      Return to ScribeFlow
     </a>
   </div>
   <script>
@@ -75,7 +75,7 @@ function buildLoopbackHtml(url, title, message) {
     <h2 style="margin: 0 0 12px;">${escapeHtml(title)}</h2>
     <p style="margin: 0 0 18px; line-height: 1.5;">${escapeHtml(message)}</p>
     <p style="margin: 0 0 20px; line-height: 1.5; color: #a9b1d6;">
-      Altals should finish connecting in a moment. If it does not, click the button below once.
+      ScribeFlow should finish connecting in a moment. If it does not, click the button below once.
     </p>
     <a href="${safeUrl}" style="display: inline-block; padding: 10px 16px; border-radius: 999px; background: #9ece6a; color: #1a1b26; text-decoration: none; font-weight: 600;">
       Retry Local Callback
@@ -180,7 +180,7 @@ export default defineEventHandler(async (event) => {
       return buildDeepLinkHtml(
         buildDeepLinkUrl({ state: originalState, error: message }),
         'GitHub Authorization Canceled',
-        'Return to Altals to retry the connection.'
+        'Return to ScribeFlow to retry the connection.'
       )
     }
     if (transport === 'loopback' && returnTo) {
@@ -189,7 +189,7 @@ export default defineEventHandler(async (event) => {
       return buildLoopbackHtml(
         buildLoopbackReturnUrl(returnTo, { state: originalState, error: message }),
         'GitHub Authorization Canceled',
-        'Return to Altals to retry the connection.'
+        'Return to ScribeFlow to retry the connection.'
       )
     }
 
@@ -246,7 +246,7 @@ export default defineEventHandler(async (event) => {
     return buildDeepLinkHtml(
       buildDeepLinkUrl({ state: originalState, token: ghToken }),
       'GitHub Connected',
-      'Altals is ready to finish connecting your GitHub account.'
+      'ScribeFlow is ready to finish connecting your GitHub account.'
     )
   }
   if (transport === 'loopback' && returnTo) {
@@ -255,7 +255,7 @@ export default defineEventHandler(async (event) => {
     return buildLoopbackHtml(
       buildLoopbackReturnUrl(returnTo, { state: originalState, token: ghToken }),
       'GitHub Connected',
-      'Altals is ready to finish connecting your GitHub account.'
+      'ScribeFlow is ready to finish connecting your GitHub account.'
     )
   }
 

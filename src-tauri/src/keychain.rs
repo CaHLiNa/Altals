@@ -1,4 +1,4 @@
-const SERVICE_NAME: &str = "Altals";
+const SERVICE_NAME: &str = "ScribeFlow";
 const ALLOWED_KEYCHAIN_KEYS: &[&str] = &[
     "zotero-api-key",
     "ai-api-key",

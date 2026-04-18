@@ -1,27 +1,27 @@
-# Data Model
+# 数据模型
 
-## Frontend state
+## 前端状态
 
 - `src/stores/workspace.js`
-  Workspace open/close state, active surfaces, sidebar state, and shell-level workspace coordination.
+  工作区打开 / 关闭状态、活动 surface、侧边栏状态，以及 shell 级工作区协调。
 - `src/stores/editor.js`
-  Pane tree, open tabs, active documents, dirty state, and editor interactions.
+  Pane 树、打开标签、活动文档、脏状态与编辑器交互。
 - `src/stores/documentWorkflow.js`
-  Preview, compile, diagnostics, and workflow capability state.
+  预览、编译、诊断与工作流能力状态。
 - `src/stores/references.js`
-  Reference library, filters, selection, import, and citation-related state.
+  文献库、筛选、选中项、导入与引用相关状态。
 - `src/stores/ai.js`
-  Frontend AI panel state and Rust-runtime integration state.
+  前端 AI 面板状态，以及与 Rust 运行时集成相关的状态。
 
-## Backend/runtime seams
+## 后端 / 运行时接缝
 
 - `src-tauri/src/codex_runtime/*`
-  Runtime threads, turns, items, approvals, events, persistence, and tool protocol types.
+  运行时线程、turn、item、审批、事件、持久化与工具协议类型。
 - `src-tauri/src/document_workflow.rs`
-  Desktop document workflow command surface.
+  桌面端文档工作流命令面。
 - `src-tauri/src/references_*`
-  Reference import, citation, PDF, Zotero, and library runtime data exchange.
+  文献导入、引用、PDF、Zotero 与文献库运行时数据交换。
 
-## Rule
+## 规则
 
-Prefer evolving existing store and runtime schemas in place over introducing parallel shadow models.
+优先在现有 store 与运行时 schema 上演进，而不是再引入一套并行的影子模型。

@@ -48,7 +48,7 @@
           </div>
         </div>
 
-        <h1 class="starter-title stagger-2">{{ t('Altals Workspace') }}</h1>
+        <h1 class="starter-title stagger-2">{{ t('ScribeFlow Workspace') }}</h1>
         <p class="starter-subtitle stagger-3">
           {{
             t('Open a local project folder to organize your research, references, and documents.')

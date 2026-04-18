@@ -10,7 +10,7 @@
     <div class="wizard-step">
       <div class="wizard-brand">
         <img src="/icon.png" alt="" class="wizard-icon" draggable="false" />
-        <div class="wizard-wordmark">Altals</div>
+        <div class="wizard-wordmark">ScribeFlow</div>
       </div>
 
       <h2 class="wizard-step-title">{{ t('Choose a theme for your Markdown and LaTeX workspace') }}</h2>

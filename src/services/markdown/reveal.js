@@ -43,13 +43,13 @@ export function focusMarkdownSourceLocation(targetRuntime, location, options = {
   }
 
   if (!Number.isFinite(from)) {
-    const content = targetRuntime?.altalsGetContent?.() || ''
+    const content = targetRuntime?.scribeflowGetContent?.() || ''
     from = lineToOffset(content, location?.line || 1)
     to = from
   }
 
   if (!Number.isFinite(from)) return false
-  return !!targetRuntime?.altalsRevealRange?.(from, Math.max(from, Number.isFinite(to) ? to : from), options)
+  return !!targetRuntime?.scribeflowRevealRange?.(from, Math.max(from, Number.isFinite(to) ? to : from), options)
 }
 
 export async function revealMarkdownSourceLocation(editorStore, location, options = {}) {

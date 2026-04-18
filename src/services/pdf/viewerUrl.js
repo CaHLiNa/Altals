@@ -111,7 +111,7 @@ export function buildPdfViewerSrc(fileUrl, options = {}) {
   }
 
   if (options.useCanvasFilterFallback) {
-    params.set('altalscanvasfilterfallback', 'true')
+    params.set('scribeflowcanvasfilterfallback', 'true')
   }
 
   return `/pdfjs-viewer/web/viewer.html?${params.toString()}`

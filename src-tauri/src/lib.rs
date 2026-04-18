@@ -283,7 +283,7 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     };
 
     let about_metadata = AboutMetadata {
-        name: Some("Altals".into()),
+        name: Some("ScribeFlow".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         ..Default::default()
     };
@@ -324,17 +324,17 @@ fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         None::<&str>,
     )?;
 
-    let app_menu = SubmenuBuilder::new(app, "Altals")
-        .about_with_text(label("关于 Altals", "About Altals"), Some(about_metadata))
+    let app_menu = SubmenuBuilder::new(app, "ScribeFlow")
+        .about_with_text(label("关于 ScribeFlow", "About ScribeFlow"), Some(about_metadata))
         .item(&open_settings)
         .separator()
         .services_with_text(label("服务", "Services"))
         .separator()
-        .hide_with_text(label("隐藏 Altals", "Hide Altals"))
+        .hide_with_text(label("隐藏 ScribeFlow", "Hide ScribeFlow"))
         .hide_others_with_text(label("隐藏其他", "Hide Others"))
         .show_all_with_text(label("显示全部", "Show All"))
         .separator()
-        .quit_with_text(label("退出 Altals", "Quit Altals"))
+        .quit_with_text(label("退出 ScribeFlow", "Quit ScribeFlow"))
         .build()?;
 
     let file_menu = SubmenuBuilder::new(app, label("文件", "File"))
@@ -393,7 +393,7 @@ pub fn run() {
     enrich_path();
 
     let builder = tauri::Builder::default()
-        .register_uri_scheme_protocol("altals-workspace", |ctx, request| {
+        .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
             handle_workspace_protocol(ctx.app_handle(), request)
         })
         .plugin(tauri_plugin_clipboard_manager::init())

@@ -49,7 +49,7 @@ const SettingsAi = defineAsyncComponent(() => import('./SettingsAi.vue'))
 const SettingsSkills = defineAsyncComponent(() => import('./SettingsSkills.vue'))
 const SettingsTools = defineAsyncComponent(() => import('./SettingsTools.vue'))
 
-const AGENT_SETTINGS_SUBPAGE_STORAGE_KEY = 'altals.settings.agentSubpage'
+const AGENT_SETTINGS_SUBPAGE_STORAGE_KEY = 'scribeflow.settings.agentSubpage'
 
 const { t } = useI18n()
 const browserPreview = isBrowserPreviewRuntime()

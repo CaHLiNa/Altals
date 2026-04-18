@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-pub const APP_DIR_NAME: &str = ".altals";
+pub const APP_DIR_NAME: &str = ".scribeflow";
 
 fn home_dir() -> Result<PathBuf, String> {
     dirs::home_dir().ok_or("Cannot find home directory".to_string())
@@ -8,13 +8,13 @@ fn home_dir() -> Result<PathBuf, String> {
 
 pub fn data_root_dir() -> Result<PathBuf, String> {
     let home = home_dir()?;
-    let altals_dir = home.join(APP_DIR_NAME);
+    let scribeflow_dir = home.join(APP_DIR_NAME);
 
-    if !altals_dir.exists() {
-        std::fs::create_dir_all(&altals_dir).map_err(|e| e.to_string())?;
+    if !scribeflow_dir.exists() {
+        std::fs::create_dir_all(&scribeflow_dir).map_err(|e| e.to_string())?;
     }
 
-    Ok(altals_dir)
+    Ok(scribeflow_dir)
 }
 
 pub fn bin_dir() -> Result<PathBuf, String> {

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const ZOTERO_KEYCHAIN_KEY: &str = "zotero-api-key";
-const SERVICE_NAME: &str = "Altals";
+const SERVICE_NAME: &str = "ScribeFlow";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

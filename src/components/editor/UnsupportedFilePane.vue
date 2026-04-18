@@ -4,10 +4,10 @@
       <div class="unsupported-file-badge">{{ t('Removed surface') }}</div>
       <div class="unsupported-file-title">{{ fileName }}</div>
       <div class="unsupported-file-copy">
-        {{ t('Altals now only opens Markdown and LaTeX documents in the main workspace.') }}
+        {{ t('ScribeFlow now only opens Markdown and LaTeX documents in the main workspace.') }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
-        {{ t('This file can stay in your project, but this trimmed build no longer opens or edits this file type inside Altals.') }}
+        {{ t('This file can stay in your project, but this trimmed build no longer opens or edits this file type inside ScribeFlow.') }}
       </div>
       <div class="unsupported-file-copy unsupported-file-copy-muted">
         {{ t('Keep it as a project asset or open it in another app when you still need it.') }}

@@ -1,4 +1,4 @@
-export const EDITOR_RUNTIME_EVENT_NAME = 'altals:editor-runtime-event'
+export const EDITOR_RUNTIME_EVENT_NAME = 'scribeflow:editor-runtime-event'
 
 export function emitEditorRuntimeTelemetry(detail = {}) {
   if (typeof window === 'undefined') return
@@ -63,35 +63,35 @@ export function createEditorRuntimeContract(runtime = {}) {
       return true
     },
 
-    altalsPersist() {
+    scribeflowPersist() {
       return persistContent()
     },
 
-    altalsGetContent() {
+    scribeflowGetContent() {
       return getContent()
     },
 
-    altalsApplyExternalContent(nextContent = '') {
+    scribeflowApplyExternalContent(nextContent = '') {
       return applyExternalContent(nextContent)
     },
 
-    altalsRequestSelection() {
+    scribeflowRequestSelection() {
       return requestSelection()
     },
 
-    altalsRevealOffset(offset, options = {}) {
+    scribeflowRevealOffset(offset, options = {}) {
       return revealOffset(offset, options)
     },
 
-    altalsRevealRange(from, to, options = {}) {
+    scribeflowRevealRange(from, to, options = {}) {
       return revealRange(from, to, options)
     },
 
-    altalsSetDiagnostics(diagnostics = []) {
+    scribeflowSetDiagnostics(diagnostics = []) {
       return setDiagnostics(diagnostics)
     },
 
-    altalsSetOutlineContext(context = null) {
+    scribeflowSetOutlineContext(context = null) {
       return setOutlineContext(context)
     },
   }

@@ -32,22 +32,22 @@ See https://github.com/adobe-type-tools/cmap-resources
         const params = new URLSearchParams(window.location.search)
         const pageBackground = params.get('pagecolorsbackground') || ''
         const themeValue = params.get('viewercsstheme')
-        const useCanvasFilterFallback = params.get('altalscanvasfilterfallback') === 'true'
+        const useCanvasFilterFallback = params.get('scribeflowcanvasfilterfallback') === 'true'
         const mode = themeValue === '1' ? 'light' : 'dark'
         const root = document.documentElement
 
         root.style.colorScheme = mode
         if (pageBackground) {
-          root.style.setProperty('--altals-boot-bg', pageBackground)
-          root.style.setProperty('--altals-shell-preview-surface', pageBackground)
-          root.style.setProperty('--altals-pdf-page-bg', pageBackground)
+          root.style.setProperty('--scribeflow-boot-bg', pageBackground)
+          root.style.setProperty('--scribeflow-shell-preview-surface', pageBackground)
+          root.style.setProperty('--scribeflow-pdf-page-bg', pageBackground)
           root.style.setProperty('--body-bg-color', pageBackground)
           root.style.setProperty('--page-bg-color', pageBackground)
         }
-        root.dataset.altalsCanvasFilterFallback = useCanvasFilterFallback ? 'true' : 'false'
+        root.dataset.scribeflowCanvasFilterFallback = useCanvasFilterFallback ? 'true' : 'false'
         if (useCanvasFilterFallback) {
           root.style.setProperty(
-            '--altals-pdf-canvas-filter',
+            '--scribeflow-pdf-canvas-filter',
             'invert(1) hue-rotate(180deg) contrast(1.08) brightness(1.05)'
           )
         }
@@ -56,7 +56,7 @@ See https://github.com/adobe-type-tools/cmap-resources
     <style>
       html,
       body {
-        background: var(--altals-boot-bg, #141311);
+        background: var(--scribeflow-boot-bg, #141311);
       }
     </style>
 
@@ -67,7 +67,7 @@ See https://github.com/adobe-type-tools/cmap-resources
     <link rel="stylesheet" href="viewer.css" />
 
   <script src="viewer.mjs" type="module"></script>
-  <script src="altals-latex-sync.mjs" type="module"></script>
+  <script src="scribeflow-latex-sync.mjs" type="module"></script>
   </head>
 
   <body tabindex="0">
@@ -353,7 +353,7 @@ See https://github.com/adobe-type-tools/cmap-resources
                 </button>
               </div>
               <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
-                <div class="toolbarHorizontalGroup altalsPageGroup">
+                <div class="toolbarHorizontalGroup scribeflowPageGroup">
                   <span class="loadingInput start toolbarHorizontalGroup">
                     <input
                       type="number"

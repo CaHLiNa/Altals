@@ -1,4 +1,4 @@
-name: Altals Release
+name: ScribeFlow Release
 
 on:
   push:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: altals-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: scribeflow-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -159,8 +159,8 @@ jobs:
           tauriScript: npm run tauri
           args: ${{ matrix.tauri-args }}
           tagName: ${{ needs.prepare-release.outputs.tag }}
-          releaseName: Altals v${{ needs.prepare-release.outputs.version }}
-          releaseBody: Download the Altals installer for your platform below.
+          releaseName: ScribeFlow v${{ needs.prepare-release.outputs.version }}
+          releaseBody: Download the ScribeFlow installer for your platform below.
           releaseDraft: false
           prerelease: false
 

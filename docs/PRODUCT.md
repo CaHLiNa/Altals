@@ -1,29 +1,29 @@
-# Product
+# 产品定义
 
-Altals is a local-first desktop academic research workbench for Markdown and LaTeX.
+ScribeFlow 是一个本地优先的桌面学术研究工作台，服务于 Markdown 与 LaTeX 写作。
 
-## Core workflow
+## 核心工作流
 
-- Open a local project directory.
-- Browse project files and project references in one workspace.
-- Read source material without leaving the desktop app.
-- Write Markdown and LaTeX documents.
-- Insert citations and maintain bibliography output in context.
-- Compile and preview documents inside the same desktop workflow.
-- Inspect outline and closely related context in the right-side panel.
+- 打开本地项目目录。
+- 在同一工作区中浏览项目文件与项目文献。
+- 不离开桌面应用即可阅读源材料。
+- 编写 Markdown 和 LaTeX 文档。
+- 在上下文中插入引用并维护 bibliography 输出。
+- 在同一桌面工作流内完成编译与预览。
+- 在右侧面板查看大纲及紧密相关的研究上下文。
 
-## Product boundaries
+## 产品边界
 
-- The Tauri desktop app is the primary product surface.
-- The left sidebar stays project-tree-first.
-- The right-side panel stays outline and research-context oriented.
-- Keep the app desktop-first and local-first.
-- Do not turn the app into a generic PKM, chat shell, or disconnected library manager.
-- Do not let the separate `web/` project drive desktop decisions.
+- Tauri 桌面应用是主要产品界面。
+- 左侧边栏始终保持“项目树优先”。
+- 右侧面板始终以大纲与研究上下文为主。
+- 保持桌面优先、本地优先。
+- 不要把应用做成通用 PKM、聊天壳子或割裂的文献管理器。
+- 不要让独立的 `web/` 项目主导桌面端决策。
 
-## Current direction
+## 当前方向
 
-- Stabilize the current desktop writing workflow.
-- Tighten the loop among references, reading, writing, citation, compile, and preview.
-- Prefer removing stale systems over preserving dead architecture.
-- Keep future AI and translation work plugin-capable instead of hard-wired into the core app.
+- 把当前桌面写作工作流提升到产品的最优形态，而不只是维持一个可用基线。
+- 进一步收紧文献、阅读、写作、引用、编译和预览之间的闭环。
+- 优先删除陈旧系统，而不是保留死掉的架构。
+- 保持未来 AI 与翻译能力可插件化扩展，而不是直接硬焊进核心应用。

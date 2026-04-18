@@ -487,10 +487,10 @@ mod tests {
     fn applies_single_cursor_edit() {
         let mut buffer = DocumentBuffer::new("paper.md", "hello world");
         buffer
-            .apply_edit(&TextEdit::new(6..11, "Altals"))
+            .apply_edit(&TextEdit::new(6..11, "ScribeFlow"))
             .expect("single edit should apply");
 
-        assert_eq!(buffer.text(), "hello Altals");
+        assert_eq!(buffer.text(), "hello ScribeFlow");
         assert_eq!(
             buffer.cursor_position(9),
             CursorPosition {
@@ -595,12 +595,12 @@ mod tests {
         let mut session = EditorSession::new(EditorSessionId::new("session-1"));
         session.open_document("notes.md", "hello world");
 
-        let transaction = EditorTransaction::new(vec![TextEdit::new(6..11, "Altals")]);
+        let transaction = EditorTransaction::new(vec![TextEdit::new(6..11, "ScribeFlow")]);
         let document = session
             .apply_transaction("notes.md", &transaction)
             .expect("transaction should apply");
 
-        assert_eq!(document.text(), "hello Altals");
+        assert_eq!(document.text(), "hello ScribeFlow");
         assert_eq!(document.version, 2);
     }
 

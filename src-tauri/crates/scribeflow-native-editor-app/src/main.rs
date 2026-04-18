@@ -1,4 +1,4 @@
-use altals_editor_core::{
+use scribeflow_editor_core::{
     CursorPosition, EditorSession, EditorSessionId, EditorTransaction, SelectionRange, SessionDocument,
     TextEdit, ViewportAnchor,
 };

@@ -1,25 +1,25 @@
-# Document Workflow
+# 文档工作流
 
-## Scope
+## 适用范围
 
-This document covers preview, compile, editor, and document-workflow decisions in the desktop app.
+本文档覆盖桌面应用中的预览、编译、编辑器与文档工作流决策。
 
-## Workflow rules
+## 工作流规则
 
-- Preserve working compile and preview behavior while replacing internals.
-- Treat Markdown and LaTeX as first-class document sources.
-- Keep preview, compile, diagnostics, and outline flows consistent with the active file.
-- Update docs and tests in the same slice when document workflow behavior changes.
+- 在内部实现演进过程中，把文档工作流推进到最优形态，同时确保编译与预览端到端正确。
+- Markdown 与 LaTeX 都必须是一等文档源。
+- 预览、编译、诊断与大纲流要与当前活动文件保持一致。
+- 当文档工作流行为发生变化时，在同一切片里同步更新文档与测试。
 
-## Architecture guidance
+## 架构指导
 
-- Put document policy in `src/domains/document/*` when possible.
-- Keep file-format adapters aligned with the runtime adapters under `src/services/documentWorkflow/adapters/*` and `src/domains/document/*`.
-- Keep editor-specific UI glue in `src/components/*` and `src/composables/*`, not in business-policy modules.
+- 文档策略尽量放在 `src/domains/document/*`。
+- 文件格式适配器要与 `src/services/documentWorkflow/adapters/*` 和 `src/domains/document/*` 下的运行时适配层保持一致。
+- 编辑器相关的 UI 胶水放在 `src/components/*` 和 `src/composables/*`，不要塞进业务策略模块。
 
-## Validation
+## 验证
 
-- Run the smallest relevant checks while investigating.
-- Run `npm run build` for meaningful frontend or integration changes.
-- Run `cargo check --manifest-path src-tauri/Cargo.toml` when Tauri/backend seams change.
-- If preview or compile behavior changes, verify at least one real document path end to end.
+- 调查时运行能为当前文档工作流改动提供最佳覆盖的检查，而不是只跑最窄的一组命令。
+- 只要前端或集成层有实质变化，就运行 `npm run build`。
+- 只要 Tauri / 后端接缝有变化，就运行 `cargo check --manifest-path src-tauri/Cargo.toml`。
+- 只要预览或编译行为有变化，就至少用一条真实文档路径做端到端验证。

@@ -44,7 +44,7 @@
             <div class="settings-row-hint">
               {{
                 t(
-                  'Altals resolves explicit requests first, then falls back to built-in local capability before external MCP tools.'
+                  'ScribeFlow resolves explicit requests first, then falls back to built-in local capability before external MCP tools.'
                 )
               }}
             </div>
@@ -68,7 +68,7 @@
               <div class="settings-ai-precedence-copy">
                 {{
                   t(
-                    'When you explicitly name tools, Altals prefers those tools inside the selected workflow before implicit tool choice.'
+                    'When you explicitly name tools, ScribeFlow prefers those tools inside the selected workflow before implicit tool choice.'
                   )
                 }}
               </div>
@@ -80,7 +80,7 @@
               <div class="settings-ai-precedence-copy">
                 {{
                   t(
-                    'Without an explicit #tool request, Altals prefers built-in workspace tools for local file work and reaches for MCP only when external capability is needed.'
+                    'Without an explicit #tool request, ScribeFlow prefers built-in workspace tools for local file work and reaches for MCP only when external capability is needed.'
                   )
                 }}
               </div>
@@ -145,7 +145,7 @@
                         {{ t('Provided by {name}', { name: tool.sourceLabel }) }}
                       </span>
                       <span v-else-if="tool.sourceKind === 'built-in'">
-                        {{ t('Built into Altals') }}
+                        {{ t('Built into ScribeFlow') }}
                       </span>
                     </div>
                   </div>

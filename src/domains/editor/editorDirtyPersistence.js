@@ -42,8 +42,8 @@ export async function persistEditorPath({
     nativeDocumentState = await getNativeEditorDocumentState({ path }).catch(() => null)
   }
 
-  if (editorRuntime?.altalsPersist) {
-    return (await editorRuntime.altalsPersist()) !== false
+  if (editorRuntime?.scribeflowPersist) {
+    return (await editorRuntime.scribeflowPersist()) !== false
   }
 
   if (filesStore.isDraftFile?.(path)) {
@@ -60,8 +60,8 @@ export async function persistEditorPath({
     return !!savedPath
   }
 
-  if (editorRuntime?.altalsGetContent) {
-    const saved = await filesStore.saveFile(path, editorRuntime.altalsGetContent())
+  if (editorRuntime?.scribeflowGetContent) {
+    const saved = await filesStore.saveFile(path, editorRuntime.scribeflowGetContent())
     if (saved) {
       onPersisted?.(path)
     }

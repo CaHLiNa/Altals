@@ -486,7 +486,7 @@ async function main() {
   const env = {
     ...process.env,
     ANTHROPIC_API_KEY: apiKey,
-    CLAUDE_AGENT_SDK_CLIENT_APP: 'altals/1.0.10',
+    CLAUDE_AGENT_SDK_CLIENT_APP: 'scribeflow/1.0.10',
   }
 
   const normalizedBaseUrl = normalizeAnthropicBaseUrlForSdk(request.baseUrl)

@@ -7,7 +7,7 @@
         <div class="settings-group-body">
           <div class="settings-row">
             <div class="settings-row-copy">
-              <div class="settings-row-title">Altals Preview Library</div>
+              <div class="settings-row-title">ScribeFlow Preview Library</div>
               <div class="settings-row-hint">
                 {{
                   t(

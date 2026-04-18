@@ -1,6 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
-const RELEASES_URL = 'https://github.com/CaHLiNa/Altals/releases'
-const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/Altals/releases/latest'
+const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
+const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
 
 function normalizeVersionSegment(value = '') {
   const parsed = Number.parseInt(String(value || '').trim(), 10)

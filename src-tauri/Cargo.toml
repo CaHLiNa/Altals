@@ -1,23 +1,23 @@
 [package]
-name = "altals"
+name = "scribeflow"
 version = "1.0.11"
 edition = "2021"
-default-run = "altals"
+default-run = "scribeflow"
 
 [lib]
-name = "altals_lib"
+name = "scribeflow_lib"
 crate-type = ["lib", "cdylib"]
 
 [workspace]
 members = [
   ".",
-  "crates/altals-editor-core",
-  "crates/altals-native-editor-app",
+  "crates/scribeflow-editor-core",
+  "crates/scribeflow-native-editor-app",
 ]
 default-members = [
   ".",
-  "crates/altals-editor-core",
-  "crates/altals-native-editor-app",
+  "crates/scribeflow-editor-core",
+  "crates/scribeflow-native-editor-app",
 ]
 resolver = "2"
 

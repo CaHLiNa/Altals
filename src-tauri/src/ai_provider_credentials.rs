@@ -4,7 +4,7 @@ use crate::ai_config::{
     normalize_ai_config, normalize_ai_provider_id, read_ai_config_raw, write_ai_config_raw,
 };
 
-const SERVICE_NAME: &str = "Altals";
+const SERVICE_NAME: &str = "ScribeFlow";
 const LEGACY_AI_KEYCHAIN_KEY: &str = "ai-api-key";
 
 fn resolve_ai_keychain_key(provider_id: &str) -> &'static str {

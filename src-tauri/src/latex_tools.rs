@@ -25,7 +25,7 @@ pub struct LatexToolStatus {
     pub latexindent: BinaryStatus,
 }
 
-pub fn altals_bin_dir() -> Option<PathBuf> {
+pub fn scribeflow_bin_dir() -> Option<PathBuf> {
     app_dirs::bin_dir().ok()
 }
 

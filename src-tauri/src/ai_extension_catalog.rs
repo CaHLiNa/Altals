@@ -151,7 +151,7 @@ fn workspace_candidate_sources(workspace_path: &str) -> Vec<(PathBuf, &'static s
     let root = PathBuf::from(normalized);
     vec![
         (root.join(".mcp.json"), "workspace"),
-        (root.join(".altals/mcp.json"), "workspace"),
+        (root.join(".scribeflow/mcp.json"), "workspace"),
         (root.join(".codex/mcp.json"), "workspace"),
         (root.join(".claude/mcp.json"), "workspace"),
         (root.join(".agents/mcp.json"), "workspace"),
@@ -483,7 +483,7 @@ fn probe_stdio_mcp_server_sync(
                     }
                 },
                 "clientInfo": {
-                    "name": "Altals",
+                    "name": "ScribeFlow",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             }
@@ -644,7 +644,7 @@ pub fn execute_mcp_runtime_tool_call(
                         }
                     },
                     "clientInfo": {
-                        "name": "Altals",
+                        "name": "ScribeFlow",
                         "version": env!("CARGO_PKG_VERSION")
                     }
                 }
@@ -787,7 +787,7 @@ async fn probe_stdio_mcp_server(
                     }
                 },
                 "clientInfo": {
-                    "name": "Altals",
+                    "name": "ScribeFlow",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             }

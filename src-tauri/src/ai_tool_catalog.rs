@@ -249,7 +249,7 @@ fn runtime_entry_from_builtin(tool: AiToolDefinition) -> AiRuntimeToolEntry {
         configurable: tool.configurable,
         always_available: tool.always_available,
         source_kind: "built-in".to_string(),
-        source_label: "Altals".to_string(),
+        source_label: "ScribeFlow".to_string(),
         group_key: "built-in-tools".to_string(),
         group_label: "Built-in tools".to_string(),
         invocation_name: slugify_invocation_name(tool.label),

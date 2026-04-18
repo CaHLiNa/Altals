@@ -20,7 +20,7 @@ pub struct AiAgentPromptParams {
     #[serde(default)]
     pub conversation: Vec<Value>,
     #[serde(default)]
-    pub altals_skills: Vec<Value>,
+    pub scribeflow_skills: Vec<Value>,
     #[serde(default)]
     pub support_files: Vec<Value>,
     #[serde(default)]
@@ -352,8 +352,8 @@ fn build_workspace_context_prompt_block(context_bundle: &Value) -> String {
     .join("\n")
 }
 
-fn build_available_skills_block(altals_skills: &[Value]) -> String {
-    let entries = altals_skills
+fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
+    let entries = scribeflow_skills
         .iter()
         .filter(|skill| string_field(skill, &["kind"]) == "filesystem-skill")
         .filter_map(|skill| {
@@ -558,7 +558,7 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         String::new(),
         build_workspace_context_prompt_block(&params.context_bundle),
         String::new(),
-        build_available_skills_block(&params.altals_skills),
+        build_available_skills_block(&params.scribeflow_skills),
         String::new(),
         build_selection_precedence_block(params),
         String::new(),

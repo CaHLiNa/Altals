@@ -114,12 +114,12 @@
           <UiButton
             variant="ghost"
             size="sm"
-            :disabled="aiStore.isRefreshingAltalsSkills"
+            :disabled="aiStore.isRefreshingScribeFlowSkills"
             @click="refreshSkills"
           >
             <template #leading>
               <svg
-                :class="{ 'ai-icon-spin': aiStore.isRefreshingAltalsSkills }"
+                :class="{ 'ai-icon-spin': aiStore.isRefreshingScribeFlowSkills }"
                 width="14"
                 height="14"
                 viewBox="0 0 24 24"
@@ -357,7 +357,7 @@ const aiStore = useAiStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 
-const altalsSkills = computed(() => aiStore.altalsSkills)
+const scribeflowSkills = computed(() => aiStore.scribeflowSkills)
 const managementScope = ref('workspace')
 const searchQuery = ref('')
 const createModalVisible = ref(false)
@@ -391,7 +391,7 @@ const skillGroups = computed(() => {
     .trim()
     .toLowerCase()
 
-  for (const skill of altalsSkills.value) {
+  for (const skill of scribeflowSkills.value) {
     const haystack = [
       skill.name,
       skill.description,
@@ -425,7 +425,7 @@ function resetMessages() {
 
 async function refreshSkills() {
   resetMessages()
-  await aiStore.refreshAltalsSkills()
+  await aiStore.refreshScribeFlowSkills()
 }
 
 async function submitCreateSkill() {
@@ -488,15 +488,15 @@ async function importSkillDirectory() {
 }
 
 function canDeleteSkill(skill = {}) {
-  return skill?.managedByAltals === true
+  return skill?.managedByScribeFlow === true
 }
 
 function canEditSkill(skill = {}) {
-  return skill?.writableByAltals === true
+  return skill?.writableByScribeFlow === true
 }
 
 function canDuplicateSkill(skill = {}) {
-  return skill?.writableByAltals === true
+  return skill?.writableByScribeFlow === true
 }
 
 function beginEditSkill(skill = {}) {

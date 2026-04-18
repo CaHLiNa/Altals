@@ -47,9 +47,9 @@ pub struct NativeEditorRuntimeState {
 
 fn resolve_helper_binary_name() -> &'static str {
     if cfg!(windows) {
-        "altals-native-editor-app.exe"
+        "scribeflow-native-editor-app.exe"
     } else {
-        "altals-native-editor-app"
+        "scribeflow-native-editor-app"
     }
 }
 
@@ -79,7 +79,7 @@ fn helper_binary_candidates<R: Runtime>(app: &AppHandle<R>) -> Vec<PathBuf> {
 }
 
 fn resolve_helper_binary_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    if let Ok(explicit) = std::env::var("ALTALS_NATIVE_EDITOR_BIN") {
+    if let Ok(explicit) = std::env::var("SCRIBEFLOW_NATIVE_EDITOR_BIN") {
         let path = PathBuf::from(explicit);
         if path.exists() {
             return Ok(path);

@@ -465,11 +465,11 @@ useBrowserPreviewRuntime({
   transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:global(body.altals-shell-resizing) .app-shell-region-left,
-:global(body.altals-shell-resizing) .app-shell-region-right,
-:global(body.altals-shell-resizing) .app-shell-sidebar,
-:global(body.altals-shell-resizing) .app-shell-sidebar-left,
-:global(body.altals-shell-resizing) .app-shell-sidebar-right {
+:global(body.scribeflow-shell-resizing) .app-shell-region-left,
+:global(body.scribeflow-shell-resizing) .app-shell-region-right,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar-left,
+:global(body.scribeflow-shell-resizing) .app-shell-sidebar-right {
   transition: none !important;
 }
 

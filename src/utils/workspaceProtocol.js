@@ -46,7 +46,7 @@ export function toWorkspaceProtocolUrl(filePath, workspace, options = {}) {
 
   if (!relativePath) return ''
 
-  const baseUrl = `altals-workspace://localhost/${scope}/${encodeRelativePath(relativePath)}`
+  const baseUrl = `scribeflow-workspace://localhost/${scope}/${encodeRelativePath(relativePath)}`
   if (!version) return baseUrl
   return `${baseUrl}?v=${encodeURIComponent(String(version))}`
 }
