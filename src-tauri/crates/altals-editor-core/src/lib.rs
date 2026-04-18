@@ -70,11 +70,12 @@ impl EditorSession {
         text: impl Into<String>,
     ) -> &SessionDocument {
         let path = path.into();
+        let text = text.into();
         let document = self
             .documents
             .entry(path.clone())
-            .and_modify(|existing| existing.replace_all(text.into()))
-            .or_insert_with(|| SessionDocument::new(path, text.into()));
+            .and_modify(|existing| existing.replace_all(text.clone()))
+            .or_insert_with(|| SessionDocument::new(path, text));
         &*document
     }
 
@@ -84,11 +85,12 @@ impl EditorSession {
         text: impl Into<String>,
     ) -> &SessionDocument {
         let path = path.into();
+        let text = text.into();
         let document = self
             .documents
             .entry(path.clone())
             .or_insert_with(|| SessionDocument::new(path.clone(), ""));
-        document.replace_all(text.into());
+        document.replace_all(text);
         &*document
     }
 
