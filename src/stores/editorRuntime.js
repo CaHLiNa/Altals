@@ -617,7 +617,7 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         typeof text === 'string'
           ? text
           : String(this.nativeDocuments[normalizedPath]?.text ?? '')
-      await inspectNativeEditorInteractionContext({
+      return inspectNativeEditorInteractionContext({
         path: normalizedPath,
         text: currentText,
         selection:
