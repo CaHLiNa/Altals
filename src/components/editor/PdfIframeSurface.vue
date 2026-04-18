@@ -193,10 +193,6 @@ function resolvePdfCanvasFallbackMode(pageBackground = resolvePdfPageBackground(
   return luminance > 0.58 ? 'light' : 'dark'
 }
 
-async function appendLatexSyncDebug(entry = {}) {
-  void entry
-}
-
 function base64ToUint8Array(base64) {
   const binary = atob(String(base64 || ''))
   const bytes = new Uint8Array(binary.length)
@@ -453,11 +449,6 @@ async function handleLatexViewerReverseSync(detail = {}) {
   if (!synctexPath) return
 
   try {
-    await appendLatexSyncDebug({
-      event: 'reverse-sync-start',
-      detail,
-      synctexPath,
-    })
     const result = await requestLatexPdfBackwardSync({
       synctexPath,
       page: Number(detail.page || 0),
@@ -470,12 +461,6 @@ async function handleLatexViewerReverseSync(detail = {}) {
         compileTargetPath: props.compileState?.compileTargetPath || '',
         workspacePath: props.workspacePath || '',
       })
-      await appendLatexSyncDebug({
-        event: 'reverse-sync-result',
-        detail,
-        result,
-        resolvedFile: resolvedFile || result.file,
-      })
       emit('backward-sync', {
         ...result,
         file: resolvedFile || result.file,
@@ -484,17 +469,8 @@ async function handleLatexViewerReverseSync(detail = {}) {
       })
       return
     }
-    await appendLatexSyncDebug({
-      event: 'reverse-sync-empty',
-      detail,
-      result,
-    })
   } catch (error) {
-    await appendLatexSyncDebug({
-      event: 'reverse-sync-error',
-      detail,
-      error: error?.message || String(error || ''),
-    })
+    void error
     // Ignore backward sync failures and leave the viewer stable.
   }
 }
@@ -811,28 +787,6 @@ function syncViewerLoadedState(app = getViewerApp()) {
   return true
 }
 
-function buildViewerStateSnapshot(app = getViewerApp()) {
-  return {
-    hasApp: Boolean(app),
-    initialized: Boolean(app?.initialized),
-    hasEventBus: Boolean(app?.eventBus),
-    hasLoadingTask: Boolean(app?.pdfLoadingTask),
-    hasPdfDocument: Boolean(app?.pdfDocument),
-    hasL10n: Boolean(app?.l10n),
-    hasPdfViewer: Boolean(app?.pdfViewer),
-    hasToolbar: Boolean(app?.toolbar),
-    hasSecondaryToolbar: Boolean(app?.secondaryToolbar),
-    pagesCount: Number(app?.pagesCount || app?.pdfDocument?.numPages || 0),
-    initPhase: String(app?._altalsInitPhase || ''),
-    runPhase: String(app?._altalsRunPhase || ''),
-    openPhase: String(app?._altalsOpenPhase || ''),
-    viewerUrl: String(app?.url || ''),
-    viewerBaseUrl: String(app?.baseUrl || ''),
-    viewerSrc: String(viewerSrc.value || ''),
-    artifactPath: String(props.artifactPath || ''),
-  }
-}
-
 function fallbackToBlobAfterProtocolFailure(detail = {}) {
   if (activeLoadSourceMode !== 'protocol' || protocolFailureFallbackTriggered) {
     return false
@@ -843,12 +797,7 @@ function fallbackToBlobAfterProtocolFailure(detail = {}) {
     window.clearTimeout(viewerLoadTimeout)
     viewerLoadTimeout = 0
   }
-  void appendLatexSyncDebug({
-    event: 'pdf-protocol-load-failed',
-    sourceMode: activeLoadSourceMode,
-    detail,
-    snapshot: buildViewerStateSnapshot(),
-  })
+  void detail
   void loadPdfWithStrategy({ preferProtocol: false })
   return true
 }
@@ -924,11 +873,6 @@ async function loadPdfWithStrategy(options = {}) {
         if (syncViewerLoadedState()) {
           return
         }
-        void appendLatexSyncDebug({
-          event: 'pdf-load-timeout',
-          sourceMode,
-          snapshot: buildViewerStateSnapshot(),
-        })
         if (sourceMode === 'protocol') {
           void loadPdfWithStrategy({ preferProtocol: false })
           return
@@ -958,11 +902,6 @@ async function handleIframeViewerMessage(event) {
   if (!data || typeof data !== 'object') return
 
   if (data.channel === 'altals-pdf-debug') {
-    void appendLatexSyncDebug({
-      event: 'pdf-viewer-debug',
-      detail: data,
-      snapshot: buildViewerStateSnapshot(),
-    })
     if (data.type === 'document-error' || data.type === 'open-failure') {
       if (
         fallbackToBlobAfterProtocolFailure({
