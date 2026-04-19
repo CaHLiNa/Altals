@@ -61,11 +61,7 @@ fn bool_field(value: &Value, keys: &[&str]) -> bool {
 }
 
 fn get_ai_skill_behavior_id(skill: &Value) -> String {
-    let kind = string_field(skill, &["kind"]);
-    if kind == "codex-skill"
-        || kind == "filesystem-skill"
-        || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
-    {
+    if string_field(skill, &["kind"]) == "codex-skill" {
         return string_field(skill, &["slug", "name", "id"]);
     }
     string_field(skill, &["id"])
@@ -337,12 +333,7 @@ fn build_workspace_context_prompt_block(context_bundle: &Value) -> String {
 fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
     let entries = scribeflow_skills
         .iter()
-        .filter(|skill| {
-            matches!(
-                string_field(skill, &["kind"]).as_str(),
-                "codex-skill" | "filesystem-skill"
-            ) || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
-        })
+        .filter(|skill| string_field(skill, &["kind"]) == "codex-skill")
         .filter_map(|skill| {
             let name = string_field(
                 skill,
@@ -354,7 +345,7 @@ fn build_available_skills_block(scribeflow_skills: &[Value]) -> String {
             Some((
                 name,
                 string_field(skill, &["description", "shortDescription"]),
-                string_field(skill, &["pathToSkillMd", "skillFilePath"]),
+                string_field(skill, &["pathToSkillMd"]),
             ))
         })
         .collect::<Vec<_>>();
@@ -404,11 +395,7 @@ fn build_skill_support_prompt_block(files: &[Value]) -> String {
 }
 
 fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String {
-    if matches!(
-        string_field(skill, &["kind"]).as_str(),
-        "codex-skill" | "filesystem-skill"
-    ) || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
-    {
+    if string_field(skill, &["kind"]) == "codex-skill" {
         let supporting_files = skill
             .get("supportingFiles")
             .or_else(|| skill.get("supporting_files"))
@@ -437,17 +424,7 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
             format!(
                 "Source path: {}",
                 {
-                    let path = string_field(
-                        skill,
-                        &[
-                            "pathToSkillMd",
-                            "skillFilePath",
-                            "skill_file_path",
-                            "pathToSkillDir",
-                            "directoryPath",
-                            "directory_path",
-                        ],
-                    );
+                    let path = string_field(skill, &["pathToSkillMd", "pathToSkillDir"]);
                     if path.is_empty() {
                         "unknown".to_string()
                     } else {
@@ -587,10 +564,7 @@ pub async fn ai_agent_build_prompt(
 ) -> Result<AiAgentPromptResponse, String> {
     let mut params = params;
     if params.support_files.is_empty()
-        && matches!(
-            string_field(&params.skill, &["kind"]).as_str(),
-            "codex-skill" | "filesystem-skill"
-        )
+        && string_field(&params.skill, &["kind"]) == "codex-skill"
         && params
             .enabled_tool_ids
             .iter()

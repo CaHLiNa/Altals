@@ -212,10 +212,7 @@ pub async fn ai_agent_execute(
 ) -> Result<AiAgentExecuteResponse, String> {
     let mut params = params;
     if params.support_files.is_empty()
-        && matches!(
-            params.skill.get("kind").and_then(Value::as_str).unwrap_or_default(),
-            "codex-skill" | "filesystem-skill"
-        )
+        && params.skill.get("kind").and_then(Value::as_str).unwrap_or_default() == "codex-skill"
         && params
             .enabled_tool_ids
             .iter()

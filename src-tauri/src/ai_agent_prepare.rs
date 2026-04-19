@@ -190,10 +190,7 @@ fn build_skill_slug(skill: &Value) -> String {
 }
 
 fn is_catalog_skill(skill: &Value) -> bool {
-    let kind = string_field(skill, &["kind"]);
-    kind == "codex-skill"
-        || (!kind.is_empty() && kind == "filesystem-skill")
-        || !string_field(skill, &["pathToSkillMd", "skillFilePath"]).is_empty()
+    string_field(skill, &["kind"]) == "codex-skill"
 }
 
 fn match_catalog_skill(name: &str, skills: &[Value]) -> Option<Value> {
