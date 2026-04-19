@@ -1,6 +1,7 @@
 @import './css/fonts.css';
 @import './css/themes.css';
 @import './css/ui.css';
+@import './css/editor.css';
 @import './css/components.css';
 
 @tailwind base;
@@ -49,6 +50,10 @@ select,
   -webkit-user-select: text;
 }
 
+.cm-editor,
+.cm-editor *,
+.cm-content,
+.cm-line,
 .text-editor-host,
 .text-editor-load-error,
 .md-preview-content,
