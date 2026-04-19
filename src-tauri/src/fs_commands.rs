@@ -525,7 +525,8 @@ pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
         if is_dir {
             command.arg(&normalized);
         } else {
-            command.arg(format!("/select,{normalized}"));
+            command.arg("/select,");
+            command.arg(&normalized);
         }
         let status = command.status().map_err(|e| e.to_string())?;
         if status.success() {
