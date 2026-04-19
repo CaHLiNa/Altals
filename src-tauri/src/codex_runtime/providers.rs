@@ -20,12 +20,14 @@ use super::state::{CodexRuntimeHandle, CodexRuntimeState};
 use super::storage::persist_runtime_state;
 use super::tools::{
     build_apply_patch_result, build_exec_command_result, execute_prepared_apply_patch,
-    execute_prepared_exec_command, execute_prepared_write_stdin,
+    execute_prepared_exec_command, execute_prepared_resize_terminal,
+    execute_prepared_terminate_command, execute_prepared_write_stdin,
     execute_runtime_tool_call_with_context, is_apply_patch_tool_call, is_exec_command_tool_call,
-    is_write_stdin_tool_call, poll_exec_session_updates, prepare_apply_patch_tool_call,
-    prepare_exec_command_tool_call, prepare_write_stdin_tool_call,
-    resolve_runtime_tool_definitions_with_context, terminate_exec_sessions, RuntimeToolCall,
-    RuntimeToolResult,
+    is_resize_terminal_tool_call, is_terminate_command_tool_call, is_write_stdin_tool_call,
+    poll_exec_session_updates, prepare_apply_patch_tool_call, prepare_exec_command_tool_call,
+    prepare_resize_terminal_tool_call, prepare_terminate_command_tool_call,
+    prepare_write_stdin_tool_call, resolve_runtime_tool_definitions_with_context,
+    terminate_exec_sessions, RuntimeToolCall, RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -806,7 +808,7 @@ async fn update_runtime_item<R: Runtime>(
     text: String,
     status: TurnStatus,
     event_type: &str,
-) -> Result<(), String> {
+) -> Result<super::protocol::RuntimeItem, String> {
     let mut state = runtime.inner.lock().await;
     let thread = state.threads.get(thread_id).cloned();
     let turn = state.turns.get(turn_id).cloned();
@@ -823,7 +825,7 @@ async fn update_runtime_item<R: Runtime>(
         event_type,
         thread,
         turn,
-        Some(item_snapshot),
+        Some(item_snapshot.clone()),
         None,
         None,
         None,
@@ -831,7 +833,7 @@ async fn update_runtime_item<R: Runtime>(
         None,
         None,
     );
-    Ok(())
+    Ok(item_snapshot)
 }
 
 fn session_id_from_tool_result(result: &RuntimeToolResult) -> Option<i32> {
@@ -963,7 +965,7 @@ fn spawn_exec_output_stream_task<R: Runtime>(
             } else {
                 "itemCompleted"
             };
-            let _ = update_runtime_item(
+            if let Ok(item_snapshot) = update_runtime_item(
                 &app,
                 &runtime,
                 &thread_id,
@@ -973,7 +975,31 @@ fn spawn_exec_output_stream_task<R: Runtime>(
                 status.clone(),
                 event_type,
             )
-            .await;
+            .await
+            {
+                emit_runtime_event(
+                    &app,
+                    "commandOutputDelta",
+                    None,
+                    None,
+                    Some(item_snapshot),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(
+                        serde_json::to_string(&json!({
+                            "threadId": thread_id,
+                            "turnId": turn_id,
+                            "itemId": tool_result_item_id,
+                            "sessionId": session_id,
+                            "events": update.get("events").cloned().unwrap_or(Value::Array(Vec::new())),
+                        }))
+                        .unwrap_or_default(),
+                    ),
+                    None,
+                );
+            }
 
             if status != TurnStatus::Running {
                 let _ = unregister_turn_exec_session(&runtime, &turn_id, session_id).await;
@@ -1292,6 +1318,90 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
             };
 
             match execute_prepared_write_stdin(&prepared).await {
+                Ok(content) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&content).unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: false,
+                }),
+                Err(error) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": error,
+                    }))
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: true,
+                }),
+            }
+            continue;
+        }
+
+        if is_resize_terminal_tool_call(tool_call) {
+            let prepared = match prepare_resize_terminal_tool_call(tool_call) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
+                        is_error: true,
+                    });
+                    continue;
+                }
+            };
+
+            match execute_prepared_resize_terminal(&prepared).await {
+                Ok(content) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&content).unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: false,
+                }),
+                Err(error) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": error,
+                    }))
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: true,
+                }),
+            }
+            continue;
+        }
+
+        if is_terminate_command_tool_call(tool_call) {
+            let prepared = match prepare_terminate_command_tool_call(tool_call) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
+                        is_error: true,
+                    });
+                    continue;
+                }
+            };
+
+            match execute_prepared_terminate_command(&prepared).await {
                 Ok(content) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
                     content: serde_json::to_string_pretty(&content).unwrap_or_else(|_| {

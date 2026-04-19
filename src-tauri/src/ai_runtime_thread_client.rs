@@ -721,7 +721,9 @@ async fn ai_runtime_event_reduce(
         });
     }
 
-    if (event_type == "itemDelta" || event_type == "itemCompleted")
+    if (event_type == "itemDelta"
+        || event_type == "itemCompleted"
+        || event_type == "commandOutputDelta")
         && !trim(&params.pending_assistant_id).is_empty()
     {
         let item = payload.get("item").cloned().unwrap_or(Value::Null);

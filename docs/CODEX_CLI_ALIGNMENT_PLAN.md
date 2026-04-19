@@ -115,5 +115,8 @@
 - exec session 的后台输出现在会持续推送到 runtime item，并被前端会话消息实时消费，不再只在 tool result 结束后一次性可见
 - `stop` / turn interrupt 现在会显式终止 turn 关联的 exec session，避免留下孤儿子进程
 - 前端工具行已升级为 command/output 视图，优先显示 `stdout` / `stderr` / `cwd`，不再只展示原始 JSON
+- `tty` 已切到 `portable-pty` 后端，`Windows PTY` 与 Unix PTY 统一到同一套 runtime 能力
+- runtime tool 已补充 `resize_terminal` 与 `terminate_command`
+- runtime event 已补充独立的 `commandOutputDelta` 通知，不再只能借 `itemDelta` 间接传递命令输出
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。

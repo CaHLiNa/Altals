@@ -1,11 +1,14 @@
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
+use portable_pty::{native_pty_system, CommandBuilder as PtyCommandBuilder, PtySize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::Mutex as StdMutex;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -23,6 +26,8 @@ const SEARCH_FILES_TOOL: &str = "search_files";
 pub(crate) const APPLY_PATCH_TOOL: &str = "apply_patch";
 pub(crate) const EXEC_COMMAND_TOOL: &str = "exec_command";
 pub(crate) const WRITE_STDIN_TOOL: &str = "write_stdin";
+pub(crate) const RESIZE_TERMINAL_TOOL: &str = "resize_terminal";
+pub(crate) const TERMINATE_COMMAND_TOOL: &str = "terminate_command";
 
 const DEFAULT_READ_MAX_BYTES: u64 = 64 * 1024;
 const MAX_READ_BYTES: u64 = 256 * 1024;
@@ -125,6 +130,8 @@ pub(crate) struct PreparedExecCommand {
     pub workdir: String,
     pub shell: String,
     pub tty: bool,
+    pub rows: u16,
+    pub cols: u16,
     pub yield_time_ms: u64,
     pub max_output_chars: usize,
 }
@@ -138,11 +145,29 @@ pub(crate) struct PreparedWriteStdin {
     pub max_output_chars: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedResizeTerminal {
+    pub session_id: i32,
+    pub rows: u16,
+    pub cols: u16,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedTerminateCommand {
+    pub session_id: i32,
+}
+
+enum ExecStdinHandle {
+    Process(ChildStdin),
+    Pty(Arc<StdMutex<Box<dyn Write + Send>>>),
+}
+
 struct ExecSession {
     session_id: i32,
     process_id: Option<u32>,
-    stdin: Mutex<Option<ChildStdin>>,
+    stdin: Mutex<Option<ExecStdinHandle>>,
+    pty_master: Option<Arc<StdMutex<Box<dyn portable_pty::MasterPty + Send>>>>,
+    pty_killer: Option<Arc<StdMutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>>>,
     tty_active: bool,
     stdout: Mutex<String>,
     stderr: Mutex<String>,
@@ -205,6 +230,15 @@ fn u64_arg(arguments: &Value, key: &str, default: u64, max: u64) -> u64 {
     arguments
         .get(key)
         .and_then(Value::as_u64)
+        .unwrap_or(default)
+        .clamp(1, max)
+}
+
+fn u16_arg(arguments: &Value, key: &str, default: u16, max: u16) -> u16 {
+    arguments
+        .get(key)
+        .and_then(Value::as_u64)
+        .map(|value| value as u16)
         .unwrap_or(default)
         .clamp(1, max)
 }
@@ -370,56 +404,71 @@ fn shell_arguments(shell_program: &str, command: &str) -> Vec<String> {
     vec!["-lc".to_string(), command.to_string()]
 }
 
-fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r#"'\''"#))
-}
-
 fn sanitize_tty_text(text: &str) -> String {
     text.trim_start_matches(['\u{4}', '\u{8}']).to_string()
 }
 
-fn build_exec_invocation(
+fn build_exec_command_invocation(prepared: &PreparedExecCommand) -> (String, Vec<String>) {
+    (
+        prepared.shell.clone(),
+        shell_arguments(&prepared.shell, &prepared.command),
+    )
+}
+
+fn build_pty_size(prepared: &PreparedExecCommand) -> PtySize {
+    PtySize {
+        rows: prepared.rows,
+        cols: prepared.cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    }
+}
+
+fn spawn_tty_command(
     prepared: &PreparedExecCommand,
-) -> Result<(String, Vec<String>, bool), String> {
-    if !prepared.tty {
-        return Ok((
-            prepared.shell.clone(),
-            shell_arguments(&prepared.shell, &prepared.command),
-            false,
-        ));
-    }
-
-    if cfg!(windows) {
-        return Err("TTY exec is not supported on Windows.".to_string());
-    }
-
-    if cfg!(target_os = "macos")
-        || cfg!(target_os = "freebsd")
-        || cfg!(target_os = "openbsd")
-        || cfg!(target_os = "netbsd")
-    {
-        return Ok((
-            "script".to_string(),
-            vec![
-                "-q".to_string(),
-                "/dev/null".to_string(),
-                prepared.shell.clone(),
-                "-lc".to_string(),
-                prepared.command.clone(),
-            ],
-            true,
-        ));
-    }
-
-    let wrapped = format!(
-        "{} -lc {}",
-        shell_single_quote(&prepared.shell),
-        shell_single_quote(&prepared.command)
-    );
+) -> Result<
+    (
+        Option<u32>,
+        ExecStdinHandle,
+        Box<dyn std::io::Read + Send>,
+        Arc<StdMutex<Box<dyn portable_pty::MasterPty + Send>>>,
+        Arc<StdMutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>>,
+        Box<dyn portable_pty::Child + Send + Sync>,
+    ),
+    String,
+> {
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(build_pty_size(prepared))
+        .map_err(|error| format!("Failed to create PTY session: {error}"))?;
+    let mut command = PtyCommandBuilder::new(&prepared.shell);
+    command.arg("-lc");
+    command.arg(&prepared.command);
+    command.cwd(&prepared.workdir);
+    let child = pair
+        .slave
+        .spawn_command(command)
+        .map_err(|error| format!("Failed to spawn PTY command: {error}"))?;
+    let process_id = child.process_id();
+    let killer = Arc::new(StdMutex::new(child.clone_killer()));
+    let master = Arc::new(StdMutex::new(pair.master));
+    let reader = master
+        .lock()
+        .map_err(|_| "Failed to lock PTY master.".to_string())?
+        .try_clone_reader()
+        .map_err(|error| format!("Failed to clone PTY reader: {error}"))?;
+    let writer = master
+        .lock()
+        .map_err(|_| "Failed to lock PTY master.".to_string())?
+        .take_writer()
+        .map_err(|error| format!("Failed to take PTY writer: {error}"))?;
     Ok((
-        "script".to_string(),
-        vec!["-qefc".to_string(), wrapped, "/dev/null".to_string()],
-        true,
+        process_id,
+        ExecStdinHandle::Pty(Arc::new(StdMutex::new(writer))),
+        reader,
+        master,
+        killer,
+        child,
     ))
 }
 
@@ -810,6 +859,8 @@ pub(crate) fn build_exec_command_result(prepared: &PreparedExecCommand) -> Value
         "workdir": prepared.workdir,
         "shell": prepared.shell,
         "tty": prepared.tty,
+        "rows": prepared.rows,
+        "cols": prepared.cols,
         "yieldTimeMs": prepared.yield_time_ms,
     })
 }
@@ -834,6 +885,8 @@ pub(crate) fn prepare_exec_command_tool_call(
 
     let shell = shell_program(&string_arg(&tool_call.arguments, "shell"));
     let tty = bool_arg(&tool_call.arguments, "tty", false);
+    let rows = u16_arg(&tool_call.arguments, "rows", 24, 400);
+    let cols = u16_arg(&tool_call.arguments, "cols", 80, 800);
     let yield_time_ms = u64_arg(
         &tool_call.arguments,
         "yield_time_ms",
@@ -852,6 +905,8 @@ pub(crate) fn prepare_exec_command_tool_call(
         workdir: normalize_display_path(&workdir),
         shell,
         tty,
+        rows,
+        cols,
         yield_time_ms,
         max_output_chars: max_output_tokens.saturating_mul(4),
     })
@@ -885,6 +940,34 @@ pub(crate) fn prepare_write_stdin_tool_call(
         yield_time_ms,
         max_output_chars: max_output_tokens.saturating_mul(4),
     })
+}
+
+pub(crate) fn prepare_resize_terminal_tool_call(
+    tool_call: &RuntimeToolCall,
+) -> Result<PreparedResizeTerminal, String> {
+    let session_id = tool_call
+        .arguments
+        .get("session_id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "`session_id` is required for resize_terminal.".to_string())?
+        as i32;
+    Ok(PreparedResizeTerminal {
+        session_id,
+        rows: u16_arg(&tool_call.arguments, "rows", 24, 400),
+        cols: u16_arg(&tool_call.arguments, "cols", 80, 800),
+    })
+}
+
+pub(crate) fn prepare_terminate_command_tool_call(
+    tool_call: &RuntimeToolCall,
+) -> Result<PreparedTerminateCommand, String> {
+    let session_id = tool_call
+        .arguments
+        .get("session_id")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "`session_id` is required for terminate_command.".to_string())?
+        as i32;
+    Ok(PreparedTerminateCommand { session_id })
 }
 
 async fn append_session_output(session: &Arc<ExecSession>, stream: ExecOutputStream, chunk: &[u8]) {
@@ -1042,79 +1125,160 @@ async fn collect_session_output_from_index(
 pub(crate) async fn execute_prepared_exec_command(
     prepared: &PreparedExecCommand,
 ) -> Result<Value, String> {
-    let (program, arguments, tty_active) = build_exec_invocation(prepared)?;
-    let mut command = background_tokio_command(&program);
-    command
-        .args(arguments)
-        .current_dir(&prepared.workdir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("Failed to execute command: {error}"))?;
-    let stdin = child.stdin.take();
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let session = Arc::new(ExecSession {
-        session_id: next_exec_session_id(),
-        process_id: child.id(),
-        stdin: Mutex::new(stdin),
-        tty_active,
+    let session_id = next_exec_session_id();
+    let mut initial_session = ExecSession {
+        session_id,
+        process_id: None,
+        stdin: Mutex::new(None),
+        pty_master: None,
+        pty_killer: None,
+        tty_active: prepared.tty,
         stdout: Mutex::new(String::new()),
         stderr: Mutex::new(String::new()),
         events: Mutex::new(Vec::new()),
         delivered_event_count: Mutex::new(0),
         exit_code: Mutex::new(None),
         process_exited: AtomicBool::new(false),
-        active_readers: AtomicI32::new(i32::from(stdout.is_some()) + i32::from(stderr.is_some())),
+        active_readers: AtomicI32::new(0),
         done: AtomicBool::new(false),
         notify: Notify::new(),
-    });
+    };
 
-    if let Some(stdout) = stdout {
-        tokio::spawn(spawn_session_output_reader(
-            stdout,
-            session.clone(),
-            ExecOutputStream::Stdout,
-        ));
+    if prepared.tty {
+        let (process_id, stdin, reader, master, killer, mut child) = spawn_tty_command(prepared)?;
+        initial_session.process_id = process_id;
+        initial_session.pty_master = Some(master);
+        initial_session.pty_killer = Some(killer);
+        initial_session.active_readers = AtomicI32::new(1);
+        let session = Arc::new(initial_session);
+        *session.stdin.lock().await = Some(stdin);
+
+        let reader_session = session.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut reader = reader;
+            let mut buffer = [0u8; 4096];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(count) => {
+                        let runtime = tokio::runtime::Handle::current();
+                        runtime.block_on(append_session_output(
+                            &reader_session,
+                            ExecOutputStream::Stdout,
+                            &buffer[..count],
+                        ));
+                    }
+                    Err(error) => {
+                        let runtime = tokio::runtime::Handle::current();
+                        runtime.block_on(append_session_output(
+                            &reader_session,
+                            ExecOutputStream::Stderr,
+                            format!("\n[pty error] {error}\n").as_bytes(),
+                        ));
+                        break;
+                    }
+                }
+            }
+            reader_session
+                .active_readers
+                .fetch_sub(1, Ordering::Relaxed);
+            maybe_mark_exec_session_done(&reader_session);
+        });
+
+        let watcher = session.clone();
+        tokio::task::spawn_blocking(move || {
+            let exit_code = child.wait().ok().map(|status| status.exit_code() as i32);
+            let runtime = tokio::runtime::Handle::current();
+            runtime.block_on(async move {
+                let mut code = watcher.exit_code.lock().await;
+                *code = exit_code;
+                drop(code);
+                watcher.process_exited.store(true, Ordering::Relaxed);
+                maybe_mark_exec_session_done(&watcher);
+            });
+        });
+        exec_sessions()
+            .lock()
+            .await
+            .insert(session.session_id, session.clone());
+
+        let mut result =
+            collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars)
+                .await;
+        result["command"] = Value::String(prepared.command.clone());
+        result["workdir"] = Value::String(prepared.workdir.clone());
+        result["shell"] = Value::String(prepared.shell.clone());
+        result["ttyRequested"] = Value::Bool(prepared.tty);
+        result["ttyActive"] = Value::Bool(true);
+        if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
+            exec_sessions().lock().await.remove(&session.session_id);
+        }
+        return Ok(result);
+    } else {
+        let (program, arguments) = build_exec_command_invocation(prepared);
+        let mut command = background_tokio_command(&program);
+        command
+            .args(arguments)
+            .current_dir(&prepared.workdir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("Failed to execute command: {error}"))?;
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        initial_session.process_id = child.id();
+        initial_session.active_readers =
+            AtomicI32::new(i32::from(stdout.is_some()) + i32::from(stderr.is_some()));
+        let session = Arc::new(initial_session);
+        *session.stdin.lock().await = stdin.map(ExecStdinHandle::Process);
+
+        if let Some(stdout) = stdout {
+            tokio::spawn(spawn_session_output_reader(
+                stdout,
+                session.clone(),
+                ExecOutputStream::Stdout,
+            ));
+        }
+        if let Some(stderr) = stderr {
+            tokio::spawn(spawn_session_output_reader(
+                stderr,
+                session.clone(),
+                ExecOutputStream::Stderr,
+            ));
+        }
+
+        let watcher = session.clone();
+        tokio::spawn(async move {
+            let exit_code = child.wait().await.ok().and_then(|status| status.code());
+            let mut code = watcher.exit_code.lock().await;
+            *code = exit_code;
+            drop(code);
+            watcher.process_exited.store(true, Ordering::Relaxed);
+            maybe_mark_exec_session_done(&watcher);
+        });
+        exec_sessions()
+            .lock()
+            .await
+            .insert(session.session_id, session.clone());
+
+        let mut result =
+            collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars)
+                .await;
+        result["command"] = Value::String(prepared.command.clone());
+        result["workdir"] = Value::String(prepared.workdir.clone());
+        result["shell"] = Value::String(prepared.shell.clone());
+        result["ttyRequested"] = Value::Bool(prepared.tty);
+        result["ttyActive"] = Value::Bool(false);
+        if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
+            exec_sessions().lock().await.remove(&session.session_id);
+        }
+        return Ok(result);
     }
-    if let Some(stderr) = stderr {
-        tokio::spawn(spawn_session_output_reader(
-            stderr,
-            session.clone(),
-            ExecOutputStream::Stderr,
-        ));
-    }
-
-    let watcher = session.clone();
-    tokio::spawn(async move {
-        let exit_code = child.wait().await.ok().and_then(|status| status.code());
-        let mut code = watcher.exit_code.lock().await;
-        *code = exit_code;
-        drop(code);
-        watcher.process_exited.store(true, Ordering::Relaxed);
-        maybe_mark_exec_session_done(&watcher);
-    });
-
-    exec_sessions()
-        .lock()
-        .await
-        .insert(session.session_id, session.clone());
-
-    let mut result =
-        collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
-    result["command"] = Value::String(prepared.command.clone());
-    result["workdir"] = Value::String(prepared.workdir.clone());
-    result["shell"] = Value::String(prepared.shell.clone());
-    result["ttyRequested"] = Value::Bool(prepared.tty);
-    result["ttyActive"] = Value::Bool(tty_active);
-    if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
-        exec_sessions().lock().await.remove(&session.session_id);
-    }
-    Ok(result)
 }
 
 pub(crate) async fn poll_exec_session_updates(
@@ -1153,14 +1317,36 @@ pub(crate) async fn execute_prepared_write_stdin(
         let handle = stdin
             .as_mut()
             .ok_or_else(|| "Exec session stdin is closed.".to_string())?;
-        handle
-            .write_all(prepared.chars.as_bytes())
-            .await
-            .map_err(|error| format!("Failed to write stdin: {error}"))?;
-        handle
-            .flush()
-            .await
-            .map_err(|error| format!("Failed to flush stdin: {error}"))?;
+        match handle {
+            ExecStdinHandle::Process(handle) => {
+                handle
+                    .write_all(prepared.chars.as_bytes())
+                    .await
+                    .map_err(|error| format!("Failed to write stdin: {error}"))?;
+                handle
+                    .flush()
+                    .await
+                    .map_err(|error| format!("Failed to flush stdin: {error}"))?;
+            }
+            ExecStdinHandle::Pty(writer) => {
+                let writer = writer.clone();
+                let chars = prepared.chars.clone();
+                tokio::task::spawn_blocking(move || -> Result<(), String> {
+                    let mut writer = writer
+                        .lock()
+                        .map_err(|_| "Failed to lock PTY writer.".to_string())?;
+                    writer
+                        .write_all(chars.as_bytes())
+                        .map_err(|error| format!("Failed to write PTY stdin: {error}"))?;
+                    writer
+                        .flush()
+                        .map_err(|error| format!("Failed to flush PTY stdin: {error}"))?;
+                    Ok(())
+                })
+                .await
+                .map_err(|error| format!("Failed to join PTY stdin write: {error}"))??;
+            }
+        }
     }
     if prepared.close_stdin {
         session.stdin.lock().await.take();
@@ -1182,6 +1368,53 @@ pub(crate) async fn execute_prepared_write_stdin(
         "done": result.get("done").cloned().unwrap_or(Value::Bool(false)),
         "ok": result.get("ok").cloned().unwrap_or(Value::Bool(false)),
     }))
+}
+
+pub(crate) async fn execute_prepared_resize_terminal(
+    prepared: &PreparedResizeTerminal,
+) -> Result<Value, String> {
+    let session = exec_sessions()
+        .lock()
+        .await
+        .get(&prepared.session_id)
+        .cloned()
+        .ok_or_else(|| format!("Exec session not found: {}", prepared.session_id))?;
+    if !session.tty_active {
+        return Err("resize_terminal requires a PTY-backed exec session.".to_string());
+    }
+    let master = session
+        .pty_master
+        .clone()
+        .ok_or_else(|| "PTY master is unavailable for this session.".to_string())?;
+    let rows = prepared.rows;
+    let cols = prepared.cols;
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let master = master
+            .lock()
+            .map_err(|_| "Failed to lock PTY master for resize.".to_string())?;
+        master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| format!("Failed to resize PTY: {error}"))
+    })
+    .await
+    .map_err(|error| format!("Failed to join PTY resize: {error}"))??;
+    Ok(json!({
+        "sessionId": prepared.session_id,
+        "rows": prepared.rows,
+        "cols": prepared.cols,
+        "ok": true,
+    }))
+}
+
+pub(crate) async fn execute_prepared_terminate_command(
+    prepared: &PreparedTerminateCommand,
+) -> Result<Value, String> {
+    terminate_exec_session(prepared.session_id).await
 }
 
 async fn terminate_exec_pid(pid: u32) -> Result<(), String> {
@@ -1448,6 +1681,14 @@ pub(crate) fn is_write_stdin_tool_call(tool_call: &RuntimeToolCall) -> bool {
     tool_call.name.trim() == WRITE_STDIN_TOOL
 }
 
+pub(crate) fn is_resize_terminal_tool_call(tool_call: &RuntimeToolCall) -> bool {
+    tool_call.name.trim() == RESIZE_TERMINAL_TOOL
+}
+
+pub(crate) fn is_terminate_command_tool_call(tool_call: &RuntimeToolCall) -> bool {
+    tool_call.name.trim() == TERMINATE_COMMAND_TOOL
+}
+
 pub(crate) fn prepare_apply_patch_tool_call(
     workspace_path: &str,
     tool_call: &RuntimeToolCall,
@@ -1483,6 +1724,16 @@ pub(crate) fn execute_runtime_tool_call_with_context(
             &tool_call.id,
             WRITE_STDIN_TOOL,
             "write_stdin requires a live exec session.",
+        ),
+        RESIZE_TERMINAL_TOOL => err_result(
+            &tool_call.id,
+            RESIZE_TERMINAL_TOOL,
+            "resize_terminal requires a live PTY session.",
+        ),
+        TERMINATE_COMMAND_TOOL => err_result(
+            &tool_call.id,
+            TERMINATE_COMMAND_TOOL,
+            "terminate_command requires a live exec session.",
         ),
         other => err_result(
             &tool_call.id,
@@ -1647,6 +1898,44 @@ pub fn resolve_runtime_tool_definitions_with_context(
                     "max_output_tokens": {
                         "type": "integer",
                         "description": "Maximum output tokens to return. Defaults to 2000."
+                    }
+                },
+                "required": ["session_id"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
+            name: RESIZE_TERMINAL_TOOL,
+            description: "Resize a running PTY-backed exec session.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "integer",
+                        "description": "Identifier of the running PTY exec session."
+                    },
+                    "rows": {
+                        "type": "integer",
+                        "description": "Terminal height in rows."
+                    },
+                    "cols": {
+                        "type": "integer",
+                        "description": "Terminal width in columns."
+                    }
+                },
+                "required": ["session_id", "rows", "cols"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
+            name: TERMINATE_COMMAND_TOOL,
+            description: "Terminate a running exec session.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "integer",
+                        "description": "Identifier of the running exec session."
                     }
                 },
                 "required": ["session_id"],
@@ -2057,6 +2346,50 @@ mod tests {
             .expect("terminate session");
         assert_eq!(result["terminated"], Value::Bool(true));
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn exec_command_tty_session_can_be_resized() {
+        let root = temp_workspace();
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_10".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": "sleep 1",
+                    "tty": true,
+                    "rows": 24,
+                    "cols": 80,
+                    "yield_time_ms": 25,
+                }),
+            },
+        )
+        .expect("prepare tty session");
+
+        let first = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("start tty session");
+        let session_id = first
+            .get("sessionId")
+            .and_then(Value::as_i64)
+            .expect("session id") as i32;
+
+        let resized = execute_prepared_resize_terminal(&PreparedResizeTerminal {
+            session_id,
+            rows: 40,
+            cols: 120,
+        })
+        .await
+        .expect("resize tty session");
+
+        assert_eq!(resized["ok"], Value::Bool(true));
+        assert_eq!(resized["rows"], Value::Number(40.into()));
+        assert_eq!(resized["cols"], Value::Number(120.into()));
+
+        let _ = terminate_exec_session(session_id).await;
         let _ = fs::remove_dir_all(root);
     }
 }
