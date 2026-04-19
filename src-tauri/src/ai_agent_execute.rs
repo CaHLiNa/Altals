@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use crate::ai_skill_support::load_skill_supporting_files;
 use crate::codex_runtime::providers::{
-    build_provider_request, collect_pending_tool_calls, parse_sse_line, should_continue_with_tools,
-    PendingToolCall, RuntimeContinuationMessage, RuntimeProviderEvent, MAX_TOOL_ROUNDS,
+    apply_turn_state_header, build_provider_request, collect_pending_tool_calls, parse_sse_line,
+    should_continue_with_tools, update_turn_state_from_response, PendingToolCall,
+    RuntimeContinuationMessage, RuntimeProviderEvent, MAX_TOOL_ROUNDS,
 };
 use crate::codex_runtime::tools::{
     execute_runtime_tool_calls_with_context, resolve_runtime_tool_definitions_with_context,
@@ -244,6 +245,7 @@ pub async fn ai_agent_execute(
     let mut final_content = String::new();
     let mut final_reasoning = String::new();
     let mut events = Vec::new();
+    let mut turn_state = String::new();
 
     for _round in 0..MAX_TOOL_ROUNDS {
         let (url, headers, body) = build_provider_request(
@@ -254,6 +256,7 @@ pub async fn ai_agent_execute(
             &continuation_messages,
         )?;
 
+        let headers = apply_turn_state_header(headers, &turn_state)?;
         let response = client
             .post(url)
             .headers(headers)
@@ -270,6 +273,7 @@ pub async fn ai_agent_execute(
                 .unwrap_or_else(|_| "Unknown provider error".to_string());
             return Err(format!("Runtime provider returned HTTP {status}: {body}"));
         }
+        update_turn_state_from_response(&provider_id, &response, &mut turn_state);
 
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();

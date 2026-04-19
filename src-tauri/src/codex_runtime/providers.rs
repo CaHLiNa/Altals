@@ -37,6 +37,7 @@ type RuntimeTaskMap = Mutex<HashMap<String, JoinHandle<()>>>;
 pub(crate) const MAX_TOOL_ROUNDS: usize = 6;
 const TOOL_RESULT_CONTINUATION_MAX_CHARS: usize = 12_000;
 const PROVIDER_MAX_ATTEMPTS: usize = 2;
+const X_CODEX_TURN_STATE_HEADER: &str = "x-codex-turn-state";
 
 static RUNTIME_TURN_TASKS: OnceLock<RuntimeTaskMap> = OnceLock::new();
 
@@ -84,6 +85,42 @@ fn build_headers(values: &[(&str, String)]) -> Result<HeaderMap, String> {
         map.insert(name, value);
     }
     Ok(map)
+}
+
+pub(crate) fn apply_turn_state_header(
+    mut headers: HeaderMap,
+    turn_state: &str,
+) -> Result<HeaderMap, String> {
+    let normalized = turn_state.trim();
+    if normalized.is_empty() {
+        return Ok(headers);
+    }
+    let name = HeaderName::from_static(X_CODEX_TURN_STATE_HEADER);
+    let value = HeaderValue::from_str(normalized).map_err(|error| {
+        format!("Invalid header value for {X_CODEX_TURN_STATE_HEADER}: {error}")
+    })?;
+    headers.insert(name, value);
+    Ok(headers)
+}
+
+pub(crate) fn update_turn_state_from_response(
+    provider_id: &str,
+    response: &reqwest::Response,
+    turn_state: &mut String,
+) {
+    if provider_id != "openai" {
+        return;
+    }
+    if let Some(value) = response
+        .headers()
+        .get(X_CODEX_TURN_STATE_HEADER)
+        .and_then(|value| value.to_str().ok())
+    {
+        let normalized = value.trim();
+        if !normalized.is_empty() {
+            *turn_state = normalized.to_string();
+        }
+    }
 }
 
 fn string_arg(arguments: &Value, key: &str) -> String {
@@ -2191,6 +2228,18 @@ mod tests {
             "/tmp/workspace",
         ));
     }
+
+    #[test]
+    fn apply_turn_state_header_injects_sticky_routing_header() {
+        let headers = apply_turn_state_header(HeaderMap::new(), "turn-state-123")
+            .expect("apply turn state header");
+        assert_eq!(
+            headers
+                .get(X_CODEX_TURN_STATE_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("turn-state-123")
+        );
+    }
 }
 
 pub async fn run_turn<R: Runtime>(
@@ -2334,6 +2383,7 @@ pub async fn run_turn<R: Runtime>(
 
         let mut continuation_messages = Vec::new();
         let mut tracked_item_ids = vec![assistant_item_id.clone(), reasoning_item_id.clone()];
+        let mut turn_state = String::new();
 
         for _round in 0..MAX_TOOL_ROUNDS {
             let request = build_provider_request(
@@ -2364,14 +2414,27 @@ pub async fn run_turn<R: Runtime>(
             let response = {
                 let mut resolved = None;
                 for attempt in 0..PROVIDER_MAX_ATTEMPTS {
+                    let attempt_headers =
+                        match apply_turn_state_header(headers.clone(), &turn_state) {
+                            Ok(value) => value,
+                            Err(error) => {
+                                last_error = error;
+                                break;
+                            }
+                        };
                     let request = client
                         .post(url.clone())
-                        .headers(headers.clone())
+                        .headers(attempt_headers)
                         .body(body.clone())
                         .send()
                         .await;
                     match request {
                         Ok(response) if response.status().is_success() => {
+                            update_turn_state_from_response(
+                                &provider_id,
+                                &response,
+                                &mut turn_state,
+                            );
                             resolved = Some(response);
                             break;
                         }
