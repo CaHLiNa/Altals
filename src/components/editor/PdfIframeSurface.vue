@@ -48,7 +48,6 @@ import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watc
 import UiButton from '../shared/ui/UiButton.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import { useI18n } from '../../i18n'
-import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import {
   normalizeWorkspacePdfCustomPageBackground,
   resolvePdfCustomPageForeground,
