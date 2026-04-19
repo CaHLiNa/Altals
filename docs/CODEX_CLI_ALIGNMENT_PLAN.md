@@ -113,5 +113,7 @@
 - 命令输出已补充更细粒度的 `events` 结构，并拆分 `stdout` / `stderr` 增量结果，同时保留兼容性的 `output`
 - runtime snapshot 与 event reducer 已开始把 `ToolCall / ToolResult` 真正映射进 assistant message，而不是只保留在底层 state
 - exec session 的后台输出现在会持续推送到 runtime item，并被前端会话消息实时消费，不再只在 tool result 结束后一次性可见
+- `stop` / turn interrupt 现在会显式终止 turn 关联的 exec session，避免留下孤儿子进程
+- 前端工具行已升级为 command/output 视图，优先显示 `stdout` / `stderr` / `cwd`，不再只展示原始 JSON
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。

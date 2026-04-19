@@ -31,7 +31,7 @@ use self::protocol::{
     RuntimeTurnInterruptParams, RuntimeTurnInterruptResponse, RuntimeTurnRunParams,
     RuntimeTurnRunResponse, RuntimeTurnStartParams, RuntimeTurnStartResponse,
 };
-use self::providers::{abort_running_turn_task, run_turn};
+use self::providers::{abort_running_turn_task, run_turn, terminate_turn_exec_sessions};
 use self::storage::persist_runtime_state;
 use self::threads::{
     archive_thread, fork_thread, list_threads, read_thread, rename_thread, rollback_thread,
@@ -267,6 +267,7 @@ pub async fn runtime_turn_interrupt<R: Runtime>(
 ) -> Result<RuntimeTurnInterruptResponse, String> {
     let _ = abort_running_turn_task(&params.turn_id).await;
     let handle = CodexRuntimeHandle::from_state(state);
+    let _ = terminate_turn_exec_sessions(handle, &params.turn_id).await;
     let mut runtime = handle.inner.lock().await;
     let response = interrupt_turn(&mut runtime, &params.thread_id, &params.turn_id)?;
     persist_runtime_state(&runtime)?;

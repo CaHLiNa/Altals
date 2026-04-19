@@ -141,6 +141,7 @@ pub(crate) struct PreparedWriteStdin {
 #[derive(Debug)]
 struct ExecSession {
     session_id: i32,
+    process_id: Option<u32>,
     stdin: Mutex<Option<ChildStdin>>,
     tty_active: bool,
     stdout: Mutex<String>,
@@ -1059,6 +1060,7 @@ pub(crate) async fn execute_prepared_exec_command(
     let stderr = child.stderr.take();
     let session = Arc::new(ExecSession {
         session_id: next_exec_session_id(),
+        process_id: child.id(),
         stdin: Mutex::new(stdin),
         tty_active,
         stdout: Mutex::new(String::new()),
@@ -1180,6 +1182,78 @@ pub(crate) async fn execute_prepared_write_stdin(
         "done": result.get("done").cloned().unwrap_or(Value::Bool(false)),
         "ok": result.get("ok").cloned().unwrap_or(Value::Bool(false)),
     }))
+}
+
+async fn terminate_exec_pid(pid: u32) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        let pid_i32 =
+            i32::try_from(pid).map_err(|_| format!("Invalid process id for termination: {pid}"))?;
+        let term_result = unsafe { libc::kill(pid_i32, libc::SIGTERM) };
+        if term_result != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::ESRCH) {
+                return Err(format!("Failed to terminate process {pid}: {error}"));
+            }
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let kill_result = unsafe { libc::kill(pid_i32, 0) };
+        if kill_result == 0 {
+            let _ = unsafe { libc::kill(pid_i32, libc::SIGKILL) };
+        }
+        return Ok(());
+    }
+
+    #[cfg(windows)]
+    {
+        let status = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status()
+            .map_err(|error| format!("Failed to invoke taskkill for {pid}: {error}"))?;
+        if !status.success() {
+            return Err(format!(
+                "taskkill failed for process {pid} with status {status}"
+            ));
+        }
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Process termination is not supported on this platform.".to_string())
+}
+
+pub(crate) async fn terminate_exec_session(session_id: i32) -> Result<Value, String> {
+    let session = exec_sessions()
+        .lock()
+        .await
+        .get(&session_id)
+        .cloned()
+        .ok_or_else(|| format!("Exec session not found: {session_id}"))?;
+    session.stdin.lock().await.take();
+    if let Some(pid) = session.process_id {
+        terminate_exec_pid(pid).await?;
+    }
+    let update = collect_session_output_from_index(&session, 0, 200, EXEC_OUTPUT_MAX_CHARS).await;
+    if update.get("done").and_then(Value::as_bool).unwrap_or(false) {
+        exec_sessions().lock().await.remove(&session_id);
+    }
+    Ok(json!({
+        "sessionId": session_id,
+        "terminated": true,
+        "processId": session.process_id,
+        "tty": session.tty_active,
+        "done": update.get("done").cloned().unwrap_or(Value::Bool(false)),
+        "exitCode": update.get("exitCode").cloned().unwrap_or(Value::Null),
+        "output": update.get("output").cloned().unwrap_or(Value::String(String::new())),
+    }))
+}
+
+pub(crate) async fn terminate_exec_sessions(session_ids: &[i32]) -> Result<(), String> {
+    for session_id in session_ids {
+        let _ = terminate_exec_session(*session_id).await;
+    }
+    Ok(())
 }
 
 fn execute_read_file(workspace_path: &str, tool_call: &RuntimeToolCall) -> RuntimeToolResult {
@@ -1946,6 +2020,42 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .contains("hello"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn exec_command_session_can_be_terminated() {
+        let root = temp_workspace();
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_9".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": if cfg!(windows) {
+                        "Start-Sleep -Seconds 5"
+                    } else {
+                        "sleep 5"
+                    },
+                    "yield_time_ms": 25,
+                }),
+            },
+        )
+        .expect("prepare long exec");
+
+        let first = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("start long exec");
+        let session_id = first
+            .get("sessionId")
+            .and_then(Value::as_i64)
+            .expect("session id") as i32;
+
+        let result = terminate_exec_session(session_id)
+            .await
+            .expect("terminate session");
+        assert_eq!(result["terminated"], Value::Bool(true));
 
         let _ = fs::remove_dir_all(root);
     }

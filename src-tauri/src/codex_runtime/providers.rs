@@ -24,7 +24,8 @@ use super::tools::{
     execute_runtime_tool_call_with_context, is_apply_patch_tool_call, is_exec_command_tool_call,
     is_write_stdin_tool_call, poll_exec_session_updates, prepare_apply_patch_tool_call,
     prepare_exec_command_tool_call, prepare_write_stdin_tool_call,
-    resolve_runtime_tool_definitions_with_context, RuntimeToolCall, RuntimeToolResult,
+    resolve_runtime_tool_definitions_with_context, terminate_exec_sessions, RuntimeToolCall,
+    RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -870,6 +871,52 @@ fn build_streaming_tool_result_text(
     .map_err(|error| format!("Failed to serialize streaming tool result: {error}"))
 }
 
+async fn register_turn_exec_session(
+    runtime: &CodexRuntimeHandle,
+    turn_id: &str,
+    session_id: i32,
+) -> Result<(), String> {
+    let mut state = runtime.inner.lock().await;
+    let entry = state
+        .turn_exec_sessions
+        .entry(turn_id.to_string())
+        .or_default();
+    if !entry.contains(&session_id) {
+        entry.push(session_id);
+    }
+    persist_runtime_state(&state)?;
+    Ok(())
+}
+
+async fn unregister_turn_exec_session(
+    runtime: &CodexRuntimeHandle,
+    turn_id: &str,
+    session_id: i32,
+) -> Result<(), String> {
+    let mut state = runtime.inner.lock().await;
+    if let Some(entry) = state.turn_exec_sessions.get_mut(turn_id) {
+        entry.retain(|current| *current != session_id);
+        if entry.is_empty() {
+            state.turn_exec_sessions.remove(turn_id);
+        }
+    }
+    persist_runtime_state(&state)?;
+    Ok(())
+}
+
+pub(crate) async fn terminate_turn_exec_sessions(
+    runtime: &CodexRuntimeHandle,
+    turn_id: &str,
+) -> Result<(), String> {
+    let session_ids = {
+        let mut state = runtime.inner.lock().await;
+        let session_ids = state.turn_exec_sessions.remove(turn_id).unwrap_or_default();
+        persist_runtime_state(&state)?;
+        session_ids
+    };
+    terminate_exec_sessions(&session_ids).await
+}
+
 fn spawn_exec_output_stream_task<R: Runtime>(
     app: &AppHandle<R>,
     runtime: &CodexRuntimeHandle,
@@ -929,6 +976,7 @@ fn spawn_exec_output_stream_task<R: Runtime>(
             .await;
 
             if status != TurnStatus::Running {
+                let _ = unregister_turn_exec_session(&runtime, &turn_id, session_id).await;
                 break;
             }
         }
@@ -1283,6 +1331,7 @@ async fn finish_turn_success<R: Runtime>(
     turn_id: &str,
     item_ids: &[String],
 ) {
+    let _ = terminate_turn_exec_sessions(runtime, turn_id).await;
     let mut state = runtime.inner.lock().await;
     let now = chrono::Utc::now().timestamp();
 
@@ -1346,6 +1395,7 @@ async fn finish_turn_failure<R: Runtime>(
     item_ids: &[String],
     error: &str,
 ) {
+    let _ = terminate_turn_exec_sessions(runtime, turn_id).await;
     let mut state = runtime.inner.lock().await;
     let now = chrono::Utc::now().timestamp();
     let normalized_error = error.trim();
@@ -1762,6 +1812,9 @@ pub async fn run_turn<R: Runtime>(
                     }
                     if tool_result_is_running(&pair.tool_result) {
                         if let Some(session_id) = session_id_from_tool_result(&pair.tool_result) {
+                            let _ =
+                                register_turn_exec_session(&runtime_for_task, &turn_id, session_id)
+                                    .await;
                             spawn_exec_output_stream_task(
                                 &app_for_task,
                                 &runtime_for_task,

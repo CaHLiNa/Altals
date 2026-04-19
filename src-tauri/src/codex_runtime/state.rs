@@ -22,6 +22,8 @@ pub struct CodexRuntimeState {
     pub plan_modes: HashMap<String, RuntimePlanModeState>,
     #[serde(skip)]
     pub permission_resolutions: HashMap<String, RuntimePermissionResolveResponse>,
+    #[serde(skip)]
+    pub turn_exec_sessions: HashMap<String, Vec<i32>>,
 }
 
 #[derive(Clone)]

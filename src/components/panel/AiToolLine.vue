@@ -13,6 +13,18 @@
     </summary>
     <div class="ai-tool-line__detail">
       <div v-if="part.detail" class="ai-tool-line__detail-copy">{{ part.detail }}</div>
+      <div v-if="commandText" class="ai-tool-line__detail-copy ai-tool-line__detail-copy--mono">
+        {{ commandText }}
+      </div>
+      <div v-if="workdirText" class="ai-tool-line__detail-copy">{{ workdirText }}</div>
+      <div v-if="stdoutText" class="ai-tool-line__stream">
+        <div class="ai-tool-line__stream-label">stdout</div>
+        <pre class="ai-tool-line__payload">{{ stdoutText }}</pre>
+      </div>
+      <div v-if="stderrText" class="ai-tool-line__stream">
+        <div class="ai-tool-line__stream-label ai-tool-line__stream-label--error">stderr</div>
+        <pre class="ai-tool-line__payload ai-tool-line__payload--error">{{ stderrText }}</pre>
+      </div>
       <pre v-if="payloadText" class="ai-tool-line__payload">{{ payloadText }}</pre>
     </div>
   </details>
@@ -42,10 +54,39 @@ const props = defineProps({
 const { t } = useI18n()
 
 const isExpandable = computed(() => !!(props.part.detail || props.part.payload))
+const resultPayload = computed(() => props.part?.payload?.result || null)
+const argumentsPayload = computed(() => props.part?.payload?.arguments || null)
+const commandText = computed(() => {
+  const command = String(
+    resultPayload.value?.command || argumentsPayload.value?.cmd || props.part?.payload?.command || ''
+  ).trim()
+  return command
+})
+const workdirText = computed(() => {
+  const workdir = String(
+    resultPayload.value?.workdir || argumentsPayload.value?.workdir || props.part?.context || ''
+  ).trim()
+  if (!workdir) return ''
+  return `cwd: ${workdir}`
+})
+const stdoutText = computed(() => {
+  return String(
+    resultPayload.value?.stdoutFull || resultPayload.value?.stdout || ''
+  ).trim()
+})
+const stderrText = computed(() => {
+  return String(
+    resultPayload.value?.stderrFull || resultPayload.value?.stderr || ''
+  ).trim()
+})
 const payloadText = computed(() => {
-  if (!props.part.payload) return ''
+  const payload = props.part?.payload || null
+  if (!payload) return ''
+  const kind = String(payload.kind || '').trim()
+  if (kind === 'toolCall') return ''
+  if (kind === 'toolResult' && (stdoutText.value || stderrText.value)) return ''
   try {
-    return JSON.stringify(props.part.payload, null, 2)
+    return JSON.stringify(payload, null, 2)
   } catch {
     return ''
   }
@@ -133,6 +174,27 @@ const statusLabel = computed(() => {
   word-break: break-word;
 }
 
+.ai-tool-line__detail-copy--mono {
+  font-family: var(--font-mono);
+}
+
+.ai-tool-line__stream {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-tool-line__stream-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.ai-tool-line__stream-label--error {
+  color: var(--error);
+}
+
 .ai-tool-line__payload {
   margin: 0;
   padding: 7px 9px;
@@ -140,6 +202,11 @@ const statusLabel = computed(() => {
   font-family: var(--font-mono);
   background: color-mix(in srgb, var(--surface-base) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-color) 68%, transparent);
+}
+
+.ai-tool-line__payload--error {
+  border-color: color-mix(in srgb, var(--error) 32%, var(--border-color) 68%);
+  background: color-mix(in srgb, var(--error) 6%, transparent);
 }
 
 .ai-tool-line.is-running .ai-tool-line__dot {
