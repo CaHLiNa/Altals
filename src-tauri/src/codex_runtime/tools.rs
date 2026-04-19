@@ -1,15 +1,19 @@
 use serde_json::{json, Value};
 use std::fs;
+use std::process::Stdio;
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 use crate::fs_io::read_text_file_with_limit;
 use crate::fs_tree::{collect_files_recursive, read_dir_shallow_entries, FileEntry};
+use crate::process_utils::background_tokio_command;
 use crate::security::canonicalize_for_scope;
 
 const READ_FILE_TOOL: &str = "read_file";
 const LIST_FILES_TOOL: &str = "list_files";
 const SEARCH_FILES_TOOL: &str = "search_files";
 pub(crate) const APPLY_PATCH_TOOL: &str = "apply_patch";
+pub(crate) const EXEC_COMMAND_TOOL: &str = "exec_command";
 
 const DEFAULT_READ_MAX_BYTES: u64 = 64 * 1024;
 const MAX_READ_BYTES: u64 = 256 * 1024;
@@ -19,6 +23,9 @@ const DEFAULT_SEARCH_MAX_RESULTS: usize = 100;
 const MAX_SEARCH_RESULTS: usize = 500;
 const SEARCH_FILE_MAX_BYTES: u64 = 256 * 1024;
 const APPLY_PATCH_PREVIEW_MAX_CHARS: usize = 1200;
+const DEFAULT_EXEC_TIMEOUT_MS: u64 = 20_000;
+const MAX_EXEC_TIMEOUT_MS: u64 = 120_000;
+const EXEC_OUTPUT_MAX_CHARS: usize = 16_000;
 
 #[derive(Debug, Clone)]
 pub struct RuntimeToolDefinition {
@@ -96,6 +103,14 @@ pub(crate) struct PreparedApplyPatch {
     pub files: Vec<String>,
     pub preview: String,
     operations: Vec<ResolvedPatchOp>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedExecCommand {
+    pub command: String,
+    pub workdir: String,
+    pub shell: String,
+    pub timeout_ms: u64,
 }
 
 fn string_arg(arguments: &Value, key: &str) -> String {
@@ -240,6 +255,28 @@ fn preview_text(value: &str, max_chars: usize) -> String {
         "{}…",
         trimmed.chars().take(max_chars).collect::<String>().trim_end()
     )
+}
+
+fn shell_program(shell: &str) -> String {
+    let trimmed = shell.trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+    if cfg!(windows) {
+        "powershell.exe".to_string()
+    } else {
+        "/bin/bash".to_string()
+    }
+}
+
+fn shell_arguments(shell_program: &str, command: &str) -> Vec<String> {
+    if cfg!(windows) {
+        if shell_program.to_ascii_lowercase().contains("cmd") {
+            return vec!["/C".to_string(), command.to_string()];
+        }
+        return vec!["-Command".to_string(), command.to_string()];
+    }
+    vec!["-lc".to_string(), command.to_string()]
 }
 
 fn file_entry_from_path(path: &Path) -> FileEntry {
@@ -623,6 +660,89 @@ pub(crate) fn execute_prepared_apply_patch(
     }))
 }
 
+pub(crate) fn build_exec_command_result(prepared: &PreparedExecCommand) -> Value {
+    json!({
+        "command": prepared.command,
+        "workdir": prepared.workdir,
+        "shell": prepared.shell,
+        "timeoutMs": prepared.timeout_ms,
+    })
+}
+
+pub(crate) fn prepare_exec_command_tool_call(
+    workspace_path: &str,
+    tool_call: &RuntimeToolCall,
+) -> Result<PreparedExecCommand, String> {
+    let root = workspace_root(workspace_path)?;
+    let command = string_arg(&tool_call.arguments, "cmd");
+    if command.is_empty() {
+        return Err("`cmd` is required for exec_command.".to_string());
+    }
+
+    let workdir = resolve_workspace_target(&root, &string_arg(&tool_call.arguments, "workdir"))?;
+    if !workdir.is_dir() {
+        return Err(format!(
+            "Working directory is not a directory: {}",
+            workdir.display()
+        ));
+    }
+
+    let shell = shell_program(&string_arg(&tool_call.arguments, "shell"));
+    let timeout_ms = u64_arg(
+        &tool_call.arguments,
+        "timeout_ms",
+        DEFAULT_EXEC_TIMEOUT_MS,
+        MAX_EXEC_TIMEOUT_MS,
+    );
+
+    Ok(PreparedExecCommand {
+        command,
+        workdir: normalize_display_path(&workdir),
+        shell,
+        timeout_ms,
+    })
+}
+
+pub(crate) async fn execute_prepared_exec_command(
+    prepared: &PreparedExecCommand,
+) -> Result<Value, String> {
+    let mut command = background_tokio_command(&prepared.shell);
+    command
+        .args(shell_arguments(&prepared.shell, &prepared.command))
+        .current_dir(&prepared.workdir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+
+    let output = tokio::time::timeout(
+        Duration::from_millis(prepared.timeout_ms),
+        command.output(),
+    )
+    .await
+    .map_err(|_| {
+        format!(
+            "Command timed out after {} ms: {}",
+            prepared.timeout_ms, prepared.command
+        )
+    })?
+    .map_err(|error| format!("Failed to execute command: {error}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let exit_code = output.status.code().unwrap_or(-1);
+
+    Ok(json!({
+        "ok": output.status.success(),
+        "command": prepared.command,
+        "workdir": prepared.workdir,
+        "shell": prepared.shell,
+        "exitCode": exit_code,
+        "stdout": preview_text(&stdout, EXEC_OUTPUT_MAX_CHARS),
+        "stderr": preview_text(&stderr, EXEC_OUTPUT_MAX_CHARS),
+    }))
+}
+
 fn execute_read_file(workspace_path: &str, tool_call: &RuntimeToolCall) -> RuntimeToolResult {
     let root = match workspace_root(workspace_path) {
         Ok(root) => root,
@@ -801,6 +921,10 @@ pub(crate) fn is_apply_patch_tool_call(tool_call: &RuntimeToolCall) -> bool {
     tool_call.name.trim() == APPLY_PATCH_TOOL
 }
 
+pub(crate) fn is_exec_command_tool_call(tool_call: &RuntimeToolCall) -> bool {
+    tool_call.name.trim() == EXEC_COMMAND_TOOL
+}
+
 pub(crate) fn prepare_apply_patch_tool_call(
     workspace_path: &str,
     tool_call: &RuntimeToolCall,
@@ -826,6 +950,11 @@ pub(crate) fn execute_runtime_tool_call_with_context(
             &tool_call.id,
             APPLY_PATCH_TOOL,
             "apply_patch requires runtime-managed approval.",
+        ),
+        EXEC_COMMAND_TOOL => err_result(
+            &tool_call.id,
+            EXEC_COMMAND_TOOL,
+            "exec_command requires runtime-managed approval.",
         ),
         other => err_result(
             &tool_call.id,
@@ -927,6 +1056,33 @@ pub fn resolve_runtime_tool_definitions_with_context(
                     }
                 },
                 "required": ["input"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
+            name: EXEC_COMMAND_TOOL,
+            description: "Execute a shell command in the current workspace after approval.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "cmd": {
+                        "type": "string",
+                        "description": "Shell command to execute."
+                    },
+                    "workdir": {
+                        "type": "string",
+                        "description": "Optional relative working directory inside the current workspace."
+                    },
+                    "shell": {
+                        "type": "string",
+                        "description": "Optional shell binary override."
+                    },
+                    "timeout_ms": {
+                        "type": "integer",
+                        "description": "Maximum time to wait before aborting the command. Defaults to 20000."
+                    }
+                },
+                "required": ["cmd"],
                 "additionalProperties": false
             }),
         },
@@ -1092,6 +1248,57 @@ mod tests {
         execute_prepared_apply_patch(&normalize_display_path(&root), &add).expect("apply");
         assert_eq!(fs::read_to_string(root.join("fresh.txt")).expect("read"), "hello");
         assert!(!root.join("obsolete.txt").exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn prepare_exec_command_resolves_workspace_workdir() {
+        let root = temp_workspace();
+        fs::create_dir_all(root.join("scripts")).expect("create dir");
+
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_6".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": "echo hi",
+                    "workdir": "scripts",
+                }),
+            },
+        )
+        .expect("prepare exec");
+
+        assert_eq!(prepared.command, "echo hi");
+        assert!(prepared.workdir.ends_with("/scripts") || prepared.workdir.ends_with("\\scripts"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn exec_command_runs_shell_command() {
+        let root = temp_workspace();
+
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_7".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": if cfg!(windows) { "Write-Output hello" } else { "printf hello" },
+                    "timeout_ms": 5000,
+                }),
+            },
+        )
+        .expect("prepare exec");
+
+        let result = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("exec command");
+
+        assert_eq!(result["ok"], Value::Bool(true));
+        assert!(result["stdout"].as_str().unwrap_or_default().contains("hello"));
 
         let _ = fs::remove_dir_all(root);
     }
