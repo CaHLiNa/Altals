@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
@@ -122,6 +124,7 @@ pub(crate) struct PreparedExecCommand {
     pub command: String,
     pub workdir: String,
     pub shell: String,
+    pub tty: bool,
     pub yield_time_ms: u64,
     pub max_output_chars: usize,
 }
@@ -130,6 +133,7 @@ pub(crate) struct PreparedExecCommand {
 pub(crate) struct PreparedWriteStdin {
     pub session_id: i32,
     pub chars: String,
+    pub close_stdin: bool,
     pub yield_time_ms: u64,
     pub max_output_chars: usize,
 }
@@ -138,11 +142,37 @@ pub(crate) struct PreparedWriteStdin {
 struct ExecSession {
     session_id: i32,
     stdin: Mutex<Option<ChildStdin>>,
-    output: Mutex<String>,
-    delivered_len: Mutex<usize>,
+    tty_active: bool,
+    stdout: Mutex<String>,
+    stderr: Mutex<String>,
+    events: Mutex<Vec<ExecOutputEvent>>,
+    delivered_event_count: Mutex<usize>,
     exit_code: Mutex<Option<i32>>,
+    process_exited: AtomicBool,
+    active_readers: AtomicI32,
     done: AtomicBool,
     notify: Notify,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecOutputStream {
+    Stdout,
+    Stderr,
+}
+
+impl ExecOutputStream {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ExecOutputEvent {
+    stream: ExecOutputStream,
+    text: String,
 }
 
 fn string_arg(arguments: &Value, key: &str) -> String {
@@ -190,6 +220,15 @@ fn next_exec_session_id() -> i32 {
     EXEC_SESSION_IDS.fetch_add(1, Ordering::Relaxed)
 }
 
+fn maybe_mark_exec_session_done(session: &ExecSession) {
+    if session.process_exited.load(Ordering::Relaxed)
+        && session.active_readers.load(Ordering::Relaxed) <= 0
+    {
+        session.done.store(true, Ordering::Relaxed);
+        session.notify.notify_waiters();
+    }
+}
+
 fn workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
     let trimmed = workspace_path.trim();
     if trimmed.is_empty() {
@@ -197,7 +236,10 @@ fn workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
     }
     let root = canonicalize_for_scope(Path::new(trimmed))?;
     if !root.is_dir() {
-        return Err(format!("Workspace root is not a directory: {}", root.display()));
+        return Err(format!(
+            "Workspace root is not a directory: {}",
+            root.display()
+        ));
     }
     Ok(root)
 }
@@ -275,7 +317,11 @@ fn ok_result(tool_call_id: &str, value: Value) -> RuntimeToolResult {
     }
 }
 
-fn err_result(tool_call_id: &str, tool_name: &str, message: impl Into<String>) -> RuntimeToolResult {
+fn err_result(
+    tool_call_id: &str,
+    tool_name: &str,
+    message: impl Into<String>,
+) -> RuntimeToolResult {
     RuntimeToolResult {
         tool_call_id: tool_call_id.to_string(),
         content: json_content(&json!({
@@ -293,7 +339,11 @@ fn preview_text(value: &str, max_chars: usize) -> String {
     }
     format!(
         "{}…",
-        trimmed.chars().take(max_chars).collect::<String>().trim_end()
+        trimmed
+            .chars()
+            .take(max_chars)
+            .collect::<String>()
+            .trim_end()
     )
 }
 
@@ -317,6 +367,59 @@ fn shell_arguments(shell_program: &str, command: &str) -> Vec<String> {
         return vec!["-Command".to_string(), command.to_string()];
     }
     vec!["-lc".to_string(), command.to_string()]
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r#"'\''"#))
+}
+
+fn sanitize_tty_text(text: &str) -> String {
+    text.trim_start_matches(['\u{4}', '\u{8}']).to_string()
+}
+
+fn build_exec_invocation(
+    prepared: &PreparedExecCommand,
+) -> Result<(String, Vec<String>, bool), String> {
+    if !prepared.tty {
+        return Ok((
+            prepared.shell.clone(),
+            shell_arguments(&prepared.shell, &prepared.command),
+            false,
+        ));
+    }
+
+    if cfg!(windows) {
+        return Err("TTY exec is not supported on Windows.".to_string());
+    }
+
+    if cfg!(target_os = "macos")
+        || cfg!(target_os = "freebsd")
+        || cfg!(target_os = "openbsd")
+        || cfg!(target_os = "netbsd")
+    {
+        return Ok((
+            "script".to_string(),
+            vec![
+                "-q".to_string(),
+                "/dev/null".to_string(),
+                prepared.shell.clone(),
+                "-lc".to_string(),
+                prepared.command.clone(),
+            ],
+            true,
+        ));
+    }
+
+    let wrapped = format!(
+        "{} -lc {}",
+        shell_single_quote(&prepared.shell),
+        shell_single_quote(&prepared.command)
+    );
+    Ok((
+        "script".to_string(),
+        vec!["-qefc".to_string(), wrapped, "/dev/null".to_string()],
+        true,
+    ))
 }
 
 fn file_entry_from_path(path: &Path) -> FileEntry {
@@ -506,10 +609,7 @@ fn parse_apply_patch_input(input: &str) -> Result<Vec<ParsedPatchOp>, String> {
     Ok(operations)
 }
 
-fn resolve_apply_patch(
-    workspace_path: &str,
-    input: &str,
-) -> Result<PreparedApplyPatch, String> {
+fn resolve_apply_patch(workspace_path: &str, input: &str) -> Result<PreparedApplyPatch, String> {
     let root = workspace_root(workspace_path)?;
     let parsed = parse_apply_patch_input(input)?;
     let mut operations = Vec::new();
@@ -517,7 +617,10 @@ fn resolve_apply_patch(
 
     for operation in parsed {
         match operation {
-            ParsedPatchOp::Add { path, content_lines } => {
+            ParsedPatchOp::Add {
+                path,
+                content_lines,
+            } => {
                 let resolved = resolve_patch_target(&root, &path)?;
                 files.push(relative_to_root(&root, &resolved));
                 operations.push(ResolvedPatchOp::Add {
@@ -705,6 +808,7 @@ pub(crate) fn build_exec_command_result(prepared: &PreparedExecCommand) -> Value
         "command": prepared.command,
         "workdir": prepared.workdir,
         "shell": prepared.shell,
+        "tty": prepared.tty,
         "yieldTimeMs": prepared.yield_time_ms,
     })
 }
@@ -728,6 +832,7 @@ pub(crate) fn prepare_exec_command_tool_call(
     }
 
     let shell = shell_program(&string_arg(&tool_call.arguments, "shell"));
+    let tty = bool_arg(&tool_call.arguments, "tty", false);
     let yield_time_ms = u64_arg(
         &tool_call.arguments,
         "yield_time_ms",
@@ -745,6 +850,7 @@ pub(crate) fn prepare_exec_command_tool_call(
         command,
         workdir: normalize_display_path(&workdir),
         shell,
+        tty,
         yield_time_ms,
         max_output_chars: max_output_tokens.saturating_mul(4),
     })
@@ -757,7 +863,8 @@ pub(crate) fn prepare_write_stdin_tool_call(
         .arguments
         .get("session_id")
         .and_then(Value::as_i64)
-        .ok_or_else(|| "`session_id` is required for write_stdin.".to_string())? as i32;
+        .ok_or_else(|| "`session_id` is required for write_stdin.".to_string())?
+        as i32;
     let yield_time_ms = u64_arg(
         &tool_call.arguments,
         "yield_time_ms",
@@ -773,33 +880,51 @@ pub(crate) fn prepare_write_stdin_tool_call(
     Ok(PreparedWriteStdin {
         session_id,
         chars: string_arg(&tool_call.arguments, "chars"),
+        close_stdin: bool_arg(&tool_call.arguments, "close_stdin", false),
         yield_time_ms,
         max_output_chars: max_output_tokens.saturating_mul(4),
     })
 }
 
-async fn append_session_output(session: &Arc<ExecSession>, chunk: &[u8]) {
+async fn append_session_output(session: &Arc<ExecSession>, stream: ExecOutputStream, chunk: &[u8]) {
     if chunk.is_empty() {
         return;
     }
-    let text = String::from_utf8_lossy(chunk);
-    let mut output = session.output.lock().await;
-    output.push_str(&text);
+    let raw_text = String::from_utf8_lossy(chunk).to_string();
+    let text = if session.tty_active {
+        sanitize_tty_text(&raw_text)
+    } else {
+        raw_text
+    };
+    if text.is_empty() {
+        return;
+    }
+    match stream {
+        ExecOutputStream::Stdout => session.stdout.lock().await.push_str(&text),
+        ExecOutputStream::Stderr => session.stderr.lock().await.push_str(&text),
+    }
+    session
+        .events
+        .lock()
+        .await
+        .push(ExecOutputEvent { stream, text });
     session.notify.notify_waiters();
 }
 
 async fn spawn_session_output_reader<R: AsyncRead + Unpin>(
     mut reader: R,
     session: Arc<ExecSession>,
+    stream: ExecOutputStream,
 ) {
     let mut buffer = [0u8; 4096];
     loop {
         match reader.read(&mut buffer).await {
             Ok(0) => break,
-            Ok(count) => append_session_output(&session, &buffer[..count]).await,
+            Ok(count) => append_session_output(&session, stream, &buffer[..count]).await,
             Err(error) => {
                 append_session_output(
                     &session,
+                    ExecOutputStream::Stderr,
                     format!("\n[exec error] {error}\n").as_bytes(),
                 )
                 .await;
@@ -807,6 +932,8 @@ async fn spawn_session_output_reader<R: AsyncRead + Unpin>(
             }
         }
     }
+    session.active_readers.fetch_sub(1, Ordering::Relaxed);
+    maybe_mark_exec_session_done(&session);
 }
 
 async fn collect_session_output(
@@ -817,9 +944,9 @@ async fn collect_session_output(
     let deadline = tokio::time::Instant::now() + Duration::from_millis(yield_time_ms);
     loop {
         {
-            let output_len = session.output.lock().await.len();
-            let delivered_len = *session.delivered_len.lock().await;
-            if output_len > delivered_len || session.done.load(Ordering::Relaxed) {
+            let event_count = session.events.lock().await.len();
+            let delivered_count = *session.delivered_event_count.lock().await;
+            if event_count > delivered_count || session.done.load(Ordering::Relaxed) {
                 break;
             }
         }
@@ -834,20 +961,54 @@ async fn collect_session_output(
         }
     }
 
-    let mut delivered_len = session.delivered_len.lock().await;
-    let output = session.output.lock().await;
-    let next = output.get(*delivered_len..).unwrap_or_default().to_string();
-    *delivered_len = output.len();
+    let mut delivered_count = session.delivered_event_count.lock().await;
+    let events = session.events.lock().await;
+    let next_events = events
+        .iter()
+        .skip(*delivered_count)
+        .cloned()
+        .collect::<Vec<_>>();
+    *delivered_count = events.len();
     let exit_code = *session.exit_code.lock().await;
     let done = session.done.load(Ordering::Relaxed);
-    drop(output);
+    drop(events);
 
-    let trimmed_output = preview_text(&next, max_output_chars);
+    let merged_delta = next_events
+        .iter()
+        .map(|event| event.text.as_str())
+        .collect::<String>();
+    let stdout_delta = next_events
+        .iter()
+        .filter(|event| event.stream == ExecOutputStream::Stdout)
+        .map(|event| event.text.as_str())
+        .collect::<String>();
+    let stderr_delta = next_events
+        .iter()
+        .filter(|event| event.stream == ExecOutputStream::Stderr)
+        .map(|event| event.text.as_str())
+        .collect::<String>();
+    let trimmed_output = preview_text(&merged_delta, max_output_chars);
     let session_id = if done { None } else { Some(session.session_id) };
     json!({
         "ok": exit_code.unwrap_or(0) == 0,
         "sessionId": session_id,
         "output": trimmed_output,
+        "stdout": preview_text(&stdout_delta, max_output_chars),
+        "stderr": preview_text(&stderr_delta, max_output_chars),
+        "tty": session.tty_active,
+        "events": next_events
+            .iter()
+            .enumerate()
+            .map(|(index, event)| {
+                json!({
+                    "eventIndex": *delivered_count - next_events.len() + index,
+                    "stream": event.stream.as_str(),
+                    "delta": event.text,
+                    "deltaBase64": BASE64_STANDARD.encode(event.text.as_bytes()),
+                    "capReached": false,
+                })
+            })
+            .collect::<Vec<_>>(),
         "exitCode": exit_code,
         "done": done,
     })
@@ -856,9 +1017,10 @@ async fn collect_session_output(
 pub(crate) async fn execute_prepared_exec_command(
     prepared: &PreparedExecCommand,
 ) -> Result<Value, String> {
-    let mut command = background_tokio_command(&prepared.shell);
+    let (program, arguments, tty_active) = build_exec_invocation(prepared)?;
+    let mut command = background_tokio_command(&program);
     command
-        .args(shell_arguments(&prepared.shell, &prepared.command))
+        .args(arguments)
         .current_dir(&prepared.workdir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -874,18 +1036,31 @@ pub(crate) async fn execute_prepared_exec_command(
     let session = Arc::new(ExecSession {
         session_id: next_exec_session_id(),
         stdin: Mutex::new(stdin),
-        output: Mutex::new(String::new()),
-        delivered_len: Mutex::new(0),
+        tty_active,
+        stdout: Mutex::new(String::new()),
+        stderr: Mutex::new(String::new()),
+        events: Mutex::new(Vec::new()),
+        delivered_event_count: Mutex::new(0),
         exit_code: Mutex::new(None),
+        process_exited: AtomicBool::new(false),
+        active_readers: AtomicI32::new(i32::from(stdout.is_some()) + i32::from(stderr.is_some())),
         done: AtomicBool::new(false),
         notify: Notify::new(),
     });
 
     if let Some(stdout) = stdout {
-        tokio::spawn(spawn_session_output_reader(stdout, session.clone()));
+        tokio::spawn(spawn_session_output_reader(
+            stdout,
+            session.clone(),
+            ExecOutputStream::Stdout,
+        ));
     }
     if let Some(stderr) = stderr {
-        tokio::spawn(spawn_session_output_reader(stderr, session.clone()));
+        tokio::spawn(spawn_session_output_reader(
+            stderr,
+            session.clone(),
+            ExecOutputStream::Stderr,
+        ));
     }
 
     let watcher = session.clone();
@@ -893,8 +1068,9 @@ pub(crate) async fn execute_prepared_exec_command(
         let exit_code = child.wait().await.ok().and_then(|status| status.code());
         let mut code = watcher.exit_code.lock().await;
         *code = exit_code;
-        watcher.done.store(true, Ordering::Relaxed);
-        watcher.notify.notify_waiters();
+        drop(code);
+        watcher.process_exited.store(true, Ordering::Relaxed);
+        maybe_mark_exec_session_done(&watcher);
     });
 
     exec_sessions()
@@ -902,10 +1078,13 @@ pub(crate) async fn execute_prepared_exec_command(
         .await
         .insert(session.session_id, session.clone());
 
-    let mut result = collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
+    let mut result =
+        collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
     result["command"] = Value::String(prepared.command.clone());
     result["workdir"] = Value::String(prepared.workdir.clone());
     result["shell"] = Value::String(prepared.shell.clone());
+    result["ttyRequested"] = Value::Bool(prepared.tty);
+    result["ttyActive"] = Value::Bool(tty_active);
     if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
         exec_sessions().lock().await.remove(&session.session_id);
     }
@@ -936,14 +1115,22 @@ pub(crate) async fn execute_prepared_write_stdin(
             .await
             .map_err(|error| format!("Failed to flush stdin: {error}"))?;
     }
+    if prepared.close_stdin {
+        session.stdin.lock().await.take();
+    }
 
-    let result = collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
+    let result =
+        collect_session_output(&session, prepared.yield_time_ms, prepared.max_output_chars).await;
     if result.get("done").and_then(Value::as_bool).unwrap_or(false) {
         exec_sessions().lock().await.remove(&prepared.session_id);
     }
     Ok(json!({
         "sessionId": result.get("sessionId").cloned().unwrap_or(Value::Null),
         "output": result.get("output").cloned().unwrap_or(Value::String(String::new())),
+        "stdout": result.get("stdout").cloned().unwrap_or(Value::String(String::new())),
+        "stderr": result.get("stderr").cloned().unwrap_or(Value::String(String::new())),
+        "tty": result.get("tty").cloned().unwrap_or(Value::Bool(false)),
+        "events": result.get("events").cloned().unwrap_or(Value::Array(Vec::new())),
         "exitCode": result.get("exitCode").cloned().unwrap_or(Value::Null),
         "done": result.get("done").cloned().unwrap_or(Value::Bool(false)),
         "ok": result.get("ok").cloned().unwrap_or(Value::Bool(false)),
@@ -1019,8 +1206,14 @@ fn execute_list_files(workspace_path: &str, tool_call: &RuntimeToolCall) -> Runt
 
     let mut entries = Vec::new();
     let mut truncated = false;
-    match collect_list_entries(&root, &target, recursive, max_results, &mut entries, &mut truncated)
-    {
+    match collect_list_entries(
+        &root,
+        &target,
+        recursive,
+        max_results,
+        &mut entries,
+        &mut truncated,
+    ) {
         Ok(()) => ok_result(
             &tool_call.id,
             json!({
@@ -1293,6 +1486,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                         "type": "string",
                         "description": "Optional shell binary override."
                     },
+                    "tty": {
+                        "type": "boolean",
+                        "description": "Enable PTY mode. On Unix this uses a pseudo-terminal session."
+                    },
                     "yield_time_ms": {
                         "type": "integer",
                         "description": "How long to wait for output before returning. Defaults to 1000."
@@ -1319,6 +1516,10 @@ pub fn resolve_runtime_tool_definitions_with_context(
                     "chars": {
                         "type": "string",
                         "description": "Optional bytes to write to stdin. May be empty to poll."
+                    },
+                    "close_stdin": {
+                        "type": "boolean",
+                        "description": "Close stdin after writing optional chars."
                     },
                     "yield_time_ms": {
                         "type": "integer",
@@ -1470,7 +1671,10 @@ mod tests {
         let result =
             execute_prepared_apply_patch(&normalize_display_path(&root), &prepared).expect("apply");
         assert_eq!(result["ok"], Value::Bool(true));
-        assert_eq!(fs::read_to_string(&file_path).expect("read"), "alpha\ngamma\n");
+        assert_eq!(
+            fs::read_to_string(&file_path).expect("read"),
+            "alpha\ngamma\n"
+        );
 
         let _ = fs::remove_dir_all(root);
     }
@@ -1493,7 +1697,10 @@ mod tests {
         .expect("prepare patch");
 
         execute_prepared_apply_patch(&normalize_display_path(&root), &add).expect("apply");
-        assert_eq!(fs::read_to_string(root.join("fresh.txt")).expect("read"), "hello");
+        assert_eq!(
+            fs::read_to_string(root.join("fresh.txt")).expect("read"),
+            "hello"
+        );
         assert!(!root.join("obsolete.txt").exists());
 
         let _ = fs::remove_dir_all(root);
@@ -1519,6 +1726,7 @@ mod tests {
 
         assert_eq!(prepared.command, "echo hi");
         assert!(prepared.workdir.ends_with("/scripts") || prepared.workdir.ends_with("\\scripts"));
+        assert!(!prepared.tty);
 
         let _ = fs::remove_dir_all(root);
     }
@@ -1545,7 +1753,59 @@ mod tests {
             .expect("exec command");
 
         assert_eq!(result["ok"], Value::Bool(true));
-        assert!(result["output"].as_str().unwrap_or_default().contains("hello"));
+        assert!(result["output"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hello"));
+        assert!(result["stdout"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hello"));
+        assert_eq!(result["stderr"], Value::String(String::new()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn exec_command_returns_split_stream_events() {
+        let root = temp_workspace();
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_7b".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": if cfg!(windows) {
+                        "Write-Output out; [Console]::Error.Write('err')"
+                    } else {
+                        "printf out; printf err >&2"
+                    },
+                    "yield_time_ms": 500,
+                }),
+            },
+        )
+        .expect("prepare exec");
+
+        let result = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("exec command");
+
+        let events = result["events"].as_array().cloned().unwrap_or_default();
+        assert!(!events.is_empty());
+        assert!(result["stdout"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("out"));
+        assert!(result["stderr"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("err"));
+        assert!(events
+            .iter()
+            .any(|event| event["stream"] == Value::String("stdout".to_string())));
+        assert!(events
+            .iter()
+            .any(|event| event["stream"] == Value::String("stderr".to_string())));
 
         let _ = fs::remove_dir_all(root);
     }
@@ -1577,22 +1837,30 @@ mod tests {
             .get("sessionId")
             .and_then(Value::as_i64)
             .expect("session id") as i32;
-        assert!(first["output"].as_str().unwrap_or_default().contains("hello"));
+        assert!(first["output"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hello"));
 
         let follow_up = execute_prepared_write_stdin(&PreparedWriteStdin {
             session_id,
             chars: String::new(),
+            close_stdin: false,
             yield_time_ms: 600,
             max_output_chars: EXEC_OUTPUT_MAX_CHARS,
         })
         .await
         .expect("poll session");
 
-        assert!(follow_up["output"].as_str().unwrap_or_default().contains("world"));
+        assert!(follow_up["output"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("world"));
         if follow_up["done"] != Value::Bool(true) {
             let final_poll = execute_prepared_write_stdin(&PreparedWriteStdin {
                 session_id,
                 chars: String::new(),
+                close_stdin: false,
                 yield_time_ms: 300,
                 max_output_chars: EXEC_OUTPUT_MAX_CHARS,
             })
@@ -1600,6 +1868,39 @@ mod tests {
             .expect("final poll");
             assert_eq!(final_poll["done"], Value::Bool(true));
         }
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn exec_command_supports_tty_mode() {
+        let root = temp_workspace();
+        let prepared = prepare_exec_command_tool_call(
+            &normalize_display_path(&root),
+            &RuntimeToolCall {
+                id: "call_8b".to_string(),
+                name: EXEC_COMMAND_TOOL.to_string(),
+                arguments: json!({
+                    "cmd": "printf hello",
+                    "tty": true,
+                    "yield_time_ms": 500,
+                }),
+            },
+        )
+        .expect("prepare tty exec");
+
+        let result = execute_prepared_exec_command(&prepared)
+            .await
+            .expect("exec tty command");
+
+        assert_eq!(result["ttyRequested"], Value::Bool(true));
+        assert_eq!(result["ttyActive"], Value::Bool(true));
+        assert_eq!(result["tty"], Value::Bool(true));
+        assert!(result["output"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hello"));
 
         let _ = fs::remove_dir_all(root);
     }

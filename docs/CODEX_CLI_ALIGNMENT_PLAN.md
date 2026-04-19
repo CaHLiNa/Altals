@@ -109,5 +109,7 @@
 - 命令执行默认受限在当前 workspace 内工作目录，支持 shell override
 - 长命令可返回 `sessionId`，后续通过 `write_stdin` 继续轮询或写入 stdin
 - 命令输出以结构化 JSON 回传给模型续轮消费
+- `exec_command` 已补充 `tty` 参数，Unix 下优先走系统 PTY 适配
+- 命令输出已补充更细粒度的 `events` 结构，并拆分 `stdout` / `stderr` 增量结果，同时保留兼容性的 `output`
 
 阶段 1 完成后，ScribeFlow 将从“Codex 风格 skill/runtime 外壳”进入“具备最小执行能力的 Codex 风格 agent runtime”。
