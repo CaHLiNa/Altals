@@ -768,6 +768,7 @@ async fn finish_turn_failure<R: Runtime>(
 ) {
     let mut state = runtime.inner.lock().await;
     let now = chrono::Utc::now().timestamp();
+    let normalized_error = error.trim();
 
     if let Some(turn) = state.turns.get_mut(turn_id) {
         turn.status = TurnStatus::Failed;
@@ -786,6 +787,12 @@ async fn finish_turn_failure<R: Runtime>(
         if let Some(item) = state.items.get_mut(item_id) {
             item.status = TurnStatus::Failed;
             item.updated_at = now;
+            if item.kind == ItemKind::AgentMessage
+                && item.text.trim().is_empty()
+                && !normalized_error.is_empty()
+            {
+                item.text = normalized_error.to_string();
+            }
             emit_runtime_event(
                 app,
                 "itemCompleted",

@@ -72,7 +72,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
-import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
+import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -119,8 +119,8 @@ const fileType = computed(() => {
 })
 
 const hasOutlineSupport = computed(() => fileType.value !== null)
-const markdownOutlineItems = ref([])
-let markdownOutlineRequestId = 0
+const outlineItems = ref([])
+let outlineRequestId = 0
 
 function currentDocumentText(path) {
   const view = editorStore.getAnyEditorView(path)
@@ -130,46 +130,35 @@ function currentDocumentText(path) {
   return filesStore.fileContents[path] || ''
 }
 
-async function refreshMarkdownOutline() {
+async function refreshDocumentOutline() {
   const path = activeFile.value
   const content = path ? currentDocumentText(path) : ''
-  const requestId = ++markdownOutlineRequestId
+  const requestId = ++outlineRequestId
 
-  if (!path || fileType.value !== 'markdown' || !content) {
-    if (requestId === markdownOutlineRequestId) {
-      markdownOutlineItems.value = []
+  if (!path || !fileType.value || !content) {
+    if (requestId === outlineRequestId) {
+      outlineItems.value = []
     }
     return
   }
 
   try {
-    const items = await buildMarkdownOutlineItems(content)
-    if (requestId === markdownOutlineRequestId && activeFile.value === path) {
-      markdownOutlineItems.value = Array.isArray(items) ? items : []
+    const items = await resolveDocumentOutlineItems(path, {
+      content,
+      filesStore,
+      contentOverrides: {
+        [path]: content,
+      },
+    })
+    if (requestId === outlineRequestId && activeFile.value === path) {
+      outlineItems.value = Array.isArray(items) ? items : []
     }
   } catch {
-    if (requestId === markdownOutlineRequestId) {
-      markdownOutlineItems.value = []
+    if (requestId === outlineRequestId) {
+      outlineItems.value = []
     }
   }
 }
-
-const outlineItems = computed(() => {
-  const path = activeFile.value
-  const ft = fileType.value
-  if (!path || !ft) return []
-
-  if (ft === 'markdown') {
-    return markdownOutlineItems.value
-  }
-
-  if (ft === 'latex') {
-    const content = currentDocumentText(path)
-    return content ? parseLatexHeadings(content) : []
-  }
-
-  return []
-})
 
 const visibleOutlineItems = computed(() =>
   outlineItems.value.filter((item) =>
@@ -196,42 +185,6 @@ const activeOutlineItemKey = computed(() => {
   }
   return activeItem ? outlineItemKey(activeItem) : ''
 })
-
-// --- Heading parsers ---
-
-const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph)\{([^}]*)\}/gm
-const LATEX_LEVELS = {
-  part: 1,
-  chapter: 2,
-  section: 3,
-  subsection: 4,
-  subsubsection: 5,
-  paragraph: 6,
-}
-
-function parseLatexHeadings(content) {
-  const result = []
-  let m
-  LATEX_SECTION_RE.lastIndex = 0
-  while ((m = LATEX_SECTION_RE.exec(content)) !== null) {
-    result.push({
-      text: m[2].trim(),
-      rawLevel: LATEX_LEVELS[m[1]] || 3,
-      offset: m.index,
-    })
-  }
-  const baseLevel = result.length > 0 ? Math.min(...result.map((item) => item.rawLevel)) : 1
-
-  return result.map((item) => ({
-    kind: 'heading',
-    text: item.text,
-    level: Math.max(1, item.rawLevel - baseLevel + 1),
-    displayLevel: Math.max(1, item.rawLevel - baseLevel + 1),
-    offset: item.offset,
-  }))
-}
-
-// --- Navigation ---
 
 function focusTextOffset(path, offset, attempts = 0) {
   const targetView = editorStore.getAnyEditorView(path)
@@ -278,6 +231,7 @@ function getOutlineItemPadding(item = {}) {
 }
 
 function outlineItemKey(item = {}) {
+  if (item.nodeKey) return String(item.nodeKey)
   return [
     item.filePath || activeFile.value || '',
     item.offset || 0,
@@ -298,58 +252,24 @@ function toggleHeadingCollapse(itemKey) {
 }
 
 const outlineRenderItems = computed(() => {
-  const nodes = []
-  const stack = []
-  const parentKeys = new Map()
-  const branchKeys = new Set()
-
-  for (const item of visibleOutlineItems.value) {
-    const key = outlineItemKey(item)
-    const isTreeNode = ['heading', 'appendix'].includes(item.kind)
-    const level = isTreeNode
-      ? Math.max(1, Number(item.displayLevel || item.level) || 1)
-      : 1
-
-    if (isTreeNode) {
-      while (stack.length && stack[stack.length - 1].level >= level) {
-        stack.pop()
-      }
-
-      if (stack.length) {
-        branchKeys.add(stack[stack.length - 1].key)
-      }
-
-      parentKeys.set(
+  return visibleOutlineItems.value
+    .map((item) => {
+      const key = outlineItemKey(item)
+      return {
         key,
-        stack.map((entry) => entry.key)
-      )
-    } else {
-      parentKeys.set(key, [])
-      stack.length = 0
-    }
-
-    nodes.push({ key, item, level, isTreeNode })
-    if (isTreeNode) {
-      stack.push({ key, level })
-    }
-  }
-
-  return nodes
-    .filter(
-      (node) => parentKeys.get(node.key)?.every((key) => !isHeadingCollapsed(key)) !== false
-    )
-    .map((node) => ({
-      key: node.key,
-      item: node.item,
-      hasChildren: branchKeys.has(node.key),
-      isTreeNode: node.isTreeNode,
-    }))
+        item,
+        hasChildren: item.hasChildren === true,
+        isTreeNode: item.isTreeNode === true,
+        ancestorKeys: Array.isArray(item.ancestorKeys) ? item.ancestorKeys : [],
+      }
+    })
+    .filter((node) => node.ancestorKeys.every((key) => !isHeadingCollapsed(key)))
 })
 
 watch(
   () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => {
-    void refreshMarkdownOutline()
+    void refreshDocumentOutline()
   },
   { immediate: true }
 )

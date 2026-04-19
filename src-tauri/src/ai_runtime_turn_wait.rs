@@ -64,7 +64,11 @@ pub async fn run_turn_and_wait<R: Runtime>(
                 return Err("AI execution stopped.".to_string());
             }
             crate::codex_runtime::protocol::TurnStatus::Failed => {
-                return Err("AI execution failed.".to_string());
+                return Err(if content.trim().is_empty() {
+                    "AI execution failed.".to_string()
+                } else {
+                    content
+                });
             }
             crate::codex_runtime::protocol::TurnStatus::Running => {}
         }

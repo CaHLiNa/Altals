@@ -6,12 +6,12 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownHeadingItem {
-    kind: String,
-    text: String,
-    level: u8,
-    display_level: u8,
-    offset: usize,
-    line: Option<usize>,
+    pub kind: String,
+    pub text: String,
+    pub level: u8,
+    pub display_level: u8,
+    pub offset: usize,
+    pub line: Option<usize>,
 }
 
 fn markdown_parse_options() -> ParseOptions {
