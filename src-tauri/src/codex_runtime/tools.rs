@@ -5,8 +5,6 @@ pub struct RuntimeToolDefinition {
     pub name: &'static str,
     pub description: &'static str,
     pub parameters: Value,
-    pub source_kind: &'static str,
-    pub invocation_name: &'static str,
 }
 
 #[derive(Debug, Clone)]

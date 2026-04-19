@@ -7,7 +7,6 @@ mod ai_artifact_runtime;
 mod ai_attachment_runtime;
 mod ai_client_session_runtime;
 mod ai_config;
-mod ai_extension_catalog;
 mod ai_provider_catalog;
 mod ai_provider_credentials;
 mod ai_runtime;
@@ -20,7 +19,6 @@ mod ai_skill_catalog;
 mod ai_skill_management;
 mod ai_skill_support;
 mod ai_skill_text;
-mod ai_tool_catalog;
 mod app_dirs;
 mod codex_runtime;
 mod document_outline;
@@ -469,9 +467,6 @@ pub fn run() {
             ai_config::ai_config_load_internal,
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
-            ai_extension_catalog::ai_extension_catalog_load,
-            ai_extension_catalog::ai_extension_mcp_probe,
-            ai_extension_catalog::ai_extension_runtime_state_resolve,
             ai_provider_catalog::ai_provider_catalog_list,
             ai_provider_catalog::ai_provider_state_resolve,
             ai_provider_catalog::ai_provider_models_list,
@@ -492,7 +487,6 @@ pub fn run() {
             ai_skill_management::ai_skill_delete,
             ai_skill_management::ai_skill_update,
             ai_skill_management::ai_skill_duplicate,
-            ai_tool_catalog::ai_tool_catalog_resolve,
             ai_session_storage::ai_session_overlay_load,
             ai_session_storage::ai_session_overlay_save,
             ai_session_storage::ai_session_overlay_restore,

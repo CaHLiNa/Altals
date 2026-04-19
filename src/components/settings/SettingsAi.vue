@@ -176,92 +176,15 @@
       </div>
     </section>
 
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Extensions') }}</h4>
-      <div class="settings-ai-extension-card">
-        <div class="settings-ai-extension-header">
-          <div>
-            <div class="settings-row-title">{{ t('MCP servers') }}</div>
-            <div class="settings-ai-extension-meta">
-              {{
-                extensionCatalogLoading
-                  ? t('Loading extensions...')
-                  : t('{count} discovered', { count: extensionCatalog.mcpServers.length })
-              }}
-            </div>
-          </div>
-          <UiButton
-            variant="secondary"
-            size="sm"
-            :disabled="extensionCatalogLoading"
-            @click="loadExtensionCatalog"
-          >
-            {{ extensionCatalogLoading ? t('Loading...') : t('Refresh') }}
-          </UiButton>
-        </div>
-
-        <div
-          v-if="extensionCatalogError"
-          class="settings-inline-message settings-inline-message-error"
-        >
-          {{ extensionCatalogError }}
-        </div>
-
-        <div
-          v-else-if="!extensionCatalogLoading && extensionCatalog.mcpServers.length === 0"
-          class="settings-ai-extension-empty"
-        >
-          {{ t('No MCP servers discovered in the current workspace or user config roots.') }}
-        </div>
-
-        <div v-else class="settings-ai-extension-list">
-          <div
-            v-for="server in extensionCatalog.mcpServers"
-            :key="server.id"
-            class="settings-ai-extension-item"
-          >
-            <div class="settings-ai-extension-main">
-              <div class="settings-ai-extension-name">{{ server.name }}</div>
-              <div class="settings-ai-extension-subtitle">
-                {{ server.transport }}
-                <template v-if="server.sourceScope"> · {{ server.sourceScope }} </template>
-              </div>
-              <div
-                v-if="getExtensionProbeSummary(server.id)"
-                class="settings-ai-extension-probe"
-                :class="{ 'is-error': !isExtensionProbeSuccess(server.id) }"
-              >
-                {{ getExtensionProbeSummary(server.id) }}
-              </div>
-            </div>
-            <div class="settings-ai-extension-actions">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="isExtensionProbeLoading(server.id)"
-                @click="probeExtensionServer(server.id)"
-              >
-                {{ isExtensionProbeLoading(server.id) ? t('Probing...') : t('Probe') }}
-              </UiButton>
-              <div class="settings-ai-extension-source" :title="server.sourcePath">
-                {{ server.sourcePath }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
-import { useWorkspaceStore } from '../../stores/workspace'
-import { loadAiExtensionCatalog, probeAiExtensionMcpServer } from '../../services/ai/extensions.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -269,7 +192,6 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 const { t } = useI18n()
 const aiStore = useAiStore()
 const toastStore = useToastStore()
-const workspace = useWorkspaceStore()
 
 async function listAiProviderDefinitions() {
   const response = await invoke('ai_provider_catalog_list')
@@ -329,10 +251,6 @@ const providerModelOptions = ref({})
 const providerModelLoading = ref({})
 const providerModelErrors = ref({})
 const loadedConfig = ref(null)
-const extensionCatalog = ref({ mcpServers: [], sources: [] })
-const extensionCatalogLoading = ref(false)
-const extensionCatalogError = ref('')
-const extensionProbeState = ref({})
 
 const expandedProvider = ref(null)
 function toggleProvider(id) {
@@ -613,94 +531,6 @@ async function loadState() {
   }
 }
 
-async function loadExtensionCatalog() {
-  extensionCatalogLoading.value = true
-  extensionCatalogError.value = ''
-  try {
-    const response = await loadAiExtensionCatalog(workspace.path || '')
-    extensionCatalog.value = {
-      mcpServers: Array.isArray(response?.mcpServers) ? response.mcpServers : [],
-      sources: Array.isArray(response?.sources) ? response.sources : [],
-    }
-  } catch (error) {
-    extensionCatalog.value = { mcpServers: [], sources: [] }
-    extensionCatalogError.value = normalizeErrorMessage(
-      error,
-      t('Failed to load extension catalog.')
-    )
-  } finally {
-    extensionCatalogLoading.value = false
-  }
-}
-
-function isExtensionProbeLoading(serverId = '') {
-  return extensionProbeState.value[serverId]?.loading === true
-}
-
-function isExtensionProbeSuccess(serverId = '') {
-  return extensionProbeState.value[serverId]?.ok === true
-}
-
-function getExtensionProbeSummary(serverId = '') {
-  const state = extensionProbeState.value[serverId]
-  if (!state || state.loading) return ''
-  if (state.ok) {
-    const serverLabel = String(state.serverLabel || '').trim()
-    const protocolVersion = String(state.protocolVersion || '').trim()
-    const protocolText = protocolVersion ? ` · ${protocolVersion}` : ''
-    if (serverLabel) {
-      return t('{count} tools ready via {name}{protocol}', {
-        count: state.toolCount || 0,
-        name: serverLabel,
-        protocol: protocolText,
-      })
-    }
-    return t('{count} tools ready', { count: state.toolCount || 0 })
-  }
-  return String(state.error || '').trim()
-}
-
-async function probeExtensionServer(serverId = '') {
-  if (!String(serverId || '').trim()) return
-  extensionProbeState.value = {
-    ...extensionProbeState.value,
-    [serverId]: {
-      loading: true,
-      ok: false,
-      toolCount: 0,
-      protocolVersion: '',
-      serverLabel: '',
-      error: '',
-    },
-  }
-  try {
-    const response = await probeAiExtensionMcpServer(workspace.path || '', serverId)
-    extensionProbeState.value = {
-      ...extensionProbeState.value,
-      [serverId]: {
-        loading: false,
-        ok: response?.ok === true,
-        toolCount: Number(response?.toolCount || 0),
-        protocolVersion: String(response?.protocolVersion || '').trim(),
-        serverLabel: String(response?.serverLabel || '').trim(),
-        error: String(response?.error || '').trim(),
-      },
-    }
-  } catch (error) {
-    extensionProbeState.value = {
-      ...extensionProbeState.value,
-      [serverId]: {
-        loading: false,
-        ok: false,
-        toolCount: 0,
-        protocolVersion: '',
-        serverLabel: '',
-        error: normalizeErrorMessage(error, t('MCP probe failed.')),
-      },
-    }
-  }
-}
-
 async function persistAllProviders() {
   const nextConfig = buildConfig()
   await saveAiConfig(nextConfig)
@@ -802,15 +632,7 @@ async function handleClearProvider(providerId = '') {
 
 onMounted(() => {
   void loadState()
-  void loadExtensionCatalog()
 })
-
-watch(
-  () => workspace.path,
-  () => {
-    void loadExtensionCatalog()
-  }
-)
 </script>
 
 <style scoped>
@@ -965,95 +787,6 @@ watch(
 
 .settings-inline-message-error {
   color: var(--error);
-}
-
-.settings-ai-extension-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  border-radius: 8px;
-  background: var(--surface-base);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-}
-
-.settings-ai-extension-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settings-ai-extension-meta {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.settings-ai-extension-empty {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.settings-ai-extension-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.settings-ai-extension-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-hover) 24%, transparent);
-}
-
-.settings-ai-extension-main {
-  min-width: 0;
-}
-
-.settings-ai-extension-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.settings-ai-extension-subtitle {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.settings-ai-extension-probe {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--success);
-}
-
-.settings-ai-extension-probe.is-error {
-  color: var(--error);
-}
-
-.settings-ai-extension-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.settings-ai-extension-source {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  text-align: right;
 }
 
 .ai-provider-collapse-enter-active,

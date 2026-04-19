@@ -11,7 +11,6 @@ use crate::ai_agent_session_runtime::{
     AiAgentSessionFailParams, AiAgentSessionFinalizeParams, AiAgentSessionInterruptParams,
     AiAgentSessionStartParams,
 };
-use crate::ai_extension_catalog::load_extension_catalog_value;
 use crate::ai_runtime_turn_wait::run_turn_and_wait;
 use crate::codex_runtime::{
     protocol::{RuntimeProviderConfig, RuntimeThreadStartParams, RuntimeTurnRunParams},
@@ -402,7 +401,6 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
 
     let prompt = ai_agent_build_prompt(AiAgentPromptParams {
         skill: params.skill.clone(),
-        extension_catalog: load_extension_catalog_value(&workspace_path),
         context_bundle: params.context_bundle.clone(),
         user_instruction: params.user_instruction.clone(),
         conversation: params.conversation.clone(),
@@ -411,7 +409,6 @@ async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, St
         attachments: params.attachments.clone(),
         referenced_files: params.referenced_files.clone(),
         requested_tools: params.requested_tools.clone(),
-        requested_tool_mentions: params.requested_tool_mentions.clone(),
         enabled_tool_ids: enabled_tool_ids.clone(),
         runtime_intent: params.runtime_intent.clone(),
         invocation: params.invocation.clone(),
@@ -523,10 +520,6 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
             let prompt = ai_agent_build_prompt(AiAgentPromptParams {
                 skill: skill.clone(),
-                extension_catalog: load_extension_catalog_value(&string_field(
-                    context_bundle.get("workspace").unwrap_or(&Value::Null),
-                    &["path"],
-                )),
                 context_bundle: context_bundle.clone(),
                 user_instruction: user_instruction.clone(),
                 conversation: prior_conversation.clone(),
@@ -535,7 +528,6 @@ async fn ai_agent_run_started_session<R: Runtime>(
                 attachments: attachments.clone(),
                 referenced_files: referenced_files.clone(),
                 requested_tools: requested_tools.clone(),
-                requested_tool_mentions: requested_tool_mentions.clone(),
                 enabled_tool_ids,
                 runtime_intent: runtime_intent.clone(),
                 invocation: invocation.clone(),

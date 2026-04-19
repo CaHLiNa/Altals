@@ -386,15 +386,6 @@ async function runPreparedAgentSessionRust(params = {}) {
   return invoke('ai_agent_run_prepared_session', { params })
 }
 
-async function resolveAiToolCatalogRust({ enabledTools = [], runtimeIntent = 'chat' } = {}) {
-  return invoke('ai_tool_catalog_resolve', {
-    params: {
-      enabledTools,
-      runtimeIntent,
-    },
-  })
-}
-
 async function syncRuntimeThreadSnapshotToSessionRust(params = {}) {
   return invoke('ai_runtime_thread_snapshot_to_session', { params })
 }
@@ -1314,12 +1305,7 @@ export const useAiStore = defineStore('ai', {
         requiresApiKey: resolvedState?.requiresApiKey !== false,
         currentProviderId,
         currentProviderLabel: String(resolvedState?.label || currentProviderId).trim(),
-        enabledToolIds: (
-          await resolveAiToolCatalogRust({
-            enabledTools: config?.enabledTools,
-            runtimeIntent: 'chat',
-          })
-        )?.effectiveToolIds || [],
+        enabledToolIds: [],
         baseUrl: String(resolvedState?.baseUrl || providerConfig?.baseUrl || '').trim(),
         model: String(resolvedState?.model || providerConfig?.model || '').trim(),
         approvalMode: String(resolvedState?.approvalMode || providerConfig?.sdk?.approvalMode || 'per-tool').trim(),

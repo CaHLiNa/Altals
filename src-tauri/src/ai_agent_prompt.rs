@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ai_skill_support::load_skill_supporting_files;
-use crate::ai_tool_catalog::resolve_runtime_tool_ids;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,8 +10,6 @@ pub struct AiAgentPromptParams {
     pub skill: Value,
     #[serde(default)]
     pub invocation: Value,
-    #[serde(default)]
-    pub extension_catalog: Value,
     #[serde(default)]
     pub context_bundle: Value,
     #[serde(default)]
@@ -29,8 +26,6 @@ pub struct AiAgentPromptParams {
     pub referenced_files: Vec<Value>,
     #[serde(default)]
     pub requested_tools: Vec<Value>,
-    #[serde(default)]
-    pub requested_tool_mentions: Vec<String>,
     #[serde(default)]
     pub enabled_tool_ids: Vec<String>,
     #[serde(default)]
@@ -619,9 +614,6 @@ pub async fn ai_agent_build_prompt(
         user_prompt,
         behavior_id,
         structured,
-        enabled_tool_ids: resolve_runtime_tool_ids(
-            &params.enabled_tool_ids,
-            &params.runtime_intent,
-        ),
+        enabled_tool_ids: Vec::new(),
     })
 }
