@@ -5,8 +5,9 @@ use tauri::State;
 use tokio::sync::Mutex;
 
 use super::protocol::{
-    RuntimeAskUserRequest, RuntimeExitPlanRequest, RuntimeItem, RuntimePermissionRequest,
-    RuntimePermissionResolveResponse, RuntimePlanModeState, RuntimeThread, RuntimeTurn,
+    RuntimeAskUserRequest, RuntimeAskUserResolveResponse, RuntimeExitPlanRequest, RuntimeItem,
+    RuntimePermissionRequest, RuntimePermissionResolveResponse, RuntimePlanModeState,
+    RuntimeThread, RuntimeTurn,
 };
 use super::storage::load_runtime_state;
 
@@ -22,6 +23,8 @@ pub struct CodexRuntimeState {
     pub plan_modes: HashMap<String, RuntimePlanModeState>,
     #[serde(skip)]
     pub permission_resolutions: HashMap<String, RuntimePermissionResolveResponse>,
+    #[serde(skip)]
+    pub ask_user_resolutions: HashMap<String, RuntimeAskUserResolveResponse>,
     #[serde(skip)]
     pub turn_exec_sessions: HashMap<String, Vec<i32>>,
 }

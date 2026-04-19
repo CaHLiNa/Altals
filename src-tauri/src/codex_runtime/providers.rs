@@ -10,10 +10,11 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use url::Url;
 
-use super::approvals::request_permission;
+use super::approvals::{request_ask_user, request_permission};
 use super::events::emit_runtime_event;
 use super::protocol::{
-    ItemKind, RuntimePermissionRequestParams, RuntimeProviderConfig, RuntimeTurnRunParams,
+    ItemKind, RuntimeAskUserOption, RuntimeAskUserQuestion, RuntimeAskUserRequestParams,
+    RuntimePermissionRequestParams, RuntimeProviderConfig, RuntimeTurnRunParams,
     RuntimeTurnRunResponse, ThreadStatus, TurnStatus,
 };
 use super::state::{CodexRuntimeHandle, CodexRuntimeState};
@@ -23,11 +24,12 @@ use super::tools::{
     execute_prepared_exec_command, execute_prepared_resize_terminal,
     execute_prepared_terminate_command, execute_prepared_write_stdin,
     execute_runtime_tool_call_with_context, is_apply_patch_tool_call, is_exec_command_tool_call,
-    is_resize_terminal_tool_call, is_terminate_command_tool_call, is_write_stdin_tool_call,
-    poll_exec_session_updates, prepare_apply_patch_tool_call, prepare_exec_command_tool_call,
-    prepare_resize_terminal_tool_call, prepare_terminate_command_tool_call,
-    prepare_write_stdin_tool_call, resolve_runtime_tool_definitions_with_context,
-    terminate_exec_sessions, RuntimeToolCall, RuntimeToolResult,
+    is_request_user_input_tool_call, is_resize_terminal_tool_call, is_terminate_command_tool_call,
+    is_write_stdin_tool_call, poll_exec_session_updates, prepare_apply_patch_tool_call,
+    prepare_exec_command_tool_call, prepare_resize_terminal_tool_call,
+    prepare_terminate_command_tool_call, prepare_write_stdin_tool_call,
+    resolve_runtime_tool_definitions_with_context, terminate_exec_sessions, RuntimeToolCall,
+    RuntimeToolResult,
 };
 use super::turns::{build_runtime_item, start_turn};
 
@@ -84,7 +86,19 @@ fn build_headers(values: &[(&str, String)]) -> Result<HeaderMap, String> {
     Ok(map)
 }
 
+fn string_arg(arguments: &Value, key: &str) -> String {
+    arguments
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
+}
+
 fn compact_tool_result_for_continuation(result: &RuntimeToolResult) -> RuntimeToolResult {
+    if result.output.is_some() {
+        return result.clone();
+    }
     let parsed = serde_json::from_str::<Value>(&result.content).ok();
     if let Some(parsed) = parsed {
         let summarized = if let Some(entries) = parsed.get("entries").and_then(Value::as_array) {
@@ -125,6 +139,7 @@ fn compact_tool_result_for_continuation(result: &RuntimeToolResult) -> RuntimeTo
                 content: serde_json::to_string_pretty(&summarized)
                     .unwrap_or_else(|_| "{\"kind\":\"toolResultSummary\"}".to_string()),
                 is_error: result.is_error,
+                output: None,
             };
         }
     }
@@ -148,6 +163,7 @@ fn compact_tool_result_for_continuation(result: &RuntimeToolResult) -> RuntimeTo
         }))
         .unwrap_or_else(|_| "{\"truncated\":true}".to_string()),
         is_error: result.is_error,
+        output: None,
     }
 }
 
@@ -395,7 +411,7 @@ pub(crate) fn build_provider_request(
                             input.push(json!({
                                 "type": "function_call_output",
                                 "call_id": result.tool_call_id,
-                                "output": result.content,
+                                "output": result.output.clone().unwrap_or(Value::String(result.content.clone())),
                             }));
                         }
                     }
@@ -860,6 +876,7 @@ async fn append_runtime_tool_items<R: Runtime>(
                 tool_call_id: tool_call.id.clone(),
                 content: String::new(),
                 is_error: false,
+                output: None,
             },
             tool_call_item_id: item.id.clone(),
             tool_result_item_id: String::new(),
@@ -1193,6 +1210,45 @@ async fn request_runtime_tool_permission<R: Runtime>(
     Ok(response.request.request_id)
 }
 
+async fn request_runtime_tool_ask_user<R: Runtime>(
+    app: &AppHandle<R>,
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    title: String,
+    prompt: String,
+    description: String,
+    questions: Vec<RuntimeAskUserQuestion>,
+) -> Result<String, String> {
+    let mut state = runtime.inner.lock().await;
+    let response = request_ask_user(
+        &mut state,
+        RuntimeAskUserRequestParams {
+            thread_id: thread_id.to_string(),
+            turn_id: Some(turn_id.to_string()),
+            title,
+            prompt,
+            description,
+            questions,
+        },
+    )?;
+    persist_runtime_state(&state)?;
+    emit_runtime_event(
+        app,
+        "askUserRequest",
+        state.threads.get(thread_id).cloned(),
+        state.turns.get(turn_id).cloned(),
+        None,
+        None,
+        Some(response.request.clone()),
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(response.request.request_id)
+}
+
 async fn await_permission_resolution(
     runtime: &CodexRuntimeHandle,
     thread_id: &str,
@@ -1226,6 +1282,121 @@ async fn await_permission_resolution(
     }
 }
 
+async fn await_ask_user_resolution(
+    runtime: &CodexRuntimeHandle,
+    thread_id: &str,
+    turn_id: &str,
+    request_id: &str,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    loop {
+        {
+            let mut state = runtime.inner.lock().await;
+            if let Some(response) = state.ask_user_resolutions.remove(request_id) {
+                return Ok(response.answers);
+            }
+            if state
+                .turns
+                .get(turn_id)
+                .map(|turn| turn.status != TurnStatus::Running)
+                .unwrap_or(true)
+            {
+                return Err("Ask-user request was interrupted before resolution.".to_string());
+            }
+            if state
+                .threads
+                .get(thread_id)
+                .map(|thread| thread.status != ThreadStatus::Running)
+                .unwrap_or(true)
+            {
+                return Err("Ask-user request was interrupted before resolution.".to_string());
+            }
+        }
+        sleep(Duration::from_millis(80)).await;
+    }
+}
+
+fn parse_ask_user_questions(arguments: &Value) -> Result<Vec<RuntimeAskUserQuestion>, String> {
+    let raw_questions = arguments
+        .get("questions")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "`questions` is required for request_user_input.".to_string())?;
+    if raw_questions.is_empty() {
+        return Err("`questions` must contain at least one entry.".to_string());
+    }
+    if raw_questions.len() > 3 {
+        return Err("`questions` must not exceed 3 entries.".to_string());
+    }
+
+    raw_questions
+        .iter()
+        .map(|entry| {
+            let id = entry
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            let header = entry
+                .get("header")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            let question = entry
+                .get("question")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if id.is_empty() || header.is_empty() || question.is_empty() {
+                return Err(
+                    "Each request_user_input question requires `id`, `header`, and `question`."
+                        .to_string(),
+                );
+            }
+            let options = entry
+                .get("options")
+                .and_then(Value::as_array)
+                .ok_or_else(|| {
+                    "Each request_user_input question requires an `options` array.".to_string()
+                })?
+                .iter()
+                .map(|option| RuntimeAskUserOption {
+                    label: option
+                        .get("label")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
+                    description: option
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
+                })
+                .filter(|option| !option.label.is_empty() && !option.description.is_empty())
+                .collect::<Vec<_>>();
+            if options.is_empty() {
+                return Err(
+                    "Each request_user_input question needs at least one valid option.".to_string(),
+                );
+            }
+            Ok(RuntimeAskUserQuestion {
+                id,
+                header,
+                question,
+                multi_select: entry
+                    .get("multiSelect")
+                    .or_else(|| entry.get("multi_select"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                options,
+            })
+        })
+        .collect()
+}
+
 async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
     app: &AppHandle<R>,
     runtime: &CodexRuntimeHandle,
@@ -1250,6 +1421,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1293,6 +1465,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1311,6 +1484,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 });
                 continue;
             }
@@ -1322,6 +1496,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: false,
+                    output: None,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
@@ -1333,6 +1508,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 }),
             }
             continue;
@@ -1352,6 +1528,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1394,6 +1571,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1412,6 +1590,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 });
                 continue;
             }
@@ -1423,6 +1602,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: !content.get("ok").and_then(Value::as_bool).unwrap_or(false),
+                    output: None,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
@@ -1434,6 +1614,83 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
+                }),
+            }
+            continue;
+        }
+
+        if is_request_user_input_tool_call(tool_call) {
+            let questions = match parse_ask_user_questions(&tool_call.arguments) {
+                Ok(questions) => questions,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
+                        is_error: true,
+                        output: None,
+                    });
+                    continue;
+                }
+            };
+
+            let request_id = match request_runtime_tool_ask_user(
+                app,
+                runtime,
+                thread_id,
+                turn_id,
+                string_arg(&tool_call.arguments, "title"),
+                string_arg(&tool_call.arguments, "prompt"),
+                string_arg(&tool_call.arguments, "description"),
+                questions,
+            )
+            .await
+            {
+                Ok(request_id) => request_id,
+                Err(error) => {
+                    results.push(RuntimeToolResult {
+                        tool_call_id: tool_call.id.clone(),
+                        content: serde_json::to_string_pretty(&json!({
+                            "tool": tool_call.name,
+                            "error": error,
+                        }))
+                        .unwrap_or_else(|_| {
+                            "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                        }),
+                        is_error: true,
+                        output: None,
+                    });
+                    continue;
+                }
+            };
+
+            match await_ask_user_resolution(runtime, thread_id, turn_id, &request_id).await {
+                Ok(answers) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "answers": answers,
+                    }))
+                    .unwrap_or_else(|_| "{\"answers\":{}}".to_string()),
+                    is_error: false,
+                    output: None,
+                }),
+                Err(error) => results.push(RuntimeToolResult {
+                    tool_call_id: tool_call.id.clone(),
+                    content: serde_json::to_string_pretty(&json!({
+                        "tool": tool_call.name,
+                        "error": error,
+                    }))
+                    .unwrap_or_else(|_| {
+                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                    }),
+                    is_error: true,
+                    output: None,
                 }),
             }
             continue;
@@ -1453,6 +1710,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1465,6 +1723,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: false,
+                    output: None,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
@@ -1476,6 +1735,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 }),
             }
             continue;
@@ -1495,6 +1755,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1507,6 +1768,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: false,
+                    output: None,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
@@ -1518,6 +1780,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 }),
             }
             continue;
@@ -1537,6 +1800,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                         }),
                         is_error: true,
+                        output: None,
                     });
                     continue;
                 }
@@ -1549,6 +1813,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: false,
+                    output: None,
                 }),
                 Err(error) => results.push(RuntimeToolResult {
                     tool_call_id: tool_call.id.clone(),
@@ -1560,6 +1825,7 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                         "{\"error\":\"Failed to serialize tool result.\"}".to_string()
                     }),
                     is_error: true,
+                    output: None,
                 }),
             }
             continue;
@@ -1747,6 +2013,7 @@ mod tests {
                     tool_call_id: "call_1".to_string(),
                     content: "{\"ok\":true}".to_string(),
                     is_error: false,
+                    output: None,
                 }],
             },
         ];
@@ -1792,6 +2059,44 @@ mod tests {
         assert_eq!(
             payload["input"][5]["type"],
             Value::String("function_call_output".to_string())
+        );
+    }
+
+    #[test]
+    fn build_provider_request_preserves_structured_tool_output() {
+        let provider = RuntimeProviderConfig {
+            provider_id: "openai".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            api_key: "sk-test".to_string(),
+            model: "gpt-5".to_string(),
+            system_prompt: String::new(),
+            temperature: Some(0.2),
+            max_tokens: None,
+        };
+
+        let (_, _, body) = build_provider_request(
+            &provider,
+            &[],
+            "inspect image",
+            &[],
+            &[RuntimeContinuationMessage::ToolResults {
+                results: vec![RuntimeToolResult {
+                    tool_call_id: "call_image".to_string(),
+                    content: "{\"attached\":true}".to_string(),
+                    is_error: false,
+                    output: Some(json!([
+                        { "type": "input_text", "text": "Attached image." },
+                        { "type": "input_image", "image_url": "data:image/png;base64,abc" }
+                    ])),
+                }],
+            }],
+        )
+        .expect("build request");
+        let payload: Value = serde_json::from_str(&body).expect("parse payload");
+
+        assert_eq!(
+            payload["input"][1]["output"][1]["type"],
+            Value::String("input_image".to_string())
         );
     }
 

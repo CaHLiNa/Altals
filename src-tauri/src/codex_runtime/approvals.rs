@@ -83,6 +83,7 @@ pub fn request_ask_user(
     state
         .ask_user_requests
         .insert(request.request_id.clone(), request.clone());
+    state.ask_user_resolutions.remove(&request.request_id);
     Ok(RuntimeAskUserRequestResponse { request })
 }
 
@@ -94,10 +95,14 @@ pub fn resolve_ask_user(
         .ask_user_requests
         .remove(&params.request_id)
         .ok_or_else(|| format!("Ask-user request not found: {}", params.request_id))?;
-    Ok(RuntimeAskUserResolveResponse {
+    let response = RuntimeAskUserResolveResponse {
         request_id: request.request_id,
         answers: params.answers,
-    })
+    };
+    state
+        .ask_user_resolutions
+        .insert(response.request_id.clone(), response.clone());
+    Ok(response)
 }
 
 pub fn request_exit_plan(

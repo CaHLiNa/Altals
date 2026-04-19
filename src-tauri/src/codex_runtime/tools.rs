@@ -23,6 +23,8 @@ use tokio::sync::{Mutex, Notify};
 const READ_FILE_TOOL: &str = "read_file";
 const LIST_FILES_TOOL: &str = "list_files";
 const SEARCH_FILES_TOOL: &str = "search_files";
+const VIEW_IMAGE_TOOL: &str = "view_image";
+pub(crate) const REQUEST_USER_INPUT_TOOL: &str = "request_user_input";
 pub(crate) const APPLY_PATCH_TOOL: &str = "apply_patch";
 pub(crate) const EXEC_COMMAND_TOOL: &str = "exec_command";
 pub(crate) const WRITE_STDIN_TOOL: &str = "write_stdin";
@@ -65,6 +67,7 @@ pub struct RuntimeToolResult {
     pub tool_call_id: String,
     pub content: String,
     pub is_error: bool,
+    pub output: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -349,6 +352,16 @@ fn ok_result(tool_call_id: &str, value: Value) -> RuntimeToolResult {
         tool_call_id: tool_call_id.to_string(),
         content: json_content(&value),
         is_error: false,
+        output: None,
+    }
+}
+
+fn ok_result_with_output(tool_call_id: &str, preview: Value, output: Value) -> RuntimeToolResult {
+    RuntimeToolResult {
+        tool_call_id: tool_call_id.to_string(),
+        content: json_content(&preview),
+        is_error: false,
+        output: Some(output),
     }
 }
 
@@ -364,6 +377,7 @@ fn err_result(
             "error": message.into(),
         })),
         is_error: true,
+        output: None,
     }
 }
 
@@ -380,6 +394,24 @@ fn preview_text(value: &str, max_chars: usize) -> String {
             .collect::<String>()
             .trim_end()
     )
+}
+
+fn detect_media_type_from_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "json" => "application/json",
+        "pdf" => "application/pdf",
+        _ => "application/octet-stream",
+    }
 }
 
 fn shell_program(shell: &str) -> String {
@@ -1669,6 +1701,77 @@ fn execute_search_files(workspace_path: &str, tool_call: &RuntimeToolCall) -> Ru
     )
 }
 
+fn execute_view_image(workspace_path: &str, tool_call: &RuntimeToolCall) -> RuntimeToolResult {
+    let root = match workspace_root(workspace_path) {
+        Ok(root) => root,
+        Err(error) => return err_result(&tool_call.id, VIEW_IMAGE_TOOL, error),
+    };
+    let requested_path = string_arg(&tool_call.arguments, "path");
+    if requested_path.is_empty() {
+        return err_result(&tool_call.id, VIEW_IMAGE_TOOL, "`path` is required.");
+    }
+    let resolved = match resolve_workspace_target(&root, &requested_path) {
+        Ok(path) => path,
+        Err(error) => {
+            return err_result(
+                &tool_call.id,
+                VIEW_IMAGE_TOOL,
+                format!("unable to locate image at `{}`: {error}", requested_path),
+            )
+        }
+    };
+    if !resolved.is_file() {
+        return err_result(
+            &tool_call.id,
+            VIEW_IMAGE_TOOL,
+            format!("image path `{}` is not a file", resolved.display()),
+        );
+    }
+    let media_type = detect_media_type_from_path(&resolved);
+    if !media_type.starts_with("image/") {
+        return err_result(
+            &tool_call.id,
+            VIEW_IMAGE_TOOL,
+            format!(
+                "unable to process image at `{}`: unsupported image `{}`",
+                resolved.display(),
+                media_type
+            ),
+        );
+    }
+    let bytes = match fs::read(&resolved) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return err_result(
+                &tool_call.id,
+                VIEW_IMAGE_TOOL,
+                format!(
+                    "unable to locate image at `{}`: {error}",
+                    resolved.display()
+                ),
+            )
+        }
+    };
+    let image_url = format!("data:{media_type};base64,{}", BASE64_STANDARD.encode(bytes));
+    let relative_path = relative_to_root(&root, &resolved);
+    let preview = json!({
+        "path": relative_path,
+        "mediaType": media_type,
+        "attached": true,
+    });
+    let output = json!([
+        {
+            "type": "input_text",
+            "text": format!("Attached image from `{}`.", resolved.display()),
+        },
+        {
+            "type": "input_image",
+            "image_url": image_url,
+        }
+    ]);
+    ok_result_with_output(&tool_call.id, preview, output)
+}
+
 pub(crate) fn is_apply_patch_tool_call(tool_call: &RuntimeToolCall) -> bool {
     tool_call.name.trim() == APPLY_PATCH_TOOL
 }
@@ -1687,6 +1790,10 @@ pub(crate) fn is_resize_terminal_tool_call(tool_call: &RuntimeToolCall) -> bool 
 
 pub(crate) fn is_terminate_command_tool_call(tool_call: &RuntimeToolCall) -> bool {
     tool_call.name.trim() == TERMINATE_COMMAND_TOOL
+}
+
+pub(crate) fn is_request_user_input_tool_call(tool_call: &RuntimeToolCall) -> bool {
+    tool_call.name.trim() == REQUEST_USER_INPUT_TOOL
 }
 
 pub(crate) fn prepare_apply_patch_tool_call(
@@ -1710,10 +1817,16 @@ pub(crate) fn execute_runtime_tool_call_with_context(
         READ_FILE_TOOL => execute_read_file(workspace_path, tool_call),
         LIST_FILES_TOOL => execute_list_files(workspace_path, tool_call),
         SEARCH_FILES_TOOL => execute_search_files(workspace_path, tool_call),
+        VIEW_IMAGE_TOOL => execute_view_image(workspace_path, tool_call),
         APPLY_PATCH_TOOL => err_result(
             &tool_call.id,
             APPLY_PATCH_TOOL,
             "apply_patch requires runtime-managed approval.",
+        ),
+        REQUEST_USER_INPUT_TOOL => err_result(
+            &tool_call.id,
+            REQUEST_USER_INPUT_TOOL,
+            "request_user_input requires runtime-managed resolution.",
         ),
         EXEC_COMMAND_TOOL => err_result(
             &tool_call.id,
@@ -1824,6 +1937,21 @@ pub fn resolve_runtime_tool_definitions_with_context(
             }),
         },
         RuntimeToolDefinition {
+            name: VIEW_IMAGE_TOOL,
+            description: "Read a local image file from the current workspace and attach it for model inspection.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative path to an image file inside the current workspace."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
             name: APPLY_PATCH_TOOL,
             description: "Apply a structured multi-file patch inside the current workspace.",
             parameters: json!({
@@ -1835,6 +1963,57 @@ pub fn resolve_runtime_tool_definitions_with_context(
                     }
                 },
                 "required": ["input"],
+                "additionalProperties": false
+            }),
+        },
+        RuntimeToolDefinition {
+            name: REQUEST_USER_INPUT_TOOL,
+            description: "Ask the user one to three structured questions and wait for their response.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short title shown for the request."
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Single-sentence prompt shown above the questions."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional extra context for the request."
+                    },
+                    "questions": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "header": { "type": "string" },
+                                "question": { "type": "string" },
+                                "multi_select": { "type": "boolean" },
+                                "options": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "label": { "type": "string" },
+                                            "description": { "type": "string" }
+                                        },
+                                        "required": ["label", "description"],
+                                        "additionalProperties": false
+                                    }
+                                }
+                            },
+                            "required": ["id", "header", "question", "options"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["questions"],
                 "additionalProperties": false
             }),
         },
@@ -2054,6 +2233,58 @@ mod tests {
         assert!(!result[0].is_error);
         assert!(result[0].content.contains("\"line\": 2"));
         assert!(result[0].content.contains("beta keyword"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn view_image_tool_returns_structured_image_output() {
+        let root = temp_workspace();
+        let image_path = root.join("pixel.png");
+        let png_bytes = BASE64_STANDARD
+            .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=")
+            .expect("decode png");
+        fs::write(&image_path, png_bytes).expect("write image");
+
+        let result = execute_runtime_tool_calls(
+            &normalize_display_path(&root),
+            &[RuntimeToolCall {
+                id: "call_image".to_string(),
+                name: VIEW_IMAGE_TOOL.to_string(),
+                arguments: json!({ "path": "pixel.png" }),
+            }],
+        );
+
+        assert_eq!(result.len(), 1);
+        assert!(!result[0].is_error);
+        assert!(result[0].content.contains("\"attached\": true"));
+        let output = result[0].output.clone().expect("structured output");
+        let items = output.as_array().cloned().unwrap_or_default();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[1]["type"], Value::String("input_image".to_string()));
+        assert!(items[1]["image_url"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("data:image/png;base64,"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn runtime_tool_definitions_include_single_agent_alignment_tools() {
+        let root = temp_workspace();
+        let definitions = resolve_runtime_tool_definitions_with_context(
+            &normalize_display_path(&root),
+            &[],
+            &[],
+            &Value::Null,
+            &[],
+        );
+
+        assert!(definitions.iter().any(|tool| tool.name == VIEW_IMAGE_TOOL));
+        assert!(definitions
+            .iter()
+            .any(|tool| tool.name == REQUEST_USER_INPUT_TOOL));
 
         let _ = fs::remove_dir_all(root);
     }
