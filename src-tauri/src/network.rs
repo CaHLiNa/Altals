@@ -11,14 +11,14 @@ use tokio::task::JoinHandle;
 use url::Url;
 
 const ALLOWED_HOSTS: &[&str] = &["api.crossref.org", "doi.org", "api.zotero.org"];
-const AI_PROVIDER_STREAM_EVENT: &str = "ai-provider-stream";
+const AI_RESPONSES_STREAM_EVENT: &str = "ai-responses-stream";
 
 type StreamTaskMap = Mutex<HashMap<String, JoinHandle<()>>>;
 
-static AI_STREAM_TASKS: OnceLock<StreamTaskMap> = OnceLock::new();
+static AI_RESPONSES_STREAM_TASKS: OnceLock<StreamTaskMap> = OnceLock::new();
 
-fn ai_stream_tasks() -> &'static StreamTaskMap {
-    AI_STREAM_TASKS.get_or_init(|| Mutex::new(HashMap::new()))
+fn ai_responses_stream_tasks() -> &'static StreamTaskMap {
+    AI_RESPONSES_STREAM_TASKS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,24 +39,24 @@ pub struct ApiProxyResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct AiChatMessage {
+pub struct AiResponsesMessage {
     pub role: String,
     pub content: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AiChatCompletionRequest {
+pub struct AiResponsesRequest {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
-    pub messages: Vec<AiChatMessage>,
+    pub messages: Vec<AiResponsesMessage>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub response_format_json: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AiProviderStreamRequest {
+pub struct AiResponsesStreamRequest {
     pub stream_id: String,
     pub url: String,
     pub method: String,
@@ -67,7 +67,7 @@ pub struct AiProviderStreamRequest {
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct AiProviderStreamPayload {
+pub struct AiResponsesStreamPayload {
     pub stream_id: String,
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -192,8 +192,11 @@ async fn execute_http_request(
     })
 }
 
-fn emit_ai_stream_payload<R: Runtime>(app: &AppHandle<R>, payload: AiProviderStreamPayload) {
-    let _ = app.emit(AI_PROVIDER_STREAM_EVENT, payload);
+fn emit_ai_responses_stream_payload<R: Runtime>(
+    app: &AppHandle<R>,
+    payload: AiResponsesStreamPayload,
+) {
+    let _ = app.emit(AI_RESPONSES_STREAM_EVENT, payload);
 }
 
 #[tauri::command]
@@ -211,9 +214,7 @@ pub async fn proxy_api_call_full(request: ApiProxyRequest) -> Result<ApiProxyRes
 }
 
 #[tauri::command]
-pub async fn proxy_ai_chat_completion(
-    request: AiChatCompletionRequest,
-) -> Result<ApiProxyResponse, String> {
+pub async fn proxy_ai_responses(request: AiResponsesRequest) -> Result<ApiProxyResponse, String> {
     let mut base_url = validate_ai_base_url(&request.base_url)?;
     let current_path = base_url.path().trim_end_matches('/').to_string();
     let next_path = if current_path.is_empty() {
@@ -280,24 +281,24 @@ pub async fn proxy_ai_chat_completion(
 }
 
 #[tauri::command]
-pub async fn start_ai_provider_stream<R: Runtime>(
+pub async fn start_ai_responses_stream<R: Runtime>(
     app: AppHandle<R>,
-    request: AiProviderStreamRequest,
+    request: AiResponsesStreamRequest,
 ) -> Result<(), String> {
     let stream_id = request.stream_id.trim().to_string();
     if stream_id.is_empty() {
-        return Err("AI stream id is required".to_string());
+        return Err("AI responses stream id is required".to_string());
     }
 
     let method = request
         .method
         .parse::<reqwest::Method>()
-        .map_err(|e| format!("Invalid AI stream HTTP method: {e}"))?;
+        .map_err(|e| format!("Invalid AI responses stream HTTP method: {e}"))?;
     let url = validate_ai_request_url(&request.url)?;
     let headers = build_headers(&request.headers)?;
     let body = request.body.clone();
 
-    let mut tasks = ai_stream_tasks().lock().await;
+    let mut tasks = ai_responses_stream_tasks().lock().await;
     if let Some(existing) = tasks.remove(&stream_id) {
         existing.abort();
     }
@@ -312,13 +313,15 @@ pub async fn start_ai_provider_stream<R: Runtime>(
         {
             Ok(client) => client,
             Err(error) => {
-                emit_ai_stream_payload(
+                emit_ai_responses_stream_payload(
                     &app_for_task,
-                    AiProviderStreamPayload {
+                    AiResponsesStreamPayload {
                         stream_id: stream_id_for_task.clone(),
                         kind: "error".to_string(),
                         chunk: None,
-                        error: Some(format!("Failed to build AI stream client: {error}")),
+                        error: Some(format!(
+                            "Failed to build AI responses stream client: {error}"
+                        )),
                         status: None,
                         headers: None,
                     },
@@ -335,18 +338,21 @@ pub async fn start_ai_provider_stream<R: Runtime>(
         let response = match request_builder.send().await {
             Ok(response) => response,
             Err(error) => {
-                emit_ai_stream_payload(
+                emit_ai_responses_stream_payload(
                     &app_for_task,
-                    AiProviderStreamPayload {
+                    AiResponsesStreamPayload {
                         stream_id: stream_id_for_task.clone(),
                         kind: "error".to_string(),
                         chunk: None,
-                        error: Some(format!("AI stream request failed: {error}")),
+                        error: Some(format!("AI responses stream request failed: {error}")),
                         status: None,
                         headers: None,
                     },
                 );
-                let _ = ai_stream_tasks().lock().await.remove(&stream_id_for_task);
+                let _ = ai_responses_stream_tasks()
+                    .lock()
+                    .await
+                    .remove(&stream_id_for_task);
                 return;
             }
         };
@@ -363,9 +369,9 @@ pub async fn start_ai_provider_stream<R: Runtime>(
             })
             .collect::<HashMap<_, _>>();
 
-        emit_ai_stream_payload(
+        emit_ai_responses_stream_payload(
             &app_for_task,
-            AiProviderStreamPayload {
+            AiResponsesStreamPayload {
                 stream_id: stream_id_for_task.clone(),
                 kind: "start".to_string(),
                 chunk: None,
@@ -379,10 +385,10 @@ pub async fn start_ai_provider_stream<R: Runtime>(
             let error_text = response
                 .text()
                 .await
-                .unwrap_or_else(|_| "Unknown AI stream error".to_string());
-            emit_ai_stream_payload(
+                .unwrap_or_else(|_| "Unknown AI responses stream error".to_string());
+            emit_ai_responses_stream_payload(
                 &app_for_task,
-                AiProviderStreamPayload {
+                AiResponsesStreamPayload {
                     stream_id: stream_id_for_task.clone(),
                     kind: "error".to_string(),
                     chunk: None,
@@ -391,7 +397,10 @@ pub async fn start_ai_provider_stream<R: Runtime>(
                     headers: None,
                 },
             );
-            let _ = ai_stream_tasks().lock().await.remove(&stream_id_for_task);
+            let _ = ai_responses_stream_tasks()
+                .lock()
+                .await
+                .remove(&stream_id_for_task);
             return;
         }
 
@@ -403,9 +412,9 @@ pub async fn start_ai_provider_stream<R: Runtime>(
                     if chunk.is_empty() {
                         continue;
                     }
-                    emit_ai_stream_payload(
+                    emit_ai_responses_stream_payload(
                         &app_for_task,
-                        AiProviderStreamPayload {
+                        AiResponsesStreamPayload {
                             stream_id: stream_id_for_task.clone(),
                             kind: "chunk".to_string(),
                             chunk: Some(chunk),
@@ -416,26 +425,31 @@ pub async fn start_ai_provider_stream<R: Runtime>(
                     );
                 }
                 Err(error) => {
-                    emit_ai_stream_payload(
+                    emit_ai_responses_stream_payload(
                         &app_for_task,
-                        AiProviderStreamPayload {
+                        AiResponsesStreamPayload {
                             stream_id: stream_id_for_task.clone(),
                             kind: "error".to_string(),
                             chunk: None,
-                            error: Some(format!("Failed while reading AI stream: {error}")),
+                            error: Some(format!(
+                                "Failed while reading AI responses stream: {error}"
+                            )),
                             status: Some(status),
                             headers: None,
                         },
                     );
-                    let _ = ai_stream_tasks().lock().await.remove(&stream_id_for_task);
+                    let _ = ai_responses_stream_tasks()
+                        .lock()
+                        .await
+                        .remove(&stream_id_for_task);
                     return;
                 }
             }
         }
 
-        emit_ai_stream_payload(
+        emit_ai_responses_stream_payload(
             &app_for_task,
-            AiProviderStreamPayload {
+            AiResponsesStreamPayload {
                 stream_id: stream_id_for_task.clone(),
                 kind: "done".to_string(),
                 chunk: None,
@@ -444,7 +458,10 @@ pub async fn start_ai_provider_stream<R: Runtime>(
                 headers: None,
             },
         );
-        let _ = ai_stream_tasks().lock().await.remove(&stream_id_for_task);
+        let _ = ai_responses_stream_tasks()
+            .lock()
+            .await
+            .remove(&stream_id_for_task);
     });
 
     tasks.insert(stream_id, handle);
@@ -452,13 +469,17 @@ pub async fn start_ai_provider_stream<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn abort_ai_provider_stream(stream_id: String) -> Result<(), String> {
+pub async fn abort_ai_responses_stream(stream_id: String) -> Result<(), String> {
     let normalized_stream_id = stream_id.trim().to_string();
     if normalized_stream_id.is_empty() {
         return Ok(());
     }
 
-    if let Some(handle) = ai_stream_tasks().lock().await.remove(&normalized_stream_id) {
+    if let Some(handle) = ai_responses_stream_tasks()
+        .lock()
+        .await
+        .remove(&normalized_stream_id)
+    {
         handle.abort();
     }
 
