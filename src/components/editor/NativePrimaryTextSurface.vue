@@ -603,7 +603,7 @@ async function applyPointerSelectionPlan(plan = null) {
   return setBridgeSelection(primarySelection.anchor, primarySelection.head)
 }
 
-async function handleSurfaceMouseDown(event) {
+function handleSurfaceMouseDown(event) {
   if (event.button !== 0) return
   event.preventDefault()
   void editorRuntimeStore.setNativeRevealHighlight({
@@ -614,15 +614,7 @@ async function handleSurfaceMouseDown(event) {
   pointerSelectionMoved = false
   pointerSelecting = true
   pointerAnchorOffset = event.shiftKey ? selectionAnchor.value : offset
-  const plan = await editorRuntimeStore.planNativePointerSelection({
-    path: props.filePath,
-    offset,
-    anchor: pointerAnchorOffset,
-    mode: event.shiftKey ? 'drag' : 'set',
-  })
-  if (plan) {
-    await applyPointerSelectionPlan(plan)
-  }
+  setBridgeSelection(pointerAnchorOffset, offset)
   scheduleSelectionSync()
   attachPointerSelectionListeners()
 }
@@ -647,19 +639,11 @@ async function handleSurfaceMouseLeave() {
   })
 }
 
-async function handlePointerMove(event) {
+function handlePointerMove(event) {
   if (!pointerSelecting) return
   pointerSelectionMoved = true
   const offset = pointToOffset(event)
-  const plan = await editorRuntimeStore.planNativePointerSelection({
-    path: props.filePath,
-    offset,
-    anchor: pointerAnchorOffset ?? offset,
-    mode: 'drag',
-  })
-  if (plan) {
-    await applyPointerSelectionPlan(plan)
-  }
+  setBridgeSelection(pointerAnchorOffset ?? offset, offset)
   scheduleSelectionSync()
 }
 
