@@ -359,6 +359,7 @@ import {
   isPreviewPath,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes'
+import { basenamePath } from '../../utils/path'
 import { useLatexStore } from '../../stores/latex'
 import { useI18n } from '../../i18n'
 import { useEditorPaneWorkflow } from '../../composables/useEditorPaneWorkflow'
@@ -486,9 +487,9 @@ function fileName(path) {
   if (isNewTab(path)) return t('New Tab')
   if (isPreviewPath(path)) {
     const source = previewSourcePathFromPath(path)
-    return source.split('/').pop() || t('Preview')
+    return basenamePath(source) || t('Preview')
   }
-  return path.split('/').pop() || path
+  return basenamePath(path) || path
 }
 
 function countLeafPanes(node) {

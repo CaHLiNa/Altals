@@ -185,6 +185,7 @@ import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { useBrowserPreviewRuntime } from './app/browserPreview/useBrowserPreviewRuntime'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
+import { basenamePath } from './utils/path'
 import { isMac } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
@@ -271,9 +272,9 @@ const currentDocumentLabel = computed(() => {
   if (isNewTab(activePath)) return t('New Tab')
   if (isPreviewPath(activePath)) {
     const sourcePath = previewSourcePathFromPath(activePath)
-    return sourcePath.split('/').pop() || t('Preview')
+    return basenamePath(sourcePath) || t('Preview')
   }
-  return activePath.split('/').pop() || activePath
+  return basenamePath(activePath) || activePath
 })
 
 function toggleReferenceLibrary() {
