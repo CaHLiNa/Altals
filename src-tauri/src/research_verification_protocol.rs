@@ -33,6 +33,12 @@ pub struct ResearchVerificationRunParams {
     #[serde(default)]
     pub reference: Value,
     #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default)]
+    pub citation_style: String,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
     pub created_path: String,
 }
 

@@ -1840,6 +1840,9 @@ export const useAiStore = defineStore('ai', {
             artifact,
             content: nextContent,
             citationText,
+            references: referencesStore.references,
+            citationStyle: referencesStore.citationStyle,
+            filePath: artifact.filePath,
           }).catch(() => null))?.verification || null
           toastStore.show(
             artifact.type === 'citation_insert'
@@ -1866,6 +1869,8 @@ export const useAiStore = defineStore('ai', {
             artifactId: artifact.id,
             artifact,
             reference,
+            references: referencesStore.references,
+            citationStyle: referencesStore.citationStyle,
           }).catch(() => null))?.verification || null
           toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true
