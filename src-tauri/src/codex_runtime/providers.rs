@@ -33,6 +33,8 @@ use super::turns::{build_runtime_item, start_turn};
 
 type RuntimeTaskMap = Mutex<HashMap<String, JoinHandle<()>>>;
 pub(crate) const MAX_TOOL_ROUNDS: usize = 6;
+const TOOL_RESULT_CONTINUATION_MAX_CHARS: usize = 12_000;
+const PROVIDER_MAX_ATTEMPTS: usize = 2;
 
 static RUNTIME_TURN_TASKS: OnceLock<RuntimeTaskMap> = OnceLock::new();
 
@@ -79,6 +81,36 @@ fn build_headers(values: &[(&str, String)]) -> Result<HeaderMap, String> {
         map.insert(name, value);
     }
     Ok(map)
+}
+
+fn compact_tool_result_for_continuation(result: &RuntimeToolResult) -> RuntimeToolResult {
+    if result.content.chars().count() <= TOOL_RESULT_CONTINUATION_MAX_CHARS {
+        return result.clone();
+    }
+
+    let preview = result
+        .content
+        .chars()
+        .take(TOOL_RESULT_CONTINUATION_MAX_CHARS)
+        .collect::<String>();
+    RuntimeToolResult {
+        tool_call_id: result.tool_call_id.clone(),
+        content: serde_json::to_string_pretty(&json!({
+            "kind": "toolResultPreview",
+            "truncated": true,
+            "originalLength": result.content.chars().count(),
+            "preview": preview,
+        }))
+        .unwrap_or_else(|_| "{\"truncated\":true}".to_string()),
+        is_error: result.is_error,
+    }
+}
+
+fn compact_tool_results_for_continuation(results: &[RuntimeToolResult]) -> Vec<RuntimeToolResult> {
+    results
+        .iter()
+        .map(compact_tool_result_for_continuation)
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -184,9 +216,10 @@ pub(crate) fn build_provider_request(
                         }));
                     }
                     RuntimeContinuationMessage::ToolResults { results } => {
+                        let compacted = compact_tool_results_for_continuation(results);
                         messages.push(json!({
                             "role": "user",
-                            "content": results
+                            "content": compacted
                                 .iter()
                                 .map(|result| json!({
                                     "type": "tool_result",
@@ -289,7 +322,7 @@ pub(crate) fn build_provider_request(
                         }));
                     }
                     RuntimeContinuationMessage::ToolResults { results } => {
-                        for result in results {
+                        for result in compact_tool_results_for_continuation(results) {
                             messages.push(json!({
                                 "role": "tool",
                                 "content": result.content,
@@ -433,8 +466,14 @@ fn parse_openai_sse_line(line: &str) -> Vec<RuntimeProviderEvent> {
                 let tool_call_id = tool_call
                     .get("id")
                     .and_then(|value| value.as_str())
-                    .unwrap_or_default()
-                    .to_string();
+                    .map(str::to_string)
+                    .or_else(|| {
+                        tool_call
+                            .get("index")
+                            .and_then(Value::as_i64)
+                            .map(|index| format!("idx:{index}"))
+                    })
+                    .unwrap_or_default();
                 if let Some(name) = tool_call
                     .get("function")
                     .and_then(|value| value.get("name"))
@@ -583,8 +622,13 @@ pub(crate) fn collect_pending_tool_calls(
 ) -> Vec<RuntimeToolCall> {
     pending_tool_calls
         .values()
+        .filter(|tool_call| !tool_call.name.trim().is_empty())
         .map(|tool_call| RuntimeToolCall {
-            id: tool_call.id.clone(),
+            id: if tool_call.id.trim().is_empty() {
+                format!("tool_{}", uuid::Uuid::new_v4().simple())
+            } else {
+                tool_call.id.clone()
+            },
             name: tool_call.name.clone(),
             arguments: serde_json::from_str(&tool_call.arguments).unwrap_or_else(|_| json!({})),
         })
@@ -1740,31 +1784,53 @@ pub async fn run_turn<R: Runtime>(
                 }
             };
 
-            let response = match client.post(url).headers(headers).body(body).send().await {
-                Ok(response) => response,
-                Err(error) => {
-                    let message = format!("Runtime provider request failed: {error}");
-                    finish_turn_failure(
-                        &app_for_task,
-                        &runtime_for_task,
-                        &thread_id,
-                        &turn_id,
-                        &tracked_item_ids,
-                        &message,
-                    )
-                    .await;
-                    let _ = runtime_turn_tasks().lock().await.remove(&turn_id);
-                    return;
+            let mut last_error = String::new();
+            let response = {
+                let mut resolved = None;
+                for attempt in 0..PROVIDER_MAX_ATTEMPTS {
+                    let request = client
+                        .post(url.clone())
+                        .headers(headers.clone())
+                        .body(body.clone())
+                        .send()
+                        .await;
+                    match request {
+                        Ok(response) if response.status().is_success() => {
+                            resolved = Some(response);
+                            break;
+                        }
+                        Ok(response) => {
+                            let status = response.status();
+                            let body = response
+                                .text()
+                                .await
+                                .unwrap_or_else(|_| "Unknown provider error".to_string());
+                            last_error = format!("Runtime provider returned HTTP {status}: {body}");
+                            if attempt + 1 < PROVIDER_MAX_ATTEMPTS && status.is_server_error() {
+                                sleep(Duration::from_millis(350)).await;
+                                continue;
+                            }
+                            break;
+                        }
+                        Err(error) => {
+                            last_error = format!("Runtime provider request failed: {error}");
+                            if attempt + 1 < PROVIDER_MAX_ATTEMPTS {
+                                sleep(Duration::from_millis(350)).await;
+                                continue;
+                            }
+                            break;
+                        }
+                    }
                 }
+                resolved
             };
 
-            if !response.status().is_success() {
-                let status = response.status();
-                let body = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown provider error".to_string());
-                let message = format!("Runtime provider returned HTTP {status}: {body}");
+            let Some(response) = response else {
+                let message = if last_error.is_empty() {
+                    "Runtime provider request failed.".to_string()
+                } else {
+                    last_error
+                };
                 finish_turn_failure(
                     &app_for_task,
                     &runtime_for_task,
@@ -1776,7 +1842,7 @@ pub async fn run_turn<R: Runtime>(
                 .await;
                 let _ = runtime_turn_tasks().lock().await.remove(&turn_id);
                 return;
-            }
+            };
 
             let mut stream = response.bytes_stream();
             let mut buffer = String::new();
