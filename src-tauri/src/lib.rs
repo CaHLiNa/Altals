@@ -53,6 +53,9 @@ mod research_evidence_storage;
 mod research_task_protocol;
 mod research_task_runtime;
 mod research_task_storage;
+mod research_verification_protocol;
+mod research_verification_runtime;
+mod research_verification_storage;
 mod security;
 mod workspace_access;
 
@@ -505,6 +508,8 @@ pub fn run() {
             research_task_runtime::research_task_list,
             research_task_runtime::research_task_ensure,
             research_task_runtime::research_task_update,
+            research_verification_runtime::research_verification_run,
+            research_verification_runtime::research_verification_list,
             codex_runtime::runtime_thread_start,
             codex_runtime::runtime_thread_list,
             codex_runtime::runtime_thread_read,

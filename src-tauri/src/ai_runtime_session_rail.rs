@@ -6,6 +6,7 @@ use crate::codex_runtime::state::CodexRuntimeHandle;
 use crate::codex_runtime::threads::{list_threads, read_thread};
 use crate::research_evidence_runtime::list_research_evidence_for_task;
 use crate::research_task_runtime::find_research_task_by_thread_id;
+use crate::research_verification_runtime::list_research_verifications_for_task;
 
 fn trim(value: &str) -> String {
     value.trim().to_string()
@@ -107,6 +108,7 @@ fn ensure_session_shape(session: &Value, fallback_title: &str) -> Value {
         "planMode": session.get("planMode").cloned().unwrap_or(default_plan_mode),
         "researchTask": session.get("researchTask").cloned().unwrap_or(Value::Null),
         "researchEvidence": session.get("researchEvidence").cloned().unwrap_or(Value::Array(vec![])),
+        "researchVerifications": session.get("researchVerifications").cloned().unwrap_or(Value::Array(vec![])),
         "isRunning": session.get("isRunning").cloned().unwrap_or(Value::Bool(false)),
         "lastError": session.get("lastError").cloned().unwrap_or(Value::String(String::new())),
     })
@@ -147,6 +149,13 @@ fn apply_snapshot_to_session(
         .as_ref()
         .map(|task| list_research_evidence_for_task(workspace_path, &task.id).unwrap_or_default())
         .and_then(|evidence| serde_json::to_value(evidence).ok())
+        .unwrap_or(Value::Array(vec![]));
+    session["researchVerifications"] = research_task
+        .as_ref()
+        .map(|task| {
+            list_research_verifications_for_task(workspace_path, &task.id).unwrap_or_default()
+        })
+        .and_then(|verifications| serde_json::to_value(verifications).ok())
         .unwrap_or(Value::Array(vec![]));
     session
 }

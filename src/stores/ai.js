@@ -433,6 +433,10 @@ async function normalizeSessionStateRust({
   })
 }
 
+async function runResearchVerificationRust(params = {}) {
+  return invoke('research_verification_run', { params })
+}
+
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
   const normalizedRequestId = String(requestId || '').trim()
   if (!normalizedRequestId) return null
@@ -600,6 +604,12 @@ export const useAiStore = defineStore('ai', {
     researchEvidence() {
       return Array.isArray(this.currentSession?.researchEvidence)
         ? this.currentSession.researchEvidence
+        : []
+    },
+
+    researchVerifications() {
+      return Array.isArray(this.currentSession?.researchVerifications)
+        ? this.currentSession.researchVerifications
         : []
     },
 
@@ -1766,6 +1776,7 @@ export const useAiStore = defineStore('ai', {
       const toastStore = useToastStore()
       const editorStore = useEditorStore()
       const filesStore = useFilesStore()
+      const referencesStore = useReferencesStore()
 
       try {
         const capabilityToolId = String(artifact.capabilityToolId || '').trim()
@@ -1774,6 +1785,7 @@ export const useAiStore = defineStore('ai', {
         }
 
         let applied = false
+        let verification = null
         if (artifact.type === 'doc_patch' || artifact.type === 'citation_insert') {
           let currentContent = ''
           const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
@@ -1786,17 +1798,17 @@ export const useAiStore = defineStore('ai', {
             currentContent = await filesStore.readFile(artifact.filePath)
           }
 
-          const response = artifact.type === 'citation_insert'
+          const citationText = artifact.type === 'citation_insert'
             ? await (async () => {
-              const referencesStore = useReferencesStore()
               const reference = referencesStore.getByKey(artifact.referenceId || artifact.citationKey)
               if (!reference?.id) {
                 throw new Error(t('Failed to apply AI artifact.'))
               }
-              const citationText = await referencesStore.formatReferenceCitationAsync(
-                reference.id,
-                'inline'
-              )
+              return referencesStore.formatReferenceCitationAsync(reference.id, 'inline')
+            })()
+            : ''
+          const response = artifact.type === 'citation_insert'
+            ? await (async () => {
               return invoke('ai_artifact_apply_citation_insert', {
                 params: {
                   content: currentContent,
@@ -1821,6 +1833,14 @@ export const useAiStore = defineStore('ai', {
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'
+          verification = (await runResearchVerificationRust({
+            workspacePath: currentWorkspacePath(),
+            taskId: artifact.taskId,
+            artifactId: artifact.id,
+            artifact,
+            content: nextContent,
+            citationText,
+          }).catch(() => null))?.verification || null
           toastStore.show(
             artifact.type === 'citation_insert'
               ? t('Citation inserted into the active document.')
@@ -1829,7 +1849,6 @@ export const useAiStore = defineStore('ai', {
           )
           applied = true
         } else if (artifact.type === 'reference_patch') {
-          const referencesStore = useReferencesStore()
           const referenceId = String(artifact.referenceId || '').trim()
           const updates = artifact.updates && typeof artifact.updates === 'object' ? artifact.updates : null
           if (!referenceId || !updates) {
@@ -1840,6 +1859,14 @@ export const useAiStore = defineStore('ai', {
             throw new Error(t('Failed to apply AI artifact.'))
           }
           artifact.status = 'applied'
+          const reference = referencesStore.references.find((entry) => entry.id === referenceId) || null
+          verification = (await runResearchVerificationRust({
+            workspacePath: currentWorkspacePath(),
+            taskId: artifact.taskId,
+            artifactId: artifact.id,
+            artifact,
+            reference,
+          }).catch(() => null))?.verification || null
           toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true
         } else if (artifact.type === 'note_draft') {
@@ -1850,6 +1877,13 @@ export const useAiStore = defineStore('ai', {
           })
           editorStore.openFile(draftPath)
           artifact.status = 'applied'
+          verification = (await runResearchVerificationRust({
+            workspacePath: currentWorkspacePath(),
+            taskId: artifact.taskId,
+            artifactId: artifact.id,
+            artifact,
+            createdPath: draftPath,
+          }).catch(() => null))?.verification || null
           toastStore.show(t('AI note opened as a draft.'), { type: 'success' })
           applied = true
         }
@@ -1857,6 +1891,23 @@ export const useAiStore = defineStore('ai', {
           await this.updateSessionById(targetSession.id, (session) => ({
             ...session,
             artifacts: [...session.artifacts],
+            researchVerifications: verification
+              ? [
+                  verification,
+                  ...(Array.isArray(session.researchVerifications)
+                    ? session.researchVerifications.filter((entry) => entry.id !== verification.id)
+                    : []),
+                ]
+              : session.researchVerifications,
+            researchTask: verification
+              ? {
+                  ...(session.researchTask || {}),
+                  verificationSummary: String(verification.summary || '').trim(),
+                  blockedReason: verification.blocking ? String(verification.summary || '').trim() : '',
+                  phase: 'verification',
+                  status: verification.blocking ? 'blocked' : String(session.researchTask?.status || 'active'),
+                }
+              : session.researchTask,
           }))
         }
         return applied

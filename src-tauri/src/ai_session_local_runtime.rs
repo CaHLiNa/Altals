@@ -149,6 +149,34 @@ fn normalize_research_evidence(entries: &Value) -> Value {
     Value::Array(evidence)
 }
 
+fn normalize_research_verifications(entries: &Value) -> Value {
+    let verifications = entries
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let id = string_field(&entry, "id");
+            let summary = string_field(&entry, "summary");
+            if id.trim().is_empty() && summary.trim().is_empty() {
+                return None;
+            }
+            Some(json!({
+                "id": id.trim(),
+                "taskId": string_field(&entry, "taskId").trim(),
+                "artifactId": string_field(&entry, "artifactId").trim(),
+                "kind": string_field(&entry, "kind").trim(),
+                "status": string_field(&entry, "status").trim(),
+                "summary": summary.trim(),
+                "details": entry.get("details").cloned().unwrap_or(Value::Array(Vec::new())),
+                "blocking": bool_field(&entry, "blocking"),
+                "updatedAt": number_field(&entry, "updatedAt"),
+            }))
+        })
+        .collect::<Vec<_>>();
+    Value::Array(verifications)
+}
+
 fn normalize_session(session: &Value, fallback_title: &str) -> Value {
     let fallback = if fallback_title.trim().is_empty() {
         "New session"
@@ -229,6 +257,7 @@ fn normalize_session(session: &Value, fallback_title: &str) -> Value {
         "planMode": normalize_plan_mode(session.get("planMode").unwrap_or(&Value::Null)),
         "researchTask": normalize_research_task(session.get("researchTask").unwrap_or(&Value::Null)),
         "researchEvidence": normalize_research_evidence(session.get("researchEvidence").unwrap_or(&Value::Null)),
+        "researchVerifications": normalize_research_verifications(session.get("researchVerifications").unwrap_or(&Value::Null)),
         "isRunning": bool_field(session, "isRunning"),
         "lastError": string_field(session, "lastError"),
     })

@@ -62,6 +62,7 @@ export function resolveSessionTaskTitle(session = null, fallbackTitle = 'Session
 export function resolveSessionTaskSubtitle(session = null) {
   const task = normalizeResearchTask(session?.researchTask)
   const evidenceCount = Array.isArray(session?.researchEvidence) ? session.researchEvidence.length : 0
+  const verificationSummary = trim(task?.verificationSummary)
   if (!task) {
     return evidenceCount > 0 ? `Evidence · ${evidenceCount}` : ''
   }
@@ -72,6 +73,9 @@ export function resolveSessionTaskSubtitle(session = null) {
   const parts = [humanizeTaskPhase(task.phase), humanizeTaskStatus(task.status)].filter(Boolean)
   if (evidenceCount > 0) {
     parts.push(`Evidence ${evidenceCount}`)
+  }
+  if (verificationSummary) {
+    parts.push(verificationSummary)
   }
   return parts.join(' · ')
 }
