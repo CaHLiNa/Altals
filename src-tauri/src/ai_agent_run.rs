@@ -26,7 +26,8 @@ use crate::research_evidence_runtime::{
     ensure_context_bundle_evidence, list_research_evidence_for_task,
 };
 use crate::research_task_runtime::{
-    ensure_research_task_for_thread, sync_research_task_context_for_thread,
+    ensure_research_task_for_thread, sync_research_task_artifacts_for_thread,
+    sync_research_task_context_for_thread,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -384,13 +385,54 @@ fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value
     }
 }
 
-fn build_artifact_record(skill_id: &str, artifact: Option<Value>) -> Option<Value> {
+fn build_artifact_evidence_preview(evidence_entries: &[Value]) -> Vec<Value> {
+    evidence_entries
+        .iter()
+        .filter_map(|entry| {
+            let id = string_field(entry, &["id"]);
+            let label = string_field(entry, &["label"]);
+            if id.is_empty() && label.is_empty() {
+                return None;
+            }
+            Some(json!({
+                "id": id,
+                "label": label,
+                "sourceType": string_field(entry, &["sourceType"]),
+                "sourcePath": string_field(entry, &["sourcePath"]),
+                "sourceRange": string_field(entry, &["sourceRange"]),
+                "referenceId": string_field(entry, &["referenceId"]),
+                "citationKey": string_field(entry, &["citationKey"]),
+                "excerpt": string_field(entry, &["excerpt"]),
+                "whyRelevant": string_field(entry, &["whyRelevant"]),
+            }))
+        })
+        .collect()
+}
+
+fn build_artifact_record(
+    skill_id: &str,
+    artifact: Option<Value>,
+    session: &Value,
+) -> Option<Value> {
     let Some(artifact) = artifact else {
         return None;
     };
     let Some(mut object) = artifact.as_object().cloned() else {
         return None;
     };
+    let research_task = session.get("researchTask").cloned().unwrap_or(Value::Null);
+    let evidence_entries = array_field(session, &["researchEvidence"]);
+    let evidence_ids = evidence_entries
+        .iter()
+        .filter_map(|entry| {
+            let id = string_field(entry, &["id"]);
+            if id.is_empty() {
+                None
+            } else {
+                Some(Value::String(id))
+            }
+        })
+        .collect::<Vec<_>>();
     object.insert(
         "id".to_string(),
         Value::String(format!("artifact:{}", Uuid::new_v4().simple())),
@@ -398,6 +440,15 @@ fn build_artifact_record(skill_id: &str, artifact: Option<Value>) -> Option<Valu
     object.insert(
         "skillId".to_string(),
         Value::String(skill_id.trim().to_string()),
+    );
+    object.insert(
+        "taskId".to_string(),
+        Value::String(string_field(&research_task, &["id"])),
+    );
+    object.insert("evidenceIds".to_string(), Value::Array(evidence_ids));
+    object.insert(
+        "evidencePreview".to_string(),
+        Value::Array(build_artifact_evidence_preview(&evidence_entries)),
     );
     object.insert("status".to_string(), Value::String("pending".to_string()));
     object.insert("createdAt".to_string(), Value::Number(now_ms().into()));
@@ -1088,10 +1139,34 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
     match execution_result {
         Ok((result, raw_artifact, response_skill, completed_session_input)) => {
+            let mut completed_session_input = completed_session_input;
             let artifact = build_artifact_record(
                 &string_field(response_skill.as_ref().unwrap_or(&skill), &["id"]),
                 raw_artifact,
+                &completed_session_input,
             );
+            if let Some(artifact) = artifact.as_ref() {
+                let workspace_path = string_field(
+                    context_bundle.get("workspace").unwrap_or(&Value::Null),
+                    &["path"],
+                );
+                let runtime_thread_id =
+                    string_field(&completed_session_input, &["runtimeThreadId"]);
+                let artifact_id = string_field(artifact, &["id"]);
+                if !workspace_path.is_empty()
+                    && !runtime_thread_id.is_empty()
+                    && !artifact_id.is_empty()
+                {
+                    if let Some(task) = sync_research_task_artifacts_for_thread(
+                        &workspace_path,
+                        &runtime_thread_id,
+                        vec![artifact_id],
+                    )? {
+                        completed_session_input["researchTask"] =
+                            serde_json::to_value(task).unwrap_or(Value::Null);
+                    }
+                }
+            }
             let completed = ai_agent_session_complete(AiAgentSessionCompleteParams {
                 session: completed_session_input,
                 pending_assistant_id: params.pending_assistant_id,

@@ -256,6 +256,38 @@ pub(crate) fn sync_research_task_context_for_thread(
     Ok(Some(task))
 }
 
+pub(crate) fn sync_research_task_artifacts_for_thread(
+    workspace_path: &str,
+    runtime_thread_id: &str,
+    artifact_ids: Vec<String>,
+) -> Result<Option<ResearchTask>, String> {
+    let normalized_workspace_path = trim(workspace_path);
+    let normalized_thread_id = trim(runtime_thread_id);
+    if normalized_workspace_path.is_empty() || normalized_thread_id.is_empty() {
+        return Ok(None);
+    }
+
+    let mut tasks = load_workspace_tasks(&normalized_workspace_path)?;
+    let Some(index) = tasks
+        .iter()
+        .position(|task| task.runtime_thread_id == normalized_thread_id)
+    else {
+        return Ok(None);
+    };
+
+    let mut task = tasks[index].clone();
+    let normalized_artifact_ids = normalize_vec(Some(artifact_ids));
+    if !normalized_artifact_ids.is_empty() {
+        task.artifact_ids = normalized_artifact_ids;
+    }
+    task.updated_at = now_ms();
+
+    tasks[index] = task.clone();
+    sort_tasks(&mut tasks);
+    persist_workspace_tasks(&normalized_workspace_path, &tasks)?;
+    Ok(Some(task))
+}
+
 #[tauri::command]
 pub async fn research_task_list(
     params: ResearchTaskListParams,

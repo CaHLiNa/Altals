@@ -14,6 +14,29 @@
     <div class="ai-inline-artifact__preview">
       {{ preview }}
     </div>
+    <div v-if="evidencePreview.length > 0" class="ai-inline-artifact__sources">
+      <div class="ai-inline-artifact__sources-label">{{ t('Sources') }}</div>
+      <div
+        v-for="evidence in evidencePreview"
+        :key="evidence.id || `${evidence.label}:${evidence.sourcePath}`"
+        class="ai-inline-artifact__source"
+      >
+        <div class="ai-inline-artifact__source-title">
+          {{ evidence.label || evidence.citationKey || evidence.sourcePath || evidence.sourceType }}
+        </div>
+        <div v-if="evidence.excerpt" class="ai-inline-artifact__source-excerpt">
+          {{ evidence.excerpt }}
+        </div>
+        <div
+          v-if="evidence.whyRelevant || evidence.sourcePath || evidence.citationKey"
+          class="ai-inline-artifact__source-meta"
+        >
+          <span v-if="evidence.whyRelevant">{{ evidence.whyRelevant }}</span>
+          <span v-if="evidence.citationKey">{{ evidence.citationKey }}</span>
+          <span v-if="evidence.sourcePath">{{ evidence.sourcePath }}</span>
+        </div>
+      </div>
+    </div>
     <div v-if="canApply" class="ai-inline-artifact__actions">
       <UiButton
         variant="secondary"
@@ -51,6 +74,10 @@ const preview = computed(() => {
       || ''
   ).trim()
 })
+
+const evidencePreview = computed(() =>
+  Array.isArray(props.artifact?.evidencePreview) ? props.artifact.evidencePreview : []
+)
 
 const artifactTypeLabel = computed(() => {
   if (!props.artifact?.type) return ''
@@ -107,6 +134,47 @@ const artifactTypeLabel = computed(() => {
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.ai-inline-artifact__sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-inline-artifact__sources-label,
+.ai-inline-artifact__source-meta {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.ai-inline-artifact__source {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-muted) 38%, transparent);
+}
+
+.ai-inline-artifact__source-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-inline-artifact__source-excerpt {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-inline-artifact__source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .ai-inline-artifact__actions {
