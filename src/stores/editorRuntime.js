@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { EDITOR_RUNTIME_EVENT_NAME } from '../domains/editor/editorRuntimeContract'
+import { buildNativePrimaryCursorSnapshot } from '../domains/editor/nativePrimarySurfaceRuntime'
 import { PRIMARY_TEXT_SURFACE_TARGETS } from '../domains/editor/primaryTextSurfaceTargets'
 import {
   applyNativeEditorTransaction,
@@ -834,7 +835,18 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
               }
             : null,
       })
-      await this.refreshNativeDocumentState({ path: normalizedPath })
+      this.nativeDocuments = {
+        ...this.nativeDocuments,
+        [normalizedPath]: {
+          ...(this.nativeDocuments[normalizedPath] || {}),
+          revealHighlight: range
+            ? {
+                from: Number(range?.from || 0),
+                to: Number(range?.to || 0),
+              }
+            : null,
+        },
+      }
       return true
     },
 
@@ -848,7 +860,18 @@ export const useEditorRuntimeStore = defineStore('editorRuntime', {
         path: normalizedPath,
         offset: offset === null || offset === undefined ? null : jsOffsetToUtf8Offset(currentText, offset),
       })
-      await this.refreshNativeDocumentState({ path: normalizedPath })
+      this.nativeDocuments = {
+        ...this.nativeDocuments,
+        [normalizedPath]: {
+          ...(this.nativeDocuments[normalizedPath] || {}),
+          dropCursor:
+            offset === null || offset === undefined
+              ? null
+              : buildNativePrimaryCursorSnapshot(currentText, {
+                  head: Number(offset || 0),
+                }),
+        },
+      }
       return true
     },
 
