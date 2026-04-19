@@ -8,19 +8,6 @@ default-run = "scribeflow"
 name = "scribeflow_lib"
 crate-type = ["lib", "cdylib"]
 
-[workspace]
-members = [
-  ".",
-  "crates/scribeflow-editor-core",
-  "crates/scribeflow-native-editor-app",
-]
-default-members = [
-  ".",
-  "crates/scribeflow-editor-core",
-  "crates/scribeflow-native-editor-app",
-]
-resolver = "2"
-
 [profile.dev]
 debug = 1
 incremental = false
@@ -54,7 +41,6 @@ hayagriva = { version = "0.9.1", features = ["csl-json"] }
 pathdiff = "0.2"
 urlencoding = "2"
 markdown = "1"
-scribeflow-editor-core = { path = "crates/scribeflow-editor-core" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

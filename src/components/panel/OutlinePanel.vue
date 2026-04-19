@@ -39,11 +39,10 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '../../stores/editor'
-import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
-import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime.js'
+import { buildMarkdownOutlineItems } from '../../services/markdown/outline'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -54,7 +53,6 @@ const props = defineProps({
 defineEmits(['toggle-collapse'])
 
 const editorStore = useEditorStore()
-const editorRuntimeStore = useEditorRuntimeStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
 const { t } = useI18n()
@@ -95,81 +93,37 @@ const fileType = computed(() => {
 })
 
 const hasOutlineSupport = computed(() => fileType.value !== null)
-const resolvedOutlineItems = ref([])
-let outlineRequestId = 0
+const markdownOutlineItems = ref([])
+let markdownOutlineRequestId = 0
 
 function currentDocumentText(path) {
-  const runtime = editorStore.getAnyEditorRuntime?.(path) || editorStore.getAnyEditorView(path)
-  if (runtime?.scribeflowGetContent) {
-    return runtime.scribeflowGetContent()
-  }
-  if (runtime?.state?.doc) {
-    return runtime.state.doc.toString()
+  const view = editorStore.getAnyEditorView(path)
+  if (view) {
+    return view.state.doc.toString()
   }
   return filesStore.fileContents[path] || ''
 }
 
-function buildOutlineContentOverrides(path, content, type) {
-  const normalizedPath = String(path || '').trim()
-  if (!normalizedPath) return {}
-
-  if (type === 'markdown') {
-    return {
-      [normalizedPath]: content,
-    }
-  }
-
-  const overrides = {}
-  for (const openPath of editorStore.allOpenFiles || []) {
-    const candidatePath = String(openPath || '').trim()
-    if (!candidatePath) continue
-    const lowerPath = candidatePath.toLowerCase()
-    if (!(lowerPath.endsWith('.tex') || lowerPath.endsWith('.latex') || lowerPath.endsWith('.bib'))) {
-      continue
-    }
-
-    const candidateContent = filesStore.fileContents[candidatePath]
-    if (typeof candidateContent === 'string') {
-      overrides[candidatePath] = candidateContent
-    }
-  }
-
-  overrides[normalizedPath] = content
-  return overrides
-}
-
-async function refreshDocumentOutline() {
+async function refreshMarkdownOutline() {
   const path = activeFile.value
-  const type = fileType.value
   const content = path ? currentDocumentText(path) : ''
-  const requestId = ++outlineRequestId
+  const requestId = ++markdownOutlineRequestId
 
-  if (!path || !type || !content) {
-    if (requestId === outlineRequestId) {
-      resolvedOutlineItems.value = []
+  if (!path || fileType.value !== 'markdown' || !content) {
+    if (requestId === markdownOutlineRequestId) {
+      markdownOutlineItems.value = []
     }
-    return
-  }
-
-  if (type === 'latex') {
-    await new Promise((resolve) => window.setTimeout(resolve, 120))
-  }
-  if (requestId !== outlineRequestId || activeFile.value !== path) {
     return
   }
 
   try {
-    const items = await resolveDocumentOutlineItems(path, {
-      filesStore,
-      content,
-      contentOverrides: buildOutlineContentOverrides(path, content, type),
-    })
-    if (requestId === outlineRequestId && activeFile.value === path) {
-      resolvedOutlineItems.value = Array.isArray(items) ? items : []
+    const items = await buildMarkdownOutlineItems(content)
+    if (requestId === markdownOutlineRequestId && activeFile.value === path) {
+      markdownOutlineItems.value = Array.isArray(items) ? items : []
     }
   } catch {
-    if (requestId === outlineRequestId) {
-      resolvedOutlineItems.value = []
+    if (requestId === markdownOutlineRequestId) {
+      markdownOutlineItems.value = []
     }
   }
 }
@@ -178,7 +132,17 @@ const outlineItems = computed(() => {
   const path = activeFile.value
   const ft = fileType.value
   if (!path || !ft) return []
-  return resolvedOutlineItems.value
+
+  if (ft === 'markdown') {
+    return markdownOutlineItems.value
+  }
+
+  if (ft === 'latex') {
+    const content = currentDocumentText(path)
+    return content ? parseLatexHeadings(content) : []
+  }
+
+  return []
 })
 
 function outlineSectionKeyForItem(item = {}) {
@@ -225,32 +189,57 @@ const activeOutlineItemKey = computed(() => {
   return activeItem ? outlineItemKey(activeItem) : ''
 })
 
+// --- Heading parsers ---
+
+const LATEX_SECTION_RE = /^\\(part|chapter|section|subsection|subsubsection|paragraph)\{([^}]*)\}/gm
+const LATEX_LEVELS = {
+  part: 1,
+  chapter: 2,
+  section: 3,
+  subsection: 4,
+  subsubsection: 5,
+  paragraph: 6,
+}
+
+function parseLatexHeadings(content) {
+  const result = []
+  let m
+  LATEX_SECTION_RE.lastIndex = 0
+  while ((m = LATEX_SECTION_RE.exec(content)) !== null) {
+    result.push({
+      text: m[2].trim(),
+      rawLevel: LATEX_LEVELS[m[1]] || 3,
+      offset: m.index,
+    })
+  }
+  const baseLevel = result.length > 0 ? Math.min(...result.map((item) => item.rawLevel)) : 1
+
+  return result.map((item) => ({
+    kind: 'heading',
+    text: item.text,
+    level: Math.max(1, item.rawLevel - baseLevel + 1),
+    displayLevel: Math.max(1, item.rawLevel - baseLevel + 1),
+    offset: item.offset,
+  }))
+}
+
 // --- Navigation ---
 
 function focusTextOffset(path, offset, attempts = 0) {
-  const targetRuntime =
-    editorStore.getAnyEditorRuntime?.(path) || editorStore.getAnyEditorView(path)
-  if (!targetRuntime) {
+  const targetView = editorStore.getAnyEditorView(path)
+  if (!targetView) {
     if (attempts < 20) {
       window.setTimeout(() => focusTextOffset(path, offset, attempts + 1), 40)
     }
     return
   }
 
-  if (targetRuntime?.scribeflowRevealOffset) {
-    targetRuntime.scribeflowRevealOffset(offset, {
-      focus: true,
-      center: true,
-    })
-    return
-  }
-
-  const pos = Math.min(Number(offset) || 0, targetRuntime.state.doc.length)
-  targetRuntime.dispatch({
+  const pos = Math.min(Number(offset) || 0, targetView.state.doc.length)
+  targetView.dispatch({
     selection: { anchor: pos },
     scrollIntoView: true,
   })
-  targetRuntime.focus()
+  targetView.focus()
 }
 
 function navigateToOutlineItem(item) {
@@ -263,21 +252,6 @@ function navigateToOutlineItem(item) {
   if (ft === 'markdown' || ft === 'latex') {
     const targetPaneId = editorStore.findPaneWithTab(targetPath)?.id || editorStore.activePaneId
     editorStore.openFileInPane(targetPath, targetPaneId, { activatePane: true })
-    if (editorRuntimeStore.wantsNativeRuntime) {
-      void editorRuntimeStore.recordNativeWorkflowEvent({
-        path: targetPath,
-        event: {
-          kind: 'outline-reveal-request',
-          targetFilePath: targetPath,
-          offset: Number(item.offset || 0),
-          outlineItem: {
-            kind: item.kind || 'heading',
-            text: item.text || '',
-            level: Number(item.level || item.displayLevel || 1),
-          },
-        },
-      })
-    }
     focusTextOffset(targetPath, item.offset)
   }
 }
@@ -307,34 +281,7 @@ function outlineItemKey(item = {}) {
 watch(
   () => [activeFile.value, fileType.value, currentDocumentText(activeFile.value || '')],
   () => {
-    void refreshDocumentOutline()
-  },
-  { immediate: true }
-)
-
-watch(
-  () => [activeFile.value, activeOutlineItemKey.value, editorStore.cursorOffset, visibleOutlineItems.value.length],
-  ([path, activeKey, cursorOffset]) => {
-    if (!editorRuntimeStore.wantsNativeRuntime) return
-    if (!path) return
-    const activeItem =
-      visibleOutlineItems.value.find((item) => outlineItemKey(item) === activeKey) || null
-    void editorRuntimeStore.recordNativeWorkflowEvent({
-      path,
-      event: {
-        kind: 'outline-active-item',
-        cursorOffset: Number(cursorOffset ?? -1),
-        activeItem: activeItem
-          ? {
-              key: activeKey,
-              offset: Number(activeItem.offset || 0),
-              itemKind: activeItem.kind || 'heading',
-              text: activeItem.text || '',
-              level: Number(activeItem.level || activeItem.displayLevel || 1),
-            }
-          : null,
-      },
-    })
+    void refreshMarkdownOutline()
   },
   { immediate: true }
 )

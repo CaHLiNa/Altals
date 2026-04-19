@@ -40,8 +40,6 @@ mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
 mod markdown_runtime;
-mod native_editor_bridge;
-mod native_editor_runtime;
 mod network;
 mod process_utils;
 mod references_backend;
@@ -409,7 +407,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(codex_runtime::CodexRuntimeHandle::default())
         .manage(latex::LatexState::default())
-        .manage(native_editor_runtime::NativeEditorRuntimeState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
 
@@ -584,25 +581,6 @@ pub fn run() {
             latex::synctex_forward,
             latex::synctex_backward,
             latex::read_latex_synctex,
-            native_editor_runtime::native_editor_session_start,
-            native_editor_runtime::native_editor_session_stop,
-            native_editor_runtime::native_editor_session_open_document,
-            native_editor_runtime::native_editor_session_apply_external_content,
-            native_editor_runtime::native_editor_session_replace_document_text,
-            native_editor_runtime::native_editor_session_apply_transaction,
-            native_editor_runtime::native_editor_session_set_selections,
-            native_editor_runtime::native_editor_session_set_diagnostics,
-            native_editor_runtime::native_editor_session_set_outline_context,
-            native_editor_runtime::native_editor_session_record_workflow_event,
-            native_editor_runtime::native_editor_document_state,
-            native_editor_runtime::native_editor_inspect_interaction_context,
-            native_editor_runtime::native_editor_plan_citation_replacement,
-            native_editor_runtime::native_editor_plan_character_input,
-            native_editor_runtime::native_editor_plan_pointer_selection,
-            native_editor_runtime::native_editor_plan_file_drop_insertion,
-            native_editor_runtime::native_editor_set_reveal_highlight,
-            native_editor_runtime::native_editor_set_drop_cursor,
-            native_editor_runtime::native_editor_session_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

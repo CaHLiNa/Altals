@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
 import { useEditorStore } from './stores/editor'
@@ -168,7 +168,6 @@ import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useAiStore } from './stores/ai'
-import { useEditorRuntimeStore } from './stores/editorRuntime'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -208,7 +207,6 @@ const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const aiStore = useAiStore()
-const editorRuntimeStore = useEditorRuntimeStore()
 const { t } = useI18n()
 const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
 
@@ -351,14 +349,6 @@ function onSelectionChange(selection) {
   aiStore.updateEditorSelection(selection)
 }
 
-onMounted(() => {
-  editorRuntimeStore.attachTelemetryListener()
-})
-
-onUnmounted(() => {
-  editorRuntimeStore.detachTelemetryListener()
-})
-
 useAppShellEventBridge({
   workspace,
   editorStore,
@@ -465,11 +455,11 @@ useBrowserPreviewRuntime({
   transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:global(body.scribeflow-shell-resizing) .app-shell-region-left,
-:global(body.scribeflow-shell-resizing) .app-shell-region-right,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar-left,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar-right {
+:global(body.altals-shell-resizing) .app-shell-region-left,
+:global(body.altals-shell-resizing) .app-shell-region-right,
+:global(body.altals-shell-resizing) .app-shell-sidebar,
+:global(body.altals-shell-resizing) .app-shell-sidebar-left,
+:global(body.altals-shell-resizing) .app-shell-sidebar-right {
   transition: none !important;
 }
 

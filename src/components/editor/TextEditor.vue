@@ -91,7 +91,6 @@ import {
 } from '../../editor/markdownTables'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
-import { useEditorRuntimeStore } from '../../stores/editorRuntime'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useLinksStore } from '../../stores/links'
@@ -110,10 +109,6 @@ import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'
 import { useI18n } from '../../i18n'
-import {
-  createEditorRuntimeContract,
-  emitEditorRuntimeTelemetry,
-} from '../../domains/editor/editorRuntimeContract'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -125,7 +120,6 @@ const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
 const editorContainer = ref(null)
 const files = useFilesStore()
 const editorStore = useEditorStore()
-const editorRuntimeStore = useEditorRuntimeStore()
 const workspace = useWorkspaceStore()
 const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
@@ -155,7 +149,6 @@ async function appendLatexSyncDebug(entry = {}) {
 }
 
 let view = null
-let editorRuntimeHandle = null
 let backwardSyncHandler = null
 let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
@@ -168,9 +161,6 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let lastPersistedContent = ''
-let nativeRuntimeSyncQueue = Promise.resolve()
-let latestDiagnostics = []
-let latestOutlineContext = null
 const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 
 const isDraftFile = isDraftPath(props.filePath)
@@ -434,20 +424,6 @@ function onCitInsert({ keys = [], stayOpen = false, latexCommand = null }) {
     })
   }
 
-  void queueNativeRuntimeSync(() =>
-    recordWorkflowEventToNativeRuntime({
-      kind: 'citation-insert',
-      keys: [...keys],
-      stayOpen: stayOpen === true,
-      latexCommand: latexCommand || null,
-      range: {
-        from: citPalette.triggerFrom,
-        to: citPalette.triggerTo,
-      },
-      insideBrackets: citPalette.insideBrackets === true,
-    })
-  )
-
   if (stayOpen && !isLatexEditor) {
     const cursor = view.state.selection.main.head
     const line = view.state.doc.lineAt(cursor)
@@ -481,18 +457,6 @@ function onCitUpdate({ cites = [] }) {
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
     })
-    void queueNativeRuntimeSync(() =>
-      recordWorkflowEventToNativeRuntime({
-        kind: 'citation-update',
-        mode: 'latex',
-        keys,
-        latexCommand: command,
-        range: {
-          from: citPalette.groupFrom,
-          to: citPalette.groupTo,
-        },
-      })
-    )
     citPalette.groupTo = citPalette.groupFrom + text.length
     return
   }
@@ -501,17 +465,6 @@ function onCitUpdate({ cites = [] }) {
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: '' },
     })
-    void queueNativeRuntimeSync(() =>
-      recordWorkflowEventToNativeRuntime({
-        kind: 'citation-update',
-        mode: 'markdown',
-        keys: [],
-        range: {
-          from: citPalette.groupFrom,
-          to: citPalette.groupTo,
-        },
-      })
-    )
     citPalette.show = false
     return
   }
@@ -527,17 +480,6 @@ function onCitUpdate({ cites = [] }) {
   view.dispatch({
     changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
   })
-  void queueNativeRuntimeSync(() =>
-    recordWorkflowEventToNativeRuntime({
-      kind: 'citation-update',
-      mode: 'markdown',
-      keys: cites.map((cite) => cite.key),
-      range: {
-        from: citPalette.groupFrom,
-        to: citPalette.groupTo,
-      },
-    })
-  )
   citPalette.groupTo = citPalette.groupFrom + text.length
 }
 
@@ -637,24 +579,11 @@ async function persistEditorContent(content) {
     if (!saved) return false
     lastPersistedContent = nextContent
     editorStore.clearFileDirty(props.filePath)
-    editorRuntimeStore.recordPersistedSnapshot({
-      path: props.filePath,
-      text: nextContent,
-      fileKind: 'latex',
-    })
     if (supportsLatexRuntime) {
       void latexStore.scheduleAutoBuildForPath(props.filePath, {
         sourceContent: nextContent,
       })
     }
-    void queueNativeRuntimeSync(() =>
-      recordWorkflowEventToNativeRuntime({
-        kind: 'persist-document',
-        format: 'latex',
-        textLength: nextContent.length,
-        autoBuildScheduled: supportsLatexRuntime,
-      })
-    )
     return true
   }
 
@@ -662,196 +591,16 @@ async function persistEditorContent(content) {
   if (!saved) return false
   lastPersistedContent = currentContent
   editorStore.clearFileDirty(props.filePath)
-  editorRuntimeStore.recordPersistedSnapshot({
-    path: props.filePath,
-    text: currentContent,
-    fileKind: isMd ? 'markdown' : 'text',
-  })
-  void queueNativeRuntimeSync(() =>
-    recordWorkflowEventToNativeRuntime({
-      kind: 'persist-document',
-      format: isMd ? 'markdown' : 'text',
-      textLength: currentContent.length,
-    })
-  )
   return true
 }
 
 function handleDocumentChanged(content) {
   files.setInMemoryFileContent(props.filePath, content)
-  emitEditorRuntimeTelemetry({
-    type: 'content-change',
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-    textLength: content.length,
-  })
   if (content === lastPersistedContent) {
     editorStore.clearFileDirty(props.filePath)
     return
   }
   editorStore.markFileDirty(props.filePath)
-}
-
-function requestCurrentSelection() {
-  if (!view) return null
-  const selection = view.state.selection.main
-  return {
-    filePath: props.filePath,
-    hasSelection: selection.from !== selection.to,
-    anchor: selection.anchor,
-    head: selection.head,
-    from: selection.from,
-    to: selection.to,
-    text:
-      selection.from !== selection.to
-        ? view.state.sliceDoc(selection.from, selection.to)
-        : '',
-  }
-}
-
-function shouldMirrorToNativeRuntime() {
-  return editorRuntimeStore.wantsNativeRuntime && !!props.filePath
-}
-
-function queueNativeRuntimeSync(task) {
-  if (!shouldMirrorToNativeRuntime()) return Promise.resolve(false)
-  nativeRuntimeSyncQueue = nativeRuntimeSyncQueue
-    .catch(() => false)
-    .then(async () => {
-      try {
-        return await task()
-      } catch (error) {
-        console.warn('[editor] failed to sync native runtime:', error)
-        return false
-      }
-    })
-  return nativeRuntimeSyncQueue
-}
-
-async function mirrorDocumentToNativeRuntime(content = null) {
-  if (!shouldMirrorToNativeRuntime()) return false
-  const text = typeof content === 'string' ? content : view?.state?.doc?.toString?.() || ''
-  await editorRuntimeStore.syncShadowDocument({
-    path: props.filePath,
-    text,
-  })
-  return true
-}
-
-async function syncSelectionToNativeRuntime(selection = null, viewportOffset = null) {
-  if (!shouldMirrorToNativeRuntime()) return false
-  const currentSelection = selection || requestCurrentSelection()
-  if (!currentSelection) return false
-  await editorRuntimeStore.setNativeSelections({
-    path: props.filePath,
-    selections: [
-      {
-        anchor:
-          currentSelection.anchor === undefined ? currentSelection.from : currentSelection.anchor,
-        head: currentSelection.head === undefined ? currentSelection.to : currentSelection.head,
-      },
-    ],
-    viewportOffset:
-      viewportOffset === null || viewportOffset === undefined
-        ? currentSelection.to
-        : viewportOffset,
-  })
-  return true
-}
-
-async function syncDiagnosticsToNativeRuntime(diagnostics = []) {
-  if (!shouldMirrorToNativeRuntime()) return false
-  await editorRuntimeStore.setNativeDiagnostics({
-    path: props.filePath,
-    diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
-  })
-  return true
-}
-
-async function syncOutlineContextToNativeRuntime(context = null) {
-  if (!shouldMirrorToNativeRuntime()) return false
-  await editorRuntimeStore.setNativeOutlineContext({
-    path: props.filePath,
-    context,
-  })
-  return true
-}
-
-async function recordWorkflowEventToNativeRuntime(event = null, path = props.filePath) {
-  if (!shouldMirrorToNativeRuntime()) return false
-  const targetPath = String(path || '').trim()
-  if (!targetPath || event == null) return false
-  await editorRuntimeStore.recordNativeWorkflowEvent({
-    path: targetPath,
-    event,
-  })
-  return true
-}
-
-function revealEditorRange(from, to = from, options = {}) {
-  if (!view?.state?.doc) return false
-  const length = view.state.doc.length
-  const safeFrom = Math.max(0, Math.min(Number(from) || 0, length))
-  const safeTo = Math.max(safeFrom, Math.min(Number(to) || safeFrom, length))
-
-  view.dispatch({
-    selection: {
-      anchor: safeFrom,
-      head: safeTo,
-    },
-    effects: EditorView.scrollIntoView(safeFrom, {
-      y: options.center === false ? 'nearest' : 'center',
-      yMargin: 80,
-    }),
-  })
-
-  if (options.focus !== false) {
-    view.focus()
-  }
-
-  emitEditorRuntimeTelemetry({
-    type: 'reveal-range',
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-    from: safeFrom,
-    to: safeTo,
-  })
-
-  void queueNativeRuntimeSync(async () => {
-    await mirrorDocumentToNativeRuntime(view.state.doc.toString())
-    await syncSelectionToNativeRuntime(
-      {
-        filePath: props.filePath,
-        hasSelection: safeFrom !== safeTo,
-        from: safeFrom,
-        to: safeTo,
-        text: safeFrom !== safeTo ? view.state.sliceDoc(safeFrom, safeTo) : '',
-      },
-      safeFrom
-    )
-    return recordWorkflowEventToNativeRuntime({
-      kind: 'reveal-range',
-      from: safeFrom,
-      to: safeTo,
-      center: options.center !== false,
-      focus: options.focus !== false,
-    })
-  })
-
-  return true
-}
-
-function revealEditorOffset(offset, options = {}) {
-  return revealEditorRange(offset, offset, options)
-}
-
-function destroyEditorView() {
-  if (!view) return
-  const currentView = view
-  view = null
-  currentView.destroy()
 }
 
 async function loadLanguageExtension() {
@@ -896,11 +645,6 @@ onMounted(async () => {
 
   lastPersistedContent = content
   editorStore.clearFileDirty(props.filePath)
-  editorRuntimeStore.verifyReopenSnapshot({
-    path: props.filePath,
-    text: content,
-    fileKind: isLatexEditor ? 'latex' : isMd ? 'markdown' : 'text',
-  })
 
   if (supportsLatexRuntime) {
     scheduleLatexWarmup(content)
@@ -911,49 +655,21 @@ onMounted(async () => {
     Prec.highest(zoomAwareMouseSelectionExtension(getCssRootZoomScale)),
     ...createRevealHighlightExtension(),
     EditorView.updateListener.of((update) => {
-      const currentSelection = update.state.selection.main
-      const selectionPayload = {
-        filePath: props.filePath,
-        hasSelection: currentSelection.from !== currentSelection.to,
-        anchor: currentSelection.anchor,
-        head: currentSelection.head,
-        from: currentSelection.from,
-        to: currentSelection.to,
-        text:
-          currentSelection.from !== currentSelection.to
-            ? update.state.sliceDoc(currentSelection.from, currentSelection.to)
-            : '',
-      }
-
       if (update.selectionSet || update.docChanged) {
-        emit('selection-change', selectionPayload)
-        emitEditorRuntimeTelemetry({
-          type: 'selection-change',
-          runtimeKind: 'web',
-          paneId: props.paneId,
-          ...selectionPayload,
-        })
-      }
-      if (update.selectionSet || update.docChanged) {
-        const currentContent = update.state.doc.toString()
-        void queueNativeRuntimeSync(async () => {
-          const nativeDocument = editorRuntimeStore.nativeDocuments?.[props.filePath] || null
-          if (update.docChanged) {
-            editorRuntimeStore.beginTypingLatencyProbe({
-              path: props.filePath,
-              text: currentContent,
-              fileKind: isLatexEditor ? 'latex' : isMd ? 'markdown' : 'text',
-            })
-            await mirrorDocumentToNativeRuntime(currentContent)
-          } else if (!nativeDocument) {
-            await mirrorDocumentToNativeRuntime(currentContent)
-          }
-
-          return syncSelectionToNativeRuntime(selectionPayload, currentSelection.head)
+        const selection = update.state.selection.main
+        emit('selection-change', {
+          filePath: props.filePath,
+          hasSelection: selection.from !== selection.to,
+          from: selection.from,
+          to: selection.to,
+          text:
+            selection.from !== selection.to
+              ? update.state.sliceDoc(selection.from, selection.to)
+              : '',
         })
       }
       if (isMd && update.selectionSet) {
-        scheduleMarkdownSelectionPreviewSync(currentSelection)
+        scheduleMarkdownSelectionPreviewSync(update.state.selection.main)
       }
     }),
   ]
@@ -1095,29 +811,8 @@ onMounted(async () => {
     onSave: (nextContent) => {
       void persistEditorContent(nextContent)
     },
-    onCursorChange: (pos) => {
-      emit('cursor-change', pos)
-      emitEditorRuntimeTelemetry({
-        type: 'cursor-change',
-        runtimeKind: 'web',
-        paneId: props.paneId,
-        filePath: props.filePath,
-        ...pos,
-      })
-    },
-    onStats: (stats) => {
-      emit('editor-stats', stats)
-      emitEditorRuntimeTelemetry({
-        type: 'editor-stats',
-        runtimeKind: 'web',
-        paneId: props.paneId,
-        filePath: props.filePath,
-        words: Number(stats?.words || 0),
-        chars: Number(stats?.chars || 0),
-        selectedWords: Number(stats?.selWords || 0),
-        selectedChars: Number(stats?.selChars || 0),
-      })
-    },
+    onCursorChange: (pos) => emit('cursor-change', pos),
+    onStats: (stats) => emit('editor-stats', stats),
     extraExtensions,
   })
 
@@ -1154,44 +849,6 @@ onMounted(async () => {
     return true
   }
 
-  editorRuntimeHandle = createEditorRuntimeContract({
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-    getView: () => view,
-    getContent: () => view?.state?.doc?.toString?.() || '',
-    persistContent: () => persistEditorContent(view?.state?.doc?.toString?.() || ''),
-    applyExternalContent: (nextContent = '') => view?.altalsApplyExternalContent?.(nextContent),
-    requestSelection: requestCurrentSelection,
-    revealOffset: revealEditorOffset,
-    revealRange: revealEditorRange,
-    setDiagnostics: (diagnostics = []) => {
-      latestDiagnostics = Array.isArray(diagnostics) ? diagnostics : []
-      emitEditorRuntimeTelemetry({
-        type: 'diagnostics-update',
-        runtimeKind: 'web',
-        paneId: props.paneId,
-        filePath: props.filePath,
-        diagnosticsCount: Array.isArray(diagnostics) ? diagnostics.length : 0,
-      })
-      void queueNativeRuntimeSync(() => syncDiagnosticsToNativeRuntime(latestDiagnostics))
-      return true
-    },
-    setOutlineContext: (context = null) => {
-      latestOutlineContext = context ?? null
-      emitEditorRuntimeTelemetry({
-        type: 'outline-context-update',
-        runtimeKind: 'web',
-        paneId: props.paneId,
-        filePath: props.filePath,
-        hasContext: !!context,
-      })
-      void queueNativeRuntimeSync(() => syncOutlineContextToNativeRuntime(latestOutlineContext))
-      return true
-    },
-    dispose: destroyEditorView,
-  })
-
   activateEditorRuntime()
 })
 
@@ -1226,19 +883,6 @@ function ensureLatexWindowHandlers() {
         const fileNameOnlyMatch =
           !normalizedFile.includes('/') && targetFileName === currentFileName
         if (!exactMatch && !fileNameOnlyMatch) {
-          void queueNativeRuntimeSync(() =>
-            recordWorkflowEventToNativeRuntime(
-              {
-                kind: 'latex-backward-sync-reveal',
-                targetFilePath: location.filePath,
-                line: location.line,
-                column: location.column ?? null,
-                strictLine: location.strictLine === true,
-                scope: 'foreign-file',
-              },
-              props.filePath
-            )
-          )
           if (editorStore.activeTab !== props.filePath) return
           await appendLatexSyncDebug({
             event: 'backward-sync-reveal-foreign',
@@ -1252,16 +896,6 @@ function ensureLatexWindowHandlers() {
         }
       }
       if (line && line > 0) {
-        void queueNativeRuntimeSync(() =>
-          recordWorkflowEventToNativeRuntime({
-            kind: 'latex-backward-sync-reveal',
-            targetFilePath: location.filePath,
-            line: location.line,
-            column: location.column ?? null,
-            strictLine: location.strictLine === true,
-            scope: 'current-file',
-          })
-        )
         await appendLatexSyncDebug({
           event: 'backward-sync-reveal-current',
           location,
@@ -1280,14 +914,6 @@ function ensureLatexWindowHandlers() {
       const pos = view.state.selection.main.head
       const location = getLatexSyncLocation(pos)
       if (!location) return
-      void queueNativeRuntimeSync(() =>
-        recordWorkflowEventToNativeRuntime({
-          kind: 'latex-forward-sync-request',
-          line: location.line,
-          column: location.column,
-          source: 'cursor-request',
-        })
-      )
       latexStore.requestForwardSync(props.filePath, location.line, location.column)
     }
   }
@@ -1315,24 +941,6 @@ function ensureMarkdownWindowHandlers() {
           line: location.line,
           offset: location.offset,
         },
-      })
-    )
-
-    emitEditorRuntimeTelemetry({
-      type: 'markdown-forward-sync-request',
-      runtimeKind: 'web',
-      paneId: props.paneId,
-      filePath: props.filePath,
-      line: location.line,
-      offset: location.offset,
-      source: 'cursor-request',
-    })
-    void queueNativeRuntimeSync(() =>
-      recordWorkflowEventToNativeRuntime({
-        kind: 'markdown-forward-sync-request',
-        line: location.line,
-        offset: location.offset,
-        source: 'cursor-request',
       })
     )
   }
@@ -1382,22 +990,10 @@ function detachEditorRuntimeListeners() {
 }
 
 function activateEditorRuntime() {
-  if (!view || !editorRuntimeHandle || editorRuntimeActive) return
+  if (!view || editorRuntimeActive) return
   editorRuntimeActive = true
-  editorStore.registerEditorRuntime(props.paneId, props.filePath, editorRuntimeHandle)
-  emitEditorRuntimeTelemetry({
-    type: 'document-open',
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-  })
+  editorStore.registerEditorView(props.paneId, props.filePath, view)
   attachEditorRuntimeListeners()
-  void queueNativeRuntimeSync(async () => {
-    await mirrorDocumentToNativeRuntime(view.state.doc.toString())
-    await syncSelectionToNativeRuntime()
-    await syncDiagnosticsToNativeRuntime(latestDiagnostics)
-    return syncOutlineContextToNativeRuntime(latestOutlineContext)
-  })
   showMergeViewIfNeeded()
   requestAnimationFrame(() => {
     view?.requestMeasure?.()
@@ -1411,13 +1007,7 @@ function deactivateEditorRuntime() {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   detachEditorRuntimeListeners()
-  editorStore.unregisterEditorRuntime(props.paneId, props.filePath)
-  emitEditorRuntimeTelemetry({
-    type: 'document-close',
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-  })
+  editorStore.unregisterEditorView(props.paneId, props.filePath)
 }
 
 onActivated(() => {
@@ -1569,24 +1159,6 @@ function scheduleMarkdownSelectionPreviewSync(selection) {
         },
       })
     )
-
-    emitEditorRuntimeTelemetry({
-      type: 'markdown-forward-sync-request',
-      runtimeKind: 'web',
-      paneId: props.paneId,
-      filePath: props.filePath,
-      line: location.line,
-      offset: location.offset,
-      source: 'selection-sync',
-    })
-    void queueNativeRuntimeSync(() =>
-      recordWorkflowEventToNativeRuntime({
-        kind: 'markdown-forward-sync-request',
-        line: location.line,
-        offset: location.offset,
-        source: 'selection-sync',
-      })
-    )
   }, 90)
 }
 
@@ -1623,22 +1195,6 @@ function triggerLatexForwardSyncAtPos(pos) {
   if (!hasActiveLatexPdfPreviewTarget()) return
   const location = getLatexSyncLocation(pos)
   if (!location) return
-  emitEditorRuntimeTelemetry({
-    type: 'latex-forward-sync-request',
-    runtimeKind: 'web',
-    paneId: props.paneId,
-    filePath: props.filePath,
-    line: location.line,
-    column: location.column,
-  })
-  void queueNativeRuntimeSync(() =>
-    recordWorkflowEventToNativeRuntime({
-      kind: 'latex-forward-sync-request',
-      line: location.line,
-      column: location.column,
-      source: 'double-click',
-    })
-  )
   latexStore.requestForwardSync(props.filePath, location.line, location.column)
 }
 
@@ -1707,9 +1263,9 @@ onUnmounted(() => {
     markdownPreviewSyncTimer = null
   }
   if (view) {
-    destroyEditorView()
+    view.destroy()
+    view = null
   }
-  editorRuntimeHandle = null
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   backwardSyncHandler = null

@@ -1,8 +1,4 @@
 import { getAnyRegisteredEditorView } from './editorViewRegistry'
-import {
-  getNativeEditorDocumentState,
-  nativeEditorBridgeAvailable,
-} from '../../services/editorRuntime/nativeBridge'
 
 export function markDirtyPath(dirtyFiles, path) {
   if (!(dirtyFiles instanceof Set) || !path || dirtyFiles.has(path)) return false
@@ -35,50 +31,23 @@ export async function persistEditorPath({
 } = {}) {
   if (!path || !filesStore) return false
 
-  const editorRuntime = getAnyRegisteredEditorView(editorViews, path)
-  let nativeDocumentState = null
-
-  if (nativeEditorBridgeAvailable()) {
-    nativeDocumentState = await getNativeEditorDocumentState({ path }).catch(() => null)
-  }
-
-  if (editorRuntime?.scribeflowPersist) {
-    return (await editorRuntime.scribeflowPersist()) !== false
+  const view = getAnyRegisteredEditorView(editorViews, path)
+  if (view?.altalsPersist) {
+    return (await view.altalsPersist()) !== false
   }
 
   if (filesStore.isDraftFile?.(path)) {
-    const content =
-      typeof nativeDocumentState?.text === 'string' && nativeDocumentState.text
-        ? nativeDocumentState.text
-        : filesStore.fileContents[path]
+    const content = filesStore.fileContents[path]
     if (typeof content !== 'string') return false
     const savedPath = await filesStore.promptAndSaveDraft(path, content)
     if (savedPath) {
-      filesStore.setInMemoryFileContent(savedPath, content)
       onPersisted?.(savedPath, path)
     }
     return !!savedPath
   }
 
-  if (editorRuntime?.scribeflowGetContent) {
-    const saved = await filesStore.saveFile(path, editorRuntime.scribeflowGetContent())
-    if (saved) {
-      onPersisted?.(path)
-    }
-    return saved
-  }
-
-  if (typeof nativeDocumentState?.text === 'string' && nativeDocumentState.text.length >= 0) {
-    const saved = await filesStore.saveFile(path, nativeDocumentState.text)
-    if (saved) {
-      filesStore.setInMemoryFileContent(path, nativeDocumentState.text)
-      onPersisted?.(path)
-    }
-    return saved
-  }
-
-  if (editorRuntime?.state?.doc) {
-    const saved = await filesStore.saveFile(path, editorRuntime.state.doc.toString())
+  if (view?.state?.doc) {
+    const saved = await filesStore.saveFile(path, view.state.doc.toString())
     if (saved) {
       onPersisted?.(path)
     }

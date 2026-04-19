@@ -469,40 +469,20 @@ export const useEditorStore = defineStore('editor', {
       return registerEditorRuntimeView(this.editorViews, paneId, path, view)
     },
 
-    registerEditorRuntime(paneId, path, runtime) {
-      return this.registerEditorView(paneId, path, runtime)
-    },
-
     unregisterEditorView(paneId, path) {
       return unregisterEditorRuntimeView(this.editorViews, paneId, path)
-    },
-
-    unregisterEditorRuntime(paneId, path) {
-      return this.unregisterEditorView(paneId, path)
     },
 
     getEditorView(paneId, path) {
       return getRegisteredEditorView(this.editorViews, paneId, path)
     },
 
-    getEditorRuntime(paneId, path) {
-      return this.getEditorView(paneId, path)
-    },
-
     getAnyEditorView(path) {
       return getAnyRegisteredEditorView(this.editorViews, path)
     },
 
-    getAnyEditorRuntime(path) {
-      return this.getAnyEditorView(path)
-    },
-
     getEditorViewsForPath(path) {
       return getRegisteredEditorViewsForPath(this.editorViews, path)
-    },
-
-    getEditorRuntimesForPath(path) {
-      return this.getEditorViewsForPath(path)
     },
 
     recordFileOpen(path) {
@@ -556,7 +536,7 @@ export const useEditorStore = defineStore('editor', {
 
     saveEditorState() {
       scheduleEditorStateSave({
-        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
+        shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
@@ -565,7 +545,7 @@ export const useEditorStore = defineStore('editor', {
 
     async saveEditorStateImmediate() {
       await flushEditorStateSave({
-        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
+        shouldersDir: useWorkspaceStore().shouldersDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
@@ -574,12 +554,12 @@ export const useEditorStore = defineStore('editor', {
 
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
-      const state = await loadEditorStateSnapshot(workspace.workspaceDataDir)
+      const state = await loadEditorStateSnapshot(workspace.shouldersDir)
       if (!state) return false
 
       const restoreGeneration = ++this.restoreGeneration
       const restoredWorkspacePath = workspace.path
-      const restoredWorkspaceDataDir = workspace.workspaceDataDir
+      const restoredShouldersDir = workspace.shouldersDir
 
       Object.assign(this, deriveRestoredEditorRuntimeState({
         state,
@@ -587,12 +567,12 @@ export const useEditorStore = defineStore('editor', {
       }))
 
       void validateRestoredEditorTabs({
-        workspaceDataDir: workspace.workspaceDataDir,
+        shouldersDir: workspace.shouldersDir,
         paneTree: this.paneTree,
         isStillCurrent: () => (
           restoreGeneration === this.restoreGeneration
           && workspace.path === restoredWorkspacePath
-          && workspace.workspaceDataDir === restoredWorkspaceDataDir
+          && workspace.shouldersDir === restoredShouldersDir
         ),
         closeInvalidTab: (tab) => this.closeFileFromAllPanes(tab),
         isActivePaneMissing: () => !this.findPane(this.paneTree, this.activePaneId),

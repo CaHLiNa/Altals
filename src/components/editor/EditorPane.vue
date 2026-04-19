@@ -347,7 +347,7 @@
 </template>
 
 <script setup>
-import { computed, ref, toRef, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, toRef, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -448,7 +448,6 @@ const currentDocumentLabel = computed(() => fileName(props.activeTab))
 const {
   documentPreviewState,
   workflowUiState,
-  workflowProblems,
   workspacePreviewState,
   workflowStatusText,
   workflowStatusTone,
@@ -468,11 +467,6 @@ const {
   toastStore,
   workflowStore,
   t,
-})
-
-const activeEditorRuntime = computed(() => {
-  if (!props.activeTab || viewerType.value !== 'text') return null
-  return editorStore.getEditorRuntime?.(props.paneId, props.activeTab) || null
 })
 
 const documentWorkspaceRoute = computed(() =>
@@ -507,28 +501,6 @@ function handleOpenExternalPdf() {
   if (!props.activeTab || viewerType.value !== 'pdf') return
   void openLocalPath(props.activeTab)
 }
-
-watch(
-  [activeEditorRuntime, activeTabRef, workflowUiState, workflowProblems],
-  ([runtime, activeTab, uiState, problems]) => {
-    if (runtime?.scribeflowSetDiagnostics) {
-      runtime.scribeflowSetDiagnostics(Array.isArray(problems) ? problems : [])
-    }
-    if (runtime?.scribeflowSetOutlineContext) {
-      runtime.scribeflowSetOutlineContext(
-        activeTab
-          ? {
-              filePath: activeTab,
-              paneId: props.paneId,
-              documentKind: uiState?.kind || 'text',
-              previewKind: uiState?.previewKind || null,
-            }
-          : null
-      )
-    }
-  },
-  { immediate: true }
-)
 
 async function closeTab(path) {
   const result = await confirmUnsavedChanges([path])

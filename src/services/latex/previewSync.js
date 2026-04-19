@@ -193,13 +193,6 @@ export async function revealLatexSourceLocation(editorStore, location, options =
 
   const resolvedSelection = resolveLatexEditorSelectionFromContext(targetView, location)
   if (resolvedSelection?.from != null) {
-    if (targetView?.altalsRevealRange) {
-      return targetView.altalsRevealRange(
-        resolvedSelection.from,
-        resolvedSelection.to,
-        options,
-      )
-    }
     return focusEditorRangeWithHighlight(
       targetView,
       resolvedSelection.from,
