@@ -174,6 +174,17 @@ fn infer_research_task_kind(skill: &Value, user_instruction: &str) -> String {
     .join(" ")
     .to_lowercase();
 
+    if skill_haystack.contains("supporting reference")
+        || skill_haystack.contains("supporting references")
+    {
+        return "find-supporting-references".to_string();
+    }
+    if skill_haystack.contains("reading note") || skill_haystack.contains("summarize-selection") {
+        return "build-reading-note".to_string();
+    }
+    if skill_haystack.contains("bibliography") {
+        return "repair-bibliography".to_string();
+    }
     if skill_haystack.contains("citation") || skill_haystack.contains("reference") {
         return "revise-with-citations".to_string();
     }
@@ -407,17 +418,32 @@ fn build_reference_patch_artifact(payload: &Value, context_bundle: &Value) -> Op
 }
 
 fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
-    let content = string_field(
+    build_note_style_artifact(
+        "note_draft",
         payload,
+        context_bundle,
         &["note_markdown", "content", "summary_markdown", "paragraph"],
-    );
+        "AI note",
+        "Open as draft",
+    )
+}
+
+fn build_note_style_artifact(
+    artifact_type: &str,
+    payload: &Value,
+    context_bundle: &Value,
+    content_keys: &[&str],
+    default_title: &str,
+    capability_label_key: &str,
+) -> Option<Value> {
+    let content = string_field(payload, content_keys);
     if content.is_empty() {
         return None;
     }
     let title = {
         let title = string_field(payload, &["title"]);
         if title.is_empty() {
-            "AI note".to_string()
+            default_title.to_string()
         } else {
             title
         }
@@ -432,14 +458,139 @@ fn build_note_draft_artifact(payload: &Value, context_bundle: &Value) -> Option<
     };
     let rationale = string_field(payload, &["rationale", "takeaway"]);
     Some(json!({
-        "type": "note_draft",
+        "type": artifact_type,
         "capabilityToolId": "open-note-draft",
-        "capabilityLabelKey": "Open as draft",
+        "capabilityLabelKey": capability_label_key,
         "title": title,
         "suggestedName": format!("{slug}.md"),
         "content": content,
         "sourceFilePath": string_field(context_bundle.get("document").unwrap_or(&Value::Null), &["filePath", "file_path"]),
         "rationale": rationale,
+    }))
+}
+
+fn build_related_work_outline_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    build_note_style_artifact(
+        "related_work_outline",
+        payload,
+        context_bundle,
+        &["outline_markdown", "note_markdown", "outline", "content"],
+        "Related work outline",
+        "Open outline draft",
+    )
+}
+
+fn build_reading_note_bundle_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    build_note_style_artifact(
+        "reading_note_bundle",
+        payload,
+        context_bundle,
+        &[
+            "reading_note_markdown",
+            "note_markdown",
+            "summary_markdown",
+            "content",
+        ],
+        "Reading note",
+        "Open reading note",
+    )
+}
+
+fn build_supporting_reference_lines(payload: &Value) -> Vec<String> {
+    payload
+        .get("supporting_references")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|entry| {
+            let citation_key = string_field(&entry, &["citationKey", "citation_key"]);
+            let title = string_field(&entry, &["title"]);
+            let why_relevant = string_field(&entry, &["whyRelevant", "why_relevant"]);
+            let evidence_excerpt = string_field(&entry, &["evidenceExcerpt", "evidence_excerpt"]);
+            if citation_key.is_empty()
+                && title.is_empty()
+                && why_relevant.is_empty()
+                && evidence_excerpt.is_empty()
+            {
+                return None;
+            }
+
+            let header = [citation_key, title]
+                .into_iter()
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ");
+            let mut lines = vec![format!(
+                "- {}",
+                if header.is_empty() {
+                    "Supporting reference".to_string()
+                } else {
+                    header
+                }
+            )];
+            if !why_relevant.is_empty() {
+                lines.push(format!("  - Why relevant: {why_relevant}"));
+            }
+            if !evidence_excerpt.is_empty() {
+                lines.push(format!("  - Evidence: {evidence_excerpt}"));
+            }
+            Some(lines.join("\n"))
+        })
+        .collect()
+}
+
+fn build_evidence_bundle_artifact(payload: &Value, context_bundle: &Value) -> Option<Value> {
+    let mut sections = Vec::new();
+    let answer = string_field(payload, &["answer"]);
+    if !answer.is_empty() {
+        sections.push(answer);
+    }
+    let supporting_lines = build_supporting_reference_lines(payload);
+    if !supporting_lines.is_empty() {
+        sections.push(format!(
+            "## Supporting references\n{}",
+            supporting_lines.join("\n")
+        ));
+    }
+    let evidence_markdown = string_field(
+        payload,
+        &[
+            "evidence_bundle_markdown",
+            "evidence_markdown",
+            "claim_evidence_markdown",
+        ],
+    );
+    if !evidence_markdown.is_empty() {
+        sections.push(evidence_markdown);
+    }
+    let rationale = string_field(payload, &["rationale"]);
+    if !rationale.is_empty() {
+        sections.push(format!("## Why this matters\n{rationale}"));
+    }
+    let content = sections
+        .into_iter()
+        .filter(|section| !section.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if content.is_empty() {
+        return None;
+    }
+    let selection = context_bundle.get("selection").unwrap_or(&Value::Null);
+    let title = {
+        let value = string_field(payload, &["title"]);
+        if value.is_empty() {
+            "Evidence bundle".to_string()
+        } else {
+            value
+        }
+    };
+    Some(json!({
+        "type": "evidence_bundle",
+        "title": title,
+        "content": content,
+        "selectionPreview": string_field(selection, &["preview", "text"]),
+        "rationale": string_field(payload, &["rationale"]),
     }))
 }
 
@@ -451,14 +602,18 @@ fn normalize_artifact(behavior_id: &str, payload: &Value, context_bundle: &Value
                 bool_available(context_bundle.get("selection").unwrap_or(&Value::Null));
             if selection_available {
                 build_doc_patch_artifact(payload, context_bundle)
+                    .or_else(|| build_related_work_outline_artifact(payload, context_bundle))
                     .or_else(|| build_note_draft_artifact(payload, context_bundle))
             } else {
-                build_note_draft_artifact(payload, context_bundle)
+                build_related_work_outline_artifact(payload, context_bundle)
+                    .or_else(|| build_note_draft_artifact(payload, context_bundle))
             }
         }
-        "summarize-selection" => build_note_draft_artifact(payload, context_bundle),
+        "summarize-selection" => build_reading_note_bundle_artifact(payload, context_bundle)
+            .or_else(|| build_note_draft_artifact(payload, context_bundle)),
         "find-supporting-references" => build_reference_patch_artifact(payload, context_bundle)
-            .or_else(|| build_citation_insert_artifact(payload, context_bundle)),
+            .or_else(|| build_citation_insert_artifact(payload, context_bundle))
+            .or_else(|| build_evidence_bundle_artifact(payload, context_bundle)),
         _ => None,
     }
 }

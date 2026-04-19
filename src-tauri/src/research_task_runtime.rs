@@ -106,6 +106,7 @@ fn create_task(
         reference_ids: Vec::new(),
         evidence_ids: Vec::new(),
         artifact_ids: Vec::new(),
+        verification_verdict: String::new(),
         verification_summary: String::new(),
         blocked_reason: String::new(),
         resume_hint: String::new(),
@@ -369,6 +370,9 @@ pub async fn research_task_update(
     }
     if let Some(artifact_ids) = params.artifact_ids {
         task.artifact_ids = normalize_vec(Some(artifact_ids));
+    }
+    if let Some(verification_verdict) = params.verification_verdict {
+        task.verification_verdict = trim(&verification_verdict);
     }
     if let Some(verification_summary) = params.verification_summary {
         task.verification_summary = trim(&verification_summary);

@@ -111,6 +111,7 @@ fn normalize_research_task(task: &Value) -> Value {
         "goal": string_field(task, "goal").trim(),
         "status": string_field(task, "status").trim(),
         "phase": string_field(task, "phase").trim(),
+        "verificationVerdict": string_field(task, "verificationVerdict").trim(),
         "verificationSummary": string_field(task, "verificationSummary").trim(),
         "blockedReason": string_field(task, "blockedReason").trim(),
         "resumeHint": string_field(task, "resumeHint").trim(),

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::research_task_protocol::ResearchTask;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResearchVerificationRecord {
@@ -46,6 +48,8 @@ pub struct ResearchVerificationRunParams {
 #[serde(rename_all = "camelCase")]
 pub struct ResearchVerificationRunResponse {
     pub verification: ResearchVerificationRecord,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task: Option<ResearchTask>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

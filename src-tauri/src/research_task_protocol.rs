@@ -16,6 +16,7 @@ pub struct ResearchTask {
     pub reference_ids: Vec<String>,
     pub evidence_ids: Vec<String>,
     pub artifact_ids: Vec<String>,
+    pub verification_verdict: String,
     pub verification_summary: String,
     pub blocked_reason: String,
     pub resume_hint: String,
@@ -82,6 +83,8 @@ pub struct ResearchTaskUpdateParams {
     pub evidence_ids: Option<Vec<String>>,
     #[serde(default)]
     pub artifact_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub verification_verdict: Option<String>,
     #[serde(default)]
     pub verification_summary: Option<String>,
     #[serde(default)]

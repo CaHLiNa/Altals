@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -270,6 +271,109 @@ fn verify_note_draft(created_path: &str) -> (bool, Vec<String>) {
     }
 }
 
+fn latest_verifications_by_artifact(
+    verifications: &[ResearchVerificationRecord],
+) -> Vec<ResearchVerificationRecord> {
+    let mut seen = HashSet::new();
+    let mut latest = Vec::new();
+    for verification in verifications {
+        let key = if trim(&verification.artifact_id).is_empty() {
+            verification.id.clone()
+        } else {
+            verification.artifact_id.clone()
+        };
+        if seen.insert(key) {
+            latest.push(verification.clone());
+        }
+    }
+    latest
+}
+
+fn build_resume_hint(kind: &str, blocking: bool) -> String {
+    if !blocking {
+        return String::new();
+    }
+    match trim(kind).as_str() {
+        "citation_insert" | "reference_patch" => {
+            "修复 citation 或 bibliography 问题后重新应用相关 artifact。".to_string()
+        }
+        "doc_patch" => "检查文档当前内容与 patch 适用范围后重新应用。".to_string(),
+        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
+            "检查生成内容与目标路径后重新生成草稿。".to_string()
+        }
+        _ => "修复当前验证失败项后重新运行对应 artifact。".to_string(),
+    }
+}
+
+fn aggregate_task_verdict(
+    verifications: &[ResearchVerificationRecord],
+) -> (String, String, String, String, String) {
+    let latest = latest_verifications_by_artifact(verifications);
+    if latest.is_empty() {
+        return (
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            "active".to_string(),
+        );
+    }
+
+    let blocking_entries = latest
+        .iter()
+        .filter(|entry| entry.blocking || trim(&entry.status) == "failed")
+        .cloned()
+        .collect::<Vec<_>>();
+    let verified_count = latest
+        .iter()
+        .filter(|entry| trim(&entry.status) == "verified")
+        .count();
+
+    if blocking_entries.is_empty() {
+        return (
+            "pass".to_string(),
+            format!("全部 {} 项研究验证已通过。", latest.len()),
+            String::new(),
+            String::new(),
+            "active".to_string(),
+        );
+    }
+
+    let primary_blocker = blocking_entries
+        .first()
+        .map(|entry| trim(&entry.summary))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "仍有验证项未通过。".to_string());
+    let resume_hint = build_resume_hint(
+        blocking_entries
+            .first()
+            .map(|entry| entry.kind.as_str())
+            .unwrap_or_default(),
+        true,
+    );
+    if verified_count == 0 {
+        return (
+            "fail".to_string(),
+            format!("全部 {} 项研究验证均未通过。", blocking_entries.len()),
+            primary_blocker,
+            resume_hint,
+            "failed".to_string(),
+        );
+    }
+
+    (
+        "block".to_string(),
+        format!(
+            "仍有 {} 项阻塞验证待修复，{} 项验证已通过。",
+            blocking_entries.len(),
+            verified_count
+        ),
+        primary_blocker,
+        resume_hint,
+        "blocked".to_string(),
+    )
+}
+
 async fn build_verification_record(
     params: &ResearchVerificationRunParams,
 ) -> ResearchVerificationRecord {
@@ -299,7 +403,9 @@ async fn build_verification_record(
             )
             .await
         }
-        "note_draft" => verify_note_draft(&params.created_path),
+        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
+            verify_note_draft(&params.created_path)
+        }
         _ => (
             false,
             vec!["Unsupported artifact type for verification.".to_string()],
@@ -455,40 +561,39 @@ pub async fn research_verification_run(
     verifications.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
     persist_workspace_verifications(&normalized_workspace_path, &verifications)?;
 
+    let mut updated_task = None;
     if !trim(&params.task_id).is_empty() {
-        let _ = research_task_update(ResearchTaskUpdateParams {
+        let task_verifications =
+            list_research_verifications_for_task(&normalized_workspace_path, &params.task_id)?;
+        let (verification_verdict, verification_summary, blocked_reason, resume_hint, task_status) =
+            aggregate_task_verdict(&task_verifications);
+        updated_task = research_task_update(ResearchTaskUpdateParams {
             workspace_path: normalized_workspace_path.clone(),
             task_id: trim(&params.task_id),
             title: None,
             goal: None,
             kind: None,
-            status: Some(if verification.blocking {
-                "blocked".to_string()
-            } else {
-                "active".to_string()
-            }),
+            status: Some(task_status),
             phase: Some("verification".to_string()),
             success_criteria: None,
             active_document_paths: None,
             reference_ids: None,
             evidence_ids: None,
             artifact_ids: None,
-            verification_summary: Some(verification.summary.clone()),
-            blocked_reason: Some(if verification.blocking {
-                verification.summary.clone()
-            } else {
-                String::new()
-            }),
-            resume_hint: Some(if verification.blocking {
-                "修复验证失败项后重新运行 artifact application。".to_string()
-            } else {
-                String::new()
-            }),
+            verification_verdict: Some(verification_verdict),
+            verification_summary: Some(verification_summary),
+            blocked_reason: Some(blocked_reason),
+            resume_hint: Some(resume_hint),
         })
-        .await;
+        .await
+        .ok()
+        .map(|response| response.task);
     }
 
-    Ok(ResearchVerificationRunResponse { verification })
+    Ok(ResearchVerificationRunResponse {
+        verification,
+        task: updated_task,
+    })
 }
 
 #[tauri::command]

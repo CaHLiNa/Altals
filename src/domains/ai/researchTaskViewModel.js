@@ -15,6 +15,7 @@ export function normalizeResearchTask(task = null) {
     goal: trim(task.goal),
     status: trim(task.status || 'active') || 'active',
     phase: trim(task.phase || 'scoping') || 'scoping',
+    verificationVerdict: trim(task.verificationVerdict),
     verificationSummary: trim(task.verificationSummary),
     blockedReason: trim(task.blockedReason),
     resumeHint: trim(task.resumeHint),

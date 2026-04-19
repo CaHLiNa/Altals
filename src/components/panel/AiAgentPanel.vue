@@ -61,6 +61,11 @@
             v-if="showActiveTasksBar"
             :tasks="backgroundTaskItems"
           />
+          <AiVerificationSummaryCard
+            v-if="showVerificationSummary"
+            :task="currentResearchTask"
+            :verifications="recentResearchVerifications"
+          />
         </div>
 
         <AiAskUserBanner
@@ -273,6 +278,7 @@ import AiPlanModeBanner from './AiPlanModeBanner.vue'
 import AiPermissionBanner from './AiPermissionBanner.vue'
 import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
+import AiVerificationSummaryCard from './AiVerificationSummaryCard.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const { t } = useI18n()
@@ -316,6 +322,10 @@ const compactionState = computed(() => aiStore.compactionState)
 const resumeState = computed(() => aiStore.resumeState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
+const currentResearchTask = computed(() => aiStore.currentSession?.researchTask || null)
+const recentResearchVerifications = computed(() =>
+  Array.isArray(aiStore.researchVerifications) ? aiStore.researchVerifications.slice(0, 3) : []
+)
 const modelOptions = computed(() =>
   Array.isArray(aiStore.unifiedModelPoolOptions) ? aiStore.unifiedModelPoolOptions : []
 )
@@ -463,12 +473,20 @@ const backgroundTaskItems = computed(() =>
   }))
 )
 const showActiveTasksBar = computed(() => backgroundTaskItems.value.length > 0 && !hasBlockingState.value)
+const showVerificationSummary = computed(() =>
+  !hasBlockingState.value
+  && (
+    !!currentResearchTask.value
+    || recentResearchVerifications.value.length > 0
+  )
+)
 const hasRuntimeStateStack = computed(
   () =>
     showPlanModeBanner.value ||
     showResumeBanner.value ||
     showCompactingBanner.value ||
-    showActiveTasksBar.value
+    showActiveTasksBar.value ||
+    showVerificationSummary.value
 )
 const blockingContextItems = computed(() => {
   if (!hasBlockingState.value) return []

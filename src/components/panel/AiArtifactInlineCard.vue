@@ -7,7 +7,7 @@
     <div class="ai-inline-artifact__header">
       <div class="ai-inline-artifact__title">{{ artifact.title || artifact.type }}</div>
       <div class="ai-inline-artifact__badge">
-        {{ artifact.status === 'applied' ? t('Applied') : t('Ready to apply') }}
+        {{ badgeLabel }}
       </div>
     </div>
     <div class="ai-inline-artifact__type">{{ artifactTypeLabel }}</div>
@@ -71,6 +71,7 @@ const preview = computed(() => {
     props.artifact.replacementText
       || props.artifact.citationSuggestion
       || props.artifact.content
+      || props.artifact.selectionPreview
       || summarizeReferenceUpdates(props.artifact.updates)
       || props.artifact.rationale
       || ''
@@ -87,7 +88,16 @@ const artifactTypeLabel = computed(() => {
   if (props.artifact.type === 'note_draft') return t('Note draft')
   if (props.artifact.type === 'citation_insert') return t('Citation insert')
   if (props.artifact.type === 'reference_patch') return t('Reference update')
+  if (props.artifact.type === 'related_work_outline') return t('Related work outline')
+  if (props.artifact.type === 'reading_note_bundle') return t('Reading note')
+  if (props.artifact.type === 'evidence_bundle') return t('Evidence bundle')
   return props.artifact.type
+})
+
+const badgeLabel = computed(() => {
+  if (props.artifact?.status === 'applied') return t('Applied')
+  if (props.canApply) return t('Ready to apply')
+  return t('Review only')
 })
 
 function summarizeReferenceUpdates(updates = null) {

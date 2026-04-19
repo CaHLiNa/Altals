@@ -1786,6 +1786,7 @@ export const useAiStore = defineStore('ai', {
 
         let applied = false
         let verification = null
+        let verificationTask = null
         if (artifact.type === 'doc_patch' || artifact.type === 'citation_insert') {
           let currentContent = ''
           const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
@@ -1833,7 +1834,7 @@ export const useAiStore = defineStore('ai', {
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'
-          verification = (await runResearchVerificationRust({
+          const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
             taskId: artifact.taskId,
             artifactId: artifact.id,
@@ -1843,7 +1844,9 @@ export const useAiStore = defineStore('ai', {
             references: referencesStore.references,
             citationStyle: referencesStore.citationStyle,
             filePath: artifact.filePath,
-          }).catch(() => null))?.verification || null
+          }).catch(() => null)
+          verification = verificationResponse?.verification || null
+          verificationTask = verificationResponse?.task || null
           toastStore.show(
             artifact.type === 'citation_insert'
               ? t('Citation inserted into the active document.')
@@ -1863,7 +1866,7 @@ export const useAiStore = defineStore('ai', {
           }
           artifact.status = 'applied'
           const reference = referencesStore.references.find((entry) => entry.id === referenceId) || null
-          verification = (await runResearchVerificationRust({
+          const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
             taskId: artifact.taskId,
             artifactId: artifact.id,
@@ -1872,10 +1875,16 @@ export const useAiStore = defineStore('ai', {
             references: referencesStore.references,
             citationStyle: referencesStore.citationStyle,
             filePath: editorStore.activeTab || '',
-          }).catch(() => null))?.verification || null
+          }).catch(() => null)
+          verification = verificationResponse?.verification || null
+          verificationTask = verificationResponse?.task || null
           toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true
-        } else if (artifact.type === 'note_draft') {
+        } else if (
+          artifact.type === 'note_draft'
+          || artifact.type === 'related_work_outline'
+          || artifact.type === 'reading_note_bundle'
+        ) {
           const draftPath = filesStore.createDraftFile({
             ext: '.md',
             suggestedName: artifact.suggestedName || 'ai-note.md',
@@ -1883,14 +1892,23 @@ export const useAiStore = defineStore('ai', {
           })
           editorStore.openFile(draftPath)
           artifact.status = 'applied'
-          verification = (await runResearchVerificationRust({
+          const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
             taskId: artifact.taskId,
             artifactId: artifact.id,
             artifact,
             createdPath: draftPath,
-          }).catch(() => null))?.verification || null
-          toastStore.show(t('AI note opened as a draft.'), { type: 'success' })
+          }).catch(() => null)
+          verification = verificationResponse?.verification || null
+          verificationTask = verificationResponse?.task || null
+          toastStore.show(
+            artifact.type === 'related_work_outline'
+              ? t('Related work outline opened as a draft.')
+              : artifact.type === 'reading_note_bundle'
+                ? t('Reading note opened as a draft.')
+                : t('AI note opened as a draft.'),
+            { type: 'success' }
+          )
           applied = true
         }
         if (targetSession) {
@@ -1905,15 +1923,20 @@ export const useAiStore = defineStore('ai', {
                     : []),
                 ]
               : session.researchVerifications,
-            researchTask: verification
+            researchTask: verificationTask
               ? {
                   ...(session.researchTask || {}),
-                  verificationSummary: String(verification.summary || '').trim(),
-                  blockedReason: verification.blocking ? String(verification.summary || '').trim() : '',
-                  phase: 'verification',
-                  status: verification.blocking ? 'blocked' : String(session.researchTask?.status || 'active'),
+                  ...verificationTask,
                 }
-              : session.researchTask,
+              : verification
+                ? {
+                    ...(session.researchTask || {}),
+                    verificationSummary: String(verification.summary || '').trim(),
+                    blockedReason: verification.blocking ? String(verification.summary || '').trim() : '',
+                    phase: 'verification',
+                    status: verification.blocking ? 'blocked' : String(session.researchTask?.status || 'active'),
+                  }
+                : session.researchTask,
           }))
         }
         return applied

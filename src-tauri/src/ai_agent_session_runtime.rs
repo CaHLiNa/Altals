@@ -350,7 +350,9 @@ fn apply_conversation_event_to_message(message: &Value, event: &Value) -> Value 
 fn artifact_preview(artifact: &Value) -> String {
     match string_field(artifact, &["type"]).as_str() {
         "doc_patch" => preview_text(&string_field(artifact, &["replacementText"]), 180),
-        "note_draft" => preview_text(&string_field(artifact, &["content"]), 180),
+        "note_draft" | "related_work_outline" | "reading_note_bundle" => {
+            preview_text(&string_field(artifact, &["content"]), 180)
+        }
         "citation_insert" => preview_text(
             &[
                 string_field(artifact, &["citationKey"]),
@@ -377,6 +379,18 @@ fn artifact_preview(artifact: &Value) -> String {
                         .join(" · ")
                 })
                 .unwrap_or_default(),
+            180,
+        ),
+        "evidence_bundle" => preview_text(
+            &[
+                string_field(artifact, &["content"]),
+                string_field(artifact, &["selectionPreview"]),
+                string_field(artifact, &["rationale"]),
+            ]
+            .into_iter()
+            .filter(|entry| !entry.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · "),
             180,
         ),
         _ => preview_text(
@@ -466,7 +480,11 @@ fn build_assistant_message(
         } else {
             suggestion
         }
-    } else if artifact_type == "note_draft" {
+    } else if artifact_type == "note_draft"
+        || artifact_type == "related_work_outline"
+        || artifact_type == "reading_note_bundle"
+        || artifact_type == "evidence_bundle"
+    {
         string_field(artifact, &["content"])
     } else if artifact_type == "reference_patch" {
         artifact
