@@ -88,7 +88,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n, formatDate } from '../../i18n'
 import AiArtifactInlineCard from './AiArtifactInlineCard.vue'
 import AiTaskProgressCard from './AiTaskProgressCard.vue'
@@ -97,14 +97,12 @@ import AiToolLine from './AiToolLine.vue'
 const props = defineProps({
   message: { type: Object, required: true },
   artifactsById: { type: Object, default: () => ({}) },
-  animateLatest: { type: Boolean, default: false },
 })
 
 defineEmits(['apply-artifact', 'dismiss-artifact', 'rollback-artifact'])
 
 const { t } = useI18n()
 const displayedTextMap = ref({})
-const revealTimers = new Map()
 
 function trimText(value = '') {
   return String(value || '').trim()
@@ -213,14 +211,6 @@ function artifactActionLabel(artifactId = '') {
   return capability ? t(capability.labelKey) : ''
 }
 
-function clearRevealTimer(index) {
-  const timer = revealTimers.get(index)
-  if (timer) {
-    clearTimeout(timer)
-    revealTimers.delete(index)
-  }
-}
-
 function updateDisplayedText(index, text) {
   displayedTextMap.value = {
     ...displayedTextMap.value,
@@ -228,56 +218,12 @@ function updateDisplayedText(index, text) {
   }
 }
 
-function animateText(index, fullText = '') {
-  clearRevealTimer(index)
-
-  if (!props.animateLatest || !fullText) {
-    updateDisplayedText(index, fullText)
-    return
-  }
-
-  const existing = String(displayedTextMap.value[index] || '')
-  const tokens = fullText.match(/\S+\s*|\s+/g) || [fullText]
-  const step = Math.max(1, Math.ceil(tokens.length / 24))
-  let cursor =
-    existing && fullText.startsWith(existing)
-      ? Math.max(step, Math.ceil((existing.length / Math.max(fullText.length, 1)) * tokens.length))
-      : 0
-
-  const tick = () => {
-    cursor = Math.min(tokens.length, cursor + step)
-    updateDisplayedText(index, tokens.slice(0, cursor).join(''))
-
-    if (cursor < tokens.length) {
-      const timer = setTimeout(tick, 24)
-      revealTimers.set(index, timer)
-      return
-    }
-
-    clearRevealTimer(index)
-  }
-
-  tick()
-}
-
 function syncDisplayedText() {
-  for (const [index] of revealTimers) {
-    if (!displayParts.value[index] || displayParts.value[index].type !== 'text') {
-      clearRevealTimer(index)
-    }
-  }
-
   for (const [index, part] of displayParts.value.entries()) {
     if (part.type !== 'text') continue
     const fullText = String(part.text || '')
-    if (!props.animateLatest) {
-      clearRevealTimer(index)
-      updateDisplayedText(index, fullText)
-      continue
-    }
-
     if (displayedTextMap.value[index] === fullText) continue
-    animateText(index, fullText)
+    updateDisplayedText(index, fullText)
   }
 }
 
@@ -286,18 +232,12 @@ function resolveDisplayedText(index, fallbackText = '') {
 }
 
 watch(
-  () => [textPartSignature.value, props.animateLatest],
+  () => textPartSignature.value,
   () => {
     syncDisplayedText()
   },
   { immediate: true }
 )
-
-onBeforeUnmount(() => {
-  for (const [index] of revealTimers) {
-    clearRevealTimer(index)
-  }
-})
 </script>
 
 <style scoped>
