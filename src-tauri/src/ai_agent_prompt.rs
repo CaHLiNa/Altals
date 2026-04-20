@@ -402,6 +402,15 @@ fn build_resolved_task_block(params: &AiAgentPromptParams) -> String {
     lines.join("\n")
 }
 
+fn route_uses_research_contract(turn_route: &Value, runtime_intent: &str) -> bool {
+    turn_route
+        .get("capabilityPlan")
+        .and_then(|value| value.get("useResearchTask"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || runtime_intent.trim() == "skill"
+}
+
 fn build_turn_route_block(turn_route: &Value) -> String {
     if !turn_route.is_object() {
         return String::new();
@@ -736,6 +745,8 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
 }
 
 fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
+    let use_research_contract =
+        route_uses_research_contract(&params.turn_route, &params.runtime_intent);
     let mut lines = vec![
         "Current task:".to_string(),
         if params.user_instruction.trim().is_empty() {
@@ -744,22 +755,26 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
             params.user_instruction.trim().to_string()
         },
         String::new(),
-        build_research_defaults_block(&params.research_config),
-        String::new(),
         build_turn_route_block(&params.turn_route),
-        String::new(),
-        build_resolved_task_block(params),
-        String::new(),
-        build_research_plan_block(params),
-        String::new(),
-        build_research_context_graph_block(&params.research_context_graph),
-        String::new(),
-        build_workspace_context_prompt_block(&params.context_bundle),
-        String::new(),
-        build_available_skills_block(&params.scribeflow_skills),
-        String::new(),
-        build_selection_precedence_block(params),
     ];
+    if use_research_contract {
+        lines.push(String::new());
+        lines.push(build_research_defaults_block(&params.research_config));
+        lines.push(String::new());
+        lines.push(build_resolved_task_block(params));
+        lines.push(String::new());
+        lines.push(build_research_plan_block(params));
+        lines.push(String::new());
+        lines.push(build_research_context_graph_block(
+            &params.research_context_graph,
+        ));
+    }
+    lines.push(String::new());
+    lines.push(build_workspace_context_prompt_block(&params.context_bundle));
+    lines.push(String::new());
+    lines.push(build_available_skills_block(&params.scribeflow_skills));
+    lines.push(String::new());
+    lines.push(build_selection_precedence_block(params));
     if !params.runtime_native_inputs {
         let referenced = build_referenced_files_block(&params.referenced_files);
         if !referenced.is_empty() {
@@ -888,6 +903,8 @@ pub async fn ai_agent_build_prompt(
     let system_prompt = {
         let route_label = string_field(&params.turn_route, &["label"]);
         let route_summary = string_field(&params.turn_route, &["summary"]);
+        let use_research_contract =
+            route_uses_research_contract(&params.turn_route, &params.runtime_intent);
         let mut lines = vec![
             if params.runtime_intent.trim() == "agent" {
                 "You are an agent embedded in a local-first desktop research and coding workbench."
@@ -905,7 +922,11 @@ pub async fn ai_agent_build_prompt(
             "If the task touches citations, references, or bibliography, preserve cite keys and source traceability so the runtime can verify the result.".to_string(),
             "Skills are provided as an explicit catalog in the prompt. Treat them as Codex-style `SKILL.md` packages and do not infer extra skills from workspace filenames.".to_string(),
             "Do not invent unavailable runtime capabilities or workspace edit powers.".to_string(),
-            "Treat the resolved research task, evidence requirements, preferred artifacts, and verification plan as the primary contract for this run.".to_string(),
+            if use_research_contract {
+                "Treat the resolved research task, evidence requirements, preferred artifacts, and verification plan as the primary contract for this run.".to_string()
+            } else {
+                "For plain workspace operations, execute the requested action directly and answer concisely without echoing internal routing context.".to_string()
+            },
             if !route_label.is_empty() {
                 format!("The Rust router already resolved this turn as `{route_label}`.")
             } else {

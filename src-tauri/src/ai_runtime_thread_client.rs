@@ -235,15 +235,42 @@ fn runtime_tool_part_from_item(item: &Value) -> Option<Value> {
         String::new()
     };
 
+    let payload_tool_call_id = string_field(&payload, &["toolCallId", "tool_call_id"]);
     Some(json!({
         "type": "tool",
-        "toolId": string_field(item, &["id"]),
+        "toolId": if payload_tool_call_id.is_empty() {
+            string_field(item, &["id"])
+        } else {
+            payload_tool_call_id
+        },
         "status": tool_status_from_runtime_item(item, &payload),
         "label": label,
         "context": context,
         "detail": detail,
         "payload": payload,
     }))
+}
+
+fn merge_runtime_tool_parts(existing_parts: &[Value], next_part: &Value) -> Vec<Value> {
+    let tool_id = string_field(next_part, &["toolId"]);
+    if tool_id.is_empty() {
+        let mut parts = existing_parts.to_vec();
+        parts.push(next_part.clone());
+        return parts;
+    }
+
+    let mut parts = existing_parts.to_vec();
+    if let Some(index) = parts
+        .iter()
+        .position(|part| string_field(part, &["toolId"]) == tool_id)
+    {
+        let previous = parts[index].as_object().cloned().unwrap_or_default();
+        let next = next_part.as_object().cloned().unwrap_or_default();
+        parts[index] = Value::Object(previous.into_iter().chain(next).collect());
+        return parts;
+    }
+    parts.push(next_part.clone());
+    parts
 }
 
 fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> {
@@ -281,7 +308,9 @@ fn build_session_messages_from_runtime_snapshot(snapshot: &Value) -> Vec<Value> 
         let tool_parts = turn_items
             .iter()
             .filter_map(runtime_tool_part_from_item)
-            .collect::<Vec<_>>();
+            .fold(Vec::new(), |parts, part| {
+                merge_runtime_tool_parts(&parts, &part)
+            });
 
         if let Some(user_item) = user_item {
             messages.push(build_user_message(user_item));

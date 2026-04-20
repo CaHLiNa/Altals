@@ -629,6 +629,73 @@ fn build_pending_assistant_message(
     })
 }
 
+fn strip_internal_prompt_echo(text: &str) -> String {
+    let normalized = trim(text);
+    if normalized.is_empty() {
+        return String::new();
+    }
+    let markers = [
+        "Research defaults:",
+        "Turn route:",
+        "Resolved research task:",
+        "Required evidence:",
+        "Preferred artifacts:",
+        "Verification plan:",
+        "Research context graph:",
+        "Workspace context:",
+        "## Skills",
+        "Selection precedence:",
+    ];
+    if markers
+        .iter()
+        .filter(|marker| normalized.contains(**marker))
+        .count()
+        < 3
+    {
+        return normalized;
+    }
+
+    let filtered = normalized
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty()
+                && !trimmed.starts_with("Current task:")
+                && !trimmed.starts_with("Research defaults:")
+                && !trimmed.starts_with("- Citation style:")
+                && !trimmed.starts_with("- Evidence strategy:")
+                && !trimmed.starts_with("- Completion threshold:")
+                && !trimmed.starts_with("Turn route:")
+                && !trimmed.starts_with("- Label:")
+                && !trimmed.starts_with("- Runtime intent:")
+                && !trimmed.starts_with("- Summary:")
+                && !trimmed.starts_with("- Capability plan:")
+                && !trimmed.starts_with("- Allowed tools:")
+                && !trimmed.starts_with("- Approval preflight:")
+                && !trimmed.starts_with("Resolved research task:")
+                && !trimmed.starts_with("Required evidence:")
+                && !trimmed.starts_with("Preferred artifacts:")
+                && !trimmed.starts_with("Verification plan:")
+                && !trimmed.starts_with("Research context graph:")
+                && !trimmed.starts_with("- Nodes:")
+                && !trimmed.starts_with("- Edges:")
+                && !trimmed.starts_with("Workspace context:")
+                && !trimmed.starts_with("## Skills")
+                && !trimmed.starts_with("### Available skills")
+                && !trimmed.starts_with("Selection precedence:")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string();
+
+    if filtered.is_empty() {
+        normalized
+    } else {
+        filtered
+    }
+}
+
 fn build_assistant_message(
     id: &str,
     skill: &Value,
@@ -679,7 +746,7 @@ fn build_assistant_message(
             if !answer.is_empty() {
                 answer
             } else {
-                string_field(result, &["content"])
+                strip_internal_prompt_echo(&string_field(result, &["content"]))
             }
         }
     };
@@ -741,7 +808,13 @@ fn build_assistant_message(
         "id": id,
         "role": "assistant",
         "createdAt": created_at,
-        "content": if !main_text.is_empty() { main_text.clone() } else if !rationale.is_empty() { rationale.clone() } else { string_field(result, &["content"]) },
+        "content": if !main_text.is_empty() {
+            main_text.clone()
+        } else if !rationale.is_empty() {
+            rationale.clone()
+        } else {
+            strip_internal_prompt_echo(&string_field(result, &["content"]))
+        },
         "parts": parts,
         "metadata": {
             "skillId": string_field(skill, &["id"]),
