@@ -326,6 +326,11 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
+.ai-conversation-message.is-user .ai-conversation-message__meta {
+  justify-content: flex-end;
+  text-align: right;
+}
+
 .ai-conversation-message__role {
   font-weight: 600;
   color: var(--text-tertiary);
