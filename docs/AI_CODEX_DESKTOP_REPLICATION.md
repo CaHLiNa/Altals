@@ -10,7 +10,7 @@
 
 ## 总体意图
 
-把当前的 ScribeFlow AI 界面演进成更接近 Codex Desktop 的 agent 工作空间，同时仍然扎根于现有的桌面研究工作台。
+把当前的 ScribeFlow AI 界面演进成更接近 Codex Desktop 的研究任务工作区，同时仍然扎根于现有的桌面研究工作台。
 
 稳定的职责分层如下：
 
@@ -123,9 +123,9 @@ Rust 持有的接缝包括：
 Phase 2 已完成。当前已交付结果包括：
 
 - 更轻量、更偏操作型的 session 切换
-- 更密集的 agent work log 线程
+- 更密集的研究任务 work log 线程
 - 更占主导地位的 composer 控制面
-- 更像 agent workspace 的面板层级
+- 更像研究任务工作区的面板层级
 
 ### 设计立场
 
@@ -139,8 +139,8 @@ Phase 2 已完成。当前已交付结果包括：
 
 它不应让人感觉像：
 
-- 通用聊天应用
-- 以设置驱动的 assistant 壳子
+- 与研究上下文脱节的独立对话界面
+- 以设置切换为主的工具面板
 - 徽章堆叠的 dashboard
 - 藏在 inspector rail 里的第二个产品
 

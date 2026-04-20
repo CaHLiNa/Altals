@@ -8,7 +8,7 @@
 - `codex-acp` 负责桌面应用与 Codex 之间的 ACP bridge
 - ScribeFlow 只负责桌面端 session、artifact、verification 与研究工作流集成
 
-这意味着应用不再维护自建 provider runtime，也不再假装自己是另一套 model gateway。
+这意味着应用不再维护自建 AI 接入层，也不再把自己包装成另一套独立模型网关。
 
 ## 收敛结论
 
@@ -36,7 +36,7 @@
    - `webSearch`
    - `useAsciiWorkspaceAlias`
 
-这里的 `codexCli` 不是旧式 provider config，而是：
+这里的 `codexCli` 不是旧式模型接入配置，而是：
 
 - ACP bridge 要连接的 `codex` launcher
 - 默认 model/profile 覆盖
@@ -57,7 +57,7 @@ Rust 侧当前承担以下职责：
 
 前端不再承担：
 
-- provider catalog
+- 模型来源目录
 - API key 管理
 - model pool 聚合
 - HTTP AI proxy / 自建 responses stream
@@ -80,8 +80,8 @@ Rust 侧当前承担以下职责：
 
 它不再承担：
 
-- 旧 provider 兼容语义
-- 伪 model/provider runtime 拼装
+- 旧式模型接入兼容语义
+- 伪 model/runtime 拼装
 - 未接实的 research planner 外壳
 - 对 `codex` 已自带的 workspace 探测、文件遍历、skill 执行做重复封装
 
@@ -90,7 +90,7 @@ Rust 侧当前承担以下职责：
 桌面端 AI 面板现在应该按这套心智模型理解：
 
 - 面板展示的是 `Codex ACP` session
-- 模型信息是当前 launcher override 的展示值，不是“可浏览的 provider model catalog”
+- 模型信息是当前 launcher override 的展示值，不是“应用内模型目录”
 - artifact apply 是 ScribeFlow 本地产品能力，不依赖一层失效的 tool gating
 
 设置页保留：
@@ -100,9 +100,9 @@ Rust 侧当前承担以下职责：
 
 设置页不再表达：
 
-- provider 列表
+- 模型来源列表
 - API key
-- provider connection test
+- 接入层连接测试
 - model pool
 
 ## 已删除的残留
@@ -112,7 +112,7 @@ Rust 侧当前承担以下职责：
 - Tauri `network.rs` 中未被前端使用的 AI proxy / stream 命令
 - 应用内 skill catalog / skill management / `$skill` 补全壳层
 - AI config 中未使用的 `enabledTools`
-- 前端 store 中的伪 provider/model pool 壳层
+- 前端 store 中的伪 model pool 壳层
 - 失效的 artifact capability gating
 
 ## 兼容说明
@@ -134,6 +134,6 @@ Rust 侧当前承担以下职责：
 
 不要重新引入：
 
-- 自建 provider runtime
+- 自建 AI 接入 runtime
 - 应用内 API key 体系
 - 另一套独立 model catalog

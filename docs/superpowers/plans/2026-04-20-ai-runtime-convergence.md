@@ -63,7 +63,7 @@
 
 - [ ] **Step 2: 清理明显无用的前端 AI 依赖**
 
-目标：移除未再使用的 legacy SDK 依赖，避免仓库继续传达“应用自带 provider runtime”的错误信号。
+目标：移除未再使用的 legacy SDK 依赖，避免仓库继续传达“应用自带独立 AI 接入层”的错误信号。
 
 - [ ] **Step 3: 记录验证与 postflight 预期**
 
