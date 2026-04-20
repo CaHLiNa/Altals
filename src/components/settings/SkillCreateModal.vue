@@ -76,7 +76,7 @@ const props = defineProps({
   visible: { type: Boolean, default: false },
   title: { type: String, default: '' },
   submitLabel: { type: String, default: '' },
-  scope: { type: String, default: 'workspace' },
+  scope: { type: String, default: 'project' },
   disableScope: { type: Boolean, default: false },
   name: { type: String, default: '' },
   description: { type: String, default: '' },
@@ -95,8 +95,7 @@ defineEmits([
 const { t } = useI18n()
 
 const scopeOptions = [
-  { value: 'workspace', label: t('Workspace scope') },
-  { value: 'user', label: t('User scope') },
+  { value: 'project', label: t('Project scope') },
 ]
 
 const canSubmit = computed(() => String(props.name || '').trim().length > 0)

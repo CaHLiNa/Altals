@@ -37,36 +37,19 @@ fn normalize_path(value: &str) -> String {
     }
 }
 
-fn home_dir() -> String {
-    dirs::home_dir()
-        .map(|path| normalize_path(&path.to_string_lossy()))
-        .unwrap_or_default()
-}
-
 pub(crate) fn managed_skill_roots(
     workspace_path: &str,
-    global_config_dir: &str,
+    _global_config_dir: &str,
 ) -> HashMap<String, String> {
     let workspace = normalize_path(workspace_path);
-    let global = normalize_path(global_config_dir);
-    HashMap::from([
-        (
-            "workspace".to_string(),
-            if workspace.is_empty() {
-                String::new()
-            } else {
-                format!("{workspace}/.scribeflow/skills")
-            },
-        ),
-        (
-            "user".to_string(),
-            if global.is_empty() {
-                String::new()
-            } else {
-                format!("{global}/skills")
-            },
-        ),
-    ])
+    HashMap::from([(
+        "project".to_string(),
+        if workspace.is_empty() {
+            String::new()
+        } else {
+            format!("{workspace}/.scribeflow/skills")
+        },
+    )])
 }
 
 pub(crate) fn build_skill_search_roots(
@@ -75,58 +58,17 @@ pub(crate) fn build_skill_search_roots(
 ) -> Vec<SkillRoot> {
     let workspace = normalize_path(workspace_path);
     let global = normalize_path(global_config_dir);
-    let home = home_dir();
 
     let candidates = vec![
-        (!home.is_empty()).then(|| SkillRoot {
-            path: format!("{home}/.claude/skills"),
-            scope: "user".to_string(),
-            source: "claude-user".to_string(),
-        }),
-        (!home.is_empty()).then(|| SkillRoot {
-            path: format!("{home}/.codex/skills"),
-            scope: "user".to_string(),
-            source: "codex-user".to_string(),
-        }),
-        (!home.is_empty()).then(|| SkillRoot {
-            path: format!("{home}/.config/agents/skills"),
-            scope: "user".to_string(),
-            source: "agents-user".to_string(),
-        }),
-        (!home.is_empty()).then(|| SkillRoot {
-            path: format!("{home}/.config/goose/skills"),
-            scope: "user".to_string(),
-            source: "goose-user".to_string(),
-        }),
         (!global.is_empty()).then(|| SkillRoot {
             path: format!("{global}/skills"),
-            scope: "user".to_string(),
+            scope: "global".to_string(),
             source: "scribeflow-global".to_string(),
         }),
         (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.claude/skills"),
-            scope: "workspace".to_string(),
-            source: "claude-workspace".to_string(),
-        }),
-        (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.codex/skills"),
-            scope: "workspace".to_string(),
-            source: "codex-workspace".to_string(),
-        }),
-        (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.agents/skills"),
-            scope: "workspace".to_string(),
-            source: "agents-workspace".to_string(),
-        }),
-        (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.goose/skills"),
-            scope: "workspace".to_string(),
-            source: "goose-workspace".to_string(),
-        }),
-        (!workspace.is_empty()).then(|| SkillRoot {
             path: format!("{workspace}/.scribeflow/skills"),
-            scope: "workspace".to_string(),
-            source: "scribeflow-workspace".to_string(),
+            scope: "project".to_string(),
+            source: "scribeflow-project".to_string(),
         }),
     ];
 
@@ -139,9 +81,9 @@ pub(crate) fn build_skill_search_roots(
 }
 
 pub(crate) fn writable_skill_roots(workspace_path: &str, global_config_dir: &str) -> Vec<String> {
-    build_skill_search_roots(workspace_path, global_config_dir)
-        .into_iter()
-        .map(|root| root.path)
+    managed_skill_roots(workspace_path, global_config_dir)
+        .into_values()
+        .filter(|root| !root.is_empty())
         .collect()
 }
 

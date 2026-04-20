@@ -706,8 +706,8 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
             format!(
                 "Scope: {}",
                 match string_field(skill, &["scope"]).as_str() {
-                    "user" => "User scope".to_string(),
-                    "workspace" => "Workspace scope".to_string(),
+                    "global" => "Global scope".to_string(),
+                    "project" => "Project scope".to_string(),
                     _ => "unknown".to_string(),
                 }
             ),

@@ -7,14 +7,14 @@
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Management scope') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Choose where newly created agent skills should live by default.') }}
+              <div class="settings-row-title">{{ t('Management scope') }}</div>
+              <div class="settings-row-hint">
+                {{ t('Project skills are the only writable skills in this workspace.') }}
+              </div>
             </div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
-          </div>
+            <div class="settings-row-control">
+              <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
+            </div>
         </div>
       </div>
     </section>
@@ -182,7 +182,7 @@
                 </p>
               </div>
 
-              <div class="settings-skills-card__actions">
+              <div v-if="canManageSkill(skill)" class="settings-skills-card__actions">
                 <UiButton
                   variant="ghost"
                   size="sm"
@@ -358,7 +358,7 @@ const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 
 const scribeflowSkills = computed(() => aiStore.scribeflowSkills)
-const managementScope = ref('workspace')
+const managementScope = ref('project')
 const searchQuery = ref('')
 const createModalVisible = ref(false)
 const editModalVisible = ref(false)
@@ -373,20 +373,19 @@ const createSkillForm = reactive({
 
 const editSkillForm = reactive({
   originalSkill: null,
-  scope: 'workspace',
+  scope: 'project',
   name: '',
   description: '',
   content: '',
 })
 
 const scopeOptions = computed(() => [
-  { value: 'workspace', label: t('Workspace scope') },
-  { value: 'user', label: t('User scope') },
+  { value: 'project', label: t('Project scope') },
 ])
 
 const skillGroups = computed(() => {
-  const workspaceManaged = []
-  const userManaged = []
+  const globalSkills = []
+  const projectSkills = []
   const query = String(searchQuery.value || '')
     .trim()
     .toLowerCase()
@@ -406,16 +405,13 @@ const skillGroups = computed(() => {
       continue
     }
 
-    if (canDeleteSkill(skill)) {
-      if (skill.scope === 'user') userManaged.push(skill)
-      else workspaceManaged.push(skill)
-      continue
-    }
+    if (skill.scope === 'global') globalSkills.push(skill)
+    else if (skill.scope === 'project') projectSkills.push(skill)
   }
 
   return [
-    { id: 'workspace-managed', label: t('Workspace managed skills'), skills: workspaceManaged },
-    { id: 'user-managed', label: t('User managed skills'), skills: userManaged },
+    { id: 'global-skills', label: t('Global skills'), skills: globalSkills },
+    { id: 'project-skills', label: t('Project skills'), skills: projectSkills },
   ].filter((group) => group.skills.length > 0)
 })
 
@@ -492,6 +488,10 @@ function canDeleteSkill(skill = {}) {
   return skill?.managedByScribeFlow === true
 }
 
+function canManageSkill(skill = {}) {
+  return skill?.scope === 'project' && skill?.writableByScribeFlow === true
+}
+
 function canEditSkill(skill = {}) {
   return skill?.writableByScribeFlow === true
 }
@@ -503,7 +503,7 @@ function canDuplicateSkill(skill = {}) {
 function beginEditSkill(skill = {}) {
   resetMessages()
   editSkillForm.originalSkill = skill
-  editSkillForm.scope = skill.scope || 'workspace'
+  editSkillForm.scope = skill.scope || 'project'
   editSkillForm.name = skill.name || ''
   editSkillForm.description = skill.frontmatter?.description || ''
   editSkillForm.content = skill.body || ''
