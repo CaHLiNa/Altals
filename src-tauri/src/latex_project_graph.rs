@@ -122,6 +122,19 @@ fn offset_to_line(line_offsets: &[usize], offset: usize) -> usize {
     std::cmp::max(1, high + 1)
 }
 
+fn utf16_offset_for_byte_offset(text: &str, byte_offset: usize) -> usize {
+    let mut safe_offset = byte_offset.min(text.len());
+    while safe_offset > 0 && !text.is_char_boundary(safe_offset) {
+        safe_offset -= 1;
+    }
+
+    text[..safe_offset].encode_utf16().count()
+}
+
+fn utf16_offset(content: &str, byte_offset: usize) -> usize {
+    utf16_offset_for_byte_offset(content, byte_offset)
+}
+
 fn has_root_indicator(content: &str) -> bool {
     Regex::new(r"\\documentclass(?:\s*\[[^\]]*\])?\s*\{[^}]+\}")
         .ok()
@@ -253,7 +266,7 @@ fn parse_sections(content: &str, file_path: &str) -> Vec<Value> {
                     "paragraph" => 6,
                     _ => 3
                 },
-                "offset": full.start(),
+                "offset": utf16_offset(content, full.start()),
                 "line": offset_to_line(&line_offsets, full.start()),
             }))
         })
@@ -277,7 +290,7 @@ fn parse_labels(content: &str, file_path: &str) -> Vec<Value> {
             Some(json!({
                 "key": key,
                 "filePath": file_path,
-                "offset": full.start(),
+                "offset": utf16_offset(content, full.start()),
                 "line": offset_to_line(&line_offsets, full.start()),
             }))
         })
@@ -310,7 +323,7 @@ fn parse_citations(content: &str, file_path: &str) -> Vec<Value> {
             out.push(json!({
                 "key": key,
                 "filePath": file_path,
-                "offset": full.start(),
+                "offset": utf16_offset(content, full.start()),
                 "line": offset_to_line(&line_offsets, full.start()),
             }));
         }
@@ -349,7 +362,7 @@ fn parse_includes(content: &str, file_path: &str, available_paths: &HashSet<Stri
                 "command": command,
                 "filePath": file_path,
                 "targetPath": target,
-                "offset": offset,
+                "offset": utf16_offset(content, offset),
                 "raw": raw,
             }));
         }
@@ -383,7 +396,7 @@ fn parse_includes(content: &str, file_path: &str, available_paths: &HashSet<Stri
                 "command": command,
                 "filePath": file_path,
                 "targetPath": target,
-                "offset": offset,
+                "offset": utf16_offset(content, offset),
                 "raw": format!("{}::{}", captures.get(2).map(|value| value.as_str()).unwrap_or_default(), raw_target),
             }));
         }
@@ -439,7 +452,7 @@ fn parse_bibliography_outline_items(content: &str, file_path: &str) -> Vec<Value
             json!({
                 "filePath": file_path,
                 "text": "Bibliography",
-                "offset": item.start(),
+                "offset": utf16_offset(content, item.start()),
                 "line": offset_to_line(&line_offsets, item.start()),
             })
         })
@@ -457,7 +470,7 @@ fn parse_appendices(content: &str, file_path: &str) -> Vec<Value> {
         .map(|item| {
             json!({
                 "filePath": file_path,
-                "offset": item.start(),
+                "offset": utf16_offset(content, item.start()),
                 "line": offset_to_line(&line_offsets, item.start()),
                 "text": "Appendix",
             })
@@ -503,7 +516,7 @@ fn parse_floats(content: &str, file_path: &str) -> Vec<Value> {
             "kind": kind,
             "caption": caption,
             "label": label,
-            "offset": offset,
+            "offset": utf16_offset(content, offset),
             "line": offset_to_line(&line_offsets, offset),
         }));
     }
@@ -1032,7 +1045,7 @@ pub(crate) fn resolve_graph_value(params: &LatexProjectGraphParams) -> Option<Va
                 unresolved_refs.push(json!({
                     "key": key,
                     "filePath": path,
-                    "offset": offset,
+                    "offset": utf16_offset(content, offset),
                     "line": offset_to_line(&line_offsets, offset),
                 }));
             }
@@ -1185,4 +1198,49 @@ pub async fn latex_compile_targets_resolve(
     }
 
     Ok(Value::Array(Vec::new()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_sections, resolve_graph_value, LatexProjectGraphParams};
+    use serde_json::Value;
+    use std::collections::HashMap;
+
+    #[test]
+    fn section_offsets_use_utf16_units() {
+        let content = "前言\n\\section{方法}\n";
+        let sections = parse_sections(content, "/tmp/main.tex");
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].get("offset").and_then(Value::as_u64), Some(3));
+        assert_eq!(sections[0].get("line").and_then(Value::as_u64), Some(2));
+    }
+
+    #[test]
+    fn outline_items_keep_utf16_offsets_for_non_ascii_latex() {
+        let source_path = "/tmp/main.tex".to_string();
+        let content = "前言\n\\section{方法}\n";
+        let graph = resolve_graph_value(&LatexProjectGraphParams {
+            source_path: source_path.clone(),
+            flat_files: vec![source_path.clone()],
+            content_overrides: HashMap::from([(source_path.clone(), content.to_string())]),
+        })
+        .unwrap();
+
+        let outline_items = graph
+            .get("outlineItems")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        assert_eq!(outline_items.len(), 1);
+        assert_eq!(
+            outline_items[0].get("offset").and_then(Value::as_u64),
+            Some(3)
+        );
+        assert_eq!(
+            outline_items[0].get("line").and_then(Value::as_u64),
+            Some(2)
+        );
+    }
 }
