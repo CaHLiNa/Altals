@@ -7,13 +7,12 @@
     </template>
 
     <div class="skill-create-modal__body">
-      <label class="skill-create-modal__field">
+      <label v-if="!disableScope" class="skill-create-modal__field">
         <span class="skill-create-modal__label">{{ t('Scope') }}</span>
         <UiSelect
           :model-value="scope"
           size="md"
           :options="scopeOptions"
-          :disabled="disableScope"
           @update:model-value="$emit('update:scope', $event)"
         />
       </label>
@@ -95,7 +94,8 @@ defineEmits([
 const { t } = useI18n()
 
 const scopeOptions = [
-  { value: 'project', label: t('Project scope') },
+  { value: 'project', label: t('ScribeFlow scope') },
+  { value: 'global', label: t('Global scope') },
 ]
 
 const canSubmit = computed(() => String(props.name || '').trim().length > 0)

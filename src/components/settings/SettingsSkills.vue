@@ -3,41 +3,18 @@
     <h3 class="settings-section-title">{{ t('Agent Skills') }}</h3>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Skill library') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-              <div class="settings-row-title">{{ t('Management scope') }}</div>
-              <div class="settings-row-hint">
-                {{ t('Project skills are the only writable skills in this workspace.') }}
-              </div>
-            </div>
-            <div class="settings-row-control">
-              <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
-            </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Skill routing') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row is-stack">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Skill precedence') }}</div>
-            <div class="settings-row-hint">
-              {{
-                t(
-                  'Use $skill to pin a workflow explicitly. Once selected, that skill remains the active workflow for the request.'
-                )
-              }}
-            </div>
+      <div class="settings-row">
+        <div class="settings-row-copy">
+          <div class="settings-row-title">{{ t('Management scope') }}</div>
+          <div class="settings-row-hint">
+            {{ t('Choose whether new skills go into the shared global library or the ScribeFlow library.') }}
           </div>
         </div>
+        <div class="settings-row-control">
+          <UiSelect v-model="managementScope" size="sm" :options="scopeOptions" />
+        </div>
       </div>
-    </section>
 
-    <section class="settings-group">
       <div
         class="settings-skills-header-row"
         style="display: flex; align-items: center; justify-content: space-between"
@@ -380,7 +357,8 @@ const editSkillForm = reactive({
 })
 
 const scopeOptions = computed(() => [
-  { value: 'project', label: t('Project scope') },
+  { value: 'project', label: t('ScribeFlow scope') },
+  { value: 'global', label: t('Global scope') },
 ])
 
 const skillGroups = computed(() => {
@@ -489,7 +467,7 @@ function canDeleteSkill(skill = {}) {
 }
 
 function canManageSkill(skill = {}) {
-  return skill?.scope === 'project' && skill?.writableByScribeFlow === true
+  return skill?.writableByScribeFlow === true
 }
 
 function canEditSkill(skill = {}) {
@@ -592,12 +570,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.settings-row.is-stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 16px;
-}
-
 /* Tool Registry specific */
 .settings-tool-registry-list {
   display: grid;

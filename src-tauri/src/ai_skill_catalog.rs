@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::app_dirs;
 use crate::ai_skill_text::{parse_skill_markdown, slugify_skill_name, SKILL_FILE_NAME};
 
 const SUPPORTED_SUPPORT_EXTENSIONS: &[&str] = &[
@@ -37,36 +38,66 @@ fn normalize_path(value: &str) -> String {
     }
 }
 
+fn home_dir() -> String {
+    dirs::home_dir()
+        .map(|path| normalize_path(&path.to_string_lossy()))
+        .unwrap_or_default()
+}
+
+fn shared_global_skill_root() -> String {
+    let home = home_dir();
+    if home.is_empty() {
+        String::new()
+    } else {
+        format!("{home}/.config/agents/skills")
+    }
+}
+
+fn resolve_scribeflow_data_root(global_config_dir: &str) -> String {
+    let normalized = normalize_path(global_config_dir);
+    if !normalized.is_empty() && normalized != "/" {
+        return normalized;
+    }
+    app_dirs::data_root_dir()
+        .ok()
+        .map(|path| normalize_path(&path.to_string_lossy()))
+        .unwrap_or_default()
+}
+
 pub(crate) fn managed_skill_roots(
-    workspace_path: &str,
-    _global_config_dir: &str,
+    _workspace_path: &str,
+    global_config_dir: &str,
 ) -> HashMap<String, String> {
-    let workspace = normalize_path(workspace_path);
-    HashMap::from([(
-        "project".to_string(),
-        if workspace.is_empty() {
-            String::new()
-        } else {
-            format!("{workspace}/.scribeflow/skills")
-        },
-    )])
+    let global_config = resolve_scribeflow_data_root(global_config_dir);
+    HashMap::from([
+        ("global".to_string(), shared_global_skill_root()),
+        (
+            "project".to_string(),
+            if global_config.is_empty() {
+                String::new()
+            } else {
+                format!("{global_config}/skills")
+            },
+        ),
+    ])
 }
 
 pub(crate) fn build_skill_search_roots(
-    workspace_path: &str,
+    _workspace_path: &str,
     global_config_dir: &str,
 ) -> Vec<SkillRoot> {
-    let workspace = normalize_path(workspace_path);
-    let global = normalize_path(global_config_dir);
+    let managed_roots = managed_skill_roots("", global_config_dir);
+    let global = managed_roots.get("global").cloned().unwrap_or_default();
+    let project = managed_roots.get("project").cloned().unwrap_or_default();
 
     let candidates = vec![
         (!global.is_empty()).then(|| SkillRoot {
-            path: format!("{global}/skills"),
+            path: global,
             scope: "global".to_string(),
-            source: "scribeflow-global".to_string(),
+            source: "shared-global".to_string(),
         }),
-        (!workspace.is_empty()).then(|| SkillRoot {
-            path: format!("{workspace}/.scribeflow/skills"),
+        (!project.is_empty()).then(|| SkillRoot {
+            path: project,
             scope: "project".to_string(),
             source: "scribeflow-project".to_string(),
         }),
