@@ -664,7 +664,7 @@ export const useAiStore = defineStore('ai', {
     },
 
     planModeState() {
-      return this.currentSession?.planMode || { active: false, summary: '', note: '' }
+      return this.currentSession?.planMode || { active: false, summary: '', note: '', items: [] }
     },
 
     activeTurnState() {

@@ -540,11 +540,20 @@ const blockingContextItems = computed(() => {
 
   const items = []
   if (planModeState.value?.active === true && blockingState.value !== 'exit-plan') {
+    const planItemCount = Array.isArray(planModeState.value.items) ? planModeState.value.items.length : 0
     items.push({
       key: 'plan',
       tone: 'accent',
       label: t('Plan mode'),
-      detail: summarizeStatusDetail(planModeState.value.summary || planModeState.value.note, 48),
+      detail: summarizeStatusDetail(
+        [
+          planModeState.value.summary || planModeState.value.note,
+          planItemCount > 0 ? t('{count} steps', { count: planItemCount }) : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        48
+      ),
     })
   }
   if (resumeState.value?.active === true) {
