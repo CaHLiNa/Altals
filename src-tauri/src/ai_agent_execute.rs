@@ -75,6 +75,13 @@ fn build_provider_config(
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
+        permission_mode: params
+            .config
+            .get("permissionMode")
+            .or_else(|| params.config.get("permission_mode"))
+            .and_then(Value::as_str)
+            .unwrap_or("accept-edits")
+            .to_string(),
         system_prompt: params.system_prompt.clone(),
         temperature: params
             .config

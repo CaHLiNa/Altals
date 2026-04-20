@@ -1436,15 +1436,24 @@ fn parse_ask_user_questions(arguments: &Value) -> Result<Vec<RuntimeAskUserQuest
         .collect()
 }
 
+fn should_bypass_runtime_tool_permissions(permission_mode: &str) -> bool {
+    matches!(
+        permission_mode.trim(),
+        "bypass-permissions" | "bypassPermissions" | "auto"
+    )
+}
+
 async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
     app: &AppHandle<R>,
     runtime: &CodexRuntimeHandle,
     thread_id: &str,
     turn_id: &str,
     workspace_path: &str,
+    permission_mode: &str,
     tool_calls: &[RuntimeToolCall],
 ) -> Vec<RuntimeToolResult> {
     let mut results = Vec::with_capacity(tool_calls.len());
+    let bypass_permissions = should_bypass_runtime_tool_permissions(permission_mode);
     for tool_call in tool_calls {
         if is_apply_patch_tool_call(tool_call) {
             let prepared = match prepare_apply_patch_tool_call(workspace_path, tool_call) {
@@ -1466,39 +1475,59 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                 }
             };
 
-            let permission_payload = build_apply_patch_result(workspace_path, &prepared);
-            let request_id = match request_runtime_tool_permission(
-                app,
-                runtime,
-                thread_id,
-                turn_id,
-                tool_call,
-                "apply_patch",
-                "Approve patch application",
-                "The agent wants to modify files in the current workspace.",
-                format!(
-                    "{} file change(s) requested.",
+            if !bypass_permissions {
+                let permission_payload = build_apply_patch_result(workspace_path, &prepared);
+                let request_id = match request_runtime_tool_permission(
+                    app,
+                    runtime,
+                    thread_id,
+                    turn_id,
+                    tool_call,
+                    "apply_patch",
+                    "Approve patch application",
+                    "The agent wants to modify files in the current workspace.",
+                    format!(
+                        "{} file change(s) requested.",
+                        permission_payload
+                            .get("files")
+                            .and_then(Value::as_array)
+                            .map(|entries| entries.len())
+                            .unwrap_or_default()
+                    ),
                     permission_payload
-                        .get("files")
-                        .and_then(Value::as_array)
-                        .map(|entries| entries.len())
+                        .get("preview")
+                        .and_then(Value::as_str)
                         .unwrap_or_default()
-                ),
-                permission_payload
-                    .get("preview")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-            )
-            .await
-            {
-                Ok(request_id) => request_id,
-                Err(error) => {
+                        .to_string(),
+                )
+                .await
+                {
+                    Ok(request_id) => request_id,
+                    Err(error) => {
+                        results.push(RuntimeToolResult {
+                            tool_call_id: tool_call.id.clone(),
+                            content: serde_json::to_string_pretty(&json!({
+                                "tool": tool_call.name,
+                                "error": error,
+                            }))
+                            .unwrap_or_else(|_| {
+                                "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                            }),
+                            is_error: true,
+                            output: None,
+                        });
+                        continue;
+                    }
+                };
+
+                let behavior =
+                    await_permission_resolution(runtime, thread_id, turn_id, &request_id).await;
+                if behavior.trim() != "allow" {
                     results.push(RuntimeToolResult {
                         tool_call_id: tool_call.id.clone(),
                         content: serde_json::to_string_pretty(&json!({
                             "tool": tool_call.name,
-                            "error": error,
+                            "error": "Patch application was denied by the user.",
                         }))
                         .unwrap_or_else(|_| {
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
@@ -1508,24 +1537,6 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                     });
                     continue;
                 }
-            };
-
-            let behavior =
-                await_permission_resolution(runtime, thread_id, turn_id, &request_id).await;
-            if behavior.trim() != "allow" {
-                results.push(RuntimeToolResult {
-                    tool_call_id: tool_call.id.clone(),
-                    content: serde_json::to_string_pretty(&json!({
-                        "tool": tool_call.name,
-                        "error": "Patch application was denied by the user.",
-                    }))
-                    .unwrap_or_else(|_| {
-                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
-                    }),
-                    is_error: true,
-                    output: None,
-                });
-                continue;
             }
 
             match execute_prepared_apply_patch(workspace_path, &prepared) {
@@ -1573,38 +1584,58 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                 }
             };
 
-            let permission_payload = build_exec_command_result(&prepared);
-            let request_id = match request_runtime_tool_permission(
-                app,
-                runtime,
-                thread_id,
-                turn_id,
-                tool_call,
-                "exec_command",
-                "Approve command execution",
-                "The agent wants to run a shell command in the current workspace.",
-                format!("Command will run in {}.", prepared.workdir),
-                format!(
-                    "{}\n{}",
-                    prepared.command,
-                    permission_payload
-                        .get("shell")
-                        .and_then(Value::as_str)
-                        .map(|shell| format!("shell: {shell}"))
-                        .unwrap_or_default()
+            if !bypass_permissions {
+                let permission_payload = build_exec_command_result(&prepared);
+                let request_id = match request_runtime_tool_permission(
+                    app,
+                    runtime,
+                    thread_id,
+                    turn_id,
+                    tool_call,
+                    "exec_command",
+                    "Approve command execution",
+                    "The agent wants to run a shell command in the current workspace.",
+                    format!("Command will run in {}.", prepared.workdir),
+                    format!(
+                        "{}\n{}",
+                        prepared.command,
+                        permission_payload
+                            .get("shell")
+                            .and_then(Value::as_str)
+                            .map(|shell| format!("shell: {shell}"))
+                            .unwrap_or_default()
+                    )
+                    .trim()
+                    .to_string(),
                 )
-                .trim()
-                .to_string(),
-            )
-            .await
-            {
-                Ok(request_id) => request_id,
-                Err(error) => {
+                .await
+                {
+                    Ok(request_id) => request_id,
+                    Err(error) => {
+                        results.push(RuntimeToolResult {
+                            tool_call_id: tool_call.id.clone(),
+                            content: serde_json::to_string_pretty(&json!({
+                                "tool": tool_call.name,
+                                "error": error,
+                            }))
+                            .unwrap_or_else(|_| {
+                                "{\"error\":\"Failed to serialize tool result.\"}".to_string()
+                            }),
+                            is_error: true,
+                            output: None,
+                        });
+                        continue;
+                    }
+                };
+
+                let behavior =
+                    await_permission_resolution(runtime, thread_id, turn_id, &request_id).await;
+                if behavior.trim() != "allow" {
                     results.push(RuntimeToolResult {
                         tool_call_id: tool_call.id.clone(),
                         content: serde_json::to_string_pretty(&json!({
                             "tool": tool_call.name,
-                            "error": error,
+                            "error": "Command execution was denied by the user.",
                         }))
                         .unwrap_or_else(|_| {
                             "{\"error\":\"Failed to serialize tool result.\"}".to_string()
@@ -1614,24 +1645,6 @@ async fn execute_runtime_tool_calls_with_approvals<R: Runtime>(
                     });
                     continue;
                 }
-            };
-
-            let behavior =
-                await_permission_resolution(runtime, thread_id, turn_id, &request_id).await;
-            if behavior.trim() != "allow" {
-                results.push(RuntimeToolResult {
-                    tool_call_id: tool_call.id.clone(),
-                    content: serde_json::to_string_pretty(&json!({
-                        "tool": tool_call.name,
-                        "error": "Command execution was denied by the user.",
-                    }))
-                    .unwrap_or_else(|_| {
-                        "{\"error\":\"Failed to serialize tool result.\"}".to_string()
-                    }),
-                    is_error: true,
-                    output: None,
-                });
-                continue;
             }
 
             match execute_prepared_exec_command(&prepared).await {
@@ -2024,12 +2037,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bypass_permission_mode_detection_matches_supported_values() {
+        assert!(should_bypass_runtime_tool_permissions("bypass-permissions"));
+        assert!(should_bypass_runtime_tool_permissions("bypassPermissions"));
+        assert!(should_bypass_runtime_tool_permissions("auto"));
+        assert!(!should_bypass_runtime_tool_permissions("accept-edits"));
+        assert!(!should_bypass_runtime_tool_permissions("plan"));
+    }
+
+    #[test]
     fn build_provider_request_uses_responses_api_for_openai() {
         let provider = RuntimeProviderConfig {
             provider_id: "openai".to_string(),
             base_url: "https://api.openai.com/v1/chat/completions".to_string(),
             api_key: "sk-test".to_string(),
             model: "gpt-5".to_string(),
+            permission_mode: "accept-edits".to_string(),
             system_prompt: "system prompt".to_string(),
             temperature: Some(0.2),
             max_tokens: None,
@@ -2108,6 +2131,7 @@ mod tests {
             base_url: "https://api.openai.com/v1".to_string(),
             api_key: "sk-test".to_string(),
             model: "gpt-5".to_string(),
+            permission_mode: "accept-edits".to_string(),
             system_prompt: String::new(),
             temperature: Some(0.2),
             max_tokens: None,
@@ -2147,6 +2171,7 @@ mod tests {
             base_url: "https://api.openai.com/v1".to_string(),
             api_key: "sk-test".to_string(),
             model: "gpt-5".to_string(),
+            permission_mode: "accept-edits".to_string(),
             system_prompt: String::new(),
             temperature: Some(0.2),
             max_tokens: None,
@@ -2675,6 +2700,7 @@ pub async fn run_turn<R: Runtime>(
                     &thread_id,
                     &turn_id,
                     &workspace_path,
+                    &provider.permission_mode,
                     &tool_calls,
                 )
                 .await;

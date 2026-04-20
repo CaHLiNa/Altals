@@ -418,6 +418,8 @@ pub struct RuntimeProviderConfig {
     pub api_key: String,
     pub model: String,
     #[serde(default)]
+    pub permission_mode: String,
+    #[serde(default)]
     pub system_prompt: String,
     #[serde(default)]
     pub temperature: Option<f32>,

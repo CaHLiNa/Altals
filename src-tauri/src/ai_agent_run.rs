@@ -1182,6 +1182,7 @@ fn build_runtime_provider_config(
     config: &Value,
     api_key: &str,
     system_prompt: &str,
+    permission_mode: &str,
 ) -> RuntimeProviderConfig {
     RuntimeProviderConfig {
         provider_id: provider_id.to_string(),
@@ -1197,6 +1198,7 @@ fn build_runtime_provider_config(
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
+        permission_mode: permission_mode.to_string(),
         system_prompt: system_prompt.to_string(),
         temperature: config
             .get("temperature")
@@ -1398,6 +1400,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
     let api_key = string_field(&prepared_run, &["apiKey"]);
     let user_instruction = string_field(&prepared_run, &["userInstruction"]);
     let runtime_intent = string_field(&prepared_run, &["runtimeIntent"]);
+    let effective_permission_mode = string_field(&prepared_run, &["effectivePermissionMode"]);
     let turn_route = prepared_run
         .get("turnRoute")
         .cloned()
@@ -1567,6 +1570,7 @@ async fn ai_agent_run_started_session<R: Runtime>(
                         &config,
                         &api_key,
                         &prompt.system_prompt,
+                        &effective_permission_mode,
                     ),
                     workspace_path: string_field(
                         context_bundle.get("workspace").unwrap_or(&Value::Null),
@@ -1760,7 +1764,6 @@ pub async fn ai_agent_run_prepared_session<R: Runtime>(
     let user_instruction = string_field(&prepared_run, &["userInstruction"]);
     let prompt_draft = string_field(&prepared_run, &["promptDraft"]);
     let effective_permission_mode = string_field(&prepared_run, &["effectivePermissionMode"]);
-
     let started = ai_agent_session_start(AiAgentSessionStartParams {
         session: params.session,
         prepared_run: prepared_run.clone(),
