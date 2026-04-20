@@ -3,13 +3,15 @@
     <textarea
       ref="textareaEl"
       v-bind="$attrs"
-      :value="modelValue"
+      :value="internalValue"
       :rows="rows"
       :placeholder="placeholder"
       :disabled="disabled"
       class="ui-textarea-control"
       :class="{ 'is-monospace': monospace }"
       @input="onInput"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEnd"
       @focus="(event) => emit('focus', event)"
       @blur="(event) => emit('blur', event)"
       @keydown="(event) => emit('keydown', event)"
@@ -18,7 +20,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 defineOptions({
   inheritAttrs: false,
@@ -64,12 +66,109 @@ const shellClass = computed(() => [
   },
 ])
 const propsShellClass = computed(() => props.shellClass)
+const textareaEl = ref(null)
+const internalValue = ref(String(props.modelValue || ''))
+const isComposing = ref(false)
 
-function onInput(event) {
-  emit('update:modelValue', event.target.value)
+function clampSelection(value = 0, max = 0) {
+  return Math.max(0, Math.min(Number(value || 0), max))
 }
 
-const textareaEl = ref(null)
+function measureCommonPrefix(left = '', right = '') {
+  const max = Math.min(left.length, right.length)
+  let index = 0
+  while (index < max && left[index] === right[index]) {
+    index += 1
+  }
+  return index
+}
+
+function measureCommonSuffix(left = '', right = '', prefix = 0) {
+  const leftRemaining = left.length - prefix
+  const rightRemaining = right.length - prefix
+  const max = Math.min(leftRemaining, rightRemaining)
+  let index = 0
+  while (
+    index < max &&
+    left[left.length - 1 - index] === right[right.length - 1 - index]
+  ) {
+    index += 1
+  }
+  return index
+}
+
+function remapOffset(offset = 0, previousValue = '', nextValue = '') {
+  if (previousValue === nextValue) return clampSelection(offset, nextValue.length)
+
+  const prefix = measureCommonPrefix(previousValue, nextValue)
+  const suffix = measureCommonSuffix(previousValue, nextValue, prefix)
+  const previousChangeEnd = previousValue.length - suffix
+  const nextChangeEnd = nextValue.length - suffix
+  const safeOffset = clampSelection(offset, previousValue.length)
+
+  if (safeOffset <= prefix) return safeOffset
+  if (safeOffset >= previousChangeEnd) {
+    return clampSelection(nextChangeEnd + (safeOffset - previousChangeEnd), nextValue.length)
+  }
+  return clampSelection(nextChangeEnd, nextValue.length)
+}
+
+function restoreSelection(previousValue = '', nextValue = '', selection = null) {
+  const el = textareaEl.value
+  if (!el || !selection) return
+
+  const nextStart = remapOffset(selection.start, previousValue, nextValue)
+  const nextEnd = remapOffset(selection.end, previousValue, nextValue)
+  const nextDirection = selection.direction || 'none'
+
+  nextTick(() => {
+    if (!textareaEl.value || document.activeElement !== textareaEl.value) return
+    textareaEl.value.setSelectionRange(nextStart, nextEnd, nextDirection)
+  })
+}
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    const nextValue = String(value || '')
+    if (nextValue === internalValue.value) return
+
+    const el = textareaEl.value
+    const shouldPreserveSelection =
+      !!el && document.activeElement === el && !isComposing.value
+
+    const selection = shouldPreserveSelection
+      ? {
+          start: el.selectionStart ?? internalValue.value.length,
+          end: el.selectionEnd ?? internalValue.value.length,
+          direction: el.selectionDirection || 'none',
+        }
+      : null
+
+    const previousValue = internalValue.value
+    internalValue.value = nextValue
+
+    if (selection) {
+      restoreSelection(previousValue, nextValue, selection)
+    }
+  }
+)
+
+function onInput(event) {
+  const nextValue = String(event.target.value || '')
+  internalValue.value = nextValue
+  if (isComposing.value) return
+  emit('update:modelValue', nextValue)
+}
+
+function onCompositionStart() {
+  isComposing.value = true
+}
+
+function onCompositionEnd(event) {
+  isComposing.value = false
+  onInput(event)
+}
 
 function focus() {
   textareaEl.value?.focus()

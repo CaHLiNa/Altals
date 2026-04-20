@@ -276,7 +276,7 @@ const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
 const modelUpdatePending = ref(false)
-const COMPOSER_MIN_HEIGHT = 38
+const COMPOSER_MIN_HEIGHT = 72
 const COMPOSER_MAX_HEIGHT = 220
 
 const messages = computed(() => aiStore.messages)
@@ -986,7 +986,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px 10px;
+  padding: 8px 12px 10px;
   border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--border-color) 14%, transparent);
   background: color-mix(in srgb, var(--surface-base) 92%, transparent);
@@ -1196,10 +1196,10 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 120px;
-  height: 120px;
+  min-height: 72px;
+  height: auto;
   max-height: 220px;
-  padding: 12px 4px 6px !important;
+  padding: 10px 4px 6px !important;
   resize: none;
   font-size: 15px;
   line-height: 1.6;
