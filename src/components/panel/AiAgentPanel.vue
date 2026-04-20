@@ -55,6 +55,10 @@
             v-if="showResumeBanner"
             :resume-state="resumeState"
           />
+          <AiTurnStatusCard
+            v-if="showTurnStatusCard"
+            :turn="activeTurnState"
+          />
           <AiCompactingBanner
             v-if="showCompactingBanner"
             :compaction="compactionState"
@@ -292,6 +296,7 @@ import AiPermissionBanner from './AiPermissionBanner.vue'
 import AiResearchTaskDetailCard from './AiResearchTaskDetailCard.vue'
 import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
+import AiTurnStatusCard from './AiTurnStatusCard.vue'
 import AiVerificationSummaryCard from './AiVerificationSummaryCard.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
@@ -334,6 +339,7 @@ const activeBackgroundTasks = computed(() => aiStore.activeBackgroundTasks)
 const planModeState = computed(() => aiStore.planModeState)
 const compactionState = computed(() => aiStore.compactionState)
 const resumeState = computed(() => aiStore.resumeState)
+const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
 const currentResearchTask = computed(() => aiStore.currentSession?.researchTask || null)
@@ -490,6 +496,9 @@ const showPlanModeBanner = computed(
 const showResumeBanner = computed(
   () => resumeState.value?.active === true && !hasBlockingState.value
 )
+const showTurnStatusCard = computed(
+  () => !!activeTurnState.value && !hasBlockingState.value
+)
 const showCompactingBanner = computed(
   () => compactionState.value?.active === true && !hasBlockingState.value && !resumeState.value?.active
 )
@@ -520,6 +529,7 @@ const hasRuntimeStateStack = computed(
   () =>
     showPlanModeBanner.value ||
     showResumeBanner.value ||
+    showTurnStatusCard.value ||
     showCompactingBanner.value ||
     showActiveTasksBar.value ||
     showVerificationSummary.value ||
@@ -543,6 +553,23 @@ const blockingContextItems = computed(() => {
       tone: 'info',
       label: t('Waiting to resume'),
       detail: summarizeStatusDetail(resumeState.value.message, 48),
+    })
+  }
+  if (activeTurnState.value) {
+    items.push({
+      key: 'turn-status',
+      tone: 'info',
+      label: t('Turn'),
+      detail: summarizeStatusDetail(
+        [
+          String(activeTurnState.value.status || '').trim(),
+          String(activeTurnState.value.lastToolName || '').trim(),
+          String(activeTurnState.value.pendingRequestKind || '').trim(),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        48
+      ),
     })
   }
   if (compactionState.value?.active === true) {

@@ -79,8 +79,19 @@ export function resolveSessionTaskTitle(session = null, fallbackTitle = 'Session
 export function resolveSessionTaskSubtitle(session = null) {
   const task = normalizeResearchTask(session?.researchTask)
   const evidenceCount = Array.isArray(session?.researchEvidence) ? session.researchEvidence.length : 0
+  const activeTurn = session?.activeTurn && typeof session.activeTurn === 'object' ? session.activeTurn : null
   const verificationSummary = trim(task?.verificationSummary)
   if (!task) {
+    if (activeTurn) {
+      return [
+        trim(activeTurn.label),
+        trim(activeTurn.status),
+        trim(activeTurn.pendingRequestKind),
+        evidenceCount > 0 ? `Evidence ${evidenceCount}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    }
     return evidenceCount > 0 ? `Evidence · ${evidenceCount}` : ''
   }
   if (task.status === 'blocked' && task.blockedReason) {
