@@ -11,6 +11,17 @@
       </div>
     </div>
     <div class="ai-inline-artifact__type">{{ artifactTypeLabel }}</div>
+    <div
+      v-if="artifactRiskLabel || artifactVerificationLabel"
+      class="ai-inline-artifact__meta"
+    >
+      <span v-if="artifactRiskLabel" class="ai-inline-artifact__meta-pill">
+        {{ artifactRiskLabel }}
+      </span>
+      <span v-if="artifactVerificationLabel" class="ai-inline-artifact__meta-pill">
+        {{ artifactVerificationLabel }}
+      </span>
+    </div>
     <div class="ai-inline-artifact__preview">
       {{ preview }}
     </div>
@@ -37,8 +48,25 @@
         </div>
       </div>
     </div>
-    <div v-if="canApply" class="ai-inline-artifact__actions">
+    <div v-if="canApply || canDismiss || canRollback" class="ai-inline-artifact__actions">
       <UiButton
+        v-if="canDismiss"
+        variant="ghost"
+        size="sm"
+        @click="$emit('dismiss', artifact.id)"
+      >
+        {{ t('Dismiss') }}
+      </UiButton>
+      <UiButton
+        v-if="canRollback"
+        variant="ghost"
+        size="sm"
+        @click="$emit('rollback', artifact.id)"
+      >
+        {{ t('Rollback') }}
+      </UiButton>
+      <UiButton
+        v-if="canApply"
         variant="secondary"
         size="sm"
         :disabled="artifact.status === 'applied'"
@@ -59,9 +87,11 @@ const props = defineProps({
   artifact: { type: Object, default: null },
   actionLabel: { type: String, default: '' },
   canApply: { type: Boolean, default: false },
+  canDismiss: { type: Boolean, default: false },
+  canRollback: { type: Boolean, default: false },
 })
 
-defineEmits(['apply'])
+defineEmits(['apply', 'dismiss', 'rollback'])
 
 const { t } = useI18n()
 
@@ -99,8 +129,26 @@ const artifactTypeLabel = computed(() => {
 
 const badgeLabel = computed(() => {
   if (props.artifact?.status === 'applied') return t('Applied')
+  if (props.artifact?.status === 'dismissed') return t('Dismissed')
+  if (props.artifact?.status === 'rolled-back') return t('Rolled back')
   if (props.canApply) return t('Ready to apply')
   return t('Review only')
+})
+
+const artifactRiskLabel = computed(() => {
+  const risk = String(props.artifact?.riskLevel || '').trim().toLowerCase()
+  if (!risk) return ''
+  return `${t('Risk')}: ${risk.toUpperCase()}`
+})
+
+const artifactVerificationLabel = computed(() => {
+  const status = String(props.artifact?.verificationStatus || '').trim().toLowerCase()
+  if (!status || status === 'not-required') return ''
+  if (status === 'verified') return t('Verification: PASS')
+  if (status === 'failed') return t('Verification: FAIL')
+  if (status === 'rolled-back') return t('Verification: rolled back')
+  if (status === 'dismissed') return t('Verification: dismissed')
+  return t('Verification: pending')
 })
 
 function summarizeReferenceUpdates(updates = null) {
@@ -159,6 +207,20 @@ function summarizeReferenceUpdates(updates = null) {
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.ai-inline-artifact__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-inline-artifact__meta-pill {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: color-mix(in srgb, var(--panel-muted) 42%, transparent);
 }
 
 .ai-inline-artifact__sources {

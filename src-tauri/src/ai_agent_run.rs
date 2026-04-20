@@ -479,6 +479,7 @@ fn build_reference_patch_artifact(payload: &Value, context_bundle: &Value) -> Op
         "citationKey": string_field(reference, &["citationKey", "citation_key"]),
         "referenceTitle": string_field(reference, &["title"]),
         "updates": updates,
+        "originalReference": reference.clone(),
         "rationale": string_field(payload, &["rationale"]),
     }))
 }
@@ -788,6 +789,25 @@ fn build_artifact_record(
             }
         })
         .collect::<Vec<_>>();
+    let artifact_type = string_field(&artifact, &["type"]);
+    let verification_required = !matches!(artifact_type.as_str(), "evidence_bundle");
+    let risk_level = match artifact_type.as_str() {
+        "reference_patch" | "compile_fix" => "high",
+        "doc_patch" | "citation_insert" | "claim_evidence_map" | "comparison_table" => "medium",
+        _ => "low",
+    };
+    let rollback_supported = matches!(
+        artifact_type.as_str(),
+        "doc_patch"
+            | "citation_insert"
+            | "reference_patch"
+            | "note_draft"
+            | "related_work_outline"
+            | "reading_note_bundle"
+            | "claim_evidence_map"
+            | "compile_fix"
+            | "comparison_table"
+    );
     object.insert(
         "id".to_string(),
         Value::String(format!("artifact:{}", Uuid::new_v4().simple())),
@@ -804,6 +824,26 @@ fn build_artifact_record(
     object.insert(
         "evidencePreview".to_string(),
         Value::Array(build_artifact_evidence_preview(&evidence_entries)),
+    );
+    object.insert(
+        "verificationRequired".to_string(),
+        Value::Bool(verification_required),
+    );
+    object.insert(
+        "verificationStatus".to_string(),
+        Value::String(if verification_required {
+            "pending".to_string()
+        } else {
+            "not-required".to_string()
+        }),
+    );
+    object.insert(
+        "riskLevel".to_string(),
+        Value::String(risk_level.to_string()),
+    );
+    object.insert(
+        "rollbackSupported".to_string(),
+        Value::Bool(rollback_supported),
     );
     object.insert("status".to_string(), Value::String("pending".to_string()));
     object.insert("createdAt".to_string(), Value::Number(now_ms().into()));

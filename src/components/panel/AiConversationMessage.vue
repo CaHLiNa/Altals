@@ -73,8 +73,12 @@
               v-else-if="part.type === 'artifact'"
               :artifact="resolveArtifact(part.artifactId)"
               :can-apply="artifactCanApply(part.artifactId)"
+              :can-dismiss="artifactCanDismiss(part.artifactId)"
+              :can-rollback="artifactCanRollback(part.artifactId)"
               :action-label="artifactActionLabel(part.artifactId)"
               @apply="$emit('apply-artifact', $event)"
+              @dismiss="$emit('dismiss-artifact', $event)"
+              @rollback="$emit('rollback-artifact', $event)"
             />
           </template>
         </template>
@@ -97,7 +101,7 @@ const props = defineProps({
   animateLatest: { type: Boolean, default: false },
 })
 
-defineEmits(['apply-artifact'])
+defineEmits(['apply-artifact', 'dismiss-artifact', 'rollback-artifact'])
 
 const { t } = useI18n()
 const displayedTextMap = ref({})
@@ -198,7 +202,20 @@ function resolveArtifact(artifactId = '') {
 
 function artifactCanApply(artifactId = '') {
   const artifact = resolveArtifact(artifactId)
+  if (['dismissed', 'rolled-back'].includes(String(artifact?.status || '').trim())) return false
   return canApplyAiArtifact(artifact, props.enabledToolIds)
+}
+
+function artifactCanDismiss(artifactId = '') {
+  const artifact = resolveArtifact(artifactId)
+  const status = String(artifact?.status || '').trim()
+  return !!artifact && status !== 'applied' && status !== 'dismissed' && status !== 'rolled-back'
+}
+
+function artifactCanRollback(artifactId = '') {
+  const artifact = resolveArtifact(artifactId)
+  if (!artifact) return false
+  return artifact.rollbackSupported === true && String(artifact.status || '').trim() === 'applied'
 }
 
 function artifactActionLabel(artifactId = '') {

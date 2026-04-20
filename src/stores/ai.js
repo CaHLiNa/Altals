@@ -1834,6 +1834,19 @@ export const useAiStore = defineStore('ai', {
           }
           editorStore.clearFileDirty(artifact.filePath)
           artifact.status = 'applied'
+          artifact.verificationStatus = 'pending'
+          artifact.rollbackSupported = true
+          artifact.appliedAt = Date.now()
+          if (artifact.type === 'citation_insert') {
+            const insertAt = Number(artifact.insertAt ?? artifact.to ?? -1)
+            if (insertAt >= 0) {
+              artifact.appliedInsertAt = insertAt
+              artifact.appliedCitationText = nextContent.slice(
+                insertAt,
+                insertAt + Math.max(0, nextContent.length - currentContent.length)
+              )
+            }
+          }
           const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
             taskId: artifact.taskId,
@@ -1847,6 +1860,7 @@ export const useAiStore = defineStore('ai', {
           }).catch(() => null)
           verification = verificationResponse?.verification || null
           verificationTask = verificationResponse?.task || null
+          artifact.verificationStatus = String(verification?.status || 'pending').trim() || 'pending'
           toastStore.show(
             artifact.type === 'citation_insert'
               ? t('Citation inserted into the active document.')
@@ -1860,11 +1874,21 @@ export const useAiStore = defineStore('ai', {
           if (!referenceId || !updates) {
             throw new Error(t('Failed to apply AI artifact.'))
           }
+          const originalReference =
+            artifact.originalReference
+            || referencesStore.references.find((entry) => entry.id === referenceId)
+            || null
+          if (originalReference) {
+            artifact.originalReference = JSON.parse(JSON.stringify(originalReference))
+          }
           const updated = await referencesStore.updateReference(currentWorkspacePath(), referenceId, updates)
           if (!updated) {
             throw new Error(t('Failed to apply AI artifact.'))
           }
           artifact.status = 'applied'
+          artifact.verificationStatus = 'pending'
+          artifact.rollbackSupported = true
+          artifact.appliedAt = Date.now()
           const reference = referencesStore.references.find((entry) => entry.id === referenceId) || null
           const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
@@ -1878,6 +1902,7 @@ export const useAiStore = defineStore('ai', {
           }).catch(() => null)
           verification = verificationResponse?.verification || null
           verificationTask = verificationResponse?.task || null
+          artifact.verificationStatus = String(verification?.status || 'pending').trim() || 'pending'
           toastStore.show(t('Reference updated from AI artifact.'), { type: 'success' })
           applied = true
         } else if (
@@ -1895,6 +1920,10 @@ export const useAiStore = defineStore('ai', {
           })
           editorStore.openFile(draftPath)
           artifact.status = 'applied'
+          artifact.verificationStatus = 'pending'
+          artifact.rollbackSupported = true
+          artifact.appliedPath = draftPath
+          artifact.appliedAt = Date.now()
           const verificationResponse = await runResearchVerificationRust({
             workspacePath: currentWorkspacePath(),
             taskId: artifact.taskId,
@@ -1904,6 +1933,7 @@ export const useAiStore = defineStore('ai', {
           }).catch(() => null)
           verification = verificationResponse?.verification || null
           verificationTask = verificationResponse?.task || null
+          artifact.verificationStatus = String(verification?.status || 'pending').trim() || 'pending'
           toastStore.show(
             artifact.type === 'related_work_outline'
               ? t('Related work outline opened as a draft.')
@@ -1960,6 +1990,139 @@ export const useAiStore = defineStore('ai', {
             lastError: message,
           }))
         }
+        toastStore.show(message, { type: 'error' })
+        return false
+      }
+    },
+
+    async dismissArtifact(artifactId = '') {
+      const targetSession = findSessionByArtifactId(this.sessions, artifactId)
+      const artifact = targetSession?.artifacts?.find((item) => item.id === artifactId)
+      if (!artifact) return false
+      const status = String(artifact.status || '').trim()
+      if (status === 'applied' || status === 'dismissed' || status === 'rolled-back') return false
+
+      artifact.status = 'dismissed'
+      artifact.verificationStatus = artifact.verificationRequired === false ? 'not-required' : 'dismissed'
+      artifact.dismissedAt = Date.now()
+
+      if (targetSession) {
+        await this.updateSessionById(targetSession.id, (session) => ({
+          ...session,
+          artifacts: [...session.artifacts],
+        }))
+      }
+      useToastStore().show(t('Artifact dismissed.'), { type: 'success' })
+      return true
+    },
+
+    async rollbackArtifact(artifactId = '') {
+      const targetSession = findSessionByArtifactId(this.sessions, artifactId)
+      const artifact = targetSession?.artifacts?.find((item) => item.id === artifactId)
+      if (!artifact) return false
+      if (artifact.rollbackSupported !== true || String(artifact.status || '').trim() !== 'applied') {
+        return false
+      }
+
+      const toastStore = useToastStore()
+      const editorStore = useEditorStore()
+      const filesStore = useFilesStore()
+      const referencesStore = useReferencesStore()
+
+      try {
+        if (artifact.type === 'doc_patch') {
+          const currentContent = await filesStore.readFile(artifact.filePath)
+          const replacementText = String(artifact.replacementText || '')
+          const inverseArtifact = {
+            from: Number(artifact.from),
+            to: Number(artifact.from) + replacementText.length,
+            originalText: replacementText,
+            replacementText: String(artifact.originalText || ''),
+          }
+          const response = await invoke('ai_artifact_apply_doc_patch', {
+            params: {
+              content: currentContent,
+              artifact: inverseArtifact,
+            },
+          })
+          const nextContent = String(response?.content || '')
+          const saved = await filesStore.saveFile(artifact.filePath, nextContent)
+          if (!saved) throw new Error(t('Failed to rollback AI artifact.'))
+          const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
+            || editorStore.getAnyEditorView(artifact.filePath)
+          if (editorRuntime?.scribeflowApplyExternalContent) {
+            await editorRuntime.scribeflowApplyExternalContent(nextContent)
+          }
+          editorStore.clearFileDirty(artifact.filePath)
+        } else if (artifact.type === 'citation_insert') {
+          const currentContent = await filesStore.readFile(artifact.filePath)
+          const removeText = String(artifact.appliedCitationText || '')
+          const insertAt = Number(artifact.appliedInsertAt ?? artifact.insertAt ?? -1)
+          if (!removeText || insertAt < 0) {
+            throw new Error(t('Failed to rollback AI artifact.'))
+          }
+          const inverseArtifact = {
+            from: insertAt,
+            to: insertAt + removeText.length,
+            originalText: removeText,
+            replacementText: '',
+          }
+          const response = await invoke('ai_artifact_apply_doc_patch', {
+            params: {
+              content: currentContent,
+              artifact: inverseArtifact,
+            },
+          })
+          const nextContent = String(response?.content || '')
+          const saved = await filesStore.saveFile(artifact.filePath, nextContent)
+          if (!saved) throw new Error(t('Failed to rollback AI artifact.'))
+          const editorRuntime = editorStore.getAnyEditorRuntime?.(artifact.filePath)
+            || editorStore.getAnyEditorView(artifact.filePath)
+          if (editorRuntime?.scribeflowApplyExternalContent) {
+            await editorRuntime.scribeflowApplyExternalContent(nextContent)
+          }
+          editorStore.clearFileDirty(artifact.filePath)
+        } else if (artifact.type === 'reference_patch') {
+          const referenceId = String(artifact.referenceId || '').trim()
+          const originalReference = artifact.originalReference && typeof artifact.originalReference === 'object'
+            ? artifact.originalReference
+            : null
+          if (!referenceId || !originalReference) {
+            throw new Error(t('Failed to rollback AI artifact.'))
+          }
+          const restored = await referencesStore.updateReference(
+            currentWorkspacePath(),
+            referenceId,
+            originalReference
+          )
+          if (!restored) throw new Error(t('Failed to rollback AI artifact.'))
+        } else {
+          const appliedPath = String(artifact.appliedPath || '').trim()
+          if (!appliedPath || !filesStore.isDraftFile(appliedPath)) {
+            throw new Error(t('Failed to rollback AI artifact.'))
+          }
+          editorStore.closeFileFromAllPanes(appliedPath)
+          filesStore.clearDraftFile(appliedPath)
+        }
+
+        artifact.status = 'rolled-back'
+        artifact.verificationStatus = 'rolled-back'
+        artifact.rolledBackAt = Date.now()
+
+        if (targetSession) {
+          await this.updateSessionById(targetSession.id, (session) => ({
+            ...session,
+            artifacts: [...session.artifacts],
+          }))
+        }
+
+        toastStore.show(t('Artifact rolled back.'), { type: 'success' })
+        return true
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : String(error || t('Failed to rollback AI artifact.'))
         toastStore.show(message, { type: 'error' })
         return false
       }
