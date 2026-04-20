@@ -67,22 +67,6 @@
             v-if="showActiveTasksBar"
             :tasks="backgroundTaskItems"
           />
-          <AiVerificationSummaryCard
-            v-if="showVerificationSummary"
-            :task="currentResearchTask"
-            :verifications="recentResearchVerifications"
-          />
-          <AiResearchTaskDetailCard
-            v-if="showTaskDetailCard"
-            :task="currentResearchTask"
-            :evidence="recentResearchEvidence"
-            :artifacts="currentTaskArtifacts"
-            :verifications="recentResearchVerifications"
-            :enabled-tool-ids="aiStore.enabledToolIds"
-            @apply-artifact="aiStore.applyArtifact($event)"
-            @dismiss-artifact="aiStore.dismissArtifact($event)"
-            @rollback-artifact="aiStore.rollbackArtifact($event)"
-          />
         </div>
 
         <AiAskUserBanner
@@ -293,11 +277,9 @@ import AiExitPlanBanner from './AiExitPlanBanner.vue'
 import AiInvocationDropdown from './AiInvocationDropdown.vue'
 import AiPlanModeBanner from './AiPlanModeBanner.vue'
 import AiPermissionBanner from './AiPermissionBanner.vue'
-import AiResearchTaskDetailCard from './AiResearchTaskDetailCard.vue'
 import AiResumeBanner from './AiResumeBanner.vue'
 import AiSessionRail from './AiSessionRail.vue'
 import AiTurnStatusCard from './AiTurnStatusCard.vue'
-import AiVerificationSummaryCard from './AiVerificationSummaryCard.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 
 const { t } = useI18n()
@@ -342,23 +324,6 @@ const resumeState = computed(() => aiStore.resumeState)
 const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
-const currentResearchTask = computed(() => aiStore.currentSession?.researchTask || null)
-const recentResearchEvidence = computed(() =>
-  Array.isArray(aiStore.researchEvidence) ? aiStore.researchEvidence.slice(0, 4) : []
-)
-const recentResearchVerifications = computed(() =>
-  Array.isArray(aiStore.researchVerifications) ? aiStore.researchVerifications.slice(0, 3) : []
-)
-const currentTaskArtifacts = computed(() => {
-  const taskArtifactIds = Array.isArray(aiStore.currentSession?.researchTask?.artifactIds)
-    ? aiStore.currentSession.researchTask.artifactIds
-    : []
-  const artifactMap = new Map(artifacts.value.map((artifact) => [artifact.id, artifact]))
-  if (taskArtifactIds.length > 0) {
-    return taskArtifactIds.map((id) => artifactMap.get(id)).filter(Boolean).slice(0, 4)
-  }
-  return artifacts.value.slice(0, 4)
-})
 const modelOptions = computed(() =>
   Array.isArray(aiStore.unifiedModelPoolOptions) ? aiStore.unifiedModelPoolOptions : []
 )
@@ -509,31 +474,13 @@ const backgroundTaskItems = computed(() =>
   }))
 )
 const showActiveTasksBar = computed(() => backgroundTaskItems.value.length > 0 && !hasBlockingState.value)
-const showVerificationSummary = computed(() =>
-  !hasBlockingState.value
-  && (
-    !!currentResearchTask.value
-    || recentResearchVerifications.value.length > 0
-  )
-)
-const showTaskDetailCard = computed(() =>
-  !hasBlockingState.value
-  && (
-    !!currentResearchTask.value
-    || recentResearchEvidence.value.length > 0
-    || currentTaskArtifacts.value.length > 0
-    || recentResearchVerifications.value.length > 0
-  )
-)
 const hasRuntimeStateStack = computed(
   () =>
     showPlanModeBanner.value ||
     showResumeBanner.value ||
     showTurnStatusCard.value ||
     showCompactingBanner.value ||
-    showActiveTasksBar.value ||
-    showVerificationSummary.value ||
-    showTaskDetailCard.value
+    showActiveTasksBar.value
 )
 const blockingContextItems = computed(() => {
   if (!hasBlockingState.value) return []
