@@ -22,6 +22,10 @@ async function loadAiConfig() {
   return invoke('ai_config_load')
 }
 
+async function saveAiConfig(config = {}) {
+  return invoke('ai_config_save', { config })
+}
+
 async function resolveCodexCliState(config = {}) {
   return invoke('codex_cli_state_resolve', { params: { config } })
 }
@@ -1341,6 +1345,21 @@ export const useAiStore = defineStore('ai', {
         version: String(resolvedState?.version || '').trim(),
       }
       return this.providerState
+    },
+
+    async setPreferredModel(model = '') {
+      const normalizedModel = String(model || '').trim()
+      const config = await loadAiConfig()
+      const nextConfig = {
+        ...(config || {}),
+        runtimeBackend: 'codex-acp',
+        codexCli: {
+          ...(config?.codexCli || {}),
+          model: normalizedModel,
+        },
+      }
+      await saveAiConfig(nextConfig)
+      return this.refreshProviderState()
     },
 
     async runActiveSkill(options = {}) {

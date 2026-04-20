@@ -116,6 +116,19 @@
             />
           </div>
 
+          <div class="ai-agent-panel__composer-meta">
+            <UiSelect
+              :model-value="selectedModelValue"
+              size="sm"
+              shell-class="ai-agent-panel__model-chip-shell"
+              :options="modelOptions"
+              :placeholder="t('Use Codex defaults')"
+              :disabled="aiStore.isRunning || modelUpdatePending"
+              :aria-label="t('Model')"
+              @update:model-value="handleModelChange"
+            />
+          </div>
+
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
               <div v-if="showExecutionPolicyControls" class="ai-agent-panel__execution-policy">
@@ -167,17 +180,6 @@
                     aria-hidden="true"
                   ></span>
                 </button>
-              </div>
-
-              <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
-
-              <div class="ai-agent-panel__model-group">
-                <div
-                  class="ai-agent-panel__model-fallback"
-                  :class="{ 'is-muted': !currentRuntimeLabel }"
-                >
-                  {{ currentRuntimeLabel || t('Codex ACP') }}
-                </div>
               </div>
 
               <span class="ai-agent-panel__composer-divider" aria-hidden="true"></span>
@@ -252,6 +254,7 @@ import {
 } from '@tabler/icons-vue'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu'
 import UiButton from '../shared/ui/UiButton.vue'
+import UiSelect from '../shared/ui/UiSelect.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
 import AiActiveTasksBar from './AiActiveTasksBar.vue'
 import AiAskUserBanner from './AiAskUserBanner.vue'
@@ -291,6 +294,7 @@ const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
+const modelUpdatePending = ref(false)
 const COMPOSER_MIN_HEIGHT = 38
 const COMPOSER_MAX_HEIGHT = 220
 
@@ -307,10 +311,30 @@ const resumeState = computed(() => aiStore.resumeState)
 const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
-const currentRuntimeLabel = computed(() => {
-  const model = String(aiStore.providerState.model || '').trim()
-  if (model) return model
-  return t('Using Codex defaults')
+const selectedModelValue = computed(() => String(aiStore.providerState.model || '').trim())
+const modelOptions = computed(() => {
+  const options = [
+    {
+      value: '',
+      label: t('Use Codex defaults'),
+      triggerLabel: t('Use Codex defaults'),
+    },
+    { value: 'gpt-5.4', label: 'GPT-5.4', triggerLabel: 'GPT-5.4' },
+    { value: 'gpt-5.3-codex', label: 'GPT-5.3-Codex', triggerLabel: 'GPT-5.3-Codex' },
+    { value: 'gpt-5.2-codex', label: 'GPT-5.2-Codex', triggerLabel: 'GPT-5.2-Codex' },
+    { value: 'gpt-5-codex', label: 'GPT-5-Codex', triggerLabel: 'GPT-5-Codex' },
+  ]
+  if (
+    selectedModelValue.value &&
+    !options.some((option) => String(option.value || '').trim() === selectedModelValue.value)
+  ) {
+    options.push({
+      value: selectedModelValue.value,
+      label: selectedModelValue.value,
+      triggerLabel: selectedModelValue.value,
+    })
+  }
+  return options
 })
 
 const artifactsById = computed(() =>
@@ -548,6 +572,23 @@ async function runSkill() {
     return
   }
   await aiStore.runActiveSkill()
+}
+
+async function handleModelChange(nextValue = '') {
+  const normalizedValue = String(nextValue || '').trim()
+  if (aiStore.isRunning || modelUpdatePending.value) return
+
+  modelUpdatePending.value = true
+  try {
+    await aiStore.setPreferredModel(normalizedValue)
+  } catch (error) {
+    toastStore.show(
+      error instanceof Error ? error.message : String(error || t('Failed to save AI settings.')),
+      { type: 'error' }
+    )
+  } finally {
+    modelUpdatePending.value = false
+  }
 }
 
 function handleSendClick() {
@@ -993,6 +1034,12 @@ watch(
   position: relative;
 }
 
+.ai-agent-panel__composer-meta {
+  display: flex;
+  align-items: center;
+  padding-top: 6px;
+}
+
 .ai-agent-panel__model-chip {
   flex: 0 1 auto;
   min-width: 0;
@@ -1263,13 +1310,13 @@ watch(
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell) {
   width: auto;
-  max-width: 100%;
+  max-width: 220px;
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
   height: 30px;
   width: auto;
-  max-width: 120px;
+  max-width: 220px;
   padding: 0 24px 0 10px;
   border-color: transparent;
   border-radius: 9px;

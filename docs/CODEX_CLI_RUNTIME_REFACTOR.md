@@ -83,15 +83,18 @@ Rust 侧当前承担以下职责：
 桌面端 AI 面板现在应该按这套心智模型理解：
 
 - 面板展示的是 `Codex ACP` session
-- 模型信息是当前 launcher override 的展示值，不是“应用内模型目录”
+- 模型切换放在聊天框下方，服务于当前任务流，而不是放在后台设置页
 - artifact apply 是 ScribeFlow 本地产品能力，不依赖一层失效的 tool gating
 
 设置页保留：
 
 - `Codex ACP` runtime settings
+- 运行时状态查看与刷新
 
 设置页不再表达：
 
+- `commandPath`
+- `model`
 - 模型来源列表
 - 查证强度 / 完成标准
 - API key
