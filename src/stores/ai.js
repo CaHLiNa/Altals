@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { nanoid } from './utils'
 import {
   buildAiContextBundle,
@@ -27,14 +28,6 @@ async function saveAiConfig(config = null) {
 
 async function resolveCodexCliState(config = {}) {
   return invoke('codex_cli_state_resolve', { params: { config } })
-}
-
-async function interruptCodexCliRun(sessionId = '') {
-  return invoke('codex_cli_interrupt', {
-    params: {
-      sessionId,
-    },
-  })
 }
 
 async function setCurrentAiProviderAndModel(providerId = 'codex-cli', model = '') {
@@ -176,6 +169,75 @@ function resolveAgentSessionRecord(sessions = [], sessionId = '') {
   return sessions.find((session) => session?.id === normalizedId) || sessions[0] || null
 }
 
+function cloneMessageParts(message = null) {
+  return Array.isArray(message?.parts)
+    ? message.parts.map((part) => ({ ...part }))
+    : []
+}
+
+function appendAssistantTextPart(message = null, text = '') {
+  const normalizedText = String(text || '')
+  const parts = cloneMessageParts(message)
+  const textIndex = parts.findIndex((part) => part?.type === 'text')
+  if (textIndex >= 0) {
+    parts[textIndex] = {
+      ...parts[textIndex],
+      text: String(parts[textIndex]?.text || '') + normalizedText,
+      isPlaceholder: false,
+    }
+  } else {
+    parts.push({
+      type: 'text',
+      text: normalizedText,
+    })
+  }
+  return parts
+}
+
+function upsertToolPart(message = null, payload = {}) {
+  const toolCallId = String(payload?.toolCallId || '').trim()
+  if (!toolCallId) return cloneMessageParts(message)
+
+  const nextPart = {
+    type: 'tool',
+    toolId: toolCallId,
+    status: String(payload?.status || 'pending').trim() || 'pending',
+    label: String(payload?.title || '').trim(),
+    context: '',
+    detail: '',
+    payload: {
+      toolName: String(payload?.title || '').trim(),
+      rawInput: payload?.rawInput || null,
+      content: payload?.content || [],
+      locations: payload?.locations || [],
+      toolKind: String(payload?.toolKind || '').trim(),
+    },
+  }
+
+  const parts = cloneMessageParts(message)
+  const toolIndex = parts.findIndex(
+    (part) => part?.type === 'tool' && String(part?.toolId || '').trim() === toolCallId
+  )
+  if (toolIndex >= 0) {
+    parts[toolIndex] = {
+      ...parts[toolIndex],
+      ...nextPart,
+      payload: {
+        ...(parts[toolIndex]?.payload || {}),
+        ...(nextPart.payload || {}),
+      },
+    }
+  } else {
+    parts.push(nextPart)
+  }
+  return parts
+}
+
+function clearPlaceholderParts(message = null) {
+  const parts = cloneMessageParts(message).filter((part) => part?.isPlaceholder !== true)
+  return parts.length > 0 ? parts : []
+}
+
 function ensureManagedAgentSessionsState({
   sessions = [],
   currentSessionId = '',
@@ -277,8 +339,24 @@ async function prepareAgentRunFromCurrentConfigRust({
   })
 }
 
-async function runPreparedAgentSessionRust(params = {}) {
-  return invoke('ai_agent_run_prepared_session', { params })
+async function ensureCodexAcpSessionRust(params = {}) {
+  return invoke('codex_acp_session_ensure', { params })
+}
+
+async function startCodexAcpPromptRust(params = {}) {
+  return invoke('codex_acp_prompt_start', { params })
+}
+
+async function cancelCodexAcpPromptRust(params = {}) {
+  return invoke('codex_acp_prompt_cancel', { params })
+}
+
+async function respondCodexAcpPermissionRust(params = {}) {
+  return invoke('codex_acp_permission_respond', { params })
+}
+
+async function closeCodexAcpSessionRust(params = {}) {
+  return invoke('codex_acp_session_close', { params })
 }
 
 async function mutateSessionLocalRust(session = {}, kind = '', payload = {}) {
@@ -308,6 +386,21 @@ async function normalizeSessionStateRust({
 
 async function runResearchVerificationRust(params = {}) {
   return invoke('research_verification_run', { params })
+}
+
+let aiAgentStreamUnlistenPromise = null
+
+async function ensureAiAgentStreamListener(store) {
+  if (aiAgentStreamUnlistenPromise) {
+    await aiAgentStreamUnlistenPromise
+    return
+  }
+
+  aiAgentStreamUnlistenPromise = listen('ai-agent-stream', (event) => {
+    void store.handleCodexAcpEvent(event?.payload || {})
+  })
+
+  await aiAgentStreamUnlistenPromise
 }
 
 function findSessionByPermissionRequestId(sessions = [], requestId = '') {
@@ -738,6 +831,13 @@ export const useAiStore = defineStore('ai', {
     },
 
     async deleteSession(sessionId = '') {
+      const targetSession = resolveAgentSessionRecord(this.sessions, sessionId || this.currentSessionId)
+      if (targetSession?.runtimeTransport === 'codex-acp') {
+        await closeCodexAcpSessionRust({
+          sessionId: targetSession.id,
+        }).catch(() => null)
+      }
+
       const nextState = await deleteClientSessionRust({
         workspacePath: currentWorkspacePath(),
         sessions: this.sessions,
@@ -1073,9 +1173,245 @@ export const useAiStore = defineStore('ai', {
         (item) => item.requestId === normalizedRequestId
       )
       if (!request) return false
+      const optionId = (() => {
+        if (behavior === 'allow') {
+          return persist ? request.allowAlwaysOptionId : request.allowOnceOptionId
+        }
+        return persist ? request.denyAlwaysOptionId : request.denyOnceOptionId
+      })()
+      if (!String(optionId || '').trim()) return false
 
+      await respondCodexAcpPermissionRust({
+        sessionId: targetSession.id,
+        requestId: Number(normalizedRequestId),
+        optionId,
+      })
       this.clearPermissionRequest(normalizedRequestId, targetSession?.id)
+      await this.updateSessionById(targetSession.id, (session) => ({
+        ...session,
+        activeTurn: session.activeTurn
+          ? {
+              ...session.activeTurn,
+              status: 'running',
+              phase: 'responding',
+              pendingRequestKind: '',
+              pendingRequestId: '',
+              pendingRequestCount: 0,
+              updatedAt: Date.now(),
+            }
+          : session.activeTurn,
+      }))
       return true
+    },
+
+    async syncExternalFileWrite(path = '', content = '') {
+      const normalizedPath = String(path || '').trim()
+      if (!normalizedPath) return
+
+      const filesStore = useFilesStore()
+      const editorStore = useEditorStore()
+      filesStore.setInMemoryFileContent(normalizedPath, String(content || ''))
+
+      const editorRuntime =
+        editorStore.getAnyEditorRuntime?.(normalizedPath) ||
+        editorStore.getAnyEditorView(normalizedPath)
+      if (editorRuntime?.scribeflowApplyExternalContent) {
+        await editorRuntime.scribeflowApplyExternalContent(String(content || ''))
+      }
+      editorStore.clearFileDirty(normalizedPath)
+    },
+
+    async handleCodexAcpEvent(payload = {}) {
+      const sessionId = String(payload?.sessionId || '').trim()
+      if (!sessionId) return
+      const targetSession = resolveAgentSessionRecord(this.sessions, sessionId)
+      if (!targetSession) return
+
+      const kind = String(payload?.kind || '').trim()
+      if (!kind) return
+
+      if (kind === 'file-written') {
+        await this.syncExternalFileWrite(payload?.path, payload?.content)
+        return
+      }
+
+      if (kind === 'runtime-stderr' || kind === 'runtime-note') {
+        return
+      }
+
+      if (kind === 'session-ready') {
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          runtimeThreadId: String(payload?.runtimeSessionId || session.runtimeThreadId || '').trim(),
+          runtimeProviderId: 'codex-cli',
+          runtimeTransport: String(payload?.transport || 'codex-acp').trim(),
+        }))
+        return
+      }
+
+      if (kind === 'permission-request') {
+        const options = Array.isArray(payload?.options) ? payload.options : []
+        const allowAlways = options.find((item) => String(item?.kind || '').trim() === 'allow_always')
+        const allowOnce = options.find((item) => String(item?.kind || '').trim() === 'allow_once')
+        const denyAlways = options.find((item) => String(item?.kind || '').trim() === 'reject_always')
+        const denyOnce = options.find((item) => String(item?.kind || '').trim() === 'reject_once')
+        const rawInput = payload?.toolCall?.rawInput || null
+        const inputPreview =
+          String(payload?.inputPreview || '').trim()
+          || (rawInput ? JSON.stringify(rawInput, null, 2) : '')
+
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          permissionRequests: [
+            {
+              requestId: String(payload?.requestId || '').trim(),
+              streamId: String(payload?.requestId || '').trim(),
+              toolName: String(payload?.toolCall?.title || '').trim(),
+              displayName: String(payload?.toolCall?.title || '').trim(),
+              title: String(payload?.toolCall?.title || '').trim(),
+              description: '',
+              decisionReason: '',
+              inputPreview,
+              runtimeManaged: true,
+              allowOnceOptionId: String(allowOnce?.optionId || '').trim(),
+              allowAlwaysOptionId: String(allowAlways?.optionId || '').trim(),
+              denyOnceOptionId: String(denyOnce?.optionId || '').trim(),
+              denyAlwaysOptionId: String(denyAlways?.optionId || '').trim(),
+            },
+          ],
+          activeTurn: session.activeTurn
+            ? {
+                ...session.activeTurn,
+                status: 'waiting',
+                phase: 'permission',
+                pendingRequestKind: 'permission',
+                pendingRequestId: String(payload?.requestId || '').trim(),
+                pendingRequestCount: 1,
+                lastToolName: String(payload?.toolCall?.title || '').trim(),
+                updatedAt: Date.now(),
+              }
+            : session.activeTurn,
+        }))
+        return
+      }
+
+      if (kind === 'thinking-delta') {
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          activeTurn: session.activeTurn
+            ? {
+                ...session.activeTurn,
+                status: 'running',
+                phase: 'thinking',
+                summary: String(payload?.text || '').trim(),
+                updatedAt: Date.now(),
+              }
+            : session.activeTurn,
+        }))
+        return
+      }
+
+      if (kind === 'tool-update') {
+        await this.updateSessionById(sessionId, (session) => {
+          const pendingAssistantId = String(session?.activeTurn?.pendingAssistantId || '').trim()
+          const nextMessages = Array.isArray(session.messages)
+            ? session.messages.map((message) => {
+              if (message?.id !== pendingAssistantId) return message
+              return {
+                ...message,
+                parts: upsertToolPart(message, payload),
+              }
+            })
+            : session.messages
+
+          return {
+            ...session,
+            messages: nextMessages,
+            activeTurn: session.activeTurn
+              ? {
+                  ...session.activeTurn,
+                  status: 'running',
+                  phase: String(payload?.status || '').trim() === 'completed' ? 'responding' : 'tools',
+                  lastToolName: String(payload?.title || '').trim(),
+                  updatedAt: Date.now(),
+                }
+              : session.activeTurn,
+          }
+        })
+        return
+      }
+
+      if (kind === 'assistant-delta') {
+        await this.updateSessionById(sessionId, (session) => {
+          const pendingAssistantId = String(session?.activeTurn?.pendingAssistantId || '').trim()
+          const nextMessages = Array.isArray(session.messages)
+            ? session.messages.map((message) => {
+              if (message?.id !== pendingAssistantId) return message
+              return {
+                ...message,
+                content: String(message?.content || '') + String(payload?.text || ''),
+                parts: appendAssistantTextPart(
+                  { ...message, parts: clearPlaceholderParts(message) },
+                  payload?.text
+                ),
+              }
+            })
+            : session.messages
+
+          return {
+            ...session,
+            messages: nextMessages,
+            permissionRequests: [],
+            activeTurn: session.activeTurn
+              ? {
+                  ...session.activeTurn,
+                  status: 'running',
+                  phase: 'responding',
+                  pendingRequestKind: '',
+                  pendingRequestId: '',
+                  pendingRequestCount: 0,
+                  updatedAt: Date.now(),
+                }
+              : session.activeTurn,
+          }
+        })
+        return
+      }
+
+      if (kind === 'prompt-finished') {
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          isRunning: false,
+          permissionRequests: [],
+          activeTurn: null,
+          lastError: '',
+        }))
+        return
+      }
+
+      if (kind === 'prompt-cancelled') {
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          isRunning: false,
+          permissionRequests: [],
+          activeTurn: null,
+        }))
+        return
+      }
+
+      if (kind === 'prompt-error' || kind === 'session-exit') {
+        const message = String(payload?.error || payload?.text || t('AI execution failed.')).trim()
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          isRunning: false,
+          permissionRequests: [],
+          activeTurn: null,
+          lastError: message,
+        }))
+        if (message) {
+          useToastStore().show(message, { type: 'error' })
+        }
+      }
     },
 
     async refreshProviderState() {
@@ -1092,7 +1428,7 @@ export const useAiStore = defineStore('ai', {
         model: String(resolvedState?.model || '').trim(),
         profile: String(resolvedState?.profile || '').trim(),
         sandboxMode: String(resolvedState?.sandboxMode || 'workspace-write').trim(),
-        runtimeBackend: 'codex-cli',
+        runtimeBackend: 'codex-acp',
         installed: resolvedState?.installed === true,
         version: String(resolvedState?.version || '').trim(),
       }
@@ -1175,6 +1511,7 @@ export const useAiStore = defineStore('ai', {
         const userMessageId = `message:${nanoid()}`
         pendingAssistantId = `message:${nanoid()}`
         runStarted = true
+        await ensureAiAgentStreamListener(this)
         const optimisticPrompt = String(
           preparedRun?.userInstruction || preparedRun?.promptDraft || activeSession?.promptDraft || ''
         ).trim()
@@ -1182,30 +1519,6 @@ export const useAiStore = defineStore('ai', {
           String(preparedRun?.resolvedTask?.title || optimisticPrompt || '').trim(),
           buildDefaultSessionTitle(this.sessions.length)
         )
-
-        const ensuredThreadState = await ensureClientSessionThreadRust({
-          workspacePath: currentWorkspacePath(),
-          sessions: this.sessions,
-          currentSessionId: this.currentSessionId,
-          sessionId,
-          preferredTitle,
-          fallbackTitle: buildDefaultSessionTitle(1),
-          cwd: useWorkspaceStore().path || '',
-        }).catch(() => null)
-
-        if (ensuredThreadState?.success === true) {
-          this.sessions = mergeOverlaySessionState(
-            this.sessions,
-            Array.isArray(ensuredThreadState?.state?.sessions) ? ensuredThreadState.state.sessions : [],
-            buildDefaultSessionTitle(1)
-          )
-          this.currentSessionId = String(ensuredThreadState?.state?.currentSessionId || this.currentSessionId || '').trim()
-          this.persistCurrentWorkspaceSessions()
-        }
-        const runSessionBase =
-          resolveAgentSessionRecord(this.sessions, sessionId) ||
-          resolveAgentSessionRecord([activeSession], sessionId) ||
-          activeSession
 
         this.runtimePendingSessions = {
           ...this.runtimePendingSessions,
@@ -1218,22 +1531,13 @@ export const useAiStore = defineStore('ai', {
 
         await this.updateSessionById(sessionId, (session) => ({
           ...session,
-          runtimeThreadId: String(
-            ensuredThreadState?.session?.runtime_thread_id
-              || ensuredThreadState?.session?.runtimeThreadId
-              || session.runtimeThreadId
-              || ''
-          ).trim(),
-          runtimeTransport: String(
-            ensuredThreadState?.session?.runtime_transport
-              || ensuredThreadState?.session?.runtimeTransport
-              || session.runtimeTransport
-              || 'codex-cli'
-          ).trim(),
+          runtimeTransport: 'codex-acp',
+          runtimeProviderId: 'codex-cli',
           title:
             Array.isArray(session.messages) && session.messages.length > 0
               ? session.title
               : preferredTitle,
+          permissionRequests: [],
           messages: [
             ...(Array.isArray(session.messages) ? session.messages : []),
             {
@@ -1275,30 +1579,70 @@ export const useAiStore = defineStore('ai', {
           lastError: '',
           promptDraft: '',
           attachments: [],
+          activeTurn: {
+            id: `turn:${nanoid()}`,
+            threadId: String(
+              session.runtimeTransport === 'codex-acp' ? session.runtimeThreadId || '' : ''
+            ).trim(),
+            runtimeTurnId: '',
+            status: 'starting',
+            phase: 'dispatch',
+            label: t('Codex'),
+            summary: '',
+            userInstruction: optimisticPrompt,
+            pendingAssistantId,
+            pendingRequestKind: '',
+            pendingRequestId: '',
+            pendingRequestCount: 0,
+            lastToolName: '',
+            transport: 'codex-acp',
+            route: null,
+            startedAt: Date.now(),
+            updatedAt: Date.now(),
+          },
         }))
 
-        const runResponse = await runPreparedAgentSessionRust({
-          session: runSessionBase,
-          preparedRun,
-          scribeflowSkills: this.scribeflowSkills,
-          pendingAssistantId,
-          userMessageId,
-          createdAt: Date.now(),
-          fallbackTitle: buildDefaultSessionTitle(this.sessions.length),
+        const ensuredSession = await ensureCodexAcpSessionRust({
+          sessionId,
+          runtimeSessionId:
+            activeSession?.runtimeTransport === 'codex-acp'
+              ? String(activeSession?.runtimeThreadId || '').trim()
+              : '',
+          workspacePath: currentWorkspacePath(),
+          cwd: useWorkspaceStore().path || '',
+          title: preferredTitle,
+          config: preparedRun?.config || {},
         })
 
-        await this.updateSessionById(sessionId, () => runResponse?.session)
+        await this.updateSessionById(sessionId, (session) => ({
+          ...session,
+          runtimeThreadId: String(
+            ensuredSession?.runtimeSessionId || session.runtimeThreadId || ''
+          ).trim(),
+          runtimeTransport: 'codex-acp',
+          runtimeProviderId: 'codex-cli',
+          activeTurn: session.activeTurn
+            ? {
+                ...session.activeTurn,
+                threadId: String(
+                  ensuredSession?.runtimeSessionId || session.runtimeThreadId || ''
+                ).trim(),
+                status: 'running',
+                phase: 'waiting',
+                updatedAt: Date.now(),
+              }
+            : session.activeTurn,
+        }))
 
-        if (runResponse?.ok !== true) {
-          if (runResponse?.stopped === true) return null
-          const message = String(runResponse?.error || t('AI execution failed.'))
-          toastStore.show(message, { type: 'error' })
-          return null
-        }
+        await startCodexAcpPromptRust({
+          sessionId,
+          prompt: optimisticPrompt,
+          pendingAssistantId,
+        })
 
         return {
-          assistantMessage: runResponse?.assistantMessage || null,
-          artifact: runResponse?.artifact || null,
+          assistantMessage: null,
+          artifact: null,
         }
       } catch (error) {
         const normalizedErrorMessage =
@@ -1360,8 +1704,10 @@ export const useAiStore = defineStore('ai', {
       }
 
       const response =
-        await interruptCodexCliRun(targetSession.id).catch(() => null)
-      if (response?.interrupted === true) {
+        await cancelCodexAcpPromptRust({
+          sessionId: targetSession.id,
+        }).catch(() => null)
+      if (response?.ok === true) {
         return true
       }
 

@@ -1,6 +1,4 @@
 mod ai_agent_prepare;
-mod ai_agent_run;
-mod ai_agent_session_runtime;
 mod ai_artifact_runtime;
 mod ai_attachment_runtime;
 mod ai_client_session_runtime;
@@ -12,7 +10,7 @@ mod ai_skill_management;
 mod ai_skill_support;
 mod ai_skill_text;
 mod app_dirs;
-mod codex_runtime;
+mod codex_acp_runtime;
 mod codex_cli;
 mod document_outline;
 mod document_workflow;
@@ -405,7 +403,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(codex_runtime::CodexRuntimeHandle::default())
+        .manage(codex_acp_runtime::CodexAcpRuntimeHandle::default())
         .manage(latex::LatexState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
@@ -452,7 +450,6 @@ pub fn run() {
             network::start_ai_responses_stream,
             network::abort_ai_responses_stream,
             ai_agent_prepare::ai_agent_prepare_current_config,
-            ai_agent_run::ai_agent_run_prepared_session,
             ai_artifact_runtime::ai_artifact_apply_doc_patch,
             ai_artifact_runtime::ai_artifact_apply_citation_insert,
             ai_attachment_runtime::ai_attachment_create,
@@ -465,9 +462,12 @@ pub fn run() {
             ai_config::ai_config_load_internal,
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
+            codex_acp_runtime::codex_acp_session_ensure,
+            codex_acp_runtime::codex_acp_prompt_start,
+            codex_acp_runtime::codex_acp_prompt_cancel,
+            codex_acp_runtime::codex_acp_permission_respond,
+            codex_acp_runtime::codex_acp_session_close,
             codex_cli::codex_cli_state_resolve,
-            codex_cli::codex_cli_run,
-            codex_cli::codex_cli_interrupt,
             ai_session_local_runtime::ai_session_local_mutate,
             ai_session_local_runtime::ai_session_state_normalize,
             ai_skill_catalog::ai_skill_catalog_load,
