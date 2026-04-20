@@ -217,7 +217,7 @@ npm run build
 若环境具备完整 AI 审查配置，可追加：
 
 ```bash
-npm run agent:codex-postflight -- --plan docs/2026-04-19-ai-research-expert-plan.md
+npm run agent:codex-postflight -- --plan <当前执行计划路径>
 ```
 
 ---
