@@ -214,12 +214,6 @@ npm run lint
 npm run build
 ```
 
-若环境具备完整 AI 审查配置，可追加：
-
-```bash
-npm run agent:codex-postflight -- --plan <当前执行计划路径>
-```
-
 ---
 
 ## 5. 结果记录模板

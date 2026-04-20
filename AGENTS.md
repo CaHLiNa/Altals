@@ -120,8 +120,6 @@ ScribeFlow 是一个本地优先的桌面学术研究平台，围绕 Markdown、
 - 本仓库默认只保留 Codex 工作流，不再依赖其他 AI 审查链路。
 - 如需启用仓库内的 Codex 审查门禁，在新机器或全新 checkout 初始化时运行一次 `npm run agent:enable-codex-gate`。
 - 需要进行 Codex 审查时，统一使用 `npm run agent:codex-review`。
-- 对于按 plan 执行的改动，在宣称完成前运行 `npm run agent:codex-postflight -- --plan <path-to-plan>`。
-- postflight 审计应输出并核对 `Completed`、`Pending`、`Deviations`、`Risks`、`Verification` 和 `Next step`。
 
 ## Git 执行规则
 

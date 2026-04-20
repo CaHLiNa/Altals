@@ -389,15 +389,9 @@ npm run tauri -- dev
 
 只有在文首列出的 13 个缺失能力组全部有证据标记为 resolved 之后，才能签收这项工作。
 
-- [ ] **步骤 4：执行最终 postflight 审计**
+- [ ] **步骤 4：执行最终人工审计**
 
-如果仓库脚本可用，运行：
-
-```bash
-npm run agent:codex-postflight -- --plan docs/superpowers/plans/2026-04-19-rust-native-editor-feature-recovery.md
-```
-
-如果当前环境无法运行该脚本，则手动审计并记录：
+手动审计并记录：
 
 - 已完成任务
 - 待完成任务

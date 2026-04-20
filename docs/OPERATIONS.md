@@ -14,8 +14,6 @@
   在新机器或全新 checkout 上启用 Codex 的 stop-time review gate。
 - `npm run agent:codex-review`
   运行针对基线分支的 Codex 审查流程。
-- `npm run agent:codex-postflight -- --plan <path>`
-  运行面向 plan 实现工作的 Codex postflight 审计。
 
 ## 提交与推送
 
@@ -25,6 +23,5 @@
 
 ## 备注
 
-- `agent:codex-postflight` 是 Codex-only 工作流下的用户侧 postflight 命令。
 - 桌面应用内的 AI 运行时主路径是 `codex-acp bridge`，`codex` 配置仅表示 launcher defaults。
 - 如果仓库策略变化，要同步更新本文档以及相关脚本。

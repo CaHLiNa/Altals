@@ -371,13 +371,13 @@ function runCli() {
     return
   }
 
-  if (command === 'claude-plan-audit' || command === 'codex-postflight') {
+  if (command === 'claude-plan-audit') {
     runClaudePlanAudit(options)
     return
   }
 
   throw new Error(
-    'Usage: node scripts/agentReviewWorkflow.mjs <enable-codex-gate|codex-review|claude-plan-audit|codex-postflight> [options]'
+    'Usage: node scripts/agentReviewWorkflow.mjs <enable-codex-gate|codex-review|claude-plan-audit> [options]'
   )
 }
 
