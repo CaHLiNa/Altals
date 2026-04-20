@@ -505,7 +505,9 @@ async function main() {
     waitingResumePending: false,
     permissionMode: normalizePermissionMode(
       request.permissionMode
-        || (String(request.approvalMode || '').trim() === 'plan' ? 'plan' : 'acceptEdits')
+        || (request.autoAllowAll === true
+          ? 'bypassPermissions'
+          : (String(request.approvalMode || '').trim() === 'plan' ? 'plan' : 'acceptEdits'))
     ),
   }
 
