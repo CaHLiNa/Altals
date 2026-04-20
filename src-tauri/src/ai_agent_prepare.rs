@@ -986,6 +986,47 @@ async fn ai_agent_prepare(params: AiAgentPrepareParams) -> Result<Value, String>
     }))
 }
 
+fn minimal_codex_cli_prepared_run(
+    params: &AiAgentPrepareCurrentConfigParams,
+    provider_state: Value,
+    provider_config: Value,
+) -> Value {
+    let session = params.active_session.clone();
+    let prompt_draft = string_field(&session, &["promptDraft", "prompt_draft"]);
+    let workspace_path = params.workspace_path.trim().to_string();
+
+    json!({
+        "ok": true,
+        "session": session,
+        "sessionMode": "agent",
+        "isAgentSession": true,
+        "promptDraft": prompt_draft.clone(),
+        "userInstruction": prompt_draft,
+        "providerState": provider_state,
+        "providerId": "codex-cli",
+        "config": provider_config,
+        "effectivePermissionMode": "accept-edits",
+        "enabledToolIds": Value::Array(Vec::new()),
+        "contextBundle": Value::Null,
+        "turnRoute": Value::Null,
+        "resolvedTask": Value::Null,
+        "requiredEvidence": Value::Array(Vec::new()),
+        "selectedArtifacts": Value::Array(Vec::new()),
+        "verificationPlan": Value::Array(Vec::new()),
+        "researchContextGraph": Value::Null,
+        "researchConfig": Value::Null,
+        "runtimeIntent": "agent",
+        "invocation": Value::Null,
+        "requestedToolMentions": Value::Array(Vec::new()),
+        "referencedFiles": Value::Array(Vec::new()),
+        "priorConversation": Value::Array(Vec::new()),
+        "attachments": session.get("attachments").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+        "requestedTools": Value::Array(Vec::new()),
+        "workspacePath": workspace_path,
+        "rawCodexCli": true,
+    })
+}
+
 #[tauri::command]
 pub async fn ai_agent_prepare_current_config(
     params: AiAgentPrepareCurrentConfigParams,
@@ -1016,6 +1057,14 @@ pub async fn ai_agent_prepare_current_config(
             "runtimeBackend".to_string(),
             Value::String(runtime_backend.clone()),
         );
+    }
+
+    if provider_id == "codex-cli" {
+        return Ok(minimal_codex_cli_prepared_run(
+            &params,
+            provider_state,
+            provider_config,
+        ));
     }
 
     ai_agent_prepare(AiAgentPrepareParams {

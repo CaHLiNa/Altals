@@ -512,10 +512,14 @@ async fn ai_agent_run_started_session<R: Runtime>(
         .get("researchConfig")
         .cloned()
         .unwrap_or(Value::Null);
+    let raw_codex_cli = prepared_run
+        .get("rawCodexCli")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
 
     let execution_result: Result<(Value, Option<Value>, Option<Value>, Value), String> = async {
         let mut execution_session = session.clone();
-        if should_hydrate_research_task(&turn_route, &runtime_intent) {
+        if !raw_codex_cli && should_hydrate_research_task(&turn_route, &runtime_intent) {
             execution_session = hydrate_research_context_for_session(
                 execution_session,
                 &skill,
@@ -526,47 +530,73 @@ async fn ai_agent_run_started_session<R: Runtime>(
             .await?;
         }
 
-        let enabled_tool_ids = prepared_run
-            .get("enabledToolIds")
-            .and_then(Value::as_array)
-            .map(|entries| {
-                entries
-                    .iter()
-                    .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
-                    .collect::<Vec<_>>()
+        let prompt = if raw_codex_cli {
+            let raw_prompt = if user_instruction.trim().is_empty() {
+                string_field(&prepared_run, &["promptDraft"])
+            } else {
+                user_instruction.clone()
+            };
+            json!({
+                "system_prompt": "",
+                "user_prompt": raw_prompt,
+                "behavior_id": "",
+                "structured": false,
+                "enabled_tool_ids": Value::Array(Vec::new()),
             })
-            .unwrap_or_default();
-        let prompt = ai_agent_build_prompt(AiAgentPromptParams {
-            skill: skill.clone(),
-            context_bundle: context_bundle.clone(),
-            user_instruction: user_instruction.clone(),
-            conversation: prior_conversation.clone(),
-            scribeflow_skills: params.scribeflow_skills.clone(),
-            support_files: Vec::new(),
-            attachments: attachments.clone(),
-            referenced_files: referenced_files.clone(),
-            requested_tools: requested_tools.clone(),
-            enabled_tool_ids,
-            runtime_intent: runtime_intent.clone(),
-            runtime_native_inputs: false,
-            turn_route: turn_route.clone(),
-            invocation: invocation.clone(),
-            resolved_task: resolved_task.clone(),
-            required_evidence: required_evidence.clone(),
-            selected_artifacts: selected_artifacts.clone(),
-            verification_plan: verification_plan.clone(),
-            research_context_graph: research_context_graph.clone(),
-            research_config: research_config.clone(),
-        })
-        .await?;
+        } else {
+            let enabled_tool_ids = prepared_run
+                .get("enabledToolIds")
+                .and_then(Value::as_array)
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            serde_json::to_value(ai_agent_build_prompt(AiAgentPromptParams {
+                skill: skill.clone(),
+                context_bundle: context_bundle.clone(),
+                user_instruction: user_instruction.clone(),
+                conversation: prior_conversation.clone(),
+                scribeflow_skills: params.scribeflow_skills.clone(),
+                support_files: Vec::new(),
+                attachments: attachments.clone(),
+                referenced_files: referenced_files.clone(),
+                requested_tools: requested_tools.clone(),
+                enabled_tool_ids,
+                runtime_intent: runtime_intent.clone(),
+                runtime_native_inputs: false,
+                turn_route: turn_route.clone(),
+                invocation: invocation.clone(),
+                resolved_task: resolved_task.clone(),
+                required_evidence: required_evidence.clone(),
+                selected_artifacts: selected_artifacts.clone(),
+                verification_plan: verification_plan.clone(),
+                research_context_graph: research_context_graph.clone(),
+                research_config: research_config.clone(),
+            })
+            .await?)
+            .unwrap_or(Value::Null)
+        };
+        let prompt_system = string_field(&prompt, &["system_prompt", "systemPrompt"]);
+        let prompt_user = string_field(&prompt, &["user_prompt", "userPrompt"]);
 
         let codex_result = codex_cli_run(CodexCliRunParams {
             session_id: codex_cli_session_id(&execution_session),
-            prompt: codex_cli_prompt_text(&prompt.system_prompt, &prompt.user_prompt),
-            cwd: string_field(
-                context_bundle.get("workspace").unwrap_or(&Value::Null),
-                &["path"],
-            ),
+            prompt: if raw_codex_cli {
+                prompt_user.clone()
+            } else {
+                codex_cli_prompt_text(&prompt_system, &prompt_user)
+            },
+            cwd: if raw_codex_cli {
+                string_field(&prepared_run, &["workspacePath"])
+            } else {
+                string_field(
+                    context_bundle.get("workspace").unwrap_or(&Value::Null),
+                    &["path"],
+                )
+            },
             config: config.clone(),
         })
         .await?;
@@ -588,18 +618,27 @@ async fn ai_agent_run_started_session<R: Runtime>(
             "transport": "codex-cli",
         });
 
-        Ok((result, None, Some(skill.clone()), execution_session))
+        Ok((
+            result,
+            None,
+            if raw_codex_cli { None } else { Some(skill.clone()) },
+            execution_session,
+        ))
     }
     .await;
 
     match execution_result {
         Ok((result, raw_artifact, response_skill, completed_session_input)) => {
             let mut completed_session_input = completed_session_input;
-            let artifact = build_artifact_record(
-                &string_field(response_skill.as_ref().unwrap_or(&skill), &["id"]),
-                raw_artifact,
-                &completed_session_input,
-            );
+            let artifact = if raw_codex_cli {
+                None
+            } else {
+                build_artifact_record(
+                    &string_field(response_skill.as_ref().unwrap_or(&skill), &["id"]),
+                    raw_artifact,
+                    &completed_session_input,
+                )
+            };
             if let Some(artifact) = artifact.as_ref() {
                 let workspace_path = string_field(
                     context_bundle.get("workspace").unwrap_or(&Value::Null),
@@ -625,11 +664,15 @@ async fn ai_agent_run_started_session<R: Runtime>(
             let completed = ai_agent_session_complete(AiAgentSessionCompleteParams {
                 session: completed_session_input,
                 pending_assistant_id: params.pending_assistant_id,
-                skill: response_skill.unwrap_or(skill),
+                skill: response_skill.unwrap_or(Value::Null),
                 result,
                 artifact: artifact.clone().unwrap_or(Value::Null),
                 provider_state,
-                context_bundle,
+                context_bundle: if raw_codex_cli {
+                    Value::Null
+                } else {
+                    context_bundle
+                },
                 created_at: params.created_at,
             })
             .await?;
