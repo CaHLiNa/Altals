@@ -23,7 +23,7 @@ export const SETTINGS_SECTION_DEFINITIONS = [
   {
     id: 'agent',
     labelKey: 'Agent',
-    descriptionKey: 'Agent runtime, skills, approvals, and built-in tools.',
+    descriptionKey: 'Codex runtime, skills, research defaults, and built-in tools.',
     icon: IconSparkles,
   },
   {

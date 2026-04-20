@@ -119,7 +119,7 @@
 
           <div class="ai-agent-panel__composer-actions">
             <div class="ai-agent-panel__composer-tools">
-              <div class="ai-agent-panel__execution-policy">
+              <div v-if="!isCodexCliRuntime" class="ai-agent-panel__execution-policy">
                 <button
                   type="button"
                   class="ai-agent-panel__policy-button ai-agent-panel__policy-button--plan"
@@ -357,9 +357,15 @@ const currentModelLabel = computed(() => {
   const matchedOption = modelMenuOptions.value.find((option) => option?.value === currentModelValue.value)
   return String(matchedOption?.triggerLabel || matchedOption?.modelLabel || currentModel).trim()
 })
-const loadingModelLabel = computed(() =>
-  aiStore.unifiedModelPoolLoading ? t('Loading models...') : t('No model selected')
-)
+const isCodexCliRuntime = computed(() => aiStore.providerState.currentProviderId === 'codex-cli')
+const loadingModelLabel = computed(() => {
+  if (aiStore.unifiedModelPoolLoading) return t('Loading models...')
+  if (isCodexCliRuntime.value) {
+    const profile = String(aiStore.providerState.profile || '').trim()
+    return profile ? `profile:${profile}` : t('Using Codex defaults')
+  }
+  return t('No model selected')
+})
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -420,7 +426,9 @@ const blockedComposerMessage = computed(() =>
   t('Resolve the current blocking state before sending a new task.')
 )
 const providerNotReadyMessage = computed(() =>
-  aiStore.providerState.requiresApiKey === false
+  isCodexCliRuntime.value
+    ? t('Codex CLI runtime is not ready. Install Codex CLI or fix the configured command path first.')
+    : aiStore.providerState.requiresApiKey === false
     ? t('Agent runtime is not ready. Configure the provider and model before sending.')
     : t('Agent runtime is not ready. Configure the provider, model, and API key before sending.')
 )

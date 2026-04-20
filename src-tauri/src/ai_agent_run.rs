@@ -16,6 +16,7 @@ use crate::ai_agent_session_runtime::{
 };
 use crate::ai_runtime_turn_wait::run_turn_and_wait;
 use crate::ai_skill_support::load_skill_supporting_files;
+use crate::codex_cli::{codex_cli_run, CodexCliRunParams};
 use crate::codex_runtime::{
     protocol::{RuntimeProviderConfig, RuntimeThreadStartParams, RuntimeTurnRunParams},
     storage::persist_runtime_state,
@@ -1264,6 +1265,28 @@ fn response_with_session(
     }
 }
 
+fn codex_cli_prompt_text(system_prompt: &str, user_prompt: &str) -> String {
+    let system = system_prompt.trim();
+    let user = user_prompt.trim();
+    if system.is_empty() {
+        return user.to_string();
+    }
+    if user.is_empty() {
+        return system.to_string();
+    }
+    format!(
+        "Follow the ScribeFlow runtime instructions below.\n\n<System>\n{system}\n</System>\n\n<User>\n{user}\n</User>"
+    )
+}
+
+fn codex_cli_session_id(session: &Value) -> String {
+    let session_id = string_field(session, &["id"]);
+    if !session_id.is_empty() {
+        return session_id;
+    }
+    format!("codex-cli:{}", Uuid::new_v4())
+}
+
 async fn ai_agent_run(params: AiAgentRunParams) -> Result<AiAgentRunResponse, String> {
     let workspace_path = string_field(
         params
@@ -1465,7 +1488,82 @@ async fn ai_agent_run_started_session<R: Runtime>(
 
     let execution_result: Result<(Value, Option<Value>, Option<Value>, Value), String> = async {
         let mut execution_session = session.clone();
-        if should_use_codex_runtime_run(&prepared_run) {
+        if provider_id == "codex-cli" {
+            if should_hydrate_research_task(&turn_route, &runtime_intent) {
+                execution_session = hydrate_research_context_for_session(
+                    execution_session,
+                    &skill,
+                    &context_bundle,
+                    &user_instruction,
+                    &resolved_task,
+                )
+                .await?;
+            }
+
+            let enabled_tool_ids = prepared_run
+                .get("enabledToolIds")
+                .and_then(Value::as_array)
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .filter_map(|entry| entry.as_str().map(|value| value.to_string()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let prompt = ai_agent_build_prompt(AiAgentPromptParams {
+                skill: skill.clone(),
+                context_bundle: context_bundle.clone(),
+                user_instruction: user_instruction.clone(),
+                conversation: prior_conversation.clone(),
+                scribeflow_skills: params.scribeflow_skills.clone(),
+                support_files: Vec::new(),
+                attachments: attachments.clone(),
+                referenced_files: referenced_files.clone(),
+                requested_tools: requested_tools.clone(),
+                enabled_tool_ids,
+                runtime_intent: runtime_intent.clone(),
+                runtime_native_inputs: false,
+                turn_route: turn_route.clone(),
+                invocation: invocation.clone(),
+                resolved_task: resolved_task.clone(),
+                required_evidence: required_evidence.clone(),
+                selected_artifacts: selected_artifacts.clone(),
+                verification_plan: verification_plan.clone(),
+                research_context_graph: research_context_graph.clone(),
+                research_config: research_config.clone(),
+            })
+            .await?;
+
+            let codex_result = codex_cli_run(CodexCliRunParams {
+                session_id: codex_cli_session_id(&execution_session),
+                prompt: codex_cli_prompt_text(&prompt.system_prompt, &prompt.user_prompt),
+                cwd: string_field(
+                    context_bundle.get("workspace").unwrap_or(&Value::Null),
+                    &["path"],
+                ),
+                config: config.clone(),
+            })
+            .await?;
+
+            let runtime_thread_id = string_field(&codex_result, &["threadId", "thread_id"]);
+            if !runtime_thread_id.is_empty() {
+                execution_session["runtimeThreadId"] = Value::String(runtime_thread_id);
+            }
+            execution_session["runtimeProviderId"] = Value::String("codex-cli".to_string());
+            execution_session["runtimeTransport"] = Value::String("codex-cli".to_string());
+
+            let result = json!({
+                "content": string_field(&codex_result, &["content"]),
+                "reasoning": "",
+                "payload": {
+                    "events": codex_result.get("events").cloned().unwrap_or(Value::Array(vec![])),
+                    "stderrPreview": codex_result.get("stderrPreview").cloned().unwrap_or(Value::String(String::new())),
+                },
+                "transport": "codex-cli",
+            });
+
+            Ok((result, None, Some(skill.clone()), execution_session))
+        } else if should_use_codex_runtime_run(&prepared_run) {
             let runtime_handle = runtime_state.inner().clone();
             let runtime_thread_id = ensure_runtime_thread(
                 &runtime_handle,

@@ -4,9 +4,41 @@ use std::path::PathBuf;
 
 use crate::app_dirs;
 
-const AI_CONFIG_VERSION: i64 = 6;
+const AI_CONFIG_VERSION: i64 = 7;
 const DEFAULT_TEMPERATURE: f64 = 0.2;
 const CONFIGURABLE_AI_TOOL_IDS: &[&str] = &["delete-workspace-path"];
+
+fn normalize_codex_cli_config(value: &Value) -> Value {
+    let command_path = value
+        .get("commandPath")
+        .or_else(|| value.get("command"))
+        .and_then(Value::as_str)
+        .unwrap_or("codex")
+        .trim();
+    let sandbox_mode = match value
+        .get("sandboxMode")
+        .or_else(|| value.get("sandbox"))
+        .and_then(Value::as_str)
+        .unwrap_or("workspace-write")
+        .trim()
+    {
+        "read-only" => "read-only",
+        "danger-full-access" => "danger-full-access",
+        _ => "workspace-write",
+    };
+
+    json!({
+        "commandPath": if command_path.is_empty() { "codex" } else { command_path },
+        "model": normalize_model(value.get("model").and_then(Value::as_str).unwrap_or("")),
+        "profile": value.get("profile").and_then(Value::as_str).unwrap_or("").trim(),
+        "sandboxMode": sandbox_mode,
+        "webSearch": value.get("webSearch").and_then(Value::as_bool).unwrap_or(false),
+        "useAsciiWorkspaceAlias": value
+            .get("useAsciiWorkspaceAlias")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+    })
+}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ProviderDefinition {
@@ -359,6 +391,8 @@ fn create_default_ai_config() -> Value {
 
     json!({
         "version": AI_CONFIG_VERSION,
+        "runtimeBackend": "codex-cli",
+        "codexCli": normalize_codex_cli_config(&Value::Null),
         "currentProviderId": "openai",
         "enabledTools": [],
         "providers": Value::Object(providers),
@@ -423,6 +457,16 @@ pub(crate) fn normalize_ai_config(raw_config: Option<&Value>) -> Value {
 
     json!({
         "version": AI_CONFIG_VERSION,
+        "runtimeBackend": match raw_config
+            .get("runtimeBackend")
+            .and_then(Value::as_str)
+            .unwrap_or("codex-cli")
+            .trim()
+        {
+            "provider-http" => "provider-http",
+            _ => "codex-cli",
+        },
+        "codexCli": normalize_codex_cli_config(raw_config.get("codexCli").unwrap_or(&Value::Null)),
         "currentProviderId": if legacy_current_provider_id.is_empty() {
             defaults.get("currentProviderId").cloned().unwrap_or(Value::String("openai".to_string()))
         } else {
@@ -440,6 +484,14 @@ fn sanitize_public_ai_config(config: &Value) -> Value {
     let normalized = normalize_ai_config(Some(config));
     json!({
         "version": AI_CONFIG_VERSION,
+        "runtimeBackend": normalized
+            .get("runtimeBackend")
+            .cloned()
+            .unwrap_or(Value::String("codex-cli".to_string())),
+        "codexCli": normalized
+            .get("codexCli")
+            .cloned()
+            .unwrap_or_else(|| normalize_codex_cli_config(&Value::Null)),
         "currentProviderId": normalize_ai_provider_id(
             normalized.get("currentProviderId").and_then(Value::as_str).unwrap_or("openai")
         ),
@@ -492,6 +544,14 @@ pub async fn ai_config_save(config: Value) -> Result<Value, String> {
     let sanitized = sanitize_public_ai_config(&config);
     let next = json!({
         "version": AI_CONFIG_VERSION,
+        "runtimeBackend": sanitized
+            .get("runtimeBackend")
+            .cloned()
+            .unwrap_or(Value::String("codex-cli".to_string())),
+        "codexCli": sanitized
+            .get("codexCli")
+            .cloned()
+            .unwrap_or_else(|| normalize_codex_cli_config(&Value::Null)),
         "currentProviderId": sanitized.get("currentProviderId").cloned().unwrap_or(Value::String("openai".to_string())),
         "enabledTools": sanitized.get("enabledTools").cloned().unwrap_or(Value::Array(vec![])),
         "providers": sanitized.get("providers").cloned().unwrap_or_else(|| create_default_ai_config()["providers"].clone()),

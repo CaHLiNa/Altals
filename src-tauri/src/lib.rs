@@ -24,6 +24,7 @@ mod ai_turn_policy;
 mod ai_turn_router;
 mod app_dirs;
 mod codex_runtime;
+mod codex_cli;
 mod document_outline;
 mod document_workflow;
 mod document_workflow_action;
@@ -481,6 +482,9 @@ pub fn run() {
             ai_config::ai_config_load_internal,
             ai_config::ai_config_save,
             ai_config::ai_config_save_internal,
+            codex_cli::codex_cli_state_resolve,
+            codex_cli::codex_cli_run,
+            codex_cli::codex_cli_interrupt,
             ai_provider_catalog::ai_provider_catalog_list,
             ai_provider_catalog::ai_provider_state_resolve,
             ai_provider_catalog::ai_provider_models_list,

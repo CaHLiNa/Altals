@@ -85,7 +85,7 @@ const activeSubpage = ref(readPersistedAgentSubpage())
 const subpages = computed(() => [
   {
     id: 'models',
-    label: t('Models'),
+    label: t('Codex runtime'),
   },
   {
     id: 'skills',

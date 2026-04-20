@@ -34,6 +34,18 @@ async function loadAiApiKey(providerId = 'openai') {
   return normalizeAiApiKey(apiKey)
 }
 
+async function resolveCodexCliState(config = {}) {
+  return invoke('codex_cli_state_resolve', { params: { config } })
+}
+
+async function interruptCodexCliRun(sessionId = '') {
+  return invoke('codex_cli_interrupt', {
+    params: {
+      sessionId,
+    },
+  })
+}
+
 function normalizeAiApiKey(apiKey = '') {
   return typeof apiKey === 'string' ? apiKey : String(apiKey ?? '')
 }
@@ -60,6 +72,9 @@ async function listAiProviderDefinitions() {
 
 async function setCurrentAiProvider(providerId = 'openai') {
   const config = await loadAiConfig()
+  if (String(config?.runtimeBackend || '').trim() === 'codex-cli') {
+    return config
+  }
   const normalizedProviderId = String(providerId || '').trim().toLowerCase() || 'openai'
   const nextConfig = {
     ...(config || {}),
@@ -71,6 +86,17 @@ async function setCurrentAiProvider(providerId = 'openai') {
 
 async function setCurrentAiProviderAndModel(providerId = 'openai', model = '') {
   const config = await loadAiConfig()
+  if (String(config?.runtimeBackend || '').trim() === 'codex-cli') {
+    const nextConfig = {
+      ...(config || {}),
+      codexCli: {
+        ...(config?.codexCli || {}),
+        model: String(model || '').trim(),
+      },
+    }
+    await saveAiConfig(nextConfig)
+    return nextConfig
+  }
   const currentProviderId = String(providerId || config?.currentProviderId || 'openai').trim() || 'openai'
   const providerConfig = config?.providers?.[currentProviderId] || {}
   const normalizedModel = String(model || '').trim()
@@ -537,12 +563,16 @@ export const useAiStore = defineStore('ai', {
       ready: false,
       hasKey: false,
       requiresApiKey: true,
-      currentProviderId: 'openai',
-      currentProviderLabel: 'OpenAI',
+      currentProviderId: 'codex-cli',
+      currentProviderLabel: 'Codex CLI',
       enabledToolIds: [],
       baseUrl: '',
       model: '',
       approvalMode: 'per-tool',
+      profile: '',
+      sandboxMode: 'workspace-write',
+      runtimeBackend: 'codex-cli',
+      installed: false,
     },
     unifiedModelPoolOptions: [],
     unifiedModelPoolLoading: false,
@@ -1339,6 +1369,29 @@ export const useAiStore = defineStore('ai', {
 
     async refreshProviderState() {
       const config = await loadAiConfig()
+      const runtimeBackend = String(config?.runtimeBackend || 'codex-cli').trim() || 'codex-cli'
+      if (runtimeBackend === 'codex-cli') {
+        const resolvedState = await resolveCodexCliState(config?.codexCli || {})
+        this.providerState = {
+          ready: resolvedState?.ready === true,
+          hasKey: true,
+          requiresApiKey: false,
+          currentProviderId: 'codex-cli',
+          currentProviderLabel: 'Codex CLI',
+          enabledToolIds: [],
+          baseUrl: '',
+          model: String(resolvedState?.model || '').trim(),
+          approvalMode: 'never',
+          profile: String(resolvedState?.profile || '').trim(),
+          sandboxMode: String(resolvedState?.sandboxMode || 'workspace-write').trim(),
+          runtimeBackend,
+          installed: resolvedState?.installed === true,
+          version: String(resolvedState?.version || '').trim(),
+        }
+        this.unifiedModelPoolOptions = []
+        this.unifiedModelPoolError = ''
+        return this.providerState
+      }
       const currentProviderId = String(config?.currentProviderId || 'openai').trim()
       const providerConfig = config?.providers?.[currentProviderId] || {}
       const apiKey = await loadAiApiKey(currentProviderId)
@@ -1364,6 +1417,12 @@ export const useAiStore = defineStore('ai', {
     },
 
     async refreshUnifiedModelPool({ force = false } = {}) {
+      const config = await loadAiConfig()
+      if (String(config?.runtimeBackend || 'codex-cli').trim() === 'codex-cli') {
+        this.unifiedModelPoolOptions = []
+        this.unifiedModelPoolError = ''
+        return []
+      }
       if (this.unifiedModelPoolLoading) {
         return this.unifiedModelPoolOptions
       }
@@ -1779,9 +1838,12 @@ export const useAiStore = defineStore('ai', {
         }
       }
 
-      const response = await interruptRuntimeSessionRust({
-        session: targetSession,
-      }).catch(() => null)
+      const response =
+        String(targetSession.runtimeTransport || '').trim() === 'codex-cli'
+          ? await interruptCodexCliRun(targetSession.id).catch(() => null)
+          : await interruptRuntimeSessionRust({
+              session: targetSession,
+            }).catch(() => null)
       if (response?.interrupted === true) {
         return true
       }
