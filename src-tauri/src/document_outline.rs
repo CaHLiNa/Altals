@@ -107,7 +107,13 @@ fn enrich_outline_tree(
             item.ancestor_keys = Vec::new();
             item.has_children = false;
             item.is_tree_node = is_tree_node(&item);
-            if item.file_path.as_deref().unwrap_or_default().trim().is_empty() {
+            if item
+                .file_path
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+            {
                 item.file_path = Some(fallback_path.to_string());
             }
             item
@@ -121,7 +127,11 @@ fn enrich_outline_tree(
     for item in &items {
         if item.is_tree_node {
             let level = tree_level(item);
-            while stack.last().map(|(_, stack_level)| *stack_level >= level).unwrap_or(false) {
+            while stack
+                .last()
+                .map(|(_, stack_level)| *stack_level >= level)
+                .unwrap_or(false)
+            {
                 stack.pop();
             }
 
@@ -188,7 +198,8 @@ fn latex_outline_items(
     })
     .unwrap_or(Value::Null);
 
-    graph.get("outlineItems")
+    graph
+        .get("outlineItems")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
@@ -256,9 +267,15 @@ mod tests {
 
         assert!(enriched[0].has_children);
         assert!(enriched[0].ancestor_keys.is_empty());
-        assert_eq!(enriched[1].ancestor_keys, vec![enriched[0].node_key.clone()]);
+        assert_eq!(
+            enriched[1].ancestor_keys,
+            vec![enriched[0].node_key.clone()]
+        );
         assert!(enriched[2].has_children);
-        assert_eq!(enriched[3].ancestor_keys, vec![enriched[0].node_key.clone(), enriched[2].node_key.clone()]);
+        assert_eq!(
+            enriched[3].ancestor_keys,
+            vec![enriched[0].node_key.clone(), enriched[2].node_key.clone()]
+        );
         assert!(!enriched[4].is_tree_node);
         assert!(enriched[4].ancestor_keys.is_empty());
     }
