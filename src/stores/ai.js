@@ -289,22 +289,14 @@ async function switchSessionOverlayState({
 
 async function prepareAgentRunFromCurrentConfigRust({
   activeSession = null,
-  activeSkill = null,
-  scribeflowSkills = [],
   contextBundle = {},
-  sessionMode = 'chat',
   workspacePath = '',
-  flatFiles = [],
 } = {}) {
   return invoke('ai_agent_prepare_current_config', {
     params: {
       activeSession,
-      activeSkill,
-      scribeflowSkills,
       contextBundle,
-      sessionMode,
       workspacePath,
-      flatFiles,
     },
   })
 }
@@ -1392,7 +1384,6 @@ export const useAiStore = defineStore('ai', {
 
     async runActiveSkill(options = {}) {
       const toastStore = useToastStore()
-      const filesStore = useFilesStore()
       const requestedSessionId = String(options?.sessionId || this.currentSessionId || '').trim()
       const activeSession =
         resolveAgentSessionRecord(this.sessions, requestedSessionId) ||
@@ -1412,29 +1403,17 @@ export const useAiStore = defineStore('ai', {
       try {
         preparedRun = await prepareAgentRunFromCurrentConfigRust({
           activeSession,
-          activeSkill: null,
-          scribeflowSkills: this.scribeflowSkills,
           contextBundle: this.currentContextBundle,
-          sessionMode: 'agent',
           workspacePath: useWorkspaceStore().path || '',
-          flatFiles: filesStore.flatFiles,
         })
 
         if (!preparedRun.ok) {
-          const errorMessageByCode = {
-            SESSION_UNAVAILABLE: t('AI execution failed.'),
-            AI_SKILL_UNAVAILABLE: t('AI skill is not available.'),
-            MISSING_CONTEXT: t('The selected AI skill is missing required context.'),
-            PROVIDER_NOT_READY: t('Codex ACP runtime is not ready. Check the configured Codex command first.'),
-          }
-          const message = errorMessageByCode[preparedRun.code] || t('AI execution failed.')
+          const message = t('AI execution failed.')
           await this.updateSessionById(sessionId, (session) => ({
             ...session,
             lastError: message,
           }))
-          if (preparedRun.code !== 'SESSION_UNAVAILABLE') {
-            toastStore.show(message, { type: 'warning' })
-          }
+          toastStore.show(message, { type: 'warning' })
           return null
         }
 
@@ -1442,11 +1421,15 @@ export const useAiStore = defineStore('ai', {
         pendingAssistantId = `message:${nanoid()}`
         runStarted = true
         await ensureAiAgentStreamListener(this)
-        const optimisticPrompt = String(
+        const rawUserInstruction = String(
           preparedRun?.userInstruction || preparedRun?.promptDraft || activeSession?.promptDraft || ''
         ).trim()
+        const dispatchPrompt = String(preparedRun?.dispatchPrompt || rawUserInstruction).trim()
+        const contextChips = Array.isArray(preparedRun?.contextSummary?.chips)
+          ? preparedRun.contextSummary.chips
+          : []
         const preferredTitle = summarizeSessionTitle(
-          String(optimisticPrompt || '').trim(),
+          rawUserInstruction,
           buildDefaultSessionTitle(this.sessions.length)
         )
 
@@ -1474,17 +1457,17 @@ export const useAiStore = defineStore('ai', {
               id: userMessageId,
               role: 'user',
               createdAt: Date.now(),
-              content: optimisticPrompt,
+              content: rawUserInstruction,
               parts: [
                 {
                   type: 'text',
-                  text: optimisticPrompt,
+                  text: rawUserInstruction,
                 },
               ],
               metadata: {
                 skillId: '',
                 skillLabel: '',
-                contextChips: [],
+                contextChips,
               },
             },
             {
@@ -1493,7 +1476,7 @@ export const useAiStore = defineStore('ai', {
               createdAt: Date.now() + 1,
               content: '',
               parts: [],
-              metadata: { skillId: '', skillLabel: '', contextChips: [] },
+              metadata: { skillId: '', skillLabel: '', contextChips },
             },
           ],
           isRunning: true,
@@ -1510,7 +1493,7 @@ export const useAiStore = defineStore('ai', {
             phase: 'dispatch',
             label: t('Codex'),
             summary: '',
-            userInstruction: optimisticPrompt,
+            userInstruction: rawUserInstruction,
             pendingAssistantId,
             pendingRequestKind: '',
             pendingRequestId: '',
@@ -1557,7 +1540,7 @@ export const useAiStore = defineStore('ai', {
 
         await startCodexAcpPromptRust({
           sessionId,
-          prompt: optimisticPrompt,
+          prompt: dispatchPrompt,
           pendingAssistantId,
         })
 

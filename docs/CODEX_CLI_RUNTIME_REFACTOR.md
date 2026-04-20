@@ -70,7 +70,12 @@ Rust 侧当前承担以下职责：
 
 - 读取当前 session
 - 注入当前 workspacePath
+- 注入 ScribeFlow 当前研究上下文
+  - 当前文档
+  - 当前选区
+  - 当前激活参考文献
 - 注入 `codexCli` launcher defaults
+- 组装 ACP 主路径实际发送的 `dispatchPrompt`
 - 返回 ACP 主路径需要的最小 prepared run
 
 它不再承担：
@@ -78,6 +83,7 @@ Rust 侧当前承担以下职责：
 - 旧 provider 兼容语义
 - 伪 model/provider runtime 拼装
 - 未接实的 research planner 外壳
+- 对 `codex` 已自带的 workspace 探测、文件遍历、skill 执行做重复封装
 
 ## UI 语义
 
@@ -122,7 +128,8 @@ Rust 侧当前承担以下职责：
 后续若继续扩展，应遵循同一条原则：
 
 - transport 扩展走 ACP / MCP
-- 产品差异继续落在 ScribeFlow 的 artifact / verification / research workflow
+- 通用 workspace / file / skill 能力继续交给 `codex`
+- 产品差异继续落在 ScribeFlow 的 research context / artifact / verification workflow
 
 不要重新引入：
 
