@@ -89,14 +89,26 @@ fn normalize_runtime_user_text(text: &str) -> String {
     }
 
     let current_task_prefix = "Current task:";
-    let workspace_context_marker = "\n\nWorkspace context:";
     if let Some(task_start) = normalized.find(current_task_prefix) {
         let task_body = &normalized[task_start + current_task_prefix.len()..];
-        let task_body = if let Some(context_start) = task_body.find(workspace_context_marker) {
-            &task_body[..context_start]
-        } else {
-            task_body
-        };
+        let section_markers = [
+            "\n\nTurn route:",
+            "\n\nResearch defaults:",
+            "\n\nResolved research task:",
+            "\n\nRequired evidence:",
+            "\n\nPreferred artifacts:",
+            "\n\nVerification plan:",
+            "\n\nResearch context graph:",
+            "\n\nWorkspace context:",
+            "\n\n## Skills",
+            "\n\nSelection precedence:",
+        ];
+        let task_body = section_markers
+            .iter()
+            .filter_map(|marker| task_body.find(marker))
+            .min()
+            .map(|index| &task_body[..index])
+            .unwrap_or(task_body);
         let task_body = task_body.trim();
         if !task_body.is_empty() {
             return task_body.to_string();

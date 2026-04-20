@@ -747,17 +747,15 @@ fn build_agent_context_snapshot(skill: &Value, context_bundle: &Value) -> String
 fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
     let use_research_contract =
         route_uses_research_contract(&params.turn_route, &params.runtime_intent);
-    let mut lines = vec![
-        "Current task:".to_string(),
-        if params.user_instruction.trim().is_empty() {
-            "Continue the task using the available workspace context.".to_string()
-        } else {
-            params.user_instruction.trim().to_string()
-        },
-        String::new(),
-        build_turn_route_block(&params.turn_route),
-    ];
+    let task_text = if params.user_instruction.trim().is_empty() {
+        "Continue the task using the available workspace context.".to_string()
+    } else {
+        params.user_instruction.trim().to_string()
+    };
+    let mut lines = vec!["Current task:".to_string(), task_text];
     if use_research_contract {
+        lines.push(String::new());
+        lines.push(build_turn_route_block(&params.turn_route));
         lines.push(String::new());
         lines.push(build_research_defaults_block(&params.research_config));
         lines.push(String::new());
@@ -768,13 +766,34 @@ fn build_agent_mode_user_prompt(params: &AiAgentPromptParams) -> String {
         lines.push(build_research_context_graph_block(
             &params.research_context_graph,
         ));
+        lines.push(String::new());
+        lines.push(build_workspace_context_prompt_block(&params.context_bundle));
+        lines.push(String::new());
+        lines.push(build_available_skills_block(&params.scribeflow_skills));
+        lines.push(String::new());
+        lines.push(build_selection_precedence_block(params));
+    } else {
+        let workspace = params
+            .context_bundle
+            .get("workspace")
+            .unwrap_or(&Value::Null);
+        let document = params
+            .context_bundle
+            .get("document")
+            .unwrap_or(&Value::Null);
+        let workspace_path = string_field(workspace, &["path"]);
+        let document_path = string_field(document, &["filePath", "file_path"]);
+        if !workspace_path.is_empty() || !document_path.is_empty() {
+            lines.push(String::new());
+            lines.push("Execution context:".to_string());
+            if !workspace_path.is_empty() {
+                lines.push(format!("- Workspace: {workspace_path}"));
+            }
+            if !document_path.is_empty() {
+                lines.push(format!("- Active document: {document_path}"));
+            }
+        }
     }
-    lines.push(String::new());
-    lines.push(build_workspace_context_prompt_block(&params.context_bundle));
-    lines.push(String::new());
-    lines.push(build_available_skills_block(&params.scribeflow_skills));
-    lines.push(String::new());
-    lines.push(build_selection_precedence_block(params));
     if !params.runtime_native_inputs {
         let referenced = build_referenced_files_block(&params.referenced_files);
         if !referenced.is_empty() {
