@@ -686,6 +686,112 @@ Rust 接管：
 
 ---
 
+## 剩余未 Rust 化清单
+
+### 必须继续下沉的 runtime 权威
+
+1. `LaTeX runtime preferences / toolchain policy`
+   当前 `src/stores/latex.js` 仍在前端持有 `compilerPreference`、`enginePreference`、`autoCompile`、`formatOnSave`、`buildRecipe`、`buildExtraArgs`、`customSystemTexPath` 的默认值、`localStorage` 持久化与 normalize 逻辑。
+2. `Workspace lifecycle persistence`
+   当前 `src/services/workspaceRecents.js` 与 `src/app/workspace/useWorkspaceLifecycle.js` 仍在前端持有 `recentWorkspaces`、`lastWorkspace`、`setupComplete` 的主持久化与恢复逻辑。
+3. `Document workflow session convergence`
+   当前 `src/stores/documentWorkflow.js` 与 `src/domains/document/documentWorkflowRuntime.js` 仍在前端维护 `previewPrefs`、`workspacePreviewVisibility`、`workspacePreviewRequests`、`previewBindings`、`detachedSources` 和部分 session orchestration。
+
+### 可以保留在前端的 UI coordination
+
+- `references` 列表筛选、排序、search query、section/tag/collection 过滤
+- `editor` pane tree、tab drag/drop、split/close/reorder 等纯视图结构操作
+- setup wizard 的展示编排与非持久化 UI state
+
+### 新优先级
+
+1. **Task 6: LaTeX Runtime Preferences Migration**
+   直接影响 compile / lint / format / toolchain 选择，且当前仍明显依赖前端 `localStorage`。
+2. **Task 7: Workspace Lifecycle Persistence Migration**
+   解决 recent workspace / last workspace / setup wizard 恢复仍由前端主持久化的问题。
+3. **Task 8: Document Workflow Session Runtime Convergence**
+   继续收紧 document workflow preview/session 的最终权威，减少前端 orchestration state。
+
+---
+
+## Task 6: LaTeX Runtime Preferences Migration
+
+**目标：** 把 LaTeX compile / format / toolchain 的偏好设置默认值、持久化、历史字段迁移和合法值修正从前端下沉到 Rust。
+
+当前进度：
+
+- 已新增 Rust `latex_preferences.rs`
+- 已新增 `latex_preferences_load` / `latex_preferences_save`
+- 已把前端 `src/services/latexPreferences.js` 收口为 Rust bridge，browser preview 仅保留 fallback
+- 已把 `src/stores/latex.js` 的 `compilerPreference` / `enginePreference` / `autoCompile` / `formatOnSave` / `buildRecipe` / `buildExtraArgs` / `customSystemTexPath` 改为消费 Rust-normalized 结果
+- 已把旧 `localStorage` key（含 `latex.customLatexmkPath`）迁移并清理
+
+**Files:**
+
+- Create: `src-tauri/src/latex_preferences.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Create: `src/services/latexPreferences.js`
+- Modify: `src/stores/latex.js`
+- Modify: `src/app/workspace/useWorkspaceLifecycle.js`
+- Modify: `docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md`
+
+### 边界
+
+Rust 接管：
+
+- LaTeX preferences schema
+- 默认值
+- enum 合法值修正
+- legacy `localStorage` 字段迁移
+- compile / format / toolchain preference 持久化
+
+前端保留：
+
+- compile queue state
+- lint diagnostics state
+- compile stream / terminal 输出协调
+- Settings UI 与 diagnostics 展示
+
+### 验收标准
+
+- 前端不再自己定义 LaTeX preference 默认值和主持久化
+- `compilerPreference` / `enginePreference` / `autoCompile` / `formatOnSave` / `buildRecipe` / `buildExtraArgs` / `customSystemTexPath` 均由 Rust 单点 normalize 与落盘
+- 旧 `localStorage` key 完成迁移后不再继续作为桌面端权威
+
+当前结果：
+
+- 已满足“桌面端 LaTeX preferences 权威由 Rust 持有”的 phase 目标
+- 前端 `latexStore` 已从本地 `localStorage` holder 降为 optimistic consumer + runtime coordinator
+- `~/.scribeflow/latex-preferences.json` 已成为 LaTeX 偏好的实际持久化位置
+
+### 验证
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml latex_preferences`
+- `npm run build`
+- `npm run lint`
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml latex_preferences`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 本轮未执行 `npm run tauri -- dev`；原因是该 phase 未修改桌面窗口启动链路，且当前环境仍存在既有 dev server 干扰
+
+### Phase 6 完成定义核对
+
+1. 已迁到 Rust 的职责：
+   LaTeX 偏好的 schema、默认值、合法值修正、legacy 迁移和持久化
+2. 已删除或降权的前端旧实现：
+   `src/stores/latex.js` 中基于 `localStorage` 的默认值读取、保存与 `customLatexmkPath` 清理逻辑
+3. 剩余未迁部分的阻塞点：
+   compile queue / lint diagnostics / terminal stream 仍属于前端 runtime coordination，尚未进入 Rust phase；workspace lifecycle 与 document workflow session 仍是后续 phase
+
+---
+
 ## Phase 完成定义
 
 每个 phase 完成时，必须在验收说明里明确回答三件事：

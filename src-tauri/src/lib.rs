@@ -13,6 +13,7 @@ mod fs_tree_runtime;
 mod i18n_runtime;
 mod keychain;
 mod latex;
+mod latex_preferences;
 mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
@@ -484,6 +485,8 @@ pub fn run() {
             latex_runtime::latex_runtime_compile_start,
             latex_runtime::latex_runtime_compile_finish,
             latex_runtime::latex_runtime_compile_fail,
+            latex_preferences::latex_preferences_load,
+            latex_preferences::latex_preferences_save,
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,

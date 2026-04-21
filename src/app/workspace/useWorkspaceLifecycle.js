@@ -265,7 +265,10 @@ export function useWorkspaceLifecycle() {
 
   onMounted(async () => {
     try {
-      await workspace.hydratePreferences()
+      await Promise.all([
+        workspace.hydratePreferences(),
+        latexStore.hydratePreferences(),
+      ])
     } catch (error) {
       console.warn('[workspace] failed to hydrate preferences from Rust runtime:', error)
     }

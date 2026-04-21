@@ -17,6 +17,11 @@ import {
 import { resolveExistingLatexSynctexPath } from '../services/latex/synctex'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
+import {
+  createLatexPreferenceState,
+  loadLatexPreferences as loadLatexPreferencesFromRust,
+  saveLatexPreferences as saveLatexPreferencesToRust,
+} from '../services/latexPreferences.js'
 
 const COMPILER_CHECK_CACHE_MS = 5 * 60 * 1000
 const TOOL_CHECK_CACHE_MS = 5 * 60 * 1000
@@ -31,26 +36,15 @@ export const LATEX_BUILD_RECIPE_OPTIONS = Object.freeze([
 let latexStreamUnlistenPromise = null
 let latexForwardSyncRequestId = 0
 
-const readStoredValue = (key, fallback) => {
-  try {
-    const value = localStorage.getItem(key)
-    return value == null ? fallback : value
-  } catch {
-    return fallback
-  }
-}
-
-const readStoredBoolean = (key, fallback = false) => {
-  const fallbackValue = fallback ? 'true' : 'false'
-  const value = String(readStoredValue(key, fallbackValue)).trim().toLowerCase()
-  return value === 'true' || value === '1' || value === 'yes' || value === 'on'
-}
-
-const clearLegacyLatexSettings = () => {
-  try {
-    localStorage.removeItem('latex.customLatexmkPath')
-  } catch {}
-}
+const LATEX_PREFERENCE_KEYS = [
+  'compilerPreference',
+  'enginePreference',
+  'autoCompile',
+  'formatOnSave',
+  'buildRecipe',
+  'buildExtraArgs',
+  'customSystemTexPath',
+]
 
 export function normalizeLatexBuildRecipe(value) {
   const normalized = String(value || '').trim().toLowerCase()
@@ -179,15 +173,10 @@ async function ensureLatexStreamListener() {
 
 export const useLatexStore = defineStore('latex', {
   state: () => {
-    clearLegacyLatexSettings()
     return ({
+    ...createLatexPreferenceState(),
     // Per-file compile state: { [texPath]: { status, errors, warnings, pdfPath, synctexPath, log, durationMs, lastCompiled } }
     compileState: {},
-    // Whether auto-compile on save is enabled
-    autoCompile: readStoredBoolean('latex.autoCompile', false),
-    formatOnSave: readStoredBoolean('latex.formatOnSave', false),
-    buildRecipe: normalizeLatexBuildRecipe(readStoredValue('latex.buildRecipe', 'default')),
-    buildExtraArgs: String(readStoredValue('latex.buildExtraArgs', '')),
     // Debounce timers keyed by compile target
     _timers: {},
     // Latest source file that requested work for a given compile target
@@ -196,9 +185,7 @@ export const useLatexStore = defineStore('latex', {
     lintState: {},
     // Pending forward SyncTeX requests keyed by TeX source path.
     forwardSyncRequests: {},
-    compilerPreference: readStoredValue('latex.compilerPreference', 'auto'),
-    enginePreference: readStoredValue('latex.enginePreference', 'auto'),
-    customSystemTexPath: readStoredValue('latex.customSystemTexPath', ''),
+    _preferencesHydrated: false,
     // Tectonic install state
     tectonicInstalled: false,
     tectonicPath: null,
@@ -278,6 +265,55 @@ export const useLatexStore = defineStore('latex', {
   },
 
   actions: {
+    applyPreferenceState(preferences = {}) {
+      const next = {
+        ...createLatexPreferenceState(),
+        ...preferences,
+      }
+
+      for (const key of LATEX_PREFERENCE_KEYS) {
+        this[key] = next[key]
+      }
+    },
+
+    snapshotPreferences() {
+      return Object.fromEntries(LATEX_PREFERENCE_KEYS.map((key) => [key, this[key]]))
+    },
+
+    async hydratePreferences(force = false) {
+      if (!force && this._preferencesHydrated) return this.snapshotPreferences()
+
+      const workspaceStore = useWorkspaceStore()
+      const globalConfigDir = await workspaceStore.ensureGlobalConfigDir()
+      const preferences = await loadLatexPreferencesFromRust(globalConfigDir)
+      this.applyPreferenceState(preferences)
+      this._preferencesHydrated = true
+      return preferences
+    },
+
+    async persistPreferences(patch = {}) {
+      const workspaceStore = useWorkspaceStore()
+      const globalConfigDir = await workspaceStore.ensureGlobalConfigDir()
+      const previous = this.snapshotPreferences()
+      const optimistic = {
+        ...previous,
+        ...patch,
+      }
+
+      this.applyPreferenceState(optimistic)
+      this._preferencesHydrated = true
+
+      try {
+        const preferences = await saveLatexPreferencesToRust(globalConfigDir, optimistic)
+        this.applyPreferenceState(preferences)
+        this._preferencesHydrated = true
+        return preferences
+      } catch (error) {
+        this.applyPreferenceState(previous)
+        throw error
+      }
+    },
+
     currentBuildOptions() {
       return {
         buildRecipe: normalizeLatexBuildRecipe(this.buildRecipe),
@@ -513,61 +549,40 @@ export const useLatexStore = defineStore('latex', {
       }
     },
 
-    setCompilerPreference(preference) {
-      this.compilerPreference = preference
-      try {
-        localStorage.setItem('latex.compilerPreference', preference)
-      } catch {}
+    async setCompilerPreference(preference) {
+      await this.persistPreferences({ compilerPreference: preference })
+      this.lastCompilerCheckAt = 0
+      await this.checkCompilers(true)
     },
 
-    setEnginePreference(preference) {
-      this.enginePreference = preference
-      try {
-        localStorage.setItem('latex.enginePreference', preference)
-      } catch {}
+    async setEnginePreference(preference) {
+      await this.persistPreferences({ enginePreference: preference })
     },
 
-    setAutoCompile(enabled) {
-      this.autoCompile = enabled === true
-      try {
-        localStorage.setItem('latex.autoCompile', this.autoCompile ? 'true' : 'false')
-      } catch {}
+    async setAutoCompile(enabled) {
+      await this.persistPreferences({ autoCompile: enabled === true })
     },
 
-    setFormatOnSave(enabled) {
-      this.formatOnSave = enabled === true
-      try {
-        localStorage.setItem('latex.formatOnSave', this.formatOnSave ? 'true' : 'false')
-      } catch {}
+    async setFormatOnSave(enabled) {
+      await this.persistPreferences({ formatOnSave: enabled === true })
     },
 
-    setBuildRecipe(recipe) {
-      this.buildRecipe = normalizeLatexBuildRecipe(recipe)
-      try {
-        localStorage.setItem('latex.buildRecipe', this.buildRecipe)
-      } catch {}
+    async setBuildRecipe(recipe) {
+      await this.persistPreferences({
+        buildRecipe: normalizeLatexBuildRecipe(recipe),
+      })
     },
 
-    setBuildExtraArgs(value) {
-      this.buildExtraArgs = String(value || '')
-      try {
-        if (this.buildExtraArgs) {
-          localStorage.setItem('latex.buildExtraArgs', this.buildExtraArgs)
-        } else {
-          localStorage.removeItem('latex.buildExtraArgs')
-        }
-      } catch {}
+    async setBuildExtraArgs(value) {
+      await this.persistPreferences({
+        buildExtraArgs: String(value || ''),
+      })
     },
 
     async setCustomSystemTexPath(path) {
-      this.customSystemTexPath = String(path || '').trim()
-      try {
-        if (this.customSystemTexPath) {
-          localStorage.setItem('latex.customSystemTexPath', this.customSystemTexPath)
-        } else {
-          localStorage.removeItem('latex.customSystemTexPath')
-        }
-      } catch {}
+      await this.persistPreferences({
+        customSystemTexPath: String(path || '').trim(),
+      })
       this.lastCompilerCheckAt = 0
       await this.checkCompilers(true)
       this.lastToolCheckAt = 0
