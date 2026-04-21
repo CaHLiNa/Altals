@@ -712,6 +712,13 @@ Rust 接管：
 3. **Task 8: Document Workflow Session Runtime Convergence**
    继续收紧 document workflow preview/session 的最终权威，减少前端 orchestration state。
 
+当前状态：
+
+- `Task 6` 已完成
+- `Task 7` 已完成
+- `Task 8` 已完成
+- 当前 migration plan 的后续新增 phase 已全部收口；剩余只有 bookmark storage 这类平台 glue，不纳入本计划的“runtime authority”范围
+
 ---
 
 ## Task 6: LaTeX Runtime Preferences Migration
@@ -867,6 +874,84 @@ Rust 接管：
    `src/app/workspace/useWorkspaceLifecycle.js` 和 `src/components/SetupWizard.vue` 对这三个 `localStorage` key 的直接读取 / 写入；`workspaceRecents.js` 不再是桌面端主持久化实现
 3. 剩余未迁部分的阻塞点：
    document workflow session 仍有前端 preview/session orchestration state；bookmark 存储也仍在前端 `localStorage`，但它属于 macOS access glue，未纳入当前 phase
+
+---
+
+## Task 8: Document Workflow Session Runtime Convergence
+
+**目标：** 把 document workflow 的 preview prefs、preview bindings、workspace preview visibility/request、detached source/session state 从前端本地权威收口到 Rust。
+
+当前进度：
+
+- 已新增 Rust `document_workflow_session.rs`
+- 已新增 `document_workflow_session_load` / `document_workflow_session_save`
+- 已把前端 `src/services/documentWorkflow/sessionStateBridge.js` 收口为 Rust bridge，browser preview 仅保留 fallback
+- 已把 `src/stores/documentWorkflow.js` 改成 Rust-backed persistent state consumer，`previewPrefs`、`session`、`previewBindings`、`workspacePreviewVisibility`、`workspacePreviewRequests` 不再直接依赖本地 `localStorage`
+- 已把 workspace open / close 生命周期接入 document workflow store，确保工作区切换时正确 hydrate / cleanup backend state
+
+**Files:**
+
+- Create: `src-tauri/src/document_workflow_session.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Create: `src/services/documentWorkflow/sessionStateBridge.js`
+- Modify: `src/stores/documentWorkflow.js`
+- Modify: `src/app/workspace/useWorkspaceLifecycle.js`
+- Modify: `docs/superpowers/plans/2026-04-21-rust-runtime-migration-plan.md`
+
+### 边界
+
+Rust 接管：
+
+- `previewPrefs`
+- `session`
+- `previewBindings`
+- `workspacePreviewVisibility`
+- `workspacePreviewRequests`
+- legacy preview preference `localStorage` 迁移
+
+前端保留：
+
+- resolved preview/ui state cache
+- markdown render transient state
+- pane open/activate 的 UI 编排
+
+### 验收标准
+
+- 前端不再自己定义 document workflow preview preference 默认值和主持久化
+- preview/session/binding/visibility/request 状态均由 Rust 单点 normalize 与落盘
+- 工作区切换时 document workflow 状态能按 workspaceDataDir 正确 hydrate 和 cleanup
+
+当前结果：
+
+- 已满足“document workflow session 权威由 Rust 持有”的 phase 目标
+- 前端 `documentWorkflow` store 已从本地 preference/session holder 降为 Rust-backed consumer + transient cache/orchestration layer
+- `workspaceDataDir/document-workflow-state.json` 已成为该 workspace 的 document workflow session 状态持久化位置
+
+### 验证
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml document_workflow_session`
+- `npm run build`
+- `npm run lint`
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml document_workflow_session`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 本轮未执行 `npm run tauri -- dev`；原因是当前 phase 未修改桌面启动链路，且环境中仍有既有 dev server / Computer Use 附着问题
+
+### Phase 8 完成定义核对
+
+1. 已迁到 Rust 的职责：
+   document workflow preview prefs、session、preview bindings、workspace preview visibility/request，以及 legacy preview preference 迁移
+2. 已删除或降权的前端旧实现：
+   `src/stores/documentWorkflow.js` 中基于 `localStorage` 的 `previewPrefs` 主持久化与本地 session/binding 权威
+3. 剩余未迁部分的阻塞点：
+   仅剩 resolved cache、markdown render transient state、pane UI 编排等前端 coordination；bookmark storage 仍在前端 `localStorage`，但属于平台 access glue，不纳入本计划的 runtime authority 范围
 
 ---
 

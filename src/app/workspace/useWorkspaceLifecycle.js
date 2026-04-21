@@ -8,6 +8,7 @@ import { useEditorStore } from '../../stores/editor'
 import { useLinksStore } from '../../stores/links'
 import { useLatexStore } from '../../stores/latex'
 import { useReferencesStore } from '../../stores/references'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
@@ -32,6 +33,7 @@ export function useWorkspaceLifecycle() {
   const linksStore = useLinksStore()
   const latexStore = useLatexStore()
   const referencesStore = useReferencesStore()
+  const workflowStore = useDocumentWorkflowStore()
   const toastStore = useToastStore()
   const uxStatusStore = useUxStatusStore()
   const { t } = useI18n()
@@ -172,6 +174,7 @@ export function useWorkspaceLifecycle() {
         legacyWorkspaceDataDir: workspace.workspaceDataDir,
         legacyProjectRoot: workspace.path,
       })
+      await workflowStore.hydratePersistentState(true)
       scheduleWorkspaceBackgroundTask(80, loadGeneration, targetPath, async () => {
         const zoteroConfig = await loadZoteroConfig()
         if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
@@ -255,6 +258,7 @@ export function useWorkspaceLifecycle() {
     linksStore.cleanup()
     latexStore.cleanup()
     referencesStore.cleanup()
+    workflowStore.cleanup()
     await workspace.closeWorkspace()
     await invoke('workspace_clear_allowed_roots').catch((error) => {
       console.warn('[workspace] failed to clear allowed roots:', error)

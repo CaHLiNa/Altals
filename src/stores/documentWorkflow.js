@@ -16,7 +16,6 @@ import {
   getDocumentAdapterByKind,
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
-  listWorkflowDocumentAdapters,
 } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
@@ -27,44 +26,28 @@ import { openLocalPath } from '../services/localFileOpen.js'
 import { mutateDocumentWorkspacePreview } from '../services/documentWorkflow/workspacePreviewBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
 import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
-
-const PREFS_KEY = 'documentWorkflow.previewPrefs'
+import {
+  createDocumentWorkflowPersistentState,
+  loadDocumentWorkflowSessionState,
+  saveDocumentWorkflowSessionState,
+} from '../services/documentWorkflow/sessionStateBridge.js'
 
 function defaultPrefs() {
-  return Object.fromEntries(
-    listWorkflowDocumentAdapters()
-      .map(adapter => [adapter.kind, adapter.preview?.defaultKind || null])
-      .filter(([, previewKind]) => !!previewKind)
-      .map(([kind, previewKind]) => [kind, { preferredPreview: previewKind }]),
-  )
+  return createDocumentWorkflowPersistentState().previewPrefs
 }
 
-function readPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    if (!raw) return defaultPrefs()
-    return {
-      ...defaultPrefs(),
-      ...JSON.parse(raw),
-    }
-  } catch {
-    return defaultPrefs()
-  }
+function defaultSession() {
+  return createDocumentWorkflowPersistentState().session
+}
+
+function defaultPersistentState() {
+  return createDocumentWorkflowPersistentState()
 }
 
 export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
   state: () => ({
-    previewPrefs: readPrefs(),
-    session: {
-      activeFile: null,
-      activeKind: null,
-      sourcePaneId: null,
-      previewPaneId: null,
-      previewKind: null,
-      previewSourcePath: null,
-      state: 'inactive',
-      detachedSources: {},
-    },
+    previewPrefs: defaultPrefs(),
+    session: defaultSession(),
     previewBindings: {},
     markdownPreviewState: {},
     workspacePreviewVisibility: {},
@@ -73,6 +56,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     resolvedWorkflowUiStates: {},
     _isReconciling: false,
     _lastTrigger: null,
+    _persistentStateHydrated: false,
   }),
 
   getters: {
@@ -151,13 +135,80 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._documentWorkflowActionRuntime
     },
 
-    persistPrefs() {
-      try {
-        localStorage.setItem(PREFS_KEY, JSON.stringify(this.previewPrefs))
-      } catch {
-        return false
+    snapshotPersistentState() {
+      return {
+        previewPrefs: this.previewPrefs,
+        session: this.session,
+        previewBindings: Object.values(this.previewBindings || {}),
+        workspacePreviewVisibility: this.workspacePreviewVisibility,
+        workspacePreviewRequests: this.workspacePreviewRequests,
       }
-      return true
+    },
+
+    applyPersistentState(state = {}) {
+      const next = {
+        ...defaultPersistentState(),
+        ...state,
+      }
+
+      this.previewPrefs = next.previewPrefs || defaultPrefs()
+      this.session = {
+        ...defaultSession(),
+        ...(next.session || {}),
+      }
+      this.previewBindings = Object.fromEntries(
+        (Array.isArray(next.previewBindings) ? next.previewBindings : [])
+          .filter((binding) => binding?.previewPath)
+          .map((binding) => [binding.previewPath, binding]),
+      )
+      this.workspacePreviewVisibility = next.workspacePreviewVisibility || {}
+      this.workspacePreviewRequests = next.workspacePreviewRequests || {}
+    },
+
+    async hydratePersistentState(force = false) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.workspaceDataDir) {
+        this.applyPersistentState(defaultPersistentState())
+        this._persistentStateHydrated = false
+        return defaultPersistentState()
+      }
+      if (!force && this._persistentStateHydrated) return this.snapshotPersistentState()
+
+      const state = await loadDocumentWorkflowSessionState(workspace.workspaceDataDir)
+      this.applyPersistentState(state)
+      this._persistentStateHydrated = true
+      return state
+    },
+
+    queuePersistentStateSave() {
+      const workspace = useWorkspaceStore()
+      if (!workspace.workspaceDataDir) return
+
+      clearTimeout(this._persistentStateSaveTimer)
+      this._persistentStateSaveRevision = (this._persistentStateSaveRevision || 0) + 1
+      const revision = this._persistentStateSaveRevision
+      this._persistentStateSaveTimer = setTimeout(() => {
+        void this.persistPersistentStateImmediate(revision)
+      }, 80)
+    },
+
+    async persistPersistentStateImmediate(expectedRevision = null) {
+      const workspace = useWorkspaceStore()
+      if (!workspace.workspaceDataDir) return null
+
+      clearTimeout(this._persistentStateSaveTimer)
+      this._persistentStateSaveTimer = null
+
+      const revision = expectedRevision ?? ((this._persistentStateSaveRevision || 0) + 1)
+      this._persistentStateSaveRevision = revision
+      const snapshot = this.snapshotPersistentState()
+      const state = await saveDocumentWorkflowSessionState(workspace.workspaceDataDir, snapshot)
+
+      if (this._persistentStateSaveRevision === revision) {
+        this.applyPersistentState(state)
+      }
+      this._persistentStateHydrated = true
+      return state
     },
 
     getPreferredPreviewKind(kind) {
@@ -174,7 +225,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           preferredPreview: previewKind,
         },
       }
-      this.persistPrefs()
+      this.queuePersistentStateSave()
     },
 
     getPreviewBinding(previewPath) {
@@ -194,6 +245,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           detachOnClose,
         },
       }
+      this.queuePersistentStateSave()
     },
 
     unbindPreview(previewPath) {
@@ -201,6 +253,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const next = { ...this.previewBindings }
       delete next[previewPath]
       this.previewBindings = next
+      this.queuePersistentStateSave()
     },
 
     inferPreviewKind(sourcePath, previewPath) {
@@ -216,6 +269,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       if (this.session.previewSourcePath === sourcePath) {
         this.session.state = 'detached-by-user'
       }
+      this.queuePersistentStateSave()
     },
 
     clearDetached(sourcePath) {
@@ -223,6 +277,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       const next = { ...this.session.detachedSources }
       delete next[sourcePath]
       this.session.detachedSources = next
+      this.queuePersistentStateSave()
     },
 
     isDetached(sourcePath) {
@@ -257,6 +312,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         ...this.workspacePreviewVisibility,
         [filePath]: visibility === 'hidden' ? 'hidden' : 'visible',
       }
+      this.queuePersistentStateSave()
     },
 
     buildResolvedWorkspacePreviewStateKey(request = {}) {
@@ -412,6 +468,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         delete next[filePath]
       }
       this.workspacePreviewRequests = next
+      this.queuePersistentStateSave()
     },
 
     getWorkspacePreviewRequestForFile(filePath) {
@@ -518,6 +575,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
         ...this.session,
         ...payload,
       }
+      this.queuePersistentStateSave()
     },
 
     async ensurePreviewForSource(sourcePath, options = {}) {
@@ -674,16 +732,10 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     },
 
     cleanup() {
-      this.session = {
-        activeFile: null,
-        activeKind: null,
-        sourcePaneId: null,
-        previewPaneId: null,
-        previewKind: null,
-        previewSourcePath: null,
-        state: 'inactive',
-        detachedSources: {},
-      }
+      clearTimeout(this._persistentStateSaveTimer)
+      this._persistentStateSaveTimer = null
+      this._persistentStateSaveRevision = 0
+      this.applyPersistentState(defaultPersistentState())
       this.previewBindings = {}
       this.markdownPreviewState = {}
       this.workspacePreviewVisibility = {}
@@ -692,6 +744,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.resolvedWorkflowUiStates = {}
       this._isReconciling = false
       this._lastTrigger = null
+      this._persistentStateHydrated = false
       this._resolvedWorkspacePreviewStateInflight?.clear?.()
       this._resolvedWorkflowUiStateInflight?.clear?.()
     },
