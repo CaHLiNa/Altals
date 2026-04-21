@@ -1,13 +1,5 @@
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import {
-  ALL_WORKBENCH_SIDEBAR_PANELS,
-  normalizeWorkbenchSidebarPanel,
-  normalizeWorkbenchSurface,
-} from '../shared/workbenchSidebarPanels.js'
-import {
-  ALL_WORKBENCH_INSPECTOR_PANELS,
-  normalizeWorkbenchInspectorPanel,
-} from '../shared/workbenchInspectorPanels.js'
 import { normalizeWorkspaceThemeId } from '../shared/workspaceThemeOptions.js'
 
 const THEME_CLASSES = [
@@ -33,15 +25,33 @@ const DEFAULT_UI_FONT_SIZE = 13
 const MIN_EDITOR_FONT_SIZE = 12
 const MAX_EDITOR_FONT_SIZE = 20
 const DEFAULT_APP_ZOOM_PERCENT = 100
-const APP_ZOOM_KEY = 'appZoomPercent'
-const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT = '#f5faef'
+const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
+
+const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
+  'primarySurface',
+  'leftSidebarOpen',
+  'leftSidebarPanel',
+  'rightSidebarOpen',
+  'rightSidebarPanel',
+  'autoSave',
+  'softWrap',
+  'wrapColumn',
+  'editorFontSize',
+  'uiFontSize',
+  'appZoomPercent',
+  'proseFont',
+  'pdfPageBackgroundFollowsTheme',
+  'pdfCustomPageBackground',
+  'pdfCustomPageForegroundMode',
+  'pdfCustomPageForeground',
+  'theme',
+]
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
-
 export const APP_ZOOM_PRESETS = [100]
 
 let activeWorkspaceTheme = 'system'
@@ -50,70 +60,6 @@ let removeSystemThemeListener = null
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
-}
-
-function hasStoredValue(key) {
-  try {
-    return localStorage.getItem(key) !== null
-  } catch {
-    return false
-  }
-}
-
-function readString(key, fallback = '') {
-  try {
-    return localStorage.getItem(key) || fallback
-  } catch {
-    return fallback
-  }
-}
-
-function readEnum(key, allowedValues = [], fallback) {
-  const value = readString(key, fallback)
-  return allowedValues.includes(value) ? value : fallback
-}
-
-function readBoolean(key, fallback = false, falseValue = 'false') {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return fallback
-    return raw !== falseValue
-  } catch {
-    return fallback
-  }
-}
-
-function readTrueOnlyBoolean(key, fallback = false) {
-  try {
-    return localStorage.getItem(key) === 'true' || fallback
-  } catch {
-    return fallback
-  }
-}
-
-function readNumber(key, fallback) {
-  try {
-    const parsed = parseInt(localStorage.getItem(key) || '', 10)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writeValue(key, value) {
-  try {
-    localStorage.setItem(key, String(value))
-  } catch {
-    // Ignore localStorage failures.
-  }
-}
-
-function removeValue(key) {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    // Ignore localStorage failures.
-  }
 }
 
 function normalizeHexColor(value, fallback) {
@@ -142,6 +88,99 @@ function parseHexColor(value, fallback) {
   }
 }
 
+function removeLegacyValue(key) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
+function readLegacyWorkspacePreferenceSnapshot() {
+  const snapshot = {}
+
+  try {
+    for (const key of LEGACY_WORKSPACE_PREFERENCE_KEYS) {
+      const value = localStorage.getItem(key)
+      if (value !== null) {
+        snapshot[key] = value
+      }
+    }
+  } catch {
+    // Ignore localStorage failures.
+  }
+
+  return snapshot
+}
+
+export function clearLegacyWorkspacePreferenceStorage() {
+  for (const key of LEGACY_WORKSPACE_PREFERENCE_KEYS) {
+    removeLegacyValue(key)
+  }
+}
+
+export function createWorkspacePreferenceState() {
+  return {
+    primarySurface: 'workspace',
+    leftSidebarOpen: true,
+    leftSidebarPanel: 'files',
+    rightSidebarOpen: false,
+    rightSidebarPanel: 'outline',
+    autoSave: true,
+    softWrap: true,
+    wrapColumn: 0,
+    editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
+    uiFontSize: DEFAULT_UI_FONT_SIZE,
+    appZoomPercent: DEFAULT_APP_ZOOM_PERCENT,
+    proseFont: 'inter',
+    pdfPageBackgroundFollowsTheme: DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME,
+    pdfCustomPageBackground: DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
+    theme: 'system',
+  }
+}
+
+export async function loadWorkspacePreferences(globalConfigDir = '') {
+  const preferences = await invoke('workspace_preferences_load', {
+    params: {
+      globalConfigDir: String(globalConfigDir || ''),
+      legacyPreferences: readLegacyWorkspacePreferenceSnapshot(),
+    },
+  })
+
+  clearLegacyWorkspacePreferenceStorage()
+  return {
+    ...createWorkspacePreferenceState(),
+    ...preferences,
+  }
+}
+
+export async function saveWorkspacePreferences(globalConfigDir = '', preferences = {}) {
+  const normalized = await invoke('workspace_preferences_save', {
+    params: {
+      globalConfigDir: String(globalConfigDir || ''),
+      preferences,
+    },
+  })
+
+  clearLegacyWorkspacePreferenceStorage()
+  return {
+    ...createWorkspacePreferenceState(),
+    ...normalized,
+  }
+}
+
+export async function normalizeWorkbenchState(state = {}) {
+  return invoke('workbench_state_normalize', {
+    params: {
+      primarySurface: String(state.primarySurface || ''),
+      leftSidebarOpen: state.leftSidebarOpen !== false,
+      leftSidebarPanel: String(state.leftSidebarPanel || ''),
+      rightSidebarOpen: state.rightSidebarOpen === true,
+      rightSidebarPanel: String(state.rightSidebarPanel || ''),
+    },
+  })
+}
+
 export function normalizeWorkspacePdfCustomPageBackground(value) {
   return normalizeHexColor(value, DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
 }
@@ -164,106 +203,16 @@ export function normalizeEditorFontSize(value) {
   return clamp(parsed, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE)
 }
 
-function _nearestAppZoomPreset(value) {
-  const normalized = normalizeAppZoomPercent(value)
-  return APP_ZOOM_PRESETS.reduce(
-    (closest, preset) =>
-      Math.abs(preset - normalized) < Math.abs(closest - normalized) ? preset : closest,
-    APP_ZOOM_PRESETS[0]
-  )
-}
-
-function readWorkspaceThemePreference() {
-  return normalizeWorkspaceThemeId(readString('theme', 'system'))
-}
-
-function migrateLegacyFooterZoom(editorFontSize, uiFontSize, appZoomPercent) {
-  return {
-    editorFontSize,
-    uiFontSize,
-    appZoomPercent: appZoomPercent ?? DEFAULT_APP_ZOOM_PERCENT,
-  }
-}
-
-function clearLegacyPdfForegroundPreferences() {
-  removeValue('pdfCustomPageForegroundMode')
-  removeValue('pdfCustomPageForeground')
-}
-
-export function createWorkspacePreferenceState() {
-  clearLegacyPdfForegroundPreferences()
-  const editorFontSize = normalizeEditorFontSize(
-    readNumber('editorFontSize', DEFAULT_EDITOR_FONT_SIZE)
-  )
-  const uiFontSize = readNumber('uiFontSize', DEFAULT_UI_FONT_SIZE)
-  const storedAppZoomPercent = hasStoredValue(APP_ZOOM_KEY)
-    ? normalizeAppZoomPercent(readNumber(APP_ZOOM_KEY, DEFAULT_APP_ZOOM_PERCENT))
-    : null
-  const zoomState = migrateLegacyFooterZoom(editorFontSize, uiFontSize, storedAppZoomPercent)
-  const primarySurface = normalizeWorkbenchSurface(readString('primarySurface', 'workspace'))
-  const storedLeftSidebarPanel = readEnum('leftSidebarPanel', ALL_WORKBENCH_SIDEBAR_PANELS, 'files')
-  const leftSidebarPanel = normalizeWorkbenchSidebarPanel(primarySurface, storedLeftSidebarPanel)
-  const storedRightSidebarPanel = readEnum(
-    'rightSidebarPanel',
-    ALL_WORKBENCH_INSPECTOR_PANELS,
-    'outline'
-  )
-  const rightSidebarPanel = normalizeWorkbenchInspectorPanel(
-    primarySurface,
-    storedRightSidebarPanel
-  )
-
-  return {
-    primarySurface,
-    leftSidebarOpen: readBoolean('leftSidebarOpen', true),
-    leftSidebarPanel,
-    rightSidebarOpen: readTrueOnlyBoolean('rightSidebarOpen'),
-    rightSidebarPanel,
-    autoSave: readBoolean('autoSave', true),
-    softWrap: readBoolean('softWrap', true),
-    wrapColumn: readNumber('wrapColumn', 0),
-    editorFontSize: zoomState.editorFontSize,
-    uiFontSize: zoomState.uiFontSize,
-    appZoomPercent: zoomState.appZoomPercent,
-    proseFont: readString('proseFont', 'inter'),
-    pdfPageBackgroundFollowsTheme: readBoolean(
-      'pdfPageBackgroundFollowsTheme',
-      DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME
-    ),
-    pdfCustomPageBackground: normalizeWorkspacePdfCustomPageBackground(
-      readString('pdfCustomPageBackground', DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
-    ),
-    theme: readWorkspaceThemePreference(),
-  }
-}
-
-export function toggleStoredBoolean(currentValue, key) {
-  const nextValue = !currentValue
-  writeValue(key, nextValue)
-  return nextValue
-}
-
-export function persistStoredString(key, value) {
-  writeValue(key, value)
-  return value
+export function setWrapColumnPreference(value) {
+  return Math.max(0, parseInt(value, 10) || 0)
 }
 
 export function setWorkspacePdfCustomPageBackground(value) {
-  const nextValue = normalizeWorkspacePdfCustomPageBackground(value)
-  writeValue('pdfCustomPageBackground', nextValue)
-  return nextValue
+  return normalizeWorkspacePdfCustomPageBackground(value)
 }
 
 export function setWorkspacePdfPageBackgroundFollowsTheme(value) {
-  const nextValue = value !== false
-  writeValue('pdfPageBackgroundFollowsTheme', nextValue)
-  return nextValue
-}
-
-export function setWrapColumnPreference(value) {
-  const nextValue = Math.max(0, parseInt(value, 10) || 0)
-  writeValue('wrapColumn', nextValue)
-  return nextValue
+  return value !== false
 }
 
 export function increaseWorkspaceZoom(currentPercent) {
@@ -289,23 +238,13 @@ export function resetWorkspaceZoom() {
 }
 
 export function setWorkspaceZoomPercent(percent) {
-  const nextValue = normalizeAppZoomPercent(percent)
-  writeValue(APP_ZOOM_KEY, nextValue)
-  return nextValue
-}
-
-function _isAppleWebKitPlatform() {
-  if (typeof navigator === 'undefined') return false
-  const platform = String(navigator.platform || '').toLowerCase()
-  const userAgent = String(navigator.userAgent || '').toLowerCase()
-  return /(mac|iphone|ipad|ipod)/.test(platform) || /(mac os x|iphone|ipad|ipod)/.test(userAgent)
+  return normalizeAppZoomPercent(percent)
 }
 
 export async function applyWorkspaceAppZoom(percent) {
   const nextValue = normalizeAppZoomPercent(percent)
-  writeValue(APP_ZOOM_KEY, nextValue)
 
-  if (typeof document === 'undefined') return
+  if (typeof document === 'undefined') return nextValue
 
   const root = document.documentElement
   root.style.removeProperty('zoom')
@@ -319,16 +258,21 @@ export async function applyWorkspaceAppZoom(percent) {
       console.warn('[workspace] failed to reset native app zoom:', error)
     }
   }
+
+  return nextValue
 }
 
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
+  if (typeof document === 'undefined') return
+
   document.documentElement.style.setProperty(
     '--editor-font-size',
     `${normalizeEditorFontSize(editorFontSize)}px`
   )
-  document.documentElement.style.setProperty('--ui-font-size', `${uiFontSize}px`)
-  writeValue('editorFontSize', normalizeEditorFontSize(editorFontSize))
-  writeValue('uiFontSize', uiFontSize)
+  document.documentElement.style.setProperty(
+    '--ui-font-size',
+    `${Math.max(1, Number(uiFontSize) || DEFAULT_UI_FONT_SIZE)}px`
+  )
 }
 
 export function setWorkspaceEditorFontSize(editorFontSize) {
@@ -336,16 +280,18 @@ export function setWorkspaceEditorFontSize(editorFontSize) {
   if (typeof document !== 'undefined') {
     document.documentElement.style.setProperty('--editor-font-size', `${nextValue}px`)
   }
-  writeValue('editorFontSize', nextValue)
   return nextValue
 }
 
 export function setWorkspaceProseFont(name) {
-  writeValue('proseFont', name)
-  document.documentElement.style.setProperty(
-    '--font-prose',
-    PROSE_FONT_STACKS[name] || PROSE_FONT_STACKS.inter
-  )
+  const nextFont = PROSE_FONT_STACKS[name] ? name : 'inter'
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty(
+      '--font-prose',
+      PROSE_FONT_STACKS[nextFont] || PROSE_FONT_STACKS.inter
+    )
+  }
+  return nextFont
 }
 
 function resolveSystemTheme() {
@@ -371,12 +317,14 @@ function applyWorkspaceThemeClasses(theme) {
   root.dataset.themeResolved = resolvedTheme
 
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('workspace-theme-updated', {
-      detail: {
-        themePreference: normalizedTheme,
-        resolvedTheme,
-      },
-    }))
+    window.dispatchEvent(
+      new CustomEvent('workspace-theme-updated', {
+        detail: {
+          themePreference: normalizedTheme,
+          resolvedTheme,
+        },
+      })
+    )
   }
 }
 
@@ -422,16 +370,11 @@ function syncSystemThemeListener(theme) {
 
 export function setWorkspaceTheme(name) {
   const nextTheme = normalizeWorkspaceThemeId(name)
-  writeValue('theme', nextTheme)
   syncSystemThemeListener(nextTheme)
   applyWorkspaceThemeClasses(nextTheme)
   return nextTheme
 }
 
 export function restoreWorkspaceTheme(currentTheme) {
-  const nextTheme = normalizeWorkspaceThemeId(currentTheme || 'system')
-  writeValue('theme', nextTheme)
-  syncSystemThemeListener(nextTheme)
-  applyWorkspaceThemeClasses(nextTheme)
-  return nextTheme
+  return setWorkspaceTheme(currentTheme || 'system')
 }

@@ -12,19 +12,18 @@ import {
   createWorkspacePreferenceState,
   decreaseWorkspaceZoom,
   increaseWorkspaceZoom,
+  loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
   normalizeAppZoomPercent,
   normalizeEditorFontSize,
-  persistStoredString,
   resetWorkspaceZoom,
   restoreWorkspaceTheme,
+  saveWorkspacePreferences as saveWorkspacePreferencesToRust,
   setWorkspaceEditorFontSize,
   setWorkspacePdfCustomPageBackground,
   setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspaceProseFont,
-  setWorkspaceTheme,
   setWorkspaceZoomPercent,
   setWrapColumnPreference,
-  toggleStoredBoolean,
 } from '../services/workspacePreferences'
 import {
   normalizeWorkbenchSidebarPanel,
@@ -64,6 +63,28 @@ async function bootstrapWorkspaceDirs(store) {
   }).catch(() => {})
 }
 
+const WORKSPACE_PREFERENCE_KEYS = [
+  'primarySurface',
+  'leftSidebarOpen',
+  'leftSidebarPanel',
+  'rightSidebarOpen',
+  'rightSidebarPanel',
+  'autoSave',
+  'softWrap',
+  'wrapColumn',
+  'editorFontSize',
+  'uiFontSize',
+  'appZoomPercent',
+  'proseFont',
+  'pdfPageBackgroundFollowsTheme',
+  'pdfCustomPageBackground',
+  'theme',
+]
+
+function snapshotWorkspacePreferences(store) {
+  return Object.fromEntries(WORKSPACE_PREFERENCE_KEYS.map((key) => [key, store[key]]))
+}
+
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
   return normalized || 'theme'
@@ -81,6 +102,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     _workspaceBootstrapPromise: null,
     _workspaceBootstrapGeneration: 0,
     _lastAppZoomInteractionAt: 0,
+    _preferencesHydrated: false,
     ...createWorkspacePreferenceState(),
   }),
 
@@ -98,17 +120,60 @@ export const useWorkspaceStore = defineStore('workspace', {
   },
 
   actions: {
-    async openWorkspace(path) {
-      this.path = path
-      this.settingsOpen = false
-      this.settingsSection = null
-      this.primarySurface = 'workspace'
+    applyWorkspacePreferenceState(preferences = {}) {
+      const next = {
+        ...createWorkspacePreferenceState(),
+        ...preferences,
+      }
+
+      for (const key of WORKSPACE_PREFERENCE_KEYS) {
+        this[key] = next[key]
+      }
+
+      this.settingsOpen = this.primarySurface === 'settings'
+      if (!this.settingsOpen) {
+        this.settingsSection = null
+      } else if (!this.settingsSection) {
+        this.settingsSection = normalizeSettingsSectionValue('theme')
+      }
+    },
+
+    async ensureGlobalConfigDir() {
+      if (this.globalConfigDir) return this.globalConfigDir
 
       try {
         this.globalConfigDir = await invoke('get_global_config_dir')
       } catch {
         this.globalConfigDir = ''
       }
+
+      return this.globalConfigDir
+    },
+
+    async hydratePreferences(force = false) {
+      if (!force && this._preferencesHydrated) return snapshotWorkspacePreferences(this)
+
+      const globalConfigDir = await this.ensureGlobalConfigDir()
+      const preferences = await loadWorkspacePreferencesFromRust(globalConfigDir)
+      this.applyWorkspacePreferenceState(preferences)
+      this._preferencesHydrated = true
+      return preferences
+    },
+
+    async persistPreferences(patch = {}) {
+      const globalConfigDir = await this.ensureGlobalConfigDir()
+      const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, {
+        ...snapshotWorkspacePreferences(this),
+        ...patch,
+      })
+      this.applyWorkspacePreferenceState(preferences)
+      this._preferencesHydrated = true
+      return preferences
+    },
+
+    async openWorkspace(path) {
+      this.path = path
+      await this.ensureGlobalConfigDir()
 
       this.workspaceId = this.globalConfigDir ? await hashWorkspacePath(path) : ''
       this.workspaceDataDir = resolveWorkspaceDataDir(this.globalConfigDir, this.workspaceId)
@@ -156,7 +221,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
       await this.cleanup()
-      this.openWorkspaceSurface()
+      await this.openWorkspaceSurface()
       this.path = null
       this.globalConfigDir = ''
       this.workspaceId = ''
@@ -199,71 +264,73 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     toggleLeftSidebar() {
-      this.leftSidebarOpen = toggleStoredBoolean(this.leftSidebarOpen, 'leftSidebarOpen')
+      return this.persistPreferences({
+        leftSidebarOpen: !this.leftSidebarOpen,
+      })
     },
 
     setLeftSidebarPanel(panel) {
-      this.leftSidebarPanel = persistStoredString(
-        'leftSidebarPanel',
-        normalizeWorkbenchSidebarPanel(this.primarySurface, panel)
-      )
+      return this.persistPreferences({
+        leftSidebarPanel: String(panel || ''),
+      })
     },
 
     setRightSidebarPanel(panel) {
-      this.rightSidebarPanel = persistStoredString(
-        'rightSidebarPanel',
-        normalizeWorkbenchInspectorPanel(this.primarySurface, panel)
-      )
+      return this.persistPreferences({
+        rightSidebarPanel: String(panel || ''),
+      })
     },
 
-    setPrimarySurface(surface) {
-      const normalizedSurface = normalizeWorkbenchSurface(surface)
-      this.primarySurface = persistStoredString('primarySurface', normalizedSurface)
-      this.leftSidebarPanel = persistStoredString(
-        'leftSidebarPanel',
-        normalizeWorkbenchSidebarPanel(normalizedSurface, this.leftSidebarPanel)
-      )
-      this.rightSidebarPanel = persistStoredString(
-        'rightSidebarPanel',
-        normalizeWorkbenchInspectorPanel(normalizedSurface, this.rightSidebarPanel)
-      )
-      this.settingsOpen = normalizedSurface === 'settings'
-      if (normalizedSurface !== 'settings') {
+    async setPrimarySurface(surface) {
+      const nextSurface = String(surface || '').trim() || 'workspace'
+      const preferences = await this.persistPreferences({
+        primarySurface: nextSurface,
+      })
+      this.settingsOpen = preferences.primarySurface === 'settings'
+      if (!this.settingsOpen) {
         this.settingsSection = null
       }
     },
 
     openWorkspaceSurface() {
-      this.setPrimarySurface('workspace')
+      return this.setPrimarySurface('workspace')
     },
 
     toggleRightSidebar() {
-      this.rightSidebarOpen = toggleStoredBoolean(this.rightSidebarOpen, 'rightSidebarOpen')
+      return this.persistPreferences({
+        rightSidebarOpen: !this.rightSidebarOpen,
+      })
     },
 
     openRightSidebar() {
       if (this.rightSidebarOpen) return
-      this.rightSidebarOpen = persistStoredString('rightSidebarOpen', true)
+      return this.persistPreferences({
+        rightSidebarOpen: true,
+      })
     },
 
     closeRightSidebar() {
       if (!this.rightSidebarOpen) return
-      this.rightSidebarOpen = persistStoredString('rightSidebarOpen', false)
+      return this.persistPreferences({
+        rightSidebarOpen: false,
+      })
     },
 
     toggleAutoSave() {
-      this.autoSave = toggleStoredBoolean(this.autoSave, 'autoSave')
+      return this.persistPreferences({
+        autoSave: !this.autoSave,
+      })
     },
 
     openSettings(section = null) {
       this.settingsSection = normalizeSettingsSectionValue(
         section || this.settingsSection || 'theme'
       )
-      this.setPrimarySurface('settings')
+      return this.setPrimarySurface('settings')
     },
 
     closeSettings() {
-      this.openWorkspaceSurface()
+      return this.openWorkspaceSurface()
     },
 
     setSettingsSection(section) {
@@ -271,42 +338,49 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
 
     toggleSoftWrap() {
-      this.softWrap = toggleStoredBoolean(this.softWrap, 'softWrap')
+      return this.persistPreferences({
+        softWrap: !this.softWrap,
+      })
     },
 
     setWrapColumn(value) {
-      this.wrapColumn = setWrapColumnPreference(value)
+      return this.persistPreferences({
+        wrapColumn: setWrapColumnPreference(value),
+      })
     },
 
     setPdfCustomPageBackground(value) {
-      this.pdfCustomPageBackground = setWorkspacePdfCustomPageBackground(value)
+      return this.persistPreferences({
+        pdfCustomPageBackground: setWorkspacePdfCustomPageBackground(value),
+      })
     },
 
     setPdfPageBackgroundFollowsTheme(value) {
-      this.pdfPageBackgroundFollowsTheme = setWorkspacePdfPageBackgroundFollowsTheme(value)
+      return this.persistPreferences({
+        pdfPageBackgroundFollowsTheme: setWorkspacePdfPageBackgroundFollowsTheme(value),
+      })
     },
 
     async zoomIn() {
       this._lastAppZoomInteractionAt = Date.now()
-      this.appZoomPercent = increaseWorkspaceZoom(this.appZoomPercent)
-      await this.applyAppZoom()
+      await this.setZoomPercent(increaseWorkspaceZoom(this.appZoomPercent))
     },
 
     async zoomOut() {
       this._lastAppZoomInteractionAt = Date.now()
-      this.appZoomPercent = decreaseWorkspaceZoom(this.appZoomPercent)
-      await this.applyAppZoom()
+      await this.setZoomPercent(decreaseWorkspaceZoom(this.appZoomPercent))
     },
 
     async resetZoom() {
       this._lastAppZoomInteractionAt = Date.now()
-      this.appZoomPercent = resetWorkspaceZoom()
-      await this.applyAppZoom()
+      await this.setZoomPercent(resetWorkspaceZoom())
     },
 
     async setZoomPercent(percent) {
       this._lastAppZoomInteractionAt = Date.now()
-      this.appZoomPercent = setWorkspaceZoomPercent(percent)
+      await this.persistPreferences({
+        appZoomPercent: setWorkspaceZoomPercent(percent),
+      })
       await this.applyAppZoom()
     },
 
@@ -314,8 +388,11 @@ export const useWorkspaceStore = defineStore('workspace', {
       applyWorkspaceFontSizes(this.editorFontSize, this.uiFontSize)
     },
 
-    setEditorFontSize(value) {
-      this.editorFontSize = setWorkspaceEditorFontSize(value)
+    async setEditorFontSize(value) {
+      await this.persistPreferences({
+        editorFontSize: setWorkspaceEditorFontSize(value),
+      })
+      this.applyFontSizes()
     },
 
     async applyAppZoom() {
@@ -323,21 +400,26 @@ export const useWorkspaceStore = defineStore('workspace', {
       await applyWorkspaceAppZoom(this.appZoomPercent)
     },
 
-    setProseFont(name) {
-      this.proseFont = name
-      setWorkspaceProseFont(name)
+    async setProseFont(name) {
+      await this.persistPreferences({
+        proseFont: name,
+      })
+      this.restoreProseFont()
     },
 
     restoreProseFont() {
-      this.setProseFont(this.proseFont)
+      this.proseFont = setWorkspaceProseFont(this.proseFont)
     },
 
     normalizeEditorFontSize() {
       this.editorFontSize = normalizeEditorFontSize(this.editorFontSize)
     },
 
-    setTheme(name) {
-      this.theme = setWorkspaceTheme(name)
+    async setTheme(name) {
+      await this.persistPreferences({
+        theme: name,
+      })
+      this.restoreTheme()
     },
 
     restoreTheme() {

@@ -264,6 +264,12 @@ export function useWorkspaceLifecycle() {
   }
 
   onMounted(async () => {
+    try {
+      await workspace.hydratePreferences()
+    } catch (error) {
+      console.warn('[workspace] failed to hydrate preferences from Rust runtime:', error)
+    }
+
     if (isBrowserPreviewRuntime()) {
       workspace.restoreTheme()
       workspace.applyFontSizes()
