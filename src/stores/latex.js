@@ -659,6 +659,14 @@ export const useLatexStore = defineStore('latex', {
       if (!texPath || !pdfPath) return null
       const targetKey = options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
       const previous = this.compileState[texPath] || {}
+      const normalizedPdfPath = String(pdfPath || '').trim()
+      if (
+        !previous.synctexPath
+        && previous.synctexProbePath === normalizedPdfPath
+        && previous.synctexProbeResolved === true
+      ) {
+        return previous
+      }
       const resolvedSynctexPath = previous.synctexPath
         || options.synctexPath
         || await resolveExistingLatexSynctexPath(pdfPath)
@@ -667,9 +675,23 @@ export const useLatexStore = defineStore('latex', {
         status: previous.status || 'idle',
         pdfPath,
         synctexPath: resolvedSynctexPath || null,
+        synctexProbePath: normalizedPdfPath,
+        synctexProbeResolved: true,
         previewPath: previous.previewPath || pdfPath,
         compileTargetPath: previous.compileTargetPath || targetKey,
         projectRootPath: previous.projectRootPath || targetKey,
+      }
+      if (
+        previous.status === nextState.status
+        && previous.pdfPath === nextState.pdfPath
+        && previous.synctexPath === nextState.synctexPath
+        && previous.synctexProbePath === nextState.synctexProbePath
+        && previous.synctexProbeResolved === nextState.synctexProbeResolved
+        && previous.previewPath === nextState.previewPath
+        && previous.compileTargetPath === nextState.compileTargetPath
+        && previous.projectRootPath === nextState.projectRootPath
+      ) {
+        return previous
       }
       this.compileState[texPath] = nextState
       if (targetKey) {
