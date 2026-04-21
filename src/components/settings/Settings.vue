@@ -64,6 +64,7 @@ const activeSectionComponent = computed(
   flex-direction: column;
   min-height: 100%;
   background: transparent;
+  --settings-select-width: 280px;
 }
 
 .settings-header {
@@ -191,6 +192,10 @@ const activeSectionComponent = computed(
 
 .settings-surface .settings-row-control.compact {
   min-width: auto;
+}
+
+.settings-surface .settings-row-control .ui-select-shell {
+  width: min(100%, var(--settings-select-width));
 }
 
 /* =========================================================================
@@ -410,6 +415,10 @@ const activeSectionComponent = computed(
 
 .settings-surface .settings-row-control.compact {
   min-width: auto;
+}
+
+.settings-surface .settings-row-control .ui-select-shell {
+  width: min(100%, var(--settings-select-width));
 }
 
 /* =========================================================================

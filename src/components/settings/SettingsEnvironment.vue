@@ -211,10 +211,6 @@ onMounted(() => {
   pointer-events: none;
 }
 
-:deep(.ui-select-shell) {
-  width: min(100%, 240px);
-}
-
 .settings-group-header-row {
   display: flex;
   align-items: center;

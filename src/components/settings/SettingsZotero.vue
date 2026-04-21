@@ -576,7 +576,4 @@ onMounted(async () => {
   width: min(100%, 280px);
 }
 
-:deep(.ui-select-shell) {
-  width: min(100%, 280px);
-}
 </style>

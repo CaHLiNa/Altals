@@ -642,7 +642,4 @@ onMounted(async () => {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-:deep(.ui-select-shell.font-select) {
-  width: min(100%, 280px);
-}
 </style>
