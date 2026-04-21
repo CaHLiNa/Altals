@@ -336,6 +336,7 @@ function captureViewerRestoreState(app = getViewerApp()) {
   const container = getViewerContainer(app)
   if (!pdfViewer || !container) return null
 
+  const location = pdfViewer._location || null
   const pageNumber = Math.max(1, Number(pdfViewer.currentPageNumber || 1))
   const pageView = pdfViewer._pages?.[pageNumber - 1]
   const pageElement = pageView?.div
@@ -348,6 +349,9 @@ function captureViewerRestoreState(app = getViewerApp()) {
   return {
     pageNumber,
     scaleValue: normalizedScaleValue || rawScaleValue || '',
+    pdfOpenParams: String(location?.pdfOpenParams || '').trim(),
+    pdfPointLeft: Number(location?.left),
+    pdfPointTop: Number(location?.top),
     pageScrollRatio:
       Number.isFinite(pageHeight) && pageHeight > 0
         ? Math.max(0, Math.min(1, relativeTop / pageHeight))
@@ -360,8 +364,38 @@ function restoreViewerState(snapshot, app = getViewerApp()) {
   if (!snapshot) return false
 
   const pdfViewer = app?.pdfViewer
+  const pdfLinkService = app?.pdfLinkService
   const container = getViewerContainer(app)
   if (!pdfViewer || !container) return false
+
+  const pdfOpenParams = String(snapshot.pdfOpenParams || '').trim()
+  if (pdfOpenParams && pdfLinkService?.setHash) {
+    try {
+      pdfLinkService.setHash(pdfOpenParams.replace(/^#/, ''))
+      return true
+    } catch {
+      // Fall through to the manual restoration path below.
+    }
+  }
+
+  const pdfPointLeft = Number(snapshot.pdfPointLeft)
+  const pdfPointTop = Number(snapshot.pdfPointTop)
+  if (
+    Number.isFinite(pdfPointLeft)
+    && Number.isFinite(pdfPointTop)
+    && typeof pdfViewer.scrollPageIntoView === 'function'
+  ) {
+    try {
+      pdfViewer.scrollPageIntoView({
+        pageNumber: Math.max(1, Number(snapshot.pageNumber || 1)),
+        destArray: [null, { name: 'XYZ' }, pdfPointLeft, pdfPointTop, null],
+        allowNegativeOffset: true,
+      })
+      return true
+    } catch {
+      // Fall through to the manual restoration path below.
+    }
+  }
 
   const scaleValue = String(snapshot.scaleValue || '').trim()
   if (scaleValue) {
@@ -411,6 +445,7 @@ function syncPreviewSessionState(nextSession = {}) {
   previewSessionState.buildId = nextSession.buildId || ''
   previewSessionState.revisionKey = nextSession.revisionKey || ''
   previewSessionState.synctexPath = nextSession.synctexPath || ''
+  previewSessionState.sourceFingerprint = nextSession.sourceFingerprint || ''
   previewSessionState.viewState = nextSession.viewState || null
 }
 
@@ -1226,6 +1261,7 @@ async function handlePreviewRevisionChange(nextRevision, previousRevision) {
   const previousRevisionKey = previousRevision?.revisionKey || ''
   const nextRevisionKey = nextRevision?.revisionKey || ''
   if (!nextRevisionKey || nextRevisionKey === previousRevisionKey) return
+  if (transition.action === 'noop') return
 
   if (transition.action === 'refresh-document') {
     const reopened = await reopenPdfInPlace({

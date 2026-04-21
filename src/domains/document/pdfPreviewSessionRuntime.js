@@ -16,6 +16,7 @@ export function createPdfPreviewSessionState() {
     buildId: '',
     revisionKey: '',
     synctexPath: '',
+    sourceFingerprint: '',
     viewState: null,
   }
 }
@@ -28,6 +29,7 @@ export function resolvePdfPreviewRevision(options = {}) {
   const compileState = options.compileState || null
   const buildId = normalizeBuildId(compileState?.lastCompiled)
   const synctexPath = normalizeString(compileState?.synctexPath)
+  const sourceFingerprint = normalizeString(compileState?.sourceFingerprint)
   const compileTargetPath = normalizeString(compileState?.compileTargetPath)
   const sessionKey = [paneId || 'pane-root', sourcePath || artifactPath, kind].filter(Boolean).join('::')
   const documentPath = artifactPath || normalizeString(compileState?.pdfPath)
@@ -36,6 +38,7 @@ export function resolvePdfPreviewRevision(options = {}) {
     documentPath,
     buildId,
     synctexPath,
+    sourceFingerprint,
     compileTargetPath,
   ].join('::')
 
@@ -48,6 +51,7 @@ export function resolvePdfPreviewRevision(options = {}) {
     buildId,
     revisionKey,
     synctexPath,
+    sourceFingerprint,
     compileTargetPath,
   }
 }
@@ -76,10 +80,16 @@ export function resolvePdfPreviewSessionTransition(sessionState, nextRevision, o
   const sameDocument = current.artifactPath && current.artifactPath === revision.artifactPath
   const buildChanged = current.buildId !== revision.buildId
   const revisionChanged = current.revisionKey !== revision.revisionKey
+  const sourceFingerprintUnchanged =
+    Boolean(current.sourceFingerprint)
+    && Boolean(revision.sourceFingerprint)
+    && current.sourceFingerprint === revision.sourceFingerprint
 
   let action = 'noop'
   if (!sameSession || !sameDocument) {
     action = 'reload-viewer'
+  } else if (buildChanged && sourceFingerprintUnchanged) {
+    action = 'noop'
   } else if (revisionChanged || buildChanged) {
     action = 'refresh-document'
   }
@@ -93,6 +103,7 @@ export function resolvePdfPreviewSessionTransition(sessionState, nextRevision, o
       buildId: revision.buildId,
       revisionKey: revision.revisionKey,
       synctexPath: revision.synctexPath,
+      sourceFingerprint: revision.sourceFingerprint,
       viewState: nextViewState,
     },
     revision,
