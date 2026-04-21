@@ -81,7 +81,7 @@
         <AiAttachmentList :attachments="attachments" @remove="removeAttachment" />
 
         <div class="ai-agent-panel__composer-well">
-          <div class="ai-agent-panel__composer-input">
+          <div ref="composerInputRef" class="ai-agent-panel__composer-input">
             <UiTextarea
               ref="composerTextareaRef"
               :model-value="aiStore.promptDraft"
@@ -203,7 +203,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
 import { useAiStore } from '../../stores/ai'
@@ -258,13 +258,16 @@ void aiStore.resetTransientRuntimeState()
 
 const threadRef = ref(null)
 const threadBottomRef = ref(null)
+const composerInputRef = ref(null)
 const composerTextareaRef = ref(null)
 const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
-const COMPOSER_MIN_HEIGHT = 72
-const COMPOSER_MAX_HEIGHT = 220
+const COMPOSER_MIN_HEIGHT = 56
+const COMPOSER_MAX_HEIGHT = 180
+let composerResizeObserver = null
+let lastComposerWidth = 0
 
 const messages = computed(() => aiStore.messages)
 const artifacts = computed(() => aiStore.artifacts)
@@ -760,18 +763,56 @@ function scrollToBottom(behavior = 'auto') {
   })
 }
 
-function syncComposerTextareaHeight() {
+function resolveComposerTextareaElement() {
+  const exposed = composerTextareaRef.value?.textareaEl
+  return exposed?.value ?? exposed ?? null
+}
+
+function applyComposerTextareaHeight(height = COMPOSER_MIN_HEIGHT) {
+  const textareaEl = resolveComposerTextareaElement()
+  if (!textareaEl) return
+  const nextHeight = Math.min(Math.max(Number(height || 0), COMPOSER_MIN_HEIGHT), COMPOSER_MAX_HEIGHT)
+  textareaEl.style.height = `${nextHeight}px`
+  textareaEl.style.overflowY = nextHeight >= COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden'
+}
+
+function syncComposerTextareaHeight(options = {}) {
   nextTick(() => {
-    const textareaEl = composerTextareaRef.value?.textareaEl
+    const textareaEl = resolveComposerTextareaElement()
     if (!textareaEl) return
+
+    const forceMinHeight = options?.forceMinHeight === true
+    const normalizedValue = String(textareaEl.value || '')
+    if (forceMinHeight || !normalizedValue.trim()) {
+      applyComposerTextareaHeight(COMPOSER_MIN_HEIGHT)
+      return
+    }
+
     textareaEl.style.height = 'auto'
     const nextHeight = Math.min(
       Math.max(Number(textareaEl.scrollHeight || 0), COMPOSER_MIN_HEIGHT),
       COMPOSER_MAX_HEIGHT
     )
-    textareaEl.style.height = `${nextHeight}px`
-    textareaEl.style.overflowY = nextHeight >= COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden'
+    applyComposerTextareaHeight(nextHeight)
   })
+}
+
+function setupComposerResizeObserver() {
+  if (typeof ResizeObserver === 'undefined') return
+  const composerInputEl = composerInputRef.value
+  if (!composerInputEl) return
+
+  composerResizeObserver?.disconnect?.()
+  composerResizeObserver = new ResizeObserver((entries) => {
+    const width = Number(entries?.[0]?.contentRect?.width || 0)
+    if (!width || Math.abs(width - lastComposerWidth) < 1) return
+    lastComposerWidth = width
+    syncComposerTextareaHeight({
+      forceMinHeight: !String(aiStore.promptDraft || '').trim(),
+    })
+  })
+  composerResizeObserver.observe(composerInputEl)
+  lastComposerWidth = composerInputEl.getBoundingClientRect().width || 0
 }
 
 async function refreshProviderRuntime() {
@@ -787,14 +828,26 @@ onMounted(() => {
   void hydrateWorkspaceSessions()
   void refreshProviderRuntime()
   scrollToBottom('auto')
-  syncComposerTextareaHeight()
+  syncComposerTextareaHeight({
+    forceMinHeight: !String(aiStore.promptDraft || '').trim(),
+  })
+  setupComposerResizeObserver()
 })
 
 onActivated(() => {
   void hydrateWorkspaceSessions()
   void refreshProviderRuntime()
   scrollToBottom('auto')
-  syncComposerTextareaHeight()
+  syncComposerTextareaHeight({
+    forceMinHeight: !String(aiStore.promptDraft || '').trim(),
+  })
+  setupComposerResizeObserver()
+})
+
+onBeforeUnmount(() => {
+  composerResizeObserver?.disconnect?.()
+  composerResizeObserver = null
+  lastComposerWidth = 0
 })
 
 watch(
@@ -817,7 +870,9 @@ watch(
   () => aiStore.currentSessionId,
   () => {
     scrollToBottom('auto')
-    syncComposerTextareaHeight()
+    syncComposerTextareaHeight({
+      forceMinHeight: !String(aiStore.promptDraft || '').trim(),
+    })
   }
 )
 
@@ -841,8 +896,10 @@ watch(composerSuggestions, (next) => {
 
 watch(
   () => aiStore.promptDraft,
-  () => {
-    syncComposerTextareaHeight()
+  (promptDraft) => {
+    syncComposerTextareaHeight({
+      forceMinHeight: !String(promptDraft || '').trim(),
+    })
   },
   { immediate: true }
 )
@@ -1115,11 +1172,6 @@ watch(
   max-height: 400px;
 }
 
-.ai-agent-panel__provider-select {
-  min-width: 88px;
-  max-width: 104px;
-}
-
 .ai-agent-panel__error {
   font-size: 12px;
   line-height: 1.5;
@@ -1141,52 +1193,14 @@ watch(
 }
 
 .ai-agent-panel__composer :deep(.ai-agent-panel__textarea-shell .ui-textarea-control) {
-  min-height: 72px;
+  min-height: 56px;
   height: auto;
-  max-height: 220px;
-  padding: 10px 4px 6px !important;
+  max-height: 180px;
+  padding: 8px 4px 6px !important;
   resize: none;
   font-size: 15px;
   line-height: 1.6;
   color: var(--text-primary);
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell) {
-  width: auto;
-  max-width: 180px;
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger) {
-  height: 32px;
-  width: auto;
-  max-width: 180px;
-  padding: 0 26px 0 10px;
-  border-color: transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-hover) 64%, transparent);
-  box-shadow: none;
-  color: var(--text-secondary);
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:hover),
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-trigger:focus-visible) {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-hover) 88%, transparent);
-  color: var(--text-primary);
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell.is-disabled .ui-select-trigger) {
-  opacity: 0.55;
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-value) {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.ai-agent-panel__composer :deep(.ai-agent-panel__model-chip-shell .ui-select-caret) {
-  right: 7px;
-  opacity: 0.7;
 }
 
 .ai-agent-panel__tool-button {
