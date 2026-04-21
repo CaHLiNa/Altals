@@ -10,6 +10,24 @@
 
 ---
 
+## 当前进度
+
+截至 2026-04-21，Task 1 已完成首个可验证切片：
+
+- 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
+- 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
+- 已把前端 `workspacePreferences.js` 收口为 Rust bridge + DOM side effect helper
+- 已把 `workspace.js` 的主要 preferences 更新路径改为消费 Rust-normalized 结果
+- 已完成 legacy `localStorage` 迁移入口，但尚未完全移除所有前端 fallback / 常量镜像
+
+当前仍未完成：
+
+- browser preview 路径上的前端 shadow normalize 清理
+- Task 1 的真实手动验证
+- `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 的进一步降权整理
+
+---
+
 ## 背景与原则
 
 这不是“把所有 JS 都搬到 Rust”。本计划只迁移以下几类内容：
@@ -174,7 +192,7 @@ Rust 接管：
 
 ### 执行步骤
 
-- [ ] **Step 1: 定义 Rust preference schema**
+- [x] **Step 1: 定义 Rust preference schema**
 
 输出：
 
@@ -182,7 +200,7 @@ Rust 接管：
 - `WorkbenchState`
 - 对应的 normalize / migrate / serialize 逻辑
 
-- [ ] **Step 2: 在 Rust 提供 load/save/normalize command**
+- [x] **Step 2: 在 Rust 提供 load/save/normalize command**
 
 新增 command：
 
@@ -190,7 +208,7 @@ Rust 接管：
 - `workspace_preferences_save`
 - `workbench_state_normalize`
 
-- [ ] **Step 3: 收口前端 `workspacePreferences.js`**
+- [x] **Step 3: 收口前端 `workspacePreferences.js`**
 
 处理方式：
 
@@ -198,7 +216,7 @@ Rust 接管：
 - 删除默认值与合法值判定权威
 - 改为调用 Rust command
 
-- [ ] **Step 4: 收口 `workspace.js`**
+- [x] **Step 4: 收口 `workspace.js`**
 
 要求：
 
@@ -206,6 +224,11 @@ Rust 接管：
 - `openSettings` / `setPrimarySurface` / `setRightSidebarPanel` 等路径只消费 Rust-normalized 结果
 
 - [ ] **Step 5: 清理旧 localStorage 影子规则**
+
+当前状态：
+
+- 已移除前端对 `theme` / `appZoomPercent` / `primarySurface` / `leftSidebarPanel` / `rightSidebarPanel` 的主持久化权威
+- 仍需继续清理 browser preview 与 shared constant 层面的影子 normalize
 
 删除目标：
 

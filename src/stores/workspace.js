@@ -162,13 +162,24 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     async persistPreferences(patch = {}) {
       const globalConfigDir = await this.ensureGlobalConfigDir()
-      const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, {
-        ...snapshotWorkspacePreferences(this),
+      const previous = snapshotWorkspacePreferences(this)
+      const optimistic = {
+        ...previous,
         ...patch,
-      })
-      this.applyWorkspacePreferenceState(preferences)
+      }
+
+      this.applyWorkspacePreferenceState(optimistic)
       this._preferencesHydrated = true
-      return preferences
+
+      try {
+        const preferences = await saveWorkspacePreferencesToRust(globalConfigDir, optimistic)
+        this.applyWorkspacePreferenceState(preferences)
+        this._preferencesHydrated = true
+        return preferences
+      } catch (error) {
+        this.applyWorkspacePreferenceState(previous)
+        throw error
+      }
     },
 
     async openWorkspace(path) {
