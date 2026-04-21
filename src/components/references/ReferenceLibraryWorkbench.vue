@@ -173,8 +173,11 @@ import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { readWorkspaceTextFile, renameWorkspacePath } from '../../services/fileStoreIO'
-import { cslToReferenceRecord } from '../../domains/references/referenceInterop.js'
-import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
+import {
+  hydrateReferenceFromCsl,
+  lookupByDoi,
+  searchByMetadata,
+} from '../../services/references/crossref.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
@@ -390,7 +393,7 @@ async function handleRefreshReferenceMetadata(reference = {}) {
       return
     }
 
-    const refreshed = cslToReferenceRecord(csl, {
+    const refreshed = await hydrateReferenceFromCsl(csl, {
       id: reference.id,
       citationKey: reference.citationKey,
       pdfPath: reference.pdfPath,

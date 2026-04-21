@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::references_runtime::{csl_to_reference_record, reference_record_to_csl};
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CitationCslFormatParams {
@@ -652,11 +654,33 @@ async fn render_csl_items(params: CitationCslFormatParams) -> Result<String, Str
 pub async fn references_citation_render(params: CitationRenderParams) -> Result<String, String> {
     let style = params.style.trim();
     let mode = params.mode.trim();
+    let fallback_reference = if params.reference.is_null() && !params.csl_items.is_empty() {
+        csl_to_reference_record(&params.csl_items[0])
+    } else {
+        params.reference.clone()
+    };
+    let fallback_references = if params.references.is_empty() && !params.csl_items.is_empty() {
+        params
+            .csl_items
+            .iter()
+            .map(csl_to_reference_record)
+            .collect::<Vec<_>>()
+    } else {
+        params.references.clone()
+    };
+    let fallback_csl_items = if params.csl_items.is_empty() && !params.references.is_empty() {
+        params
+            .references
+            .iter()
+            .map(reference_record_to_csl)
+            .collect::<Vec<_>>()
+    } else {
+        params.csl_items.clone()
+    };
 
     if is_fast_style(style) {
         if mode == "bibliography" {
-            return Ok(params
-                .references
+            return Ok(fallback_references
                 .iter()
                 .enumerate()
                 .map(|(index, reference)| {
@@ -670,7 +694,7 @@ pub async fn references_citation_render(params: CitationRenderParams) -> Result<
         return Ok(format_reference(
             style,
             mode,
-            &params.reference,
+            &fallback_reference,
             params.number,
         ));
     }
@@ -678,7 +702,7 @@ pub async fn references_citation_render(params: CitationRenderParams) -> Result<
     render_csl_items(CitationCslFormatParams {
         style_id: style.to_string(),
         mode: mode.to_string(),
-        csl_items: params.csl_items,
+        csl_items: fallback_csl_items,
         locale: params.locale,
         workspace_path: params.workspace_path,
     })

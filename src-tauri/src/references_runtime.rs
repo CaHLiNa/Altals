@@ -51,6 +51,15 @@ pub struct ReferenceBibFileParams {
     pub references: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceFromCslParams {
+    #[serde(default)]
+    pub csl: Value,
+    #[serde(default)]
+    pub overrides: Value,
+}
+
 fn normalize_whitespace(value: &str) -> String {
     value
         .split_whitespace()
@@ -182,7 +191,7 @@ fn build_citation_key(csl: &Value) -> String {
     }
 }
 
-fn csl_to_reference_record(csl: &Value) -> Value {
+pub(crate) fn csl_to_reference_record(csl: &Value) -> Value {
     let authors = build_author_names_from_csl(csl);
     let citation_key = build_citation_key(csl);
     let identifier = trim_string(csl.get("DOI")).if_empty_then(|| trim_string(csl.get("URL")));
@@ -213,7 +222,7 @@ fn csl_to_reference_record(csl: &Value) -> Value {
     })
 }
 
-fn reference_record_to_csl(reference: &Value) -> Value {
+pub(crate) fn reference_record_to_csl(reference: &Value) -> Value {
     let authors = reference
         .get("authors")
         .and_then(Value::as_array)
@@ -875,6 +884,24 @@ pub async fn references_write_bib_file(params: ReferenceBibFileParams) -> Result
     Ok(bib_path)
 }
 
+#[tauri::command]
+pub async fn references_record_from_csl(params: ReferenceFromCslParams) -> Result<Value, String> {
+    let mut map = csl_to_reference_record(&params.csl)
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(overrides) = params.overrides.as_object() {
+        for (key, value) in overrides {
+            map.insert(key.clone(), value.clone());
+        }
+    }
+
+    Ok(crate::references_backend::normalize_reference_record(
+        &Value::Object(map),
+    ))
+}
+
 trait StringExt {
     fn if_empty_then(self, fallback: impl FnOnce() -> String) -> String;
 }
@@ -886,5 +913,36 @@ impl StringExt for String {
         } else {
             self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{references_record_from_csl, ReferenceFromCslParams};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn record_from_csl_preserves_overrides_and_normalizes_type() {
+        let record = references_record_from_csl(ReferenceFromCslParams {
+            csl: json!({
+                "type": "article-journal",
+                "title": "Hydrated",
+                "author": [{ "given": "Ada", "family": "Lovelace" }],
+                "DOI": "10.1000/test",
+            }),
+            overrides: json!({
+                "id": "ref-custom",
+                "citationKey": "lovelace2024",
+                "tags": ["AI"],
+                "collections": ["reading"]
+            }),
+        })
+        .await
+        .expect("record from csl");
+
+        assert_eq!(record["id"].as_str(), Some("ref-custom"));
+        assert_eq!(record["typeKey"].as_str(), Some("journal-article"));
+        assert_eq!(record["citationKey"].as_str(), Some("lovelace2024"));
+        assert_eq!(record["tags"].as_array().map(|v| v.len()), Some(1));
     }
 }

@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useWorkspaceStore } from '../../stores/workspace.js'
-import { cslToReferenceRecord, referenceRecordToCsl } from '../../domains/references/referenceInterop.js'
 
 const FAST_STYLE_IDS = new Set(['apa', 'chicago', 'harvard', 'ieee', 'vancouver'])
 
@@ -45,8 +44,8 @@ async function formatFromCsl(style = 'apa', mode = 'reference', cslItems = [], n
     params: {
       style,
       mode,
-      reference: cslToReferenceRecord(cslItems[0] || {}),
-      references: cslItems.map((item) => cslToReferenceRecord(item)),
+      reference: null,
+      references: [],
       cslItems,
       number,
       locale,
@@ -56,16 +55,10 @@ async function formatFromCsl(style = 'apa', mode = 'reference', cslItems = [], n
 }
 
 export async function formatReference(csl = {}, style = 'apa', number) {
-  if (isFastCitationStyle(style)) {
-    return formatFromReference(style, 'reference', cslToReferenceRecord(csl), number)
-  }
   return formatFromCsl(style, 'reference', [csl], number)
 }
 
 export async function formatInlineCitation(csl = {}, style = 'apa', number) {
-  if (isFastCitationStyle(style)) {
-    return formatFromReference(style, 'inline', cslToReferenceRecord(csl), number)
-  }
   return formatFromCsl(style, 'inline', [csl], number)
 }
 
@@ -74,17 +67,21 @@ export async function formatCslBibliography(cslRecords = [], style = 'apa') {
 }
 
 export async function formatCitation(style = 'apa', mode = 'reference', reference = {}, number) {
-  if (isFastCitationStyle(style)) return formatFromReference(style, mode, reference, number)
-  return formatFromCsl(style, mode, [referenceRecordToCsl(reference)], number)
+  return formatFromReference(style, mode, reference, number)
 }
 
 export async function formatBibliography(style = 'apa', references = []) {
-  if (isFastCitationStyle(style)) {
-    return formatFromCsl(
+  requireTauriInvoke()
+  return invoke('references_citation_render', {
+    params: {
       style,
-      'bibliography',
-      references.map((reference) => referenceRecordToCsl(reference))
-    )
-  }
-  return formatFromCsl(style, 'bibliography', references.map((reference) => referenceRecordToCsl(reference)))
+      mode: 'bibliography',
+      reference: null,
+      references,
+      cslItems: [],
+      number: null,
+      locale: 'en-GB',
+      workspacePath: await resolveWorkspacePath(),
+    },
+  })
 }

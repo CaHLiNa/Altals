@@ -1,5 +1,5 @@
-import { referenceRecordToCsl } from '../../domains/references/referenceInterop.js'
 import {
+  formatCitation,
   formatCslBibliography,
   formatBibliography,
   formatInlineCitation,
@@ -73,13 +73,10 @@ export async function getCitationFormatter(styleId = 'apa') {
 }
 
 export async function formatCitationWithStyle(styleId = 'apa', mode = 'reference', reference = {}, number) {
-  const formatter = await getCitationFormatter(styleId)
-  const csl = referenceRecordToCsl(reference)
-
   if (mode === 'inline') {
-    return formatter.formatInlineCitation(csl, number)
+    return formatCitation(styleId, 'inline', reference, number)
   }
-  return formatter.formatReference(csl, number)
+  return formatCitation(styleId, 'reference', reference, number)
 }
 
 export async function formatBibliographyWithStyle(styleId = 'apa', references = []) {

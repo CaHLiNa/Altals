@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { normalizeReferenceRecord } from '../../domains/references/referencePresentation.js'
 import {
   readBrowserPreviewReferenceSnapshot,
   writeBrowserPreviewReferenceSnapshot,
@@ -85,11 +84,37 @@ export function normalizeReferenceLibrarySnapshot(raw = {}) {
     collections: Array.isArray(raw?.collections) ? raw.collections : [],
     tags: Array.isArray(raw?.tags) ? raw.tags : [],
     references: Array.isArray(raw?.references)
-      ? raw.references
-          .map((reference) => normalizeReferenceRecord(reference))
-          .filter((reference) => !isLegacyFixtureReference(reference))
+      ? raw.references.filter((reference) => !isLegacyFixtureReference(reference))
       : [],
   }
+}
+
+export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}) {
+  if (!hasTauriInvoke()) {
+    return normalizeReferenceLibrarySnapshot(snapshot)
+  }
+
+  const normalized = await invoke('references_snapshot_normalize', {
+    params: {
+      snapshot,
+    },
+  })
+
+  return normalizeReferenceLibrarySnapshot(normalized)
+}
+
+export async function normalizeReferenceRecordWithBackend(reference = {}) {
+  if (!hasTauriInvoke()) {
+    return reference && typeof reference === 'object' ? reference : {}
+  }
+
+  const normalized = await invoke('references_record_normalize', {
+    params: {
+      reference,
+    },
+  })
+
+  return normalized && typeof normalized === 'object' ? normalized : {}
 }
 
 export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '', options = {}) {
@@ -125,12 +150,11 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     citationStyle: String(normalizedSnapshot.citationStyle || 'apa'),
     references: migratedReferences,
   }
-  await writeReferenceLibrarySnapshot(globalConfigDir, migratedSnapshot)
-  return migratedSnapshot
+  return writeReferenceLibrarySnapshot(globalConfigDir, migratedSnapshot)
 }
 
 export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapshot = {}) {
-  const normalizedSnapshot = normalizeReferenceLibrarySnapshot({
+  const normalizedSnapshot = await normalizeReferenceLibrarySnapshotWithBackend({
     ...snapshot,
   })
 

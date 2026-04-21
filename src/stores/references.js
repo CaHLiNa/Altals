@@ -19,7 +19,7 @@ import {
 } from '../services/references/referenceLibraryFixtures.js'
 import {
   buildDefaultReferenceLibrarySnapshot,
-  normalizeReferenceLibrarySnapshot,
+  normalizeReferenceRecordWithBackend,
   readOrCreateReferenceLibrarySnapshot,
   writeReferenceLibrarySnapshot,
 } from '../services/references/referenceLibraryIO.js'
@@ -375,7 +375,6 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async persistLibrarySnapshot(projectRoot = '') {
-      this.syncTagRegistry()
       const snapshot = {
         version: 2,
         citationStyle: this.citationStyle,
@@ -383,19 +382,20 @@ export const useReferencesStore = defineStore('references', {
         tags: this.tags,
         references: this.references,
       }
-      await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-      return snapshot
+      const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
+      this.applyLibrarySnapshot(persisted)
+      return persisted
     },
 
     applyLibrarySnapshot(snapshot = {}) {
       const normalized = {
         ...buildDefaultReferenceLibrarySnapshot(),
-        ...normalizeReferenceLibrarySnapshot(snapshot),
+        ...(snapshot && typeof snapshot === 'object' ? snapshot : {}),
       }
 
-      this.collections = normalized.collections
-      this.tags = buildTagRegistry([], normalized.references)
-      this.references = normalized.references
+      this.collections = Array.isArray(normalized.collections) ? normalized.collections : []
+      this.tags = Array.isArray(normalized.tags) ? normalized.tags : []
+      this.references = Array.isArray(normalized.references) ? normalized.references : []
       this.citationStyle = String(normalized.citationStyle || 'apa')
       if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
         this.selectedCollectionKey = ''
@@ -476,8 +476,8 @@ export const useReferencesStore = defineStore('references', {
           tags: this.tags,
           references: mergedReferences,
         }
-        await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-        this.applyLibrarySnapshot(snapshot)
+        const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
+        this.applyLibrarySnapshot(persisted)
         if (markedReferences[0]) {
           let importedSelection = mergedReferences.find((reference) =>
             markedReferences.some((candidate) => candidate.id === reference.id)
@@ -519,8 +519,8 @@ export const useReferencesStore = defineStore('references', {
           tags: this.tags,
           references: mergedReferences,
         }
-        await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-        this.applyLibrarySnapshot(snapshot)
+        const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
+        this.applyLibrarySnapshot(persisted)
         if (markedReferences[0]) {
           let importedSelection = mergedReferences.find((reference) =>
             markedReferences.some((candidate) => candidate.id === reference.id)
@@ -756,13 +756,13 @@ export const useReferencesStore = defineStore('references', {
       if (duplicate) return duplicate
 
       const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
-      const nextReference = {
+      const nextReference = await normalizeReferenceRecordWithBackend({
         ...reference,
         _appPushPending: shouldMark ? true : reference._appPushPending === true,
-      }
+      })
 
       this.references = [...this.references, nextReference]
-      this.syncTagRegistry()
+      this.tags = buildTagRegistry(this.tags, this.references)
       this.selectedReferenceId = nextReference.id
       this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
@@ -774,16 +774,16 @@ export const useReferencesStore = defineStore('references', {
       const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
       if (referenceIndex === -1) return false
 
+      const normalizedReference = await normalizeReferenceRecordWithBackend({
+        ...this.references[referenceIndex],
+        ...updates,
+      })
+
       this.references = this.references.map((reference, index) =>
-        index === referenceIndex
-          ? {
-              ...reference,
-              ...updates,
-            }
-          : reference
+        index === referenceIndex ? normalizedReference : reference
       )
 
-      this.syncTagRegistry()
+      this.tags = buildTagRegistry(this.tags, this.references)
       this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
       return true
@@ -794,7 +794,7 @@ export const useReferencesStore = defineStore('references', {
       if (!target) return false
 
       this.references = this.references.filter((reference) => reference.id !== referenceId)
-      this.syncTagRegistry()
+      this.tags = buildTagRegistry(this.tags, this.references)
       if (this.selectedReferenceId === referenceId) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -837,6 +837,7 @@ export const useReferencesStore = defineStore('references', {
           : candidate
       )
 
+      this.tags = buildTagRegistry(this.tags, this.references)
       this.ensureSelectedReferenceVisible()
       await this.persistLibrarySnapshot(projectRoot)
       return !isMember

@@ -12,7 +12,7 @@
 
 ## 当前进度
 
-截至 2026-04-21，Task 1 与 Task 2 已完成并达到当前 phase 验收：
+截至 2026-04-21，Task 1、Task 2 与 Task 3 已完成并达到当前 phase 验收：
 
 - 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
 - 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
@@ -23,6 +23,7 @@
 - 已把 `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 降为纯 metadata，不再承载 normalize 规则
 - 已新增 Rust `document_workflow_ui_resolve`，并把 document workflow 的 workflow ui state / action availability 收口到 backend cache
 - 已把 `documentWorkflow` build/runtime 改成消费 Rust preview state + Rust ui state
+- 已新增 Rust references snapshot/record normalize 与 CSL hydrate 入口，references snapshot、citation、BibTeX、metadata refresh、sync 持久化均改为消费 Rust 结果
 
 当前剩余不阻塞 Task 1 完成、但值得在后续 phase 持续关注的点：
 
@@ -404,6 +405,15 @@ Rust 接管：
 
 **目标：** 把 references library、citation render、duplicate/merge、BibTeX 输出的策略权威下沉到 Rust。
 
+当前进度：
+
+- 已新增 Rust `references_snapshot_normalize` / `references_record_normalize` / `references_record_from_csl`
+- 已把 snapshot normalize、tag registry、record normalize 收口到 `references_backend.rs`
+- 已把 citation formatter 改为始终通过 Rust `references_citation_render`，不再依赖前端 `cslToReferenceRecord/referenceRecordToCsl` 作为最终权威
+- 已把 metadata refresh（Crossref/DOI）改为通过 Rust hydrate record
+- 已把 `references` store 的写回路径改成消费 backend normalized snapshot / record，而不是继续沿用本地组装对象
+- 当前仍未做真实桌面点击回归；原因仍是 Computer Use 无法附着 `tauri dev` 窗口
+
 **Files:**
 
 - Modify: `src-tauri/src/references_backend.rs`
@@ -444,28 +454,28 @@ Rust 接管：
 
 ### 执行步骤
 
-- [ ] **Step 1: 扩展 Rust references schema 与 snapshot command**
+- [x] **Step 1: 扩展 Rust references schema 与 snapshot command**
 
 要求：
 
 - Rust 直接返回 normalized library snapshot
 - 前端不再自己做 final normalize
 
-- [ ] **Step 2: 把 duplicate / merge / import 规则下沉**
+- [x] **Step 2: 把 duplicate / merge / import 规则下沉**
 
 处理：
 
 - `bibtexImport.js` 从规则实现变为 command wrapper
 - `references.js` 删除本地 duplicate/merge 权威
 
-- [ ] **Step 3: 把 citation / bibliography 输出完全交给 Rust**
+- [x] **Step 3: 把 citation / bibliography 输出完全交给 Rust**
 
 要求：
 
 - citation formatting 只通过 Rust
 - bibliography write / export 不再有前端 shadow path
 
-- [ ] **Step 4: 收口 Zotero sync 集成**
+- [x] **Step 4: 收口 Zotero sync 集成**
 
 要求：
 
@@ -478,10 +488,18 @@ Rust 接管：
 - 引用渲染、BibTeX 输出、duplicate merge 均由 Rust 单点决定
 - Zotero sync 后库快照稳定，不再存在双权威 merge
 
+当前结果：
+
+- 前端已不再持有 references snapshot / record 的最终 normalize 权威
+- 引用渲染、BibTeX 输出、duplicate merge、PDF metadata import、Crossref/DOI hydrate 均由 Rust 决定
+- Zotero sync 后前端只消费 Rust 返回结果并经 backend normalized snapshot 落盘，不再保留前端 shadow merge
+
 ### 验证
 
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml references_`
 - `npm run build`
+- `npm run lint`
 - 手动验证：
   - 导入 BibTeX
   - 从 PDF 导入 metadata
@@ -489,6 +507,16 @@ Rust 接管：
   - citation render
   - bibliography 文件写出
   - Zotero 连接与同步
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml references_`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 已执行 `npm run tauri -- dev`，确认桌面应用在当前改动下能启动
+- 尚未完成真实桌面窗口点击回归；阻塞原因仍是当前 Computer Use 无法识别 `tauri dev` 窗口实例
 
 ---
 

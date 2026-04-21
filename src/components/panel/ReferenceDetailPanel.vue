@@ -284,13 +284,16 @@ import {
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
-import { cslToReferenceRecord } from '../../domains/references/referenceInterop.js'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
-import { lookupByDoi, searchByMetadata } from '../../services/references/crossref.js'
+import {
+  hydrateReferenceFromCsl,
+  lookupByDoi,
+  searchByMetadata,
+} from '../../services/references/crossref.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
@@ -589,7 +592,7 @@ async function handleRefreshMetadata() {
       return
     }
 
-    const refreshed = cslToReferenceRecord(csl, {
+    const refreshed = await hydrateReferenceFromCsl(csl, {
       id: reference.id,
       citationKey: reference.citationKey,
       pdfPath: reference.pdfPath,

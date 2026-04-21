@@ -58,6 +58,20 @@ pub struct ReferenceAssetsMigrateParams {
     pub references: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceSnapshotNormalizeParams {
+    #[serde(default)]
+    pub snapshot: Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceRecordNormalizeParams {
+    #[serde(default)]
+    pub reference: Value,
+}
+
 fn trim_string(value: Option<&Value>) -> String {
     value
         .and_then(Value::as_str)
@@ -103,7 +117,125 @@ fn normalize_reference_type_key(value: &str) -> String {
     }
 }
 
-fn normalize_reference_record(reference: &Value) -> Value {
+fn normalize_tag_label(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn normalize_tag_key(value: &str) -> String {
+    normalize_tag_label(value).to_lowercase()
+}
+
+fn normalize_reference_collection_values(value: Option<&Value>) -> Vec<Value> {
+    let mut seen = HashSet::new();
+    value
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .filter(|entry| seen.insert(entry.to_lowercase()))
+                .map(|entry| Value::String(entry.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_reference_tag_values(value: Option<&Value>) -> Vec<Value> {
+    let mut seen = HashSet::new();
+    value
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    if let Some(text) = entry.as_str() {
+                        let label = normalize_tag_label(text);
+                        if label.is_empty() {
+                            None
+                        } else {
+                            Some(label)
+                        }
+                    } else if entry.is_object() {
+                        let label = normalize_tag_label(
+                            &trim_string(entry.get("label"))
+                                .if_empty_then(|| trim_string(entry.get("name")))
+                                .if_empty_then(|| trim_string(entry.get("key"))),
+                        );
+                        if label.is_empty() {
+                            None
+                        } else {
+                            Some(label)
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .filter(|label| seen.insert(label.to_lowercase()))
+                .map(Value::String)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_collection_entries(value: Option<&Value>) -> Vec<Value> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for entry in value.and_then(Value::as_array).cloned().unwrap_or_default() {
+        let key = trim_string(entry.get("key"))
+            .if_empty_then(|| trim_string(entry.get("label")).to_lowercase());
+        let label = trim_string(entry.get("label")).if_empty_then(|| trim_string(entry.get("key")));
+        let normalized_key = key.trim().to_lowercase();
+        if normalized_key.is_empty() || label.is_empty() || seen.contains(&normalized_key) {
+            continue;
+        }
+        seen.insert(normalized_key.clone());
+        normalized.push(json!({
+            "key": normalized_key,
+            "label": label,
+        }));
+    }
+
+    normalized
+}
+
+fn build_tag_registry(existing_tags: &[Value], references: &[Value]) -> Vec<Value> {
+    let mut tags = Vec::new();
+    let mut seen = HashSet::new();
+
+    for entry in existing_tags {
+        let label = trim_string(entry.get("label"))
+            .if_empty_then(|| trim_string(entry.get("name")))
+            .if_empty_then(|| trim_string(entry.get("key")));
+        let key = normalize_tag_key(&trim_string(entry.get("key")).if_empty_then(|| label.clone()));
+        if key.is_empty() || label.is_empty() || seen.contains(&key) {
+            continue;
+        }
+        seen.insert(key.clone());
+        tags.push(json!({ "key": key, "label": label }));
+    }
+
+    for reference in references {
+        for tag in normalize_reference_tag_values(reference.get("tags")) {
+            let label = tag.as_str().unwrap_or_default().to_string();
+            let key = normalize_tag_key(&label);
+            if key.is_empty() || seen.contains(&key) {
+                continue;
+            }
+            seen.insert(key.clone());
+            tags.push(json!({ "key": key, "label": label }));
+        }
+    }
+
+    tags.sort_by(|left, right| {
+        trim_string(left.get("label")).cmp(&trim_string(right.get("label")))
+    });
+    tags
+}
+
+pub(crate) fn normalize_reference_record(reference: &Value) -> Value {
     let mut map = reference.as_object().cloned().unwrap_or_default();
     let authors = string_array(map.get("authors"));
     let author_line = trim_string(map.get("authorLine")).if_empty_then(|| {
@@ -123,11 +255,13 @@ fn normalize_reference_record(reference: &Value) -> Value {
     map.insert("authorLine".to_string(), Value::String(author_line));
     map.insert(
         "collections".to_string(),
-        Value::Array(clone_array(map.get("collections"))),
+        Value::Array(normalize_reference_collection_values(
+            map.get("collections"),
+        )),
     );
     map.insert(
         "tags".to_string(),
-        Value::Array(clone_array(map.get("tags"))),
+        Value::Array(normalize_reference_tag_values(map.get("tags"))),
     );
     map.insert(
         "notes".to_string(),
@@ -161,9 +295,8 @@ fn is_legacy_fixture_reference(reference: &Value) -> bool {
         && LEGACY_REFERENCE_FIXTURE_TITLES.contains(&title.as_str())
 }
 
-fn normalize_snapshot(raw: &Value) -> Value {
-    let collections = clone_array(raw.get("collections"));
-    let tags = clone_array(raw.get("tags"));
+pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
+    let collections = normalize_collection_entries(raw.get("collections"));
     let references: Vec<Value> = raw
         .get("references")
         .and_then(Value::as_array)
@@ -175,6 +308,7 @@ fn normalize_snapshot(raw: &Value) -> Value {
                 .collect()
         })
         .unwrap_or_default();
+    let tags = build_tag_registry(&clone_array(raw.get("tags")), &references);
 
     json!({
         "version": raw.get("version").and_then(Value::as_u64).unwrap_or(2),
@@ -653,6 +787,20 @@ pub async fn references_assets_migrate(
     Ok(Value::Array(migrated))
 }
 
+#[tauri::command]
+pub async fn references_snapshot_normalize(
+    params: ReferenceSnapshotNormalizeParams,
+) -> Result<Value, String> {
+    Ok(normalize_snapshot(&params.snapshot))
+}
+
+#[tauri::command]
+pub async fn references_record_normalize(
+    params: ReferenceRecordNormalizeParams,
+) -> Result<Value, String> {
+    Ok(normalize_reference_record(&params.reference))
+}
+
 trait StringExt {
     fn if_empty_then<F>(self, fallback: F) -> String
     where
@@ -669,5 +817,59 @@ impl StringExt for String {
         } else {
             self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_reference_record, normalize_snapshot};
+    use serde_json::json;
+
+    #[test]
+    fn snapshot_normalization_builds_tag_registry_and_drops_fixture_refs() {
+        let normalized = normalize_snapshot(&json!({
+            "citationStyle": "apa",
+            "collections": [{ "key": "reading", "label": "Reading" }],
+            "tags": [{ "key": "seed", "label": "Seed" }],
+            "references": [
+                {
+                    "id": "custom-1",
+                    "typeKey": "article",
+                    "title": "A Title",
+                    "authors": ["Ada Lovelace"],
+                    "collections": ["Reading"],
+                    "tags": ["Robotics", { "label": "Control" }]
+                },
+                {
+                    "id": "ref-1",
+                    "title": "CBF-based safety design for adaptive control of uncertain nonlinear strict-feedback systems"
+                }
+            ]
+        }));
+
+        assert_eq!(
+            normalized["references"].as_array().map(|v| v.len()),
+            Some(1)
+        );
+        assert_eq!(
+            normalized["collections"].as_array().map(|v| v.len()),
+            Some(1)
+        );
+        assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(3));
+    }
+
+    #[test]
+    fn reference_normalization_canonicalizes_type_and_assets() {
+        let normalized = normalize_reference_record(&json!({
+            "typeKey": "article",
+            "title": "A Title",
+            "authors": ["Ada Lovelace"],
+            "pdfPath": "/tmp/a.pdf",
+            "tags": [{ "label": "Control" }, "AI"]
+        }));
+
+        assert_eq!(normalized["typeKey"].as_str(), Some("journal-article"));
+        assert_eq!(normalized["hasPdf"].as_bool(), Some(true));
+        assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(2));
     }
 }

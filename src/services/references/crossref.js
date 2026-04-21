@@ -31,6 +31,16 @@ export async function searchByMetadata(title = '', author = '', year = null) {
   return result && typeof result === 'object' ? result : null
 }
 
+export async function hydrateReferenceFromCsl(csl = {}, overrides = {}) {
+  const result = await invoke('references_record_from_csl', {
+    params: {
+      csl,
+      overrides,
+    },
+  })
+  return result && typeof result === 'object' ? result : null
+}
+
 export function crossrefToCsl(work = {}) {
   const typeMap = {
     'journal-article': 'article-journal',
