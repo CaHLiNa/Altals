@@ -15,6 +15,7 @@ mod latex;
 mod latex_project_graph;
 mod latex_runtime;
 mod latex_tools;
+mod legacy_cleanup;
 mod markdown_runtime;
 mod process_utils;
 mod references_backend;
@@ -372,6 +373,10 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
 pub fn run() {
     #[cfg(unix)]
     enrich_path();
+
+    if let Err(error) = legacy_cleanup::run_legacy_cleanup_once() {
+        eprintln!("Failed to complete one-time legacy cleanup: {error}");
+    }
 
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
