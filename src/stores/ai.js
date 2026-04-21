@@ -365,6 +365,8 @@ async function runResearchVerificationRust(params = {}) {
 }
 
 let aiAgentStreamUnlistenPromise = null
+const codexEventQueues = new Map()
+const codexEventProcessing = new Map()
 
 async function ensureAiAgentStreamListener(store) {
   if (aiAgentStreamUnlistenPromise) {
@@ -1183,6 +1185,33 @@ export const useAiStore = defineStore('ai', {
     },
 
     async handleCodexAcpEvent(payload = {}) {
+      const sessionId = String(payload?.sessionId || '').trim()
+      if (!sessionId) return
+
+      const pending = codexEventQueues.get(sessionId) || []
+      pending.push(payload)
+      codexEventQueues.set(sessionId, pending)
+
+      if (codexEventProcessing.get(sessionId) === true) {
+        return
+      }
+
+      codexEventProcessing.set(sessionId, true)
+      try {
+        while ((codexEventQueues.get(sessionId) || []).length > 0) {
+          const nextPayload = codexEventQueues.get(sessionId)?.shift() || null
+          if (!nextPayload) continue
+          await this.applyCodexAcpEvent(nextPayload)
+        }
+      } finally {
+        codexEventProcessing.delete(sessionId)
+        if ((codexEventQueues.get(sessionId) || []).length === 0) {
+          codexEventQueues.delete(sessionId)
+        }
+      }
+    },
+
+    async applyCodexAcpEvent(payload = {}) {
       const sessionId = String(payload?.sessionId || '').trim()
       if (!sessionId) return
       const targetSession = resolveAgentSessionRecord(this.sessions, sessionId)
