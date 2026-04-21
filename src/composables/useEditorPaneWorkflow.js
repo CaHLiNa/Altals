@@ -2,7 +2,6 @@ import { computed, watch } from 'vue'
 import { isDraftPath, isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
-import { pathExists } from '../services/pathExists.js'
 
 export function useEditorPaneWorkflow(options) {
   const {
@@ -141,28 +140,6 @@ export function useEditorPaneWorkflow(options) {
     [activeTabRef, () => editorStore.activePaneId],
     () => {
       workflowStore.reconcile({ trigger: 'editor-pane-sync' })
-    },
-    { immediate: true },
-  )
-
-  watch(
-    [activeTabRef, activeDocumentAdapter],
-    async ([filePath, adapter]) => {
-      if (!filePath || !adapter || adapter.kind !== 'latex') return
-      const uiState = workflowStore.getUiStateForFile(filePath, buildWorkflowOptions({
-        adapter,
-        workflowOnly: false,
-      }))
-      if (uiState?.canOpenPdf === true) return
-
-      const artifactPath = adapter.compile?.getArtifactPath?.(filePath, buildWorkflowOptions({
-        adapter,
-        workflowOnly: false,
-      })) || ''
-      const resolvedArtifactPath = artifactPath
-      if (!resolvedArtifactPath || !(await pathExists(resolvedArtifactPath))) return
-
-      await latexStore.registerExistingArtifact?.(filePath, resolvedArtifactPath)
     },
     { immediate: true },
   )

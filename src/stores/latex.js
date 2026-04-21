@@ -15,7 +15,6 @@ import {
   resolveLatexCompileFinish,
   resolveLatexCompileStart,
 } from '../services/latex/runtime'
-import { resolveExistingLatexSynctexPath } from '../services/latex/synctex'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
 import {
@@ -653,57 +652,6 @@ export const useLatexStore = defineStore('latex', {
       this.clearBuildQueueState(texPath)
       this.clearBuildQueueState(resolveCachedLatexRootPath(texPath))
       this.clearForwardSync(texPath)
-    },
-
-    async registerExistingArtifact(texPath, pdfPath, options = {}) {
-      if (!texPath || !pdfPath) return null
-      const targetKey = options.targetPath || resolveCachedLatexRootPath(texPath) || texPath
-      const previous = this.compileState[texPath] || {}
-      const normalizedPdfPath = String(pdfPath || '').trim()
-      if (
-        !previous.synctexPath
-        && previous.synctexProbePath === normalizedPdfPath
-        && previous.synctexProbeResolved === true
-      ) {
-        return previous
-      }
-      const resolvedSynctexPath = previous.synctexPath
-        || options.synctexPath
-        || await resolveExistingLatexSynctexPath(pdfPath)
-      const nextState = {
-        ...previous,
-        status: previous.status || 'idle',
-        pdfPath,
-        synctexPath: resolvedSynctexPath || null,
-        synctexProbePath: normalizedPdfPath,
-        synctexProbeResolved: true,
-        previewPath: previous.previewPath || pdfPath,
-        compileTargetPath: previous.compileTargetPath || targetKey,
-        projectRootPath: previous.projectRootPath || targetKey,
-      }
-      if (
-        previous.status === nextState.status
-        && previous.pdfPath === nextState.pdfPath
-        && previous.synctexPath === nextState.synctexPath
-        && previous.synctexProbePath === nextState.synctexProbePath
-        && previous.synctexProbeResolved === nextState.synctexProbeResolved
-        && previous.previewPath === nextState.previewPath
-        && previous.compileTargetPath === nextState.compileTargetPath
-        && previous.projectRootPath === nextState.projectRootPath
-      ) {
-        return previous
-      }
-      this.compileState[texPath] = nextState
-      if (targetKey) {
-        this.compileState[targetKey] = {
-          ...(this.compileState[targetKey] || {}),
-          ...nextState,
-          linkedSourcePath: texPath,
-          compileTargetPath: targetKey,
-          projectRootPath: targetKey,
-        }
-      }
-      return nextState
     },
 
     async scheduleAutoBuildForPath(filePath, options = {}) {

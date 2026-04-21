@@ -126,12 +126,6 @@ const loadError = ref('')
 const viewerKey = ref(0)
 const latexViewerReady = ref(false)
 const surfaceStyle = computed(() => ({ ...(props.themeTokens || {}) }))
-const viewerThemeReloadKey = computed(() =>
-  JSON.stringify({
-    locale: getViewerLocale(),
-    ...getViewerThemeOptions(),
-  })
-)
 
 function getActivePreviewRevision() {
   return (
@@ -447,7 +441,7 @@ function syncPreviewSessionState(nextSession = {}) {
   previewSessionState.revisionKey = nextSession.revisionKey || ''
   previewSessionState.synctexPath = nextSession.synctexPath || ''
   previewSessionState.sourceFingerprint = nextSession.sourceFingerprint || ''
-  previewSessionState.viewState = nextSession.viewState || null
+  previewSessionState.viewBookmark = nextSession.viewBookmark || null
 }
 
 function lockViewerScaleForResize() {
@@ -504,7 +498,7 @@ async function reopenPdfInPlace(options = {}) {
     return false
   }
 
-  const snapshot = options.viewState || previewSessionState.viewState || captureViewerRestoreState(app)
+  const snapshot = options.viewBookmark || previewSessionState.viewBookmark || captureViewerRestoreState(app)
   const source = await resolvePdfDocumentSource(options)
   if (!source?.documentUrl) return false
 
@@ -1262,27 +1256,43 @@ async function handleForwardSyncRequest(request) {
       }
     }
   } catch {
-    emit('open-external')
+    // Forward sync is optional; keep the current preview stable when it fails.
   } finally {
     emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
   }
 }
 
-async function handlePreviewRevisionChange(nextRevision, previousRevision) {
+async function handlePreviewRevisionChange(nextRevision, previousRevision, options = {}) {
+  if (!viewerRuntimeActive) return
+
   const transition = resolvePdfPreviewSessionTransition(previewSessionState, nextRevision, {
-    viewState: captureCurrentPreviewViewState(),
+    viewBookmark: captureCurrentPreviewViewState(),
   })
   syncPreviewSessionState(transition.nextSession)
 
   const previousRevisionKey = previousRevision?.revisionKey || ''
   const nextRevisionKey = nextRevision?.revisionKey || ''
-  if (!nextRevisionKey || nextRevisionKey === previousRevisionKey) return
-  if (transition.action === 'noop') return
+  const forceInitialLoad = options.forceInitialLoad === true
 
-  if (transition.action === 'refresh-document') {
+  if (!nextRevision?.artifactPath) {
+    if (!viewerSrc.value) return
+    void loadPdf()
+    return
+  }
+
+  if (transition.action === 'noop') {
+    if (forceInitialLoad && !viewerSrc.value) {
+      void loadPdf()
+    }
+    return
+  }
+
+  if (!nextRevisionKey || (nextRevisionKey === previousRevisionKey && !forceInitialLoad)) return
+
+  if (transition.action === 'document-refresh') {
     const reopened = await reopenPdfInPlace({
       preferProtocol: true,
-      viewState: transition.nextSession.viewState,
+      viewBookmark: transition.nextSession.viewBookmark,
     }).catch(() => false)
     if (reopened) return
   }
@@ -1299,12 +1309,8 @@ watch(
 )
 
 watch(
-  () => viewerThemeReloadKey.value,
-  (nextKey, previousKey) => {
-    if (previousKey != null && nextKey !== previousKey && viewerSrc.value) {
-      void loadPdf()
-      return
-    }
+  () => props.resolvedTheme,
+  () => {
     applyTheme()
   }
 )
@@ -1321,7 +1327,7 @@ watch(
   (nextRevision, previousRevision) => {
     void handlePreviewRevisionChange(nextRevision, previousRevision)
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 )
 
 watch(
@@ -1336,7 +1342,7 @@ function activateViewerRuntime() {
   viewerRuntimeActive = true
   window.addEventListener('message', handleIframeViewerMessage)
   window.addEventListener(SHELL_RESIZE_PHASE_EVENT, handleShellResizePhase)
-  void loadPdf()
+  void handlePreviewRevisionChange(getActivePreviewRevision(), null, { forceInitialLoad: true })
 }
 
 function deactivateViewerRuntime() {

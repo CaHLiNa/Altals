@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
@@ -162,21 +162,6 @@ async function scheduleThemeSnapshot() {
   })
 }
 
-async function ensureLatexSynctexState() {
-  if (props.kind !== 'latex') return
-  const pdfPath = String(compileState.value?.pdfPath || props.artifactPath || '').trim()
-  if (!pdfPath || String(compileState.value?.synctexPath || '').trim()) return
-  if (
-    compileState.value?.synctexProbeResolved === true
-    && String(compileState.value?.synctexProbePath || '').trim() === pdfPath
-  ) {
-    return
-  }
-  await latexStore.registerExistingArtifact?.(props.sourcePath, pdfPath, {
-    targetPath: compileState.value?.compileTargetPath || '',
-  })
-}
-
 function handleBackwardSync(detail) {
   if (!detail) return
   dispatchLatexBackwardSync(window, detail)
@@ -195,14 +180,6 @@ function handleWorkspaceThemeUpdated(event) {
   )
   void scheduleThemeSnapshot()
 }
-
-watch(
-  () => [props.artifactPath, previewRevision.value?.revisionKey || ''],
-  () => {
-    void ensureLatexSynctexState()
-  },
-  { immediate: true }
-)
 
 onMounted(() => {
   window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)

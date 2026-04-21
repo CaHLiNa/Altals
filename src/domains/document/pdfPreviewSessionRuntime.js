@@ -17,7 +17,7 @@ export function createPdfPreviewSessionState() {
     revisionKey: '',
     synctexPath: '',
     sourceFingerprint: '',
-    viewState: null,
+    viewBookmark: null,
   }
 }
 
@@ -61,6 +61,15 @@ export function snapshotPdfPreviewViewState(state = {}) {
   return {
     pageNumber: Number(state.pageNumber || 1),
     scaleValue: normalizeString(state.scaleValue),
+    pdfOpenParams: normalizeString(state.pdfOpenParams),
+    pdfPointLeft:
+      typeof state.pdfPointLeft === 'number' && Number.isFinite(state.pdfPointLeft)
+        ? state.pdfPointLeft
+        : null,
+    pdfPointTop:
+      typeof state.pdfPointTop === 'number' && Number.isFinite(state.pdfPointTop)
+        ? state.pdfPointTop
+        : null,
     pageScrollRatio:
       typeof state.pageScrollRatio === 'number' && Number.isFinite(state.pageScrollRatio)
         ? state.pageScrollRatio
@@ -75,9 +84,10 @@ export function snapshotPdfPreviewViewState(state = {}) {
 export function resolvePdfPreviewSessionTransition(sessionState, nextRevision, options = {}) {
   const current = sessionState || createPdfPreviewSessionState()
   const revision = nextRevision || resolvePdfPreviewRevision()
-  const nextViewState = snapshotPdfPreviewViewState(options.viewState)
-  const sameSession = current.sessionKey && current.sessionKey === revision.sessionKey
-  const sameDocument = current.artifactPath && current.artifactPath === revision.artifactPath
+  const nextViewBookmark = snapshotPdfPreviewViewState(options.viewBookmark || options.viewState)
+  const hasCurrentSession = Boolean(current.sessionKey && current.artifactPath)
+  const sameSession = hasCurrentSession && current.sessionKey === revision.sessionKey
+  const sameDocument = hasCurrentSession && current.artifactPath === revision.artifactPath
   const buildChanged = current.buildId !== revision.buildId
   const revisionChanged = current.revisionKey !== revision.revisionKey
   const sourceFingerprintUnchanged =
@@ -86,12 +96,16 @@ export function resolvePdfPreviewSessionTransition(sessionState, nextRevision, o
     && current.sourceFingerprint === revision.sourceFingerprint
 
   let action = 'noop'
-  if (!sameSession || !sameDocument) {
-    action = 'reload-viewer'
+  if (!revision.artifactPath) {
+    action = 'noop'
+  } else if (!hasCurrentSession) {
+    action = 'initial-load'
+  } else if (!sameSession || !sameDocument) {
+    action = 'hard-reload'
   } else if (buildChanged && sourceFingerprintUnchanged) {
     action = 'noop'
   } else if (revisionChanged || buildChanged) {
-    action = 'refresh-document'
+    action = 'document-refresh'
   }
 
   return {
@@ -104,7 +118,7 @@ export function resolvePdfPreviewSessionTransition(sessionState, nextRevision, o
       revisionKey: revision.revisionKey,
       synctexPath: revision.synctexPath,
       sourceFingerprint: revision.sourceFingerprint,
-      viewState: nextViewState,
+      viewBookmark: nextViewBookmark,
     },
     revision,
   }
