@@ -1,7 +1,7 @@
 <!-- START OF FILE src/components/settings/SettingsGeneral.vue -->
 <template>
   <div class="general-page settings-page">
-    <h3 class="settings-section-title">{{ t('Fonts') }}</h3>
+    <h3 class="settings-section-title">{{ t('General') }}</h3>
 
     <section class="settings-group">
       <h4 class="settings-group-title">{{ t('Appearance') }}</h4>
@@ -58,7 +58,7 @@
     </section>
 
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('General') }}</h4>
+      <h4 class="settings-group-title">{{ t('Fonts') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
