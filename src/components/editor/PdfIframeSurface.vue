@@ -15,7 +15,7 @@
       @load="onIframeLoad"
     />
 
-    <div v-if="loading" class="pdf-artifact-preview__state">
+    <div v-if="loading && !hotReloadInFlight" class="pdf-artifact-preview__state">
       {{ t('Loading PDF...') }}
     </div>
 
@@ -121,6 +121,7 @@ const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('pdf-iframe
 const iframeRef = ref(null)
 const viewerSrc = ref(null)
 const loading = ref(true)
+const hotReloadInFlight = ref(false)
 const loadError = ref('')
 const viewerKey = ref(0)
 const latexViewerReady = ref(false)
@@ -513,8 +514,14 @@ async function reopenPdfInPlace(options = {}) {
   loadError.value = ''
   latexViewerReady.value = false
   pendingViewerRestore = snapshot
+  hotReloadInFlight.value = true
+  const initialBookmark = String(snapshot?.pdfOpenParams || '').replace(/^#/, '').trim()
 
   try {
+    if (initialBookmark) {
+      app.initialBookmark = initialBookmark
+    }
+    app.loadingBar?.hide?.()
     await app.open({
       url: source.documentUrl,
       originalUrl: props.artifactPath,
@@ -526,6 +533,7 @@ async function reopenPdfInPlace(options = {}) {
     return true
   } catch {
     pendingViewerRestore = null
+    hotReloadInFlight.value = false
     if (source.blobUrl) {
       URL.revokeObjectURL(source.blobUrl)
     }
@@ -863,17 +871,21 @@ function installViewerAppPatches(options = {}) {
       viewerLoadTimeout = 0
     }
     loading.value = false
+    hotReloadInFlight.value = false
     loadError.value = ''
     applyTheme()
     normalizeViewerChromeText()
+    app.loadingBar?.hide?.()
   }
   const handlePagesLoaded = () => {
     applyTheme()
     normalizeViewerChromeText()
     installLatexReverseSyncHandlers()
     latexViewerReady.value = true
+    hotReloadInFlight.value = false
     restorePendingViewerState(app)
     flushPendingLatexForwardSync()
+    app.loadingBar?.hide?.()
   }
   const handleDocumentError = (event) => {
     if (
@@ -888,6 +900,7 @@ function installViewerAppPatches(options = {}) {
       window.clearTimeout(viewerLoadTimeout)
       viewerLoadTimeout = 0
     }
+    hotReloadInFlight.value = false
     loading.value = false
     loadError.value = String(event?.reason || event?.message || t('Could not load PDF')).trim()
   }
@@ -1067,6 +1080,7 @@ async function loadPdfWithStrategy(options = {}) {
   const currentToken = loadToken
 
   loading.value = true
+  hotReloadInFlight.value = false
   loadError.value = ''
   latexViewerReady.value = false
   viewerAppEventCleanup?.()
@@ -1175,6 +1189,7 @@ async function handleIframeViewerMessage(event) {
         viewerLoadTimeout = 0
       }
       loadError.value = String(data.reason || data.message || t('Could not load PDF')).trim()
+      hotReloadInFlight.value = false
       loading.value = false
       return
     }
@@ -1184,6 +1199,7 @@ async function handleIframeViewerMessage(event) {
         viewerLoadTimeout = 0
       }
       loadError.value = ''
+      hotReloadInFlight.value = false
       loading.value = false
       return
     }
