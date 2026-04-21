@@ -164,9 +164,23 @@ function appendAssistantTextPart(message = null, text = '') {
   return parts
 }
 
+function isMeaningfulToolPayload(payload = {}) {
+  const title = String(payload?.title || '').trim()
+  const rawInput = payload?.rawInput ?? null
+  const content = Array.isArray(payload?.content) ? payload.content : []
+  const locations = Array.isArray(payload?.locations) ? payload.locations : []
+
+  if (title) return true
+  if (rawInput !== null) return true
+  if (content.length > 0) return true
+  if (locations.length > 0) return true
+  return false
+}
+
 function upsertToolPart(message = null, payload = {}) {
   const toolCallId = String(payload?.toolCallId || '').trim()
   if (!toolCallId) return cloneMessageParts(message)
+  if (!isMeaningfulToolPayload(payload)) return cloneMessageParts(message)
 
   const nextPart = {
     type: 'tool',

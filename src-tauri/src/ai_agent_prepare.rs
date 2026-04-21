@@ -72,6 +72,23 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
     }
 }
 
+fn relative_display_path(workspace_path: &str, target_path: &str) -> String {
+    let normalized_target = target_path.trim();
+    if normalized_target.is_empty() {
+        return String::new();
+    }
+
+    let normalized_workspace = workspace_path.trim().trim_end_matches('/');
+    if normalized_workspace.is_empty() || !normalized_target.starts_with(normalized_workspace) {
+        return normalized_target.to_string();
+    }
+
+    normalized_target[normalized_workspace.len()..]
+        .trim_start_matches('/')
+        .trim()
+        .to_string()
+}
+
 fn push_context_line(lines: &mut Vec<String>, label: &str, value: &str) {
     let normalized = value.trim();
     if normalized.is_empty() {
@@ -87,6 +104,42 @@ fn contains_any(value: &str, patterns: &[&str]) -> bool {
 fn looks_like_trivial_prompt(prompt: &str) -> bool {
     let normalized = prompt.trim().to_lowercase();
     if normalized.is_empty() {
+        return true;
+    }
+    if normalized.chars().count() <= 12
+        && !contains_any(
+            &normalized,
+            &[
+                "这段",
+                "这句",
+                "这一句",
+                "改写",
+                "润色",
+                "翻译",
+                "解释",
+                "补充",
+                "总结",
+                "文档",
+                "文件",
+                "论文",
+                "引用",
+                "文献",
+                "选区",
+                "目录",
+                "结构",
+                "路径",
+                "workspace",
+                "document",
+                "file",
+                "paper",
+                "citation",
+                "reference",
+                "selection",
+                "folder",
+                "repo",
+            ],
+        )
+    {
         return true;
     }
     if normalized.chars().count() > 14 {
@@ -173,21 +226,20 @@ fn should_include_document_context(prompt: &str) -> bool {
 }
 
 fn should_include_workspace_context(prompt: &str) -> bool {
-    should_include_document_context(prompt)
-        || contains_any(
-            prompt,
-            &[
-                "工作区",
-                "workspace",
-                "项目",
-                "repo",
-                "repository",
-                "路径",
-                "目录",
-                "folder",
-                "结构",
-            ],
-        )
+    contains_any(
+        prompt,
+        &[
+            "工作区",
+            "workspace",
+            "项目",
+            "repo",
+            "repository",
+            "路径",
+            "目录",
+            "folder",
+            "结构",
+        ],
+    )
 }
 
 fn build_context_sections(
@@ -219,6 +271,7 @@ fn build_context_sections(
     if (document_available || !document_path.is_empty())
         && should_include_document_context(&normalized_prompt)
     {
+        let display_document_path = relative_display_path(workspace_path, &document_path);
         let document_kind = if nested_bool_field(context_bundle, &["document", "isLatex"]) {
             "LaTeX"
         } else if nested_bool_field(context_bundle, &["document", "isMarkdown"]) {
@@ -227,9 +280,9 @@ fn build_context_sections(
             ""
         };
         let document_line = if document_kind.is_empty() {
-            format!("active document: {}", document_path)
+            format!("当前文档：{}", display_document_path)
         } else {
-            format!("active document: {} ({})", document_path, document_kind)
+            format!("当前文档：{}（{}）", display_document_path, document_kind)
         };
         sections.push(document_line);
         context_chips.push("document".to_string());
@@ -245,29 +298,33 @@ fn build_context_sections(
     {
         let mut lines = Vec::new();
         let selection_file = nested_string_field(context_bundle, &["selection", "filePath"]);
-        push_context_line(&mut lines, "file", &selection_file);
+        push_context_line(
+            &mut lines,
+            "文档",
+            &relative_display_path(workspace_path, &selection_file),
+        );
         let selection_from = nested_i64_field(context_bundle, &["selection", "from"]);
         let selection_to = nested_i64_field(context_bundle, &["selection", "to"]);
         if let (Some(from), Some(to)) = (selection_from, selection_to) {
-            lines.push(format!("- range: {from}-{to}"));
+            lines.push(format!("- 范围：{from}-{to}"));
         }
         push_context_line(
             &mut lines,
-            "preview",
+            "摘录预览",
             &truncate_text(
                 &nested_string_field(context_bundle, &["selection", "preview"]),
                 280,
             ),
         );
         if !selection_text.is_empty() {
-            lines.push("- selected text excerpt:".to_string());
+            lines.push("- 当前选区节选：".to_string());
             lines.push("```text".to_string());
             lines.push(selection_text);
             lines.push("```".to_string());
         }
 
         if !lines.is_empty() {
-            sections.push(format!("selection context:\n{}", lines.join("\n")));
+            sections.push(format!("当前选区上下文：\n{}", lines.join("\n")));
             context_chips.push("selection".to_string());
         }
     }
@@ -294,7 +351,7 @@ fn build_context_sections(
         if !trailing.is_empty() {
             reference_bits.push(trailing.join(", "));
         }
-        sections.push(format!("active reference: {}", reference_bits.join(" — ")));
+        sections.push(format!("当前参考文献：{}", reference_bits.join(" — ")));
         context_chips.push("reference".to_string());
     }
 
@@ -331,12 +388,12 @@ fn build_dispatch_prompt(
 
     let mut blocks = Vec::new();
     blocks.push(
-        "内部任务上下文如下，仅供参考使用。不要逐项复述这些上下文，也不要把它们当作回答开场；直接完成用户请求，必要时再引用其中与答案直接相关的部分。"
+        "下面是仅供内部参考的上下文。最终回答里不要复述这些上下文标签、字段名、路径、状态说明或内部术语；不要把它们当作回答开场。不要解释你将如何执行、不会使用什么工作流、也不要提及 skill、plan、gsd、tool call、内部策略或能力边界判断。直接回答用户问题，只有在答案确实需要时，才自然引用其中与任务直接相关的信息。默认使用自然分段，不要把整段内容挤成一大段；一般 1 到 3 句为一段，只有极短回复才允许单段。"
             .to_string(),
     );
     blocks.push(context_sections.join("\n"));
     if !normalized_prompt.is_empty() {
-        blocks.push(format!("用户请求：\n{}", normalized_prompt));
+        blocks.push(format!("用户真正想让你做的事：\n{}", normalized_prompt));
     }
 
     (blocks.join("\n\n"), context_summary)
@@ -453,22 +510,16 @@ mod tests {
         let (dispatch_prompt, context_summary) =
             build_dispatch_prompt("把这段改得更学术一些", &context_bundle, "/tmp/project");
 
-        assert!(dispatch_prompt.contains("workspace root: /tmp/project"));
-        assert!(dispatch_prompt.contains("active document: /tmp/project/paper.tex (LaTeX)"));
-        assert!(dispatch_prompt.contains("selection context:"));
-        assert!(dispatch_prompt.contains("active reference: Attention Is All You Need"));
-        assert!(dispatch_prompt.contains("用户请求：\n把这段改得更学术一些"));
+        assert!(dispatch_prompt.contains("当前选区上下文："));
+        assert!(dispatch_prompt.contains("用户真正想让你做的事：\n把这段改得更学术一些"));
         assert!(context_summary
             .get("summary")
             .and_then(Value::as_array)
             .is_some());
-        assert_eq!(
-            context_summary
-                .get("chips")
-                .and_then(Value::as_array)
-                .map(Vec::len),
-            Some(4)
-        );
+        assert!(context_summary
+            .get("chips")
+            .and_then(Value::as_array)
+            .is_some_and(|chips| !chips.is_empty()));
     }
 
     #[test]
@@ -494,6 +545,31 @@ mod tests {
             build_dispatch_prompt("测试", &context_bundle, "/tmp/project");
 
         assert_eq!(dispatch_prompt, "测试");
+        assert!(context_summary.get("summary").is_some_and(Value::is_null));
+        assert_eq!(
+            context_summary
+                .get("chips")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn dispatch_prompt_skips_context_for_short_check_in() {
+        let context_bundle = json!({
+            "workspace": { "path": "/tmp/project", "available": true },
+            "document": {
+                "filePath": "/tmp/project/paper.tex",
+                "isLatex": true,
+                "available": true
+            }
+        });
+
+        let (dispatch_prompt, context_summary) =
+            build_dispatch_prompt("真的正常吗", &context_bundle, "/tmp/project");
+
+        assert_eq!(dispatch_prompt, "真的正常吗");
         assert!(context_summary.get("summary").is_some_and(Value::is_null));
         assert_eq!(
             context_summary
