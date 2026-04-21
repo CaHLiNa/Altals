@@ -262,6 +262,8 @@ const activeInvocationIndex = ref(0)
 const respondingPermissionRequestId = ref('')
 const respondingAskUserRequestId = ref('')
 const respondingExitPlanRequestId = ref('')
+const historyNavigationIndex = ref(null)
+const historyDraft = ref('')
 const COMPOSER_MIN_HEIGHT = 48
 const COMPOSER_MAX_HEIGHT = 168
 let composerResizeObserver = null
@@ -280,6 +282,14 @@ const resumeState = computed(() => aiStore.resumeState)
 const activeTurnState = computed(() => aiStore.activeTurnState)
 const sessionItems = computed(() => aiStore.sessionList)
 const currentPermissionMode = computed(() => aiStore.currentPermissionMode)
+const inputHistory = computed(() =>
+  messages.value
+    .filter((message) => message?.role === 'user')
+    .map((message) => String(message?.content || '').trim())
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .reverse()
+)
 
 const artifactsById = computed(() =>
   Object.fromEntries(artifacts.value.map((artifact) => [artifact.id, artifact]))
@@ -658,6 +668,94 @@ function applyInvocationSuggestion(suggestion = null) {
   activeInvocationIndex.value = 0
 }
 
+function isCaretOnFirstLine(event) {
+  const target = event?.target
+  if (!(target instanceof HTMLTextAreaElement)) return false
+  const selectionStart = Number(target.selectionStart ?? 0)
+  return !target.value.slice(0, selectionStart).includes('\n')
+}
+
+function isCaretOnLastLine(event) {
+  const target = event?.target
+  if (!(target instanceof HTMLTextAreaElement)) return false
+  const selectionEnd = Number(target.selectionEnd ?? target.value.length)
+  return !target.value.slice(selectionEnd).includes('\n')
+}
+
+function applyHistoryValue(value = '') {
+  aiStore.setPromptDraft(value)
+  nextTick(() => {
+    const textareaEl = resolveComposerTextareaElement()
+    if (!textareaEl) return
+    const caret = textareaEl.value.length
+    textareaEl.setSelectionRange(caret, caret)
+  })
+}
+
+function exitHistoryNavigation(restoreDraft = false) {
+  const draft = historyDraft.value
+  historyNavigationIndex.value = null
+  historyDraft.value = ''
+  if (restoreDraft) {
+    applyHistoryValue(draft)
+  }
+}
+
+function handleHistoryNavigation(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) return false
+  if (!inputHistory.value.length) return false
+
+  if (event.key === 'ArrowUp') {
+    if (historyNavigationIndex.value === null && !isCaretOnFirstLine(event)) {
+      return false
+    }
+
+    const nextIndex =
+      historyNavigationIndex.value === null
+        ? 0
+        : Math.min(historyNavigationIndex.value + 1, inputHistory.value.length - 1)
+    const nextValue = inputHistory.value[nextIndex]
+    if (typeof nextValue !== 'string') return false
+
+    if (historyNavigationIndex.value === null) {
+      historyDraft.value = String(aiStore.promptDraft || '')
+    }
+
+    event.preventDefault()
+    historyNavigationIndex.value = nextIndex
+    applyHistoryValue(nextValue)
+    return true
+  }
+
+  if (event.key === 'ArrowDown' && historyNavigationIndex.value !== null) {
+    if (!isCaretOnLastLine(event)) return false
+    event.preventDefault()
+    if (historyNavigationIndex.value === 0) {
+      exitHistoryNavigation(true)
+      return true
+    }
+
+    const nextIndex = historyNavigationIndex.value - 1
+    const nextValue = inputHistory.value[nextIndex]
+    if (typeof nextValue !== 'string') {
+      exitHistoryNavigation(true)
+      return true
+    }
+
+    historyNavigationIndex.value = nextIndex
+    applyHistoryValue(nextValue)
+    return true
+  }
+
+  if (event.key === 'Escape' && historyNavigationIndex.value !== null) {
+    event.preventDefault()
+    exitHistoryNavigation(true)
+    return true
+  }
+
+  return false
+}
+
 async function copyTextToClipboard(text = '') {
   const normalized = String(text || '').trim()
   if (!normalized) return
@@ -717,6 +815,8 @@ function openThreadContextMenu(event) {
 }
 
 function handlePromptKeydown(event) {
+  if (event.isComposing) return
+
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()
     if (aiStore.isRunning) {
@@ -724,6 +824,10 @@ function handlePromptKeydown(event) {
     } else {
       handleSendClick()
     }
+    return
+  }
+
+  if (!composerSuggestions.value.length && handleHistoryNavigation(event)) {
     return
   }
 
@@ -752,6 +856,17 @@ function handlePromptKeydown(event) {
 
   if (event.key === 'Escape') {
     activeInvocationIndex.value = 0
+  }
+
+  if (
+    event.key === 'Enter' &&
+    !event.shiftKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  ) {
+    event.preventDefault()
+    handleSendClick()
   }
 }
 
@@ -866,6 +981,8 @@ watch(
 watch(
   () => aiStore.currentSessionId,
   () => {
+    historyNavigationIndex.value = null
+    historyDraft.value = ''
     scrollToBottom('auto')
     syncComposerTextareaHeight({
       forceMinHeight: !String(aiStore.promptDraft || '').trim(),
@@ -894,6 +1011,12 @@ watch(composerSuggestions, (next) => {
 watch(
   () => aiStore.promptDraft,
   (promptDraft) => {
+    if (historyNavigationIndex.value !== null) {
+      const currentHistoryValue = inputHistory.value[historyNavigationIndex.value]
+      if (promptDraft !== currentHistoryValue) {
+        historyNavigationIndex.value = null
+      }
+    }
     syncComposerTextareaHeight({
       forceMinHeight: !String(promptDraft || '').trim(),
     })
