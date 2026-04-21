@@ -23,6 +23,9 @@ const PROSE_FONT_STACKS = {
   stix: "'STIX Two Text', Georgia, serif",
   mono: "'JetBrains Mono', 'Menlo', 'Consolas', monospace",
 }
+const SYSTEM_FONT_PREFIX = 'system:'
+const SYSTEM_FONT_FALLBACK_STACK =
+  "'PingFang SC', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif"
 
 const DEFAULT_EDITOR_FONT_SIZE = 14
 const DEFAULT_UI_FONT_SIZE = 13
@@ -62,6 +65,24 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
 
 export const EDITOR_FONT_SIZE_PRESETS = [12, 13, 14, 15, 16, 18]
 export const APP_ZOOM_PRESETS = [100]
+export const WORKSPACE_PROSE_FONT_PRESETS = [
+  { value: 'inter', labelKey: 'Sans' },
+  { value: 'stix', labelKey: 'Serif' },
+  { value: 'mono', labelKey: 'Mono' },
+  { value: 'system', labelKey: 'System' },
+]
+export const FALLBACK_SYSTEM_FONT_FAMILIES = [
+  'PingFang SC',
+  'SF Pro Text',
+  'New York',
+  'Songti SC',
+  'Kaiti SC',
+  'Helvetica Neue',
+  'Avenir Next',
+  'Times New Roman',
+  'Georgia',
+  'Menlo',
+]
 
 let activeWorkspaceTheme = 'system'
 let systemThemeQuery = null
@@ -254,6 +275,59 @@ export function normalizeEditorFontSize(value) {
   return clamp(parsed, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE)
 }
 
+export function encodeWorkspaceSystemFontFamily(family) {
+  const normalized = String(family || '').trim()
+  return normalized ? `${SYSTEM_FONT_PREFIX}${normalized}` : 'inter'
+}
+
+export function decodeWorkspaceSystemFontFamily(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized.toLowerCase().startsWith(SYSTEM_FONT_PREFIX)) {
+    return ''
+  }
+  return normalized.slice(SYSTEM_FONT_PREFIX.length).trim()
+}
+
+export function getWorkspaceProseFontKind(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (PROSE_FONT_STACKS[normalized]) {
+    return normalized
+  }
+
+  return decodeWorkspaceSystemFontFamily(value) ? 'system' : 'inter'
+}
+
+function escapeCssFontFamily(value) {
+  return `'${String(value || '')
+    .replaceAll('\\', '\\\\')
+    .replaceAll("'", "\\'")
+    .trim()}'`
+}
+
+function buildSystemFontStack(family) {
+  const normalized = decodeWorkspaceSystemFontFamily(family) || String(family || '').trim()
+  if (!normalized) {
+    return PROSE_FONT_STACKS.inter
+  }
+  return `${escapeCssFontFamily(normalized)}, ${SYSTEM_FONT_FALLBACK_STACK}`
+}
+
+function normalizeWorkspaceProseFont(value) {
+  const preset = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (PROSE_FONT_STACKS[preset]) {
+    return preset
+  }
+
+  const systemFamily = decodeWorkspaceSystemFontFamily(value)
+  return systemFamily ? encodeWorkspaceSystemFontFamily(systemFamily) : 'inter'
+}
+
 export function setWrapColumnPreference(value) {
   return Math.max(0, parseInt(value, 10) || 0)
 }
@@ -335,14 +409,32 @@ export function setWorkspaceEditorFontSize(editorFontSize) {
 }
 
 export function setWorkspaceProseFont(name) {
-  const nextFont = PROSE_FONT_STACKS[name] ? name : 'inter'
+  const nextFont = normalizeWorkspaceProseFont(name)
   if (typeof document !== 'undefined') {
     document.documentElement.style.setProperty(
       '--font-prose',
-      PROSE_FONT_STACKS[nextFont] || PROSE_FONT_STACKS.inter
+      PROSE_FONT_STACKS[nextFont] || buildSystemFontStack(nextFont)
     )
   }
   return nextFont
+}
+
+export async function loadWorkspaceSystemFontFamilies() {
+  if (!hasDesktopInvoke()) {
+    return [...FALLBACK_SYSTEM_FONT_FAMILIES]
+  }
+
+  try {
+    const fonts = await invoke('workspace_preferences_list_system_fonts')
+    const normalized = Array.isArray(fonts)
+      ? fonts
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+      : []
+    return normalized.length > 0 ? normalized : [...FALLBACK_SYSTEM_FONT_FAMILIES]
+  } catch {
+    return [...FALLBACK_SYSTEM_FONT_FAMILIES]
+  }
 }
 
 function resolveSystemTheme() {

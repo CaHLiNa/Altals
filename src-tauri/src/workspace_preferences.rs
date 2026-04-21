@@ -1,8 +1,11 @@
+use crate::process_utils::background_command;
 use crate::workbench_state::{normalize_workbench_state, WorkbenchState};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 const WORKSPACE_PREFERENCES_VERSION: u32 = 1;
 const DEFAULT_EDITOR_FONT_SIZE: i64 = 14;
@@ -17,6 +20,7 @@ const DEFAULT_PROSE_FONT: &str = "inter";
 const DEFAULT_THEME: &str = "system";
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
+static SYSTEM_FONT_FAMILIES_CACHE: OnceLock<Vec<String>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -234,11 +238,134 @@ fn normalize_wrap_column(value: i64) -> i64 {
 }
 
 fn normalize_prose_font(value: &str) -> String {
-    match value.trim().to_lowercase().as_str() {
+    let trimmed = value.trim();
+    let lowered = trimmed.to_lowercase();
+
+    match lowered.as_str() {
         "stix" => "stix".to_string(),
         "mono" => "mono".to_string(),
-        _ => "inter".to_string(),
+        "inter" => "inter".to_string(),
+        _ => trimmed
+            .split_once(':')
+            .filter(|(prefix, family)| {
+                prefix.eq_ignore_ascii_case("system") && !family.trim().is_empty()
+            })
+            .map(|(_, family)| format!("system:{}", family.trim()))
+            .unwrap_or_else(|| "inter".to_string()),
     }
+}
+
+fn preferred_font_rank(name: &str) -> usize {
+    match name {
+        "PingFang SC" => 0,
+        "SF Pro Text" => 1,
+        "New York" => 2,
+        "Songti SC" => 3,
+        "Kaiti SC" => 4,
+        "Times New Roman" => 5,
+        "Helvetica Neue" => 6,
+        "Avenir Next" => 7,
+        "Georgia" => 8,
+        "Menlo" => 9,
+        _ => 100,
+    }
+}
+
+fn sort_system_font_families(fonts: &mut [String]) {
+    fonts.sort_by(|left, right| {
+        preferred_font_rank(left)
+            .cmp(&preferred_font_rank(right))
+            .then_with(|| left.to_lowercase().cmp(&right.to_lowercase()))
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn load_macos_system_font_families() -> Result<Vec<String>, String> {
+    let output = background_command("system_profiler")
+        .arg("SPFontsDataType")
+        .arg("-json")
+        .arg("-detailLevel")
+        .arg("mini")
+        .output()
+        .map_err(|error| format!("Failed to inspect system fonts: {error}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    let payload: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Failed to parse macOS font list: {error}"))?;
+    let entries = payload
+        .get("SPFontsDataType")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Missing SPFontsDataType payload".to_string())?;
+
+    let mut families = Vec::<String>::new();
+
+    for entry in entries {
+        let entry_enabled = entry
+            .get("enabled")
+            .and_then(Value::as_str)
+            .map(|value| value == "yes")
+            .unwrap_or(true);
+        let entry_valid = entry
+            .get("valid")
+            .and_then(Value::as_str)
+            .map(|value| value == "yes")
+            .unwrap_or(true);
+        if !entry_enabled || !entry_valid {
+            continue;
+        }
+
+        let Some(typefaces) = entry.get("typefaces").and_then(Value::as_array) else {
+            continue;
+        };
+
+        for typeface in typefaces {
+            let typeface_enabled = typeface
+                .get("enabled")
+                .and_then(Value::as_str)
+                .map(|value| value == "yes")
+                .unwrap_or(true);
+            let typeface_valid = typeface
+                .get("valid")
+                .and_then(Value::as_str)
+                .map(|value| value == "yes")
+                .unwrap_or(true);
+            if !typeface_enabled || !typeface_valid {
+                continue;
+            }
+
+            let Some(family) = typeface.get("family").and_then(Value::as_str) else {
+                continue;
+            };
+
+            let normalized = family.trim();
+            if normalized.is_empty() || families.iter().any(|item| item == normalized) {
+                continue;
+            }
+
+            families.push(normalized.to_string());
+        }
+    }
+
+    sort_system_font_families(&mut families);
+    Ok(families)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn load_macos_system_font_families() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+fn read_system_font_families() -> Result<Vec<String>, String> {
+    if let Some(cached) = SYSTEM_FONT_FAMILIES_CACHE.get() {
+        return Ok(cached.clone());
+    }
+
+    let fonts = load_macos_system_font_families()?;
+    let _ = SYSTEM_FONT_FAMILIES_CACHE.set(fonts.clone());
+    Ok(fonts)
 }
 
 fn normalize_theme(value: &str) -> String {
@@ -388,6 +515,11 @@ pub async fn workspace_preferences_save(
     Ok(normalized)
 }
 
+#[tauri::command]
+pub async fn workspace_preferences_list_system_fonts() -> Result<Vec<String>, String> {
+    read_system_font_families()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -418,5 +550,15 @@ mod tests {
         assert_eq!(normalized.editor_font_size, 20);
         assert_eq!(normalized.app_zoom_percent, 100);
         assert_eq!(normalized.pdf_custom_page_background, "#1e1e1e");
+    }
+
+    #[test]
+    fn normalization_preserves_system_font_family() {
+        let normalized = normalize_workspace_preferences(WorkspacePreferences {
+            prose_font: "system: PingFang SC ".to_string(),
+            ..WorkspacePreferences::default()
+        });
+
+        assert_eq!(normalized.prose_font, "system:PingFang SC");
     }
 }

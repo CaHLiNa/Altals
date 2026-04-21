@@ -14,16 +14,31 @@
           <div class="settings-row-control">
             <div class="settings-segmented">
               <button
-                v-for="font in proseFonts"
+                v-for="font in proseFontKinds"
                 :key="font.value"
                 type="button"
                 class="settings-segmented-btn"
-                :class="{ 'is-active': workspace.proseFont === font.value }"
-                @click="workspace.setProseFont(font.value)"
+                :class="{ 'is-active': selectedProseFontKind === font.value }"
+                @click="selectProseFontKind(font.value)"
               >
                 {{ t(font.labelKey) }}
               </button>
             </div>
+          </div>
+        </div>
+
+        <div v-if="selectedProseFontKind === 'system'" class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('System') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              shell-class="system-font-select"
+              :model-value="selectedSystemFontFamily"
+              :options="systemFontOptions"
+              :placeholder="t('Select')"
+              @update:model-value="selectSystemFontFamily"
+            />
           </div>
         </div>
 
@@ -126,9 +141,18 @@
 </template>
 
 <script setup>
+import { computed, onMounted, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useLatexStore } from '../../stores/latex'
-import { EDITOR_FONT_SIZE_PRESETS } from '../../services/workspacePreferences'
+import {
+  EDITOR_FONT_SIZE_PRESETS,
+  FALLBACK_SYSTEM_FONT_FAMILIES,
+  WORKSPACE_PROSE_FONT_PRESETS,
+  decodeWorkspaceSystemFontFamily,
+  encodeWorkspaceSystemFontFamily,
+  getWorkspaceProseFontKind,
+  loadWorkspaceSystemFontFamilies,
+} from '../../services/workspacePreferences'
 import { useI18n } from '../../i18n'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -136,12 +160,8 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const { t } = useI18n()
-
-const proseFonts = [
-  { value: 'inter', labelKey: 'Sans' },
-  { value: 'stix', labelKey: 'Serif' },
-  { value: 'mono', labelKey: 'Mono' },
-]
+const proseFontKinds = WORKSPACE_PROSE_FONT_PRESETS
+const systemFontFamilies = ref([...FALLBACK_SYSTEM_FONT_FAMILIES])
 
 const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
   value,
@@ -154,6 +174,49 @@ const WRAP_PRESETS = [
   { value: 100, labelKey: '100 ch' },
   { value: 120, labelKey: '120 ch' },
 ]
+
+const selectedProseFontKind = computed(() => getWorkspaceProseFontKind(workspace.proseFont))
+const selectedSystemFontFamily = computed(() => decodeWorkspaceSystemFontFamily(workspace.proseFont))
+
+const systemFontOptions = computed(() => {
+  const families = [...systemFontFamilies.value]
+  const currentFamily = selectedSystemFontFamily.value
+
+  if (currentFamily && !families.includes(currentFamily)) {
+    families.unshift(currentFamily)
+  }
+
+  return families.map((family) => ({
+    value: family,
+    label: family,
+  }))
+})
+
+function pickDefaultSystemFontFamily() {
+  return (
+    selectedSystemFontFamily.value ||
+    systemFontFamilies.value.find((family) => family === 'PingFang SC') ||
+    systemFontFamilies.value[0] ||
+    FALLBACK_SYSTEM_FONT_FAMILIES[0]
+  )
+}
+
+async function selectProseFontKind(kind) {
+  if (kind === 'system') {
+    await workspace.setProseFont(encodeWorkspaceSystemFontFamily(pickDefaultSystemFontFamily()))
+    return
+  }
+
+  await workspace.setProseFont(kind)
+}
+
+async function selectSystemFontFamily(family) {
+  await workspace.setProseFont(encodeWorkspaceSystemFontFamily(family))
+}
+
+onMounted(async () => {
+  systemFontFamilies.value = await loadWorkspaceSystemFontFamilies()
+})
 </script>
 
 <style scoped>
@@ -164,5 +227,9 @@ const WRAP_PRESETS = [
 
 :deep(.ui-select-shell) {
   width: min(100%, 140px); /* 字号选择框比较短，不需要太宽 */
+}
+
+:deep(.ui-select-shell.system-font-select) {
+  width: min(100%, 280px);
 }
 </style>

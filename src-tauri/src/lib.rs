@@ -501,6 +501,7 @@ pub fn run() {
             workbench_state::workbench_state_normalize,
             workspace_preferences::workspace_preferences_load,
             workspace_preferences::workspace_preferences_save,
+            workspace_preferences::workspace_preferences_list_system_fonts,
             latex::compile_latex,
             latex::check_latex_compilers,
             latex::check_latex_tools,
