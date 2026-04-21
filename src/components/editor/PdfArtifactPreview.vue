@@ -27,7 +27,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
-import { normalizeWorkspaceThemeId } from '../../shared/workspaceThemeOptions.js'
 import PdfIframeSurface from './PdfIframeSurface.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
@@ -88,7 +87,9 @@ function resolveThemePreference() {
     }
   }
 
-  const normalizedTheme = normalizeWorkspaceThemeId(workspace.theme)
+  const normalizedTheme = String(workspace.theme || '')
+    .trim()
+    .toLowerCase()
   if (normalizedTheme === 'light' || normalizedTheme === 'dark') {
     return normalizedTheme
   }

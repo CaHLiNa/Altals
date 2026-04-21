@@ -44,23 +44,3 @@ export const WORKSPACE_THEME_OPTIONS = [
     },
   },
 ]
-
-const LEGACY_THEME_MAPPINGS = {
-  system: 'system',
-  light: 'light',
-  solarized: 'light',
-  humane: 'light',
-  'one-light': 'light',
-  dark: 'dark',
-  default: 'dark',
-  dracula: 'dark',
-  monokai: 'dark',
-  nord: 'dark',
-}
-
-export function normalizeWorkspaceThemeId(value) {
-  const normalizedValue = String(value || '')
-    .trim()
-    .toLowerCase()
-  return LEGACY_THEME_MAPPINGS[normalizedValue] || 'system'
-}

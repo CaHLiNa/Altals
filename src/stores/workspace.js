@@ -13,6 +13,7 @@ import {
   decreaseWorkspaceZoom,
   increaseWorkspaceZoom,
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
+  normalizeWorkbenchState,
   normalizeAppZoomPercent,
   normalizeEditorFontSize,
   resetWorkspaceZoom,
@@ -25,11 +26,6 @@ import {
   setWorkspaceZoomPercent,
   setWrapColumnPreference,
 } from '../services/workspacePreferences'
-import {
-  normalizeWorkbenchSidebarPanel,
-  normalizeWorkbenchSurface,
-} from '../shared/workbenchSidebarPanels'
-import { normalizeWorkbenchInspectorPanel } from '../shared/workbenchInspectorPanels.js'
 import {
   addRecentWorkspace,
   clearLastWorkspace,
@@ -108,8 +104,8 @@ export const useWorkspaceStore = defineStore('workspace', {
 
   getters: {
     isOpen: (state) => !!state.path,
-    isWorkspaceSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'workspace',
-    isSettingsSurface: (state) => normalizeWorkbenchSurface(state.primarySurface) === 'settings',
+    isWorkspaceSurface: (state) => state.primarySurface === 'workspace',
+    isSettingsSurface: (state) => state.primarySurface === 'settings',
     scribeflowDir: (state) => state.workspaceDataDir || null,
     projectDir: (state) => (state.workspaceDataDir ? `${state.workspaceDataDir}/project` : null),
     claudeDir: (state) => state.claudeConfigDir || null,
@@ -241,7 +237,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       clearLastWorkspace()
     },
 
-    applyBrowserPreviewState(options = {}) {
+    async applyBrowserPreviewState(options = {}) {
       const isOpen = options.isOpen !== false
       this._workspaceBootstrapGeneration += 1
       this._workspaceBootstrapPromise = null
@@ -254,24 +250,25 @@ export const useWorkspaceStore = defineStore('workspace', {
         : ''
       this.claudeConfigDir = isOpen ? String(options.claudeConfigDir || this.claudeConfigDir || '') : ''
 
-      const primarySurface = normalizeWorkbenchSurface(options.primarySurface || this.primarySurface || 'workspace')
-      this.primarySurface = primarySurface
-      this.settingsOpen = primarySurface === 'settings'
+      const workbenchState = await normalizeWorkbenchState({
+        primarySurface: options.primarySurface || this.primarySurface || 'workspace',
+        leftSidebarOpen: isOpen ? options.leftSidebarOpen !== false : false,
+        leftSidebarPanel: options.leftSidebarPanel || this.leftSidebarPanel || 'files',
+        rightSidebarOpen: isOpen ? options.rightSidebarOpen === true : false,
+        rightSidebarPanel: options.rightSidebarPanel || this.rightSidebarPanel || 'outline',
+      })
+
+      this.primarySurface = workbenchState.primarySurface
+      this.settingsOpen = workbenchState.primarySurface === 'settings'
       this.settingsSection =
-        primarySurface === 'settings'
+        this.settingsOpen
           ? normalizeSettingsSectionValue(options.settingsSection || this.settingsSection || 'theme')
           : null
 
-      this.leftSidebarOpen = isOpen ? options.leftSidebarOpen !== false : false
-      this.leftSidebarPanel = normalizeWorkbenchSidebarPanel(
-        primarySurface,
-        options.leftSidebarPanel || this.leftSidebarPanel || 'files'
-      )
-      this.rightSidebarOpen = isOpen ? options.rightSidebarOpen === true : false
-      this.rightSidebarPanel = normalizeWorkbenchInspectorPanel(
-        primarySurface,
-        options.rightSidebarPanel || this.rightSidebarPanel || 'outline'
-      )
+      this.leftSidebarOpen = workbenchState.leftSidebarOpen
+      this.leftSidebarPanel = workbenchState.leftSidebarPanel
+      this.rightSidebarOpen = workbenchState.rightSidebarOpen
+      this.rightSidebarPanel = workbenchState.rightSidebarPanel
     },
 
     toggleLeftSidebar() {

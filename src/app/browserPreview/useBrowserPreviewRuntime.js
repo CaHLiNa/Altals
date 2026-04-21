@@ -58,12 +58,12 @@ export function useBrowserPreviewRuntime({
 
   let isApplyingRoute = false
 
-  function ensurePreviewWorkspaceSeeded() {
+  async function ensurePreviewWorkspaceSeeded() {
     const snapshot = readBrowserPreviewWorkspaceSnapshot(BROWSER_PREVIEW_WORKSPACE_PATH)
     if (!snapshot) return
 
     if (workspace.path !== BROWSER_PREVIEW_WORKSPACE_PATH) {
-      workspace.applyBrowserPreviewState({
+      await workspace.applyBrowserPreviewState({
         isOpen: true,
         path: BROWSER_PREVIEW_WORKSPACE_PATH,
         globalConfigDir: BROWSER_PREVIEW_GLOBAL_CONFIG_DIR,
@@ -88,7 +88,7 @@ export function useBrowserPreviewRuntime({
     latexStore.applyBrowserPreviewDiagnostics()
   }
 
-  function applyRoute(route = {}) {
+  async function applyRoute(route = {}) {
     isApplyingRoute = true
 
     try {
@@ -96,12 +96,12 @@ export function useBrowserPreviewRuntime({
         editorStore.cleanup()
         filesStore.cleanup()
         referencesStore.cleanup()
-        workspace.applyBrowserPreviewState({ isOpen: false })
+        await workspace.applyBrowserPreviewState({ isOpen: false })
         return
       }
 
-      ensurePreviewWorkspaceSeeded()
-      workspace.applyBrowserPreviewState({
+      await ensurePreviewWorkspaceSeeded()
+      await workspace.applyBrowserPreviewState({
         isOpen: true,
         path: BROWSER_PREVIEW_WORKSPACE_PATH,
         globalConfigDir: BROWSER_PREVIEW_GLOBAL_CONFIG_DIR,
@@ -131,7 +131,7 @@ export function useBrowserPreviewRuntime({
   }
 
   function handlePopState() {
-    applyRoute(parseBrowserPreviewPath(window.location.pathname))
+    void applyRoute(parseBrowserPreviewPath(window.location.pathname))
   }
 
   onMounted(() => {
@@ -141,7 +141,7 @@ export function useBrowserPreviewRuntime({
       syncBrowserPreviewHistory(initialRoute, 'replace')
     }
 
-    applyRoute(initialRoute)
+    void applyRoute(initialRoute)
     window.addEventListener('popstate', handlePopState)
   })
 

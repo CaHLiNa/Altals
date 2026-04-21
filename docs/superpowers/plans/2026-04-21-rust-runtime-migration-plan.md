@@ -12,19 +12,20 @@
 
 ## 当前进度
 
-截至 2026-04-21，Task 1 已完成首个可验证切片：
+截至 2026-04-21，Task 1 已完成并达到当前 phase 验收：
 
 - 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
 - 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
 - 已把前端 `workspacePreferences.js` 收口为 Rust bridge + DOM side effect helper
 - 已把 `workspace.js` 的主要 preferences 更新路径改为消费 Rust-normalized 结果
-- 已完成 legacy `localStorage` 迁移入口，但尚未完全移除所有前端 fallback / 常量镜像
+- 已完成 legacy `localStorage` 迁移入口与清理
+- 已把 browser preview 的 workbench normalize 收口到统一 bridge
+- 已把 `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 降为纯 metadata，不再承载 normalize 规则
 
-当前仍未完成：
+当前剩余不阻塞 Task 1 完成、但值得在后续 phase 持续关注的点：
 
-- browser preview 路径上的前端 shadow normalize 清理
-- Task 1 的真实手动验证
-- `src/shared/workbench*` 与 `src/shared/workspaceThemeOptions.js` 的进一步降权整理
+- Computer Use 当前无法附着到 `tauri dev` 窗口，缺少一次真实桌面点击验证
+- browser preview 为非桌面环境，仍保留只读 fallback normalize；它不再是桌面产品权威
 
 ---
 
@@ -223,12 +224,12 @@ Rust 接管：
 - store 不再本地决定 settings 语义
 - `openSettings` / `setPrimarySurface` / `setRightSidebarPanel` 等路径只消费 Rust-normalized 结果
 
-- [ ] **Step 5: 清理旧 localStorage 影子规则**
+- [x] **Step 5: 清理旧 localStorage 影子规则**
 
 当前状态：
 
-- 已移除前端对 `theme` / `appZoomPercent` / `primarySurface` / `leftSidebarPanel` / `rightSidebarPanel` 的主持久化权威
-- 仍需继续清理 browser preview 与 shared constant 层面的影子 normalize
+- 已移除前端对 `leftSidebarPanel` / `rightSidebarPanel` / `primarySurface` / `theme` / `zoom` 的主持久化与最终 normalize 权威
+- browser preview 仅保留非桌面 fallback，避免非 Tauri 环境调用 Rust command 失败
 
 删除目标：
 
@@ -240,15 +241,33 @@ Rust 接管：
 - 切换 workspace 后仍能恢复 shell 状态
 - settings 打开、关闭、切换 section 行为不回归
 
+当前结果：
+
+- 已满足“桌面端权威由 Rust 持有”的验收目标
+- settings / theme / sidebar / zoom 的持久化与 normalize 已不再由前端主导
+- `~/.scribeflow/workspace-preferences.json` 已稳定生成并承载当前权威状态
+
 ### 验证
 
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml workspace_preferences`
 - `npm run build`
+- `npm run lint`
 - 手动验证：
   - 打开工作区
   - 切换左右侧边栏
   - 切换 settings section
   - 关闭并重开应用后确认状态恢复
+
+当前验证记录：
+
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml workspace_preferences`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 已执行 `npm run tauri -- dev`，确认应用能在当前改动下启动
+- 已检查 `~/.scribeflow/workspace-preferences.json`，确认 Rust 持久化文件存在且字段完整
+- 尚未完成真实桌面窗口点击验证；阻塞原因是当前 Computer Use 无法识别 `tauri dev` 窗口实例
 
 ---
 

@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { normalizeWorkspaceThemeId } from '../shared/workspaceThemeOptions.js'
 
 const THEME_CLASSES = [
   'theme-light',
@@ -30,6 +29,11 @@ const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT = '#f5faef'
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
+const DEFAULT_WORKBENCH_SURFACE = 'workspace'
+const DEFAULT_WORKSPACE_SIDEBAR_PANEL = 'files'
+const DEFAULT_SETTINGS_SIDEBAR_PANEL = 'files'
+const DEFAULT_WORKSPACE_INSPECTOR_PANEL = 'outline'
+const DEFAULT_SETTINGS_INSPECTOR_PANEL = ''
 
 const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'primarySurface',
@@ -57,6 +61,58 @@ export const APP_ZOOM_PRESETS = [100]
 let activeWorkspaceTheme = 'system'
 let systemThemeQuery = null
 let removeSystemThemeListener = null
+
+function normalizeWorkspaceThemeId(value) {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'light':
+    case 'solarized':
+    case 'humane':
+    case 'one-light':
+      return 'light'
+    case 'dark':
+    case 'default':
+    case 'dracula':
+    case 'monokai':
+    case 'nord':
+      return 'dark'
+    case 'system':
+    default:
+      return 'system'
+  }
+}
+
+function isTauriRuntime() {
+  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+}
+
+function normalizeWorkbenchSurfaceLocally(value) {
+  return String(value || '').trim() === 'settings' ? 'settings' : DEFAULT_WORKBENCH_SURFACE
+}
+
+function normalizeWorkbenchSidebarPanelLocally(surface, panel) {
+  const normalizedSurface = normalizeWorkbenchSurfaceLocally(surface)
+  const normalizedPanel = String(panel || '').trim()
+  if (normalizedSurface === 'settings') {
+    return normalizedPanel === DEFAULT_SETTINGS_SIDEBAR_PANEL
+      ? normalizedPanel
+      : DEFAULT_SETTINGS_SIDEBAR_PANEL
+  }
+
+  return ['files', 'references'].includes(normalizedPanel)
+    ? normalizedPanel
+    : DEFAULT_WORKSPACE_SIDEBAR_PANEL
+}
+
+function normalizeWorkbenchInspectorPanelLocally(surface, panel) {
+  const normalizedSurface = normalizeWorkbenchSurfaceLocally(surface)
+  const normalizedPanel = String(panel || '').trim()
+  if (normalizedSurface === 'settings') {
+    return DEFAULT_SETTINGS_INSPECTOR_PANEL
+  }
+  return normalizedPanel === DEFAULT_WORKSPACE_INSPECTOR_PANEL
+    ? normalizedPanel
+    : DEFAULT_WORKSPACE_INSPECTOR_PANEL
+}
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -170,6 +226,23 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
 }
 
 export async function normalizeWorkbenchState(state = {}) {
+  if (!isTauriRuntime()) {
+    const primarySurface = normalizeWorkbenchSurfaceLocally(state.primarySurface)
+    return {
+      primarySurface,
+      leftSidebarOpen: state.leftSidebarOpen !== false,
+      leftSidebarPanel: normalizeWorkbenchSidebarPanelLocally(
+        primarySurface,
+        state.leftSidebarPanel
+      ),
+      rightSidebarOpen: state.rightSidebarOpen === true,
+      rightSidebarPanel: normalizeWorkbenchInspectorPanelLocally(
+        primarySurface,
+        state.rightSidebarPanel
+      ),
+    }
+  }
+
   return invoke('workbench_state_normalize', {
     params: {
       primarySurface: String(state.primarySurface || ''),
