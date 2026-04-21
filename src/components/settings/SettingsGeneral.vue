@@ -189,6 +189,59 @@
     </section>
 
     <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('File Tree') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Show hidden files and folders') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Reveal dotfiles and hidden directories inside the project tree.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.fileTreeShowHidden"
+              :aria-label="t('Show hidden files and folders')"
+              @update:model-value="workspace.setFileTreeShowHidden($event)"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Sort files by') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Choose whether the project tree is ordered alphabetically or by recent file changes.') }}
+            </div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              :model-value="workspace.fileTreeSortMode"
+              :options="fileTreeSortOptions"
+              @update:model-value="workspace.setFileTreeSortMode"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Fold single-child folders') }}</div>
+            <div class="settings-row-hint">
+              {{ t('Collapse directory chains like src/components/editor into one visible row.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.fileTreeFoldDirectories"
+              :aria-label="t('Fold single-child folders')"
+              @update:model-value="workspace.setFileTreeFoldDirectories($event)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
       <h4 class="settings-group-title">{{ t('PDF Viewer') }}</h4>
       <div class="settings-group-body">
         <div class="settings-row">
@@ -336,6 +389,11 @@ const pdfViewerZoomOptions = computed(() => [
 const pdfViewerSpreadOptions = computed(() => [
   { value: 'single', label: t('Single page') },
   { value: 'double', label: t('Two-page spread') },
+])
+
+const fileTreeSortOptions = computed(() => [
+  { value: 'name', label: t('Name') },
+  { value: 'modified', label: t('Modified date') },
 ])
 
 const resolvedPdfPagePreviewBackground = computed(() =>

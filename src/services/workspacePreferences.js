@@ -35,6 +35,9 @@ const DEFAULT_MARKDOWN_PREVIEW_SYNC = true
 const DEFAULT_EDITOR_SPELLCHECK = false
 const DEFAULT_EDITOR_LINE_NUMBERS = true
 const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE = true
+const DEFAULT_FILE_TREE_SHOW_HIDDEN = true
+const DEFAULT_FILE_TREE_SORT_MODE = 'name'
+const DEFAULT_FILE_TREE_FOLD_DIRECTORIES = false
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
 const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
@@ -69,6 +72,9 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'editorSpellcheck',
   'editorLineNumbers',
   'editorHighlightActiveLine',
+  'fileTreeShowHidden',
+  'fileTreeSortMode',
+  'fileTreeFoldDirectories',
   'uiFont',
   'markdownFont',
   'latexFont',
@@ -214,6 +220,9 @@ export function createWorkspacePreferenceState() {
     editorSpellcheck: DEFAULT_EDITOR_SPELLCHECK,
     editorLineNumbers: DEFAULT_EDITOR_LINE_NUMBERS,
     editorHighlightActiveLine: DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE,
+    fileTreeShowHidden: DEFAULT_FILE_TREE_SHOW_HIDDEN,
+    fileTreeSortMode: DEFAULT_FILE_TREE_SORT_MODE,
+    fileTreeFoldDirectories: DEFAULT_FILE_TREE_FOLD_DIRECTORIES,
     uiFont: 'inter',
     markdownFont: 'inter',
     latexFont: 'mono',
@@ -317,6 +326,12 @@ export function normalizeWorkspacePreferredLocale(value) {
     default:
       return DEFAULT_PREFERRED_LOCALE
   }
+}
+
+export function normalizeWorkspaceFileTreeSortMode(value) {
+  return String(value || '').trim().toLowerCase() === 'modified'
+    ? 'modified'
+    : DEFAULT_FILE_TREE_SORT_MODE
 }
 
 export function normalizeWorkspacePdfViewerZoomMode(value) {
@@ -443,6 +458,18 @@ export function setWorkspaceEditorLineNumbers(value) {
 
 export function setWorkspaceEditorHighlightActiveLine(value) {
   return value !== false
+}
+
+export function setWorkspaceFileTreeShowHidden(value) {
+  return value !== false
+}
+
+export function setWorkspaceFileTreeSortMode(value) {
+  return normalizeWorkspaceFileTreeSortMode(value)
+}
+
+export function setWorkspaceFileTreeFoldDirectories(value) {
+  return value === true
 }
 
 export function setWorkspacePdfViewerZoomMode(value) {

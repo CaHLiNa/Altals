@@ -21,7 +21,9 @@ function filterTreeEntries(entries, query) {
   const result = []
 
   for (const entry of entries) {
-    const target = matchesPath ? entry.path.toLowerCase() : entry.name.toLowerCase()
+    const target = matchesPath
+      ? entry.path.toLowerCase()
+      : String(entry.display_name || entry.name || '').toLowerCase()
     if (entry.is_dir) {
       if (target.includes(normalizedQuery)) {
         result.push(entry)
@@ -50,7 +52,15 @@ function collectFileMatches(entries, result) {
 }
 
 export function useFileTreeFilter(options) {
-  const { files, editor, workspace, treeContainer, filterInputEl, isMod } = options
+  const {
+    files,
+    editor,
+    workspace,
+    treeContainer,
+    filterInputEl,
+    isMod,
+    getDisplayTree = () => files.tree,
+  } = options
 
   const treeScrollTop = ref(0)
   const containerHeight = ref(0)
@@ -63,8 +73,9 @@ export function useFileTreeFilter(options) {
   let lastSelectedPath = null
 
   const filteredTree = computed(() => {
-    if (!filterQuery.value) return files.tree
-    return filterTreeEntries(files.tree, filterQuery.value)
+    const displayTree = getDisplayTree()
+    if (!filterQuery.value) return displayTree
+    return filterTreeEntries(displayTree, filterQuery.value)
   })
 
   const filterMatches = computed(() => {
@@ -75,7 +86,7 @@ export function useFileTreeFilter(options) {
   })
 
   const displayTree = computed(() =>
-    filterActive.value && filterQuery.value ? filteredTree.value : files.tree
+    filterActive.value && filterQuery.value ? filteredTree.value : getDisplayTree()
   )
 
   const visibleRows = computed(() =>

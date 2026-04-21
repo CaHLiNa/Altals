@@ -349,6 +349,7 @@ import { ref, reactive, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeItem from './FileTreeItem.vue'
@@ -405,6 +406,13 @@ const workspaceSnapshot = computed(
   () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
 )
 const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
+const fileTreeDisplayEntries = computed(() =>
+  applyFileTreeDisplayPreferences(files.tree, {
+    showHidden: workspace.fileTreeShowHidden,
+    sortMode: workspace.fileTreeSortMode,
+    foldDirectories: workspace.fileTreeFoldDirectories,
+  })
+)
 
 const treeContainer = ref(null)
 const renameInput = ref(null)
@@ -457,6 +465,7 @@ const {
   treeContainer,
   filterInputEl,
   isMod,
+  getDisplayTree: () => fileTreeDisplayEntries.value,
 })
 
 const {
@@ -643,6 +652,13 @@ watch(workspaceMenuOpen, async (open) => {
   document.removeEventListener('pointerdown', handleWorkspaceMenuDocumentPointerDown, true)
   document.removeEventListener('keydown', handleWorkspaceMenuEscape, true)
 })
+
+watch(
+  () => workspace.fileTreeShowHidden,
+  () => {
+    void files.refreshVisibleTree({ suppressErrors: true, reason: 'settings:file-tree-hidden' })
+  }
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWorkspaceMenuPosition)

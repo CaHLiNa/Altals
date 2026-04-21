@@ -25,14 +25,14 @@ pub struct WorkspaceTreeSnapshot {
     pub flat_files: Vec<FileEntry>,
 }
 
-fn should_skip_entry(name: &str, is_dir: bool, is_symlink: bool) -> bool {
+fn should_skip_entry(name: &str, _is_dir: bool, is_symlink: bool, include_hidden: bool) -> bool {
     if is_symlink {
         return true;
     }
     if HIDDEN_WORKSPACE_FILES.contains(&name) {
         return true;
     }
-    if name.starts_with('.') && is_dir {
+    if !include_hidden && name.starts_with('.') {
         return true;
     }
     matches!(name, "node_modules" | "target" | ".DS_Store")
@@ -62,7 +62,7 @@ fn file_modified_timestamp(metadata: &fs::Metadata, is_dir: bool) -> Option<u64>
         .map(|d| d.as_secs())
 }
 
-pub fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
+pub fn read_dir_shallow_entries(dir: &Path, include_hidden: bool) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
 
@@ -75,7 +75,7 @@ pub fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
         let is_symlink = file_type.is_symlink();
         let is_dir = file_type.is_dir();
 
-        if should_skip_entry(&name, is_dir, is_symlink) {
+        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
             continue;
         }
 
@@ -95,6 +95,7 @@ pub fn read_dir_shallow_entries(dir: &Path) -> Result<Vec<FileEntry>, String> {
 pub fn build_visible_tree(
     dir: &Path,
     loaded_dirs: &HashSet<String>,
+    include_hidden: bool,
 ) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
@@ -108,13 +109,13 @@ pub fn build_visible_tree(
         let is_symlink = file_type.is_symlink();
         let is_dir = file_type.is_dir();
 
-        if should_skip_entry(&name, is_dir, is_symlink) {
+        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
             continue;
         }
 
         let path_string = path.to_string_lossy().to_string();
         let children = if is_dir && loaded_dirs.contains(&path_string) {
-            Some(build_visible_tree(&path, loaded_dirs)?)
+            Some(build_visible_tree(&path, loaded_dirs, include_hidden)?)
         } else {
             None
         };
@@ -136,6 +137,7 @@ fn collect_snapshot_entries(
     dir: &Path,
     loaded_dirs: &HashSet<String>,
     flat_files: &mut Vec<FileEntry>,
+    include_hidden: bool,
 ) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
@@ -149,13 +151,14 @@ fn collect_snapshot_entries(
         let is_symlink = file_type.is_symlink();
         let is_dir = file_type.is_dir();
 
-        if should_skip_entry(&name, is_dir, is_symlink) {
+        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
             continue;
         }
 
         let path_string = path.to_string_lossy().to_string();
         if is_dir {
-            let nested_entries = collect_snapshot_entries(&path, loaded_dirs, flat_files)?;
+            let nested_entries =
+                collect_snapshot_entries(&path, loaded_dirs, flat_files, include_hidden)?;
             let children = if loaded_dirs.contains(&path_string) {
                 Some(nested_entries)
             } else {
@@ -190,14 +193,19 @@ fn collect_snapshot_entries(
 pub fn build_workspace_tree_snapshot(
     dir: &Path,
     loaded_dirs: &HashSet<String>,
+    include_hidden: bool,
 ) -> Result<WorkspaceTreeSnapshot, String> {
     let mut flat_files = Vec::new();
-    let tree = collect_snapshot_entries(dir, loaded_dirs, &mut flat_files)?;
+    let tree = collect_snapshot_entries(dir, loaded_dirs, &mut flat_files, include_hidden)?;
     flat_files.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
     Ok(WorkspaceTreeSnapshot { tree, flat_files })
 }
 
-pub fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result<(), String> {
+pub fn collect_files_recursive(
+    dir: &Path,
+    files: &mut Vec<FileEntry>,
+    include_hidden: bool,
+) -> Result<(), String> {
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
 
     for entry in read_dir {
@@ -209,12 +217,12 @@ pub fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result
         let is_symlink = file_type.is_symlink();
         let is_dir = file_type.is_dir();
 
-        if should_skip_entry(&name, is_dir, is_symlink) {
+        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
             continue;
         }
 
         if is_dir {
-            collect_files_recursive(&path, files)?;
+            collect_files_recursive(&path, files, include_hidden)?;
             continue;
         }
 
@@ -228,4 +236,17 @@ pub fn collect_files_recursive(dir: &Path, files: &mut Vec<FileEntry>) -> Result
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_skip_entry;
+
+    #[test]
+    fn hidden_entries_follow_include_hidden_flag() {
+        assert!(should_skip_entry(".git", true, false, false));
+        assert!(should_skip_entry(".gitignore", false, false, false));
+        assert!(!should_skip_entry(".git", true, false, true));
+        assert!(!should_skip_entry(".gitignore", false, false, true));
+    }
 }

@@ -49,11 +49,19 @@ import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
 
 function readVisibleTree(path, loadedDirs = []) {
-  return invoke('read_visible_tree', { path, loadedDirs })
+  const workspace = useWorkspaceStore()
+  return invoke('read_visible_tree', {
+    path,
+    loadedDirs,
+    includeHidden: workspace.fileTreeShowHidden !== false,
+  })
 }
 
 function readWorkspaceSnapshot(path, loadedDirs = []) {
-  return readWorkspaceTreeSnapshot(path, loadedDirs)
+  const workspace = useWorkspaceStore()
+  return readWorkspaceTreeSnapshot(path, loadedDirs, {
+    includeHidden: workspace.fileTreeShowHidden !== false,
+  })
 }
 
 function formatBytes(bytes = 0) {
@@ -183,7 +191,11 @@ export const useFilesStore = defineStore('files', {
           getWorkspacePath: () => useWorkspaceStore().path,
           getCurrentTree: () => this.tree,
           findCurrentEntry: (path) => this._findEntry(path),
-          readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          readDirShallow: (path) =>
+            invoke('read_dir_shallow', {
+              path,
+              includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
+            }),
           readVisibleTree: (path, loadedDirs = []) => readVisibleTree(path, loadedDirs),
           readWorkspaceSnapshot: (path, loadedDirs = []) => readWorkspaceSnapshot(path, loadedDirs),
           applyWorkspaceSnapshot: (snapshot, workspacePath, options = {}) =>
@@ -219,7 +231,11 @@ export const useFilesStore = defineStore('files', {
         this._fileTreeHydrationRuntime = createFileTreeHydrationRuntime({
           getWorkspacePath: () => useWorkspaceStore().path,
           getCurrentTree: () => this.tree,
-          readDirShallow: (path) => invoke('read_dir_shallow', { path }),
+          readDirShallow: (path) =>
+            invoke('read_dir_shallow', {
+              path,
+              includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
+            }),
           readVisibleTree: (path, loadedDirs = []) => readVisibleTree(path, loadedDirs),
           readWorkspaceSnapshot: (path, loadedDirs = []) => readWorkspaceSnapshot(path, loadedDirs),
           applyWorkspaceSnapshot: (snapshot, workspacePath, options = {}) =>
@@ -271,7 +287,11 @@ export const useFilesStore = defineStore('files', {
           markFlatFilesNotReady: () => {
             this.flatFilesReady = false
           },
-          listFilesRecursive: (path) => invoke('list_files_recursive', { path }),
+          listFilesRecursive: (path) =>
+            invoke('list_files_recursive', {
+              path,
+              includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
+            }),
         })
       }
       return this._flatFilesIndexRuntime

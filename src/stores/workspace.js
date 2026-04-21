@@ -17,6 +17,9 @@ import {
   setWorkspaceEditorLineNumbers,
   setWorkspaceEditorSpellcheck,
   setWorkspaceEditorFontSize,
+  setWorkspaceFileTreeFoldDirectories,
+  setWorkspaceFileTreeShowHidden,
+  setWorkspaceFileTreeSortMode,
   setWorkspaceLatexFont,
   setWorkspaceLatexCitationCommand,
   setWorkspaceMarkdownCitationFormat,
@@ -81,6 +84,9 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'editorSpellcheck',
   'editorLineNumbers',
   'editorHighlightActiveLine',
+  'fileTreeShowHidden',
+  'fileTreeSortMode',
+  'fileTreeFoldDirectories',
   'uiFont',
   'markdownFont',
   'latexFont',
@@ -457,6 +463,24 @@ export const useWorkspaceStore = defineStore('workspace', {
     setEditorHighlightActiveLine(value) {
       return this.persistPreferences({
         editorHighlightActiveLine: setWorkspaceEditorHighlightActiveLine(value),
+      })
+    },
+
+    setFileTreeShowHidden(value) {
+      return this.persistPreferences({
+        fileTreeShowHidden: setWorkspaceFileTreeShowHidden(value),
+      })
+    },
+
+    setFileTreeSortMode(value) {
+      return this.persistPreferences({
+        fileTreeSortMode: setWorkspaceFileTreeSortMode(value),
+      })
+    },
+
+    setFileTreeFoldDirectories(value) {
+      return this.persistPreferences({
+        fileTreeFoldDirectories: setWorkspaceFileTreeFoldDirectories(value),
       })
     },
 

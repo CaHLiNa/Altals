@@ -22,6 +22,9 @@ const DEFAULT_MARKDOWN_PREVIEW_SYNC: bool = true;
 const DEFAULT_EDITOR_SPELLCHECK: bool = false;
 const DEFAULT_EDITOR_LINE_NUMBERS: bool = true;
 const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE: bool = true;
+const DEFAULT_FILE_TREE_SHOW_HIDDEN: bool = true;
+const DEFAULT_FILE_TREE_SORT_MODE: &str = "name";
+const DEFAULT_FILE_TREE_FOLD_DIRECTORIES: bool = false;
 const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
 const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
 const DEFAULT_PDF_VIEWER_ZOOM_MODE: &str = "page-width";
@@ -64,6 +67,12 @@ pub struct WorkspacePreferences {
     pub editor_line_numbers: bool,
     #[serde(default = "default_editor_highlight_active_line")]
     pub editor_highlight_active_line: bool,
+    #[serde(default = "default_file_tree_show_hidden")]
+    pub file_tree_show_hidden: bool,
+    #[serde(default = "default_file_tree_sort_mode")]
+    pub file_tree_sort_mode: String,
+    #[serde(default = "default_file_tree_fold_directories")]
+    pub file_tree_fold_directories: bool,
     #[serde(default = "default_pdf_page_background_follows_theme")]
     pub pdf_page_background_follows_theme: bool,
     #[serde(default = "default_pdf_custom_page_background")]
@@ -103,6 +112,9 @@ impl Default for WorkspacePreferences {
             editor_spellcheck: default_editor_spellcheck(),
             editor_line_numbers: default_editor_line_numbers(),
             editor_highlight_active_line: default_editor_highlight_active_line(),
+            file_tree_show_hidden: default_file_tree_show_hidden(),
+            file_tree_sort_mode: default_file_tree_sort_mode(),
+            file_tree_fold_directories: default_file_tree_fold_directories(),
             pdf_page_background_follows_theme: default_pdf_page_background_follows_theme(),
             pdf_custom_page_background: default_pdf_custom_page_background(),
             pdf_viewer_zoom_mode: default_pdf_viewer_zoom_mode(),
@@ -218,6 +230,18 @@ fn default_editor_line_numbers() -> bool {
 
 fn default_editor_highlight_active_line() -> bool {
     DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE
+}
+
+fn default_file_tree_show_hidden() -> bool {
+    DEFAULT_FILE_TREE_SHOW_HIDDEN
+}
+
+fn default_file_tree_sort_mode() -> String {
+    DEFAULT_FILE_TREE_SORT_MODE.to_string()
+}
+
+fn default_file_tree_fold_directories() -> bool {
+    DEFAULT_FILE_TREE_FOLD_DIRECTORIES
 }
 
 fn default_pdf_page_background_follows_theme() -> bool {
@@ -366,6 +390,13 @@ fn normalize_pdf_viewer_zoom_mode(value: &str) -> String {
         "page-fit" => "page-fit".to_string(),
         "remember-last" => "remember-last".to_string(),
         _ => "page-width".to_string(),
+    }
+}
+
+fn normalize_file_tree_sort_mode(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "modified" => "modified".to_string(),
+        _ => "name".to_string(),
     }
 }
 
@@ -589,6 +620,9 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         editor_spellcheck: preferences.editor_spellcheck,
         editor_line_numbers: preferences.editor_line_numbers,
         editor_highlight_active_line: preferences.editor_highlight_active_line,
+        file_tree_show_hidden: preferences.file_tree_show_hidden,
+        file_tree_sort_mode: normalize_file_tree_sort_mode(&preferences.file_tree_sort_mode),
+        file_tree_fold_directories: preferences.file_tree_fold_directories,
         pdf_page_background_follows_theme: preferences.pdf_page_background_follows_theme,
         pdf_custom_page_background: normalize_hex_color(
             &preferences.pdf_custom_page_background,
@@ -676,6 +710,15 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         snapshot,
         "editorHighlightActiveLine",
         default_editor_highlight_active_line(),
+    );
+    preferences.file_tree_show_hidden =
+        legacy_boolean(snapshot, "fileTreeShowHidden", default_file_tree_show_hidden());
+    preferences.file_tree_sort_mode =
+        legacy_string(snapshot, "fileTreeSortMode").unwrap_or_else(default_file_tree_sort_mode);
+    preferences.file_tree_fold_directories = legacy_boolean(
+        snapshot,
+        "fileTreeFoldDirectories",
+        default_file_tree_fold_directories(),
     );
     preferences.pdf_page_background_follows_theme = legacy_boolean(
         snapshot,
@@ -773,6 +816,7 @@ mod tests {
     #[test]
     fn normalization_clamps_new_preference_values() {
         let normalized = normalize_workspace_preferences(WorkspacePreferences {
+            file_tree_sort_mode: "recent".to_string(),
             pdf_viewer_zoom_mode: "weird".to_string(),
             pdf_viewer_spread_mode: "spread".to_string(),
             pdf_viewer_last_scale: "-1".to_string(),
@@ -781,6 +825,7 @@ mod tests {
             ..WorkspacePreferences::default()
         });
 
+        assert_eq!(normalized.file_tree_sort_mode, "name");
         assert_eq!(normalized.pdf_viewer_zoom_mode, "page-width");
         assert_eq!(normalized.pdf_viewer_spread_mode, "single");
         assert_eq!(normalized.pdf_viewer_last_scale, "");

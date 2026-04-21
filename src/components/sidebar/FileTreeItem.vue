@@ -68,7 +68,7 @@
               <template v-else>{{ seg.text }}</template>
             </template>
           </template>
-          <template v-else>{{ entry.name }}</template>
+          <template v-else>{{ displayName }}</template>
         </span>
       </template>
     </div>
@@ -219,6 +219,7 @@ const isFilterHighlighted = computed(
 const isActive = computed(() => editor.activeTab === props.entry.path)
 const isSelected = computed(() => props.selectedPaths.has(props.entry.path))
 const isRenaming = computed(() => props.renamingPath === props.entry.path)
+const displayName = computed(() => String(props.entry.display_name || props.entry.name || ''))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -251,9 +252,9 @@ const fileIconComponent = computed(() => {
 })
 
 const nameSegments = computed(() => {
-  if (!props.filterQuery) return [{ text: props.entry.name, match: false }]
+  if (!props.filterQuery) return [{ text: displayName.value, match: false }]
   const q = props.filterQuery.toLowerCase()
-  const name = props.entry.name
+  const name = displayName.value
   const idx = name.toLowerCase().indexOf(q)
   if (idx === -1) return [{ text: name, match: false }]
   const segments = []
