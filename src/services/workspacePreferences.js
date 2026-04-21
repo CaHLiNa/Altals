@@ -1,5 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import {
+  clearStorageKeys,
+  hasDesktopInvoke,
+  readStorageSnapshot,
+} from './bridgeStorage.js'
 
 const THEME_CLASSES = [
   'theme-light',
@@ -81,10 +86,6 @@ function normalizeWorkspaceThemeId(value) {
   }
 }
 
-function isTauriRuntime() {
-  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
-}
-
 function normalizeWorkbenchSurfaceLocally(value) {
   return String(value || '').trim() === 'settings' ? 'settings' : DEFAULT_WORKBENCH_SURFACE
 }
@@ -144,35 +145,12 @@ function parseHexColor(value, fallback) {
   }
 }
 
-function removeLegacyValue(key) {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    // Ignore localStorage failures.
-  }
-}
-
 function readLegacyWorkspacePreferenceSnapshot() {
-  const snapshot = {}
-
-  try {
-    for (const key of LEGACY_WORKSPACE_PREFERENCE_KEYS) {
-      const value = localStorage.getItem(key)
-      if (value !== null) {
-        snapshot[key] = value
-      }
-    }
-  } catch {
-    // Ignore localStorage failures.
-  }
-
-  return snapshot
+  return readStorageSnapshot(LEGACY_WORKSPACE_PREFERENCE_KEYS)
 }
 
 export function clearLegacyWorkspacePreferenceStorage() {
-  for (const key of LEGACY_WORKSPACE_PREFERENCE_KEYS) {
-    removeLegacyValue(key)
-  }
+  clearStorageKeys(LEGACY_WORKSPACE_PREFERENCE_KEYS)
 }
 
 export function createWorkspacePreferenceState() {
@@ -226,7 +204,7 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
 }
 
 export async function normalizeWorkbenchState(state = {}) {
-  if (!isTauriRuntime()) {
+  if (!hasDesktopInvoke()) {
     const primarySurface = normalizeWorkbenchSurfaceLocally(state.primarySurface)
     return {
       primarySurface,

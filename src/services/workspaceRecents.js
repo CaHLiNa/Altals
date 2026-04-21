@@ -1,5 +1,14 @@
 import { invoke } from '@tauri-apps/api/core'
 import { basenamePath } from '../utils/path'
+import {
+  clearStorageKeys,
+  hasDesktopInvoke,
+  readStorageBoolean,
+  readStorageJson,
+  readStorageValue,
+  writeStorageJson,
+  writeStorageValue,
+} from './bridgeStorage.js'
 
 const MAX_RECENT_WORKSPACES = 10
 
@@ -11,50 +20,28 @@ export function createWorkspaceLifecycleState() {
   }
 }
 
-function hasTauriInvoke() {
-  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
-}
-
 function readLegacyRecentWorkspaces() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem('recentWorkspaces') || '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((item) => item && item.path)
-      .map((item) => ({
-        path: String(item.path || ''),
-        name: basenamePath(item.path) || String(item.name || item.path),
-        lastOpened: String(item.lastOpened || ''),
-      }))
-  } catch {
-    return []
-  }
+  const parsed = readStorageJson('recentWorkspaces', [])
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .filter((item) => item && item.path)
+    .map((item) => ({
+      path: String(item.path || ''),
+      name: basenamePath(item.path) || String(item.name || item.path),
+      lastOpened: String(item.lastOpened || ''),
+    }))
 }
 
 function readLegacyLastWorkspace() {
-  try {
-    return String(localStorage.getItem('lastWorkspace') || '')
-  } catch {
-    return ''
-  }
+  return String(readStorageValue('lastWorkspace', ''))
 }
 
 function readLegacySetupComplete() {
-  try {
-    return localStorage.getItem('setupComplete') === 'true'
-  } catch {
-    return false
-  }
+  return readStorageBoolean('setupComplete', false)
 }
 
 function clearLegacyWorkspaceLifecycleStorage() {
-  try {
-    localStorage.removeItem('recentWorkspaces')
-    localStorage.removeItem('lastWorkspace')
-    localStorage.removeItem('setupComplete')
-  } catch {
-    // Ignore localStorage failures.
-  }
+  clearStorageKeys(['recentWorkspaces', 'lastWorkspace', 'setupComplete'])
 }
 
 function normalizeRecentWorkspaces(recentWorkspaces = []) {
@@ -96,22 +83,14 @@ function loadBrowserPreviewWorkspaceLifecycleState() {
 
 function saveBrowserPreviewWorkspaceLifecycleState(state = {}) {
   const normalized = normalizeWorkspaceLifecycleState(state)
-  try {
-    localStorage.setItem('recentWorkspaces', JSON.stringify(normalized.recentWorkspaces))
-    if (normalized.lastWorkspace) {
-      localStorage.setItem('lastWorkspace', normalized.lastWorkspace)
-    } else {
-      localStorage.removeItem('lastWorkspace')
-    }
-    localStorage.setItem('setupComplete', normalized.setupComplete ? 'true' : 'false')
-  } catch {
-    // Ignore browser preview storage failures.
-  }
+  writeStorageJson('recentWorkspaces', normalized.recentWorkspaces)
+  writeStorageValue('lastWorkspace', normalized.lastWorkspace)
+  writeStorageValue('setupComplete', normalized.setupComplete ? 'true' : 'false')
   return normalized
 }
 
 export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     return loadBrowserPreviewWorkspaceLifecycleState()
   }
 
@@ -135,7 +114,7 @@ export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
 }
 
 export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = {}) {
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     return saveBrowserPreviewWorkspaceLifecycleState(state)
   }
 

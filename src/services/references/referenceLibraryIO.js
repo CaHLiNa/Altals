@@ -3,6 +3,7 @@ import {
   readBrowserPreviewReferenceSnapshot,
   writeBrowserPreviewReferenceSnapshot,
 } from '../../app/browserPreview/state.js'
+import { hasDesktopInvoke } from '../bridgeStorage.js'
 import {
   LEGACY_REFERENCE_FIXTURE_IDS,
   LEGACY_REFERENCE_FIXTURE_TITLES,
@@ -16,10 +17,6 @@ import {
 } from './referenceAssets.js'
 
 export const REFERENCE_LIBRARY_FILENAME = 'library.json'
-
-function hasTauriInvoke() {
-  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
-}
 
 export function resolveLegacyReferencesDataDir(workspaceDataDir = '') {
   const base = String(workspaceDataDir || '').trim().replace(/\/+$/, '')
@@ -90,7 +87,7 @@ export function normalizeReferenceLibrarySnapshot(raw = {}) {
 }
 
 export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}) {
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     return normalizeReferenceLibrarySnapshot(snapshot)
   }
 
@@ -104,7 +101,7 @@ export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}
 }
 
 export async function normalizeReferenceRecordWithBackend(reference = {}) {
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     return reference && typeof reference === 'object' ? reference : {}
   }
 
@@ -125,7 +122,7 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
     return buildDefaultReferenceLibrarySnapshot()
   }
 
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     return normalizeReferenceLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
   }
 
@@ -158,7 +155,7 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
     ...snapshot,
   })
 
-  if (!hasTauriInvoke()) {
+  if (!hasDesktopInvoke()) {
     writeBrowserPreviewReferenceSnapshot(normalizedSnapshot)
     return normalizedSnapshot
   }
