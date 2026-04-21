@@ -166,6 +166,12 @@ async function ensureLatexSynctexState() {
   if (props.kind !== 'latex') return
   const pdfPath = String(compileState.value?.pdfPath || props.artifactPath || '').trim()
   if (!pdfPath || String(compileState.value?.synctexPath || '').trim()) return
+  if (
+    compileState.value?.synctexProbeResolved === true
+    && String(compileState.value?.synctexProbePath || '').trim() === pdfPath
+  ) {
+    return
+  }
   await latexStore.registerExistingArtifact?.(props.sourcePath, pdfPath, {
     targetPath: compileState.value?.compileTargetPath || '',
   })
