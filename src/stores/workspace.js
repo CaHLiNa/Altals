@@ -462,10 +462,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.proseFont = setWorkspaceProseFont(this.proseFont)
     },
 
-    normalizeEditorFontSize() {
-      this.editorFontSize = normalizeEditorFontSize(this.editorFontSize)
-    },
-
     async setTheme(name) {
       await this.persistPreferences({
         theme: name,

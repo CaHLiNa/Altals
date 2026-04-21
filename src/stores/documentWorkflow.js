@@ -8,11 +8,9 @@ import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
   getPreferredWorkflowPreviewKind,
-  inferWorkflowPreviewKind,
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'
 import {
-  getDocumentAdapterCapabilities,
   getDocumentAdapterByKind,
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
@@ -256,10 +254,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.queuePersistentStateSave()
     },
 
-    inferPreviewKind(sourcePath, previewPath) {
-      return inferWorkflowPreviewKind(sourcePath, previewPath)
-    },
-
     markDetached(sourcePath) {
       if (!sourcePath) return
       this.session.detachedSources = {
@@ -278,10 +272,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       delete next[sourcePath]
       this.session.detachedSources = next
       this.queuePersistentStateSave()
-    },
-
-    isDetached(sourcePath) {
-      return !!this.session.detachedSources[sourcePath]
     },
 
     setMarkdownPreviewState(sourcePath, state) {
@@ -593,17 +583,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }))
     },
 
-    getAdapterForFile(filePath, options = {}) {
-      if (options.workflowOnly === false) {
-        return getDocumentAdapterForFile(filePath)
-      }
-      return getDocumentAdapterForWorkflow(filePath)
-    },
-
-    getAdapterCapabilitiesForFile(filePath, options = {}) {
-      return getDocumentAdapterCapabilities(filePath, options)
-    },
-
     buildAdapterContext(filePath, options = {}) {
       return this._getDocumentWorkflowBuildRuntime().buildAdapterContext(filePath, options)
     },
@@ -669,10 +648,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       }
 
       return mutation.result || null
-    },
-
-    switchWorkspacePreviewModeForFile(filePath, options = {}) {
-      return this.showWorkspacePreviewForFile(filePath, options)
     },
 
     async hideWorkspacePreviewForFile(filePath) {
