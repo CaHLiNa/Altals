@@ -3,7 +3,6 @@ export const BROWSER_PREVIEW_DEFAULT_PATH = `${BROWSER_PREVIEW_BASE_PATH}/worksp
 
 export const BROWSER_PREVIEW_SETTINGS_SECTIONS = Object.freeze([
   'general',
-  'theme',
   'editor',
   'agent',
   'zotero',

@@ -18,7 +18,6 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { SETTINGS_SECTION_DEFINITIONS, normalizeSettingsSectionId } from './settingsSections.js'
 
 const SettingsGeneral = defineAsyncComponent(() => import('./SettingsGeneral.vue'))
-const SettingsTheme = defineAsyncComponent(() => import('./SettingsTheme.vue'))
 const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue'))
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
@@ -36,7 +35,6 @@ const sections = computed(() =>
 
 const sectionComponents = {
   general: SettingsGeneral,
-  theme: SettingsTheme,
   editor: SettingsEditor,
   system: SettingsEnvironment,
   updates: SettingsUpdates,

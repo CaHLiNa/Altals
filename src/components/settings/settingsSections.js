@@ -3,7 +3,6 @@ import {
   IconBooks,
   IconCpu,
   IconEdit,
-  IconPalette,
   IconRefresh,
 } from '@tabler/icons-vue'
 
@@ -13,12 +12,6 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'General',
     descriptionKey: 'Everyday app preferences, fonts, theme, and editor sizing.',
     icon: IconAdjustmentsHorizontal,
-  },
-  {
-    id: 'theme',
-    labelKey: 'Appearance',
-    descriptionKey: 'Themes, reading surfaces, and PDF viewing.',
-    icon: IconPalette,
   },
   {
     id: 'editor',
