@@ -268,6 +268,7 @@
         <EditorTextRouteSurface
           v-if="activeTab && viewerType === 'text'"
           ref="editorContainerRef"
+          :key="`text-route:${activeTab}:${editorStore.restoreGeneration}`"
           :use-workspace="documentWorkspaceRoute.useWorkspaceSurface"
           :preview-visible="documentWorkspaceRoute.previewVisible"
           :filePath="activeTab"
@@ -278,13 +279,13 @@
           <template #preview>
             <MarkdownPreview
               v-if="documentWorkspaceRoute.previewMode === 'markdown'"
-              :key="`workspace-markdown:${activeTab}`"
+              :key="`workspace-markdown:${activeTab}:${editorStore.restoreGeneration}`"
               :filePath="activeTab"
               :paneId="paneId"
             />
             <PdfArtifactPreview
               v-else-if="documentWorkspaceRoute.previewMode === 'pdf-artifact'"
-              :key="`workspace-pdf-artifact:${activeTab}:${documentWorkspaceRoute.previewTargetPath}`"
+              :key="`workspace-pdf-artifact:${activeTab}:${documentWorkspaceRoute.previewTargetPath}:${editorStore.restoreGeneration}`"
               :paneId="paneId"
               :artifactPath="documentWorkspaceRoute.previewTargetPath"
               :sourcePath="activeTab"
@@ -306,6 +307,7 @@
                 />
               </div>
               <EditorTextWorkspaceSurface
+                :key="`workspace-source:${activeTab}:${editorStore.restoreGeneration}`"
                 :filePath="activeTab"
                 :paneId="paneId"
                 @cursor-change="(pos) => $emit('cursor-change', pos)"
@@ -317,12 +319,12 @@
         </EditorTextRouteSurface>
         <UnsupportedFilePane
           v-else-if="activeTab && viewerType === 'unsupported-binary'"
-          :key="activeTab"
+          :key="`unsupported:${activeTab}:${editorStore.restoreGeneration}`"
           :filePath="activeTab"
         />
         <PdfArtifactPreview
           v-else-if="activeTab && viewerType === 'pdf'"
-          :key="`pdf:${activeTab}`"
+          :key="`pdf:${activeTab}:${editorStore.restoreGeneration}`"
           :paneId="paneId"
           :artifactPath="activeTab"
           :sourcePath="activeTab"
@@ -331,13 +333,13 @@
         />
         <MarkdownPreview
           v-else-if="activeTab && viewerType === 'markdown-preview'"
-          :key="activeTab"
+          :key="`legacy-preview:${activeTab}:${editorStore.restoreGeneration}`"
           :filePath="activeTab"
           :paneId="paneId"
         />
         <NewTab
           v-else-if="activeTab && viewerType === 'newtab'"
-          :key="activeTab"
+          :key="`newtab:${activeTab}:${editorStore.restoreGeneration}`"
           :paneId="paneId"
         />
         <EmptyPane v-else-if="!activeTab" :paneId="paneId" />
@@ -475,6 +477,7 @@ const documentWorkspaceRoute = computed(() =>
     activeTab: props.activeTab,
     viewerType: viewerType.value,
     documentPreviewState: documentPreviewState.value,
+    workflowUiState: workflowUiState.value,
   })
 )
 

@@ -1,7 +1,6 @@
 import {
   isLatex,
   isMarkdown,
-  isMarkdownPreviewPath,
   previewSourcePathFromPath,
 } from '../../utils/fileTypes.js'
 
@@ -13,78 +12,17 @@ function getWorkspaceDocumentKind(path = '', workflowUiState = null) {
   return null
 }
 
-function normalizeTargetResolution(value, fallback = null) {
-  if (typeof value === 'string' && value) return value
-  if (value && typeof value === 'object' && typeof value.status === 'string' && value.status) {
-    return value.status
-  }
-  return fallback
-}
-
-function createPreviewState(overrides = {}) {
-  return {
-    useWorkspace: false,
-    previewVisible: false,
-    previewKind: null,
-    previewMode: null,
-    targetResolution: null,
-    reason: 'unsupported-file',
-    legacyReadOnly: false,
-    allowPreviewCreation: false,
-    preserveOpenLegacy: false,
-    sourcePath: '',
-    previewTargetPath: '',
-    previewFilePath: '',
-    ...overrides,
-  }
-}
-
-function hidePreviewState(state, reason = 'hidden-by-user') {
-  return {
-    ...state,
-    previewVisible: false,
-    previewMode: null,
-    previewFilePath: '',
-    reason,
-  }
-}
-
-function resolveLegacyPreviewState(path, options = {}) {
-  const sourcePath = options.sourcePath || previewSourcePathFromPath(path) || ''
-  return createPreviewState({
-    useWorkspace: false,
-    previewVisible: true,
-    previewKind: 'html',
-    previewMode: 'markdown',
-    targetResolution: 'legacy',
-    reason: 'legacy-preview-tab',
-    legacyReadOnly: true,
-    allowPreviewCreation: false,
-    preserveOpenLegacy: true,
-    sourcePath,
-    previewFilePath: path,
-  })
-}
-
-function resolveResolvedPreviewTargetPath(options = {}) {
-  return options.resolvedTargetPath || options.previewTargetPath || options.artifactPath || ''
-}
-
-function resolvePreviewMode(previewKind) {
-  if (previewKind === 'html') return 'markdown'
-  if (previewKind === 'pdf') return 'pdf-artifact'
-  return null
-}
-
-export function shouldUseDocumentWorkspaceTab(path = '') {
-  return getWorkspaceDocumentKind(path) !== null
+export function shouldUseDocumentWorkspaceTab(path = '', workflowUiState = null) {
+  return getWorkspaceDocumentKind(path, workflowUiState) !== null
 }
 
 export function resolveDocumentWorkspaceTextRoute(options = {}) {
   const activeTab = options.activeTab || ''
   const viewerType = options.viewerType || null
   const documentPreviewState = options.documentPreviewState || null
-  const useWorkspaceSurface = viewerType === 'text' && shouldUseDocumentWorkspaceTab(activeTab)
+  const workflowUiState = options.workflowUiState || null
+  const useWorkspaceSurface =
+    viewerType === 'text' && shouldUseDocumentWorkspaceTab(activeTab, workflowUiState)
 
   return {
     useWorkspaceSurface,
@@ -96,117 +34,11 @@ export function resolveDocumentWorkspaceTextRoute(options = {}) {
   }
 }
 
-export function createDocumentWorkspacePreviewAction(options = {}) {
-  const previewState = options.previewState || resolveDocumentWorkspacePreviewState(options)
-  if (!previewState?.useWorkspace || !previewState?.sourcePath || !previewState?.previewKind) {
-    return null
-  }
-
-  return {
-    type: 'workspace-preview',
-    kind: getWorkspaceDocumentKind(previewState.sourcePath),
-    filePath: previewState.sourcePath,
-    sourcePath: previewState.sourcePath,
-    sourcePaneId: options.sourcePaneId || null,
-    previewKind: previewState.previewKind,
-    previewMode: previewState.previewMode || resolvePreviewMode(previewState.previewKind),
-    previewTargetPath: previewState.previewTargetPath || '',
-    targetResolution: previewState.targetResolution || null,
-    trigger: options.trigger || 'workspace-preview',
-    state: 'workspace-preview',
-    preserveOpenLegacy: previewState.preserveOpenLegacy === true,
-    legacyReadOnly: previewState.legacyReadOnly === true,
-    legacyPreviewPath: options.legacyPreviewPath || '',
-    legacyPreviewPaneId: options.legacyPreviewPaneId || null,
-  }
-}
-
-export function createWorkspacePreviewSessionState(options = {}) {
-  const filePath = String(options.filePath || options.sourcePath || '')
-  const kind = options.kind || getWorkspaceDocumentKind(filePath)
-  if (!filePath || !kind) return null
-
-  return {
-    activeFile: filePath,
-    activeKind: kind,
-    sourcePaneId: options.sourcePaneId || options.currentSession?.sourcePaneId || null,
-    previewPaneId: null,
-    previewKind: options.previewKind || null,
-    previewSourcePath: filePath,
-    state: 'workspace-preview',
-  }
-}
-
 export function resolveDocumentPreviewCloseEffect(previewPath, options = {}) {
-  const sourcePath = options.previewBinding?.sourcePath || previewSourcePathFromPath(previewPath) || null
+  const sourcePath =
+    options.previewBinding?.sourcePath || previewSourcePathFromPath(previewPath) || null
   return {
     sourcePath,
     markDetached: options.previewBinding?.detachOnClose === true,
   }
-}
-
-export function resolveDocumentWorkspacePreviewState(options = {}) {
-  const path = String(options.path || options.filePath || options.sourcePath || '')
-  if (isMarkdownPreviewPath(path)) {
-    return resolveLegacyPreviewState(path, options)
-  }
-
-  const workflowUiState = options.workflowUiState || null
-  const documentKind = getWorkspaceDocumentKind(path, workflowUiState)
-  const preserveOpenLegacy = options.preserveOpenLegacy === true || options.hasOpenLegacyPreview === true
-  const requestedPreviewKind = options.previewKind || workflowUiState?.previewKind || null
-  const resolvedTargetPath = resolveResolvedPreviewTargetPath(options)
-  const hiddenByUser = options.hiddenByUser === true
-  const previewRequested = options.previewRequested === true
-  const artifactReady = options.artifactReady === true || !!resolvedTargetPath
-
-  if (documentKind === 'markdown') {
-    const state = createPreviewState({
-      useWorkspace: true,
-      previewVisible: true,
-      previewKind: 'html',
-      previewMode: 'markdown',
-      targetResolution: 'not-needed',
-      reason: 'workspace-markdown',
-      legacyReadOnly: false,
-      allowPreviewCreation: true,
-      preserveOpenLegacy,
-      sourcePath: path,
-      previewFilePath: `preview:${path}`,
-    })
-    return hiddenByUser ? hidePreviewState(state) : state
-  }
-
-  if (documentKind === 'latex') {
-    const pdfPreviewRequested = requestedPreviewKind === 'pdf' && previewRequested
-    const state = createPreviewState({
-      useWorkspace: true,
-      previewVisible: pdfPreviewRequested && artifactReady && !hiddenByUser,
-      previewKind: pdfPreviewRequested || hiddenByUser ? 'pdf' : null,
-      previewMode: pdfPreviewRequested && artifactReady && !hiddenByUser ? 'pdf-artifact' : null,
-      targetResolution: normalizeTargetResolution(
-        options.targetResolution,
-        resolvedTargetPath ? 'resolved' : artifactReady ? 'resolved' : 'unresolved',
-      ),
-      reason: hiddenByUser
-        ? 'hidden-by-user'
-        : pdfPreviewRequested && artifactReady
-          ? 'workspace-latex-pdf'
-          : artifactReady
-            ? 'artifact-ready-external'
-            : 'source-only',
-      legacyReadOnly: false,
-      allowPreviewCreation: artifactReady,
-      preserveOpenLegacy,
-      sourcePath: path,
-      previewTargetPath: artifactReady ? resolvedTargetPath : '',
-      previewFilePath: pdfPreviewRequested && artifactReady ? resolvedTargetPath : '',
-    })
-    return hiddenByUser ? hidePreviewState(state) : state
-  }
-
-  return createPreviewState({
-    sourcePath: path,
-    preserveOpenLegacy,
-  })
 }

@@ -2,6 +2,7 @@
   <!-- Leaf pane -->
   <EditorPane
     v-if="node.type === 'leaf'"
+    :key="`pane:${node.id}:${editorStore.restoreGeneration}`"
     :paneId="node.id"
     :tabs="node.tabs"
     :activeTab="node.activeTab"

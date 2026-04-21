@@ -12,7 +12,7 @@
 
 ## 当前进度
 
-截至 2026-04-21，Task 1、Task 2 与 Task 3 已完成并达到当前 phase 验收：
+截至 2026-04-21，Task 1、Task 2、Task 3 与 Task 4 已完成并达到当前 phase 验收：
 
 - 已新增 Rust `WorkspacePreferences` / `WorkbenchState` schema
 - 已新增 `workspace_preferences_load` / `workspace_preferences_save` / `workbench_state_normalize`
@@ -24,6 +24,7 @@
 - 已新增 Rust `document_workflow_ui_resolve`，并把 document workflow 的 workflow ui state / action availability 收口到 backend cache
 - 已把 `documentWorkflow` build/runtime 改成消费 Rust preview state + Rust ui state
 - 已新增 Rust references snapshot/record normalize 与 CSL hydrate 入口，references snapshot、citation、BibTeX、metadata refresh、sync 持久化均改为消费 Rust 结果
+- 已新增 Rust editor session runtime，editor session save/load/restore、virtual tab 清理、active pane/context 恢复已由 backend 决定
 
 当前剩余不阻塞 Task 1 完成、但值得在后续 phase 持续关注的点：
 
@@ -524,6 +525,16 @@ Rust 接管：
 
 **目标：** 把 editor 周边但不属于纯 UI 的 session / restore / preview route 权威迁到 Rust。
 
+当前进度：
+
+- 已新增 Rust `editor_session_runtime.rs`
+- 已新增 `editor_session_save` / `editor_session_load`
+- 已把 editor session 的 save/load/virtual tab cleanup/active pane/context restore 从前端迁到 Rust
+- 已把前端 `editorPersistence.js` 收口为 bridge，并把 editor store 改成消费 backend restore 结果
+- 已把 `PaneContainer.vue` / `EditorPane.vue` 接上 `restoreGeneration`，让 restore 后视图实例真正重建
+- 已把 `documentWorkspacePreviewRuntime.js` 收敛为纯 UI adapter，不再承载 session restore 规则
+- 当前仍未做真实桌面点击回归；原因仍是 Computer Use 无法附着 `tauri dev` 窗口
+
 **Files:**
 
 - Create: `src-tauri/src/editor_session_runtime.rs`
@@ -550,7 +561,7 @@ Rust 接管：
 
 ### 执行步骤
 
-- [ ] **Step 1: 定义 editor session schema**
+- [x] **Step 1: 定义 editor session schema**
 
 内容包括：
 
@@ -559,14 +570,14 @@ Rust 接管：
 - preview bindings
 - virtual tab filter rules
 
-- [ ] **Step 2: 把 `editorPersistence.js` 收成薄桥接**
+- [x] **Step 2: 把 `editorPersistence.js` 收成薄桥接**
 
 删除目标：
 
 - 虚拟 tab 前缀清理权威
 - 恢复时的最终 normalize 逻辑
 
-- [ ] **Step 3: 把 preview route restore 与 pane restore 接到 Rust**
+- [x] **Step 3: 把 preview route restore 与 pane restore 接到 Rust**
 
 要求：
 
@@ -578,15 +589,33 @@ Rust 接管：
 - 应用重开后 pane / tab / preview 恢复由 Rust 单点归一化
 - 前端不再持有 editor session 的最终真相
 
+当前结果：
+
+- pane / tab / preview 恢复、virtual tab cleanup、active pane/context restore 已由 Rust 单点归一化
+- 前端不再自己决定 editor-state.json 的最终保存格式与恢复规则
+- `workspace.workspaceDataDir` 已成为 editor session 持久化的实际 backend 存储根目录
+
 ### 验证
 
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml editor_session`
 - `npm run build`
+- `npm run lint`
 - 手动验证：
   - 多标签恢复
   - preview tab 恢复
   - 虚拟 tab 清理
   - split pane 状态恢复
+
+当前验证记录：
+
+- 已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo check --manifest-path src-tauri/Cargo.toml`
+- 已执行 `cargo test --manifest-path src-tauri/Cargo.toml editor_session`
+- 已执行 `npm run build`
+- 已执行 `npm run lint`
+- 已执行 `npm run tauri -- dev`，确认桌面应用在当前改动下能启动
+- 尚未完成真实桌面窗口点击回归；阻塞原因仍是当前 Computer Use 无法识别 `tauri dev` 窗口实例
 
 ---
 

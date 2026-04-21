@@ -29,11 +29,12 @@ export function scheduleEditorStateSave({
   paneTree,
   activePaneId,
   legacyPreviewPaths,
+  lastContextPath,
   delayMs = 500,
 } = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = setTimeout(() => {
-    void saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths })
+    void saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths, lastContextPath })
   }, delayMs)
 }
 
@@ -42,10 +43,11 @@ export async function flushEditorStateSave({
   paneTree,
   activePaneId,
   legacyPreviewPaths,
+  lastContextPath,
 } = {}) {
   clearTimeout(saveStateTimer)
   saveStateTimer = null
-  await saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths })
+  await saveState(workspaceDataDir, paneTree, activePaneId, { legacyPreviewPaths, lastContextPath })
 }
 
 export function cancelEditorStateSave() {

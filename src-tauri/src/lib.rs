@@ -5,6 +5,7 @@ mod document_workflow_action;
 mod document_workflow_controller;
 mod document_workspace_preview;
 mod document_workspace_preview_state;
+mod editor_session_runtime;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -473,6 +474,8 @@ pub fn run() {
             document_workflow_controller::document_workflow_controller_execute,
             document_workspace_preview::document_workspace_preview_mutate,
             document_workspace_preview_state::document_workspace_preview_state_resolve,
+            editor_session_runtime::editor_session_load,
+            editor_session_runtime::editor_session_save,
             markdown_runtime::markdown_extract_headings,
             latex_project_graph::latex_project_graph_resolve,
             latex_project_graph::latex_compile_request_resolve,

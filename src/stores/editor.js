@@ -50,10 +50,6 @@ import {
   createEmptyEditorRuntimeState,
   destroyEditorRuntimeViews,
 } from '../domains/editor/editorCleanupRuntime'
-import {
-  deriveRestoredEditorRuntimeState,
-  validateRestoredEditorTabs,
-} from '../domains/editor/editorRestoreRuntime'
 import { createEditorOpenRoutingRuntime } from '../domains/editor/editorOpenRoutingRuntime'
 import { filterExistingRecentFiles } from '../domains/files/workspaceSnapshotFlatFilesRuntime'
 
@@ -536,54 +532,36 @@ export const useEditorStore = defineStore('editor', {
 
     saveEditorState() {
       scheduleEditorStateSave({
-        shouldersDir: useWorkspaceStore().shouldersDir,
+        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
+        lastContextPath: this.lastContextPath,
       })
     },
 
     async saveEditorStateImmediate() {
       await flushEditorStateSave({
-        shouldersDir: useWorkspaceStore().shouldersDir,
+        workspaceDataDir: useWorkspaceStore().workspaceDataDir,
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
+        lastContextPath: this.lastContextPath,
       })
     },
 
     async restoreEditorState() {
       const workspace = useWorkspaceStore()
-      const state = await loadEditorStateSnapshot(workspace.shouldersDir)
+      const state = await loadEditorStateSnapshot(workspace.workspaceDataDir)
       if (!state) return false
 
-      const restoreGeneration = ++this.restoreGeneration
-      const restoredWorkspacePath = workspace.path
-      const restoredShouldersDir = workspace.shouldersDir
-
-      Object.assign(this, deriveRestoredEditorRuntimeState({
-        state,
-        isContextCandidatePath,
-      }))
-
-      void validateRestoredEditorTabs({
-        shouldersDir: workspace.shouldersDir,
-        paneTree: this.paneTree,
-        isStillCurrent: () => (
-          restoreGeneration === this.restoreGeneration
-          && workspace.path === restoredWorkspacePath
-          && workspace.shouldersDir === restoredShouldersDir
-        ),
-        closeInvalidTab: (tab) => this.closeFileFromAllPanes(tab),
-        isActivePaneMissing: () => !this.findPane(this.paneTree, this.activePaneId),
-        resolveFallbackActivePaneId: () => this.findFirstLeaf(this.paneTree)?.id || ROOT_PANE_ID,
-        onActivePaneResolved: (paneId) => {
-          this.activePaneId = paneId
-        },
-        onError: (error) => {
-          console.error('[editor] Background tab validation failed:', error)
-        },
-      })
+      this.restoreGeneration += 1
+      this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
+      this.activePaneId = state.activePaneId || ROOT_PANE_ID
+      this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
+      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
+        ? state.lastContextPath
+        : null
 
       return true
     },
