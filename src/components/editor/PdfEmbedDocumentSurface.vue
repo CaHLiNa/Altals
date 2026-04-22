@@ -345,6 +345,7 @@ const initialLayoutHandled = ref(false)
 const saveInProgress = ref(false)
 const selectedText = ref('')
 const selectionActive = ref(false)
+const contextMenuSelectionText = ref('')
 const searchUiVisible = ref(false)
 const thumbnailsVisible = ref(false)
 const searchQuery = ref('')
@@ -424,6 +425,9 @@ const searchSummary = computed(() => {
   const activeIndex = Number(search.state.value?.activeResultIndex ?? -1)
   return `${activeIndex + 1} / ${total}`
 })
+const contextMenuCopyText = computed(() =>
+  normalizeSelectedText(selectedText.value || contextMenuSelectionText.value)
+)
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
@@ -438,6 +442,13 @@ function normalizeSelectedText(value) {
   }
 
   return String(value || '').trim()
+}
+
+function readDomSelectedText() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return ''
+  return normalizeSelectedText(
+    window.getSelection?.()?.toString?.() || document.getSelection?.()?.toString?.() || ''
+  )
 }
 
 function setPageElement(page, element) {
@@ -816,8 +827,11 @@ async function refreshSelectedText() {
   selectedText.value = await readSelectedText()
 }
 
-async function copySelectedText() {
-  const nextText = (await readSelectedText()) || selectedText.value
+async function copySelectedText(preferredText = '') {
+  const nextText = (await readSelectedText())
+    || normalizeSelectedText(preferredText)
+    || selectedText.value
+    || contextMenuSelectionText.value
   if (!nextText) return
 
   try {
@@ -834,6 +848,7 @@ async function copySelectedText() {
 
 function buildSurfaceMenuGroups() {
   const revealDetail = currentContextMenuReverseSyncDetail.value
+  const copyText = contextMenuCopyText.value
 
   return [
     {
@@ -842,9 +857,9 @@ function buildSurfaceMenuGroups() {
         {
           key: 'copy',
           label: t('Copy'),
-          disabled: !selectedText.value,
+          disabled: !copyText,
           action: () => {
-            void copySelectedText()
+            void copySelectedText(copyText)
           },
         },
         {
@@ -887,6 +902,7 @@ function buildSurfaceMenuGroups() {
 
 async function handleShellContextMenu(event) {
   currentContextMenuReverseSyncDetail.value = resolveReverseSyncDetail(event)
+  contextMenuSelectionText.value = readDomSelectedText() || selectedText.value
   await refreshSelectedText()
   openSurfaceContextMenu({
     x: event.clientX,
@@ -1252,6 +1268,15 @@ watch(
     void nextTick(() => {
       scrollToSearchResult(nextIndex)
     })
+  }
+)
+
+watch(
+  () => menuVisible.value,
+  (visible) => {
+    if (visible) return
+    contextMenuSelectionText.value = ''
+    currentContextMenuReverseSyncDetail.value = null
   }
 )
 
