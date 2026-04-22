@@ -1,6 +1,7 @@
 export const PDF_VIEWER_BACKEND_PDFJS = 'pdfjs'
 export const PDF_VIEWER_BACKEND_EMBEDPDF = 'embedpdf'
 export const PDF_VIEWER_BACKEND_OVERRIDE_KEY = 'scribeflow:pdf-backend'
+export const DEFAULT_PDF_VIEWER_BACKEND = PDF_VIEWER_BACKEND_EMBEDPDF
 
 const KNOWN_PDF_VIEWER_BACKENDS = new Set([
   PDF_VIEWER_BACKEND_PDFJS,
@@ -14,7 +15,7 @@ function normalizePdfViewerBackend(value) {
 
   return KNOWN_PDF_VIEWER_BACKENDS.has(normalized)
     ? normalized
-    : PDF_VIEWER_BACKEND_PDFJS
+    : DEFAULT_PDF_VIEWER_BACKEND
 }
 
 export function resolvePdfViewerBackend() {
