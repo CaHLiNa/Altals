@@ -2,7 +2,34 @@ import { createPluginRegistration } from '@embedpdf/core'
 import { DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager/vue'
 import { RenderPluginPackage } from '@embedpdf/plugin-render/vue'
 import { ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue'
+import { SpreadMode, SpreadPluginPackage } from '@embedpdf/plugin-spread/vue'
 import { ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue'
+import { ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/vue'
+
+function resolveEmbedPdfSpreadMode(value) {
+  return String(value || '').trim().toLowerCase() === 'double'
+    ? SpreadMode.Odd
+    : SpreadMode.None
+}
+
+function resolveEmbedPdfZoomLevel(options = {}) {
+  const zoomMode = String(options.pdfViewerZoomMode || '').trim().toLowerCase()
+  const lastScale = String(options.pdfViewerLastScale || '').trim().toLowerCase()
+
+  if (zoomMode === 'page-fit') return ZoomMode.FitPage
+  if (zoomMode === 'remember-last' && lastScale) {
+    if (lastScale === 'page-fit') return ZoomMode.FitPage
+    if (lastScale === 'page-width') return ZoomMode.FitWidth
+    if (lastScale === 'auto') return ZoomMode.Automatic
+
+    const numericScale = Number(lastScale)
+    if (Number.isFinite(numericScale) && numericScale > 0) {
+      return numericScale
+    }
+  }
+
+  return ZoomMode.FitWidth
+}
 
 export function decodePdfBase64ToArrayBuffer(base64 = '') {
   const binary = atob(String(base64 || ''))
@@ -36,6 +63,12 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     }),
     createPluginRegistration(ScrollPluginPackage, {
       defaultStrategy: ScrollStrategy.Vertical,
+    }),
+    createPluginRegistration(SpreadPluginPackage, {
+      defaultSpreadMode: resolveEmbedPdfSpreadMode(options.pdfViewerSpreadMode),
+    }),
+    createPluginRegistration(ZoomPluginPackage, {
+      defaultZoomLevel: resolveEmbedPdfZoomLevel(options),
     }),
     createPluginRegistration(RenderPluginPackage),
   ]

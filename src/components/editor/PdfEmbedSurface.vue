@@ -40,20 +40,16 @@
               </div>
             </div>
 
-            <Viewport
+            <PdfEmbedDocumentSurface
               v-else-if="isLoaded"
               :document-id="activeDocumentId"
-              class="pdf-artifact-preview__viewport"
-            >
-              <Scroller :document-id="activeDocumentId" v-slot="{ page }">
-                <div
-                  class="pdf-artifact-preview__page"
-                  :style="{ width: `${page.width}px`, height: `${page.height}px` }"
-                >
-                  <RenderLayer :document-id="activeDocumentId" :page-index="page.pageIndex" />
-                </div>
-              </Scroller>
-            </Viewport>
+              :pdfViewerZoomMode="pdfViewerZoomMode"
+              :pdfViewerSpreadMode="pdfViewerSpreadMode"
+              :pdfViewerLastScale="pdfViewerLastScale"
+              :restore-state="pendingRestoreState"
+              @view-state-change="handleViewStateChange"
+              @restore-state-consumed="handleRestoreStateConsumed"
+            />
           </DocumentContent>
         </template>
       </EmbedPDF>
@@ -67,9 +63,6 @@ import { computed, ref, watch } from 'vue'
 import { EmbedPDF } from '@embedpdf/core/vue'
 import { usePdfiumEngine } from '@embedpdf/engines/vue'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
-import { RenderLayer } from '@embedpdf/plugin-render/vue'
-import { Scroller } from '@embedpdf/plugin-scroll/vue'
-import { Viewport } from '@embedpdf/plugin-viewport/vue'
 
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -78,13 +71,22 @@ import {
   buildEmbedPdfPluginRegistrations,
   decodePdfBase64ToArrayBuffer,
 } from '../../services/pdf/embedPdfAdapter.js'
+import {
+  createPdfPreviewSessionState,
+  resolvePdfPreviewSessionTransition,
+  snapshotPdfPreviewViewState,
+} from '../../domains/document/pdfPreviewSessionRuntime.js'
 import { basenamePath } from '../../utils/path.js'
+import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
 const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
   previewRevision: { type: Object, default: null },
   themeTokens: { type: Object, default: () => ({}) },
+  pdfViewerZoomMode: { type: String, default: 'page-width' },
+  pdfViewerSpreadMode: { type: String, default: 'single' },
+  pdfViewerLastScale: { type: String, default: '' },
 })
 
 defineEmits(['open-external'])
@@ -94,14 +96,20 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
 
 const documentBuffer = ref(null)
 const documentName = ref('')
+const latestViewState = ref(null)
+const pendingRestoreState = ref(null)
 const previewLoadPending = ref(true)
 const previewLoadError = ref('')
 const embedViewerKey = ref(0)
+const previewSessionState = createPdfPreviewSessionState()
 
 const plugins = computed(() =>
   buildEmbedPdfPluginRegistrations({
     documentBuffer: documentBuffer.value,
     documentName: documentName.value,
+    pdfViewerZoomMode: props.pdfViewerZoomMode,
+    pdfViewerSpreadMode: props.pdfViewerSpreadMode,
+    pdfViewerLastScale: props.pdfViewerLastScale,
   })
 )
 
@@ -122,7 +130,22 @@ const surfaceError = computed(() => {
 
 let loadToken = 0
 
-async function loadPdfDocument() {
+function syncPreviewSession(nextSession = {}) {
+  previewSessionState.sessionKey = nextSession.sessionKey || ''
+  previewSessionState.sourcePath = nextSession.sourcePath || ''
+  previewSessionState.artifactPath = nextSession.artifactPath || ''
+  previewSessionState.buildId = nextSession.buildId || ''
+  previewSessionState.revisionKey = nextSession.revisionKey || ''
+  previewSessionState.synctexPath = nextSession.synctexPath || ''
+  previewSessionState.sourceFingerprint = nextSession.sourceFingerprint || ''
+  previewSessionState.viewBookmark = nextSession.viewBookmark || null
+}
+
+function captureCurrentViewState() {
+  return snapshotPdfPreviewViewState(latestViewState.value)
+}
+
+async function loadPdfDocument(options = {}) {
   const artifactPath = String(props.artifactPath || '').trim()
   loadToken += 1
   const currentToken = loadToken
@@ -134,6 +157,7 @@ async function loadPdfDocument() {
   if (!artifactPath) {
     previewLoadPending.value = false
     previewLoadError.value = t('Could not load PDF')
+    pendingRestoreState.value = null
     return
   }
 
@@ -142,6 +166,7 @@ async function loadPdfDocument() {
     if (currentToken !== loadToken) return
 
     documentBuffer.value = decodePdfBase64ToArrayBuffer(base64)
+    pendingRestoreState.value = options.restoreState ? { ...options.restoreState } : null
     embedViewerKey.value += 1
     previewLoadPending.value = false
   } catch (error) {
@@ -152,13 +177,51 @@ async function loadPdfDocument() {
 }
 
 function reloadPdf() {
-  void loadPdfDocument()
+  void loadPdfDocument({ restoreState: captureCurrentViewState() })
+}
+
+function handleViewStateChange(nextState) {
+  latestViewState.value = nextState ? { ...nextState } : null
+}
+
+function handleRestoreStateConsumed() {
+  pendingRestoreState.value = null
+}
+
+async function handlePreviewRevisionChange(nextRevision, previousRevision, options = {}) {
+  const transition = resolvePdfPreviewSessionTransition(previewSessionState, nextRevision, {
+    viewBookmark: captureCurrentViewState(),
+  })
+  syncPreviewSession(transition.nextSession)
+
+  const forceInitialLoad = options.forceInitialLoad === true
+  if (!nextRevision?.artifactPath) {
+    if (!documentBuffer.value) return
+    latestViewState.value = null
+    pendingRestoreState.value = null
+    void loadPdfDocument()
+    return
+  }
+
+  if (transition.action === 'noop') {
+    if (forceInitialLoad && !documentBuffer.value) {
+      void loadPdfDocument({ restoreState: transition.nextSession.viewBookmark })
+    }
+    return
+  }
+
+  const previousRevisionKey = previousRevision?.revisionKey || ''
+  const nextRevisionKey = nextRevision?.revisionKey || ''
+  if (!nextRevisionKey || (nextRevisionKey === previousRevisionKey && !forceInitialLoad)) return
+
+  latestViewState.value = transition.nextSession.viewBookmark || null
+  void loadPdfDocument({ restoreState: transition.nextSession.viewBookmark })
 }
 
 watch(
-  () => [props.artifactPath, props.previewRevision?.revisionKey || ''],
-  () => {
-    void loadPdfDocument()
+  () => props.previewRevision,
+  (nextRevision, previousRevision) => {
+    void handlePreviewRevisionChange(nextRevision, previousRevision, { forceInitialLoad: true })
   },
   { immediate: true }
 )
@@ -177,18 +240,6 @@ watch(
 .pdf-artifact-preview__viewer-shell {
   width: 100%;
   height: 100%;
-}
-
-.pdf-artifact-preview__viewport {
-  width: 100%;
-  height: 100%;
-  background: var(--embedpdf-surface);
-}
-
-.pdf-artifact-preview__page {
-  margin: 12px auto;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.16);
-  background: var(--embedpdf-page);
 }
 
 .pdf-artifact-preview__state {
