@@ -193,35 +193,67 @@ export const shouldersTheme = EditorView.theme(
       color: 'var(--hl-comment)',
       fontStyle: 'italic',
     },
-    '.cm-tm-keyword-control': {
-      color: 'var(--hl-keyword)',
+    '.cm-tm-punctuation': {
+      color: 'var(--hl-punctuation)',
     },
     '.cm-tm-operator': {
       color: 'var(--hl-operator)',
     },
-    '.cm-tm-support-function, .cm-tm-section-function': {
-      color: 'var(--hl-function)',
+    '.cm-tm-command-punctuation': {
+      color: 'var(--latex-command-punctuation)',
+    },
+    '.cm-tm-arg-brace': {
+      color: 'var(--latex-arg-brace)',
+    },
+    '.cm-tm-optional-brace': {
+      color: 'var(--latex-optional-brace)',
+    },
+    '.cm-tm-begin-end': {
+      color: 'var(--latex-begin-end)',
+    },
+    '.cm-tm-environment-name': {
+      color: 'var(--latex-environment-name)',
+    },
+    '.cm-tm-item-command': {
+      color: 'var(--latex-item-command)',
+    },
+    '.cm-tm-function-definition': {
+      color: 'var(--latex-function-definition)',
+    },
+    '.cm-tm-general-command': {
+      color: 'var(--latex-general-command)',
+    },
+    '.cm-tm-section-command': {
+      color: 'var(--latex-section-command)',
+    },
+    '.cm-tm-section-title': {
+      color: 'var(--latex-section-title)',
+    },
+    '.cm-tm-text-command': {
+      color: 'var(--latex-text-command)',
     },
     '.cm-tm-link-function': {
-      color: 'var(--hl-link)',
+      color: 'var(--latex-link-function)',
     },
-    '.cm-tm-class, .cm-tm-environment, .cm-tm-math-environment': {
-      color: 'var(--hl-type)',
-    },
-    '.cm-tm-section': {
-      color: 'var(--hl-heading)',
-      fontWeight: '700',
-    },
-    '.cm-tm-link': {
-      color: 'var(--hl-link)',
+    '.cm-tm-link-target': {
+      color: 'var(--latex-link-target)',
       textDecoration: 'underline',
       textDecorationThickness: '0.08em',
     },
-    '.cm-tm-citation': {
-      color: 'var(--hl-constant)',
+    '.cm-tm-citation-command': {
+      color: 'var(--latex-citation-command)',
     },
-    '.cm-tm-label': {
-      color: 'var(--hl-attribute)',
+    '.cm-tm-reference-command': {
+      color: 'var(--latex-reference-command)',
+    },
+    '.cm-tm-label-command': {
+      color: 'var(--latex-label-command)',
+    },
+    '.cm-tm-citation-key': {
+      color: 'var(--latex-citation-key)',
+    },
+    '.cm-tm-label-name': {
+      color: 'var(--latex-label-name)',
     },
     '.cm-tm-raw': {
       color: 'var(--hl-code)',
@@ -234,14 +266,44 @@ export const shouldersTheme = EditorView.theme(
       color: 'var(--fg-primary)',
       fontWeight: '700',
     },
-    '.cm-tm-preamble, .cm-tm-include': {
-      color: 'var(--hl-module-keyword)',
+    '.cm-tm-preamble, .cm-tm-preamble-command': {
+      color: 'var(--latex-preamble-command)',
     },
-    '.cm-tm-math': {
-      color: 'var(--hl-number)',
+    '.cm-tm-include, .cm-tm-include-command': {
+      color: 'var(--latex-include-command)',
     },
-    '.cm-tm-punctuation': {
-      color: 'var(--hl-punctuation)',
+    '.cm-tm-layout-command': {
+      color: 'var(--latex-layout-command)',
+    },
+    '.cm-tm-math-delimiter': {
+      color: 'var(--latex-math-delimiter)',
+    },
+    '.cm-tm-math-bracket': {
+      color: 'var(--latex-math-bracket)',
+    },
+    '.cm-tm-math-command-punctuation': {
+      color: 'var(--latex-math-command-punctuation)',
+    },
+    '.cm-tm-math-variable': {
+      color: 'var(--latex-math-variable)',
+    },
+    '.cm-tm-math-symbol': {
+      color: 'var(--latex-math-symbol)',
+    },
+    '.cm-tm-math-function': {
+      color: 'var(--latex-math-function)',
+    },
+    '.cm-tm-math-operator': {
+      color: 'var(--latex-math-operator)',
+    },
+    '.cm-tm-math-newline': {
+      color: 'var(--latex-math-newline)',
+    },
+    '.cm-tm-math-alignment': {
+      color: 'var(--latex-math-alignment)',
+    },
+    '.cm-tm-escape': {
+      color: 'var(--latex-escape)',
     },
   },
   { dark: true }

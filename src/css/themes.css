@@ -50,6 +50,39 @@
   --hl-bracket: #92a1b5; 
   --hl-code: #a3c2a0;
 
+  /* LaTeX TextMate palette */
+  --latex-command-punctuation: #d8d6c0;
+  --latex-begin-end: #d8d6a6;
+  --latex-environment-name: #ffd75e;
+  --latex-item-command: #ff8b86;
+  --latex-function-definition: #f4c27a;
+  --latex-general-command: #7fb4ff;
+  --latex-section-command: #d8d6a6;
+  --latex-section-title: #f6ad55;
+  --latex-text-command: #d8d6a6;
+  --latex-link-function: #8ad6ff;
+  --latex-link-target: #7ecbe6;
+  --latex-citation-command: #c8a4ff;
+  --latex-reference-command: #d9a6ff;
+  --latex-label-command: #d9a6ff;
+  --latex-citation-key: #f6ad55;
+  --latex-label-name: #f6ad55;
+  --latex-preamble-command: #8cb6d9;
+  --latex-include-command: #8cb6d9;
+  --latex-layout-command: #ffd75e;
+  --latex-arg-brace: #d9dde7;
+  --latex-optional-brace: #aab3c2;
+  --latex-math-delimiter: #7ecbe6;
+  --latex-math-bracket: #ffd75e;
+  --latex-math-command-punctuation: #ff8b86;
+  --latex-math-variable: #58d1c9;
+  --latex-math-symbol: #ff8b86;
+  --latex-math-function: #7fb4ff;
+  --latex-math-operator: #ffd75e;
+  --latex-math-newline: #d9a6ff;
+  --latex-math-alignment: #ff8b86;
+  --latex-escape: #97a6ba;
+
   /* 修复：重置 Editor 选区与交互色，确保清晰可见 */
   --editor-active-line: rgba(255, 255, 255, 0.05);
   --editor-selection: rgba(151, 194, 230, 0.25); /* 显著可见的低饱和蓝 */
@@ -344,6 +377,39 @@
   --hl-punctuation: #8e99a8; 
   --hl-bracket: #737f8f; 
   --hl-code: #4f8752;
+
+  /* LaTeX TextMate palette */
+  --latex-command-punctuation: #8b826e;
+  --latex-begin-end: #7a6f41;
+  --latex-environment-name: #b57a10;
+  --latex-item-command: #c85d55;
+  --latex-function-definition: #b98538;
+  --latex-general-command: #3a71a3;
+  --latex-section-command: #7a6f41;
+  --latex-section-title: #bd6d1f;
+  --latex-text-command: #7a6f41;
+  --latex-link-function: #2f7f9b;
+  --latex-link-target: #2d7e98;
+  --latex-citation-command: #7b5baf;
+  --latex-reference-command: #915bb8;
+  --latex-label-command: #915bb8;
+  --latex-citation-key: #b97028;
+  --latex-label-name: #b97028;
+  --latex-preamble-command: #376490;
+  --latex-include-command: #376490;
+  --latex-layout-command: #b57a10;
+  --latex-arg-brace: #6d7787;
+  --latex-optional-brace: #8b94a1;
+  --latex-math-delimiter: #2f7f9b;
+  --latex-math-bracket: #b57a10;
+  --latex-math-command-punctuation: #c85d55;
+  --latex-math-variable: #1d8e86;
+  --latex-math-symbol: #c85d55;
+  --latex-math-function: #3a71a3;
+  --latex-math-operator: #b57a10;
+  --latex-math-newline: #915bb8;
+  --latex-math-alignment: #c85d55;
+  --latex-escape: #738193;
 
   /* 修复：重置 Editor 选区与交互色，确保清晰可见 */
   --editor-active-line: rgba(0, 0, 0, 0.035);
