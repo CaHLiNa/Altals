@@ -115,39 +115,6 @@
             </UiButton>
           </div>
 
-          <div class="pdf-artifact-preview__toolbar-icon-group">
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :disabled="saveInProgress || !exportScope.provides.value"
-              :title="t('Save')"
-              :aria-label="t('Save')"
-              @click="savePdfToDisk"
-            >
-              <IconDeviceFloppy :size="16" :stroke-width="1.8" />
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :title="t('Reload PDF')"
-              :aria-label="t('Reload PDF')"
-              @click="$emit('reload-requested')"
-            >
-              <IconReload :size="16" :stroke-width="1.8" />
-            </UiButton>
-            <UiButton
-              variant="ghost"
-              size="sm"
-              icon-only
-              :title="t('Open PDF')"
-              :aria-label="t('Open PDF')"
-              @click="$emit('open-external')"
-            >
-              <IconExternalLink :size="16" :stroke-width="1.8" />
-            </UiButton>
-          </div>
         </div>
 
       </div>
@@ -330,11 +297,8 @@ import {
   IconColumns2,
   IconChevronDown,
   IconChevronUp,
-  IconDeviceFloppy,
-  IconExternalLink,
   IconLayoutSidebarLeftExpand,
   IconRectangleVertical,
-  IconReload,
   IconSearch,
 } from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
