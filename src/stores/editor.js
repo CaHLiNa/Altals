@@ -78,7 +78,7 @@ export const useEditorStore = defineStore('editor', {
       return this.findPane(state.paneTree, state.activePaneId)
     },
 
-    activeTab(state) {
+    activeTab() {
       return this.activePane?.activeTab || null
     },
 
@@ -295,7 +295,7 @@ export const useEditorStore = defineStore('editor', {
       this.saveEditorState()
     },
 
-    splitPane(direction) {
+    splitPane(_direction) {
       const pane = this.findPane(this.paneTree, this.activePaneId)
       if (!pane) return null
 

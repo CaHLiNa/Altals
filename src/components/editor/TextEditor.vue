@@ -758,8 +758,8 @@ onMounted(async () => {
   // 学术魔法：加入自动识别文献的 Hover Tooltip 悬浮卡片
   // ===============================================
   extraExtensions.push(
-    hoverTooltip((view, pos, side) => {
-      const { from, to, text } = view.state.doc.lineAt(pos)
+    hoverTooltip((view, pos, _side) => {
+      const { from, text } = view.state.doc.lineAt(pos)
       // 匹配 Markdown [@Smith2024] 或者 LaTeX \cite{Smith2024} 等
       const re = /\[@([^\]]+)\]|\\[a-zA-Z]*cite[a-zA-Z]*\*?(?:\[[^\]]*\])*\{([^}]+)\}/g
       let match
@@ -774,7 +774,7 @@ onMounted(async () => {
             pos: start,
             end,
             above: true,
-            create(view) {
+            create(_view) {
               const dom = document.createElement("div")
               dom.className = "cm-citation-hover-card"
 
