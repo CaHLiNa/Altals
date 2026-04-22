@@ -88,6 +88,7 @@ import {
   snapshotPdfPreviewViewState,
 } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
+import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.js'
 import { basenamePath } from '../../utils/path.js'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
@@ -148,6 +149,26 @@ const surfaceError = computed(() => {
 })
 
 let loadToken = 0
+let resolvedSynctexPathCache = ''
+
+async function resolveEffectiveSynctexPath() {
+  const runtimeSynctexPath = String(props.compileState?.synctexPath || '').trim()
+  if (runtimeSynctexPath) {
+    resolvedSynctexPathCache = runtimeSynctexPath
+    return runtimeSynctexPath
+  }
+
+  if (resolvedSynctexPathCache) {
+    return resolvedSynctexPathCache
+  }
+
+  const artifactPath = String(props.artifactPath || '').trim()
+  if (!artifactPath) return ''
+
+  const resolvedPath = await resolveExistingLatexSynctexPath(artifactPath)
+  resolvedSynctexPathCache = String(resolvedPath || '').trim()
+  return resolvedSynctexPathCache
+}
 
 function syncPreviewSession(nextSession = {}) {
   previewSessionState.sessionKey = nextSession.sessionKey || ''
@@ -218,7 +239,7 @@ function handleForwardSyncPointConsumed() {
 async function handleReverseSyncRequest(detail = {}) {
   if (props.kind !== 'latex') return
 
-  const synctexPath = String(props.compileState?.synctexPath || '').trim()
+  const synctexPath = await resolveEffectiveSynctexPath()
   if (!synctexPath) return
 
   try {
@@ -254,7 +275,7 @@ async function handleForwardSyncRequest(request) {
     return
   }
 
-  const synctexPath = String(props.compileState?.synctexPath || '').trim()
+  const synctexPath = await resolveEffectiveSynctexPath()
   if (!synctexPath) {
     emit('forward-sync-handled', { id: request.id, sourcePath: props.sourcePath })
     return
@@ -316,6 +337,7 @@ async function handlePreviewRevisionChange(nextRevision, previousRevision, optio
 watch(
   () => props.previewRevision,
   (nextRevision, previousRevision) => {
+    resolvedSynctexPathCache = ''
     void handlePreviewRevisionChange(nextRevision, previousRevision, { forceInitialLoad: true })
   },
   { immediate: true }

@@ -11,7 +11,6 @@
     @pointerdown.capture="handleContextPointerCapture"
     @mousedown.capture="handleMouseDownCapture"
     @keydown.capture="handleKeydown"
-    @dblclick.capture="handleDoubleClick"
   >
     <div class="pdf-artifact-preview__toolbar" data-no-embedpdf-interaction="true">
       <div class="pdf-artifact-preview__toolbar-main">
@@ -227,6 +226,11 @@
               :page-index="page.pageIndex"
               class="pdf-artifact-preview__page"
             >
+              <PdfEmbedPageSyncBridge
+                :document-id="documentId"
+                :page-index="page.pageIndex"
+                @page-double-click="handlePageDoubleClick(page, $event)"
+              />
               <RenderLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SearchLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SelectionLayer
@@ -257,7 +261,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, defineComponent, nextTick, onUnmounted, ref, watch, watchEffect } from 'vue'
 
 import { MatchFlag } from '@embedpdf/models'
 import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-manager'
@@ -270,7 +274,7 @@ import {
   IconSearch,
 } from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
-import { PagePointerProvider } from '@embedpdf/plugin-interaction-manager/vue'
+import { PagePointerProvider, usePointerHandlers } from '@embedpdf/plugin-interaction-manager/vue'
 import { RenderLayer } from '@embedpdf/plugin-render/vue'
 import { SearchLayer, useSearch } from '@embedpdf/plugin-search/vue'
 import { Scroller, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/vue'
@@ -354,6 +358,35 @@ const searchQuery = ref('')
 const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
+
+const PdfEmbedPageSyncBridge = defineComponent({
+  name: 'PdfEmbedPageSyncBridge',
+  props: {
+    documentId: { type: String, required: true },
+    pageIndex: { type: Number, required: true },
+  },
+  emits: ['page-double-click'],
+  setup(syncProps, { emit: syncEmit }) {
+    const { register } = usePointerHandlers({
+      documentId: () => syncProps.documentId,
+      pageIndex: () => syncProps.pageIndex,
+    })
+
+    watchEffect((onCleanup) => {
+      const unregister = register({
+        onDoubleClick: (pos, event) => {
+          syncEmit('page-double-click', { pos, event })
+        },
+      })
+
+      onCleanup(() => {
+        unregister?.()
+      })
+    })
+
+    return () => null
+  },
+})
 
 let scheduledViewStateFrame = 0
 let restoreRevision = 0
@@ -457,12 +490,6 @@ function readDomSelectedText() {
   )
 }
 
-function resolveEventTargetElement(target) {
-  if (target?.nodeType === Node.ELEMENT_NODE) return target
-  if (target?.nodeType === Node.TEXT_NODE) return target.parentElement || null
-  return null
-}
-
 function captureSelectionTextContext() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return { textBeforeSelection: '', textAfterSelection: '' }
@@ -500,22 +527,6 @@ function resolvePageBinding(pageNumber) {
   const numericPageNumber = Number(pageNumber || 0)
   if (!Number.isInteger(numericPageNumber) || numericPageNumber < 1) return null
   return pageBindings.get(numericPageNumber) || null
-}
-
-function resolveMouseClientPoint(event) {
-  const clientX = Number(event?.clientX)
-  const clientY = Number(event?.clientY)
-  if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
-    return { clientX, clientY }
-  }
-
-  const pageX = Number(event?.pageX)
-  const pageY = Number(event?.pageY)
-  if (Number.isFinite(pageX) && Number.isFinite(pageY)) {
-    return { clientX: pageX, clientY: pageY }
-  }
-
-  return null
 }
 
 function resolveScaleValueFromZoomState(state = zoom.state.value) {
@@ -1111,40 +1122,21 @@ async function savePdfToDisk() {
   }
 }
 
-function resolveReverseSyncDetail(event) {
+function resolveReverseSyncDetail(pageLayout, pos) {
   if (props.kind !== 'latex') return null
 
-  const eventTarget = resolveEventTargetElement(event?.target)
-  const pageElement = eventTarget?.closest?.('.pdf-artifact-preview__page-shell') || null
-  const pageNumber = Number(pageElement?.dataset?.pageNumber || 0)
-  const pointer = resolveMouseClientPoint(event)
-  const pageBinding = resolvePageBinding(pageNumber)
-  const pageRect = pageBinding?.element?.getBoundingClientRect?.()
-  const pageWidth = Number(pageBinding?.page?.width || 0)
-  const pageHeight = Number(pageBinding?.page?.height || 0)
+  const pageNumber = Number(pageLayout?.pageNumber || 0)
+  const pdfX = Number(pos?.x)
+  const pdfY = Number(pos?.y)
 
   if (
-    !pageElement
-    || !Number.isInteger(pageNumber)
+    !Number.isInteger(pageNumber)
     || pageNumber < 1
-    || !pointer
-    || !pageRect
-    || !Number.isFinite(pageRect.width)
-    || !Number.isFinite(pageRect.height)
-    || pageRect.width <= 0
-    || pageRect.height <= 0
-    || !Number.isFinite(pageWidth)
-    || !Number.isFinite(pageHeight)
-    || pageWidth <= 0
-    || pageHeight <= 0
+    || !Number.isFinite(pdfX)
+    || !Number.isFinite(pdfY)
   ) {
     return null
   }
-
-  const localX = clamp(pointer.clientX - pageRect.left, 0, pageRect.width)
-  const localY = clamp(pointer.clientY - pageRect.top, 0, pageRect.height)
-  const pdfX = (localX / pageRect.width) * pageWidth
-  const pdfY = pageHeight - (localY / pageRect.height) * pageHeight
 
   return {
     page: pageNumber,
@@ -1153,7 +1145,7 @@ function resolveReverseSyncDetail(event) {
   }
 }
 
-async function handleDoubleClick(event) {
+async function handlePageDoubleClick(pageLayout, payload = {}) {
   if (props.kind !== 'latex') return
 
   await nextTick()
@@ -1161,7 +1153,7 @@ async function handleDoubleClick(event) {
     await new Promise((resolve) => window.requestAnimationFrame(resolve))
   }
 
-  const detail = resolveReverseSyncDetail(event)
+  const detail = resolveReverseSyncDetail(pageLayout, payload.pos)
   if (!detail) return
   emit('reverse-sync-request', detail)
 }
