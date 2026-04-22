@@ -1,782 +1,196 @@
+import { RangeSetBuilder } from '@codemirror/state'
 import { StreamLanguage } from '@codemirror/language'
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { INITIAL, Registry, parseRawGrammar } from 'vscode-textmate'
+import {
+  createOnigScanner,
+  createOnigString,
+  loadWASM,
+} from 'vscode-oniguruma'
+import onigWasmUrl from 'vscode-oniguruma/release/onig.wasm?url'
+import latexWorkshopLatexGrammar from './textmate/latex-workshop/LaTeX.tmLanguage.json'
+import latexWorkshopTexGrammar from './textmate/latex-workshop/TeX.tmLanguage.json'
 
-const MATH_ENVIRONMENTS = new Set([
-  '+array',
-  '+cases',
-  '+matrix',
-  'align',
-  'align*',
-  'aligned',
-  'alignedat',
-  'argmini',
-  'argmaxi',
-  'array',
-  'Bmatrix',
-  'bmatrix',
-  'cases',
-  'dcases',
-  'displaymath',
-  'drcases',
-  'eqnarray',
-  'eqnarray*',
-  'equation!',
-  'equation',
-  'equation*',
-  'flalign',
-  'flalign*',
-  'flalignat',
-  'flaligned',
-  'gather',
-  'gather*',
-  'gathered',
-  'IEEEeqnarray',
-  'math',
-  'math*',
-  'matrix',
-  'maxi',
-  'mini',
-  'multline',
-  'multline*',
-  'NiceArray',
-  'NiceMatrix',
-  'pmatrix',
-  'rCases',
-  'smallmatrix',
-  'split',
-  'subeqnarray',
-  'subeqnarray*',
-  'tikzcd',
-  'Vmatrix',
-  'vmatrix',
+const LATEX_SCOPE_NAME = 'text.tex.latex'
+const TEX_SCOPE_NAME = 'text.tex'
+
+const parsedLatexGrammar = parseRawGrammar(
+  JSON.stringify(latexWorkshopLatexGrammar),
+  'LaTeX.tmLanguage.json'
+)
+const parsedTexGrammar = parseRawGrammar(
+  JSON.stringify(latexWorkshopTexGrammar),
+  'TeX.tmLanguage.json'
+)
+
+const decorationCache = new Map()
+
+let latexTextmateGrammar = null
+let latexTextmateReadyPromise = null
+let onigurumaReadyPromise = null
+
+const TEXTMATE_SCOPE_CLASSIFIERS = Object.freeze([
+  ['comment.line', 'cm-tm-comment'],
+  ['comment.block', 'cm-tm-comment'],
+  ['comment.', 'cm-tm-comment'],
+  ['markup.underline.link', 'cm-tm-link'],
+  ['markup.bold', 'cm-tm-strong'],
+  ['markup.italic', 'cm-tm-emphasis'],
+  ['markup.raw', 'cm-tm-raw'],
+  ['meta.embedded.block', 'cm-tm-raw'],
+  ['meta.function.embedded', 'cm-tm-raw'],
+  ['entity.name.section', 'cm-tm-section'],
+  ['constant.other.reference.citation', 'cm-tm-citation'],
+  ['constant.other.reference.label', 'cm-tm-label'],
+  ['variable.parameter.definition.label', 'cm-tm-label'],
+  ['support.function.url', 'cm-tm-link-function'],
+  ['support.function.section', 'cm-tm-section-function'],
+  ['support.function', 'cm-tm-support-function'],
+  ['support.class.math.block.environment', 'cm-tm-math-environment'],
+  ['support.class', 'cm-tm-class'],
+  ['meta.math', 'cm-tm-math'],
+  ['meta.preamble', 'cm-tm-preamble'],
+  ['meta.include', 'cm-tm-include'],
+  ['meta.function.environment', 'cm-tm-environment'],
+  ['keyword.control', 'cm-tm-keyword-control'],
+  ['keyword.operator', 'cm-tm-operator'],
+  ['punctuation.definition', 'cm-tm-punctuation'],
+  ['punctuation.section', 'cm-tm-punctuation'],
+  ['punctuation.group', 'cm-tm-punctuation'],
 ])
 
-const VERBATIM_ENVIRONMENTS = new Set([
-  'Verbatim',
-  'comment',
-  'lstlisting',
-  'minted',
-  'sageblock',
-  'sagesilent',
-  'spverbatim',
-  'verbatim',
-])
-
-const COMMAND_ROLE_TOKENS = Object.freeze({
-  'heading-1': 'heading1',
-  'heading-2': 'heading2',
-  'heading-3': 'heading3',
-  'heading-4': 'heading4',
-  'heading-5': 'heading5',
-  'heading-6': 'heading6',
-  emphasis: 'emphasis',
-  strong: 'strong',
-  monospace: 'monospace',
-  label: 'labelName',
-  citation: 'atom',
-  'env-name': 'typeName',
-  'macro-definition': 'macroName',
-  option: 'attributeName',
-  path: 'string.special',
-  link: 'link',
-  'link-text': 'link',
-  'package-list': 'string',
-  'class-name': 'string',
-  'language-name': 'attributeValue',
-})
-
-function cloneArgs(args = []) {
-  return args.map((arg) => ({ ...arg }))
-}
-
-function createArg(open, role, extras = {}) {
-  return {
-    open,
-    close: open === '[' ? ']' : '}',
-    role,
-    optional: false,
-    capture: false,
-    ...extras,
+function getDecorationForClasses(className) {
+  if (!decorationCache.has(className)) {
+    decorationCache.set(className, Decoration.mark({ class: className }))
   }
+  return decorationCache.get(className)
 }
 
-function addDelimitedMatch(stream, text, style) {
-  if (stream.match(text)) {
-    return style
-  }
-  return null
-}
+function classifyTextmateScopes(scopes = []) {
+  const classes = new Set()
 
-function topGroup(state) {
-  return state.groupStack.length > 0 ? state.groupStack[state.groupStack.length - 1] : null
-}
-
-function activeInheritedRole(state) {
-  for (let index = state.groupStack.length - 1; index >= 0; index -= 1) {
-    const role = state.groupStack[index]?.inheritRole
-    if (role) return role
-  }
-  return null
-}
-
-function appendCapture(state, text = '') {
-  if (!text) return
-  const group = topGroup(state)
-  if (!group || !group.capture) return
-  group.captureText += text
-}
-
-function clearPendingCommand(state) {
-  state.pendingArgs = []
-  state.pendingCommand = null
-}
-
-function resolveNextArg(state, opener) {
-  while (state.pendingArgs.length > 0) {
-    const nextArg = state.pendingArgs[0]
-    if (nextArg.open === opener) {
-      state.pendingArgs.shift()
-      if (state.pendingArgs.length === 0) {
-        state.pendingCommand = null
+  for (const scope of scopes) {
+    for (const [prefix, className] of TEXTMATE_SCOPE_CLASSIFIERS) {
+      if (scope.startsWith(prefix)) {
+        classes.add(className)
       }
-      return nextArg
     }
-    if (nextArg.optional) {
-      state.pendingArgs.shift()
-      continue
-    }
-    break
   }
+
+  return Array.from(classes).join(' ')
+}
+
+async function ensureOnigurumaReady() {
+  if (!onigurumaReadyPromise) {
+    onigurumaReadyPromise = (async () => {
+      const response = await fetch(onigWasmUrl)
+      await loadWASM(response)
+      return {
+        createOnigScanner(patterns) {
+          return createOnigScanner(patterns)
+        },
+        createOnigString(content) {
+          return createOnigString(content)
+        },
+      }
+    })()
+  }
+  return onigurumaReadyPromise
+}
+
+function loadRawGrammar(scopeName) {
+  if (scopeName === LATEX_SCOPE_NAME) return parsedLatexGrammar
+  if (scopeName === TEX_SCOPE_NAME) return parsedTexGrammar
   return null
 }
 
-function pushGroup(state, opener) {
-  const arg = resolveNextArg(state, opener)
-  const inheritedRole = activeInheritedRole(state)
-  state.groupStack.push({
-    close: opener === '[' ? ']' : '}',
-    role: arg?.role || null,
-    capture: arg?.capture === true,
-    captureText: '',
-    onClose: arg?.onClose || null,
-    inheritRole: arg?.inherit === true ? arg.role : inheritedRole,
-  })
+export async function ensureLatexTextmateReady() {
+  if (!latexTextmateReadyPromise) {
+    latexTextmateReadyPromise = (async () => {
+      const registry = new Registry({
+        onigLib: ensureOnigurumaReady(),
+        loadGrammar: async (scopeName) => loadRawGrammar(scopeName),
+      })
+
+      latexTextmateGrammar = await registry.loadGrammar(LATEX_SCOPE_NAME)
+      if (!latexTextmateGrammar) {
+        throw new Error('Failed to load LaTeX-Workshop TextMate grammar.')
+      }
+
+      return latexTextmateGrammar
+    })()
+  }
+
+  return latexTextmateReadyPromise
 }
 
-function popGroup(state, closer) {
-  const group = state.groupStack.pop()
-  if (!group || group.close !== closer) return false
-  if (typeof group.onClose === 'function') {
-    group.onClose(state, group.captureText.trim())
+function requireLatexTextmateGrammar() {
+  if (!latexTextmateGrammar) {
+    throw new Error('LaTeX-Workshop TextMate grammar has not been initialized yet.')
   }
-  return true
+  return latexTextmateGrammar
 }
 
-function pushMath(state, endToken) {
-  state.mathStack.push(endToken)
-}
+function buildLatexTextmateDecorations(state) {
+  const grammar = requireLatexTextmateGrammar()
+  const builder = new RangeSetBuilder()
+  let ruleStack = INITIAL
 
-function popMath(state, expected = null) {
-  if (state.mathStack.length === 0) return
-  if (expected == null) {
-    state.mathStack.pop()
-    return
-  }
+  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
+    const line = state.doc.line(lineNumber)
+    const lineResult = grammar.tokenizeLine(line.text, ruleStack)
+    ruleStack = lineResult.ruleStack
 
-  for (let index = state.mathStack.length - 1; index >= 0; index -= 1) {
-    const current = state.mathStack[index]
-    if (current === expected || current?.name === expected) {
-      state.mathStack.splice(index, 1)
-      return
-    }
-  }
-}
+    for (const token of lineResult.tokens) {
+      if (token.endIndex <= token.startIndex) continue
+      const className = classifyTextmateScopes(token.scopes)
+      if (!className) continue
 
-function pushEnvironment(state, name) {
-  if (!name) return
-  if (MATH_ENVIRONMENTS.has(name)) {
-    state.environmentStack.push({ name, kind: 'math' })
-    pushMath(state, { kind: 'environment', name })
-    return
-  }
-  if (VERBATIM_ENVIRONMENTS.has(name)) {
-    state.environmentStack.push({ name, kind: 'verbatim' })
-    return
-  }
-  state.environmentStack.push({ name, kind: 'generic' })
-}
-
-function popEnvironment(state, name) {
-  if (!name) return
-  for (let index = state.environmentStack.length - 1; index >= 0; index -= 1) {
-    const current = state.environmentStack[index]
-    if (current.name !== name) continue
-    state.environmentStack.splice(index, 1)
-    if (current.kind === 'math') {
-      popMath(state, name)
-    }
-    return
-  }
-}
-
-function currentEnvironment(state) {
-  return state.environmentStack.length > 0
-    ? state.environmentStack[state.environmentStack.length - 1]
-    : null
-}
-
-function isVerbatimMode(state) {
-  return currentEnvironment(state)?.kind === 'verbatim'
-}
-
-function isMathMode(state) {
-  return state.mathStack.length > 0
-}
-
-function normalizedPendingCommand(state) {
-  return String(state.pendingCommand || '').replace(/\*$/, '')
-}
-
-function tokenizeOptionGroup(stream, state) {
-  if (stream.eatSpace()) {
-    appendCapture(state, stream.current())
-    return null
-  }
-
-  if (stream.match(/^[-A-Za-z@][\w@.:/-]*/)) {
-    appendCapture(state, stream.current())
-    return 'attributeName'
-  }
-  if (stream.match(/^(\d+\.\d*|\d*\.\d+|\d+)/)) {
-    appendCapture(state, stream.current())
-    return 'number'
-  }
-  if (stream.match(/^[=,:]/)) {
-    appendCapture(state, stream.current())
-    return 'operator'
-  }
-  if (stream.match(/^[^=\],{}\s]+/)) {
-    appendCapture(state, stream.current())
-    return 'string'
-  }
-
-  const ch = stream.next()
-  appendCapture(state, ch)
-  return null
-}
-
-function tokenizeDelimitedRole(stream, state, role) {
-  if (stream.eatSpace()) {
-    appendCapture(state, stream.current())
-    return null
-  }
-
-  if (stream.match(/^,+/)) {
-    appendCapture(state, stream.current())
-    return 'separator'
-  }
-
-  const token = COMMAND_ROLE_TOKENS[role] || null
-  if (!token) return null
-
-  const matchers = {
-    'env-name': /^[A-Za-z*._:@/-]+/,
-    label: /^[\p{L}\p{N}.,:/*!^_-]+/u,
-    citation: /^[\p{L}\p{N}:._-]+/u,
-    path: /^[^,\]{}\s%]+/,
-    link: /^[^}\s]+/,
-    'link-text': /^[^\\{}\[\]%$]+/,
-    'package-list': /^[^,\]{}\s%]+/,
-    'class-name': /^[^,\]{}\s%]+/,
-    'language-name': /^[A-Za-z0-9_+-]+/,
-    'macro-definition': /^\\[A-Za-z@]+[*]?/,
-    'heading-1': /^[^\\{}\[\]%$]+/,
-    'heading-2': /^[^\\{}\[\]%$]+/,
-    'heading-3': /^[^\\{}\[\]%$]+/,
-    'heading-4': /^[^\\{}\[\]%$]+/,
-    'heading-5': /^[^\\{}\[\]%$]+/,
-    'heading-6': /^[^\\{}\[\]%$]+/,
-    emphasis: /^[^\\{}\[\]%$]+/,
-    strong: /^[^\\{}\[\]%$]+/,
-    monospace: /^[^\\{}\[\]%$]+/,
-  }
-
-  const matcher = matchers[role]
-  if (matcher && stream.match(matcher)) {
-    appendCapture(state, stream.current())
-    return token
-  }
-
-  const ch = stream.next()
-  appendCapture(state, ch)
-  return null
-}
-
-function applyBeginEnvironment(state, value) {
-  pushEnvironment(state, value)
-}
-
-function applyEndEnvironment(state, value) {
-  popEnvironment(state, value)
-}
-
-function commandProfile(commandName) {
-  const normalized = commandName.replace(/\*$/, '')
-
-  if (normalized === 'begin') {
-    return {
-      token: 'moduleKeyword',
-      args: [createArg('{', 'env-name', { capture: true, onClose: applyBeginEnvironment })],
+      builder.add(
+        line.from + token.startIndex,
+        line.from + token.endIndex,
+        getDecorationForClasses(className)
+      )
     }
   }
 
-  if (normalized === 'end') {
-    return {
-      token: 'moduleKeyword',
-      args: [createArg('{', 'env-name', { capture: true, onClose: applyEndEnvironment })],
-    }
-  }
-
-  if (normalized === 'documentclass') {
-    return {
-      token: 'moduleKeyword',
-      args: [
-        createArg('[', 'option', { optional: true }),
-        createArg('{', 'class-name'),
-      ],
-    }
-  }
-
-  if (normalized === 'usepackage') {
-    return {
-      token: 'moduleKeyword',
-      args: [
-        createArg('[', 'option', { optional: true }),
-        createArg('{', 'package-list'),
-      ],
-    }
-  }
-
-  if (
-    [
-      'addbibresource',
-      'bibliography',
-      'bibliographystyle',
-      'graphicspath',
-      'import',
-      'include',
-      'includegraphics',
-      'includeonly',
-      'inkscapeinclude',
-      'input',
-      'lstinputlisting',
-      'subfile',
-      'svgpath',
-      'tikzlibrary',
-      'usemintedstyle',
-      'url',
-      'path',
-    ].includes(normalized)
-  ) {
-    return {
-      token: 'moduleKeyword',
-      args: [
-        createArg('[', 'option', { optional: true }),
-        createArg('{', 'path'),
-      ],
-    }
-  }
-
-  if (
-    ['title', 'author', 'date', 'subtitle', 'frametitle'].includes(normalized)
-  ) {
-    return {
-      token: 'moduleKeyword',
-      args: [createArg('{', 'heading-1', { inherit: true })],
-    }
-  }
-
-  const headingLevels = new Map([
-    ['part', 'heading-2'],
-    ['chapter', 'heading-2'],
-    ['section', 'heading-3'],
-    ['subsection', 'heading-4'],
-    ['subsubsection', 'heading-5'],
-    ['paragraph', 'heading-6'],
-    ['subparagraph', 'heading-6'],
-  ])
-  if (headingLevels.has(normalized)) {
-    return {
-      token: 'moduleKeyword',
-      args: [
-        createArg('[', headingLevels.get(normalized), { optional: true, inherit: true }),
-        createArg('{', headingLevels.get(normalized), { inherit: true }),
-      ],
-    }
-  }
-
-  if (['textbf', 'mathbf'].includes(normalized)) {
-    return {
-      token: 'macroName',
-      args: [createArg('{', 'strong', { inherit: true })],
-    }
-  }
-
-  if (['emph', 'textit', 'mathit', 'intertext', 'shortintertext'].includes(normalized)) {
-    return {
-      token: 'macroName',
-      args: [createArg('{', 'emphasis', { inherit: true })],
-    }
-  }
-
-  if (normalized === 'item') {
-    return {
-      token: 'list',
-      args: [createArg('[', 'option', { optional: true })],
-    }
-  }
-
-  if (normalized === 'label') {
-    return {
-      token: 'macroName',
-      args: [createArg('{', 'label')],
-    }
-  }
-
-  if (/^(?:[A-Za-z]*cite[A-Za-z]*|nocite)$/.test(normalized)) {
-    return {
-      token: 'macroName',
-      args: [
-        createArg('[', 'option', { optional: true }),
-        createArg('[', 'option', { optional: true }),
-        createArg('{', 'citation'),
-      ],
-    }
-  }
-
-  if (/^(?:auto|page|eq|v|V|c|C)?ref(?:range)?$/.test(normalized)) {
-    const isRange = normalized.toLowerCase().includes('refrange')
-    return {
-      token: 'macroName',
-      args: isRange
-        ? [createArg('{', 'label'), createArg('{', 'label')]
-        : [createArg('{', 'label')],
-    }
-  }
-
-  if (['href', 'hyperref', 'hyperimage'].includes(normalized)) {
-    return {
-      token: 'macroName',
-      args: [
-        createArg('[', 'option', { optional: true }),
-        createArg('{', 'link'),
-        createArg('{', 'link-text', { inherit: true }),
-      ],
-    }
-  }
-
-  if (['texttt', 'detokenize'].includes(normalized)) {
-    return {
-      token: 'macroName',
-      args: [createArg('{', 'monospace', { inherit: true })],
-    }
-  }
-
-  if (['verb', 'Verb', 'spverb'].includes(commandName.replace(/\*$/, ''))) {
-    return {
-      token: 'macroName',
-      args: [],
-    }
-  }
-
-  if (
-    [
-      'DeclareMathOperator',
-      'DeclarePairedDelimiter',
-      'newcommand',
-      'providecommand',
-      'renewcommand',
-    ].includes(normalized)
-  ) {
-    return {
-      token: 'macroName',
-      args: [
-        createArg('{', 'macro-definition'),
-        createArg('[', 'option', { optional: true }),
-        createArg('[', 'option', { optional: true }),
-        createArg('{', null, { optional: true }),
-      ],
-    }
-  }
-
-  return {
-    token: 'macroName',
-    args: [],
-  }
+  return builder.finish()
 }
 
-function readCommand(stream, state) {
-  if (!stream.match(/^\\(?:[A-Za-z@]+[*]?|.)/)) return null
+export function createLatexTextmateHighlightExtension() {
+  return ViewPlugin.fromClass(
+    class {
+      constructor(view) {
+        this.decorations = buildLatexTextmateDecorations(view.state)
+      }
 
-  const rawCommand = stream.current().slice(1)
-  const normalized = rawCommand.replace(/\*$/, '')
-  const profile = commandProfile(rawCommand)
-  state.pendingCommand = rawCommand
-  state.pendingArgs = cloneArgs(profile.args)
-  if (['verb', 'Verb', 'spverb'].includes(normalized)) {
-    state.inlineVerbPending = true
-  }
-  appendCapture(state, stream.current())
-  return profile.token
-}
-
-function tokenizeInlineVerb(stream, state) {
-  if (!state.inlineVerbPending) return null
-
-  const line = stream.string
-  const start = stream.pos
-  let index = start
-  while (index < line.length && /\s/.test(line[index])) index += 1
-  if (index >= line.length) {
-    stream.pos = line.length
-    state.inlineVerbPending = false
-    return null
-  }
-
-  const delimiter = line[index]
-  if (/[A-Za-z]/.test(delimiter)) {
-    state.inlineVerbPending = false
-    return null
-  }
-
-  index += 1
-  const closeIndex = line.indexOf(delimiter, index)
-  stream.pos = closeIndex === -1 ? line.length : closeIndex + 1
-  state.inlineVerbPending = false
-  return 'monospace'
-}
-
-function maybeStartMath(stream, state) {
-  const matches = [
-    ['\\[', '\\]'],
-    ['\\(', '\\)'],
-    ['$$', '$$'],
-    ['$', '$'],
-  ]
-
-  for (const [open, close] of matches) {
-    const style = addDelimitedMatch(stream, open, 'keyword')
-    if (style) {
-      pushMath(state, close)
-      appendCapture(state, open)
-      return style
+      update(update) {
+        if (update.docChanged) {
+          this.decorations = buildLatexTextmateDecorations(update.state)
+        }
+      }
+    },
+    {
+      decorations: (plugin) => plugin.decorations,
     }
-  }
-
-  return null
-}
-
-function handleGroupBoundary(stream, state) {
-  const ch = stream.peek()
-  if (ch === '{' || ch === '[') {
-    pushGroup(state, ch)
-    stream.next()
-    return 'bracket'
-  }
-
-  if (ch === '}' || ch === ']') {
-    stream.next()
-    if (!popGroup(state, ch)) {
-      return 'invalid'
-    }
-    appendCapture(state, ch)
-    return 'bracket'
-  }
-
-  return null
-}
-
-function tokenizeDirectiveComment(stream) {
-  if (stream.match(/^%%\s*!TeX.*/)) return 'meta'
-  if (stream.match(/^%%&.*/)) return 'meta'
-  return null
-}
-
-function tokenizeSharedText(stream, state) {
-  const inlineVerb = tokenizeInlineVerb(stream, state)
-  if (inlineVerb) return inlineVerb
-
-  if (stream.eatSpace()) {
-    appendCapture(state, stream.current())
-    return null
-  }
-
-  const directive = stream.sol() ? tokenizeDirectiveComment(stream) : null
-  if (directive) return directive
-
-  if (stream.peek() === '%') {
-    stream.skipToEnd()
-    appendCapture(state, stream.current())
-    return 'comment'
-  }
-
-  const groupBoundary = handleGroupBoundary(stream, state)
-  if (groupBoundary) return groupBoundary
-
-  const mathStart = maybeStartMath(stream, state)
-  if (mathStart) return mathStart
-
-  const command = readCommand(stream, state)
-  if (command) return command
-
-  if (stream.match(/^#\d+/)) {
-    appendCapture(state, stream.current())
-    return 'variableName'
-  }
-
-  return null
-}
-
-function tokenizeVerbatim(stream, state) {
-  const env = currentEnvironment(state)
-  if (env?.name && stream.match(/^\\end(?=\{)/, false)) {
-    return tokenizeText(stream, state)
-  }
-
-  const nextEnd = env?.name ? `\\end{${env.name}}` : null
-  if (nextEnd) {
-    const endIndex = stream.string.indexOf(nextEnd, stream.pos)
-    if (endIndex > stream.pos) {
-      stream.pos = endIndex
-      return 'string'
-    }
-  }
-
-  if (stream.pos < stream.string.length) {
-    stream.skipToEnd()
-    return 'string'
-  }
-
-  return null
-}
-
-function tokenizeMath(stream, state) {
-  const inlineVerb = tokenizeInlineVerb(stream, state)
-  if (inlineVerb) return inlineVerb
-
-  if (stream.eatSpace()) return null
-
-  if (stream.peek() === '%') {
-    stream.skipToEnd()
-    return 'comment'
-  }
-
-  const exit = state.mathStack[state.mathStack.length - 1]
-  if (typeof exit === 'string' && stream.match(exit)) {
-    popMath(state, exit)
-    return 'keyword'
-  }
-
-  const groupBoundary = handleGroupBoundary(stream, state)
-  if (groupBoundary) return groupBoundary
-
-  const group = topGroup(state)
-  if (group?.role === 'option') {
-    return tokenizeOptionGroup(stream, state)
-  }
-  if (group?.role) {
-    const roleToken = tokenizeDelimitedRole(stream, state, group.role)
-    if (roleToken) return roleToken
-  }
-
-  const command = readCommand(stream, state)
-  if (command) return command
-
-  if (stream.match(/^#\d+/)) return 'variableName'
-  if (stream.match(/^(\d+\.\d*|\d*\.\d+|\d+)/)) return 'number'
-  if (stream.match(/^[A-Za-z]+/)) return 'variableName.special'
-  if (stream.match(/^[=+\-*/<>|&,:;!^_]/)) return 'operator'
-  if (stream.match(/^[()[\]{}]/)) return 'bracket'
-
-  stream.next()
-  return null
-}
-
-function tokenizeText(stream, state) {
-  const shared = tokenizeSharedText(stream, state)
-  if (shared) return shared
-
-  if (state.pendingArgs.length > 0 && !topGroup(state) && !/[\[{]/.test(stream.peek() || '')) {
-    clearPendingCommand(state)
-  }
-
-  const group = topGroup(state)
-  if (group?.role === 'option') {
-    return tokenizeOptionGroup(stream, state)
-  }
-
-  if (group?.role) {
-    const token = tokenizeDelimitedRole(stream, state, group.role)
-    if (token) return token
-  }
-
-  if (stream.match(/^[A-Za-z][\w-]*/)) {
-    appendCapture(state, stream.current())
-    return null
-  }
-
-  const ch = stream.next()
-  appendCapture(state, ch)
-  return null
-}
-
-function latexToken(stream, state) {
-  const group = topGroup(state)
-  if (
-    isVerbatimMode(state) &&
-    normalizedPendingCommand(state) !== 'end' &&
-    group?.role !== 'env-name'
-  ) {
-    return tokenizeVerbatim(stream, state)
-  }
-  if (isMathMode(state)) return tokenizeMath(stream, state)
-  return tokenizeText(stream, state)
+  )
 }
 
 export const altalsLatexLanguage = StreamLanguage.define({
-  name: 'altals-latex',
+  name: 'latex-textmate-host',
   startState() {
-    return {
-      pendingCommand: null,
-      pendingArgs: [],
-      inlineVerbPending: false,
-      groupStack: [],
-      mathStack: [],
-      environmentStack: [],
-    }
+    return null
   },
-  copyState(state) {
-    return {
-      pendingCommand: state.pendingCommand,
-      pendingArgs: cloneArgs(state.pendingArgs),
-      inlineVerbPending: state.inlineVerbPending,
-      groupStack: state.groupStack.map((group) => ({ ...group })),
-      mathStack: state.mathStack.map((entry) => (
-        typeof entry === 'string' ? entry : { ...entry }
-      )),
-      environmentStack: state.environmentStack.map((entry) => ({ ...entry })),
-    }
+  copyState() {
+    return null
   },
-  token(stream, state) {
-    return latexToken(stream, state)
-  },
-  blankLine(state) {
-    clearPendingCommand(state)
-    state.inlineVerbPending = false
-    if (!isVerbatimMode(state)) {
-      state.groupStack = state.groupStack.filter((group) => group.close !== ']')
-    }
+  token(stream) {
+    stream.skipToEnd()
+    return null
   },
   languageData: {
     commentTokens: { line: '%' },
   },
 })
+
+export const latexTextmateHostLanguage = altalsLatexLanguage

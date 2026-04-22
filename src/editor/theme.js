@@ -189,6 +189,60 @@ export const shouldersTheme = EditorView.theme(
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-word',
     },
+    '.cm-tm-comment': {
+      color: 'var(--hl-comment)',
+      fontStyle: 'italic',
+    },
+    '.cm-tm-keyword-control': {
+      color: 'var(--hl-keyword)',
+    },
+    '.cm-tm-operator': {
+      color: 'var(--hl-operator)',
+    },
+    '.cm-tm-support-function, .cm-tm-section-function': {
+      color: 'var(--hl-function)',
+    },
+    '.cm-tm-link-function': {
+      color: 'var(--hl-link)',
+    },
+    '.cm-tm-class, .cm-tm-environment, .cm-tm-math-environment': {
+      color: 'var(--hl-type)',
+    },
+    '.cm-tm-section': {
+      color: 'var(--hl-heading)',
+      fontWeight: '700',
+    },
+    '.cm-tm-link': {
+      color: 'var(--hl-link)',
+      textDecoration: 'underline',
+      textDecorationThickness: '0.08em',
+    },
+    '.cm-tm-citation': {
+      color: 'var(--hl-constant)',
+    },
+    '.cm-tm-label': {
+      color: 'var(--hl-attribute)',
+    },
+    '.cm-tm-raw': {
+      color: 'var(--hl-code)',
+    },
+    '.cm-tm-emphasis': {
+      color: 'var(--hl-emphasis)',
+      fontStyle: 'italic',
+    },
+    '.cm-tm-strong': {
+      color: 'var(--fg-primary)',
+      fontWeight: '700',
+    },
+    '.cm-tm-preamble, .cm-tm-include': {
+      color: 'var(--hl-module-keyword)',
+    },
+    '.cm-tm-math': {
+      color: 'var(--hl-number)',
+    },
+    '.cm-tm-punctuation': {
+      color: 'var(--hl-punctuation)',
+    },
   },
   { dark: true }
 )

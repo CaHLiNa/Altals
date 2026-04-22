@@ -687,7 +687,8 @@ async function loadLanguageExtension() {
     return markdown({ base: markdownLanguage, codeLanguages: languages })
   }
   if (isLatexEditor) {
-    const { altalsLatexLanguage } = await import('../../editor/latexLanguage')
+    const { altalsLatexLanguage, ensureLatexTextmateReady } = await import('../../editor/latexLanguage')
+    await ensureLatexTextmateReady()
     return altalsLatexLanguage
   }
 
@@ -865,10 +866,16 @@ onMounted(async () => {
   }
 
   if (isLatexEditor) {
-    const [{ autocompletion }, { createLatexCompletionSource }] = await Promise.all([
+    const [
+      { autocompletion },
+      { createLatexCompletionSource },
+      { createLatexTextmateHighlightExtension },
+    ] = await Promise.all([
       import('@codemirror/autocomplete'),
       import('../../editor/latexAutocomplete'),
+      import('../../editor/latexLanguage'),
     ])
+    extraExtensions.push(createLatexTextmateHighlightExtension())
     extraExtensions.push(
       ...latexCitationsExtension(referencesStore, {
         isOpen: () => citPalette.show,
