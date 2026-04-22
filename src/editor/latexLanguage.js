@@ -1,23 +1,53 @@
 import { StreamLanguage } from '@codemirror/language'
 
 const MATH_ENVIRONMENTS = new Set([
+  '+array',
+  '+cases',
+  '+matrix',
   'align',
   'align*',
+  'aligned',
+  'alignedat',
+  'argmini',
+  'argmaxi',
+  'array',
+  'Bmatrix',
+  'bmatrix',
+  'cases',
+  'dcases',
   'displaymath',
+  'drcases',
   'eqnarray',
   'eqnarray*',
+  'equation!',
   'equation',
   'equation*',
   'flalign',
   'flalign*',
+  'flalignat',
+  'flaligned',
   'gather',
   'gather*',
+  'gathered',
+  'IEEEeqnarray',
   'math',
   'math*',
+  'matrix',
+  'maxi',
+  'mini',
   'multline',
   'multline*',
+  'NiceArray',
+  'NiceMatrix',
+  'pmatrix',
+  'rCases',
+  'smallmatrix',
   'split',
+  'subeqnarray',
+  'subeqnarray*',
   'tikzcd',
+  'Vmatrix',
+  'vmatrix',
 ])
 
 const VERBATIM_ENVIRONMENTS = new Set([
@@ -40,14 +70,18 @@ const COMMAND_ROLE_TOKENS = Object.freeze({
   'heading-6': 'heading6',
   emphasis: 'emphasis',
   strong: 'strong',
+  monospace: 'monospace',
   label: 'labelName',
   citation: 'atom',
   'env-name': 'typeName',
   'macro-definition': 'macroName',
   option: 'attributeName',
   path: 'string.special',
+  link: 'link',
+  'link-text': 'link',
   'package-list': 'string',
   'class-name': 'string',
+  'language-name': 'attributeValue',
 })
 
 function cloneArgs(args = []) {
@@ -246,11 +280,14 @@ function tokenizeDelimitedRole(stream, state, role) {
 
   const matchers = {
     'env-name': /^[A-Za-z*._:@/-]+/,
-    label: /^[^,\]{}\s%]+/,
-    citation: /^[^,\]{}\s%]+/,
+    label: /^[\p{L}\p{N}.,:/*!^_-]+/u,
+    citation: /^[\p{L}\p{N}:._-]+/u,
     path: /^[^,\]{}\s%]+/,
+    link: /^[^}\s]+/,
+    'link-text': /^[^\\{}\[\]%$]+/,
     'package-list': /^[^,\]{}\s%]+/,
     'class-name': /^[^,\]{}\s%]+/,
+    'language-name': /^[A-Za-z0-9_+-]+/,
     'macro-definition': /^\\[A-Za-z@]+[*]?/,
     'heading-1': /^[^\\{}\[\]%$]+/,
     'heading-2': /^[^\\{}\[\]%$]+/,
@@ -260,6 +297,7 @@ function tokenizeDelimitedRole(stream, state, role) {
     'heading-6': /^[^\\{}\[\]%$]+/,
     emphasis: /^[^\\{}\[\]%$]+/,
     strong: /^[^\\{}\[\]%$]+/,
+    monospace: /^[^\\{}\[\]%$]+/,
   }
 
   const matcher = matchers[role]
@@ -335,6 +373,8 @@ function commandProfile(commandName) {
       'svgpath',
       'tikzlibrary',
       'usemintedstyle',
+      'url',
+      'path',
     ].includes(normalized)
   ) {
     return {
@@ -414,9 +454,37 @@ function commandProfile(commandName) {
   }
 
   if (/^(?:auto|page|eq|v|V|c|C)?ref(?:range)?$/.test(normalized)) {
+    const isRange = normalized.toLowerCase().includes('refrange')
     return {
       token: 'macroName',
-      args: [createArg('{', 'label')],
+      args: isRange
+        ? [createArg('{', 'label'), createArg('{', 'label')]
+        : [createArg('{', 'label')],
+    }
+  }
+
+  if (['href', 'hyperref', 'hyperimage'].includes(normalized)) {
+    return {
+      token: 'macroName',
+      args: [
+        createArg('[', 'option', { optional: true }),
+        createArg('{', 'link'),
+        createArg('{', 'link-text', { inherit: true }),
+      ],
+    }
+  }
+
+  if (['texttt', 'detokenize'].includes(normalized)) {
+    return {
+      token: 'macroName',
+      args: [createArg('{', 'monospace', { inherit: true })],
+    }
+  }
+
+  if (['verb', 'Verb', 'spverb'].includes(commandName.replace(/\*$/, ''))) {
+    return {
+      token: 'macroName',
+      args: [],
     }
   }
 
@@ -450,11 +518,41 @@ function readCommand(stream, state) {
   if (!stream.match(/^\\(?:[A-Za-z@]+[*]?|.)/)) return null
 
   const rawCommand = stream.current().slice(1)
+  const normalized = rawCommand.replace(/\*$/, '')
   const profile = commandProfile(rawCommand)
   state.pendingCommand = rawCommand
   state.pendingArgs = cloneArgs(profile.args)
+  if (['verb', 'Verb', 'spverb'].includes(normalized)) {
+    state.inlineVerbPending = true
+  }
   appendCapture(state, stream.current())
   return profile.token
+}
+
+function tokenizeInlineVerb(stream, state) {
+  if (!state.inlineVerbPending) return null
+
+  const line = stream.string
+  const start = stream.pos
+  let index = start
+  while (index < line.length && /\s/.test(line[index])) index += 1
+  if (index >= line.length) {
+    stream.pos = line.length
+    state.inlineVerbPending = false
+    return null
+  }
+
+  const delimiter = line[index]
+  if (/[A-Za-z]/.test(delimiter)) {
+    state.inlineVerbPending = false
+    return null
+  }
+
+  index += 1
+  const closeIndex = line.indexOf(delimiter, index)
+  stream.pos = closeIndex === -1 ? line.length : closeIndex + 1
+  state.inlineVerbPending = false
+  return 'monospace'
 }
 
 function maybeStartMath(stream, state) {
@@ -504,6 +602,9 @@ function tokenizeDirectiveComment(stream) {
 }
 
 function tokenizeSharedText(stream, state) {
+  const inlineVerb = tokenizeInlineVerb(stream, state)
+  if (inlineVerb) return inlineVerb
+
   if (stream.eatSpace()) {
     appendCapture(state, stream.current())
     return null
@@ -559,6 +660,9 @@ function tokenizeVerbatim(stream, state) {
 }
 
 function tokenizeMath(stream, state) {
+  const inlineVerb = tokenizeInlineVerb(stream, state)
+  if (inlineVerb) return inlineVerb
+
   if (stream.eatSpace()) return null
 
   if (stream.peek() === '%') {
@@ -644,6 +748,7 @@ export const altalsLatexLanguage = StreamLanguage.define({
     return {
       pendingCommand: null,
       pendingArgs: [],
+      inlineVerbPending: false,
       groupStack: [],
       mathStack: [],
       environmentStack: [],
@@ -653,6 +758,7 @@ export const altalsLatexLanguage = StreamLanguage.define({
     return {
       pendingCommand: state.pendingCommand,
       pendingArgs: cloneArgs(state.pendingArgs),
+      inlineVerbPending: state.inlineVerbPending,
       groupStack: state.groupStack.map((group) => ({ ...group })),
       mathStack: state.mathStack.map((entry) => (
         typeof entry === 'string' ? entry : { ...entry }
@@ -665,6 +771,7 @@ export const altalsLatexLanguage = StreamLanguage.define({
   },
   blankLine(state) {
     clearPendingCommand(state)
+    state.inlineVerbPending = false
     if (!isVerbatimMode(state)) {
       state.groupStack = state.groupStack.filter((group) => group.close !== ']')
     }
