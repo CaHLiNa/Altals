@@ -25,8 +25,6 @@ const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE: bool = true;
 const DEFAULT_FILE_TREE_SHOW_HIDDEN: bool = true;
 const DEFAULT_FILE_TREE_SORT_MODE: &str = "name";
 const DEFAULT_FILE_TREE_FOLD_DIRECTORIES: bool = false;
-const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND: &str = "#1e1e1e";
-const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME: bool = true;
 const DEFAULT_PDF_VIEWER_ZOOM_MODE: &str = "page-width";
 const DEFAULT_PDF_VIEWER_SPREAD_MODE: &str = "single";
 const DEFAULT_PDF_VIEWER_AUTO_SYNC: bool = true;
@@ -73,10 +71,6 @@ pub struct WorkspacePreferences {
     pub file_tree_sort_mode: String,
     #[serde(default = "default_file_tree_fold_directories")]
     pub file_tree_fold_directories: bool,
-    #[serde(default = "default_pdf_page_background_follows_theme")]
-    pub pdf_page_background_follows_theme: bool,
-    #[serde(default = "default_pdf_custom_page_background")]
-    pub pdf_custom_page_background: String,
     #[serde(default = "default_pdf_viewer_zoom_mode")]
     pub pdf_viewer_zoom_mode: String,
     #[serde(default = "default_pdf_viewer_spread_mode")]
@@ -115,8 +109,6 @@ impl Default for WorkspacePreferences {
             file_tree_show_hidden: default_file_tree_show_hidden(),
             file_tree_sort_mode: default_file_tree_sort_mode(),
             file_tree_fold_directories: default_file_tree_fold_directories(),
-            pdf_page_background_follows_theme: default_pdf_page_background_follows_theme(),
-            pdf_custom_page_background: default_pdf_custom_page_background(),
             pdf_viewer_zoom_mode: default_pdf_viewer_zoom_mode(),
             pdf_viewer_spread_mode: default_pdf_viewer_spread_mode(),
             pdf_viewer_auto_sync: default_pdf_viewer_auto_sync(),
@@ -242,14 +234,6 @@ fn default_file_tree_sort_mode() -> String {
 
 fn default_file_tree_fold_directories() -> bool {
     DEFAULT_FILE_TREE_FOLD_DIRECTORIES
-}
-
-fn default_pdf_page_background_follows_theme() -> bool {
-    DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME
-}
-
-fn default_pdf_custom_page_background() -> String {
-    DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND.to_string()
 }
 
 fn default_pdf_viewer_zoom_mode() -> String {
@@ -579,31 +563,6 @@ fn normalize_theme(value: &str) -> String {
     }
 }
 
-fn normalize_hex_color(value: &str, fallback: &str) -> String {
-    let normalized = value.trim().to_lowercase();
-    if normalized.len() == 7
-        && normalized.starts_with('#')
-        && normalized[1..].chars().all(|ch| ch.is_ascii_hexdigit())
-    {
-        return normalized;
-    }
-
-    if normalized.len() == 4
-        && normalized.starts_with('#')
-        && normalized[1..].chars().all(|ch| ch.is_ascii_hexdigit())
-    {
-        let digits = normalized.chars().skip(1);
-        let mut expanded = String::from("#");
-        for digit in digits {
-            expanded.push(digit);
-            expanded.push(digit);
-        }
-        return expanded;
-    }
-
-    fallback.to_string()
-}
-
 fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> WorkspacePreferences {
     WorkspacePreferences {
         workbench: normalize_workbench_state(preferences.workbench),
@@ -623,11 +582,6 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         file_tree_show_hidden: preferences.file_tree_show_hidden,
         file_tree_sort_mode: normalize_file_tree_sort_mode(&preferences.file_tree_sort_mode),
         file_tree_fold_directories: preferences.file_tree_fold_directories,
-        pdf_page_background_follows_theme: preferences.pdf_page_background_follows_theme,
-        pdf_custom_page_background: normalize_hex_color(
-            &preferences.pdf_custom_page_background,
-            DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
-        ),
         pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
         pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
         pdf_viewer_auto_sync: preferences.pdf_viewer_auto_sync,
@@ -720,13 +674,6 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         "fileTreeFoldDirectories",
         default_file_tree_fold_directories(),
     );
-    preferences.pdf_page_background_follows_theme = legacy_boolean(
-        snapshot,
-        "pdfPageBackgroundFollowsTheme",
-        default_pdf_page_background_follows_theme(),
-    );
-    preferences.pdf_custom_page_background = legacy_string(snapshot, "pdfCustomPageBackground")
-        .unwrap_or_else(default_pdf_custom_page_background);
     preferences.pdf_viewer_zoom_mode = legacy_string(snapshot, "pdfViewerZoomMode")
         .unwrap_or_else(default_pdf_viewer_zoom_mode);
     preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
@@ -804,13 +751,11 @@ mod tests {
         let normalized = normalize_workspace_preferences(WorkspacePreferences {
             editor_font_size: 50,
             preferred_locale: "zh".to_string(),
-            pdf_custom_page_background: "fff".to_string(),
             ..WorkspacePreferences::default()
         });
 
         assert_eq!(normalized.editor_font_size, 20);
         assert_eq!(normalized.preferred_locale, "zh-CN");
-        assert_eq!(normalized.pdf_custom_page_background, "#1e1e1e");
     }
 
     #[test]

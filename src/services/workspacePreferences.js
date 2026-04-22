@@ -38,10 +38,6 @@ const DEFAULT_EDITOR_HIGHLIGHT_ACTIVE_LINE = true
 const DEFAULT_FILE_TREE_SHOW_HIDDEN = true
 const DEFAULT_FILE_TREE_SORT_MODE = 'name'
 const DEFAULT_FILE_TREE_FOLD_DIRECTORIES = false
-const DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME = true
-const DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND = '#1e1e1e'
-const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK = '#1f2a1f'
-const DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT = '#f5faef'
 const DEFAULT_PDF_VIEWER_ZOOM_MODE = 'page-width'
 const DEFAULT_PDF_VIEWER_SPREAD_MODE = 'single'
 const DEFAULT_PDF_VIEWER_AUTO_SYNC = true
@@ -79,8 +75,6 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'markdownFont',
   'latexFont',
   'proseFont',
-  'pdfPageBackgroundFollowsTheme',
-  'pdfCustomPageBackground',
   'pdfViewerZoomMode',
   'pdfViewerSpreadMode',
   'pdfViewerAutoSync',
@@ -169,32 +163,6 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
-function normalizeHexColor(value, fallback) {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-
-  if (/^#[0-9a-f]{6}$/.test(normalized)) {
-    return normalized
-  }
-
-  if (/^#[0-9a-f]{3}$/.test(normalized)) {
-    const [, r, g, b] = normalized
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-
-  return fallback
-}
-
-function parseHexColor(value, fallback) {
-  const normalized = normalizeHexColor(value, fallback)
-  return {
-    r: parseInt(normalized.slice(1, 3), 16),
-    g: parseInt(normalized.slice(3, 5), 16),
-    b: parseInt(normalized.slice(5, 7), 16),
-  }
-}
-
 function readLegacyWorkspacePreferenceSnapshot() {
   return readStorageSnapshot(LEGACY_WORKSPACE_PREFERENCE_KEYS)
 }
@@ -226,8 +194,6 @@ export function createWorkspacePreferenceState() {
     uiFont: 'inter',
     markdownFont: 'inter',
     latexFont: 'mono',
-    pdfPageBackgroundFollowsTheme: DEFAULT_PDF_PAGE_BACKGROUND_FOLLOWS_THEME,
-    pdfCustomPageBackground: DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND,
     pdfViewerZoomMode: DEFAULT_PDF_VIEWER_ZOOM_MODE,
     pdfViewerSpreadMode: DEFAULT_PDF_VIEWER_SPREAD_MODE,
     pdfViewerAutoSync: DEFAULT_PDF_VIEWER_AUTO_SYNC,
@@ -296,18 +262,6 @@ export async function normalizeWorkbenchState(state = {}) {
       rightSidebarPanel: String(state.rightSidebarPanel || ''),
     },
   })
-}
-
-export function normalizeWorkspacePdfCustomPageBackground(value) {
-  return normalizeHexColor(value, DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
-}
-
-export function resolvePdfCustomPageForeground(value) {
-  const { r, g, b } = parseHexColor(value, DEFAULT_PDF_CUSTOM_PAGE_BACKGROUND)
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-  return luminance > 0.62
-    ? DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_DARK
-    : DEFAULT_PDF_CUSTOM_PAGE_FOREGROUND_LIGHT
 }
 
 export function normalizeEditorFontSize(value) {
@@ -434,14 +388,6 @@ function normalizeWorkspaceFont(value, fallback = 'inter') {
 
 export function setWrapColumnPreference(value) {
   return Math.max(0, parseInt(value, 10) || 0)
-}
-
-export function setWorkspacePdfCustomPageBackground(value) {
-  return normalizeWorkspacePdfCustomPageBackground(value)
-}
-
-export function setWorkspacePdfPageBackgroundFollowsTheme(value) {
-  return value !== false
 }
 
 export function setWorkspaceMarkdownPreviewSync(value) {

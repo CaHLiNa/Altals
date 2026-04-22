@@ -25,12 +25,10 @@ import {
   setWorkspaceMarkdownCitationFormat,
   setWorkspaceMarkdownFont,
   setWorkspaceMarkdownPreviewSync,
-  setWorkspacePdfCustomPageBackground,
   setWorkspacePdfViewerAutoSync,
   setWorkspacePdfViewerLastScale,
   setWorkspacePdfViewerSpreadMode,
   setWorkspacePdfViewerZoomMode,
-  setWorkspacePdfPageBackgroundFollowsTheme,
   setWorkspacePreferredLocale,
   setWorkspaceUiFont,
   setWrapColumnPreference,
@@ -90,8 +88,6 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'uiFont',
   'markdownFont',
   'latexFont',
-  'pdfPageBackgroundFollowsTheme',
-  'pdfCustomPageBackground',
   'pdfViewerZoomMode',
   'pdfViewerSpreadMode',
   'pdfViewerAutoSync',
@@ -427,18 +423,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     setWrapColumn(value) {
       return this.persistPreferences({
         wrapColumn: setWrapColumnPreference(value),
-      })
-    },
-
-    setPdfCustomPageBackground(value) {
-      return this.persistPreferences({
-        pdfCustomPageBackground: setWorkspacePdfCustomPageBackground(value),
-      })
-    },
-
-    setPdfPageBackgroundFollowsTheme(value) {
-      return this.persistPreferences({
-        pdfPageBackgroundFollowsTheme: setWorkspacePdfPageBackgroundFollowsTheme(value),
       })
     },
 

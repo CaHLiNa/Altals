@@ -291,61 +291,13 @@
             />
           </div>
         </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Match app theme') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Use the same PDF page background as the current app theme. Turn this off to use a custom PDF page color.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.pdfPageBackgroundFollowsTheme"
-              :aria-label="t('Match app theme')"
-              @update:model-value="workspace.setPdfPageBackgroundFollowsTheme($event)"
-            />
-          </div>
-        </div>
-        <div class="settings-row">
-          <div
-            class="settings-row-copy"
-            :class="{ 'is-disabled-copy': workspace.pdfPageBackgroundFollowsTheme }"
-          >
-            <div class="settings-row-title">{{ t('Eye-care page color') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <div class="pdf-page-color-control">
-              <UiColorInput
-                :model-value="workspace.pdfCustomPageBackground"
-                :disabled="workspace.pdfPageBackgroundFollowsTheme"
-                :aria-label="t('Eye-care page color')"
-                @update:model-value="workspace.setPdfCustomPageBackground($event)"
-              />
-              <UiInput
-                :model-value="pdfCustomPageBackgroundDraft"
-                :disabled="workspace.pdfPageBackgroundFollowsTheme"
-                monospace
-                placeholder="#1E1E1E"
-                autocapitalize="off"
-                autocomplete="off"
-                spellcheck="false"
-                :aria-label="t('Eye-care page color')"
-                @update:model-value="handlePdfCustomPageBackgroundDraftInput"
-                @blur="commitPdfCustomPageBackgroundDraft"
-                @keydown="handlePdfColorDraftKeydown($event, commitPdfCustomPageBackgroundDraft)"
-              />
-              <div class="pdf-page-color-preview" :style="pdfCustomPagePreviewStyle">Aa</div>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { WORKSPACE_THEME_OPTIONS } from '../../shared/workspaceThemeOptions.js'
@@ -355,11 +307,7 @@ import {
   WORKSPACE_FONT_PRESETS,
   decodeWorkspaceSystemFontFamily,
   loadWorkspaceSystemFontFamilies,
-  normalizeWorkspacePdfCustomPageBackground,
-  resolvePdfCustomPageForeground,
 } from '../../services/workspacePreferences'
-import UiColorInput from '../shared/ui/UiColorInput.vue'
-import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 
@@ -367,7 +315,6 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const themes = WORKSPACE_THEME_OPTIONS
 const systemFontFamilies = ref([...FALLBACK_SYSTEM_FONT_FAMILIES])
-const pdfCustomPageBackgroundDraft = ref(workspace.pdfCustomPageBackground)
 
 const editorFontSizeOptions = EDITOR_FONT_SIZE_PRESETS.map((value) => ({
   value,
@@ -395,23 +342,6 @@ const fileTreeSortOptions = computed(() => [
   { value: 'name', label: t('Name') },
   { value: 'modified', label: t('Modified date') },
 ])
-
-const resolvedPdfPagePreviewBackground = computed(() =>
-  workspace.pdfPageBackgroundFollowsTheme
-    ? 'var(--shell-preview-surface)'
-    : workspace.pdfCustomPageBackground
-)
-
-const resolvedPdfPagePreviewForeground = computed(() =>
-  workspace.pdfPageBackgroundFollowsTheme
-    ? 'var(--workspace-ink)'
-    : resolvePdfCustomPageForeground(workspace.pdfCustomPageBackground)
-)
-
-const pdfCustomPagePreviewStyle = computed(() => ({
-  background: resolvedPdfPagePreviewBackground.value,
-  color: resolvedPdfPagePreviewForeground.value,
-}))
 
 const presetOptions = computed(() =>
   WORKSPACE_FONT_PRESETS.filter((font) => font.value !== 'system').map((font) => ({
@@ -441,62 +371,6 @@ function fontSelectOptions(currentValue = '') {
       triggerLabel: family,
     })),
   ]
-}
-
-watch(
-  () => workspace.pdfCustomPageBackground,
-  (value) => {
-    pdfCustomPageBackgroundDraft.value = value
-  }
-)
-
-function normalizeColorDraft(value, normalizer) {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-
-  if (/^#[0-9a-f]{6}$/.test(normalized)) {
-    return normalizer(normalized)
-  }
-
-  if (/^#[0-9a-f]{3}$/.test(normalized)) {
-    return normalizer(normalized)
-  }
-
-  return ''
-}
-
-function handlePdfCustomPageBackgroundDraftInput(value) {
-  pdfCustomPageBackgroundDraft.value = value
-  const normalized = normalizeColorDraft(value, normalizeWorkspacePdfCustomPageBackground)
-  if (normalized) {
-    workspace.setPdfCustomPageBackground(normalized)
-  }
-}
-
-function commitPdfCustomPageBackgroundDraft() {
-  const normalized = normalizeColorDraft(
-    pdfCustomPageBackgroundDraft.value,
-    normalizeWorkspacePdfCustomPageBackground
-  )
-  if (!normalized) {
-    pdfCustomPageBackgroundDraft.value = workspace.pdfCustomPageBackground
-    return
-  }
-  workspace.setPdfCustomPageBackground(normalized)
-  pdfCustomPageBackgroundDraft.value = workspace.pdfCustomPageBackground
-}
-
-function handlePdfColorDraftKeydown(event, commitDraft) {
-  if (event.key === 'Enter') {
-    commitDraft()
-    event.target?.blur?.()
-    return
-  }
-
-  if (event.key === 'Escape') {
-    event.target?.blur?.()
-  }
 }
 
 onMounted(async () => {
