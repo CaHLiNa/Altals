@@ -205,6 +205,9 @@ export const shouldersTheme = EditorView.theme(
     '.cm-tm-package-class': {
       color: 'var(--latex-package-class)',
     },
+    '.cm-tm-preamble-value': {
+      color: 'var(--latex-preamble-value)',
+    },
     '.cm-tm-option-value': {
       color: 'var(--latex-option-value)',
     },
@@ -225,6 +228,9 @@ export const shouldersTheme = EditorView.theme(
     },
     '.cm-tm-function-definition': {
       color: 'var(--latex-function-definition)',
+    },
+    '.cm-tm-definition-target': {
+      color: 'var(--latex-definition-target)',
     },
     '.cm-tm-general-command': {
       color: 'var(--latex-general-command)',
@@ -283,6 +289,9 @@ export const shouldersTheme = EditorView.theme(
     },
     '.cm-tm-math-delimiter': {
       color: 'var(--latex-math-delimiter)',
+    },
+    '.cm-tm-math-structure, .cm-tm-math-structure-command, .cm-tm-math-environment-name': {
+      color: 'var(--latex-math-structure)',
     },
     '.cm-tm-math-bracket': {
       color: 'var(--latex-math-bracket)',

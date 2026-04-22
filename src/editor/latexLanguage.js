@@ -73,6 +73,7 @@ const TEXTMATE_SCOPE_CLASSIFIERS = Object.freeze([
   ['meta.preamble', 'cm-tm-preamble'],
   ['meta.include', 'cm-tm-include'],
   ['punctuation.definition.constant.math', 'cm-tm-math-command-punctuation'],
+  ['punctuation.math.bracket.pair.big', 'cm-tm-math-structure'],
   ['punctuation.definition.arguments.optional.begin', 'cm-tm-optional-brace'],
   ['punctuation.definition.arguments.optional.end', 'cm-tm-optional-brace'],
   ['punctuation.definition.arguments.begin', 'cm-tm-arg-brace'],
@@ -107,6 +108,10 @@ function classifyTextmateScopes(scopes = []) {
       classes.add('cm-tm-function-definition')
     } else if (hasScope('keyword.control.preamble')) {
       classes.add('cm-tm-preamble-command')
+    } else if (hasScope('meta.parameter.newcommand') && hasScope('support.function.general')) {
+      classes.add('cm-tm-definition-target')
+    } else if (hasScope('meta.math.block') && hasScope('support.function.be')) {
+      classes.add('cm-tm-math-structure-command')
     } else if (hasScope('support.function.be')) {
       classes.add('cm-tm-begin-end')
     } else if (hasScope('support.function.section')) {
@@ -141,11 +146,19 @@ function classifyTextmateScopes(scopes = []) {
   }
 
   if (hasScope('variable.parameter.function')) {
-    if (hasScope('meta.parameter.optional')) {
+    if (hasScope('meta.preamble')) {
+      classes.add('cm-tm-preamble-value')
+    } else if (hasScope('meta.parameter.optional')) {
       classes.add('cm-tm-option-value')
+    } else if (hasScope('meta.math.block') && hasScope('meta.function.environment.math')) {
+      classes.add('cm-tm-math-environment-name')
     } else if (hasScope('meta.function.environment')) {
       classes.add('cm-tm-environment-name')
     }
+  }
+
+  if (hasScope('support.class.latex') && hasScope('meta.preamble')) {
+    classes.add('cm-tm-preamble-value')
   }
 
   for (const scope of scopes) {
