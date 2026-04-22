@@ -338,7 +338,7 @@ export const shouldersHighlightStyle = HighlightStyle.define([
   { tag: tags.link, color: 'var(--hl-link)', textDecoration: 'underline' },
   { tag: tags.url, color: 'var(--hl-link)' },
   { tag: tags.monospace, color: 'var(--hl-code)', fontFamily: "var(--font-mono)" },
-  { tag: tags.quote, color: 'var(--fg-secondary)', fontStyle: 'italic' },
+  { tag: tags.quote, color: 'var(--hl-quote)', fontStyle: 'italic' },
   { tag: tags.list, color: 'var(--hl-list)' },
   { tag: tags.contentSeparator, color: 'var(--fg-muted)' },
 
@@ -373,13 +373,13 @@ export const shouldersHighlightStyle = HighlightStyle.define([
   { tag: tags.unit, color: 'var(--hl-number)' },
 
   // ── Names ─────────────────────────────────────────────
-  { tag: tags.variableName, color: 'var(--fg-primary)' },
-  { tag: tags.definition(tags.variableName), color: 'var(--fg-primary)' },
+  { tag: tags.variableName, color: 'var(--hl-variable)' },
+  { tag: tags.definition(tags.variableName), color: 'var(--hl-variable)' },
   { tag: tags.function(tags.variableName), color: 'var(--hl-function)' },
   { tag: tags.function(tags.definition(tags.variableName)), color: 'var(--hl-function)' },
   { tag: tags.constant(tags.variableName), color: 'var(--hl-constant)' },
-  { tag: tags.standard(tags.variableName), color: 'var(--hl-function)' },
-  { tag: tags.local(tags.variableName), color: 'var(--fg-primary)' },
+  { tag: tags.standard(tags.variableName), color: 'var(--hl-support)' },
+  { tag: tags.local(tags.variableName), color: 'var(--hl-variable)' },
   { tag: tags.special(tags.variableName), color: 'var(--hl-constant)' },
 
   // ── Types & classes ───────────────────────────────────
