@@ -1,8 +1,11 @@
 import { createPluginRegistration } from '@embedpdf/core'
 import { DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager/vue'
 import { ExportPluginPackage } from '@embedpdf/plugin-export/vue'
+import { InteractionManagerPluginPackage } from '@embedpdf/plugin-interaction-manager/vue'
 import { RenderPluginPackage } from '@embedpdf/plugin-render/vue'
+import { SearchPluginPackage } from '@embedpdf/plugin-search/vue'
 import { ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue'
+import { SelectionPluginPackage } from '@embedpdf/plugin-selection/vue'
 import { SpreadMode, SpreadPluginPackage } from '@embedpdf/plugin-spread/vue'
 import { ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue'
 import { ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/vue'
@@ -74,6 +77,11 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     createPluginRegistration(ViewportPluginPackage, {
       viewportGap: 12,
     }),
+    createPluginRegistration(InteractionManagerPluginPackage, {
+      exclusionRules: {
+        dataAttributes: ['data-no-embedpdf-interaction'],
+      },
+    }),
     createPluginRegistration(ScrollPluginPackage, {
       defaultStrategy: ScrollStrategy.Vertical,
     }),
@@ -85,6 +93,12 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     }),
     createPluginRegistration(ExportPluginPackage, {
       defaultFileName: documentName,
+    }),
+    createPluginRegistration(SearchPluginPackage, {
+      showAllResults: true,
+    }),
+    createPluginRegistration(SelectionPluginPackage, {
+      menuHeight: 34,
     }),
     createPluginRegistration(RenderPluginPackage),
   ]
