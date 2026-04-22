@@ -885,9 +885,9 @@ function buildSurfaceMenuGroups() {
   ]
 }
 
-function handleShellContextMenu(event) {
+async function handleShellContextMenu(event) {
   currentContextMenuReverseSyncDetail.value = resolveReverseSyncDetail(event)
-  void refreshSelectedText()
+  await refreshSelectedText()
   openSurfaceContextMenu({
     x: event.clientX,
     y: event.clientY,
