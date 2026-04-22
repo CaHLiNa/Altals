@@ -295,6 +295,10 @@ async function handleForwardSyncRequest(request) {
         page: Number(result.page),
         x: Number(result.x),
         y: Number(result.y),
+        rectLeft: Number.isFinite(result?.rectLeft) ? Number(result.rectLeft) : null,
+        rectTop: Number.isFinite(result?.rectTop) ? Number(result.rectTop) : null,
+        rectWidth: Number.isFinite(result?.rectWidth) ? Number(result.rectWidth) : null,
+        rectHeight: Number.isFinite(result?.rectHeight) ? Number(result.rectHeight) : null,
       }
     }
   } catch {

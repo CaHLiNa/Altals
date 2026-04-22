@@ -1382,18 +1382,29 @@ pub async fn synctex_forward(
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
+    let parsed_point = parse_synctex_gz(&synctex_path)
+        .ok()
+        .and_then(|data| forward_sync_point(&data, &tex_path, line).ok());
+
     if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
         if let Some(binary) = find_synctex(None) {
-            if let Ok(result) =
+            if let Ok(results) =
                 run_synctex_view_cli(&binary, &pdf_path, &tex_path, line, column.unwrap_or(0))
             {
-                return Ok(result);
+                if let Some(result) = select_best_forward_sync_hit(&results, parsed_point.as_ref()) {
+                    return Ok(result.into_json());
+                }
             }
         }
     }
 
-    let data = parse_synctex_gz(&synctex_path)?;
-    forward_sync(&data, &tex_path, line)
+    match parsed_point {
+        Some(result) => Ok(result.into_json()),
+        None => {
+            let data = parse_synctex_gz(&synctex_path)?;
+            forward_sync(&data, &tex_path, line)
+        }
+    }
 }
 
 #[tauri::command]
@@ -1460,6 +1471,61 @@ struct SyncNode {
     height: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct ForwardSyncPoint {
+    page: u32,
+    x: f64,
+    y: f64,
+}
+
+impl ForwardSyncPoint {
+    fn into_json(self) -> serde_json::Value {
+        serde_json::json!({
+            "page": self.page,
+            "x": self.x,
+            "y": self.y,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ForwardSyncHit {
+    page: u32,
+    x: f64,
+    y: f64,
+    rect_left: Option<f64>,
+    rect_top: Option<f64>,
+    rect_width: Option<f64>,
+    rect_height: Option<f64>,
+}
+
+impl ForwardSyncHit {
+    fn into_json(self) -> serde_json::Value {
+        let mut value = serde_json::json!({
+            "page": self.page,
+            "x": self.x,
+            "y": self.y,
+        });
+
+        if let Some(object) = value.as_object_mut() {
+            if let Some(rect_left) = self.rect_left {
+                object.insert("rectLeft".to_string(), serde_json::json!(rect_left));
+            }
+            if let Some(rect_top) = self.rect_top {
+                object.insert("rectTop".to_string(), serde_json::json!(rect_top));
+            }
+            if let Some(rect_width) = self.rect_width {
+                object.insert("rectWidth".to_string(), serde_json::json!(rect_width));
+            }
+            if let Some(rect_height) = self.rect_height {
+                object.insert("rectHeight".to_string(), serde_json::json!(rect_height));
+            }
+        }
+
+        value
+    }
+}
+
 fn synctex_scaled_to_big_point(value: f64) -> f64 {
     value * SYNCTEX_SCALED_POINT_TO_BIG_POINT
 }
@@ -1474,31 +1540,88 @@ fn derive_pdf_path_from_synctex_path(synctex_path: &str) -> Option<String> {
     None
 }
 
-fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> {
-    let mut page = None;
-    let mut x = None;
-    let mut y = None;
+fn parse_synctex_view_output(output: &str) -> Result<Vec<ForwardSyncHit>, String> {
+    #[derive(Default)]
+    struct PartialHit {
+        page: Option<u32>,
+        x: Option<f64>,
+        y: Option<f64>,
+        h: Option<f64>,
+        v: Option<f64>,
+        width: Option<f64>,
+        height: Option<f64>,
+    }
 
-    for line in output.lines() {
-        let trimmed = line.trim();
-        if let Some(value) = trimmed.strip_prefix("Page:") {
-            page = value.trim().parse::<u32>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("x:") {
-            x = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("y:") {
-            y = value.trim().parse::<f64>().ok();
-        }
+    impl PartialHit {
+        fn into_hit(self) -> Option<ForwardSyncHit> {
+            let page = self.page?;
+            let x = self.x?;
+            let y = self.y?;
+            let (rect_left, rect_top, rect_width, rect_height) =
+                match (self.h, self.v, self.width, self.height) {
+                    (Some(left), Some(bottom), Some(width), Some(height)) => (
+                        Some(left),
+                        Some(bottom - height),
+                        Some(width),
+                        Some(height),
+                    ),
+                    _ => (None, None, None, None),
+                };
 
-        if let (Some(page), Some(x), Some(y)) = (page, x, y) {
-            return Ok(serde_json::json!({
-                "page": page,
-                "x": x,
-                "y": y,
-            }));
+            Some(ForwardSyncHit {
+                page,
+                x,
+                y,
+                rect_left,
+                rect_top,
+                rect_width,
+                rect_height,
+            })
         }
     }
 
-    Err("SyncTeX view output did not contain a complete result.".to_string())
+    let mut results = Vec::new();
+    let mut current = PartialHit::default();
+
+    let flush = |current: &mut PartialHit, results: &mut Vec<ForwardSyncHit>| {
+        if let Some(hit) = std::mem::take(current).into_hit() {
+            results.push(hit);
+        }
+    };
+
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Output:") {
+            flush(&mut current, &mut results);
+            continue;
+        }
+
+        if let Some(value) = trimmed.strip_prefix("Page:") {
+            current.page = value.trim().parse::<u32>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("x:") {
+            current.x = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("y:") {
+            current.y = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("h:") {
+            current.h = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("v:") {
+            current.v = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("W:") {
+            current.width = value.trim().parse::<f64>().ok();
+        } else if let Some(value) = trimmed.strip_prefix("H:") {
+            current.height = value.trim().parse::<f64>().ok();
+        } else if trimmed == "after:" {
+            flush(&mut current, &mut results);
+        }
+    }
+
+    flush(&mut current, &mut results);
+
+    if results.is_empty() {
+        return Err("SyncTeX view output did not contain a complete result.".to_string());
+    }
+
+    Ok(results)
 }
 
 fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> {
@@ -1530,7 +1653,7 @@ fn run_synctex_view_cli(
     tex_path: &str,
     line: u32,
     column: u32,
-) -> Result<serde_json::Value, String> {
+) -> Result<Vec<ForwardSyncHit>, String> {
     let input = build_synctex_view_input(tex_path, line, column);
     let mut command = background_command(synctex_binary);
     apply_tex_locale_std(&mut command);
@@ -1710,11 +1833,55 @@ fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
     Ok(parse_synctex_content(&content))
 }
 
+fn select_best_forward_sync_hit(
+    hits: &[ForwardSyncHit],
+    anchor: Option<&ForwardSyncPoint>,
+) -> Option<ForwardSyncHit> {
+    let first = hits.first()?.clone();
+    let Some(anchor) = anchor else {
+        return Some(first);
+    };
+
+    let mut best = first;
+    let mut best_page_mismatch = best.page != anchor.page;
+    let mut best_distance = (best.x - anchor.x).powi(2) + (best.y - anchor.y).powi(2);
+
+    for hit in hits.iter().skip(1) {
+        let page_mismatch = hit.page != anchor.page;
+        let distance = (hit.x - anchor.x).powi(2) + (hit.y - anchor.y).powi(2);
+        let should_replace = if page_mismatch != best_page_mismatch {
+            !page_mismatch
+        } else if distance < best_distance {
+            true
+        } else if (distance - best_distance).abs() < f64::EPSILON {
+            hit.y < best.y
+        } else {
+            false
+        };
+
+        if should_replace {
+            best = hit.clone();
+            best_page_mismatch = page_mismatch;
+            best_distance = distance;
+        }
+    }
+
+    Some(best)
+}
+
 fn forward_sync(
     nodes: &[SyncNode],
     tex_path: &str,
     line: u32,
 ) -> Result<serde_json::Value, String> {
+    forward_sync_point(nodes, tex_path, line).map(ForwardSyncPoint::into_json)
+}
+
+fn forward_sync_point(
+    nodes: &[SyncNode],
+    tex_path: &str,
+    line: u32,
+) -> Result<ForwardSyncPoint, String> {
     // Find the node closest to the given line in the given file
     let tex_canonical =
         std::fs::canonicalize(tex_path).unwrap_or_else(|_| Path::new(tex_path).to_path_buf());
@@ -1752,11 +1919,11 @@ fn forward_sync(
     }
 
     match best {
-        Some(node) => Ok(serde_json::json!({
-            "page": node.page,
-            "x": node.x,
-            "y": node.y,
-        })),
+        Some(node) => Ok(ForwardSyncPoint {
+            page: node.page,
+            x: node.x,
+            y: node.y,
+        }),
         None => Err("No SyncTeX match found for this line.".to_string()),
     }
 }
@@ -1789,5 +1956,105 @@ fn backward_sync(
             "line": node.line,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        parse_synctex_view_output, select_best_forward_sync_hit, ForwardSyncHit, ForwardSyncPoint,
+    };
+
+    #[test]
+    fn parse_synctex_view_output_collects_all_hits_and_rects() {
+        let output = r#"
+SyncTeX result begin
+Output:/tmp/example.pdf
+Page:2
+x:148.041159
+y:421.229248
+h:148.041159
+v:430.195608
+W:239.527695
+H:8.966360
+before:
+offset:-1
+middle:
+after:
+Output:/tmp/example.pdf
+Page:2
+x:192.145630
+y:376.486816
+before:
+offset:-1
+middle:
+after:
+SyncTeX result end
+"#;
+
+        let hits = parse_synctex_view_output(output).expect("expected hits");
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].page, 2);
+        assert_eq!(hits[0].rect_left, Some(148.041159));
+        assert_eq!(hits[0].rect_top, Some(421.229248));
+        assert_eq!(hits[0].rect_width, Some(239.527695));
+        assert_eq!(hits[0].rect_height, Some(8.966360));
+        assert_eq!(hits[1].rect_left, None);
+    }
+
+    #[test]
+    fn select_best_forward_sync_hit_prefers_anchor_page_and_distance() {
+        let hits = vec![
+            ForwardSyncHit {
+                page: 1,
+                x: 48.188896,
+                y: 131.612198,
+                rect_left: None,
+                rect_top: None,
+                rect_width: None,
+                rect_height: None,
+            },
+            ForwardSyncHit {
+                page: 1,
+                x: 48.188896,
+                y: 237.606873,
+                rect_left: None,
+                rect_top: None,
+                rect_width: None,
+                rect_height: None,
+            },
+            ForwardSyncHit {
+                page: 2,
+                x: 58.151535,
+                y: 400.447205,
+                rect_left: None,
+                rect_top: None,
+                rect_width: None,
+                rect_height: None,
+            },
+        ];
+
+        let selected = select_best_forward_sync_hit(
+            &hits,
+            Some(&ForwardSyncPoint {
+                page: 1,
+                x: 48.188890,
+                y: 237.606884,
+            }),
+        )
+        .expect("expected a selected hit");
+
+        assert_eq!(
+            selected,
+            ForwardSyncHit {
+                page: 1,
+                x: 48.188896,
+                y: 237.606873,
+                rect_left: None,
+                rect_top: None,
+                rect_width: None,
+                rect_height: None,
+            }
+        );
     }
 }

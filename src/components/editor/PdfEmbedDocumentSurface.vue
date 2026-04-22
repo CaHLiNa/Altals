@@ -1069,13 +1069,14 @@ function scrollToPdfPoint(point = {}) {
   const scrollScope = scroll.provides.value
   if (!scrollScope) return false
 
-  const pageNumber = Number(point.page || 0)
+  const anchorPoint = resolveForwardSyncAnchorPoint(point)
+  const pageNumber = Number(anchorPoint?.page || point.page || 0)
   if (!Number.isInteger(pageNumber) || pageNumber < 1) return false
 
   const pageBinding = resolvePageBinding(pageNumber)
   const pageHeight = Number(pageBinding?.page?.height || 0)
-  const x = Number(point.x)
-  const y = Number(point.y)
+  const x = Number(anchorPoint?.x)
+  const y = Number(anchorPoint?.y)
 
   if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(pageHeight) && pageHeight > 0) {
     scrollScope.scrollToPage({
@@ -1105,10 +1106,12 @@ function resolveForwardSyncHighlight(point = {}) {
   const viewportScope = viewportCapability.value?.forDocument(props.documentId)
   if (!scrollScope || !viewportScope) return null
 
-  const pageNumber = Number(point.page || 0)
+  const anchorPoint = resolveForwardSyncAnchorPoint(point)
+  const rect = resolveForwardSyncRect(point)
+  const pageNumber = Number(anchorPoint?.page || point.page || 0)
   const pageIndex = pageNumber - 1
-  const pdfX = Number(point.x)
-  const pdfY = Number(point.y)
+  const pdfX = Number(anchorPoint?.x)
+  const pdfY = Number(anchorPoint?.y)
   if (
     !Number.isInteger(pageNumber)
     || pageNumber < 1
@@ -1122,8 +1125,6 @@ function resolveForwardSyncHighlight(point = {}) {
 
   const currentScale = Number(documentState.value?.scale || 1)
   const safeScale = Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1
-  const bandWidth = 140 / safeScale
-  const bandHeight = 18 / safeScale
   const anchorRect = scrollScope.getRectPositionForPage(
     pageIndex,
     {
@@ -1131,16 +1132,17 @@ function resolveForwardSyncHighlight(point = {}) {
       size: { width: 1 / safeScale, height: 1 / safeScale },
     }
   )
-  const highlightRect = scrollScope.getRectPositionForPage(
-    pageIndex,
-    {
-      origin: {
-        x: Math.max(0, pdfX - bandWidth * 0.4),
-        y: Math.max(0, pdfY - bandHeight * 0.5),
-      },
-      size: { width: bandWidth, height: bandHeight },
-    }
-  )
+  const highlightSourceRect = rect || {
+    origin: {
+      x: Math.max(0, pdfX - 140 / safeScale * 0.4),
+      y: Math.max(0, pdfY - 18 / safeScale * 0.5),
+    },
+    size: {
+      width: 140 / safeScale,
+      height: 18 / safeScale,
+    },
+  }
+  const highlightRect = scrollScope.getRectPositionForPage(pageIndex, highlightSourceRect)
   if (!anchorRect || !highlightRect) return null
 
   const viewportMetrics = viewportScope.getMetrics()
@@ -1152,6 +1154,60 @@ function resolveForwardSyncHighlight(point = {}) {
     height: Math.max(12, highlightRect.size.height),
     dotLeft: anchorRect.origin.x - viewportMetrics.scrollLeft,
     dotTop: viewportInsetTop + anchorRect.origin.y - viewportMetrics.scrollTop,
+  }
+}
+
+function resolveForwardSyncAnchorPoint(point = {}) {
+  const pageNumber = Number(point.page || 0)
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) return null
+
+  const rectLeft = Number(point.rectLeft)
+  const rectTop = Number(point.rectTop)
+  if (Number.isFinite(rectLeft) && Number.isFinite(rectTop)) {
+    return {
+      page: pageNumber,
+      x: rectLeft,
+      y: rectTop,
+    }
+  }
+
+  const x = Number(point.x)
+  const y = Number(point.y)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+  return {
+    page: pageNumber,
+    x,
+    y,
+  }
+}
+
+function resolveForwardSyncRect(point = {}) {
+  const rectLeft = Number(point.rectLeft)
+  const rectTop = Number(point.rectTop)
+  const rectWidth = Number(point.rectWidth)
+  const rectHeight = Number(point.rectHeight)
+
+  if (
+    !Number.isFinite(rectLeft)
+    || !Number.isFinite(rectTop)
+    || !Number.isFinite(rectWidth)
+    || !Number.isFinite(rectHeight)
+    || rectWidth <= 0
+    || rectHeight <= 0
+  ) {
+    return null
+  }
+
+  return {
+    origin: {
+      x: rectLeft,
+      y: rectTop,
+    },
+    size: {
+      width: rectWidth,
+      height: rectHeight,
+    },
   }
 }
 
