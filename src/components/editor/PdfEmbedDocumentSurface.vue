@@ -8,6 +8,7 @@
     tabindex="0"
     data-surface-context-guard="true"
     @contextmenu.prevent="handleShellContextMenu"
+    @mousedown.capture="handleMouseDownCapture"
     @keydown.capture="handleKeydown"
     @dblclick.capture="handleDoubleClick"
   >
@@ -220,11 +221,7 @@
             :data-page-number="page.pageNumber"
             :style="{ width: `${page.width}px`, height: `${page.height}px` }"
           >
-            <PagePointerProvider
-              :document-id="documentId"
-              :page-index="page.pageIndex"
-              class="pdf-artifact-preview__page"
-            >
+            <div class="pdf-artifact-preview__page">
               <RenderLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SearchLayer :document-id="documentId" :page-index="page.pageIndex" />
               <SelectionLayer
@@ -237,7 +234,7 @@
                   borderStyle: 'solid',
                 }"
               />
-            </PagePointerProvider>
+            </div>
           </div>
         </Scroller>
       </Viewport>
@@ -268,7 +265,6 @@ import {
   IconSearch,
 } from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
-import { PagePointerProvider } from '@embedpdf/plugin-interaction-manager/vue'
 import { RenderLayer } from '@embedpdf/plugin-render/vue'
 import { SearchLayer, useSearch } from '@embedpdf/plugin-search/vue'
 import { Scroller, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/vue'
@@ -909,6 +905,16 @@ async function handleShellContextMenu(event) {
     y: event.clientY,
     groups: buildSurfaceMenuGroups(),
   })
+}
+
+function handleMouseDownCapture(event) {
+  if (Number(event?.button) !== 2) return
+
+  const snapshot = readDomSelectedText()
+  if (!snapshot) return
+
+  contextMenuSelectionText.value = snapshot
+  event.preventDefault()
 }
 
 function handleKeydown(event) {
@@ -1571,6 +1577,14 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   background: var(--embedpdf-page);
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.pdf-artifact-preview__page canvas,
+.pdf-artifact-preview__page img {
+  -webkit-user-drag: none;
   user-select: none;
 }
 
