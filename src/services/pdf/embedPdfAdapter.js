@@ -7,6 +7,7 @@ import { SearchPluginPackage } from '@embedpdf/plugin-search/vue'
 import { ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue'
 import { SelectionPluginPackage } from '@embedpdf/plugin-selection/vue'
 import { SpreadMode, SpreadPluginPackage } from '@embedpdf/plugin-spread/vue'
+import { ThumbnailPluginPackage } from '@embedpdf/plugin-thumbnail/vue'
 import { ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue'
 import { ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/vue'
 
@@ -99,6 +100,15 @@ export function buildEmbedPdfPluginRegistrations(options = {}) {
     }),
     createPluginRegistration(SelectionPluginPackage, {
       menuHeight: 34,
+    }),
+    createPluginRegistration(ThumbnailPluginPackage, {
+      width: 96,
+      gap: 10,
+      labelHeight: 16,
+      autoScroll: true,
+      scrollBehavior: 'smooth',
+      imagePadding: 0,
+      paddingY: 8,
     }),
     createPluginRegistration(RenderPluginPackage),
   ]

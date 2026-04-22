@@ -166,14 +166,15 @@ function captureCurrentViewState() {
 
 async function loadPdfDocument(options = {}) {
   const artifactPath = String(props.artifactPath || '').trim()
+  const nextDocumentName = basenamePath(artifactPath) || 'document.pdf'
   loadToken += 1
   const currentToken = loadToken
   previewLoadPending.value = true
   previewLoadError.value = ''
-  documentBuffer.value = null
-  documentName.value = basenamePath(artifactPath) || 'document.pdf'
 
   if (!artifactPath) {
+    documentBuffer.value = null
+    documentName.value = nextDocumentName
     previewLoadPending.value = false
     previewLoadError.value = t('Could not load PDF')
     pendingRestoreState.value = null
@@ -185,7 +186,9 @@ async function loadPdfDocument(options = {}) {
     const base64 = await readPdfArtifactBase64(artifactPath)
     if (currentToken !== loadToken) return
 
-    documentBuffer.value = decodePdfBase64ToArrayBuffer(base64)
+    const nextDocumentBuffer = decodePdfBase64ToArrayBuffer(base64)
+    documentBuffer.value = nextDocumentBuffer
+    documentName.value = nextDocumentName
     pendingRestoreState.value = options.restoreState ? { ...options.restoreState } : null
     embedViewerKey.value += 1
     previewLoadPending.value = false
