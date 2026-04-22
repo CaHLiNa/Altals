@@ -1,6 +1,6 @@
 import { RangeSetBuilder } from '@codemirror/state'
 import { StreamLanguage } from '@codemirror/language'
-import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { Decoration, ViewPlugin } from '@codemirror/view'
 import { INITIAL, Registry, parseRawGrammar } from 'vscode-textmate'
 import {
   createOnigScanner,
@@ -10,9 +10,22 @@ import {
 import onigWasmUrl from 'vscode-oniguruma/release/onig.wasm?url'
 import latexWorkshopLatexGrammar from './textmate/latex-workshop/LaTeX.tmLanguage.json'
 import latexWorkshopTexGrammar from './textmate/latex-workshop/TeX.tmLanguage.json'
+import vscode2026DarkThemeRaw from './textmate/vscode-themes/2026-dark.json?raw'
+import vscodeDarkModernThemeRaw from './textmate/vscode-themes/dark_modern.json?raw'
+import vscodeDarkPlusThemeRaw from './textmate/vscode-themes/dark_plus.json?raw'
+import vscodeDarkVsThemeRaw from './textmate/vscode-themes/dark_vs.json?raw'
 
 const LATEX_SCOPE_NAME = 'text.tex.latex'
 const TEX_SCOPE_NAME = 'text.tex'
+
+const FONT_STYLE_ITALIC = 1
+const FONT_STYLE_BOLD = 2
+const FONT_STYLE_UNDERLINE = 4
+const FONT_STYLE_STRIKETHROUGH = 8
+const FONT_STYLE_MASK = 30720
+const FONT_STYLE_OFFSET = 11
+const FOREGROUND_MASK = 16744448
+const FOREGROUND_OFFSET = 15
 
 const parsedLatexGrammar = parseRawGrammar(
   JSON.stringify(latexWorkshopLatexGrammar),
@@ -23,153 +36,235 @@ const parsedTexGrammar = parseRawGrammar(
   'TeX.tmLanguage.json'
 )
 
+function stripJsonComments(source) {
+  let result = ''
+  let index = 0
+  let inString = false
+  let stringQuote = ''
+
+  while (index < source.length) {
+    const current = source[index]
+    const next = source[index + 1]
+
+    if (inString) {
+      result += current
+      if (current === '\\') {
+        result += next || ''
+        index += 2
+        continue
+      }
+      if (current === stringQuote) {
+        inString = false
+        stringQuote = ''
+      }
+      index += 1
+      continue
+    }
+
+    if (current === '"' || current === "'") {
+      inString = true
+      stringQuote = current
+      result += current
+      index += 1
+      continue
+    }
+
+    if (current === '/' && next === '/') {
+      index += 2
+      while (index < source.length && source[index] !== '\n') {
+        index += 1
+      }
+      continue
+    }
+
+    if (current === '/' && next === '*') {
+      index += 2
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) {
+        index += 1
+      }
+      index += 2
+      continue
+    }
+
+    result += current
+    index += 1
+  }
+
+  return result
+}
+
+function stripTrailingCommas(source) {
+  let result = ''
+  let index = 0
+  let inString = false
+  let stringQuote = ''
+
+  while (index < source.length) {
+    const current = source[index]
+
+    if (inString) {
+      result += current
+      if (current === '\\') {
+        result += source[index + 1] || ''
+        index += 2
+        continue
+      }
+      if (current === stringQuote) {
+        inString = false
+        stringQuote = ''
+      }
+      index += 1
+      continue
+    }
+
+    if (current === '"' || current === "'") {
+      inString = true
+      stringQuote = current
+      result += current
+      index += 1
+      continue
+    }
+
+    if (current === ',') {
+      let lookahead = index + 1
+      while (lookahead < source.length && /\s/.test(source[lookahead])) {
+        lookahead += 1
+      }
+      if (source[lookahead] === '}' || source[lookahead] === ']') {
+        index += 1
+        continue
+      }
+    }
+
+    result += current
+    index += 1
+  }
+
+  return result
+}
+
+function parseJsonc(source) {
+  return JSON.parse(stripTrailingCommas(stripJsonComments(source)))
+}
+
+const rawThemeFiles = Object.freeze({
+  './2026-dark.json': parseJsonc(vscode2026DarkThemeRaw),
+  './dark_modern.json': parseJsonc(vscodeDarkModernThemeRaw),
+  './dark_plus.json': parseJsonc(vscodeDarkPlusThemeRaw),
+  './dark_vs.json': parseJsonc(vscodeDarkVsThemeRaw),
+})
+
 const decorationCache = new Map()
+const mergedVsCode2026DarkTheme = createRawTextmateTheme(rawThemeFiles['./2026-dark.json'])
 
 let latexTextmateGrammar = null
+let latexTextmateColorMap = null
 let latexTextmateReadyPromise = null
 let onigurumaReadyPromise = null
 
-const TEXTMATE_SCOPE_CLASSIFIERS = Object.freeze([
-  ['comment.line', 'cm-tm-comment'],
-  ['comment.block', 'cm-tm-comment'],
-  ['comment.', 'cm-tm-comment'],
-  ['markup.underline.link', 'cm-tm-link-target'],
-  ['markup.bold', 'cm-tm-strong'],
-  ['markup.italic', 'cm-tm-emphasis'],
-  ['markup.raw', 'cm-tm-raw'],
-  ['meta.embedded.block', 'cm-tm-raw'],
-  ['meta.function.embedded', 'cm-tm-raw'],
-  ['entity.name.section', 'cm-tm-section-title'],
-  ['constant.other.reference.citation', 'cm-tm-citation-key'],
-  ['constant.other.reference.label', 'cm-tm-label-name'],
-  ['variable.parameter.definition.label', 'cm-tm-label-name'],
-  ['storage.type.function', 'cm-tm-function-definition'],
-  ['storage.type', 'cm-tm-function-definition'],
-  ['keyword.other.item', 'cm-tm-item-command'],
-  ['keyword.control.cite', 'cm-tm-citation-command'],
-  ['keyword.control.ref', 'cm-tm-reference-command'],
-  ['keyword.control.label', 'cm-tm-label-command'],
-  ['keyword.control.include', 'cm-tm-include-command'],
-  ['keyword.control.preamble', 'cm-tm-preamble-command'],
-  ['keyword.control.layout', 'cm-tm-layout-command'],
-  ['keyword.control.equation.newline', 'cm-tm-math-newline'],
-  ['keyword.control.equation.align', 'cm-tm-math-alignment'],
-  ['support.function.be', 'cm-tm-begin-end'],
-  ['support.function.url', 'cm-tm-link-function'],
-  ['support.function.section', 'cm-tm-section-command'],
-  ['support.function.textbf', 'cm-tm-text-command'],
-  ['support.function.textit', 'cm-tm-text-command'],
-  ['support.function.texttt', 'cm-tm-text-command'],
-  ['support.function.emph', 'cm-tm-text-command'],
-  ['support.function.verb', 'cm-tm-text-command'],
-  ['support.function.general', 'cm-tm-general-command'],
-  ['support.class.math.block.environment', 'cm-tm-math-variable'],
-  ['support.class.math.block.tex', 'cm-tm-math-variable'],
-  ['support.class.latex', 'cm-tm-package-class'],
-  ['constant.character.math', 'cm-tm-math-symbol'],
-  ['constant.other.general.math', 'cm-tm-math-function'],
-  ['constant.other.math', 'cm-tm-math-function'],
-  ['constant.character.escape', 'cm-tm-escape'],
-  ['meta.preamble', 'cm-tm-preamble'],
-  ['meta.include', 'cm-tm-include'],
-  ['punctuation.definition.constant.math', 'cm-tm-math-command-punctuation'],
-  ['punctuation.math.bracket.pair.big', 'cm-tm-math-structure'],
-  ['punctuation.definition.arguments.optional.begin', 'cm-tm-optional-brace'],
-  ['punctuation.definition.arguments.optional.end', 'cm-tm-optional-brace'],
-  ['punctuation.definition.arguments.begin', 'cm-tm-arg-brace'],
-  ['punctuation.definition.arguments.end', 'cm-tm-arg-brace'],
-  ['punctuation.definition.begin', 'cm-tm-arg-brace'],
-  ['punctuation.definition.end', 'cm-tm-arg-brace'],
-  ['punctuation.definition.string.begin.tex', 'cm-tm-math-delimiter'],
-  ['punctuation.definition.string.end.tex', 'cm-tm-math-delimiter'],
-  ['punctuation.definition.brackets.tex', 'cm-tm-math-bracket'],
-  ['punctuation.math.bracket.pair.big', 'cm-tm-math-bracket'],
-  ['punctuation.math.begin.bracket', 'cm-tm-math-bracket'],
-  ['punctuation.math.end.bracket', 'cm-tm-math-bracket'],
-  ['punctuation.math.operator', 'cm-tm-math-operator'],
-  ['keyword.operator', 'cm-tm-operator'],
-  ['punctuation.section', 'cm-tm-punctuation'],
-  ['punctuation.group', 'cm-tm-punctuation'],
-])
-
-function getDecorationForClasses(className) {
-  if (!decorationCache.has(className)) {
-    decorationCache.set(className, Decoration.mark({ class: className }))
+function resolveIncludedTheme(theme, seen = new Set()) {
+  if (!theme?.include) {
+    return {
+      colors: { ...(theme?.colors || {}) },
+      tokenColors: [...(theme?.tokenColors || [])],
+    }
   }
-  return decorationCache.get(className)
+
+  if (seen.has(theme.include)) {
+    throw new Error(`Circular VS Code theme include detected: ${theme.include}`)
+  }
+
+  const parentTheme = rawThemeFiles[theme.include]
+  if (!parentTheme) {
+    throw new Error(`Unknown VS Code theme include: ${theme.include}`)
+  }
+
+  const mergedParent = resolveIncludedTheme(parentTheme, new Set([...seen, theme.include]))
+  return {
+    colors: {
+      ...mergedParent.colors,
+      ...(theme.colors || {}),
+    },
+    tokenColors: [
+      ...mergedParent.tokenColors,
+      ...(theme.tokenColors || []),
+    ],
+  }
 }
 
-function classifyTextmateScopes(scopes = []) {
-  const classes = new Set()
-  const hasScope = (prefix) => scopes.some((scope) => scope.startsWith(prefix))
+function createRawTextmateTheme(theme) {
+  const merged = resolveIncludedTheme(theme)
+  const defaultForeground =
+    merged.colors['editor.foreground'] ||
+    merged.colors.foreground ||
+    '#D4D4D4'
+  const defaultBackground =
+    merged.colors['editor.background'] ||
+    merged.colors.background ||
+    '#1E1E1E'
 
-  if (hasScope('punctuation.definition.function') || hasScope('punctuation.definition.keyword')) {
-    if (hasScope('storage.type.function')) {
-      classes.add('cm-tm-function-definition')
-    } else if (hasScope('keyword.control.preamble')) {
-      classes.add('cm-tm-preamble-command')
-    } else if (hasScope('meta.parameter.newcommand') && hasScope('support.function.general')) {
-      classes.add('cm-tm-definition-target')
-    } else if (hasScope('meta.math.block') && hasScope('support.function.be')) {
-      classes.add('cm-tm-math-structure-command')
-    } else if (hasScope('support.function.be')) {
-      classes.add('cm-tm-begin-end')
-    } else if (hasScope('support.function.section')) {
-      classes.add('cm-tm-section-command')
-    } else if (hasScope('support.function.url')) {
-      classes.add('cm-tm-link-function')
-    } else if (hasScope('keyword.control.label')) {
-      classes.add('cm-tm-label-command')
-    } else if (hasScope('keyword.control.cite')) {
-      classes.add('cm-tm-citation-command')
-    } else if (hasScope('keyword.control.ref')) {
-      classes.add('cm-tm-reference-command')
-    } else if (hasScope('keyword.control.include')) {
-      classes.add('cm-tm-include-command')
-    } else if (hasScope('keyword.control.layout')) {
-      classes.add('cm-tm-layout-command')
-    } else if (hasScope('keyword.other.item')) {
-      classes.add('cm-tm-item-command')
-    } else if (hasScope('support.function.general')) {
-      classes.add('cm-tm-general-command')
-    } else {
-      classes.add('cm-tm-command-punctuation')
-    }
+  return {
+    name: theme.name,
+    settings: [
+      {
+        settings: {
+          foreground: defaultForeground,
+          background: defaultBackground,
+        },
+      },
+      ...merged.tokenColors,
+    ],
+  }
+}
+
+function getDecorationForStyle(style) {
+  if (!decorationCache.has(style)) {
+    decorationCache.set(
+      style,
+      Decoration.mark({
+        attributes: { style },
+      })
+    )
+  }
+  return decorationCache.get(style)
+}
+
+function getFontStyle(metadata) {
+  return (metadata & FONT_STYLE_MASK) >>> FONT_STYLE_OFFSET
+}
+
+function getForegroundId(metadata) {
+  return (metadata & FOREGROUND_MASK) >>> FOREGROUND_OFFSET
+}
+
+function buildInlineTextStyle(metadata) {
+  const styleParts = []
+  const foregroundId = getForegroundId(metadata)
+  const foreground = latexTextmateColorMap?.[foregroundId]
+  const fontStyle = getFontStyle(metadata)
+
+  if (foreground) {
+    styleParts.push(`color: ${foreground}`)
+  }
+  if (fontStyle & FONT_STYLE_ITALIC) {
+    styleParts.push('font-style: italic')
+  }
+  if (fontStyle & FONT_STYLE_BOLD) {
+    styleParts.push('font-weight: 700')
   }
 
-  if (hasScope('punctuation.definition.constant.math')) {
-    if (hasScope('constant.other.general.math') || hasScope('constant.other.math')) {
-      classes.add('cm-tm-math-function')
-    } else if (hasScope('constant.character.math')) {
-      classes.add('cm-tm-math-symbol')
-    }
+  const textDecorations = []
+  if (fontStyle & FONT_STYLE_UNDERLINE) {
+    textDecorations.push('underline')
+  }
+  if (fontStyle & FONT_STYLE_STRIKETHROUGH) {
+    textDecorations.push('line-through')
+  }
+  if (textDecorations.length > 0) {
+    styleParts.push(`text-decoration-line: ${textDecorations.join(' ')}`)
   }
 
-  if (hasScope('variable.parameter.function')) {
-    if (hasScope('meta.preamble')) {
-      classes.add('cm-tm-preamble-value')
-    } else if (hasScope('meta.parameter.optional')) {
-      classes.add('cm-tm-option-value')
-    } else if (hasScope('meta.math.block') && hasScope('meta.function.environment.math')) {
-      classes.add('cm-tm-math-environment-name')
-    } else if (hasScope('meta.function.environment')) {
-      classes.add('cm-tm-environment-name')
-    }
-  }
-
-  if (hasScope('support.class.latex') && hasScope('meta.preamble')) {
-    classes.add('cm-tm-preamble-value')
-  }
-
-  for (const scope of scopes) {
-    for (const [prefix, className] of TEXTMATE_SCOPE_CLASSIFIERS) {
-      if (scope.startsWith(prefix)) {
-        classes.add(className)
-      }
-    }
-  }
-
-  return Array.from(classes).join(' ')
+  return styleParts.join('; ')
 }
 
 async function ensureOnigurumaReady() {
@@ -200,13 +295,15 @@ export async function ensureLatexTextmateReady() {
   if (!latexTextmateReadyPromise) {
     latexTextmateReadyPromise = (async () => {
       const registry = new Registry({
+        theme: mergedVsCode2026DarkTheme,
         onigLib: ensureOnigurumaReady(),
         loadGrammar: async (scopeName) => loadRawGrammar(scopeName),
       })
 
       latexTextmateGrammar = await registry.loadGrammar(LATEX_SCOPE_NAME)
-      if (!latexTextmateGrammar) {
-        throw new Error('Failed to load LaTeX-Workshop TextMate grammar.')
+      latexTextmateColorMap = registry.getColorMap()
+      if (!latexTextmateGrammar || !latexTextmateColorMap) {
+        throw new Error('Failed to initialize LaTeX TextMate grammar or VS Code theme.')
       }
 
       return latexTextmateGrammar
@@ -230,18 +327,25 @@ function buildLatexTextmateDecorations(state) {
 
   for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
     const line = state.doc.line(lineNumber)
-    const lineResult = grammar.tokenizeLine(line.text, ruleStack)
+    const lineResult = grammar.tokenizeLine2(line.text, ruleStack)
+    const binaryTokens = lineResult.tokens
     ruleStack = lineResult.ruleStack
 
-    for (const token of lineResult.tokens) {
-      if (token.endIndex <= token.startIndex) continue
-      const className = classifyTextmateScopes(token.scopes)
-      if (!className) continue
+    for (let index = 0; index < binaryTokens.length; index += 2) {
+      const startIndex = binaryTokens[index]
+      const metadata = binaryTokens[index + 1]
+      const endIndex =
+        index + 2 < binaryTokens.length ? binaryTokens[index + 2] : line.text.length
+
+      if (endIndex <= startIndex) continue
+
+      const style = buildInlineTextStyle(metadata)
+      if (!style) continue
 
       builder.add(
-        line.from + token.startIndex,
-        line.from + token.endIndex,
-        getDecorationForClasses(className)
+        line.from + startIndex,
+        line.from + endIndex,
+        getDecorationForStyle(style)
       )
     }
   }
