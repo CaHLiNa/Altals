@@ -404,7 +404,7 @@ fn normalize_pdf_viewer_last_scale(value: &str) -> String {
             .ok()
             .filter(|value| value.is_finite() && *value > 0.0)
             .map(|value| {
-                let rounded = (value * 10_000.0).round() / 10_000.0;
+                let rounded = (value.min(2.0) * 10_000.0).round() / 10_000.0;
                 rounded.to_string()
             })
             .unwrap_or_default(),

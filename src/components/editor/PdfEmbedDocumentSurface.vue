@@ -333,7 +333,7 @@ const emit = defineEmits([
 ])
 
 const SEARCH_DEBOUNCE_MS = 140
-const ZOOM_MENU_PRESET_VALUES = ['0.5', '0.75', '1', '1.25', '1.5', '2', '3', '4']
+const ZOOM_MENU_PRESET_VALUES = ['0.5', '0.75', '1', '1.25', '1.5', '2']
 
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
@@ -1098,7 +1098,7 @@ function zoomBy(direction = 1) {
   const safeCurrentZoomLevel =
     Number.isFinite(currentZoomLevel) && currentZoomLevel > 0 ? currentZoomLevel : 1
   const multiplier = direction > 0 ? 1.1 : 0.9
-  const nextZoomLevel = clamp(safeCurrentZoomLevel * multiplier, 0.25, 5)
+  const nextZoomLevel = clamp(safeCurrentZoomLevel * multiplier, 0.25, 2)
 
   zoom.provides.value?.requestZoom(nextZoomLevel)
   void workspace.setPdfViewerZoomMode('remember-last').catch(() => {})
@@ -2172,18 +2172,18 @@ onMounted(() => {
 }
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select) {
-  width: auto;
-  min-width: 58px;
+  width: 94px;
+  min-width: 94px;
 }
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger) {
   height: 28px;
-  padding: 0 18px 0 6px;
+  padding: 0 22px 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   box-shadow: none;
 }
@@ -2198,7 +2198,7 @@ onMounted(() => {
 }
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-caret) {
-  right: 4px;
+  right: 8px;
 }
 
 .pdf-artifact-preview__forward-sync-highlight {

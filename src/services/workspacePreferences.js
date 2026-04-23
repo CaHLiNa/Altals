@@ -304,7 +304,7 @@ export function normalizeWorkspacePdfViewerLastScale(value) {
   if (['auto', 'page-fit', 'page-width'].includes(normalized)) return normalized
   const numeric = Number(normalized)
   if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_PDF_VIEWER_LAST_SCALE
-  return String(Math.round(numeric * 10000) / 10000)
+  return String(Math.round(Math.min(numeric, 2) * 10000) / 10000)
 }
 
 export function normalizeWorkspacePdfViewerPageThemeMode(value) {
