@@ -586,7 +586,7 @@ function resolveForwardSyncPageCoordinates(record = {}, pageMeta = null) {
 
   return {
     x: Math.max(0, pageX),
-    y: Math.max(0, pageHeight - pageY),
+    y: Math.min(pageHeight, Math.max(0, pageY)),
   }
 }
 
@@ -610,7 +610,7 @@ function buildForwardSyncRect(record = {}, pageMeta = null) {
   return {
     origin: {
       x: Math.max(0, h),
-      y: Math.max(0, pageHeight - v),
+      y: Math.min(pageHeight, Math.max(0, v - height)),
     },
     size: {
       width: Math.max(0, width),
@@ -637,7 +637,7 @@ function buildForwardSyncPointFallbackRect(record = {}, pageMeta = null) {
   return {
     origin: {
       x: Math.max(0, x - highlightWidth * 0.25),
-      y: Math.max(0, pageHeight - y - highlightHeight * 0.5),
+      y: Math.min(pageHeight, Math.max(0, y - highlightHeight * 0.5)),
     },
     size: {
       width: highlightWidth,
