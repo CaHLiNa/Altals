@@ -5,7 +5,6 @@
       :sourcePath="sourcePath"
       :artifactPath="artifactPath"
       :previewRevision="previewRevision"
-      :resolvedTheme="resolvedTheme"
       :themeTokens="themeTokens"
       :kind="kind"
       :workspacePath="workspace.path || ''"
@@ -57,7 +56,6 @@ const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const workflowStore = useDocumentWorkflowStore()
 const previewHostRef = ref(null)
-const resolvedTheme = ref(readResolvedTheme())
 const themeTokens = ref(capturePdfPreviewThemeTokens())
 
 const compileState = computed(() => {
@@ -89,10 +87,6 @@ function refreshThemeTokens() {
   themeTokens.value = capturePdfPreviewThemeTokens()
 }
 
-function refreshResolvedTheme() {
-  resolvedTheme.value = readResolvedTheme()
-}
-
 function readThemeTokenValue(name) {
   if (typeof document === 'undefined') return ''
 
@@ -117,22 +111,9 @@ function capturePdfPreviewThemeTokens() {
   return tokens
 }
 
-function readResolvedTheme() {
-  if (typeof document === 'undefined') return 'dark'
-
-  const root = document.documentElement
-  const theme = String(root?.dataset?.themeResolved || '').trim().toLowerCase()
-  if (theme === 'light' || theme === 'dark') {
-    return theme
-  }
-
-  return root?.classList?.contains('theme-light') ? 'light' : 'dark'
-}
-
 let themeSnapshotFrame = 0
 
 function commitThemeSnapshot() {
-  refreshResolvedTheme()
   refreshThemeTokens()
 }
 
