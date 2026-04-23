@@ -2,11 +2,24 @@
 
 ## 标准验证
 
-- `npm run lint`
-- `npm run build`
-- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `npm run check`
+- `npm run check:rust`
+- `npm run test:rust`
 
 调查阶段应运行能为当前改动切片提供最佳信心的检查；未完成相关验证前，不要宣称任务完成。
+
+## 本地提交流程
+
+- 默认提交前至少运行 `npm run check`、`npm run check:rust`、`npm run test:rust`。
+- 如果改动只覆盖其中一个层面，也应说明为什么缩小验证范围，而不是跳过说明。
+- Rust / Tauri、workflow、release 相关改动，优先跑完整基线，不要只依赖单个模块测试。
+
+## CI 与 Release
+
+- `.github/workflows/ci.yml` 是日常质量门，覆盖 `npm ci`、`npm run check`、`npm run check:rust`、`npm run test:rust`。
+- `.github/workflows/release-on-version-bump.yml` 会在创建 release tag 之前重复执行同一套质量门，避免“版本变更直接发版”。
+- `.github/workflows/release.yml` 在真正打包前还会再跑 release quality gate；release job 只有在这一步通过后才会进入各平台构建。
+- release workflow 负责产物打包与发布，不再承担“第一次发现 lint / build / test 失败”的职责。
 
 ## 提交与推送
 

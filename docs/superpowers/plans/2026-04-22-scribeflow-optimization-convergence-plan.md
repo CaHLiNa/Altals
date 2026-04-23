@@ -511,7 +511,7 @@ git commit -m "refactor: remove obsolete legacy runtime paths"
 - Modify: `docs/OPERATIONS.md`
 - Modify: `docs/ARCHITECTURE.md`
 
-- [ ] **Step 1: 统一本地检查命令**
+- [x] **Step 1: 统一本地检查命令**
 
 在 `package.json` 新增：
 
@@ -530,7 +530,7 @@ git commit -m "refactor: remove obsolete legacy runtime paths"
 - 不新增空壳命令。
 - 命令必须能直接被 CI 复用。
 
-- [ ] **Step 2: 新建 CI workflow**
+- [x] **Step 2: 新建 CI workflow**
 
 新增 `.github/workflows/ci.yml`，至少包含：
 
@@ -552,7 +552,14 @@ on:
     branches: [main]
 ```
 
-- [ ] **Step 3: 让 release 依赖 CI 通过**
+- [x] **Step 3: 让 release 依赖 CI 通过**
+
+当前结果：
+
+- `package.json` 已提供 `check` / `check:rust` / `test:rust`
+- `.github/workflows/ci.yml` 已复用这三条命令建立 baseline quality gate
+- `release.yml` 在打包前新增 `quality-gate` job
+- `release-on-version-bump.yml` 在创建 tag 前先执行同一套 quality gate
 
 要求：
 
@@ -560,7 +567,7 @@ on:
 - 但 release 之前必须能依赖 CI 或重复关键检查
 - 避免“release 是第一次发现 build 挂了”
 
-- [ ] **Step 4: 在 operations 文档写清开发者入口**
+- [x] **Step 4: 在 operations 文档写清开发者入口**
 
 更新 `docs/OPERATIONS.md`，增加：
 
@@ -568,7 +575,7 @@ on:
 - CI 覆盖哪些检查
 - release workflow 与 CI 的关系
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 Run:
 

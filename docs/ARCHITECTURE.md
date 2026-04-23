@@ -24,6 +24,12 @@
 - 当前 document workflow 的 legacy preview pane 已退出主路径，保留的 `preview:` tab 恢复逻辑只属于 editor session / workspace preview 的 temporary compat。
 - 每条 legacy path 都必须在审计文档里写明 delete condition 和 owner；没有退出条件的 legacy 分支视为需要优先清理。
 
+## Quality Gate
+
+- 本地与 CI 必须共用同一套 baseline 命令入口，避免出现“CI 跑的是另一套脚本”。
+- release workflow 必须依赖或重复 baseline quality gate，不能让打包发布成为首次完整验证。
+- 质量门的默认基线包括 frontend `check`、Rust `check` 和 Rust `test`；新增 phase 默认应复用这套基线，而不是重新发明检查入口。
+
 ## 桌面 UX 护栏
 
 - 除非用户明确批准更大范围的 UI 变化，否则应保留现有桌面端视觉与交互方向。

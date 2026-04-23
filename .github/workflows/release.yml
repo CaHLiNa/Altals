@@ -62,9 +62,55 @@ jobs:
           VERSION="$(node scripts/version-utils.mjs check-tag "${{ steps.release_meta.outputs.tag }}")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+  quality-gate:
+    name: Release quality gate
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build outputs
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: release-quality-gate
+
+      - name: Run frontend quality gate
+        run: npm run check
+
+      - name: Run Rust check
+        run: npm run check:rust
+
+      - name: Run Rust tests
+        run: npm run test:rust
+
   build-release:
     name: Release (${{ matrix.label }})
-    needs: prepare-release
+    needs:
+      - prepare-release
+      - quality-gate
     runs-on: ${{ matrix.platform }}
 
     strategy:
