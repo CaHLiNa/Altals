@@ -95,9 +95,9 @@ fn build_author_names_from_csl(csl: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn extract_csl_year(csl: &Value) -> Option<i64> {
-    csl.get("issued")
-        .and_then(|issued| issued.get("date-parts"))
+fn extract_year_from_date_parts(value: Option<&Value>) -> Option<i64> {
+    value
+        .and_then(|entry| entry.get("date-parts"))
         .and_then(Value::as_array)
         .and_then(|parts| parts.first())
         .and_then(Value::as_array)
@@ -105,25 +105,97 @@ fn extract_csl_year(csl: &Value) -> Option<i64> {
         .and_then(Value::as_i64)
 }
 
+fn extract_year_from_text(value: &str) -> Option<i64> {
+    value
+        .split(|ch: char| !ch.is_ascii_digit())
+        .find_map(|part| match part.len() {
+            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
+            _ => None,
+        })
+}
+
+fn extract_csl_year(csl: &Value) -> Option<i64> {
+    for field in [
+        "issued",
+        "published-print",
+        "published-online",
+        "original-date",
+        "submitted",
+        "created",
+    ] {
+        if let Some(year) = extract_year_from_date_parts(csl.get(field)) {
+            return Some(year);
+        }
+    }
+
+    for field in ["date", "raw-date", "literal"] {
+        if let Some(year) = csl
+            .get(field)
+            .and_then(Value::as_str)
+            .and_then(extract_year_from_text)
+        {
+            return Some(year);
+        }
+    }
+
+    None
+}
+
+fn sanitize_citation_key_component(value: &str) -> String {
+    value.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase()
+}
+
+fn first_author_family_key_component(csl: &Value) -> String {
+    let first_author = csl
+        .get("author")
+        .and_then(Value::as_array)
+        .and_then(|authors| authors.first());
+    let family = first_author
+        .and_then(|author| author.get("family"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !family.trim().is_empty() {
+        return sanitize_citation_key_component(family);
+    }
+
+    let literal = first_author
+        .and_then(|author| author.get("literal"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    sanitize_citation_key_component(literal)
+}
+
+fn looks_like_generated_citation_key(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || trimmed.contains('/')
+        || trimmed.contains(':')
+    {
+        return true;
+    }
+
+    trimmed.len() == 8
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+}
+
 fn build_citation_key(csl: &Value) -> String {
-    let explicit = normalize_whitespace(
-        &trim_string(csl.get("_key")).if_empty_then(|| trim_string(csl.get("id"))),
-    );
-    if !explicit.is_empty() {
+    let explicit = normalize_whitespace(&trim_string(csl.get("_key")));
+    if !looks_like_generated_citation_key(&explicit) {
         return explicit;
     }
 
-    let family = csl
-        .get("author")
-        .and_then(Value::as_array)
-        .and_then(|authors| authors.first())
-        .and_then(|author| author.get("family"))
-        .and_then(Value::as_str)
-        .unwrap_or("ref")
-        .to_lowercase()
-        .chars()
-        .filter(|ch| ch.is_ascii_alphanumeric())
-        .collect::<String>();
+    let family = first_author_family_key_component(csl);
     let year = extract_csl_year(csl)
         .map(|value| value.to_string())
         .unwrap_or_default();
@@ -132,10 +204,12 @@ fn build_citation_key(csl: &Value) -> String {
         if family.is_empty() { "ref" } else { &family },
         year
     );
-    if candidate.is_empty() {
-        "ref".to_string()
-    } else {
+    if !candidate.is_empty() {
         candidate
+    } else if !explicit.is_empty() {
+        sanitize_citation_key_component(&explicit)
+    } else {
+        "ref".to_string()
     }
 }
 

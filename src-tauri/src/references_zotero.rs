@@ -201,14 +201,50 @@ fn reference_type_to_zotero_item(value: &str) -> &'static str {
     }
 }
 
-fn extract_csl_year(item: &Value) -> Option<i64> {
-    item.get("issued")
-        .and_then(|issued| issued.get("date-parts"))
+fn extract_year_from_date_parts(value: Option<&Value>) -> Option<i64> {
+    value
+        .and_then(|entry| entry.get("date-parts"))
         .and_then(Value::as_array)
         .and_then(|parts| parts.first())
         .and_then(Value::as_array)
         .and_then(|parts| parts.first())
         .and_then(Value::as_i64)
+}
+
+fn extract_year_from_text(value: &str) -> Option<i64> {
+    value
+        .split(|ch: char| !ch.is_ascii_digit())
+        .find_map(|part| match part.len() {
+            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
+            _ => None,
+        })
+}
+
+fn extract_csl_year(item: &Value) -> Option<i64> {
+    for field in [
+        "issued",
+        "published-print",
+        "published-online",
+        "original-date",
+        "submitted",
+        "created",
+    ] {
+        if let Some(year) = extract_year_from_date_parts(item.get(field)) {
+            return Some(year);
+        }
+    }
+
+    for field in ["date", "raw-date", "literal"] {
+        if let Some(year) = item
+            .get(field)
+            .and_then(Value::as_str)
+            .and_then(extract_year_from_text)
+        {
+            return Some(year);
+        }
+    }
+
+    None
 }
 
 fn stringify_author(author: &Value) -> String {
@@ -236,27 +272,64 @@ fn build_author_names_from_csl(item: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn sanitize_citation_key_component(value: &str) -> String {
+    value.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase()
+}
+
+fn first_author_family_key_component(item: &Value) -> String {
+    let first_author = item
+        .get("author")
+        .and_then(Value::as_array)
+        .and_then(|authors| authors.first());
+    let family = first_author
+        .and_then(|author| author.get("family"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !family.trim().is_empty() {
+        return sanitize_citation_key_component(family);
+    }
+
+    let literal = first_author
+        .and_then(|author| author.get("literal"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    sanitize_citation_key_component(literal)
+}
+
+fn looks_like_generated_citation_key(value: &str, zotero_key: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    let normalized_zotero_key = zotero_key.trim().to_ascii_lowercase();
+    if lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || trimmed.contains('/')
+        || trimmed.contains(':')
+        || (!normalized_zotero_key.is_empty() && lower == normalized_zotero_key)
+    {
+        return true;
+    }
+
+    trimmed.len() == 8
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+}
+
 fn build_citation_key(item: &Value) -> String {
-    let explicit = normalize_whitespace(
-        &trim_string(item.get("_key")).if_empty_then(|| trim_string(item.get("id"))),
-    );
-    if !explicit.is_empty() {
+    let explicit = normalize_whitespace(&trim_string(item.get("_key")));
+    let zotero_key = extract_zotero_item_key(&trim_string(item.get("id")));
+    if !looks_like_generated_citation_key(&explicit, &zotero_key) {
         return explicit;
     }
 
-    let family = normalize_whitespace(
-        &item
-            .get("author")
-            .and_then(Value::as_array)
-            .and_then(|authors| authors.first())
-            .and_then(|author| author.get("family"))
-            .and_then(Value::as_str)
-            .unwrap_or("ref")
-            .to_lowercase()
-            .chars()
-            .filter(|ch| ch.is_ascii_alphanumeric())
-            .collect::<String>(),
-    );
+    let family = normalize_whitespace(&first_author_family_key_component(item));
     let year = extract_csl_year(item)
         .map(|value| value.to_string())
         .unwrap_or_default();
@@ -265,10 +338,14 @@ fn build_citation_key(item: &Value) -> String {
         if family.is_empty() { "ref" } else { &family },
         year
     );
-    if fallback.is_empty() {
-        format!("ref-{}", Uuid::new_v4())
-    } else {
+    if !fallback.is_empty() {
         fallback
+    } else if !zotero_key.is_empty() {
+        format!("ref{}", zotero_key.to_lowercase())
+    } else if !explicit.is_empty() {
+        sanitize_citation_key_component(&explicit)
+    } else {
+        format!("ref-{}", Uuid::new_v4())
     }
 }
 
@@ -575,6 +652,34 @@ fn has_local_references_for_library(references: &[Value], library_label: &str) -
     })
 }
 
+fn library_needs_metadata_refresh(references: &[Value], library_label: &str) -> bool {
+    references.iter().any(|reference| {
+        if trim_string(reference.get("_source")) != "zotero"
+            || trim_string(reference.get("_zoteroLibrary")) != library_label
+        {
+            return false;
+        }
+
+        let citation_key = trim_string(reference.get("citationKey"));
+        let zotero_key = trim_string(reference.get("_zoteroKey"));
+        let year = reference.get("year").and_then(Value::as_i64).unwrap_or(0);
+
+        looks_like_generated_citation_key(&citation_key, &zotero_key) || year <= 0
+    })
+}
+
+fn resolve_synced_citation_key(existing: &Value, normalized: &Value) -> String {
+    let existing_key = trim_string(existing.get("citationKey"));
+    let normalized_key = trim_string(normalized.get("citationKey"));
+    let zotero_key = trim_string(normalized.get("_zoteroKey"));
+
+    if existing_key.is_empty() || looks_like_generated_citation_key(&existing_key, &zotero_key) {
+        normalized_key
+    } else {
+        existing_key
+    }
+}
+
 async fn fetch_all_items(
     api_key: &str,
     library_type: &str,
@@ -781,7 +886,10 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
             .and_then(Value::as_i64)
             .unwrap_or(0);
         let effective_since_version =
-            if since_version > 0 && !has_local_references_for_library(&references, &version_key) {
+            if since_version > 0
+                && (!has_local_references_for_library(&references, &version_key)
+                    || library_needs_metadata_refresh(&references, &version_key))
+            {
                 0
             } else {
                 since_version
@@ -814,7 +922,7 @@ async fn perform_sync(params: ZoteroSyncParams) -> Result<Value, String> {
                     "volume": trim_string(normalized.get("volume")),
                     "issue": trim_string(normalized.get("issue")),
                     "pages": trim_string(normalized.get("pages")),
-                    "citationKey": trim_string(existing.get("citationKey")).if_empty_then(|| trim_string(normalized.get("citationKey"))),
+                    "citationKey": resolve_synced_citation_key(&existing, &normalized),
                     "collections": existing.get("collections").cloned().unwrap_or(Value::Array(Vec::new())),
                     "tags": existing.get("tags").cloned().unwrap_or(Value::Array(Vec::new())),
                     "pdfPath": trim_string(existing.get("pdfPath")),
@@ -1107,7 +1215,11 @@ impl StringExt for String {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_items_array, has_local_references_for_library};
+    use super::{
+        build_citation_key, extract_csl_year, extract_items_array,
+        has_local_references_for_library, library_needs_metadata_refresh,
+        looks_like_generated_citation_key,
+    };
     use serde_json::json;
 
     #[test]
@@ -1161,5 +1273,55 @@ mod tests {
             &references,
             "group/123456"
         ));
+    }
+
+    #[test]
+    fn extract_csl_year_falls_back_to_date_text() {
+        let payload = json!({
+            "date": "2023-08-15"
+        });
+
+        assert_eq!(extract_csl_year(&payload), Some(2023));
+    }
+
+    #[test]
+    fn build_citation_key_uses_first_author_and_year_for_zotero_ids() {
+        let payload = json!({
+            "id": "16788433/Q6ZQTSEA",
+            "author": [{ "given": "Qing", "family": "Qin" }],
+            "issued": { "date-parts": [[2024, 3, 1]] }
+        });
+
+        assert_eq!(build_citation_key(&payload), "qin2024");
+    }
+
+    #[test]
+    fn generated_key_detection_flags_zotero_identifiers() {
+        assert!(looks_like_generated_citation_key("16788433/Q6ZQTSEA", "Q6ZQTSEA"));
+        assert!(looks_like_generated_citation_key("Q6ZQTSEA", "Q6ZQTSEA"));
+        assert!(!looks_like_generated_citation_key("qin2024", "Q6ZQTSEA"));
+    }
+
+    #[test]
+    fn metadata_refresh_detects_missing_year_or_generated_key() {
+        let references = vec![
+            json!({
+                "_source": "zotero",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": "Q6ZQTSEA",
+                "citationKey": "16788433/Q6ZQTSEA",
+                "year": null
+            }),
+            json!({
+                "_source": "zotero",
+                "_zoteroLibrary": "user/16788433",
+                "_zoteroKey": "ABCD1234",
+                "citationKey": "qin2024",
+                "year": 2024
+            }),
+        ];
+
+        assert!(library_needs_metadata_refresh(&references, "user/16788433"));
+        assert!(!library_needs_metadata_refresh(&references, "group/123456"));
     }
 }
