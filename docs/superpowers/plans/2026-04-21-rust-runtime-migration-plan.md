@@ -717,7 +717,7 @@ Rust 接管：
 - `Task 6` 已完成
 - `Task 7` 已完成
 - `Task 8` 已完成
-- 当前 migration plan 的后续新增 phase 已全部收口；剩余只有 bookmark storage 这类平台 glue，不纳入本计划的“runtime authority”范围
+- 当前 migration plan 的后续新增 phase 已全部收口；后续又补充完成了 workspace bookmark storage 的 Rust 化，macOS security-scoped bookmark 不再由前端 `localStorage` 持久化。
 
 ---
 
@@ -835,7 +835,7 @@ Rust 接管：
 
 - workspace picker / launcher UI
 - setup wizard 展示与关闭交互
-- workspace bookmark capture / activate / release
+- workspace bookmark capture / activate / release 的 UI 触发
 
 ### 验收标准
 
@@ -873,7 +873,7 @@ Rust 接管：
 2. 已删除或降权的前端旧实现：
    `src/app/workspace/useWorkspaceLifecycle.js` 和 `src/components/SetupWizard.vue` 对这三个 `localStorage` key 的直接读取 / 写入；`workspaceRecents.js` 不再是桌面端主持久化实现
 3. 剩余未迁部分的阻塞点：
-   document workflow session 仍有前端 preview/session orchestration state；bookmark 存储也仍在前端 `localStorage`，但它属于 macOS access glue，未纳入当前 phase
+   document workflow session 仍有前端 preview/session orchestration state；workspace bookmark 存储已补充迁到 Rust，前端只保留非桌面 fallback。
 
 ---
 
@@ -951,7 +951,7 @@ Rust 接管：
 2. 已删除或降权的前端旧实现：
    `src/stores/documentWorkflow.js` 中基于 `localStorage` 的 `previewPrefs` 主持久化与本地 session/binding 权威
 3. 剩余未迁部分的阻塞点：
-   仅剩 resolved cache、markdown render transient state、pane UI 编排等前端 coordination；bookmark storage 仍在前端 `localStorage`，但属于平台 access glue，不纳入本计划的 runtime authority 范围
+   仅剩 resolved cache、markdown render transient state、pane UI 编排等前端 coordination；workspace bookmark storage 已补充迁到 Rust，前端只保留非桌面 fallback。
 
 ---
 
