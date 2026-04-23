@@ -232,6 +232,68 @@ fn find_ghostscript() -> Option<String> {
     None
 }
 
+fn find_ps2pdf() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        for candidate in [
+            "/opt/homebrew/bin/ps2pdf",
+            "/usr/local/bin/ps2pdf",
+            "/usr/bin/ps2pdf",
+        ] {
+            if Path::new(candidate).exists() {
+                return Some(candidate.to_string());
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        return lookup_binary_on_path("ps2pdf");
+    }
+
+    #[allow(unreachable_code)]
+    None
+}
+
+fn cached_postscript_pdf_path(source_path: &Path) -> Result<PathBuf, String> {
+    let cache_dir = image_preview_cache_path(source_path, 0)?;
+    fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
+    Ok(cache_dir.join("preview.pdf"))
+}
+
+fn convert_postscript_to_pdf(path: &Path) -> Result<PathBuf, String> {
+    let pdf_path = cached_postscript_pdf_path(path)?;
+    if pdf_path.exists() {
+        return Ok(pdf_path);
+    }
+
+    let source = path.to_string_lossy().to_string();
+    let output_path = pdf_path.to_string_lossy().to_string();
+    let ps2pdf =
+        find_ps2pdf().ok_or_else(|| "ps2pdf is not installed or not available on PATH.".to_string())?;
+    let output = background_command(&ps2pdf)
+        .args([&source, &output_path])
+        .output()
+        .map_err(|error| format!("Failed to start ps2pdf: {error}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() && !stdout.is_empty() {
+            format!("{stderr}\n{stdout}")
+        } else if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("{}", output.status)
+        };
+        return Err(format!("ps2pdf conversion failed: {detail}"));
+    }
+
+    Ok(pdf_path)
+}
+
 #[cfg(target_os = "macos")]
 fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
     if !path.exists() {
@@ -336,7 +398,9 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let detail = if !stderr.is_empty() {
+            let detail = if !stderr.is_empty() && !stdout.is_empty() {
+                format!("{stderr}\n{stdout}")
+            } else if !stderr.is_empty() {
                 stderr
             } else if !stdout.is_empty() {
                 stdout
@@ -781,6 +845,16 @@ pub async fn open_path_in_default_app(path: String) -> Result<(), String> {
                 .and_then(|value| value.to_str())
                 .map(|value| value.to_ascii_lowercase())
                 .unwrap_or_default();
+            if matches!(ext.as_str(), "eps" | "ps") {
+                let converted_pdf = convert_postscript_to_pdf(&target)?;
+                let preview_status = background_command("open")
+                    .args(["-a", "Preview", &converted_pdf.to_string_lossy()])
+                    .status()
+                    .map_err(|error| format!("Failed to launch Preview: {error}"))?;
+                if preview_status.success() {
+                    return Ok(());
+                }
+            }
             let prefer_preview = matches!(
                 ext.as_str(),
                 "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
