@@ -92,9 +92,6 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Python') }}</div>
-            <div v-if="pythonDiagnosticsHint" class="settings-row-hint">
-              {{ pythonDiagnosticsHint }}
-            </div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
             <span
@@ -186,7 +183,6 @@ import {
 } from '../../stores/latex'
 import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
-import { basenamePath } from '../../utils/path'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
@@ -223,11 +219,11 @@ const pythonInterpreterOptions = computed(() => {
     const runtimePath = String(runtime?.path || '').trim()
     if (!runtimePath) continue
 
-    const versionLabel = runtime?.version ? `Python ${runtime.version}` : basenamePath(runtimePath)
+    const versionLabel = runtime?.version ? `Python ${runtime.version}` : t('Python')
 
     options.push({
       value: runtimePath,
-      label: `${versionLabel} · ${runtimePath}`,
+      label: versionLabel,
       triggerLabel: versionLabel,
     })
   }
@@ -286,28 +282,6 @@ const pythonDiagnosticsText = computed(() => {
   return pythonStore.detectedInterpreterCount > 0
     ? t('Available')
     : t('Not found')
-})
-
-const pythonDiagnosticsHint = computed(() => {
-  const selectedPath = String(
-    pythonStore.interpreter.path
-    || pythonStore.selectedInterpreter.path
-    || '',
-  ).trim()
-
-  if (
-    pythonStore.interpreterPreference !== 'auto'
-    && !pythonStore.selectedInterpreterAvailable
-    && pythonStore.interpreterPreference
-  ) {
-    return pythonStore.interpreterPreference
-  }
-
-  if (pythonStore.interpreterPreference === 'auto') {
-    return selectedPath
-  }
-
-  return selectedPath || pythonStore.interpreterPreference
 })
 
 async function redetectSystem() {
