@@ -1,11 +1,40 @@
 <!-- START OF FILE src/components/settings/SettingsEnvironment.vue -->
 <template>
   <div class="env-page settings-page">
-    <h3 class="settings-section-title">{{ t('Environment') }}</h3>
+    <div class="env-page-header">
+      <div class="env-page-header-copy">
+        <h3 class="settings-section-title">{{ t('Environment') }}</h3>
+      </div>
+      <button
+        type="button"
+        class="diagnostics-refresh-btn"
+        :disabled="isRefreshingDiagnostics"
+        @click="redetectSystem"
+        :title="t('Refresh diagnostics')"
+      >
+        <svg
+          v-if="!isRefreshingDiagnostics"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+          <path d="M16 21v-5h5"></path>
+        </svg>
+        <span v-else class="diagnostics-spinner"></span>
+        <span class="diagnostics-refresh-label">{{ t('Refresh') }}</span>
+      </button>
+    </div>
 
-    <!-- 第一组：核心编译设置 -->
     <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Compilation') }}</h4>
+      <h4 class="settings-group-title">LaTeX</h4>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -39,66 +68,6 @@
           </div>
           <div class="settings-row-control">
             <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Python') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              v-model="pythonInterpreterPreference"
-              size="sm"
-              :options="pythonInterpreterOptions"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 第二组：环境诊断 (现在也放入标准的卡片中) -->
-    <section class="settings-group">
-      <div class="settings-group-header-row">
-        <h4 class="settings-group-title">{{ t('Environment Diagnostics') }}</h4>
-        <button
-          type="button"
-          class="diagnostics-refresh-btn"
-          :disabled="latexStore.checkingCompilers"
-          @click="redetectSystem"
-          :title="t('Refresh diagnostics')"
-        >
-          <svg
-            v-if="!latexStore.checkingCompilers"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-            <path d="M16 21v-5h5"></path>
-          </svg>
-          <span v-else class="diagnostics-spinner"></span>
-        </button>
-      </div>
-
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Python') }}</div>
-          </div>
-          <div class="settings-row-control compact diagnostic-status">
-            <span
-              class="status-dot"
-              :class="pythonDiagnosticsDotClass"
-            ></span>
-            <span class="status-text">{{ pythonDiagnosticsText }}</span>
           </div>
         </div>
 
@@ -167,6 +136,37 @@
             <span class="status-text">{{
               latexStore.latexindentInstalled ? t('Installed') : t('Not found')
             }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">Python</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Interpreter') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              v-model="pythonInterpreterPreference"
+              size="sm"
+              :options="pythonInterpreterOptions"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Runtime') }}</div>
+          </div>
+          <div class="settings-row-control compact diagnostic-status">
+            <span
+              class="status-dot"
+              :class="pythonDiagnosticsDotClass"
+            ></span>
+            <span class="status-text">{{ pythonDiagnosticsText }}</span>
           </div>
         </div>
       </div>
@@ -284,6 +284,13 @@ const pythonDiagnosticsText = computed(() => {
     : t('Not found')
 })
 
+const isRefreshingDiagnostics = computed(
+  () =>
+    pythonStore.checkingInterpreter
+    || latexStore.checkingCompilers
+    || latexStore.checkingTools,
+)
+
 async function redetectSystem() {
   await Promise.all([
     pythonStore.checkInterpreter(true),
@@ -307,44 +314,58 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.env-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: -16px;
+}
+
+.env-page-header-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .is-disabled-row {
   opacity: 0.5;
   pointer-events: none;
 }
 
-.settings-group-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.settings-group-header-row .settings-group-title {
-  margin-bottom: 0;
-}
-
 .diagnostics-refresh-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: var(--surface-base);
+  color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  transition: all 0.15s;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .diagnostics-refresh-btn:hover:not(:disabled) {
   background: var(--surface-hover);
   color: var(--text-primary);
+  border-color: var(--border);
 }
 
 .diagnostics-refresh-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.diagnostics-refresh-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .diagnostics-spinner {
@@ -383,6 +404,16 @@ onMounted(() => {
 .status-text {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .env-page-header {
+    margin-bottom: -20px;
+  }
+
+  .diagnostics-refresh-label {
+    display: none;
+  }
 }
 
 .text-error {
