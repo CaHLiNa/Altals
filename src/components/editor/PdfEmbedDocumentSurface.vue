@@ -218,6 +218,7 @@
           <div
             :ref="(element) => setPageElement(page, element)"
             class="pdf-artifact-preview__page-shell"
+            :class="{ 'is-forward-sync-target': forwardSyncPageNumber === page.pageNumber }"
             :data-page-number="page.pageNumber"
             :style="{ width: `${page.width}px`, height: `${page.height}px` }"
           >
@@ -271,7 +272,7 @@
 import { computed, defineComponent, nextTick, onUnmounted, ref, watch, watchEffect } from 'vue'
 
 import { useDocumentState } from '@embedpdf/core/vue'
-import { MatchFlag } from '@embedpdf/models'
+import { MatchFlag, Rotation, transformRect } from '@embedpdf/models'
 import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-manager'
 import {
   IconColumns2,
@@ -366,6 +367,7 @@ const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
+const forwardSyncPageNumber = ref(0)
 const queuedForwardSyncRequest = ref(null)
 
 const PdfEmbedPageSyncBridge = defineComponent({
@@ -554,6 +556,7 @@ function resolveDocumentPageMeta(pageNumber) {
 
 function clearForwardSyncHighlight() {
   forwardSyncOverlays.value = []
+  forwardSyncPageNumber.value = 0
   queuedForwardSyncRequest.value = null
   if (forwardSyncHighlightTimer && typeof window !== 'undefined') {
     window.clearTimeout(forwardSyncHighlightTimer)
@@ -569,6 +572,7 @@ function scheduleForwardSyncHighlightClear() {
   forwardSyncHighlightTimer = window.setTimeout(() => {
     forwardSyncHighlightTimer = 0
     forwardSyncOverlays.value = []
+    forwardSyncPageNumber.value = 0
   }, 1800)
 }
 
@@ -647,9 +651,6 @@ function buildForwardSyncOverlayEntries(request = null) {
   const records = Array.isArray(request?.target?.records) ? request.target.records : []
   if (!Number.isInteger(requestId) || requestId < 1 || records.length === 0) return []
 
-  const scrollScope = scrollCapability.value?.forDocument(props.documentId)
-  if (!scrollScope) return []
-
   return records
     .map((record, index) => {
       const pageNumber = Number(record?.page || 0)
@@ -659,17 +660,45 @@ function buildForwardSyncOverlayEntries(request = null) {
         || buildForwardSyncPointFallbackRect(record, pageMeta)
       if (!pageMeta || !pageBinding || !rect) return null
 
-      const positionedRect = scrollScope.getRectPositionForPage(pageNumber, rect)
-      if (!positionedRect) return null
+      const pageElement = pageBinding.element
+      const renderedPageWidth = Number(pageElement?.offsetWidth || pageBinding.page?.width || 0)
+      const renderedPageHeight = Number(pageElement?.offsetHeight || pageBinding.page?.height || 0)
+      const rotatedPageSize = pageMeta.rotatedSize || pageMeta.size
+      const basePageWidth = Number(rotatedPageSize?.width || pageMeta.size?.width || 0)
+      const basePageHeight = Number(rotatedPageSize?.height || pageMeta.size?.height || 0)
+      if (
+        !Number.isFinite(renderedPageWidth)
+        || !Number.isFinite(renderedPageHeight)
+        || renderedPageWidth <= 0
+        || renderedPageHeight <= 0
+        || !Number.isFinite(basePageWidth)
+        || !Number.isFinite(basePageHeight)
+        || basePageWidth <= 0
+        || basePageHeight <= 0
+      ) {
+        return null
+      }
+
+      const rotation = Number(pageMeta.rotation)
+      const normalizedRotation = [Rotation.Degree0, Rotation.Degree90, Rotation.Degree180, Rotation.Degree270].includes(rotation)
+        ? rotation
+        : Rotation.Degree0
+      const scale = renderedPageWidth / basePageWidth
+      const rotatedRect = transformRect(
+        pageMeta.size,
+        rect,
+        normalizedRotation,
+        scale,
+      )
 
       return {
         key: `${requestId}:${index}`,
         pageNumber,
         style: {
-          left: `${Math.max(0, positionedRect.origin.x - pageBinding.page.x)}px`,
-          top: `${Math.max(0, positionedRect.origin.y - pageBinding.page.y)}px`,
-          width: `${Math.max(0, positionedRect.size.width)}px`,
-          height: `${Math.max(0, positionedRect.size.height)}px`,
+          left: `${Math.max(0, rotatedRect.origin.x)}px`,
+          top: `${Math.max(0, rotatedRect.origin.y)}px`,
+          width: `${Math.max(12, rotatedRect.size.width)}px`,
+          height: `${Math.max(10, rotatedRect.size.height)}px`,
         },
       }
     })
@@ -1295,6 +1324,7 @@ async function applyForwardSyncRequest(request = null) {
     behavior: 'smooth',
     alignY: 34,
   })
+  forwardSyncPageNumber.value = pageNumber
 
   await nextTick()
   if (typeof window !== 'undefined') {
@@ -1775,6 +1805,15 @@ onUnmounted(() => {
   margin: 12px auto;
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.16);
   background: var(--embedpdf-page);
+  transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.pdf-artifact-preview__page-shell.is-forward-sync-target {
+  background: color-mix(in srgb, var(--focus-ring) 8%, var(--embedpdf-page));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--focus-ring) 60%, #ffd667 40%),
+    0 0 0 1px color-mix(in srgb, #ffffff 14%, transparent),
+    0 18px 42px color-mix(in srgb, var(--focus-ring) 18%, transparent);
 }
 
 .pdf-artifact-preview__page {
