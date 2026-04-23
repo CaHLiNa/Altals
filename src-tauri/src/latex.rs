@@ -1626,9 +1626,9 @@ fn run_synctex_view_cli(
     file_path: &str,
     pdf_path: &str,
     line: u32,
-    _column: u32,
+    column: u32,
 ) -> Result<serde_json::Value, String> {
-    let source_location = format!("{}:0:{}", line.max(1), file_path);
+    let source_location = format!("{}:{}:{}", line.max(1), column.max(1), file_path);
     let mut command = background_command(synctex_binary);
     apply_tex_locale_std(&mut command);
     let output = command
