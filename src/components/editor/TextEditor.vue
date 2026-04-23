@@ -472,12 +472,88 @@ function centeredMeaningfulColumn(lineText = '') {
   return Math.max(1, Math.round((firstIndex + lastIndex) / 2) + 1)
 }
 
+function escapeRegExp(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function findLatexDocumentStartLine(document) {
+  if (!document?.lines) return 1
+  for (let lineNumber = 1; lineNumber <= document.lines; lineNumber += 1) {
+    const text = stripLatexLineComment(document.line(lineNumber).text).trim()
+    if (/^\\begin\{document\}/.test(text)) {
+      return lineNumber
+    }
+  }
+  return 1
+}
+
+function parseLatexMacroDefinition(lineText = '') {
+  const content = stripLatexLineComment(lineText).trim()
+  if (!content) return null
+
+  const commandMatch = content.match(
+    /^\\(?:newcommand|renewcommand|providecommand|DeclareRobustCommand)\*?\s*(?:\{\\([A-Za-z@]+)\}|\\([A-Za-z@]+))/,
+  )
+  if (commandMatch) {
+    return {
+      macroName: commandMatch[1] || commandMatch[2] || '',
+      semanticOrigin: 'macro-definition',
+    }
+  }
+
+  const defMatch = content.match(/^\\(?:def|gdef|xdef|edef)\s*\\([A-Za-z@]+)/)
+  if (defMatch) {
+    return {
+      macroName: defMatch[1] || '',
+      semanticOrigin: 'macro-definition',
+    }
+  }
+
+  return null
+}
+
+function findLatexMacroUsageTarget(document, macroName = '', startLine = 1) {
+  if (!document?.lines || !macroName) return null
+  const macroPattern = new RegExp(`\\\\${escapeRegExp(macroName)}(?![A-Za-z@])`)
+
+  for (let lineNumber = Math.max(1, startLine); lineNumber <= document.lines; lineNumber += 1) {
+    const originalText = document.line(lineNumber).text
+    const searchText = stripLatexLineComment(originalText)
+    const match = searchText.match(macroPattern)
+    if (!match || match.index == null) continue
+
+    return {
+      line: lineNumber,
+      column: match.index + 1,
+      semanticOrigin: 'macro-usage',
+      semanticToken: macroName,
+    }
+  }
+
+  return null
+}
+
 function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
   if (!viewInstance?.state?.doc) return null
 
   const document = viewInstance.state.doc
   const currentLine = document.lineAt(pos)
-  const boundary = parseLatexDisplayMathBoundary(currentLine.text)
+  const currentLineText = currentLine.text
+  const documentStartLine = findLatexDocumentStartLine(document)
+  const macroDefinition =
+    currentLine.number < documentStartLine ? parseLatexMacroDefinition(currentLineText) : null
+  if (macroDefinition?.macroName) {
+    const usageTarget = findLatexMacroUsageTarget(
+      document,
+      macroDefinition.macroName,
+      Math.max(documentStartLine, currentLine.number + 1),
+    )
+    if (usageTarget) {
+      return usageTarget
+    }
+  }
+
+  const boundary = parseLatexDisplayMathBoundary(currentLineText)
   if (!boundary) {
     return {
       line: currentLine.number,
