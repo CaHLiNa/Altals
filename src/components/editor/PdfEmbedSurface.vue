@@ -1,5 +1,9 @@
 <template>
-  <div class="pdf-artifact-preview" :style="surfaceStyle">
+  <div
+    class="pdf-artifact-preview"
+    :class="{ 'is-dark-theme': resolvedTheme === 'dark' }"
+    :style="surfaceStyle"
+  >
     <div v-if="surfaceLoading" class="pdf-artifact-preview__state">
       {{ t('Loading PDF...') }}
     </div>
@@ -45,6 +49,7 @@
               :document-id="activeDocumentId"
               :artifactPath="artifactPath"
               :kind="kind"
+              :resolved-theme="resolvedTheme"
               :forward-sync-request="pendingForwardSyncRequest"
               :pdfViewerZoomMode="pdfViewerZoomMode"
               :pdfViewerSpreadMode="pdfViewerSpreadMode"
@@ -102,6 +107,7 @@ const props = defineProps({
   compileState: { type: Object, default: null },
   previewRevision: { type: Object, default: null },
   workspacePath: { type: String, default: '' },
+  resolvedTheme: { type: String, default: 'dark' },
   themeTokens: { type: Object, default: () => ({}) },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
@@ -140,7 +146,13 @@ const surfaceStyle = computed(() => ({
       || props.themeTokens?.['--shell-editor-surface']
       || '#141311'
   ).trim(),
-  '--embedpdf-page': String(props.themeTokens?.['--surface-base'] || '#ffffff').trim(),
+  '--embedpdf-page': String(
+    props.resolvedTheme === 'dark'
+      ? props.themeTokens?.['--surface-raised']
+        || props.themeTokens?.['--surface-base']
+        || '#1b1917'
+      : props.themeTokens?.['--surface-base'] || '#ffffff'
+  ).trim(),
 }))
 
 const surfaceLoading = computed(() => previewLoadPending.value || engineLoading.value)

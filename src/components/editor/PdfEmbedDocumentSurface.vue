@@ -2,6 +2,7 @@
   <div
     class="pdf-artifact-preview__surface"
     :class="{
+      'is-dark-theme': isDarkTheme,
       'is-search-open': searchUiVisible,
       'has-thumbnails-open': thumbnailsVisible,
     }"
@@ -232,16 +233,18 @@
                 @page-double-click="handlePageDoubleClick(page, $event)"
               />
               <RenderLayer :document-id="documentId" :page-index="page.pageIndex" />
-              <SearchLayer :document-id="documentId" :page-index="page.pageIndex" />
+              <SearchLayer
+                class="pdf-artifact-preview__search-layer"
+                :document-id="documentId"
+                :page-index="page.pageIndex"
+                :highlight-color="searchHighlightColor"
+                :active-highlight-color="activeSearchHighlightColor"
+              />
               <SelectionLayer
                 :document-id="documentId"
                 :page-index="page.pageIndex"
-                :text-style="{ background: 'rgba(80, 132, 255, 0.28)' }"
-                :marquee-style="{
-                  background: 'rgba(80, 132, 255, 0.16)',
-                  borderColor: 'rgba(80, 132, 255, 0.72)',
-                  borderStyle: 'solid',
-                }"
+                :text-style="selectionTextStyle"
+                :marquee-style="selectionMarqueeStyle"
               />
               <div
                 v-for="overlay in resolveForwardSyncOverlays(page.pageNumber)"
@@ -312,6 +315,7 @@ const props = defineProps({
   documentId: { type: String, required: true },
   artifactPath: { type: String, required: true },
   kind: { type: String, default: 'pdf' },
+  resolvedTheme: { type: String, default: 'dark' },
   forwardSyncRequest: { type: Object, default: null },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
@@ -367,6 +371,22 @@ const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
+
+const isDarkTheme = computed(() => String(props.resolvedTheme || '').trim().toLowerCase() === 'dark')
+const searchHighlightColor = computed(() =>
+  isDarkTheme.value ? 'rgba(115, 198, 255, 0.34)' : '#FFFF00'
+)
+const activeSearchHighlightColor = computed(() =>
+  isDarkTheme.value ? 'rgba(255, 210, 107, 0.42)' : '#FFBF00'
+)
+const selectionTextStyle = computed(() => ({
+  background: isDarkTheme.value ? 'rgba(115, 198, 255, 0.24)' : 'rgba(80, 132, 255, 0.28)',
+}))
+const selectionMarqueeStyle = computed(() => ({
+  background: isDarkTheme.value ? 'rgba(115, 198, 255, 0.12)' : 'rgba(80, 132, 255, 0.16)',
+  borderColor: isDarkTheme.value ? 'rgba(115, 198, 255, 0.62)' : 'rgba(80, 132, 255, 0.72)',
+  borderStyle: 'solid',
+}))
 
 const PdfEmbedPageSyncBridge = defineComponent({
   name: 'PdfEmbedPageSyncBridge',
@@ -1770,6 +1790,22 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   outline: none;
+  --embedpdf-render-filter: none;
+  --embedpdf-render-blend-mode: normal;
+  --embedpdf-render-opacity: 1;
+  --embedpdf-thumbnail-opacity: 1;
+  --embedpdf-search-blend-mode: multiply;
+  --embedpdf-search-opacity: 1;
+}
+
+.pdf-artifact-preview__surface.is-dark-theme {
+  --embedpdf-render-filter:
+    invert(1) hue-rotate(180deg) saturate(0.88) brightness(0.96) contrast(0.92);
+  --embedpdf-render-blend-mode: screen;
+  --embedpdf-render-opacity: 0.92;
+  --embedpdf-thumbnail-opacity: 0.84;
+  --embedpdf-search-blend-mode: screen;
+  --embedpdf-search-opacity: 0.78;
 }
 
 .pdf-artifact-preview__toolbar {
@@ -1925,6 +1961,12 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.pdf-artifact-preview__thumbnail-image img {
+  filter: var(--embedpdf-render-filter);
+  mix-blend-mode: var(--embedpdf-render-blend-mode);
+  opacity: var(--embedpdf-thumbnail-opacity);
+}
+
 .pdf-artifact-preview__thumbnail.is-active .pdf-artifact-preview__thumbnail-image {
   border-color: color-mix(in srgb, var(--focus-ring) 52%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
@@ -1956,6 +1998,12 @@ onUnmounted(() => {
   background: var(--embedpdf-page);
 }
 
+.pdf-artifact-preview__surface.is-dark-theme .pdf-artifact-preview__page-shell {
+  box-shadow:
+    0 18px 40px rgb(0 0 0 / 0.32),
+    0 0 0 1px color-mix(in srgb, var(--border-subtle) 24%, transparent);
+}
+
 .pdf-artifact-preview__page {
   position: relative;
   width: 100%;
@@ -1970,6 +2018,17 @@ onUnmounted(() => {
 .pdf-artifact-preview__page img {
   -webkit-user-drag: none;
   user-select: none;
+}
+
+.pdf-artifact-preview__page img {
+  filter: var(--embedpdf-render-filter);
+  mix-blend-mode: var(--embedpdf-render-blend-mode);
+  opacity: var(--embedpdf-render-opacity);
+}
+
+.pdf-artifact-preview__surface.is-dark-theme :deep(.pdf-artifact-preview__search-layer > div) {
+  mix-blend-mode: var(--embedpdf-search-blend-mode) !important;
+  opacity: var(--embedpdf-search-opacity);
 }
 
 .pdf-artifact-preview__toolbar-search {
