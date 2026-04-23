@@ -454,6 +454,7 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_delete,
             fs_commands::reveal_in_file_manager,
+            fs_commands::open_path_in_default_app,
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
             i18n_runtime::i18n_runtime_load,

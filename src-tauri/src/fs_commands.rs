@@ -196,6 +196,42 @@ fn image_preview_cache_path(source_path: &Path, max_size: u32) -> Result<PathBuf
     Ok(cache_dir.join(hash))
 }
 
+#[cfg(unix)]
+fn lookup_binary_on_path(binary_name: &str) -> Option<String> {
+    let output = background_command("/bin/bash")
+        .args(["-lc", &format!("which {binary_name}")])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        None
+    } else {
+        Some(path)
+    }
+}
+
+fn find_ghostscript() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        for candidate in ["/opt/homebrew/bin/gs", "/usr/local/bin/gs", "/usr/bin/gs"] {
+            if Path::new(candidate).exists() {
+                return Some(candidate.to_string());
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        return lookup_binary_on_path("gs");
+    }
+
+    #[allow(unreachable_code)]
+    None
+}
+
 #[cfg(target_os = "macos")]
 fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
     if !path.exists() {
@@ -291,13 +327,24 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
         args.push(preview_path.to_string_lossy().to_string());
         args.push(path.to_string_lossy().to_string());
 
-        let status = background_command("gs")
+        let ghostscript = find_ghostscript()
+            .ok_or_else(|| "Ghostscript is not installed or not available on PATH.".to_string())?;
+        let output = background_command(&ghostscript)
             .args(args)
-            .status()
+            .output()
             .map_err(|error| format!("Failed to start Ghostscript: {error}"))?;
 
-        if !status.success() {
-            return Err(format!("Ghostscript preview generation failed: {status}"));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let detail = if !stderr.is_empty() {
+                stderr
+            } else if !stdout.is_empty() {
+                stdout
+            } else {
+                format!("{}", output.status)
+            };
+            return Err(format!("Ghostscript preview generation failed: {detail}"));
         }
     }
 
@@ -718,6 +765,73 @@ pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
         }
         return Err(format!("Failed to reveal path in file manager: {status}"));
     }
+}
+
+#[tauri::command]
+pub async fn open_path_in_default_app(path: String) -> Result<(), String> {
+    run_blocking(move || {
+        let target = PathBuf::from(&path);
+        if !target.exists() {
+            return Err("Path does not exist".to_string());
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let ext = target
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.to_ascii_lowercase())
+                .unwrap_or_default();
+            let prefer_preview = matches!(
+                ext.as_str(),
+                "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
+            );
+
+            if prefer_preview {
+                let preview_status = background_command("open")
+                    .args(["-a", "Preview", &target.to_string_lossy()])
+                    .status()
+                    .map_err(|error| format!("Failed to launch Preview: {error}"))?;
+                if preview_status.success() {
+                    return Ok(());
+                }
+            }
+
+            let status = background_command("open")
+                .arg(&target)
+                .status()
+                .map_err(|error| format!("Failed to open file: {error}"))?;
+            if status.success() {
+                return Ok(());
+            }
+            return Err(format!("Failed to open file in the default app: {status}"));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let status = background_command("cmd")
+                .args(["/C", "start", "", &target.to_string_lossy()])
+                .status()
+                .map_err(|error| format!("Failed to open file: {error}"))?;
+            if status.success() {
+                return Ok(());
+            }
+            return Err(format!("Failed to open file in the default app: {status}"));
+        }
+
+        #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+        {
+            let status = background_command("xdg-open")
+                .arg(&target)
+                .status()
+                .map_err(|error| format!("Failed to open file: {error}"))?;
+            if status.success() {
+                return Ok(());
+            }
+            return Err(format!("Failed to open file in the default app: {status}"));
+        }
+    })
+    .await
 }
 
 #[tauri::command]
