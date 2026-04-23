@@ -254,7 +254,7 @@ onMounted(async () => {
 }
 
 .settings-group-title {
-  text-transform: none;
+  text-transform: none !important;
   letter-spacing: 0.02em;
 }
 </style>
