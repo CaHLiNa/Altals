@@ -1,6 +1,7 @@
 <template>
   <div
     class="pdf-artifact-preview__surface"
+    :style="surfaceStyle"
     :class="{
       'is-search-open': searchUiVisible,
       'has-thumbnails-open': thumbnailsVisible,
@@ -268,7 +269,7 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, nextTick, onUnmounted, ref, watch, watchEffect } from 'vue'
+import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 
 import { useDocumentState } from '@embedpdf/core/vue'
 import { MatchFlag, Rotation, transformRect } from '@embedpdf/models'
@@ -355,6 +356,7 @@ const {
 const pageBindings = new Map()
 const pendingRestoreState = ref(null)
 const initialLayoutHandled = ref(false)
+const layoutNudge = ref(0)
 const saveInProgress = ref(false)
 const selectedText = ref('')
 const selectionActive = ref(false)
@@ -367,6 +369,9 @@ const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
+const surfaceStyle = computed(() => ({
+  '--pdf-layout-nudge': `${layoutNudge.value}px`,
+}))
 
 const PdfEmbedPageSyncBridge = defineComponent({
   name: 'PdfEmbedPageSyncBridge',
@@ -403,6 +408,8 @@ let searchDebounceTimer = 0
 let suppressSearchWatch = false
 let forwardSyncHighlightTimer = 0
 let lastHandledForwardSyncRequestId = 0
+let scheduledLayoutNudgeFrame = 0
+let layoutNudgeResetFrame = 0
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -949,6 +956,37 @@ function scheduleViewStateEmission() {
   if (scheduledViewStateFrame) return
   scheduledViewStateFrame = window.requestAnimationFrame(() => {
     emitCurrentViewState()
+  })
+}
+
+function clearScheduledLayoutNudge() {
+  if (typeof window === 'undefined') return
+  if (scheduledLayoutNudgeFrame) {
+    window.cancelAnimationFrame(scheduledLayoutNudgeFrame)
+    scheduledLayoutNudgeFrame = 0
+  }
+  if (layoutNudgeResetFrame) {
+    window.cancelAnimationFrame(layoutNudgeResetFrame)
+    layoutNudgeResetFrame = 0
+  }
+  layoutNudge.value = 0
+}
+
+function scheduleInitialLayoutNudge() {
+  if (typeof window === 'undefined') return
+  if (initialLayoutHandled.value || pageBindings.size > 0) return
+
+  clearScheduledLayoutNudge()
+  scheduledLayoutNudgeFrame = window.requestAnimationFrame(() => {
+    scheduledLayoutNudgeFrame = window.requestAnimationFrame(() => {
+      scheduledLayoutNudgeFrame = 0
+      if (initialLayoutHandled.value || pageBindings.size > 0) return
+      layoutNudge.value = 1
+      layoutNudgeResetFrame = window.requestAnimationFrame(() => {
+        layoutNudgeResetFrame = 0
+        layoutNudge.value = 0
+      })
+    })
   })
 }
 
@@ -1600,6 +1638,7 @@ watch(
 watch(
   () => props.documentId,
   () => {
+    clearScheduledLayoutNudge()
     pageBindings.clear()
     currentContextMenuReverseSyncDetail.value = null
     initialLayoutHandled.value = false
@@ -1611,6 +1650,7 @@ watch(
     searchQuery.value = ''
     searchUiVisible.value = false
     scheduleViewStateEmission()
+    scheduleInitialLayoutNudge()
   }
 )
 
@@ -1727,6 +1767,7 @@ watch(
       if (!initialLayoutHandled.value) {
         applyViewerPreferences()
         initialLayoutHandled.value = true
+        clearScheduledLayoutNudge()
       }
       if (queuedForwardSyncRequest.value) {
         const queuedRequest = queuedForwardSyncRequest.value
@@ -1753,6 +1794,7 @@ watch(
 )
 
 onUnmounted(() => {
+  clearScheduledLayoutNudge()
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
@@ -1761,6 +1803,10 @@ onUnmounted(() => {
     window.cancelAnimationFrame(scheduledViewStateFrame)
     scheduledViewStateFrame = 0
   }
+})
+
+onMounted(() => {
+  scheduleInitialLayoutNudge()
 })
 </script>
 
@@ -1878,7 +1924,7 @@ onUnmounted(() => {
 
 .pdf-artifact-preview__body {
   position: relative;
-  width: 100%;
+  width: calc(100% - var(--pdf-layout-nudge, 0px));
   height: 100%;
 }
 
@@ -2146,6 +2192,7 @@ onUnmounted(() => {
   pointer-events: none;
   animation: pdf-forward-sync-highlight 1.35s ease-out forwards;
 }
+
 
 @keyframes pdf-forward-sync-highlight {
   0% {
