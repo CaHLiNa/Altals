@@ -1167,7 +1167,7 @@ function resolveForwardSyncAnchorPoint(point = {}) {
     return {
       page: pageNumber,
       x,
-      y: resolveForwardSyncAnchorY(point, y),
+      y,
     }
   }
 
@@ -1182,33 +1182,6 @@ function resolveForwardSyncAnchorPoint(point = {}) {
   }
 
   return null
-}
-
-function resolveForwardSyncAnchorY(point = {}, fallbackY = 0) {
-  const rawY = Number(fallbackY)
-  if (!Number.isFinite(rawY)) return fallbackY
-
-  const rectTop = Number(point.rectTop)
-  const rectHeight = Number(point.rectHeight)
-  if (!Number.isFinite(rectTop) || !Number.isFinite(rectHeight) || rectHeight <= 0) {
-    return rawY
-  }
-
-  const currentScale = Number(documentState.value?.scale || 1)
-  const safeScale = Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1
-  const oversizedRectThreshold = 22 / safeScale
-  if (rectHeight <= oversizedRectThreshold) {
-    return rawY
-  }
-
-  const lowerHalfThreshold = rectTop + rectHeight * 0.55
-  if (rawY < lowerHalfThreshold) {
-    return rawY
-  }
-
-  // SyncTeX 在矩阵/多行 block 内经常把 y 锚到块的下半部，这里把锚点收回到更接近首行的位置。
-  const lineAnchorOffset = Math.min(rectHeight * 0.35, 12 / safeScale)
-  return clamp(rectTop + lineAnchorOffset, rectTop, rectTop + rectHeight)
 }
 
 function resolveForwardSyncRect(point = {}) {
@@ -1228,31 +1201,6 @@ function resolveForwardSyncRect(point = {}) {
     return null
   }
 
-  const currentScale = Number(documentState.value?.scale || 1)
-  const safeScale = Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1
-  const maxHighlightHeight = 28 / safeScale
-  const clampedHeight = Math.min(rectHeight, maxHighlightHeight)
-  const oversizedRectThreshold = 22 / safeScale
-
-  if (rectHeight > oversizedRectThreshold) {
-    const anchorY = resolveForwardSyncAnchorY(point, Number(point.y))
-    const compactHeight = Math.min(rectHeight, 14 / safeScale)
-    const compactTop = Number.isFinite(anchorY)
-      ? clamp(anchorY - compactHeight * 0.55, rectTop, rectTop + rectHeight - compactHeight)
-      : rectTop
-
-    return {
-      origin: {
-        x: rectLeft,
-        y: compactTop,
-      },
-      size: {
-        width: rectWidth,
-        height: compactHeight,
-      },
-    }
-  }
-
   return {
     origin: {
       x: rectLeft,
@@ -1260,7 +1208,7 @@ function resolveForwardSyncRect(point = {}) {
     },
     size: {
       width: rectWidth,
-      height: clampedHeight,
+      height: rectHeight,
     },
   }
 }
