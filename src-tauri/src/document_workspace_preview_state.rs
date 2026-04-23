@@ -45,6 +45,10 @@ fn is_latex_path(path: &str) -> bool {
     path.ends_with(".tex") || path.ends_with(".latex")
 }
 
+fn is_python_path(path: &str) -> bool {
+    normalize_path(path).to_ascii_lowercase().ends_with(".py")
+}
+
 fn is_markdown_preview_path(path: &str) -> bool {
     normalize_path(path).starts_with("preview:")
 }
@@ -65,6 +69,8 @@ fn get_workspace_document_kind(path: &str, workflow_kind: &str) -> Option<&'stat
                 Some("markdown")
             } else if is_latex_path(path) {
                 Some("latex")
+            } else if is_python_path(path) {
+                Some("python")
             } else {
                 None
             }
@@ -196,6 +202,21 @@ pub async fn document_workspace_preview_state_resolve(
         } else {
             state
         });
+    }
+
+    if kind == "python" {
+        return Ok(create_preview_state(json!({
+            "useWorkspace": false,
+            "previewVisible": false,
+            "previewKind": Value::Null,
+            "previewMode": Value::Null,
+            "targetResolution": Value::Null,
+            "reason": "source-only",
+            "legacyReadOnly": false,
+            "allowPreviewCreation": false,
+            "preserveOpenLegacy": preserve_open_legacy,
+            "sourcePath": path,
+        })));
     }
 
     let pdf_preview_requested = requested_preview_kind == "pdf" && params.preview_requested;

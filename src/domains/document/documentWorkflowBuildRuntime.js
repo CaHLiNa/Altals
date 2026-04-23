@@ -142,6 +142,9 @@ function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, p
     latexState: adapter.kind === 'latex'
       ? context.latexStore?.stateForFile?.(filePath) || {}
       : null,
+    pythonState: adapter.kind === 'python'
+      ? context.pythonStore?.stateForFile?.(filePath) || {}
+      : null,
     queueState: adapter.kind === 'latex'
       ? context.latexStore?.queueStateForFile?.(filePath) || {}
       : null,
@@ -176,6 +179,7 @@ export function createDocumentWorkflowBuildRuntime({
   getFilesStore,
   getWorkspaceStore,
   getLatexStore,
+  getPythonStore,
 } = {}) {
   function resolveBaseContext(options = {}) {
     return {
@@ -185,6 +189,7 @@ export function createDocumentWorkflowBuildRuntime({
       chatStore: options.chatStore || null,
       workspace: options.workspace || getWorkspaceStore?.() || null,
       latexStore: options.latexStore || getLatexStore?.() || null,
+      pythonStore: options.pythonStore || getPythonStore?.() || null,
       toastStore: options.toastStore || null,
       t: options.t || null,
     }

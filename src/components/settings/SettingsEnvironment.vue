@@ -78,6 +78,25 @@
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Python') }}</div>
+          </div>
+          <div class="settings-row-control compact diagnostic-status">
+            <span
+              class="status-dot"
+              :class="pythonStore.hasInterpreter ? 'is-good' : 'is-none'"
+            ></span>
+            <span class="status-text">{{
+              pythonStore.hasInterpreter
+                ? pythonStore.interpreter.version
+                  ? `Python ${pythonStore.interpreter.version}`
+                  : t('Installed')
+                : t('Not found')
+            }}</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('System TeX') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
@@ -155,10 +174,12 @@ import {
   formatLatexBuildRecipeLabel,
   useLatexStore,
 } from '../../stores/latex'
+import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
+const pythonStore = usePythonStore()
 const { t } = useI18n()
 
 const latexBuildRecipeOptions = computed(() =>
@@ -193,13 +214,21 @@ const buildRecipe = computed({
 })
 
 async function redetectSystem() {
-  await Promise.all([latexStore.checkCompilers(true), latexStore.checkTools(true)])
+  await Promise.all([
+    pythonStore.checkInterpreter(true),
+    latexStore.checkCompilers(true),
+    latexStore.checkTools(true),
+  ])
 }
 
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame(() => {
-      Promise.all([latexStore.checkCompilers(), latexStore.checkTools()]).catch(() => {})
+      Promise.all([
+        pythonStore.checkInterpreter(),
+        latexStore.checkCompilers(),
+        latexStore.checkTools(),
+      ]).catch(() => {})
     })
   }
 })

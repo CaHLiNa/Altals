@@ -104,6 +104,7 @@ const kindLabel = computed(() => {
   if (!props.uiState || props.uiState.kind === 'text') return ''
   if (props.uiState.kind === 'markdown') return t('Markdown')
   if (props.uiState.kind === 'latex') return t('LaTeX')
+  if (props.uiState.kind === 'python') return t('Python')
   return ''
 })
 
@@ -128,24 +129,20 @@ const showShellStatus = computed(
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
 const primaryLabel = computed(() => {
-  if (props.uiState?.kind === 'latex') {
+  if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
     return t('Compile')
   }
   return t('Preview')
 })
 
 const primaryIcon = computed(() => {
-  if (props.uiState?.kind === 'latex') {
+  if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
     return IconPlayerPlay
   }
   return IconEye
 })
 
-const showPreviewButton = computed(() => {
-  if (!props.uiState?.kind || props.uiState.kind === 'text') return false
-  if (props.uiState.kind === 'latex') return false
-  return true
-})
+const showPreviewButton = computed(() => props.uiState?.canRevealPreview === true)
 
 const previewButtonLabel = computed(() =>
   props.uiState?.kind === 'markdown' ? t('Toggle preview') : t('Preview')
