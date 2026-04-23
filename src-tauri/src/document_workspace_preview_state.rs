@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkspacePreviewStateResolveParams {
     #[serde(default)]
@@ -266,4 +266,98 @@ pub async fn document_workspace_preview_state_resolve(
     } else {
         state
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        document_workspace_preview_state_resolve, DocumentWorkspacePreviewStateResolveParams,
+    };
+    use serde_json::Value;
+
+    #[tokio::test]
+    async fn resolves_markdown_source_to_html_workspace_preview() {
+        let state =
+            document_workspace_preview_state_resolve(DocumentWorkspacePreviewStateResolveParams {
+                path: "/tmp/demo.md".to_string(),
+                workflow_kind: "markdown".to_string(),
+                preview_kind: "html".to_string(),
+                ..DocumentWorkspacePreviewStateResolveParams::default()
+            })
+            .await
+            .expect("resolve markdown preview state");
+
+        assert_eq!(
+            state.get("useWorkspace").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            state.get("previewKind").and_then(Value::as_str),
+            Some("html")
+        );
+        assert_eq!(
+            state.get("previewMode").and_then(Value::as_str),
+            Some("markdown")
+        );
+        assert_eq!(
+            state.get("previewFilePath").and_then(Value::as_str),
+            Some("preview:/tmp/demo.md")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolves_latex_source_to_pdf_workspace_preview() {
+        let state =
+            document_workspace_preview_state_resolve(DocumentWorkspacePreviewStateResolveParams {
+                path: "/tmp/main.tex".to_string(),
+                workflow_kind: "latex".to_string(),
+                preview_kind: "pdf".to_string(),
+                resolved_target_path: "/tmp/main.pdf".to_string(),
+                artifact_ready: true,
+                preview_requested: true,
+                ..DocumentWorkspacePreviewStateResolveParams::default()
+            })
+            .await
+            .expect("resolve latex preview state");
+
+        assert_eq!(
+            state.get("useWorkspace").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            state.get("previewKind").and_then(Value::as_str),
+            Some("pdf")
+        );
+        assert_eq!(
+            state.get("previewMode").and_then(Value::as_str),
+            Some("pdf-artifact")
+        );
+        assert_eq!(
+            state.get("previewFilePath").and_then(Value::as_str),
+            Some("/tmp/main.pdf")
+        );
+    }
+
+    #[tokio::test]
+    async fn hides_preview_when_user_visibility_is_hidden() {
+        let state =
+            document_workspace_preview_state_resolve(DocumentWorkspacePreviewStateResolveParams {
+                path: "/tmp/demo.md".to_string(),
+                workflow_kind: "markdown".to_string(),
+                preview_kind: "html".to_string(),
+                hidden_by_user: true,
+                ..DocumentWorkspacePreviewStateResolveParams::default()
+            })
+            .await
+            .expect("resolve hidden preview state");
+
+        assert_eq!(
+            state.get("previewVisible").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            state.get("reason").and_then(Value::as_str),
+            Some("hidden-by-user")
+        );
+    }
 }

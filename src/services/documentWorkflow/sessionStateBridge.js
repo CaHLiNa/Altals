@@ -62,10 +62,7 @@ export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
   })
 
   clearLegacyPreviewPrefs()
-  return {
-    ...createDocumentWorkflowPersistentState(),
-    ...state,
-  }
+  return state
 }
 
 export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
@@ -82,8 +79,5 @@ export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', st
   })
 
   clearLegacyPreviewPrefs()
-  return {
-    ...createDocumentWorkflowPersistentState(),
-    ...normalized,
-  }
+  return normalized
 }

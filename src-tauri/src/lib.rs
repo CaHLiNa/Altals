@@ -3,7 +3,9 @@ mod document_outline;
 mod document_workflow;
 mod document_workflow_action;
 mod document_workflow_controller;
+mod document_workflow_preview_binding;
 mod document_workflow_session;
+mod document_workflow_ui_state;
 mod document_workspace_preview;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
@@ -494,10 +496,10 @@ pub fn run() {
             references_zotero::references_zotero_delete_item,
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,
-            document_workflow_action::document_workflow_ui_resolve,
             document_workflow_controller::document_workflow_controller_execute,
             document_workflow_session::document_workflow_session_load,
             document_workflow_session::document_workflow_session_save,
+            document_workflow_ui_state::document_workflow_ui_resolve,
             document_workspace_preview::document_workspace_preview_mutate,
             document_workspace_preview_state::document_workspace_preview_state_resolve,
             editor_session_runtime::editor_session_load,

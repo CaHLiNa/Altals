@@ -293,7 +293,7 @@ git commit -m "refactor: converge workspace runtime authority"
   - UI 过渡态
   - 预览 surface 渲染
 
-- [ ] **Step 1: 固定 document workflow 的 authority matrix**
+- [x] **Step 1: 固定 document workflow 的 authority matrix**
 
 在计划执行前，先把当前状态拆成四类：
 
@@ -308,7 +308,7 @@ Run: `rg -n "resolvedWorkflowUiStates|previewBindings|workspacePreviewRequests|w
 
 Expected: 能完整定位四类状态当前各自的真实来源。
 
-- [ ] **Step 2: 新增 Rust 子模块承接 UI state 与 preview binding**
+- [x] **Step 2: 新增 Rust 子模块承接 UI state 与 preview binding**
 
 新增：
 
@@ -330,6 +330,13 @@ pub fn reconcile_preview_session(...) -> Value
 
 - [ ] **Step 3: 瘦身前端 documentWorkflow store**
 
+当前进度：
+
+- 已把 UI state resolve 从 `document_workflow_action.rs` 拆到 `document_workflow_ui_state.rs`
+- 已把 preview binding schema / normalize 从 session 模块拆到 `document_workflow_preview_binding.rs`
+- 已让 close-preview plan 的 detach / unbind effect 优先由 Rust controller 输出驱动
+- `documentWorkflow` store 仍需后续继续拆分以满足体量下降目标
+
 重写 `src/stores/documentWorkflow.js` 的职责边界：
 
 - 保留 cache
@@ -346,7 +353,7 @@ Run: `wc -l src/stores/documentWorkflow.js`
 
 Expected: 体量明显下降，至少不再继续膨胀。
 
-- [ ] **Step 4: 为核心路径补 Rust 侧回归测试**
+- [x] **Step 4: 为核心路径补 Rust 侧回归测试**
 
 必须覆盖：
 

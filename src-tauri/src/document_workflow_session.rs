@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::document_workflow_preview_binding::normalize_preview_binding_set;
+pub use crate::document_workflow_preview_binding::DocumentWorkflowPreviewBinding;
 
 const DOCUMENT_WORKFLOW_SESSION_VERSION: u32 = 3;
 const DEFAULT_SESSION_STATE: &str = "inactive";
@@ -35,23 +38,6 @@ pub struct DocumentWorkflowSession {
     pub state: String,
     #[serde(default)]
     pub detached_sources: HashMap<String, bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct DocumentWorkflowPreviewBinding {
-    #[serde(default)]
-    pub preview_path: String,
-    #[serde(default)]
-    pub source_path: String,
-    #[serde(default)]
-    pub preview_kind: String,
-    #[serde(default)]
-    pub kind: String,
-    #[serde(default)]
-    pub pane_id: String,
-    #[serde(default = "default_detach_on_close")]
-    pub detach_on_close: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -121,10 +107,6 @@ fn default_document_workflow_session_version() -> u32 {
 
 fn default_session_state() -> String {
     DEFAULT_SESSION_STATE.to_string()
-}
-
-fn default_detach_on_close() -> bool {
-    true
 }
 
 impl Default for DocumentWorkflowSession {
@@ -227,6 +209,7 @@ fn normalize_workflow_kind(value: &str) -> String {
     match value.trim() {
         "markdown" => "markdown".to_string(),
         "latex" => "latex".to_string(),
+        "python" => "python".to_string(),
         _ => String::new(),
     }
 }
@@ -235,6 +218,7 @@ fn normalize_preview_kind(value: &str) -> String {
     match value.trim() {
         PREVIEW_KIND_HTML => PREVIEW_KIND_HTML.to_string(),
         PREVIEW_KIND_PDF => PREVIEW_KIND_PDF.to_string(),
+        "terminal" => "terminal".to_string(),
         _ => String::new(),
     }
 }
@@ -310,35 +294,6 @@ fn normalize_session(session: DocumentWorkflowSession) -> DocumentWorkflowSessio
         state: normalize_session_state_name(&session.state),
         detached_sources: normalize_detached_sources(session.detached_sources),
     }
-}
-
-fn normalize_preview_bindings(
-    bindings: Vec<DocumentWorkflowPreviewBinding>,
-) -> Vec<DocumentWorkflowPreviewBinding> {
-    let mut seen_paths = HashSet::new();
-    let mut normalized = Vec::new();
-
-    for binding in bindings {
-        let preview_path = normalize_path(&binding.preview_path);
-        let source_path = normalize_path(&binding.source_path);
-        if preview_path.is_empty()
-            || source_path.is_empty()
-            || !seen_paths.insert(preview_path.clone())
-        {
-            continue;
-        }
-
-        normalized.push(DocumentWorkflowPreviewBinding {
-            preview_path,
-            source_path,
-            preview_kind: normalize_preview_kind(&binding.preview_kind),
-            kind: normalize_workflow_kind(&binding.kind),
-            pane_id: normalize_path(&binding.pane_id),
-            detach_on_close: binding.detach_on_close,
-        });
-    }
-
-    normalized
 }
 
 fn normalize_workspace_preview_visibility(
@@ -449,7 +404,7 @@ pub fn normalize_document_workflow_persistent_state(
     DocumentWorkflowPersistentState {
         preview_prefs: normalize_preview_prefs(state.preview_prefs),
         session: normalize_session(state.session),
-        preview_bindings: normalize_preview_bindings(state.preview_bindings),
+        preview_bindings: normalize_preview_binding_set(state.preview_bindings),
         workspace_preview_visibility: normalize_workspace_preview_visibility(
             state.workspace_preview_visibility,
         ),
@@ -487,10 +442,10 @@ pub async fn document_workflow_session_save(
 mod tests {
     use super::{
         document_workflow_session_load, document_workflow_session_save,
-        normalize_document_workflow_persistent_state, DocumentWorkflowPersistentState,
-        DocumentWorkflowLatexPreviewState,
-        DocumentWorkflowPersistentStateLoadParams, DocumentWorkflowPersistentStateSaveParams,
-        DocumentWorkflowPreviewBinding, DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
+        normalize_document_workflow_persistent_state, DocumentWorkflowLatexPreviewState,
+        DocumentWorkflowPersistentState, DocumentWorkflowPersistentStateLoadParams,
+        DocumentWorkflowPersistentStateSaveParams, DocumentWorkflowPreviewBinding,
+        DocumentWorkflowPreviewPreference, DocumentWorkflowSession,
     };
     use std::collections::HashMap;
     use std::fs;

@@ -18,8 +18,10 @@ export function createDocumentWorkflowRuntime({
   getPreviewPrefs,
   getPreviewBindings,
   bindPreview,
+  unbindPreview,
   getPreferredPreviewKind,
   clearDetached,
+  markDetached,
   handlePreviewClosed,
   setSessionState,
   getIsReconciling,
@@ -68,8 +70,18 @@ export function createDocumentWorkflowRuntime({
       setSessionState?.(plan.sessionState)
     }
 
+    if (typeof plan.markDetachedSourcePath === 'string' && plan.markDetachedSourcePath) {
+      markDetached?.(plan.markDetachedSourcePath)
+    }
+
+    if (typeof plan.unbindPreviewPath === 'string' && plan.unbindPreviewPath) {
+      unbindPreview?.(plan.unbindPreviewPath)
+    }
+
     if (typeof plan.closePreviewPath === 'string' && plan.closePreviewPath) {
-      handlePreviewClosed?.(plan.closePreviewPath)
+      if (!plan.unbindPreviewPath && !plan.markDetachedSourcePath) {
+        handlePreviewClosed?.(plan.closePreviewPath)
+      }
       editorStore.closeFileFromAllPanes(plan.closePreviewPath)
     }
 

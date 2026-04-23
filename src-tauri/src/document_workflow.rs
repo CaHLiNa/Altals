@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::document_workflow_preview_binding::{
+    normalize_preview_binding_values, preview_binding_matches_source,
+};
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowReconcileParams {
@@ -162,20 +166,13 @@ pub(crate) fn matches_preview_binding(
     preferred_preview: Option<&str>,
     preview_bindings: &[Value],
 ) -> bool {
-    if let Some(binding) = preview_bindings
-        .iter()
+    if let Some(binding) = normalize_preview_binding_values(preview_bindings.to_vec())
+        .into_iter()
         .find(|binding| binding.get("previewPath").and_then(Value::as_str) == Some(tab_path))
     {
-        if binding.get("sourcePath").and_then(Value::as_str) == Some(source_path) {
-            let binding_kind = binding
-                .get("previewKind")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if preferred_preview.is_none() || preferred_preview == Some(binding_kind) {
-                return true;
-            }
-        }
+        return preview_binding_matches_source(&binding, source_path, preferred_preview);
     }
+
     let inferred = infer_workflow_preview_kind(source_path, tab_path);
     inferred.is_some() && (preferred_preview.is_none() || inferred == preferred_preview)
 }
@@ -349,4 +346,54 @@ pub async fn document_workflow_reconcile(
     params: DocumentWorkflowReconcileParams,
 ) -> Result<Value, String> {
     Ok(document_workflow_reconcile_value(params))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{document_workflow_reconcile_value, DocumentWorkflowReconcileParams};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn resolves_markdown_preview_without_legacy_pane_result() {
+        let value = document_workflow_reconcile_value(DocumentWorkflowReconcileParams {
+            active_file: "/tmp/demo.md".to_string(),
+            active_pane_id: "pane-1".to_string(),
+            pane_tree: json!({
+                "type": "split",
+                "direction": "vertical",
+                "children": [
+                    { "type": "leaf", "id": "pane-1", "tabs": ["/tmp/demo.md"], "activeTab": "/tmp/demo.md" },
+                    { "type": "leaf", "id": "pane-2", "tabs": ["preview:/tmp/demo.md"], "activeTab": "preview:/tmp/demo.md" }
+                ]
+            }),
+            trigger: "test".to_string(),
+            preview_prefs: json!({
+                "markdown": { "preferredPreview": "html" }
+            }),
+            detached_sources: Value::Null,
+            preview_bindings: vec![json!({
+                "previewPath": "preview:/tmp/demo.md",
+                "sourcePath": "/tmp/demo.md",
+                "previewKind": "html",
+                "kind": "markdown",
+                "paneId": "pane-2",
+            })],
+            force: false,
+            preview_kind_override: String::new(),
+            allow_legacy_pane_result: false,
+        });
+
+        assert_eq!(
+            value.get("type").and_then(Value::as_str),
+            Some("workspace-preview")
+        );
+        assert_eq!(
+            value.get("previewKind").and_then(Value::as_str),
+            Some("html")
+        );
+        assert_eq!(
+            value.get("preserveOpenLegacy").and_then(Value::as_bool),
+            Some(true)
+        );
+    }
 }

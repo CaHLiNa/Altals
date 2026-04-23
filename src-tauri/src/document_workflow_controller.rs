@@ -5,8 +5,11 @@ use crate::document_workflow::{
     create_workflow_preview_path, document_workflow_reconcile_value, get_document_workflow_kind,
     preferred_preview_kind, DocumentWorkflowReconcileParams,
 };
+use crate::document_workflow_preview_binding::{
+    find_open_preview_path_value, find_preview_binding_value, normalize_preview_binding_values,
+};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowControllerParams {
     #[serde(default)]
@@ -86,10 +89,7 @@ fn session_preview_kind(session: &Value) -> String {
 }
 
 fn find_preview_binding(preview_bindings: &[Value], preview_path: &str) -> Option<Value> {
-    preview_bindings
-        .iter()
-        .find(|binding| binding.get("previewPath").and_then(Value::as_str) == Some(preview_path))
-        .cloned()
+    find_preview_binding_value(preview_bindings, preview_path)
 }
 
 fn find_open_preview_path(
@@ -98,16 +98,10 @@ fn find_open_preview_path(
     preview_bindings: &[Value],
     session: &Value,
 ) -> Option<String> {
-    let binding = preview_bindings.iter().find(|binding| {
-        binding.get("sourcePath").and_then(Value::as_str) == Some(source_path)
-            && (preview_kind.is_empty()
-                || binding.get("previewKind").and_then(Value::as_str) == Some(preview_kind))
-    });
-    if let Some(binding) = binding {
-        return binding
-            .get("previewPath")
-            .and_then(Value::as_str)
-            .map(|value| value.to_string());
+    if let Some(preview_path) =
+        find_open_preview_path_value(preview_bindings, source_path, preview_kind)
+    {
+        return Some(preview_path);
     }
 
     if session_preview_source_path(session) == source_path
@@ -286,7 +280,7 @@ fn execute_reconcile(params: &DocumentWorkflowControllerParams) -> Value {
         trigger: params.trigger.clone(),
         preview_prefs: params.preview_prefs.clone(),
         detached_sources: params.detached_sources.clone(),
-        preview_bindings: params.preview_bindings.clone(),
+        preview_bindings: normalize_preview_binding_values(params.preview_bindings.clone()),
         force: params.force,
         preview_kind_override: params.preview_kind_override.clone(),
         allow_legacy_pane_result: params.allow_legacy_pane_result,
@@ -398,7 +392,7 @@ fn execute_ensure_or_reveal(params: &DocumentWorkflowControllerParams) -> Value 
         trigger,
         preview_prefs: params.preview_prefs.clone(),
         detached_sources: params.detached_sources.clone(),
-        preview_bindings: params.preview_bindings.clone(),
+        preview_bindings: normalize_preview_binding_values(params.preview_bindings.clone()),
         force: true,
         preview_kind_override: preview_kind.clone(),
         allow_legacy_pane_result: false,
@@ -434,4 +428,64 @@ pub async fn document_workflow_controller_execute(
         _ => Value::Null,
     };
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{document_workflow_controller_execute, DocumentWorkflowControllerParams};
+    use serde_json::{json, Value};
+
+    #[tokio::test]
+    async fn preview_close_marks_detached_when_binding_requires_it() {
+        let plan = document_workflow_controller_execute(DocumentWorkflowControllerParams {
+            operation: "close-preview".to_string(),
+            source_path: "/tmp/demo.md".to_string(),
+            preview_kind: "html".to_string(),
+            preview_bindings: vec![json!({
+                "previewPath": "preview:/tmp/demo.md",
+                "sourcePath": "/tmp/demo.md",
+                "previewKind": "html",
+                "kind": "markdown",
+                "paneId": "pane-2",
+                "detachOnClose": true,
+            })],
+            reconcile_after_close: false,
+            ..DocumentWorkflowControllerParams::default()
+        })
+        .await
+        .expect("execute close preview");
+
+        assert_eq!(
+            plan.get("closePreviewPath").and_then(Value::as_str),
+            Some("preview:/tmp/demo.md")
+        );
+        assert_eq!(
+            plan.get("markDetachedSourcePath").and_then(Value::as_str),
+            Some("/tmp/demo.md")
+        );
+    }
+
+    #[tokio::test]
+    async fn detached_preview_reopen_clears_detached_source() {
+        let plan = document_workflow_controller_execute(DocumentWorkflowControllerParams {
+            operation: "ensure-preview".to_string(),
+            source_path: "/tmp/demo.md".to_string(),
+            source_pane_id: "pane-1".to_string(),
+            preview_kind: "html".to_string(),
+            pane_tree: json!({
+                "type": "leaf",
+                "id": "pane-1",
+                "tabs": ["/tmp/demo.md"],
+                "activeTab": "/tmp/demo.md",
+            }),
+            ..DocumentWorkflowControllerParams::default()
+        })
+        .await
+        .expect("execute ensure preview");
+
+        assert_eq!(
+            plan.get("clearDetachedSourcePath").and_then(Value::as_str),
+            Some("/tmp/demo.md")
+        );
+    }
 }
