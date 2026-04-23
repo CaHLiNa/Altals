@@ -81,8 +81,8 @@ function startDrag(e) {
   width: 1px;
   border-radius: 999px;
   cursor: col-resize;
-  background: transparent;
-  opacity: 0;
+  background: var(--workbench-divider-soft);
+  opacity: 1;
   transition:
     opacity 140ms ease,
     background-color 140ms ease;

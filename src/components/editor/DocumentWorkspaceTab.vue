@@ -86,7 +86,6 @@ function handleResize(event) {
 .document-workspace-tab-preview {
   flex: 0 0 auto;
   background: var(--shell-preview-surface);
-  border-left: 1px solid var(--workbench-divider-soft);
   overflow: hidden;
 }
 
