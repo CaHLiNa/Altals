@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::references_runtime::{csl_to_reference_record, reference_record_to_csl};
+use crate::references_snapshot::{csl_to_reference_record, reference_record_to_csl};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

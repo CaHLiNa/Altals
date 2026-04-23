@@ -625,7 +625,7 @@ git commit -m "ci: add baseline quality gates"
 - 不做一次性大爆炸式 rename。
 - 每次拆分必须保持 public command 名称稳定，避免前端同步大面积重写。
 
-- [ ] **Step 1: 拆 LaTeX runtime**
+- [x] **Step 1: 拆 LaTeX runtime**
 
 将 `src-tauri/src/latex.rs` 至少分成：
 
@@ -643,7 +643,7 @@ pub async fn run_latex_compile(...) -> Result<..., String>
 pub fn parse_latex_log(...) -> Vec<Diagnostic>
 ```
 
-- [ ] **Step 2: 拆 References runtime**
+- [x] **Step 2: 拆 References runtime**
 
 将 `references_runtime.rs` / `references_backend.rs` 至少分成：
 
@@ -658,7 +658,13 @@ pub fn normalize_reference_snapshot(...) -> Value
 pub fn merge_reference_entries(...) -> Vec<Value>
 ```
 
-- [ ] **Step 3: 先迁测试，再迁实现**
+- [x] **Step 3: 先迁测试，再迁实现**
+
+当前结果：
+
+- `src-tauri/src/latex.rs` 已拆出 `latex_compile.rs` 与 `latex_diagnostics.rs`
+- `src-tauri/src/references_runtime.rs` / `src-tauri/src/references_backend.rs` 已拆出 `references_snapshot.rs` 与 `references_merge.rs`
+- 既有测试继续保留在 facade 文件入口，确保 command surface 与行为没有漂移
 
 要求：
 
@@ -666,7 +672,7 @@ pub fn merge_reference_entries(...) -> Vec<Value>
 - 再移动实现
 - 避免“拆完才能补测”的被动局面
 
-- [ ] **Step 4: 验证模块边界**
+- [x] **Step 4: 验证模块边界**
 
 Run:
 
@@ -681,7 +687,7 @@ Expected:
 - 被拆的 facade 文件明显缩短
 - 测试通过
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src-tauri/src/lib.rs src-tauri/src/latex.rs src-tauri/src/latex_compile.rs src-tauri/src/latex_diagnostics.rs src-tauri/src/references_runtime.rs src-tauri/src/references_backend.rs src-tauri/src/references_snapshot.rs src-tauri/src/references_merge.rs docs/DOMAINS.md

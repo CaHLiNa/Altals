@@ -22,3 +22,20 @@
 ## 规则
 
 如果某段行为属于产品策略，而不是单纯副作用 plumbing，就优先放进 `domains`，而不是 `components`、`services` 或 `stores`。
+
+## Rust Bounded Context
+
+- `src-tauri/src/latex.rs`
+  保留 LaTeX command facade、compile state 与 SyncTeX 高层入口。
+- `src-tauri/src/latex_compile.rs`
+  承担 LaTeX compile 执行链、streaming log、command 组装与 formatter / chktex 共享进程 helper。
+- `src-tauri/src/latex_diagnostics.rs`
+  承担 LaTeX / ChkTeX diagnostics 解析与列号修正。
+- `src-tauri/src/references_backend.rs`
+  保留 references library 文件读写、asset store 与 command facade。
+- `src-tauri/src/references_snapshot.rs`
+  承担 references snapshot / record normalize、CSL <-> record 转换与结构默认值。
+- `src-tauri/src/references_merge.rs`
+  承担 duplicate identity、snapshot merge 与 imported reference merge 策略。
+- `src-tauri/src/references_runtime.rs`
+  保留 PDF import、Crossref / DOI 查询、BibTeX 输出与 command facade。

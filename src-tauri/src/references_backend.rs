@@ -1,21 +1,19 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::references_merge::merge_library_snapshots;
+use crate::references_snapshot::{
+    bool_value, build_default_snapshot, clone_array, is_effectively_empty_snapshot,
+    normalize_reference_record, normalize_snapshot, trim_string, StringExt,
+};
 
 const REFERENCES_DIRNAME: &str = "references";
 const PDFS_DIRNAME: &str = "pdfs";
 const FULLTEXT_DIRNAME: &str = "fulltext";
 const REFERENCE_LIBRARY_FILENAME: &str = "library.json";
-
-const LEGACY_REFERENCE_FIXTURE_IDS: &[&str] = &["ref-1", "ref-2", "ref-3"];
-const LEGACY_REFERENCE_FIXTURE_TITLES: &[&str] = &[
-    "CBF-based safety design for adaptive control of uncertain nonlinear strict-feedback systems",
-    "Constraint-aware planning for long-horizon safe robot adaptation",
-    "Verification-friendly policy updates under barrier-certified constraints",
-];
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,283 +68,6 @@ pub struct ReferenceSnapshotNormalizeParams {
 pub struct ReferenceRecordNormalizeParams {
     #[serde(default)]
     pub reference: Value,
-}
-
-fn trim_string(value: Option<&Value>) -> String {
-    value
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn bool_value(value: Option<&Value>) -> bool {
-    value.and_then(Value::as_bool).unwrap_or(false)
-}
-
-fn string_array(value: Option<&Value>) -> Vec<Value> {
-    value
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(Value::as_str)
-                .map(|entry| Value::String(entry.to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn clone_array(value: Option<&Value>) -> Vec<Value> {
-    value.and_then(Value::as_array).cloned().unwrap_or_default()
-}
-
-fn normalize_reference_type_key(value: &str) -> String {
-    match value.trim().to_lowercase().as_str() {
-        "article" | "journal-article" | "journal article" | "期刊论文" => {
-            "journal-article".to_string()
-        }
-        "inproceedings" | "conference" | "conference-paper" | "conference paper" | "会议论文" => {
-            "conference-paper".to_string()
-        }
-        "book" | "图书" => "book".to_string(),
-        "thesis" | "phdthesis" | "mastersthesis" | "学位论文" => "thesis".to_string(),
-        "other" | "other reference" | "其他文献" => "other".to_string(),
-        _ => "other".to_string(),
-    }
-}
-
-fn normalize_tag_label(value: &str) -> String {
-    value.trim().to_string()
-}
-
-fn normalize_tag_key(value: &str) -> String {
-    normalize_tag_label(value).to_lowercase()
-}
-
-fn normalize_reference_collection_values(value: Option<&Value>) -> Vec<Value> {
-    let mut seen = HashSet::new();
-    value
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::trim)
-                .filter(|entry| !entry.is_empty())
-                .filter(|entry| seen.insert(entry.to_lowercase()))
-                .map(|entry| Value::String(entry.to_string()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
-}
-
-fn normalize_reference_tag_values(value: Option<&Value>) -> Vec<Value> {
-    let mut seen = HashSet::new();
-    value
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| {
-                    if let Some(text) = entry.as_str() {
-                        let label = normalize_tag_label(text);
-                        if label.is_empty() {
-                            None
-                        } else {
-                            Some(label)
-                        }
-                    } else if entry.is_object() {
-                        let label = normalize_tag_label(
-                            &trim_string(entry.get("label"))
-                                .if_empty_then(|| trim_string(entry.get("name")))
-                                .if_empty_then(|| trim_string(entry.get("key"))),
-                        );
-                        if label.is_empty() {
-                            None
-                        } else {
-                            Some(label)
-                        }
-                    } else {
-                        None
-                    }
-                })
-                .filter(|label| seen.insert(label.to_lowercase()))
-                .map(Value::String)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
-}
-
-fn normalize_collection_entries(value: Option<&Value>) -> Vec<Value> {
-    let mut normalized = Vec::new();
-    let mut seen = HashSet::new();
-
-    for entry in value.and_then(Value::as_array).cloned().unwrap_or_default() {
-        let key = trim_string(entry.get("key"))
-            .if_empty_then(|| trim_string(entry.get("label")).to_lowercase());
-        let label = trim_string(entry.get("label")).if_empty_then(|| trim_string(entry.get("key")));
-        let normalized_key = key.trim().to_lowercase();
-        if normalized_key.is_empty() || label.is_empty() || seen.contains(&normalized_key) {
-            continue;
-        }
-        seen.insert(normalized_key.clone());
-        normalized.push(json!({
-            "key": normalized_key,
-            "label": label,
-        }));
-    }
-
-    normalized
-}
-
-fn build_tag_registry(existing_tags: &[Value], references: &[Value]) -> Vec<Value> {
-    let mut tags = Vec::new();
-    let mut seen = HashSet::new();
-
-    for entry in existing_tags {
-        let label = trim_string(entry.get("label"))
-            .if_empty_then(|| trim_string(entry.get("name")))
-            .if_empty_then(|| trim_string(entry.get("key")));
-        let key = normalize_tag_key(&trim_string(entry.get("key")).if_empty_then(|| label.clone()));
-        if key.is_empty() || label.is_empty() || seen.contains(&key) {
-            continue;
-        }
-        seen.insert(key.clone());
-        tags.push(json!({ "key": key, "label": label }));
-    }
-
-    for reference in references {
-        for tag in normalize_reference_tag_values(reference.get("tags")) {
-            let label = tag.as_str().unwrap_or_default().to_string();
-            let key = normalize_tag_key(&label);
-            if key.is_empty() || seen.contains(&key) {
-                continue;
-            }
-            seen.insert(key.clone());
-            tags.push(json!({ "key": key, "label": label }));
-        }
-    }
-
-    tags.sort_by(|left, right| {
-        trim_string(left.get("label")).cmp(&trim_string(right.get("label")))
-    });
-    tags
-}
-
-pub(crate) fn normalize_reference_record(reference: &Value) -> Value {
-    let mut map = reference.as_object().cloned().unwrap_or_default();
-    let authors = string_array(map.get("authors"));
-    let author_line = trim_string(map.get("authorLine")).if_empty_then(|| {
-        authors
-            .iter()
-            .filter_map(Value::as_str)
-            .collect::<Vec<_>>()
-            .join("; ")
-    });
-    let pdf_path = trim_string(map.get("pdfPath"));
-    let fulltext_path = trim_string(map.get("fulltextPath"));
-    let type_key = normalize_reference_type_key(
-        &trim_string(map.get("typeKey")).if_empty_then(|| trim_string(map.get("typeLabel"))),
-    );
-
-    map.insert("authors".to_string(), Value::Array(authors));
-    map.insert("authorLine".to_string(), Value::String(author_line));
-    map.insert(
-        "collections".to_string(),
-        Value::Array(normalize_reference_collection_values(
-            map.get("collections"),
-        )),
-    );
-    map.insert(
-        "tags".to_string(),
-        Value::Array(normalize_reference_tag_values(map.get("tags"))),
-    );
-    map.insert(
-        "notes".to_string(),
-        Value::Array(clone_array(map.get("notes"))),
-    );
-    map.insert(
-        "annotations".to_string(),
-        Value::Array(clone_array(map.get("annotations"))),
-    );
-    map.insert("pdfPath".to_string(), Value::String(pdf_path.clone()));
-    map.insert(
-        "fulltextPath".to_string(),
-        Value::String(fulltext_path.clone()),
-    );
-    map.insert(
-        "hasPdf".to_string(),
-        Value::Bool(!pdf_path.is_empty() || bool_value(map.get("hasPdf"))),
-    );
-    map.insert(
-        "hasFullText".to_string(),
-        Value::Bool(!fulltext_path.is_empty() || bool_value(map.get("hasFullText"))),
-    );
-    map.insert("typeKey".to_string(), Value::String(type_key));
-    Value::Object(map)
-}
-
-fn is_legacy_fixture_reference(reference: &Value) -> bool {
-    let id = trim_string(reference.get("id"));
-    let title = trim_string(reference.get("title"));
-    LEGACY_REFERENCE_FIXTURE_IDS.contains(&id.as_str())
-        && LEGACY_REFERENCE_FIXTURE_TITLES.contains(&title.as_str())
-}
-
-pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
-    let collections = normalize_collection_entries(raw.get("collections"));
-    let references: Vec<Value> = raw
-        .get("references")
-        .and_then(Value::as_array)
-        .map(|references| {
-            references
-                .iter()
-                .map(normalize_reference_record)
-                .filter(|reference| !is_legacy_fixture_reference(reference))
-                .collect()
-        })
-        .unwrap_or_default();
-    let tags = build_tag_registry(&clone_array(raw.get("tags")), &references);
-
-    json!({
-        "version": raw.get("version").and_then(Value::as_u64).unwrap_or(2),
-        "legacyMigrationComplete": bool_value(raw.get("legacyMigrationComplete")),
-        "citationStyle": trim_string(raw.get("citationStyle")).if_empty_then(|| "apa".to_string()),
-        "collections": collections,
-        "tags": tags,
-        "references": references,
-    })
-}
-
-fn build_default_snapshot() -> Value {
-    json!({
-        "version": 2,
-        "legacyMigrationComplete": false,
-        "citationStyle": "apa",
-        "collections": [],
-        "tags": [],
-        "references": [],
-    })
-}
-
-fn is_effectively_empty_snapshot(snapshot: &Value) -> bool {
-    snapshot
-        .get("references")
-        .and_then(Value::as_array)
-        .map(|entries| entries.is_empty())
-        .unwrap_or(true)
-        && snapshot
-            .get("collections")
-            .and_then(Value::as_array)
-            .map(|entries| entries.is_empty())
-            .unwrap_or(true)
-        && snapshot
-            .get("tags")
-            .and_then(Value::as_array)
-            .map(|entries| entries.is_empty())
-            .unwrap_or(true)
 }
 
 fn normalize_root(path: &str) -> String {
@@ -404,137 +125,6 @@ fn read_first_existing_legacy_snapshot(
     Ok(None)
 }
 
-fn merge_library_entries(primary: &[Value], secondary: &[Value], field: &str) -> Vec<Value> {
-    let mut merged = Vec::new();
-    let mut seen = HashSet::new();
-
-    for item in primary.iter().chain(secondary.iter()) {
-        let identity = item
-            .get(field)
-            .or_else(|| item.get("label"))
-            .or_else(|| item.get("id"))
-            .and_then(Value::as_str)
-            .map(|value| value.trim().to_lowercase())
-            .unwrap_or_default();
-        if identity.is_empty() || seen.contains(&identity) {
-            continue;
-        }
-        seen.insert(identity);
-        merged.push(item.clone());
-    }
-
-    merged
-}
-
-fn tokenize_title(value: &str) -> HashSet<String> {
-    let mut tokens = HashSet::new();
-    let mut current = String::new();
-    for ch in value.trim().to_lowercase().chars() {
-        if ch.is_alphanumeric() || ('\u{4e00}'..='\u{9fff}').contains(&ch) {
-            current.push(ch);
-        } else if !current.is_empty() {
-            tokens.insert(std::mem::take(&mut current));
-        }
-    }
-    if !current.is_empty() {
-        tokens.insert(current);
-    }
-    tokens
-}
-
-fn title_similarity(left: &str, right: &str) -> f64 {
-    let left_tokens = tokenize_title(left);
-    let right_tokens = tokenize_title(right);
-    if left_tokens.is_empty() || right_tokens.is_empty() {
-        return 0.0;
-    }
-    let intersection = left_tokens.intersection(&right_tokens).count() as f64;
-    let union = left_tokens.union(&right_tokens).count() as f64;
-    if union == 0.0 {
-        0.0
-    } else {
-        intersection / union
-    }
-}
-
-fn same_reference_identity(current: &Value, candidate: &Value) -> bool {
-    let candidate_citation_key = trim_string(candidate.get("citationKey")).to_lowercase();
-    let candidate_identifier = trim_string(candidate.get("identifier")).to_lowercase();
-    let candidate_title = trim_string(candidate.get("title")).to_lowercase();
-    let candidate_year = candidate.get("year").and_then(Value::as_i64).unwrap_or(0);
-
-    let current_citation_key = trim_string(current.get("citationKey")).to_lowercase();
-    if !candidate_citation_key.is_empty()
-        && !current_citation_key.is_empty()
-        && candidate_citation_key == current_citation_key
-    {
-        return true;
-    }
-
-    let current_identifier = trim_string(current.get("identifier")).to_lowercase();
-    if !candidate_identifier.is_empty()
-        && !current_identifier.is_empty()
-        && candidate_identifier == current_identifier
-    {
-        return true;
-    }
-
-    let current_title = trim_string(current.get("title")).to_lowercase();
-    let current_year = current.get("year").and_then(Value::as_i64).unwrap_or(0);
-    candidate_year > 0
-        && current_year > 0
-        && candidate_year == current_year
-        && !candidate_title.is_empty()
-        && !current_title.is_empty()
-        && (candidate_title == current_title
-            || title_similarity(&candidate_title, &current_title) >= 0.85)
-}
-
-fn merge_reference_entries(primary: &[Value], secondary: &[Value]) -> Vec<Value> {
-    let mut merged = primary.to_vec();
-    for candidate in secondary {
-        if !merged
-            .iter()
-            .any(|current| same_reference_identity(current, candidate))
-        {
-            merged.push(candidate.clone());
-        }
-    }
-    merged
-}
-
-fn merge_library_snapshots(current: &Value, legacy: &Value) -> Value {
-    let normalized_current = normalize_snapshot(current);
-    let normalized_legacy = normalize_snapshot(legacy);
-
-    if is_effectively_empty_snapshot(&normalized_current)
-        && !is_effectively_empty_snapshot(&normalized_legacy)
-    {
-        return normalized_legacy;
-    }
-    if is_effectively_empty_snapshot(&normalized_legacy) {
-        return normalized_current;
-    }
-
-    let current_collections = clone_array(normalized_current.get("collections"));
-    let legacy_collections = clone_array(normalized_legacy.get("collections"));
-    let current_tags = clone_array(normalized_current.get("tags"));
-    let legacy_tags = clone_array(normalized_legacy.get("tags"));
-    let current_references = clone_array(normalized_current.get("references"));
-    let legacy_references = clone_array(normalized_legacy.get("references"));
-
-    json!({
-        "version": 2,
-        "legacyMigrationComplete": true,
-        "citationStyle": trim_string(normalized_current.get("citationStyle"))
-            .if_empty_then(|| trim_string(normalized_legacy.get("citationStyle")))
-            .if_empty_then(|| "apa".to_string()),
-        "collections": merge_library_entries(&current_collections, &legacy_collections, "key"),
-        "tags": merge_library_entries(&current_tags, &legacy_tags, "key"),
-        "references": merge_reference_entries(&current_references, &legacy_references),
-    })
-}
-
 fn write_snapshot_to_file(path: &Path, snapshot: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -560,9 +150,7 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
                 &params.legacy_project_root,
                 &params.legacy_workspace_data_dir,
             )? {
-                Some(legacy_snapshot) => {
-                    merge_library_snapshots(&project_snapshot, &legacy_snapshot)
-                }
+                Some(legacy_snapshot) => merge_library_snapshots(&project_snapshot, &legacy_snapshot),
                 None => project_snapshot,
             }
         } else {
@@ -799,25 +387,6 @@ pub async fn references_record_normalize(
     params: ReferenceRecordNormalizeParams,
 ) -> Result<Value, String> {
     Ok(normalize_reference_record(&params.reference))
-}
-
-trait StringExt {
-    fn if_empty_then<F>(self, fallback: F) -> String
-    where
-        F: FnOnce() -> String;
-}
-
-impl StringExt for String {
-    fn if_empty_then<F>(self, fallback: F) -> String
-    where
-        F: FnOnce() -> String,
-    {
-        if self.is_empty() {
-            fallback()
-        } else {
-            self
-        }
-    }
 }
 
 #[cfg(test)]
