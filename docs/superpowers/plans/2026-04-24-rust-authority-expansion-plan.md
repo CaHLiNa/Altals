@@ -1,179 +1,339 @@
-# ScribeFlow Rust Authority Expansion Plan
+# ScribeFlow JS Runtime Decomposition into Rust Plan
 
-> 目标不是“把所有 JS 变成 Rust”，而是继续把仍然停留在前端、但本质属于桌面 runtime / backend authority 的能力下沉到 Rust。
+> 这份 phase 的目标不是“Rust-first”口号化，也不是只把最终 authority 挪到 Rust。
+> 目标是：**持续把 JS / Vue 中承担 backend 功能性、运行时规则、状态机、查询、调度、缓存、编排的架构层，系统性转成 Rust 主导。**
 
-## 为什么另起这个 Phase
+## 目标定义
 
-当前 `2026-04-22` convergence plan 已经完成，但剩余代码面里仍有几块明显的 backend-ish 逻辑留在 `src/stores/*`、`src/domains/*` 和 `src/services/*`：
+本 phase 的核心目标是：
 
-- `src/stores/references.js`：928 行
-- `src/stores/latex.js`：842 行
-- `src/stores/files.js`：728 行
-- `src/stores/workspace.js`：604 行
-- `src/stores/editor.js`：579 行
-- `src/app/workspace/useWorkspaceLifecycle.js`：332 行
-- `src/domains/document/documentWorkflowSessionRuntime.js`：443 行
-- `src/domains/files/*` 一组 tree/cache/watch/hydration runtime
+- 凡是属于桌面 runtime / backend 功能性的逻辑，默认进入 Rust 候选池。
+- 前端最终只保留：
+  - UI 渲染
+  - 用户输入
+  - 极薄的 bridge
+  - 短暂 UI state
+- 不再接受 `stores`、`domains/*.js`、`services/*.js` 长期承载后台规则。
 
-这些文件里不全是 UI glue。里面还混着：
+换句话说，这一轮不是“继续优化 JS 架构”，而是**持续掏空 JS backend 架构**。
 
-- library filter / section / collection / tag / search 语义
-- LaTeX compile queue / lint / terminal stream orchestration
-- workspace tree hydrate / reconcile / cache / watch 策略
-- editor open routing / restore / context selection 的运行时决策
-- workspace open/close/background task orchestration
+## 为什么要另起这个 Phase
 
-这类逻辑如果继续留在前端，会让 Rust-first 只停在一部分 schema / command 上，而不是成为真正的桌面运行时权威。
+`2026-04-22` convergence plan 已经完成，Rust 已拿下：
+
+- workspace preferences / lifecycle / workbench shell layout
+- document workflow session / preview binding / ui resolve / action resolve
+- references snapshot / merge / citation / BibTeX
+- editor session / recent files
+- CI / release baseline quality gate
+- `latex` / `references` 的第一轮 Rust 模块拆分
+
+但当前仓库里仍有大量 backend-ish 逻辑堆在前端：
+
+- `src/stores/references.js`
+- `src/stores/latex.js`
+- `src/stores/files.js`
+- `src/stores/editor.js`
+- `src/stores/workspace.js`
+- `src/app/workspace/useWorkspaceLifecycle.js`
+- `src/domains/files/*`
+- `src/domains/document/documentWorkflowSessionRuntime.js`
+- 以及若干 `services/*.js` 中的 runtime bridge / fallback / orchestration
+
+所以现在的问题已经不是“Rust 有没有拿到一部分 authority”，而是：
+
+**JS 里还残留多少 backend 架构。**
+
+## 迁移原则
+
+### 1. 默认怀疑前端 backend 功能性
+
+只要某段 JS / Vue 逻辑在做以下事情，就默认应评估迁到 Rust：
+
+- query / filter / sort / search
+- session / state machine
+- runtime reconcile
+- compile / preview / import / export orchestration
+- background task scheduling
+- cache / watch / hydrate / restore 规则
+- 跨模块共享的 normalize / merge / dedupe 语义
+
+### 2. 不按文件类型判断，按职责判断
+
+不是 `.vue` 就一定不能迁，也不是 `.js` 就一定要迁。
+
+判断标准只有一个：
+
+**它是在做 UI，还是在做 backend 功能性。**
+
+### 3. 不接受长期 bridge 膨胀
+
+短期 bridge 可以接受，但必须满足：
+
+- 范围清楚
+- 生命周期短
+- 后续删除条件明确
+
+不能让 bridge 重新长成新的 JS 功能中心。
+
+### 4. 每一刀都要减少 JS 架构面积
+
+验收不是“Rust 新增了一个 command”，而是：
+
+- 对应 JS 文件真的变薄
+- 对应 JS 职责真的减少
+- 对应 runtime 规则不再留在前端
+
+### 5. 不误伤纯 UI 层
+
+以下区域不作为本 phase 的主迁移对象：
+
+- 组件模板
+- 样式与布局
+- 交互动效
+- 编辑器视图本身
+- pane drag/drop / hover / click 这类直接 UI 行为
 
 ## 非目标
 
-- 不迁移纯组件渲染、布局、样式、动效。
-- 不把 `TextEditor.vue`、`ReferenceLibraryWorkbench.vue`、`PdfEmbed*` 这类明显 UI-heavy 文件机械搬去 Rust。
-- 不在这一个 phase 里重做整个 editor shell。
+- 不把 Vue 组件渲染层改写成 Rust UI。
+- 不做一次性“全仓重写”。
+- 不因为追求纯 Rust runtime，就硬拆已经足够薄的纯 UI adapter。
+- 不把 `PdfEmbed*`、`TextEditor.vue`、`ReferenceLibraryWorkbench.vue` 这类 UI-heavy 文件误当成 backend 迁移目标。
 
-## 本 Phase 的判断标准
+## 当前迁移对象分类
 
-只有满足以下任一条件的前端逻辑，才纳入本 phase：
+### A. 明确属于 backend 功能性，应持续 Rust 化
 
-1. 它决定持久化后的最终状态语义。
-2. 它决定跨会话 / 跨模块一致的 runtime 行为。
-3. 它决定编译、预览、引用、文件树、恢复流程的产品规则。
-4. 它当前已经是“前端唯一真相来源”，而不是纯渲染 adapter。
+#### 1. References Runtime Completion
 
-## 优先级
+文件：
 
-### Priority 1: References Runtime Authority Completion
+- `src/stores/references.js`
 
-**理由：** `references.js` 仍然承担大量产品语义，已经超出“薄 store + UI glue”的边界。
+仍在前端的 backend 功能性：
 
-候选下沉内容：
-
-- section / source / collection / tag / search filter 语义
-- reference list sort rule
-- citation usage index 构建
+- section / source / collection / tag / query 语义
+- search / sort / counts
+- citation usage index
 - collection / tag registry 变更规则
-- reference import 结果归并后的 selection 语义
-
-建议新增 Rust 边界：
-
-- `references_query.rs`
-- `references_filters.rs`
-
-前端目标：
-
-- `src/stores/references.js` 退化为 query input、selection state、UI event dispatch
+- import 后 selection / refresh 语义
 
 当前进度：
 
-- 已完成第一刀：新增 Rust `references_query.rs`
-- 前端 `references.js` 已开始消费 backend query result，而不是继续本地推导 `filteredReferences` / `counts` / `sortedLibrary`
+- 已完成第一刀：新增 `src-tauri/src/references_query.rs`
+- `filteredReferences` / `sortedLibrary` / `counts` / `citedIn` 已开始消费 Rust query result
 
-### Priority 2: Files / Workspace Tree Runtime Migration
+后续目标：
 
-**理由：** `files.js` + `domains/files/*` 现在实际上承载了目录展开、snapshot hydrate、watch reconcile、cache replay 等运行时策略，这些更像桌面 runtime，而不是视图层 glue。
+- 继续把 mutation-side runtime 规则迁入 Rust
+- 把 `references.js` 收成 query input + selection state + UI dispatch
 
-候选下沉内容：
+建议 Rust 边界：
+
+- `references_query.rs`
+- `references_filters.rs`
+- `references_selection.rs`
+
+#### 2. Files / Workspace Tree Runtime
+
+文件：
+
+- `src/stores/files.js`
+- `src/domains/files/*`
+
+仍在前端的 backend 功能性：
 
 - visible tree hydrate / reconcile
-- expanded dirs replay
+- watch refresh / debounce
 - flat file index build
-- watch event normalize / debounce / refresh policy
-- file mutation effect 的最终 tree patch 规则
+- expanded dirs replay
+- tree cache / snapshot patch 规则
 
-建议新增 Rust 边界：
+后续目标：
+
+- workspace tree runtime 进入 Rust
+- 前端只接收 normalized tree snapshot
+
+建议 Rust 边界：
 
 - `workspace_tree_runtime.rs`
 - `workspace_tree_cache.rs`
+- `workspace_tree_watch.rs`
 
-前端目标：
+#### 3. LaTeX Orchestration Runtime
 
-- `src/stores/files.js` 主要保留 UI state、调用 backend、接收 normalized snapshot
+文件：
 
-### Priority 3: LaTeX Store Runtime Completion
+- `src/stores/latex.js`
 
-**理由：** `latex.rs` 已拆分，但 `src/stores/latex.js` 仍然非常厚，compile queue、lint state、terminal stream、tool check cache 还停在前端。
+仍在前端的 backend 功能性：
 
-候选下沉内容：
+- compile queue
+- rerun scheduling
+- lint runtime state
+- tool / compiler check cache
+- terminal stream aggregation
+- auto-compile debounce 规则
 
-- compile queue state machine
-- lint diagnostics runtime state
-- tool/compiler check cache 语义
-- compile result -> terminal/event aggregation
-- auto-compile debounce policy（至少把最终 compile scheduling rule 下沉）
+后续目标：
 
-建议新增 Rust 边界：
+- `latex.js` 从 runtime coordinator 降为 UI-facing state consumer
+
+建议 Rust 边界：
 
 - `latex_queue.rs`
 - `latex_lint_runtime.rs`
+- `latex_terminal_runtime.rs`
 
-前端目标：
+#### 4. Workspace Bootstrap / Teardown Orchestration
 
-- `src/stores/latex.js` 只保留 UI-facing status、command trigger、短期 cache
+文件：
 
-### Priority 4: Workspace Open/Close Orchestration
+- `src/app/workspace/useWorkspaceLifecycle.js`
 
-**理由：** `useWorkspaceLifecycle.js` 已经不只是 UI composable，它串联了打开工作区后的 background task、references hydrate、editor restore、watch start、zotero auto sync 等流程。
+仍在前端的 backend 功能性：
 
-候选下沉内容：
+- workspace open / close sequencing
+- hydrate 顺序
+- editor restore 时序
+- watcher start / refresh 条件
+- zotero auto sync 背景任务编排
 
-- workspace bootstrap/teardown orchestration contract
-- startup task ordering
-- background refresh trigger condition
-- restore sequencing contract
+后续目标：
 
-建议新增 Rust / typed contract 边界：
+- 前端只保留 dialog / shell hook / side effect adapter
+
+建议 Rust 或 typed contract 边界：
 
 - `workspace_bootstrap.rs`
 - `workspace_runtime_contract.rs`
 
-前端目标：
+#### 5. Editor Restore / Routing Runtime
 
-- `useWorkspaceLifecycle.js` 退化为 shell hook + dialog + effect adapter
+文件：
 
-### Priority 5: Editor Routing / Restore Rule Convergence
+- `src/stores/editor.js`
+- `src/domains/editor/editorOpenRoutingRuntime.js`
+- `src/domains/editor/editorRestoreRuntime.js`
+- `src/domains/editor/editorPersistenceRuntime.js`
 
-**理由：** `editor.js` 体量仍大，但其中混有大量 UI 行为；这里只迁“不是纯 UI”的 routing / restore 规则。
+仍在前端的 backend 功能性：
 
-候选下沉内容：
-
+- restore fallback
 - preferred context selection
-- tab restore ordering contract
-- companion pane / split restore rule
-- recent files 选择后的 restore policy
+- companion pane routing
+- active pane / context recovery
+- recent files 与 restore 的衔接规则
 
-不迁移：
+后续目标：
 
-- pane drag/drop
-- tab click/hover
-- editor view registry
+- 只保留 UI interaction
+- runtime restore / routing 规则继续下沉
 
-## 推荐执行顺序
+建议 Rust 边界：
 
-1. References query / filter authority
+- `editor_restore_contract.rs`
+- `editor_routing_runtime.rs`
+
+### B. Mixed Zone，但不是第一优先级
+
+#### `src/stores/workspace.js`
+
+现状：
+
+- 核心 authority 已在 Rust
+- 仍混有 shell state、bookmark / launcher 协调、settings UI state
+
+策略：
+
+- 不作为本 phase 第一刀
+- 跟随 workspace bootstrap contract 一起继续瘦身
+
+#### `src/domains/document/documentWorkflowSessionRuntime.js`
+
+现状：
+
+- document workflow 主 authority 已在 Rust
+- 剩余主要是 Rust-backed session 的前端 apply/save glue
+
+策略：
+
+- 可以继续瘦，但优先级低于 references / files / latex / workspace bootstrap
+
+### C. 明确不应机械 Rust 化的 UI-heavy 文件
+
+- `src/components/editor/PdfEmbedDocumentSurface.vue`
+- `src/components/editor/TextEditor.vue`
+- `src/components/editor/EditorPane.vue`
+- `src/components/editor/MarkdownPreview.vue`
+- `src/components/references/ReferenceLibraryWorkbench.vue`
+- `src/components/sidebar/FileTree.vue`
+- `src/components/settings/*`
+
+这些文件可以拆组件、做 adapter 提纯，但不应作为“Rust backend 架构迁移”的主目标。
+
+## 执行顺序
+
+推荐按下面顺序推进，不要乱序：
+
+1. References query / mutation runtime
 2. Files / workspace tree runtime
-3. LaTeX queue / lint runtime
-4. Workspace bootstrap orchestration
-5. Editor restore / routing convergence
+3. LaTeX orchestration runtime
+4. Workspace bootstrap / teardown orchestration
+5. Editor restore / routing runtime
 
-## 每个 Task 的共同验收标准
+## 当前切片状态
 
-- 迁入 Rust 的规则，不再在前端保留同级 authority。
-- store / composable 文件行数和职责同时下降，而不是仅仅“换个文件继续写 JS”。
-- 新 Rust 模块有直接测试入口。
-- 若保留 browser preview fallback，必须明确它是 fallback-only。
+### Task A: References Query / Filter Rust Migration
 
-## 先做的审计动作
+状态：
 
-执行这个 phase 前，建议先补一份剩余 authority 审计，专门回答三件事：
+- 已开始并已完成第一刀
 
-1. 哪些前端大文件只是 UI heavy，不该迁 Rust。
-2. 哪些前端大文件仍是 runtime authority。
-3. 哪些逻辑可以直接迁，哪些要先切 contract 再迁。
+已完成内容：
 
-建议输出文件：
+- Rust 新增 `references_query.rs`
+- 前端 `references.js` 已开始消费 Rust query result
+
+剩余内容：
+
+- collection / tag registry mutation 规则
+- import 后 selection / query refresh contract
+- search / query state normalize 的完整 Rust contract
+
+## 每个切片的共同验收标准
+
+- 对应 backend 功能性不再在前端保留同级实现。
+- 对应 JS 文件职责和行数同时下降。
+- Rust 新模块有直接测试入口。
+- 若仍保留前端 fallback，必须明确是 fallback-only，而不是桌面端真实实现。
+
+## 建议配套审计
+
+本 phase 的审计文件：
 
 - `docs/2026-04-24-remaining-rust-authority-audit.md`
 
-## 结论
+用途：
 
-你现在的感觉是对的：Rust 还没有到“桌面 runtime 权威的多数”。但真正该盯的不是 `.vue` 文件数量，而是剩余的前端 authority 面。这个新 phase 的目标，就是把这些 authority 面继续下沉，而不是误伤纯 UI 层。
+- 区分 UI-heavy 与 backend-ish 剩余面
+- 防止误把大组件当成迁移目标
+- 为每个后续切片提供边界依据
+
+## 最终目标
+
+当这个 phase 完成时，ScribeFlow 的前端应主要剩下：
+
+- 渲染
+- 输入
+- 极薄 bridge
+- 短期 UI state
+
+而不是再继续承担：
+
+- backend 规则
+- runtime state machine
+- project-level query / filter / sort / merge / reconcile / bootstrap 语义
+
+这才叫**JS backend 架构持续 Rust 化**。
