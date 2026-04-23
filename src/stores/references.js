@@ -30,7 +30,6 @@ import {
   importReferencesFromText,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
-import { applyReferenceMutation } from '../services/references/referenceMutationBridge.js'
 import { resolveReferenceQueryState } from '../services/references/referenceQueryBridge.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 import { resolveReferenceQueryStateLocally } from '../domains/references/referenceQueryRuntime.js'
@@ -78,6 +77,23 @@ function buildDefaultResolvedQueryState(state = {}) {
     searchQuery: state.searchQuery || '',
     sortKey: state.sortKey || 'year-desc',
     fileContents: {},
+  })
+}
+
+function hasDesktopInvoke() {
+  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
+}
+
+async function invokeReferenceMutation(params = {}) {
+  if (!hasDesktopInvoke()) {
+    throw new Error('References mutation runtime requires desktop Rust backend.')
+  }
+
+  return invoke('references_mutation_apply', {
+    params: {
+      snapshot: params.snapshot && typeof params.snapshot === 'object' ? params.snapshot : {},
+      action: params.action && typeof params.action === 'object' ? params.action : { type: '' },
+    },
   })
 }
 
@@ -323,7 +339,7 @@ export const useReferencesStore = defineStore('references', {
 
       this.importInFlight = true
       try {
-        const mutation = await applyReferenceMutation({
+        const mutation = await invokeReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
@@ -365,7 +381,7 @@ export const useReferencesStore = defineStore('references', {
         const markedReferences = shouldMark
           ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
           : importedReferences
-        const mutation = await applyReferenceMutation({
+        const mutation = await invokeReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
@@ -391,7 +407,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async createCollection(projectRoot = '', label = '') {
-      const mutation = await applyReferenceMutation({
+      const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'createCollection',
@@ -407,7 +423,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async renameCollection(projectRoot = '', collectionKey = '', nextLabel = '') {
-      const mutation = await applyReferenceMutation({
+      const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'renameCollection',
@@ -424,7 +440,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeCollection(projectRoot = '', collectionKey = '') {
-      const mutation = await applyReferenceMutation({
+      const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'removeCollection',
@@ -620,7 +636,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async toggleReferenceCollection(projectRoot = '', referenceId = '', collectionKey = '') {
-      const mutation = await applyReferenceMutation({
+      const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'toggleReferenceCollection',
