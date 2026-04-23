@@ -53,26 +53,6 @@
             />
           </div>
         </div>
-      </div>
-    </section>
-
-    <section class="settings-group">
-      <h4 class="settings-group-title">{{ t('Markdown') }}</h4>
-      <div class="settings-group-body">
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Markdown font') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              shell-class="font-select"
-              :model-value="workspace.markdownFont"
-              :options="fontSelectOptions(workspace.markdownFont)"
-              :placeholder="t('Select')"
-              @update:model-value="workspace.setMarkdownFont"
-            />
-          </div>
-        </div>
 
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -109,24 +89,44 @@
 
         <div class="settings-row">
           <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Sync Markdown preview') }}</div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.markdownPreviewSync"
-              @update:model-value="workspace.setMarkdownPreviewSync($event)"
-            />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Spellcheck') }}</div>
           </div>
           <div class="settings-row-control compact">
             <UiSwitch
               :model-value="workspace.editorSpellcheck"
               @update:model-value="workspace.setEditorSpellcheck($event)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
+      <h4 class="settings-group-title">{{ t('Markdown') }}</h4>
+      <div class="settings-group-body">
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Markdown font') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              shell-class="font-select"
+              :model-value="workspace.markdownFont"
+              :options="fontSelectOptions(workspace.markdownFont)"
+              :placeholder="t('Select')"
+              @update:model-value="workspace.setMarkdownFont"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Sync Markdown preview') }}</div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.markdownPreviewSync"
+              @update:model-value="workspace.setMarkdownPreviewSync($event)"
             />
           </div>
         </div>
