@@ -3,11 +3,13 @@
     <div class="document-workspace-tab-source" :style="sourceStyle">
       <slot name="source" />
     </div>
-    <SplitHandle
-      v-if="previewVisible"
-      direction="vertical"
-      @resize="handleResize"
-    />
+    <div v-if="previewVisible" class="document-workspace-tab-resize-slot">
+      <ResizeHandle
+        class="document-workspace-tab-resize-handle"
+        direction="vertical"
+        @resize="handleResize"
+      />
+    </div>
     <div v-if="previewVisible" class="document-workspace-tab-preview" :style="previewStyle">
       <slot name="preview" />
     </div>
@@ -16,7 +18,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import SplitHandle from './SplitHandle.vue'
+import ResizeHandle from '../layout/ResizeHandle.vue'
 
 const props = defineProps({
   previewVisible: { type: Boolean, default: false },
@@ -28,14 +30,14 @@ const previewRatio = ref(0.46)
 const sourceStyle = computed(() => {
   if (!props.previewVisible) return {}
   return {
-    width: `calc(${(1 - previewRatio.value) * 100}% - 1px)`,
+    width: `${(1 - previewRatio.value) * 100}%`,
   }
 })
 
 const previewStyle = computed(() => {
   if (!props.previewVisible) return {}
   return {
-    width: `calc(${previewRatio.value * 100}% - 1px)`,
+    width: `${previewRatio.value * 100}%`,
   }
 })
 
@@ -65,6 +67,7 @@ function handleResize(event) {
 
 .document-workspace-tab-source,
 .document-workspace-tab-preview {
+  box-sizing: border-box;
   min-width: 0;
   min-height: 0;
 }
@@ -78,6 +81,24 @@ function handleResize(event) {
 .document-workspace-tab-preview {
   flex: 0 0 auto;
   background: var(--shell-preview-surface);
+  border-left: 1px solid var(--workbench-divider-soft);
   overflow: hidden;
+}
+
+.document-workspace-tab-resize-slot {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  width: 0;
+  overflow: visible;
+}
+
+.document-workspace-tab-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
 }
 </style>
