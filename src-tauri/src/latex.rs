@@ -1395,6 +1395,40 @@ pub async fn synctex_backward(
 }
 
 #[tauri::command]
+pub async fn synctex_forward(
+    synctex_path: String,
+    file_path: String,
+    line: u32,
+    column: u32,
+) -> Result<serde_json::Value, String> {
+    let synctex = Path::new(&synctex_path);
+    if !synctex.exists() {
+        return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
+    }
+
+    let normalized_file_path = file_path.trim();
+    if normalized_file_path.is_empty() {
+        return Err("Source file path is required for forward SyncTeX.".to_string());
+    }
+
+    let pdf_path = derive_pdf_path_from_synctex_path(&synctex_path)
+        .ok_or_else(|| "Could not derive PDF path from SyncTeX file.".to_string())?;
+
+    let binary = find_synctex(None).ok_or_else(|| {
+        "SyncTeX binary is unavailable. Forward SyncTeX will fall back to the frontend parser."
+            .to_string()
+    })?;
+
+    run_synctex_view_cli(
+        &binary,
+        normalized_file_path,
+        &pdf_path,
+        line.max(1),
+        column.max(1),
+    )
+}
+
+#[tauri::command]
 pub async fn read_latex_synctex(path: String) -> Result<String, String> {
     let normalized = Path::new(&path);
     if !normalized.exists() {
@@ -1471,6 +1505,100 @@ fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> 
     Err("SyncTeX edit output did not contain a complete result.".to_string())
 }
 
+fn push_synctex_view_record(
+    records: &mut Vec<serde_json::Map<String, serde_json::Value>>,
+    current: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    let has_page = current
+        .get("page")
+        .and_then(|value| value.as_u64())
+        .map(|page| page > 0)
+        .unwrap_or(false);
+    let has_point = current.get("x").and_then(|value| value.as_f64()).is_some()
+        && current.get("y").and_then(|value| value.as_f64()).is_some();
+    let has_rect = current.get("h").and_then(|value| value.as_f64()).is_some()
+        && current.get("v").and_then(|value| value.as_f64()).is_some()
+        && current.get("W").and_then(|value| value.as_f64()).is_some()
+        && current.get("H").and_then(|value| value.as_f64()).is_some();
+
+    if has_page && (has_point || has_rect) {
+        let mut record = current.clone();
+        record.insert("indicator".to_string(), serde_json::Value::Bool(true));
+        records.push(record);
+    }
+
+    current.clear();
+}
+
+fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> {
+    let mut records = Vec::new();
+    let mut current = serde_json::Map::new();
+    let mut started = false;
+    let mut saw_output_marker = false;
+
+    for raw_line in output.lines() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.contains("SyncTeX result begin") {
+            started = true;
+            continue;
+        }
+        if trimmed.contains("SyncTeX result end") {
+            break;
+        }
+        if !started {
+            continue;
+        }
+
+        let Some((raw_key, raw_value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        let key = raw_key.trim();
+        let value = raw_value.trim();
+
+        if key.eq_ignore_ascii_case("Output") {
+            push_synctex_view_record(&mut records, &mut current);
+            saw_output_marker = true;
+            continue;
+        }
+
+        if key.eq_ignore_ascii_case("Page") {
+            if let Ok(page) = value.parse::<u32>() {
+                current.insert(
+                    "page".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(page)),
+                );
+            }
+            continue;
+        }
+
+        if matches!(key, "x" | "y" | "h" | "v" | "W" | "H") {
+            if let Some(number) = serde_json::Number::from_f64(value.parse::<f64>().unwrap_or(f64::NAN)) {
+                current.insert(key.to_string(), serde_json::Value::Number(number));
+            }
+        }
+    }
+
+    push_synctex_view_record(&mut records, &mut current);
+
+    if records.is_empty() {
+        return Err("SyncTeX view output did not contain a usable PDF location.".to_string());
+    }
+
+    if !saw_output_marker && records.len() == 1 {
+        return Ok(serde_json::Value::Object(records.remove(0)));
+    }
+
+    Ok(serde_json::Value::Array(
+        records
+            .into_iter()
+            .map(serde_json::Value::Object)
+            .collect(),
+    ))
+}
+
 fn run_synctex_edit_cli(
     synctex_binary: &str,
     pdf_path: &str,
@@ -1491,6 +1619,28 @@ fn run_synctex_edit_cli(
     }
 
     parse_synctex_edit_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn run_synctex_view_cli(
+    synctex_binary: &str,
+    file_path: &str,
+    pdf_path: &str,
+    line: u32,
+    _column: u32,
+) -> Result<serde_json::Value, String> {
+    let source_location = format!("{}:0:{}", line.max(1), file_path);
+    let mut command = background_command(synctex_binary);
+    apply_tex_locale_std(&mut command);
+    let output = command
+        .args(["view", "-i", &source_location, "-o", pdf_path])
+        .output()
+        .map_err(|e| format!("Failed to run synctex view: {}", e))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    parse_synctex_view_output(&String::from_utf8_lossy(&output.stdout))
 }
 
 fn parse_synctex_content(content: &str) -> Vec<SyncNode> {
@@ -1656,5 +1806,57 @@ fn backward_sync(
             "line": node.line,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_synctex_view_output;
+
+    #[test]
+    fn parse_synctex_view_output_supports_rectangle_records() {
+        let output = r#"
+SyncTeX result begin
+Output:foo
+Page:3
+x:72.0
+y:144.0
+h:70.0
+v:150.0
+W:80.0
+H:12.0
+Output:bar
+Page:4
+x:90.0
+y:200.0
+h:88.0
+v:206.0
+W:64.0
+H:10.0
+SyncTeX result end
+"#;
+
+        let parsed = parse_synctex_view_output(output).expect("should parse rectangle records");
+        let records = parsed.as_array().expect("expected array result");
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0]["page"].as_u64(), Some(3));
+        assert_eq!(records[1]["page"].as_u64(), Some(4));
+        assert_eq!(records[0]["indicator"].as_bool(), Some(true));
+    }
+
+    #[test]
+    fn parse_synctex_view_output_supports_single_point_record() {
+        let output = r#"
+SyncTeX result begin
+Page:2
+x:18.5
+y:24.25
+SyncTeX result end
+"#;
+
+        let parsed = parse_synctex_view_output(output).expect("should parse point record");
+        assert!(parsed.is_object());
+        assert_eq!(parsed["page"].as_u64(), Some(2));
+        assert_eq!(parsed["indicator"].as_bool(), Some(true));
     }
 }

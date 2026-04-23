@@ -64,6 +64,81 @@ function toRect(blocks) {
   return new Rectangle({ top, bottom, left, right })
 }
 
+function splitNormalizedPathSegments(value = '') {
+  return normalizeFsPath(value)
+    .toLowerCase()
+    .split('/')
+    .filter(Boolean)
+}
+
+function scoreSynctexInputPath(inputPath = '', filePath = '') {
+  const normalizedInputPath = normalizeFsPath(inputPath).toLowerCase()
+  const normalizedFilePath = normalizeFsPath(filePath).toLowerCase()
+  if (!normalizedInputPath || !normalizedFilePath) return -1
+  if (normalizedInputPath === normalizedFilePath) return 10_000
+
+  const inputSegments = splitNormalizedPathSegments(normalizedInputPath)
+  const fileSegments = splitNormalizedPathSegments(normalizedFilePath)
+  if (inputSegments.length === 0 || fileSegments.length === 0) return -1
+  if (inputSegments[inputSegments.length - 1] !== fileSegments[fileSegments.length - 1]) return -1
+
+  let trailingMatches = 0
+  while (
+    trailingMatches < inputSegments.length
+    && trailingMatches < fileSegments.length
+    && inputSegments[inputSegments.length - 1 - trailingMatches]
+      === fileSegments[fileSegments.length - 1 - trailingMatches]
+  ) {
+    trailingMatches += 1
+  }
+
+  return 100 + trailingMatches * 25
+}
+
+function findForwardInputFilePath(filePath = '', pdfSyncObject = {}) {
+  const inputPaths = Object.keys(pdfSyncObject.blockNumberLine || {})
+  let bestPath = ''
+  let bestScore = -1
+
+  for (const inputPath of inputPaths) {
+    const score = scoreSynctexInputPath(inputPath, filePath)
+    if (score > bestScore) {
+      bestPath = inputPath
+      bestScore = score
+    }
+  }
+
+  return bestScore >= 125 ? bestPath : ''
+}
+
+function resolveForwardLineCandidate(lineNums = [], requestedLine = 0) {
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return 0
+  if (lineNums.includes(requestedLine)) return requestedLine
+
+  const nextLine = lineNums.find((lineNum) => lineNum >= requestedLine)
+  if (Number.isInteger(nextLine) && nextLine > 0) return nextLine
+  return lineNums[lineNums.length - 1] || 0
+}
+
+function buildForwardRectRecord(pdfSyncObject, page, blocks) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return null
+  const rect = toRect(blocks)
+  const width = Math.max(0, rect.right - rect.left)
+  const height = Math.max(0, rect.bottom - rect.top)
+  const x = rect.left + pdfSyncObject.offset.x
+  const y = rect.bottom + pdfSyncObject.offset.y
+  return {
+    page: Number(page),
+    x,
+    y,
+    h: x,
+    v: y,
+    W: width,
+    H: height,
+    indicator: true,
+  }
+}
+
 function parseSyncTex(content = '') {
   const unit = 65781.76
   const blockNumberLine = Object.create(null)
@@ -282,6 +357,41 @@ export function computeLatexWorkshopBackwardSync(content, page, x, y) {
   }
 }
 
+export function computeLatexWorkshopForwardSync(content, filePath, line) {
+  const normalizedFilePath = normalizeFsPath(filePath)
+  const requestedLine = Number(line || 0)
+  if (!normalizedFilePath || !Number.isInteger(requestedLine) || requestedLine < 1) return null
+
+  const pdfSyncObject = parseSyncTex(content)
+  const inputFilePath = findForwardInputFilePath(normalizedFilePath, pdfSyncObject)
+  if (!inputFilePath) return null
+
+  const linePageBlocks = pdfSyncObject.blockNumberLine?.[inputFilePath]
+  if (!linePageBlocks || typeof linePageBlocks !== 'object') return null
+
+  const lineNums = Object.keys(linePageBlocks)
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0)
+    .sort((left, right) => left - right)
+  const resolvedLine = resolveForwardLineCandidate(lineNums, requestedLine)
+  if (!resolvedLine) return null
+
+  const pageBlocks = linePageBlocks[resolvedLine]
+  if (!pageBlocks || typeof pageBlocks !== 'object') return null
+
+  const records = Object.entries(pageBlocks)
+    .map(([page, blocks]) => buildForwardRectRecord(pdfSyncObject, page, blocks))
+    .filter(Boolean)
+    .sort((left, right) => left.page - right.page)
+
+  if (records.length === 0) return null
+  return {
+    mode: 'rects',
+    records,
+    record: records[0],
+  }
+}
+
 export async function readLatexWorkshopSynctexContent(synctexPath) {
   const normalizedPath = normalizeFsPath(synctexPath)
   if (!normalizedPath) return ''
@@ -299,4 +409,16 @@ export async function requestLatexWorkshopBackwardSync(options = {}) {
 
   const content = await readLatexWorkshopSynctexContent(synctexPath)
   return computeLatexWorkshopBackwardSync(content, page, x, y)
+}
+
+export async function requestLatexWorkshopForwardSync(options = {}) {
+  const synctexPath = normalizeFsPath(options.synctexPath)
+  const filePath = normalizeFsPath(options.filePath)
+  const line = Number(options.line || 0)
+  if (!synctexPath || !filePath || !Number.isInteger(line) || line < 1) {
+    return null
+  }
+
+  const content = await readLatexWorkshopSynctexContent(synctexPath)
+  return computeLatexWorkshopForwardSync(content, filePath, line)
 }

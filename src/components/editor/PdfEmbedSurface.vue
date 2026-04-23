@@ -45,6 +45,7 @@
               :document-id="activeDocumentId"
               :artifactPath="artifactPath"
               :kind="kind"
+              :forward-sync-request="pendingForwardSyncRequest"
               :pdfViewerZoomMode="pdfViewerZoomMode"
               :pdfViewerSpreadMode="pdfViewerSpreadMode"
               :pdfViewerLastScale="pdfViewerLastScale"
@@ -63,7 +64,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { EmbedPDF } from '@embedpdf/core/vue'
 import { usePdfiumEngine } from '@embedpdf/engines/vue'
@@ -72,9 +73,14 @@ import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import {
+  requestLatexPdfForwardSync,
   requestLatexPdfBackwardSync,
   readPdfArtifactBase64,
 } from '../../services/pdf/artifactPreview.js'
+import {
+  LATEX_FORWARD_SYNC_EVENT,
+  readPendingLatexForwardSync,
+} from '../../services/latex/pdfPreviewSync.js'
 import {
   buildEmbedPdfPluginRegistrations,
   decodePdfBase64ToArrayBuffer,
@@ -111,10 +117,12 @@ const documentBuffer = ref(null)
 const documentName = ref('')
 const latestViewState = ref(null)
 const pendingRestoreState = ref(null)
+const pendingForwardSyncRequest = ref(null)
 const previewLoadPending = ref(true)
 const previewLoadError = ref('')
 const embedViewerKey = ref(0)
 const previewSessionState = createPdfPreviewSessionState()
+const queuedForwardSyncLocation = ref(null)
 
 const plugins = computed(() =>
   buildEmbedPdfPluginRegistrations({
@@ -143,6 +151,11 @@ const surfaceError = computed(() => {
 
 let loadToken = 0
 let resolvedSynctexPathCache = ''
+let forwardSyncRequestId = 0
+
+function normalizePathForSyncMatch(value = '') {
+  return String(value || '').replace(/\\/g, '/').trim()
+}
 
 async function resolveEffectiveSynctexPath() {
   const runtimeSynctexPath = String(props.compileState?.synctexPath || '').trim()
@@ -256,6 +269,61 @@ async function handleReverseSyncRequest(detail = {}) {
   }
 }
 
+function queueForwardSyncLocation(detail = null) {
+  queuedForwardSyncLocation.value = detail ? { ...detail } : null
+}
+
+function queueForwardSyncResult(target = null) {
+  if (!target) return
+  forwardSyncRequestId += 1
+  pendingForwardSyncRequest.value = {
+    requestId: forwardSyncRequestId,
+    sourcePath: props.sourcePath,
+    target,
+  }
+}
+
+async function handleForwardSyncLocation(detail = {}) {
+  if (props.kind !== 'latex') return
+
+  const targetFilePath = normalizePathForSyncMatch(detail.filePath || detail.sourcePath)
+  const currentSourcePath = normalizePathForSyncMatch(props.sourcePath)
+  if (!targetFilePath || targetFilePath !== currentSourcePath) return
+
+  const line = Number(detail.line || 0)
+  const column = Number(detail.column || 0)
+  if (!Number.isInteger(line) || line < 1) return
+
+  const synctexPath = await resolveEffectiveSynctexPath()
+  if (!synctexPath) {
+    queueForwardSyncLocation(detail)
+    return
+  }
+
+  const result = await requestLatexPdfForwardSync({
+    synctexPath,
+    filePath: props.sourcePath,
+    line,
+    column,
+  }).catch(() => null)
+
+  if (!result) return
+
+  queueForwardSyncLocation(null)
+  queueForwardSyncResult({
+    ...result,
+    sourceLocation: {
+      filePath: props.sourcePath,
+      line,
+      column,
+    },
+  })
+}
+
+function handleWindowForwardSync(event) {
+  void handleForwardSyncLocation(event?.detail || {})
+}
+
 async function handlePreviewRevisionChange(nextRevision, previousRevision, options = {}) {
   const transition = resolvePdfPreviewSessionTransition(previewSessionState, nextRevision, {
     viewBookmark: captureCurrentViewState(),
@@ -294,6 +362,26 @@ watch(
   },
   { immediate: true }
 )
+
+watch(
+  () => [props.compileState?.synctexPath, props.artifactPath],
+  () => {
+    if (!queuedForwardSyncLocation.value) return
+    void handleForwardSyncLocation(queuedForwardSyncLocation.value)
+  }
+)
+
+onMounted(() => {
+  window.addEventListener(LATEX_FORWARD_SYNC_EVENT, handleWindowForwardSync)
+  const pendingRequest = readPendingLatexForwardSync()
+  if (pendingRequest) {
+    void handleForwardSyncLocation(pendingRequest)
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener(LATEX_FORWARD_SYNC_EVENT, handleWindowForwardSync)
+})
 </script>
 
 <style scoped>

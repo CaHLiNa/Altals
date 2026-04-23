@@ -112,6 +112,10 @@ import {
   dispatchMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
 } from '../../services/markdown/previewSync.js'
+import {
+  LATEX_BACKWARD_SYNC_EVENT,
+  dispatchLatexForwardSync,
+} from '../../services/latex/pdfPreviewSync.js'
 import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
@@ -160,6 +164,7 @@ async function appendLatexSyncDebug(entry = {}) {
 
 let view = null
 let backwardSyncHandler = null
+let latexSourceDoubleClickHandler = null
 let markdownCursorRequestHandler = null
 let markdownBackwardSyncHandler = null
 let markdownPreviewSyncTimer = null
@@ -1085,6 +1090,44 @@ function ensureLatexWindowHandlers() {
 
 }
 
+function ensureLatexEditorHandlers() {
+  if (!supportsLatexRuntime) return
+
+  if (!latexSourceDoubleClickHandler) {
+    latexSourceDoubleClickHandler = async (event) => {
+      if (!view || event.button !== 0) return
+
+      const posFromEvent = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      const pos =
+        posFromEvent == null ? Number(view.state.selection.main.head || 0) : Number(posFromEvent)
+      if (!Number.isInteger(pos) || pos < 0) return
+
+      const lineInfo = view.state.doc.lineAt(pos)
+      const column = Math.max(1, pos - lineInfo.from + 1)
+      const syncDetail = {
+        sourcePath: props.filePath,
+        filePath: props.filePath,
+        line: lineInfo.number,
+        column,
+        paneId: props.paneId,
+        reason: 'double-click',
+      }
+
+      await appendLatexSyncDebug({
+        event: 'forward-sync-dispatched',
+        detail: syncDetail,
+      })
+
+      await workflowStore.revealWorkflowPdfForFile(props.filePath, {
+        sourcePaneId: props.paneId,
+        trigger: 'latex-source-double-click-sync',
+      })
+
+      dispatchLatexForwardSync(window, syncDetail)
+    }
+  }
+}
+
 function ensureMarkdownWindowHandlers() {
   if (!isMd) return
 
@@ -1126,6 +1169,8 @@ function attachEditorRuntimeListeners() {
   }
   if (supportsLatexRuntime) {
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
+    ensureLatexEditorHandlers()
+    editorContainer.value?.addEventListener('dblclick', latexSourceDoubleClickHandler)
   }
 
   if (isMd && !isDraftFile) {
@@ -1137,7 +1182,7 @@ function attachEditorRuntimeListeners() {
   }
   if (supportsLatexRuntime) {
     ensureLatexWindowHandlers()
-    window.addEventListener('latex-backward-sync', backwardSyncHandler)
+    window.addEventListener(LATEX_BACKWARD_SYNC_EVENT, backwardSyncHandler)
   }
 }
 
@@ -1149,6 +1194,9 @@ function detachEditorRuntimeListeners() {
   }
   if (supportsLatexRuntime) {
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
+    if (latexSourceDoubleClickHandler) {
+      editorContainer.value?.removeEventListener('dblclick', latexSourceDoubleClickHandler)
+    }
   }
   if (markdownCursorRequestHandler) {
     window.removeEventListener('markdown-request-cursor', markdownCursorRequestHandler)
@@ -1157,7 +1205,7 @@ function detachEditorRuntimeListeners() {
     window.removeEventListener(MARKDOWN_BACKWARD_SYNC_EVENT, markdownBackwardSyncHandler)
   }
   if (backwardSyncHandler) {
-    window.removeEventListener('latex-backward-sync', backwardSyncHandler)
+    window.removeEventListener(LATEX_BACKWARD_SYNC_EVENT, backwardSyncHandler)
   }
 }
 
@@ -1532,6 +1580,7 @@ onUnmounted(() => {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   backwardSyncHandler = null
+  latexSourceDoubleClickHandler = null
   markdownCursorRequestHandler = null
   markdownBackwardSyncHandler = null
 })

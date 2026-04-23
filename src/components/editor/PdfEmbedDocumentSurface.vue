@@ -243,6 +243,12 @@
                   borderStyle: 'solid',
                 }"
               />
+              <div
+                v-for="overlay in resolveForwardSyncOverlays(page.pageNumber)"
+                :key="overlay.key"
+                class="pdf-artifact-preview__forward-sync-highlight"
+                :style="overlay.style"
+              ></div>
             </PagePointerProvider>
           </div>
         </Scroller>
@@ -306,6 +312,7 @@ const props = defineProps({
   documentId: { type: String, required: true },
   artifactPath: { type: String, required: true },
   kind: { type: String, default: 'pdf' },
+  forwardSyncRequest: { type: Object, default: null },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
@@ -358,6 +365,8 @@ const searchQuery = ref('')
 const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
+const forwardSyncOverlays = ref([])
+const queuedForwardSyncRequest = ref(null)
 
 const PdfEmbedPageSyncBridge = defineComponent({
   name: 'PdfEmbedPageSyncBridge',
@@ -392,6 +401,8 @@ let scheduledViewStateFrame = 0
 let restoreRevision = 0
 let searchDebounceTimer = 0
 let suppressSearchWatch = false
+let forwardSyncHighlightTimer = 0
+let lastHandledForwardSyncRequestId = 0
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -527,6 +538,119 @@ function resolvePageBinding(pageNumber) {
   const numericPageNumber = Number(pageNumber || 0)
   if (!Number.isInteger(numericPageNumber) || numericPageNumber < 1) return null
   return pageBindings.get(numericPageNumber) || null
+}
+
+function resolveDocumentPageMeta(pageNumber) {
+  const numericPageNumber = Number(pageNumber || 0)
+  if (!Number.isInteger(numericPageNumber) || numericPageNumber < 1) return null
+
+  const spreads = scroll.provides.value?.getSpreadPagesWithRotatedSize?.() || []
+  for (const spreadPages of spreads) {
+    const page = spreadPages.find((entry) => Number(entry?.index) + 1 === numericPageNumber)
+    if (page) return page
+  }
+  return null
+}
+
+function clearForwardSyncHighlight() {
+  forwardSyncOverlays.value = []
+  queuedForwardSyncRequest.value = null
+  if (forwardSyncHighlightTimer && typeof window !== 'undefined') {
+    window.clearTimeout(forwardSyncHighlightTimer)
+    forwardSyncHighlightTimer = 0
+  }
+}
+
+function scheduleForwardSyncHighlightClear() {
+  if (typeof window === 'undefined') return
+  if (forwardSyncHighlightTimer) {
+    window.clearTimeout(forwardSyncHighlightTimer)
+  }
+  forwardSyncHighlightTimer = window.setTimeout(() => {
+    forwardSyncHighlightTimer = 0
+    forwardSyncOverlays.value = []
+  }, 1800)
+}
+
+function resolveForwardSyncPageCoordinates(record = {}, pageMeta = null) {
+  const pageHeight = Number(pageMeta?.size?.height || 0)
+  const pageX = Number(record.x)
+  const pageY = Number(record.y)
+  if (!Number.isFinite(pageHeight) || pageHeight <= 0 || !Number.isFinite(pageX) || !Number.isFinite(pageY)) {
+    return null
+  }
+
+  return {
+    x: Math.max(0, pageX),
+    y: Math.max(0, pageHeight - pageY),
+  }
+}
+
+function buildForwardSyncRect(record = {}, pageMeta = null) {
+  const pageHeight = Number(pageMeta?.size?.height || 0)
+  const h = Number(record.h)
+  const v = Number(record.v)
+  const width = Number(record.W)
+  const height = Number(record.H)
+  if (
+    !Number.isFinite(pageHeight)
+    || pageHeight <= 0
+    || !Number.isFinite(h)
+    || !Number.isFinite(v)
+    || !Number.isFinite(width)
+    || !Number.isFinite(height)
+  ) {
+    return null
+  }
+
+  return {
+    origin: {
+      x: Math.max(0, h),
+      y: Math.max(0, pageHeight - v),
+    },
+    size: {
+      width: Math.max(0, width),
+      height: Math.max(0, height),
+    },
+  }
+}
+
+function buildForwardSyncOverlayEntries(request = null) {
+  const requestId = Number(request?.requestId || 0)
+  const records = Array.isArray(request?.target?.records) ? request.target.records : []
+  if (!Number.isInteger(requestId) || requestId < 1 || records.length === 0) return []
+
+  const scrollScope = scrollCapability.value?.forDocument(props.documentId)
+  if (!scrollScope) return []
+
+  return records
+    .map((record, index) => {
+      const pageNumber = Number(record?.page || 0)
+      const pageMeta = resolveDocumentPageMeta(pageNumber)
+      const pageBinding = resolvePageBinding(pageNumber)
+      const rect = buildForwardSyncRect(record, pageMeta)
+      if (!pageMeta || !pageBinding || !rect) return null
+
+      const positionedRect = scrollScope.getRectPositionForPage(pageNumber, rect)
+      if (!positionedRect) return null
+
+      return {
+        key: `${requestId}:${index}`,
+        pageNumber,
+        style: {
+          left: `${Math.max(0, positionedRect.origin.x - pageBinding.page.x)}px`,
+          top: `${Math.max(0, positionedRect.origin.y - pageBinding.page.y)}px`,
+          width: `${Math.max(0, positionedRect.size.width)}px`,
+          height: `${Math.max(0, positionedRect.size.height)}px`,
+        },
+      }
+    })
+    .filter(Boolean)
+}
+
+function resolveForwardSyncOverlays(pageNumber) {
+  const numericPageNumber = Number(pageNumber || 0)
+  return forwardSyncOverlays.value.filter((overlay) => overlay.pageNumber === numericPageNumber)
 }
 
 function resolveScaleValueFromZoomState(state = zoom.state.value) {
@@ -1123,6 +1247,33 @@ async function handlePageDoubleClick(pageLayout, payload = {}) {
   emit('reverse-sync-request', detail)
 }
 
+async function applyForwardSyncRequest(request = null) {
+  const requestId = Number(request?.requestId || 0)
+  if (!Number.isInteger(requestId) || requestId < 1) return false
+
+  const focusRecord = request?.target?.record
+    || (Array.isArray(request?.target?.records) ? request.target.records[0] : null)
+  const pageNumber = Number(focusRecord?.page || 0)
+  const scrollScope = scroll.provides.value
+  const pageMeta = resolveDocumentPageMeta(pageNumber)
+  if (!focusRecord || !scrollScope || !pageMeta) return false
+
+  const pageCoordinates = resolveForwardSyncPageCoordinates(focusRecord, pageMeta)
+  if (!pageCoordinates) return false
+
+  scrollScope.scrollToPage({
+    pageNumber,
+    pageCoordinates,
+    behavior: 'smooth',
+    alignY: 34,
+  })
+
+  forwardSyncOverlays.value = buildForwardSyncOverlayEntries(request)
+  scheduleForwardSyncHighlightClear()
+  scheduleViewStateEmission()
+  return true
+}
+
 async function restoreViewState(state) {
   const currentRevision = ++restoreRevision
   if (!state) return false
@@ -1233,6 +1384,8 @@ watch(
     pageBindings.clear()
     currentContextMenuReverseSyncDetail.value = null
     initialLayoutHandled.value = false
+    clearForwardSyncHighlight()
+    lastHandledForwardSyncRequestId = 0
     selectionActive.value = false
     selectedText.value = ''
     suppressSearchWatch = true
@@ -1240,6 +1393,26 @@ watch(
     searchUiVisible.value = false
     scheduleViewStateEmission()
   }
+)
+
+watch(
+  () => props.forwardSyncRequest,
+  (nextRequest) => {
+    const requestId = Number(nextRequest?.requestId || 0)
+    if (!Number.isInteger(requestId) || requestId < 1 || requestId === lastHandledForwardSyncRequestId) {
+      return
+    }
+
+    void applyForwardSyncRequest(nextRequest).then((applied) => {
+      if (applied) {
+        lastHandledForwardSyncRequestId = requestId
+        queuedForwardSyncRequest.value = null
+        return
+      }
+      queuedForwardSyncRequest.value = nextRequest
+    })
+  },
+  { immediate: true }
 )
 
 watch(
@@ -1336,6 +1509,14 @@ watch(
         applyViewerPreferences()
         initialLayoutHandled.value = true
       }
+      if (queuedForwardSyncRequest.value) {
+        const queuedRequest = queuedForwardSyncRequest.value
+        void applyForwardSyncRequest(queuedRequest).then((applied) => {
+          if (!applied) return
+          lastHandledForwardSyncRequestId = Number(queuedRequest?.requestId || 0)
+          queuedForwardSyncRequest.value = null
+        })
+      }
       scheduleViewStateEmission()
     })
 
@@ -1355,6 +1536,7 @@ watch(
 onUnmounted(() => {
   pageBindings.clear()
   clearSearchDebounceTimer()
+  clearForwardSyncHighlight()
 
   if (scheduledViewStateFrame && typeof window !== 'undefined') {
     window.cancelAnimationFrame(scheduledViewStateFrame)
@@ -1734,6 +1916,51 @@ onUnmounted(() => {
 
 :deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-caret) {
   right: 4px;
+}
+
+.pdf-artifact-preview__forward-sync-highlight {
+  position: absolute;
+  z-index: 6;
+  border-radius: 6px;
+  border: 1.5px solid color-mix(in srgb, var(--focus-ring) 72%, #ffd667 28%);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--focus-ring) 24%, transparent),
+      color-mix(in srgb, #ffd667 34%, transparent)
+    );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #ffffff 28%, transparent),
+    0 12px 24px color-mix(in srgb, var(--focus-ring) 18%, transparent);
+  pointer-events: none;
+  animation: pdf-forward-sync-highlight 1.8s ease-out forwards;
+}
+
+@keyframes pdf-forward-sync-highlight {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  72% {
+    opacity: 0.94;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-artifact-preview__forward-sync-highlight {
+    animation-duration: 0.01ms;
+  }
 }
 
 @media (max-width: 720px) {
