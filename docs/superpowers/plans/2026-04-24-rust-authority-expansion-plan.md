@@ -183,6 +183,7 @@
 
 - workspace tree runtime 进入 Rust
 - 前端只接收 normalized tree snapshot
+- 当前进度已开始收旧债：`files` 侧独立的 JS tree runtime / watch runtime / flat index runtime 文件及对应 bridge 已删除，并回现有 `src/stores/files.js` 直接连接 Rust 命令。
 
 建议 Rust 边界：
 

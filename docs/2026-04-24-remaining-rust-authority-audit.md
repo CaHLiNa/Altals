@@ -55,10 +55,6 @@
 文件：
 
 - `src/stores/files.js`
-- `src/domains/files/fileTreeHydrationRuntime.js`
-- `src/domains/files/fileTreeRefreshRuntime.js`
-- `src/domains/files/fileTreeWatchRuntime.js`
-- `src/domains/files/flatFilesIndexRuntime.js`
 - `src/domains/files/fileTreeCacheRuntime.js`
 
 当前仍在前端持有的 authority：
@@ -73,6 +69,8 @@
 
 - 这些逻辑已经超出 UI glue，更像桌面 workspace tree runtime。
 - 适合在 references 之后作为第二优先级迁移。
+- 当前进度已前推一轮：`fileTreeHydrationRuntime.js` / `fileTreeRefreshRuntime.js` / `fileTreeWatchRuntime.js` / `flatFilesIndexRuntime.js` 以及对应 bridge 已删除，tree runtime 已并回现有 `src/stores/files.js` 直接调用 Rust 命令。
+- 这一步减少了前端多文件 runtime 架构面，但 `files.js` 仍然承载了大量 runtime authority，后续仍应继续下沉到 Rust，而不是停在“从多个 JS 文件并到一个 JS 文件”。
 
 建议 Rust 边界：
 
