@@ -47,5 +47,7 @@
   承担 duplicate identity、snapshot merge 与 imported reference merge 策略。
 - `src-tauri/src/references_query.rs`
   承担 references library 的 query/filter/sort/count 与 citation usage index 解析。
+- `src-tauri/src/references_mutation.rs`
+  承担 references library 的 collection mutation、import merge/select 与 mutation-side snapshot 收口。
 - `src-tauri/src/references_runtime.rs`
   保留 PDF import、Crossref / DOI 查询、BibTeX 输出与 command facade。

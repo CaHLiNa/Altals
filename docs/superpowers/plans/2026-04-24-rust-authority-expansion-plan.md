@@ -122,7 +122,9 @@
 当前进度：
 
 - 已完成第一刀：新增 `src-tauri/src/references_query.rs`
+- 已完成第二刀：新增 `src-tauri/src/references_mutation.rs`
 - `filteredReferences` / `sortedLibrary` / `counts` / `citedIn` 已开始消费 Rust query result
+- collection create / rename / remove、reference collection toggle、import merge / selection 已开始消费 Rust mutation result
 
 后续目标：
 
@@ -132,7 +134,7 @@
 建议 Rust 边界：
 
 - `references_query.rs`
-- `references_filters.rs`
+- `references_mutation.rs`
 - `references_selection.rs`
 
 #### 2. Files / Workspace Tree Runtime
@@ -285,22 +287,24 @@
 
 ## 当前切片状态
 
-### Task A: References Query / Filter Rust Migration
+### Task A: References Query / Mutation Rust Migration
 
 状态：
 
-- 已开始并已完成第一刀
+- 已开始并已完成前两刀
 
 已完成内容：
 
 - Rust 新增 `references_query.rs`
+- Rust 新增 `references_mutation.rs`
 - 前端 `references.js` 已开始消费 Rust query result
+- collection mutation 与 import selection contract 已开始消费 Rust mutation result
 
 剩余内容：
 
-- collection / tag registry mutation 规则
-- import 后 selection / query refresh contract
-- search / query state normalize 的完整 Rust contract
+- add/update/remove reference 的 mutation 协调进一步下沉
+- search / query state normalize 与 selectedReference reconcile 的完整 Rust contract
+- `references.js` 继续收口成 query input + selection state + UI dispatch
 
 ## 每个切片的共同验收标准
 

@@ -19,6 +19,7 @@ import {
 } from '../services/references/referenceLibraryFixtures.js'
 import {
   buildDefaultReferenceLibrarySnapshot,
+  normalizeReferenceLibrarySnapshotWithBackend,
   normalizeReferenceRecordWithBackend,
   readOrCreateReferenceLibrarySnapshot,
   writeReferenceLibrarySnapshot,
@@ -27,27 +28,13 @@ import {
   findDuplicateReference,
   importReferenceFromPdf,
   importReferencesFromText,
-  mergeImportedReferences,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
+import { applyReferenceMutation } from '../services/references/referenceMutationBridge.js'
 import { resolveReferenceQueryState } from '../services/references/referenceQueryBridge.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 import { resolveReferenceQueryStateLocally } from '../domains/references/referenceQueryRuntime.js'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
-
-function buildCollectionKey(label = '') {
-  const normalized = String(label || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-  return normalized || `collection-${Date.now()}`
-}
-
-function normalizedCollectionLabel(label = '') {
-  return String(label || '').trim().toLowerCase()
-}
 
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -55,54 +42,6 @@ function normalizeCollectionMembershipValue(value = '') {
 
 function normalizeTagKey(value = '') {
   return String(value || '').trim().toLowerCase()
-}
-
-function normalizeTagLabel(value = '') {
-  return String(value || '').trim()
-}
-
-function normalizeTagEntry(value = null) {
-  if (typeof value === 'string') {
-    const label = normalizeTagLabel(value)
-    if (!label) return null
-    return {
-      key: normalizeTagKey(label),
-      label,
-    }
-  }
-
-  if (!value || typeof value !== 'object') return null
-
-  const label = normalizeTagLabel(value.label || value.name || value.key || '')
-  if (!label) return null
-
-  return {
-    ...value,
-    key: normalizeTagKey(value.key || label),
-    label,
-  }
-}
-
-function buildTagRegistry(existingTags = [], references = []) {
-  const registry = new Map()
-
-  for (const entry of Array.isArray(existingTags) ? existingTags : []) {
-    const normalized = normalizeTagEntry(entry)
-    if (!normalized?.key) continue
-    registry.set(normalized.key, normalized)
-  }
-
-  for (const reference of Array.isArray(references) ? references : []) {
-    for (const value of Array.isArray(reference?.tags) ? reference.tags : []) {
-      const normalized = normalizeTagEntry(value)
-      if (!normalized?.key) continue
-      if (!registry.has(normalized.key)) {
-        registry.set(normalized.key, normalized)
-      }
-    }
-  }
-
-  return [...registry.values()].sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')))
 }
 
 function resolveCollection(collections = [], collectionKey = '') {
@@ -114,18 +53,6 @@ function resolveCollection(collections = [], collectionKey = '') {
     collections.find((collection) => normalizeCollectionMembershipValue(collection.label) === normalizedKey) ||
     null
   )
-}
-
-function referenceHasCollection(reference = {}, collection = null) {
-  if (!collection) return false
-  const collectionValues = Array.isArray(reference.collections) ? reference.collections : []
-  const normalizedKey = normalizeCollectionMembershipValue(collection.key)
-  const normalizedLabel = normalizeCollectionMembershipValue(collection.label)
-
-  return collectionValues.some((value) => {
-    const normalizedValue = normalizeCollectionMembershipValue(value)
-    return normalizedValue === normalizedKey || normalizedValue === normalizedLabel
-  })
 }
 
 async function shouldMarkReferenceForZoteroPush() {
@@ -152,28 +79,6 @@ function buildDefaultResolvedQueryState(state = {}) {
     sortKey: state.sortKey || 'year-desc',
     fileContents: {},
   })
-}
-
-async function resolveImportedSelectionReference(
-  mergedReferences = [],
-  markedReferences = [],
-) {
-  if (!markedReferences[0]) return null
-
-  let importedSelection = mergedReferences.find((reference) =>
-    markedReferences.some((candidate) => candidate.id === reference.id)
-  )
-  if (importedSelection) return importedSelection
-
-  for (const reference of mergedReferences) {
-    const duplicate = await findDuplicateReference(markedReferences, reference)
-    if (duplicate) {
-      importedSelection = reference
-      break
-    }
-  }
-
-  return importedSelection || null
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -251,6 +156,25 @@ export const useReferencesStore = defineStore('references', {
   },
 
   actions: {
+    buildLibrarySnapshotPayload() {
+      return {
+        version: 2,
+        citationStyle: this.citationStyle,
+        collections: this.collections,
+        tags: this.tags,
+        references: this.references,
+      }
+    },
+
+    async commitLibrarySnapshot(projectRoot = '', snapshot = {}, options = {}) {
+      const { persist = true } = options
+      const nextSnapshot = persist
+        ? await writeReferenceLibrarySnapshot(projectRoot, snapshot)
+        : await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
+      this.applyLibrarySnapshot(nextSnapshot)
+      return nextSnapshot
+    },
+
     async refreshResolvedQueryState() {
       const pinia = getActivePinia()
       const fileContents = pinia?.state?.value?.files?.fileContents || {}
@@ -299,11 +223,6 @@ export const useReferencesStore = defineStore('references', {
       void this.refreshResolvedQueryState()
     },
 
-    syncTagRegistry() {
-      this.tags = buildTagRegistry([], this.references)
-      this.syncResolvedQueryState()
-    },
-
     ensureSelectedReferenceVisible() {
       if (this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         return
@@ -312,16 +231,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async persistLibrarySnapshot(projectRoot = '') {
-      const snapshot = {
-        version: 2,
-        citationStyle: this.citationStyle,
-        collections: this.collections,
-        tags: this.tags,
-        references: this.references,
-      }
-      const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-      this.applyLibrarySnapshot(persisted)
-      return persisted
+      return this.commitLibrarySnapshot(projectRoot, this.buildLibrarySnapshotPayload())
     },
 
     applyLibrarySnapshot(snapshot = {}) {
@@ -398,32 +308,40 @@ export const useReferencesStore = defineStore('references', {
 
     async importReferenceText(projectRoot = '', content = '', format = 'auto') {
       const importedReferences = await parseReferenceImportText(content, format)
+      if (importedReferences.length === 0) {
+        return {
+          importedCount: 0,
+          selectedReferenceId: '',
+          selectedReference: null,
+          reusedExisting: false,
+        }
+      }
       const shouldMark = importedReferences.length > 0 ? await shouldMarkReferenceForZoteroPush() : false
       const markedReferences = shouldMark
         ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
         : importedReferences
-      const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
-      const importedCount = Math.max(0, mergedReferences.length - this.references.length)
 
       this.importInFlight = true
       try {
-        const snapshot = {
-          version: 2,
-          citationStyle: this.citationStyle,
-          collections: this.collections,
-          tags: this.tags,
-          references: mergedReferences,
-        }
-        const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-        this.applyLibrarySnapshot(persisted)
-        const importedSelection = await resolveImportedSelectionReference(mergedReferences, markedReferences)
-        if (importedSelection) this.selectedReferenceId = importedSelection.id
+        const mutation = await applyReferenceMutation({
+          snapshot: this.buildLibrarySnapshotPayload(),
+          action: {
+            type: 'mergeImportedReferences',
+            imported: markedReferences,
+          },
+        })
+        await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload())
+        const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+        if (selectedReferenceId) this.selectedReferenceId = selectedReferenceId
         this.ensureSelectedReferenceVisible()
+        const selectedReference = selectedReferenceId
+          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
+          : null
         return {
-          importedCount,
-          selectedReferenceId: importedSelection?.id || '',
-          selectedReference: importedSelection || null,
-          reusedExisting: importedCount === 0 && !!importedSelection,
+          importedCount: Number(mutation?.result?.importedCount || 0),
+          selectedReferenceId,
+          selectedReference,
+          reusedExisting: mutation?.result?.reusedExisting === true,
         }
       } finally {
         this.importInFlight = false
@@ -447,27 +365,25 @@ export const useReferencesStore = defineStore('references', {
         const markedReferences = shouldMark
           ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
           : importedReferences
-        const mergedReferences = await mergeImportedReferences(this.references, markedReferences)
-        const importedCount = Math.max(0, mergedReferences.length - this.references.length)
-        const snapshot = {
-          version: 2,
-          citationStyle: this.citationStyle,
-          collections: this.collections,
-          tags: this.tags,
-          references: mergedReferences,
-        }
-        const persisted = await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-        this.applyLibrarySnapshot(persisted)
-        const importedSelection = await resolveImportedSelectionReference(mergedReferences, markedReferences)
-        if (importedSelection) {
-          this.selectedReferenceId = importedSelection.id
-        }
+        const mutation = await applyReferenceMutation({
+          snapshot: this.buildLibrarySnapshotPayload(),
+          action: {
+            type: 'mergeImportedReferences',
+            imported: markedReferences,
+          },
+        })
+        await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload())
+        const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
+        if (selectedReferenceId) this.selectedReferenceId = selectedReferenceId
         this.ensureSelectedReferenceVisible()
+        const selectedReference = selectedReferenceId
+          ? this.references.find((reference) => reference.id === selectedReferenceId) || null
+          : null
         return {
-          importedCount,
-          selectedReferenceId: importedSelection?.id || '',
-          selectedReference: importedSelection || null,
-          reusedExisting: importedCount === 0 && !!importedSelection,
+          importedCount: Number(mutation?.result?.importedCount || 0),
+          selectedReferenceId,
+          selectedReference,
+          reusedExisting: mutation?.result?.reusedExisting === true,
         }
       } finally {
         this.importInFlight = false
@@ -475,111 +391,50 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async createCollection(projectRoot = '', label = '') {
-      const trimmedLabel = String(label || '').trim()
-      if (!trimmedLabel) return null
-
-      const existingCollection = this.collections.find(
-        (collection) => normalizedCollectionLabel(collection.label) === normalizedCollectionLabel(trimmedLabel)
-      )
-      if (existingCollection) return existingCollection
-
-      let key = buildCollectionKey(trimmedLabel)
-      let suffix = 2
-      while (this.collections.some((collection) => collection.key === key)) {
-        key = `${buildCollectionKey(trimmedLabel)}-${suffix}`
-        suffix += 1
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'createCollection',
+          label,
+        },
+      })
+      if (mutation?.result?.changed) {
+        await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
       }
-
-      const nextCollection = {
-        key,
-        label: trimmedLabel,
-      }
-
-      this.collections = [...this.collections, nextCollection]
-      this.syncResolvedQueryState()
-      await this.persistLibrarySnapshot(projectRoot)
-      return nextCollection
+      return mutation?.result?.collection && typeof mutation.result.collection === 'object'
+        ? mutation.result.collection
+        : null
     },
 
     async renameCollection(projectRoot = '', collectionKey = '', nextLabel = '') {
-      const collection = resolveCollection(this.collections, collectionKey)
-      const trimmedLabel = String(nextLabel || '').trim()
-      if (!collection || !trimmedLabel) return null
-
-      const duplicate = this.collections.find(
-        (candidate) =>
-          candidate.key !== collection.key &&
-          normalizedCollectionLabel(candidate.label) === normalizedCollectionLabel(trimmedLabel)
-      )
-      if (duplicate) return null
-
-      this.collections = this.collections.map((candidate) =>
-        candidate.key === collection.key
-          ? {
-              ...candidate,
-              label: trimmedLabel,
-            }
-          : candidate
-      )
-
-      this.references = this.references.map((reference) => {
-        const memberships = Array.isArray(reference.collections) ? reference.collections : []
-        if (memberships.length === 0) return reference
-
-        const nextCollections = memberships.map((value) => {
-          const normalizedValue = normalizeCollectionMembershipValue(value)
-          if (
-            normalizedValue === normalizeCollectionMembershipValue(collection.key) ||
-            normalizedValue === normalizeCollectionMembershipValue(collection.label)
-          ) {
-            return collection.key
-          }
-          return value
-        })
-
-        return {
-          ...reference,
-          collections: nextCollections,
-        }
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'renameCollection',
+          collectionKey,
+          nextLabel,
+        },
       })
-
-      this.syncResolvedQueryState()
-      await this.persistLibrarySnapshot(projectRoot)
-      return this.collections.find((candidate) => candidate.key === collection.key) || null
+      if (mutation?.result?.changed) {
+        await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
+      }
+      return mutation?.result?.collection && typeof mutation.result.collection === 'object'
+        ? mutation.result.collection
+        : null
     },
 
     async removeCollection(projectRoot = '', collectionKey = '') {
-      const collection = resolveCollection(this.collections, collectionKey)
-      if (!collection) return false
-
-      this.collections = this.collections.filter((candidate) => candidate.key !== collection.key)
-      this.references = this.references.map((reference) => {
-        const memberships = Array.isArray(reference.collections) ? reference.collections : []
-        if (memberships.length === 0) return reference
-
-        const nextCollections = memberships.filter((value) => {
-          const normalizedValue = normalizeCollectionMembershipValue(value)
-          return (
-            normalizedValue !== normalizeCollectionMembershipValue(collection.key) &&
-            normalizedValue !== normalizeCollectionMembershipValue(collection.label)
-          )
-        })
-
-        if (nextCollections.length === memberships.length) return reference
-        return {
-          ...reference,
-          collections: nextCollections,
-        }
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'removeCollection',
+          collectionKey,
+        },
       })
+      if (mutation?.result?.removed !== true) return false
 
-      if (normalizeCollectionMembershipValue(this.selectedCollectionKey) === normalizeCollectionMembershipValue(collection.key)) {
-        this.selectedCollectionKey = ''
-      }
-
-      this.syncResolvedQueryState()
+      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
       this.ensureSelectedReferenceVisible()
-
-      await this.persistLibrarySnapshot(projectRoot)
       return true
     },
 
@@ -709,13 +564,17 @@ export const useReferencesStore = defineStore('references', {
         _appPushPending: shouldMark ? true : reference._appPushPending === true,
       })
 
-      this.references = [...this.references, nextReference]
-      this.tags = buildTagRegistry(this.tags, this.references)
-      this.syncResolvedQueryState()
+      await this.commitLibrarySnapshot(
+        projectRoot,
+        {
+          ...this.buildLibrarySnapshotPayload(),
+          references: [...this.references, nextReference],
+        },
+        { persist }
+      )
       this.selectedReferenceId = nextReference.id
       this.ensureSelectedReferenceVisible()
-      if (persist) await this.persistLibrarySnapshot(projectRoot)
-      return nextReference
+      return this.references.find((reference) => reference.id === nextReference.id) || nextReference
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
@@ -728,14 +587,17 @@ export const useReferencesStore = defineStore('references', {
         ...updates,
       })
 
-      this.references = this.references.map((reference, index) =>
-        index === referenceIndex ? normalizedReference : reference
+      await this.commitLibrarySnapshot(
+        projectRoot,
+        {
+          ...this.buildLibrarySnapshotPayload(),
+          references: this.references.map((reference, index) =>
+            index === referenceIndex ? normalizedReference : reference
+          ),
+        },
+        { persist }
       )
-
-      this.tags = buildTagRegistry(this.tags, this.references)
-      this.syncResolvedQueryState()
       this.ensureSelectedReferenceVisible()
-      if (persist) await this.persistLibrarySnapshot(projectRoot)
       return true
     },
 
@@ -743,13 +605,13 @@ export const useReferencesStore = defineStore('references', {
       const target = this.references.find((reference) => reference.id === referenceId)
       if (!target) return false
 
-      this.references = this.references.filter((reference) => reference.id !== referenceId)
-      this.tags = buildTagRegistry(this.tags, this.references)
-      this.syncResolvedQueryState()
+      await this.commitLibrarySnapshot(projectRoot, {
+        ...this.buildLibrarySnapshotPayload(),
+        references: this.references.filter((reference) => reference.id !== referenceId),
+      })
       if (this.selectedReferenceId === referenceId) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
-      await this.persistLibrarySnapshot(projectRoot)
 
       if (target._pushedByApp && target._zoteroKey) {
         deleteFromZotero(target).catch(() => {})
@@ -758,41 +620,19 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async toggleReferenceCollection(projectRoot = '', referenceId = '', collectionKey = '') {
-      const collection = resolveCollection(this.collections, collectionKey)
-      if (!collection) return false
-
-      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
-      if (referenceIndex === -1) return false
-
-      const reference = this.references[referenceIndex]
-      const currentCollections = Array.isArray(reference.collections) ? reference.collections : []
-      const isMember = referenceHasCollection(reference, collection)
-      const nextCollections = currentCollections.filter((value) => {
-        const normalizedValue = normalizeCollectionMembershipValue(value)
-        return (
-          normalizedValue !== normalizeCollectionMembershipValue(collection.key) &&
-          normalizedValue !== normalizeCollectionMembershipValue(collection.label)
-        )
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'toggleReferenceCollection',
+          referenceId,
+          collectionKey,
+        },
       })
+      if (mutation?.result?.changed !== true) return false
 
-      if (!isMember) {
-        nextCollections.push(collection.key)
-      }
-
-      this.references = this.references.map((candidate, index) =>
-        index === referenceIndex
-          ? {
-              ...candidate,
-              collections: nextCollections,
-            }
-          : candidate
-      )
-
-      this.tags = buildTagRegistry(this.tags, this.references)
-      this.syncResolvedQueryState()
+      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
       this.ensureSelectedReferenceVisible()
-      await this.persistLibrarySnapshot(projectRoot)
-      return !isMember
+      return mutation?.result?.toggledOn === true
     },
 
     async attachReferencePdf(projectRoot = '', referenceId = '', sourcePath = '') {
@@ -805,11 +645,12 @@ export const useReferencesStore = defineStore('references', {
         sourcePath
       )
 
-      this.references = this.references.map((candidate, index) =>
-        index === referenceIndex ? updatedReference : candidate
-      )
-      this.syncResolvedQueryState()
-      await this.persistLibrarySnapshot(projectRoot)
+      await this.commitLibrarySnapshot(projectRoot, {
+        ...this.buildLibrarySnapshotPayload(),
+        references: this.references.map((candidate, index) =>
+          index === referenceIndex ? updatedReference : candidate
+        ),
+      })
       return updatedReference
     },
 

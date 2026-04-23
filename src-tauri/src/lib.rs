@@ -32,6 +32,7 @@ mod references_backend;
 mod references_citation;
 mod references_import;
 mod references_merge;
+mod references_mutation;
 mod references_pdf;
 mod references_query;
 mod references_runtime;
@@ -488,6 +489,7 @@ pub fn run() {
             references_runtime::references_record_from_csl,
             references_runtime::references_scan_workspace_styles,
             references_runtime::references_write_bib_file,
+            references_mutation::references_mutation_apply,
             references_query::references_query_resolve,
             references_zotero_account::references_zotero_api_key_store,
             references_zotero_account::references_zotero_api_key_load,

@@ -37,8 +37,8 @@
 - section / source / collection / tag / search filter 语义
 - reference list sort 规则
 - citation usage index 构建
-- collection / tag registry 的变更与去重
-- 部分导入后的 selection / list refresh 语义
+- 部分 query selection / list refresh glue
+- add/update/remove reference 的局部 mutation 协调
 
 判断：
 
@@ -48,7 +48,7 @@
 建议 Rust 边界：
 
 - `references_query.rs`
-- `references_filters.rs`
+- `references_mutation.rs`
 
 #### 2. Files / Workspace Tree Runtime
 
@@ -189,7 +189,7 @@
 
 建议第一项执行任务：
 
-- **Task A: References Query / Filter Authority Migration**
+- **Task A: References Query / Mutation Authority Migration**
 
 最小切片目标：
 
@@ -199,8 +199,10 @@
 当前进度：
 
 - 已新增 Rust `references_query.rs`
+- 已新增 Rust `references_mutation.rs`
 - 已把 `references.js` 的 `filteredReferences` / `sortedLibrary` / `sectionCounts` / `sourceCounts` / `collectionCounts` / `tagCounts` 改成消费 backend query result
-- `citedIn` 也已开始消费 Rust query 返回的 citation usage index
+- `citedIn` 已消费 Rust query 返回的 citation usage index
+- collection create / rename / remove、reference collection toggle、import merge / selectedReference resolve 已改成消费 Rust mutation result
 
 ## 本审计的判断规则
 
