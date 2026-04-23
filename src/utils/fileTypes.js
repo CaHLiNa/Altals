@@ -2,6 +2,7 @@ import { basenamePath, dirnamePath, normalizeFsPath } from './path'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tif', 'tiff', 'eps', 'ps']
 const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
+const POSTSCRIPT_TEXT_EXTS = ['eps', 'ps']
 const CSV_EXTS = ['csv', 'tsv']
 const HTML_EXTS = ['html', 'htm']
 const PDF_EXTS = ['pdf']
@@ -110,6 +111,7 @@ export function getViewerType(path) {
   if (isNewTab(path)) return 'newtab'
   if (isMarkdownPreviewPath(path)) return 'markdown-preview'
   const ext = getExt(path)
+  if (POSTSCRIPT_TEXT_EXTS.includes(ext)) return 'text'
   if (IMAGE_EXTS.includes(ext)) return 'image'
   if (CSV_EXTS.includes(ext)) return 'csv'
   if (HTML_EXTS.includes(ext)) return 'html'
@@ -179,6 +181,7 @@ export function relativePath(fromFile, toFile) {
 export function isBinaryFile(path) {
   if (isNewTab(path) || isDraftPath(path)) return false
   const ext = getExt(path)
+  if (POSTSCRIPT_TEXT_EXTS.includes(ext)) return false
   return IMAGE_EXTS.includes(ext) || PDF_EXTS.includes(ext) || DOCX_EXTS.includes(ext)
 }
 
