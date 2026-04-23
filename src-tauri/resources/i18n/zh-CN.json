@@ -1107,6 +1107,7 @@
   "Contents": "目录",
   "Open externally": "在外部打开",
   "Image preview unavailable.": "图片预览不可用。",
+  "Open it externally if you need the original asset immediately.": "如果你现在就需要原始资源，请改用外部应用打开。",
   "HTML preview unavailable.": "HTML 预览不可用。",
   "This preview requires the desktop runtime workspace protocol.": "这个预览依赖桌面运行时的 workspace protocol。",
   "Image": "图片",

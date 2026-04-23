@@ -14,21 +14,22 @@
       <img class="image-preview-media" :src="fileUrl" :alt="fileName" />
     </div>
     <div v-else class="image-preview-empty">
-      <div>{{ t('Image preview unavailable.') }}</div>
+      <div>{{ emptyTitle }}</div>
       <div class="image-preview-empty-detail">
-        {{ t('This preview requires the desktop runtime workspace protocol.') }}
+        {{ emptyDetail }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { basenamePath } from '../../utils/path'
 import { toWorkspaceProtocolUrl } from '../../utils/workspaceProtocol'
 import { openLocalPath } from '../../services/localFileOpen'
 import { isTauriDesktopRuntime } from '../../app/browserPreview/routes'
+import { renderImagePreview } from '../../services/imagePreview'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -37,19 +38,62 @@ const props = defineProps({
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
+const previewUrl = ref('')
+const previewError = ref('')
 
 const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
-const fileUrl = computed(() =>
+const fileExt = computed(() => {
+  const dot = fileName.value.lastIndexOf('.')
+  return dot > 0 ? fileName.value.slice(dot + 1).toLowerCase() : ''
+})
+const browserSafeImageExts = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'])
+const usesNativeImageUrl = computed(() => browserSafeImageExts.has(fileExt.value))
+const nativeFileUrl = computed(() =>
   (isTauriDesktopRuntime()
     ? toWorkspaceProtocolUrl(props.filePath, workspace, {
         version: fileName.value,
       })
     : '')
 )
+const fileUrl = computed(() => (usesNativeImageUrl.value ? nativeFileUrl.value : previewUrl.value))
+const emptyTitle = computed(() => previewError.value || t('Image preview unavailable.'))
+const emptyDetail = computed(() =>
+  previewError.value
+    ? t('Open it externally if you need the original asset immediately.')
+    : t('This preview requires the desktop runtime workspace protocol.')
+)
 
 function handleOpenExternal() {
   void openLocalPath(props.filePath)
 }
+
+async function loadPreview() {
+  previewError.value = ''
+  previewUrl.value = ''
+
+  if (!isTauriDesktopRuntime()) return
+  if (usesNativeImageUrl.value) return
+
+  try {
+    const result = await renderImagePreview(props.filePath, 1800)
+    const mimeType = String(result?.mimeType || 'image/png').trim() || 'image/png'
+    const base64 = String(result?.base64 || '').trim()
+    if (!base64) {
+      throw new Error('No preview payload returned.')
+    }
+    previewUrl.value = `data:${mimeType};base64,${base64}`
+  } catch (error) {
+    previewError.value = error?.message || String(error || 'Preview generation failed.')
+  }
+}
+
+onMounted(() => {
+  void loadPreview()
+})
+
+watch(() => props.filePath, () => {
+  void loadPreview()
+})
 </script>
 
 <style scoped>

@@ -1,6 +1,11 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
+use image::codecs::png::PngEncoder;
+use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
 use serde::Serialize;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
+use std::io::Cursor;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::task;
@@ -51,6 +56,14 @@ pub struct WorkspaceMoveResult {
 pub struct WorkspaceCopyExternalResult {
     pub path: String,
     pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImagePreviewResult {
+    pub mime_type: String,
+    pub base64: String,
+    pub renderer: String,
 }
 
 fn build_copy_name(name: &str, index: usize, suffix: &str) -> String {
@@ -165,6 +178,137 @@ fn default_file_content(name: &str, initial_content: &str) -> String {
     String::new()
 }
 
+fn image_preview_cache_path(source_path: &Path, max_size: u32) -> Result<PathBuf, String> {
+    let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|value| value.as_millis())
+        .unwrap_or(0);
+    let mut hasher = DefaultHasher::new();
+    source_path.to_string_lossy().hash(&mut hasher);
+    modified.hash(&mut hasher);
+    max_size.hash(&mut hasher);
+    let hash = format!("{:016x}", hasher.finish());
+    let cache_dir = std::env::temp_dir().join("scribeflow-image-previews");
+    fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
+    Ok(cache_dir.join(hash))
+}
+
+#[cfg(target_os = "macos")]
+fn render_image_preview_blocking(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
+    if !path.exists() {
+        return Err("Image path does not exist".to_string());
+    }
+
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("tif") | Some("tiff") => render_tiff_preview(path, max_size),
+        Some("eps") | Some("ps") => render_postscript_preview(path, max_size),
+        _ => Err("This image format does not have a generated preview renderer.".to_string()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn render_image_preview_blocking(_path: &Path, _max_size: u32) -> Result<ImagePreviewResult, String> {
+    Err("Generated image previews are only available on macOS.".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn render_tiff_preview(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
+    let reader = ImageReader::open(path).map_err(|error| format!("Failed to open image: {error}"))?;
+    let dynamic = reader
+        .with_guessed_format()
+        .map_err(|error| format!("Failed to detect image format: {error}"))?
+        .decode()
+        .map_err(|error| format!("Failed to decode image: {error}"))?;
+    let (width, height) = dynamic.dimensions();
+    let rendered = if width > max_size || height > max_size {
+        dynamic.resize(max_size, max_size, image::imageops::FilterType::Lanczos3)
+    } else {
+        dynamic
+    };
+    let rgba = rendered.to_rgba8();
+    let mut buffer = Cursor::new(Vec::new());
+    let encoder = PngEncoder::new(&mut buffer);
+    encoder
+        .write_image(
+            rgba.as_raw(),
+            rgba.width(),
+            rgba.height(),
+            ColorType::Rgba8.into(),
+        )
+        .map_err(|error| format!("Failed to encode preview image: {error}"))?;
+
+    Ok(ImagePreviewResult {
+        mime_type: "image/png".to_string(),
+        base64: STANDARD.encode(buffer.into_inner()),
+        renderer: "rust-image".to_string(),
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewResult, String> {
+    let preview_dir = image_preview_cache_path(path, max_size)?;
+    fs::create_dir_all(&preview_dir).map_err(|error| error.to_string())?;
+    let preview_path = preview_dir.join("preview.png");
+
+    if !preview_path.exists() {
+        let resolution = if max_size >= 2000 {
+            "216"
+        } else if max_size >= 1400 {
+            "180"
+        } else {
+            "144"
+        };
+        let mut args = vec![
+            "-q".to_string(),
+            "-dSAFER".to_string(),
+            "-dBATCH".to_string(),
+            "-dNOPAUSE".to_string(),
+            "-dTextAlphaBits=4".to_string(),
+            "-dGraphicsAlphaBits=4".to_string(),
+            "-dFirstPage=1".to_string(),
+            "-dLastPage=1".to_string(),
+            "-sDEVICE=pngalpha".to_string(),
+        ];
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("eps"))
+            .unwrap_or(false)
+        {
+            args.push("-dEPSCrop".to_string());
+        }
+        args.push("-r".to_string());
+        args.push(resolution.to_string());
+        args.push("-sOutputFile".to_string());
+        args.push(preview_path.to_string_lossy().to_string());
+        args.push(path.to_string_lossy().to_string());
+
+        let status = background_command("gs")
+            .args(args)
+            .status()
+            .map_err(|error| format!("Failed to start Ghostscript: {error}"))?;
+
+        if !status.success() {
+            return Err(format!("Ghostscript preview generation failed: {status}"));
+        }
+    }
+
+    let bytes = fs::read(&preview_path).map_err(|error| error.to_string())?;
+    Ok(ImagePreviewResult {
+        mime_type: "image/png".to_string(),
+        base64: STANDARD.encode(bytes),
+        renderer: "ghostscript".to_string(),
+    })
+}
+
 #[tauri::command]
 pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
     let path_for_read = path.clone();
@@ -241,6 +385,18 @@ pub async fn read_file_base64(path: String) -> Result<String, String> {
     run_blocking(move || {
         let bytes = fs::read(&path).map_err(|e| e.to_string())?;
         Ok(STANDARD.encode(&bytes))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn render_image_preview(
+    path: String,
+    max_size: Option<u32>,
+) -> Result<ImagePreviewResult, String> {
+    let path_for_render = path.clone();
+    run_blocking(move || {
+        render_image_preview_blocking(Path::new(&path_for_render), max_size.unwrap_or(1800))
     })
     .await
 }

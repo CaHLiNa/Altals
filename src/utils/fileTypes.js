@@ -1,6 +1,6 @@
 import { basenamePath, dirnamePath, normalizeFsPath } from './path'
 
-const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tif', 'tiff', 'eps', 'ps']
 const MULTIMODAL_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const CSV_EXTS = ['csv', 'tsv']
 const HTML_EXTS = ['html', 'htm']
@@ -226,6 +226,10 @@ const ICON_MAP = {
   webp: 'IconPhoto',
   bmp: 'IconPhoto',
   ico: 'IconPhoto',
+  tif: 'IconPhoto',
+  tiff: 'IconPhoto',
+  eps: 'IconPhoto',
+  ps: 'IconPhoto',
   pdf: 'IconFileTypePdf',
   docx: 'IconFileTypeDocx',
   doc: 'IconFileTypeDoc',
@@ -288,6 +292,10 @@ export function getMimeType(path) {
     webp: 'image/webp',
     bmp: 'image/bmp',
     ico: 'image/x-icon',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+    eps: 'application/postscript',
+    ps: 'application/postscript',
     pdf: 'application/pdf',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   }
