@@ -41,6 +41,19 @@
             <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
           </div>
         </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Python Interpreter') }}</div>
+          </div>
+          <div class="settings-row-control">
+            <UiSelect
+              v-model="pythonInterpreterPreference"
+              size="sm"
+              :options="pythonInterpreterOptions"
+            />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -79,19 +92,16 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Python') }}</div>
+            <div v-if="pythonDiagnosticsHint" class="settings-row-hint">
+              {{ pythonDiagnosticsHint }}
+            </div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
             <span
               class="status-dot"
-              :class="pythonStore.hasInterpreter ? 'is-good' : 'is-none'"
+              :class="pythonDiagnosticsDotClass"
             ></span>
-            <span class="status-text">{{
-              pythonStore.hasInterpreter
-                ? pythonStore.interpreter.version
-                  ? `Python ${pythonStore.interpreter.version}`
-                  : t('Installed')
-                : t('Not found')
-            }}</span>
+            <span class="status-text">{{ pythonDiagnosticsText }}</span>
           </div>
         </div>
 
@@ -176,6 +186,7 @@ import {
 } from '../../stores/latex'
 import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
+import { basenamePath } from '../../utils/path'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
@@ -199,6 +210,46 @@ const engineOptions = computed(() => [
   { value: 'pdflatex', label: 'pdfLaTeX' },
   { value: 'lualatex', label: 'LuaLaTeX' },
 ])
+const pythonInterpreterOptions = computed(() => {
+  const options = [
+    {
+      value: 'auto',
+      label: t('Auto'),
+      triggerLabel: t('Auto'),
+    },
+  ]
+
+  for (const runtime of pythonStore.availableInterpreters) {
+    const runtimePath = String(runtime?.path || '').trim()
+    if (!runtimePath) continue
+
+    const versionLabel = runtime?.version ? `Python ${runtime.version}` : basenamePath(runtimePath)
+    const detail = runtimePath
+    const source = String(runtime?.source || '').trim()
+    const label = source && source !== runtimePath
+      ? `${versionLabel} · ${detail} · ${source}`
+      : `${versionLabel} · ${detail}`
+
+    options.push({
+      value: runtimePath,
+      label,
+      triggerLabel: versionLabel,
+    })
+  }
+
+  if (
+    pythonStore.interpreterPreference !== 'auto'
+    && !options.some((option) => option.value === pythonStore.interpreterPreference)
+  ) {
+    options.push({
+      value: pythonStore.interpreterPreference,
+      label: `${t('Unavailable interpreter')} · ${pythonStore.interpreterPreference}`,
+      triggerLabel: t('Unavailable interpreter'),
+    })
+  }
+
+  return options
+})
 
 const compilerPreference = computed({
   get: () => latexStore.compilerPreference,
@@ -211,6 +262,59 @@ const enginePreference = computed({
 const buildRecipe = computed({
   get: () => latexStore.buildRecipe,
   set: (value) => latexStore.setBuildRecipe(value),
+})
+const pythonInterpreterPreference = computed({
+  get: () => pythonStore.interpreterPreference,
+  set: (value) => pythonStore.setInterpreterPreference(value),
+})
+
+const pythonDiagnosticsDotClass = computed(() => {
+  if (pythonStore.hasInterpreter) return 'is-good'
+  if (pythonStore.detectedInterpreterCount > 0) return 'is-none'
+  return 'is-none'
+})
+
+const pythonDiagnosticsText = computed(() => {
+  if (pythonStore.hasInterpreter) {
+    return pythonStore.interpreter.version
+      ? `Python ${pythonStore.interpreter.version}`
+      : t('Selected')
+  }
+
+  if (
+    pythonStore.interpreterPreference !== 'auto'
+    && pythonStore.detectedInterpreterCount > 0
+  ) {
+    return t('Selected interpreter unavailable')
+  }
+
+  return pythonStore.detectedInterpreterCount > 0
+    ? t('{count} detected', { count: pythonStore.detectedInterpreterCount })
+    : t('Not found')
+})
+
+const pythonDiagnosticsHint = computed(() => {
+  const count = pythonStore.detectedInterpreterCount
+  const selectedPath = String(
+    pythonStore.interpreter.path
+    || pythonStore.selectedInterpreter.path
+    || '',
+  ).trim()
+
+  if (
+    pythonStore.interpreterPreference !== 'auto'
+    && !pythonStore.selectedInterpreterAvailable
+    && pythonStore.interpreterPreference
+  ) {
+    return pythonStore.interpreterPreference
+  }
+
+  if (pythonStore.interpreterPreference === 'auto') {
+    if (!count || !selectedPath) return ''
+    return `${t('{count} detected', { count })} · ${selectedPath}`
+  }
+
+  return selectedPath || pythonStore.interpreterPreference
 })
 
 async function redetectSystem() {
@@ -225,6 +329,7 @@ onMounted(() => {
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame(() => {
       Promise.all([
+        pythonStore.hydratePreferences(),
         pythonStore.checkInterpreter(),
         latexStore.checkCompilers(),
         latexStore.checkTools(),

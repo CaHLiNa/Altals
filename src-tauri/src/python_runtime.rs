@@ -5,12 +5,24 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Instant;
 
-#[derive(Debug, Clone, Serialize)]
+const PYTHON_PROBE_SCRIPT: &str = r#"import json, platform, sys; print(json.dumps({"version": platform.python_version(), "executable": sys.executable}))"#;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PythonRuntimeInfo {
     pub found: bool,
     pub path: String,
     pub version: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PythonRuntimeListResult {
+    pub interpreters: Vec<PythonRuntimeInfo>,
+    pub selected_interpreter: Option<PythonRuntimeInfo>,
+    pub resolved_interpreter: Option<PythonRuntimeInfo>,
+    pub selection_valid: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,6 +54,23 @@ pub struct PythonCompileResult {
 pub struct PythonCompileParams {
     #[serde(default)]
     pub file_path: String,
+    #[serde(default)]
+    pub interpreter_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PythonRuntimeListParams {
+    #[serde(default)]
+    pub interpreter_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PythonProbePayload {
+    #[serde(default)]
+    version: String,
+    #[serde(default)]
+    executable: String,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +78,15 @@ struct PythonInvocation {
     program: String,
     args: Vec<String>,
     display_path: String,
+}
+
+fn not_found_runtime() -> PythonRuntimeInfo {
+    PythonRuntimeInfo {
+        found: false,
+        path: String::new(),
+        version: String::new(),
+        source: String::new(),
+    }
 }
 
 fn home_dir() -> String {
@@ -172,39 +210,156 @@ fn build_python_candidates() -> Vec<PythonInvocation> {
 async fn probe_python(invocation: &PythonInvocation) -> Option<PythonRuntimeInfo> {
     let mut command = background_tokio_command(&invocation.program);
     command.args(&invocation.args);
-    command.arg("--version");
+    command.arg("-c");
+    command.arg(PYTHON_PROBE_SCRIPT);
 
     let output = command.output().await.ok()?;
     if !output.status.success() {
         return None;
     }
 
-    let raw = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let version_re = Regex::new(r"Python\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)").ok()?;
-    let version = version_re
-        .captures(&raw)
-        .and_then(|captures| captures.get(1))
-        .map(|value| value.as_str().to_string())
-        .unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let payload = stdout
+        .lines()
+        .rev()
+        .find_map(|line| serde_json::from_str::<PythonProbePayload>(line.trim()).ok())?;
+
+    let executable_path = if payload.executable.trim().is_empty() {
+        invocation.display_path.trim().to_string()
+    } else {
+        payload.executable.trim().to_string()
+    };
 
     Some(PythonRuntimeInfo {
         found: true,
-        path: invocation.display_path.clone(),
-        version,
+        path: executable_path,
+        version: payload.version.trim().to_string(),
+        source: invocation.display_path.clone(),
     })
 }
 
-async fn resolve_python_runtime() -> Option<(PythonInvocation, PythonRuntimeInfo)> {
+fn build_runtime_invocation(runtime: &PythonRuntimeInfo) -> PythonInvocation {
+    PythonInvocation {
+        program: runtime.path.clone(),
+        args: vec![],
+        display_path: runtime.path.clone(),
+    }
+}
+
+fn normalize_interpreter_request(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+        return "auto".to_string();
+    }
+    trimmed.to_string()
+}
+
+fn normalize_runtime_key(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn matches_runtime_path(runtime: &PythonRuntimeInfo, requested_path: &str) -> bool {
+    normalize_runtime_key(&runtime.path) == normalize_runtime_key(requested_path)
+}
+
+fn merge_selected_runtime(
+    runtimes: &mut Vec<PythonRuntimeInfo>,
+    selected: &PythonRuntimeInfo,
+) {
+    if runtimes
+        .iter()
+        .any(|runtime| matches_runtime_path(runtime, &selected.path))
+    {
+        return;
+    }
+    runtimes.insert(0, selected.clone());
+}
+
+async fn discover_python_runtimes() -> Vec<PythonRuntimeInfo> {
+    let mut runtimes = Vec::new();
+    let mut seen = HashSet::new();
+
     for candidate in build_python_candidates() {
         if let Some(info) = probe_python(&candidate).await {
-            return Some((candidate, info));
+            let key = normalize_runtime_key(&info.path);
+            if seen.insert(key) {
+                runtimes.push(info);
+            }
         }
     }
-    None
+
+    runtimes
+}
+
+async fn probe_explicit_python(path: &str) -> Option<PythonRuntimeInfo> {
+    let normalized = path.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    probe_python(&PythonInvocation {
+        program: normalized.to_string(),
+        args: vec![],
+        display_path: normalized.to_string(),
+    })
+    .await
+}
+
+async fn resolve_python_runtime_list(
+    requested_path: &str,
+) -> PythonRuntimeListResult {
+    let normalized_request = normalize_interpreter_request(requested_path);
+    let mut interpreters = discover_python_runtimes().await;
+    let is_auto = normalized_request == "auto";
+
+    let selected_interpreter = if is_auto {
+        None
+    } else if let Some(runtime) = interpreters
+        .iter()
+        .find(|runtime| matches_runtime_path(runtime, &normalized_request))
+        .cloned()
+    {
+        Some(runtime)
+    } else if let Some(runtime) = probe_explicit_python(&normalized_request).await {
+        merge_selected_runtime(&mut interpreters, &runtime);
+        Some(runtime)
+    } else {
+        None
+    };
+
+    let resolved_interpreter = if is_auto {
+        interpreters.first().cloned()
+    } else {
+        selected_interpreter.clone()
+    };
+    let selection_valid = is_auto || resolved_interpreter.is_some();
+
+    PythonRuntimeListResult {
+        interpreters,
+        selected_interpreter,
+        resolved_interpreter,
+        selection_valid,
+    }
+}
+
+async fn resolve_python_runtime(
+    requested_path: &str,
+) -> Result<(PythonInvocation, PythonRuntimeInfo), String> {
+    let runtime_list = resolve_python_runtime_list(requested_path).await;
+    let normalized_request = normalize_interpreter_request(requested_path);
+
+    let runtime = runtime_list.resolved_interpreter.ok_or_else(|| {
+        if normalized_request == "auto" {
+            "Python interpreter not found in PATH.".to_string()
+        } else {
+            format!(
+                "Selected Python interpreter is not available: {}",
+                normalized_request
+            )
+        }
+    })?;
+
+    Ok((build_runtime_invocation(&runtime), runtime))
 }
 
 fn parse_compile_issue(stderr: &str) -> Vec<PythonCompileIssue> {
@@ -237,14 +392,17 @@ fn parse_compile_issue(stderr: &str) -> Vec<PythonCompileIssue> {
 
 #[tauri::command]
 pub async fn python_runtime_detect() -> Result<PythonRuntimeInfo, String> {
-    Ok(resolve_python_runtime()
+    Ok(resolve_python_runtime_list("auto")
         .await
-        .map(|(_, info)| info)
-        .unwrap_or(PythonRuntimeInfo {
-            found: false,
-            path: String::new(),
-            version: String::new(),
-        }))
+        .resolved_interpreter
+        .unwrap_or_else(not_found_runtime))
+}
+
+#[tauri::command]
+pub async fn python_runtime_list(
+    params: PythonRuntimeListParams,
+) -> Result<PythonRuntimeListResult, String> {
+    Ok(resolve_python_runtime_list(&params.interpreter_path).await)
 }
 
 #[tauri::command]
@@ -259,9 +417,7 @@ pub async fn python_runtime_compile(
         return Err(format!("Python file does not exist: {file_path}"));
     }
 
-    let Some((invocation, info)) = resolve_python_runtime().await else {
-        return Err("Python interpreter not found in PATH.".to_string());
-    };
+    let (invocation, info) = resolve_python_runtime(&params.interpreter_path).await?;
 
     let started_at = Instant::now();
     let mut command = background_tokio_command(&invocation.program);
@@ -281,7 +437,7 @@ pub async fn python_runtime_compile(
 
     Ok(PythonCompileResult {
         success,
-        interpreter_path: info.path,
+        interpreter_path: info.path.clone(),
         interpreter_version: info.version,
         command_preview,
         duration_ms,
@@ -295,4 +451,38 @@ pub async fn python_runtime_compile(
         },
         warnings: vec![],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        merge_selected_runtime, normalize_interpreter_request, PythonRuntimeInfo,
+    };
+
+    fn runtime(path: &str, version: &str) -> PythonRuntimeInfo {
+        PythonRuntimeInfo {
+            found: true,
+            path: path.to_string(),
+            version: version.to_string(),
+            source: path.to_string(),
+        }
+    }
+
+    #[test]
+    fn normalizes_empty_interpreter_request_to_auto() {
+        assert_eq!(normalize_interpreter_request(""), "auto");
+        assert_eq!(normalize_interpreter_request("  "), "auto");
+        assert_eq!(normalize_interpreter_request("AUTO"), "auto");
+    }
+
+    #[test]
+    fn merges_missing_selected_runtime_into_front_of_list() {
+        let mut runtimes = vec![runtime("/usr/bin/python3", "3.9.6")];
+        let selected = runtime("/opt/homebrew/bin/python3.13", "3.13.2");
+
+        merge_selected_runtime(&mut runtimes, &selected);
+
+        assert_eq!(runtimes.first(), Some(&selected));
+        assert_eq!(runtimes.len(), 2);
+    }
 }

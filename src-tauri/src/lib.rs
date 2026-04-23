@@ -22,6 +22,7 @@ mod latex_tools;
 mod legacy_cleanup;
 mod markdown_runtime;
 mod process_utils;
+mod python_preferences;
 mod python_runtime;
 mod references_backend;
 mod references_citation;
@@ -502,7 +503,10 @@ pub fn run() {
             editor_session_runtime::editor_session_load,
             editor_session_runtime::editor_session_save,
             markdown_runtime::markdown_extract_headings,
+            python_preferences::python_preferences_load,
+            python_preferences::python_preferences_save,
             python_runtime::python_runtime_detect,
+            python_runtime::python_runtime_list,
             python_runtime::python_runtime_compile,
             latex_project_graph::latex_project_graph_resolve,
             latex_project_graph::latex_compile_request_resolve,

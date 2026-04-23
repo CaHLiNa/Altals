@@ -72,7 +72,7 @@
             :aria-label="pdfButtonLabel"
             @click="$emit('reveal-pdf')"
           >
-            <IconFileTypePdf :size="pdfActionIconSize" :stroke-width="buttonIconStroke" />
+            <component :is="pdfIcon" :size="pdfActionIconSize" :stroke-width="buttonIconStroke" />
           </UiButton>
         </div>
       </div>
@@ -140,7 +140,11 @@ const primaryLabel = computed(() => {
 })
 
 const primaryIcon = computed(() => {
-  if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
+  if (
+    props.uiState?.primaryAction === 'run'
+    || props.uiState?.primaryAction === 'compile'
+    || props.uiState?.kind === 'latex'
+  ) {
     return IconPlayerPlay
   }
   return IconEye
@@ -165,6 +169,9 @@ const pdfButtonLabel = computed(() => {
   if (!canOpenPdf.value) return t('Build and open PDF')
   return activePreviewMode.value === 'pdf-artifact' ? t('Hide PDF preview') : t('Open PDF')
 })
+const pdfIcon = computed(() =>
+  props.uiState?.kind === 'latex' ? IconEye : IconFileTypePdf
+)
 
 const activePreviewMode = computed(() => props.previewState?.previewMode || null)
 
@@ -254,8 +261,8 @@ const pdfActionIconSize = computed(() => 16)
   overflow: hidden;
   font-family: var(--font-ui);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -273,8 +280,8 @@ const pdfActionIconSize = computed(() => 16)
   white-space: nowrap;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
 }
 
