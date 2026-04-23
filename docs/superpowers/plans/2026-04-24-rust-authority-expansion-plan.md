@@ -63,6 +63,11 @@
 
 - `src/stores/references.js` 退化为 query input、selection state、UI event dispatch
 
+当前进度：
+
+- 已完成第一刀：新增 Rust `references_query.rs`
+- 前端 `references.js` 已开始消费 backend query result，而不是继续本地推导 `filteredReferences` / `counts` / `sortedLibrary`
+
 ### Priority 2: Files / Workspace Tree Runtime Migration
 
 **理由：** `files.js` + `domains/files/*` 现在实际上承载了目录展开、snapshot hydrate、watch reconcile、cache replay 等运行时策略，这些更像桌面 runtime，而不是视图层 glue。

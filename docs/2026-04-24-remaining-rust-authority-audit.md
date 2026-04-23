@@ -196,6 +196,12 @@
 - 把 filter / sort / collection-tag query 语义迁到 Rust
 - 前端 `references.js` 退化为 query input + selection state + UI dispatch
 
+当前进度：
+
+- 已新增 Rust `references_query.rs`
+- 已把 `references.js` 的 `filteredReferences` / `sortedLibrary` / `sectionCounts` / `sourceCounts` / `collectionCounts` / `tagCounts` 改成消费 backend query result
+- `citedIn` 也已开始消费 Rust query 返回的 citation usage index
+
 ## 本审计的判断规则
 
 - “文件大”不等于“该迁 Rust”

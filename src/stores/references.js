@@ -30,17 +30,10 @@ import {
   mergeImportedReferences,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
+import { resolveReferenceQueryState } from '../services/references/referenceQueryBridge.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
-import { normalizeReferenceSearchTokens } from '../domains/references/referenceInterop.js'
+import { resolveReferenceQueryStateLocally } from '../domains/references/referenceQueryRuntime.js'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
-
-function normalizedAuthorSortText(reference = {}) {
-  const authors = Array.isArray(reference.authors) ? reference.authors : []
-  if (authors.length > 0) {
-    return authors.join(' ').trim().toLowerCase()
-  }
-  return String(reference.authorLine || '').trim().toLowerCase()
-}
 
 function buildCollectionKey(label = '') {
   const normalized = String(label || '')
@@ -135,37 +128,6 @@ function referenceHasCollection(reference = {}, collection = null) {
   })
 }
 
-function filterReferenceBySection(reference, sectionKey) {
-  if (sectionKey === 'unfiled') return !reference.collections.length
-  if (sectionKey === 'missing-identifier') return !String(reference.identifier || '').trim()
-  if (sectionKey === 'missing-pdf') return !referenceHasPdf(reference)
-  return true
-}
-
-function filterReferenceBySource(reference, sourceKey) {
-  if (sourceKey === 'zotero') return String(reference?._source || '').trim().toLowerCase() === 'zotero'
-  if (sourceKey === 'manual') return String(reference?._source || '').trim().toLowerCase() !== 'zotero'
-  return true
-}
-
-function filterReferenceByCollection(reference, collectionKey, collections = []) {
-  if (!collectionKey) return true
-  const collection = resolveCollection(collections, collectionKey)
-  if (!collection) return false
-  return referenceHasCollection(reference, collection)
-}
-
-function filterReferenceByTag(reference, tagKey = '') {
-  const normalizedTag = normalizeTagKey(tagKey)
-  if (!normalizedTag) return true
-  const tags = Array.isArray(reference?.tags) ? reference.tags : []
-  return tags.some((value) => normalizeTagKey(typeof value === 'string' ? value : value?.key || value?.label) === normalizedTag)
-}
-
-function referenceHasPdf(reference = {}) {
-  return String(reference.pdfPath || '').trim().length > 0 || reference.hasPdf === true
-}
-
 async function shouldMarkReferenceForZoteroPush() {
   try {
     const config = await loadZoteroConfig()
@@ -175,89 +137,21 @@ async function shouldMarkReferenceForZoteroPush() {
   }
 }
 
-function normalizedReferenceSearchText(reference = {}) {
-  return normalizeReferenceSearchTokens(reference).join(' ')
-}
-
-function compareReferences(a = {}, b = {}, sortKey = 'year-desc') {
-  if (sortKey === 'year-asc') {
-    return (
-      Number(a.year || 0) - Number(b.year || 0) ||
-      String(a.title || '').localeCompare(String(b.title || ''))
-    )
-  }
-  if (sortKey === 'author-desc') {
-    return (
-      normalizedAuthorSortText(b).localeCompare(normalizedAuthorSortText(a)) ||
-      String(a.title || '').localeCompare(String(b.title || ''))
-    )
-  }
-  if (sortKey === 'author-asc') {
-    return (
-      normalizedAuthorSortText(a).localeCompare(normalizedAuthorSortText(b)) ||
-      String(a.title || '').localeCompare(String(b.title || ''))
-    )
-  }
-  if (sortKey === 'title-desc') {
-    return (
-      String(b.title || '').localeCompare(String(a.title || '')) ||
-      Number(b.year || 0) - Number(a.year || 0)
-    )
-  }
-  if (sortKey === 'title-asc') {
-    return (
-      String(a.title || '').localeCompare(String(b.title || '')) ||
-      Number(b.year || 0) - Number(a.year || 0)
-    )
-  }
-  return (
-    Number(b.year || 0) - Number(a.year || 0) ||
-    String(a.title || '').localeCompare(String(b.title || ''))
-  )
-}
-
-function buildCitationUsageIndex(fileContents = {}) {
-  const usage = {}
-  const markdownCitationRe = /\[([^\[\]]*@[a-zA-Z][\w.-]*[^\[\]]*)\]/g
-  const markdownKeyRe = /@([a-zA-Z][\w.-]*)/g
-  const latexCitationRe =
-    /\\(?:cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite)\{([^}]*)\}/g
-  const latexKeyRe = /([a-zA-Z][\w.-]*)/g
-
-  for (const [path, content] of Object.entries(fileContents || {})) {
-    if (!content || typeof content !== 'string') continue
-
-    if (path.endsWith('.md')) {
-      markdownCitationRe.lastIndex = 0
-      let citationMatch = null
-      while ((citationMatch = markdownCitationRe.exec(content)) !== null) {
-        markdownKeyRe.lastIndex = 0
-        let keyMatch = null
-        while ((keyMatch = markdownKeyRe.exec(citationMatch[1])) !== null) {
-          const key = keyMatch[1]
-          if (!usage[key]) usage[key] = []
-          if (!usage[key].includes(path)) usage[key].push(path)
-        }
-      }
-      continue
-    }
-
-    if (path.endsWith('.tex') || path.endsWith('.latex')) {
-      latexCitationRe.lastIndex = 0
-      let citationMatch = null
-      while ((citationMatch = latexCitationRe.exec(content)) !== null) {
-        latexKeyRe.lastIndex = 0
-        let keyMatch = null
-        while ((keyMatch = latexKeyRe.exec(citationMatch[1])) !== null) {
-          const key = keyMatch[1]
-          if (!usage[key]) usage[key] = []
-          if (!usage[key].includes(path)) usage[key].push(path)
-        }
-      }
-    }
-  }
-
-  return usage
+function buildDefaultResolvedQueryState(state = {}) {
+  return resolveReferenceQueryStateLocally({
+    librarySections: state.librarySections || [],
+    sourceSections: state.sourceSections || [],
+    collections: state.collections || [],
+    tags: state.tags || [],
+    references: state.references || [],
+    selectedSectionKey: state.selectedSectionKey || 'all',
+    selectedSourceKey: state.selectedSourceKey || '',
+    selectedCollectionKey: state.selectedCollectionKey || '',
+    selectedTagKey: state.selectedTagKey || '',
+    searchQuery: state.searchQuery || '',
+    sortKey: state.sortKey || 'year-desc',
+    fileContents: {},
+  })
 }
 
 async function resolveImportedSelectionReference(
@@ -297,65 +191,39 @@ export const useReferencesStore = defineStore('references', {
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
     searchQuery: '',
     sortKey: 'year-desc',
+    resolvedQueryState: buildDefaultResolvedQueryState({
+      librarySections: REFERENCE_LIBRARY_SECTIONS,
+      sourceSections: REFERENCE_SOURCE_SECTIONS,
+      collections: REFERENCE_COLLECTIONS,
+      tags: REFERENCE_TAGS,
+      references: REFERENCE_FIXTURES,
+      selectedSectionKey: 'all',
+      selectedSourceKey: '',
+      selectedCollectionKey: '',
+      selectedTagKey: '',
+      searchQuery: '',
+      sortKey: 'year-desc',
+    }),
     isLoading: false,
     loadError: '',
     importInFlight: false,
   }),
 
   getters: {
-    sectionCounts: (state) =>
-      Object.fromEntries(
-        state.librarySections.map((section) => [
-          section.key,
-          state.references.filter((reference) => filterReferenceBySection(reference, section.key)).length,
-        ])
-      ),
+    sectionCounts: (state) => state.resolvedQueryState?.sectionCounts || {},
 
-    sourceCounts: (state) =>
-      Object.fromEntries(
-        state.sourceSections.map((section) => [
-          section.key,
-          state.references.filter((reference) => filterReferenceBySource(reference, section.key)).length,
-        ])
-      ),
+    sourceCounts: (state) => state.resolvedQueryState?.sourceCounts || {},
 
-    collectionCounts: (state) =>
-      Object.fromEntries(
-        state.collections.map((collection) => [
-          collection.key,
-          state.references.filter((reference) => filterReferenceByCollection(reference, collection.key, state.collections))
-            .length,
-        ])
-      ),
+    collectionCounts: (state) => state.resolvedQueryState?.collectionCounts || {},
 
     selectedCollection: (state) => resolveCollection(state.collections, state.selectedCollectionKey),
 
-    tagCounts: (state) =>
-      Object.fromEntries(
-        state.tags.map((tag) => [
-          tag.key,
-          state.references.filter((reference) => filterReferenceByTag(reference, tag.key)).length,
-        ])
-      ),
+    tagCounts: (state) => state.resolvedQueryState?.tagCounts || {},
 
     selectedTag: (state) =>
       state.tags.find((tag) => normalizeTagKey(tag.key) === normalizeTagKey(state.selectedTagKey)) || null,
 
-    filteredReferences: (state) =>
-      state.references
-        .filter((reference) => filterReferenceBySection(reference, state.selectedSectionKey))
-        .filter((reference) => filterReferenceBySource(reference, state.selectedSourceKey))
-        .filter((reference) =>
-          filterReferenceByCollection(reference, state.selectedCollectionKey, state.collections)
-        )
-        .filter((reference) => filterReferenceByTag(reference, state.selectedTagKey))
-        .filter((reference) => {
-          const query = String(state.searchQuery || '').trim().toLowerCase()
-          if (!query) return true
-          return normalizedReferenceSearchText(reference).includes(query)
-        })
-        .slice()
-        .sort((a, b) => compareReferences(a, b, state.sortKey)),
+    filteredReferences: (state) => state.resolvedQueryState?.filteredReferences || [],
 
     selectedReference(state) {
       return (
@@ -366,7 +234,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     sortedLibrary() {
-      return this.references.slice().sort((a, b) => compareReferences(a, b, this.sortKey))
+      return this.resolvedQueryState?.sortedReferences || []
     },
 
     availableCitationStyles() {
@@ -374,9 +242,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     citedIn() {
-      const pinia = getActivePinia()
-      const fileContents = pinia?.state?.value?.files?.fileContents || {}
-      return buildCitationUsageIndex(fileContents)
+      return this.resolvedQueryState?.citationUsageIndex || {}
     },
 
     citedKeys() {
@@ -385,8 +251,57 @@ export const useReferencesStore = defineStore('references', {
   },
 
   actions: {
+    async refreshResolvedQueryState() {
+      const pinia = getActivePinia()
+      const fileContents = pinia?.state?.value?.files?.fileContents || {}
+      const resolved = await resolveReferenceQueryState({
+        librarySections: this.librarySections,
+        sourceSections: this.sourceSections,
+        collections: this.collections,
+        tags: this.tags,
+        references: this.references,
+        selectedSectionKey: this.selectedSectionKey,
+        selectedSourceKey: this.selectedSourceKey,
+        selectedCollectionKey: this.selectedCollectionKey,
+        selectedTagKey: this.selectedTagKey,
+        searchQuery: this.searchQuery,
+        sortKey: this.sortKey,
+        fileContents,
+      })
+
+      this.resolvedQueryState = resolved && typeof resolved === 'object'
+        ? resolved
+        : buildDefaultResolvedQueryState(this.$state)
+      const query = this.resolvedQueryState?.query || {}
+      this.selectedSectionKey = String(query.selectedSectionKey || 'all')
+      this.selectedSourceKey = String(query.selectedSourceKey || '')
+      this.selectedCollectionKey = String(query.selectedCollectionKey || '')
+      this.selectedTagKey = String(query.selectedTagKey || '')
+      this.sortKey = String(query.sortKey || 'year-desc')
+      this.searchQuery = String(query.searchQuery ?? this.searchQuery ?? '')
+    },
+
+    syncResolvedQueryState() {
+      this.resolvedQueryState = buildDefaultResolvedQueryState({
+        librarySections: this.librarySections,
+        sourceSections: this.sourceSections,
+        collections: this.collections,
+        tags: this.tags,
+        references: this.references,
+        selectedSectionKey: this.selectedSectionKey,
+        selectedSourceKey: this.selectedSourceKey,
+        selectedCollectionKey: this.selectedCollectionKey,
+        selectedTagKey: this.selectedTagKey,
+        searchQuery: this.searchQuery,
+        sortKey: this.sortKey,
+        fileContents: getActivePinia()?.state?.value?.files?.fileContents || {},
+      })
+      void this.refreshResolvedQueryState()
+    },
+
     syncTagRegistry() {
       this.tags = buildTagRegistry([], this.references)
+      this.syncResolvedQueryState()
     },
 
     ensureSelectedReferenceVisible() {
@@ -432,6 +347,7 @@ export const useReferencesStore = defineStore('references', {
       if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.references[0]?.id || ''
       }
+      this.syncResolvedQueryState()
       this.ensureSelectedReferenceVisible()
     },
 
@@ -580,6 +496,7 @@ export const useReferencesStore = defineStore('references', {
       }
 
       this.collections = [...this.collections, nextCollection]
+      this.syncResolvedQueryState()
       await this.persistLibrarySnapshot(projectRoot)
       return nextCollection
     },
@@ -626,6 +543,7 @@ export const useReferencesStore = defineStore('references', {
         }
       })
 
+      this.syncResolvedQueryState()
       await this.persistLibrarySnapshot(projectRoot)
       return this.collections.find((candidate) => candidate.key === collection.key) || null
     },
@@ -658,6 +576,7 @@ export const useReferencesStore = defineStore('references', {
         this.selectedCollectionKey = ''
       }
 
+      this.syncResolvedQueryState()
       this.ensureSelectedReferenceVisible()
 
       await this.persistLibrarySnapshot(projectRoot)
@@ -670,6 +589,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -681,6 +601,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -692,6 +613,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedTagKey = ''
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -704,6 +626,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -711,6 +634,7 @@ export const useReferencesStore = defineStore('references', {
 
     setSearchQuery(value = '') {
       this.searchQuery = String(value || '')
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -727,6 +651,7 @@ export const useReferencesStore = defineStore('references', {
       ].includes(value)
         ? value
         : 'year-desc'
+      this.syncResolvedQueryState()
       if (!this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -755,9 +680,19 @@ export const useReferencesStore = defineStore('references', {
     searchRefs(query = '') {
       const normalizedQuery = String(query || '').trim().toLowerCase()
       if (!normalizedQuery) return this.sortedLibrary
-      return this.sortedLibrary.filter((reference) =>
-        normalizedReferenceSearchText(reference).includes(normalizedQuery)
-      )
+      return this.sortedLibrary.filter((reference) => {
+        const haystack = [
+          reference.title,
+          ...(Array.isArray(reference.authors) ? reference.authors : []),
+          reference.authorLine,
+          reference.source,
+          reference.citationKey,
+          reference.identifier,
+          reference.pages,
+          ...(Array.isArray(reference.tags) ? reference.tags : []),
+        ].filter(Boolean).join(' ').toLowerCase()
+        return haystack.includes(normalizedQuery)
+      })
     },
 
     async addReference(projectRoot = '', reference = {}, options = {}) {
@@ -776,6 +711,7 @@ export const useReferencesStore = defineStore('references', {
 
       this.references = [...this.references, nextReference]
       this.tags = buildTagRegistry(this.tags, this.references)
+      this.syncResolvedQueryState()
       this.selectedReferenceId = nextReference.id
       this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
@@ -797,6 +733,7 @@ export const useReferencesStore = defineStore('references', {
       )
 
       this.tags = buildTagRegistry(this.tags, this.references)
+      this.syncResolvedQueryState()
       this.ensureSelectedReferenceVisible()
       if (persist) await this.persistLibrarySnapshot(projectRoot)
       return true
@@ -808,6 +745,7 @@ export const useReferencesStore = defineStore('references', {
 
       this.references = this.references.filter((reference) => reference.id !== referenceId)
       this.tags = buildTagRegistry(this.tags, this.references)
+      this.syncResolvedQueryState()
       if (this.selectedReferenceId === referenceId) {
         this.selectedReferenceId = this.filteredReferences[0]?.id || ''
       }
@@ -851,6 +789,7 @@ export const useReferencesStore = defineStore('references', {
       )
 
       this.tags = buildTagRegistry(this.tags, this.references)
+      this.syncResolvedQueryState()
       this.ensureSelectedReferenceVisible()
       await this.persistLibrarySnapshot(projectRoot)
       return !isMember
@@ -869,6 +808,7 @@ export const useReferencesStore = defineStore('references', {
       this.references = this.references.map((candidate, index) =>
         index === referenceIndex ? updatedReference : candidate
       )
+      this.syncResolvedQueryState()
       await this.persistLibrarySnapshot(projectRoot)
       return updatedReference
     },
@@ -920,6 +860,19 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
       this.searchQuery = ''
       this.sortKey = 'year-desc'
+      this.resolvedQueryState = buildDefaultResolvedQueryState({
+        librarySections: this.librarySections,
+        sourceSections: this.sourceSections,
+        collections: this.collections,
+        tags: this.tags,
+        references: this.references,
+        selectedSectionKey: this.selectedSectionKey,
+        selectedSourceKey: this.selectedSourceKey,
+        selectedCollectionKey: this.selectedCollectionKey,
+        selectedTagKey: this.selectedTagKey,
+        searchQuery: this.searchQuery,
+        sortKey: this.sortKey,
+      })
       this.isLoading = false
       this.loadError = ''
       this.importInFlight = false
