@@ -1,40 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  requestLatexWorkshopBackwardSync,
-  requestLatexWorkshopForwardSync,
-} from '../latex/latexWorkshopSynctex.js'
-import { resolveLatexSynctexInputPath } from '../latex/synctex.js'
+import { requestLatexWorkshopBackwardSync } from '../latex/latexWorkshopSynctex.js'
 
 export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
   if (!normalizedPath) return ''
 
   return invoke('read_file_base64', { path: normalizedPath })
-}
-
-export async function requestLatexPdfForwardSync(options = {}) {
-  const synctexPath = String(options.synctexPath || '').trim()
-  const texPath = String(options.texPath || '').trim()
-  const line = Number(options.line || 0)
-  const column = Number(options.column || 0)
-  if (!synctexPath || !texPath || !Number.isInteger(line) || line < 1) return null
-
-  const effectiveTexPath = await resolveLatexSynctexInputPath(synctexPath, texPath)
-
-  try {
-    return await invoke('synctex_forward', {
-      synctexPath,
-      texPath: effectiveTexPath,
-      line,
-      column: Number.isInteger(column) && column >= 0 ? column : 0,
-    })
-  } catch {
-    return requestLatexWorkshopForwardSync({
-      synctexPath,
-      texPath: effectiveTexPath,
-      line,
-    }).catch(() => null)
-  }
 }
 
 export async function requestLatexPdfBackwardSync(options = {}) {

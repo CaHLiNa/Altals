@@ -1371,34 +1371,6 @@ pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> 
 }
 
 #[tauri::command]
-pub async fn synctex_forward(
-    synctex_path: String,
-    tex_path: String,
-    line: u32,
-    column: Option<u32>,
-) -> Result<serde_json::Value, String> {
-    let synctex = Path::new(&synctex_path);
-    if !synctex.exists() {
-        return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
-    }
-
-    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
-        if let Some(binary) = find_synctex(None) {
-            if let Ok(results) =
-                run_synctex_view_cli(&binary, &pdf_path, &tex_path, line, column.unwrap_or(0))
-            {
-                if let Some(result) = results.last() {
-                    return Ok(result.clone().into_json());
-                }
-            }
-        }
-    }
-
-    let data = parse_synctex_gz(&synctex_path)?;
-    forward_sync(&data, &tex_path, line)
-}
-
-#[tauri::command]
 pub async fn synctex_backward(
     synctex_path: String,
     page: u32,
@@ -1462,61 +1434,6 @@ struct SyncNode {
     height: f64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct ForwardSyncPoint {
-    page: u32,
-    x: f64,
-    y: f64,
-}
-
-impl ForwardSyncPoint {
-    fn into_json(self) -> serde_json::Value {
-        serde_json::json!({
-            "page": self.page,
-            "x": self.x,
-            "y": self.y,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct ForwardSyncHit {
-    page: u32,
-    x: f64,
-    y: f64,
-    rect_left: Option<f64>,
-    rect_top: Option<f64>,
-    rect_width: Option<f64>,
-    rect_height: Option<f64>,
-}
-
-impl ForwardSyncHit {
-    fn into_json(self) -> serde_json::Value {
-        let mut value = serde_json::json!({
-            "page": self.page,
-            "x": self.x,
-            "y": self.y,
-        });
-
-        if let Some(object) = value.as_object_mut() {
-            if let Some(rect_left) = self.rect_left {
-                object.insert("rectLeft".to_string(), serde_json::json!(rect_left));
-            }
-            if let Some(rect_top) = self.rect_top {
-                object.insert("rectTop".to_string(), serde_json::json!(rect_top));
-            }
-            if let Some(rect_width) = self.rect_width {
-                object.insert("rectWidth".to_string(), serde_json::json!(rect_width));
-            }
-            if let Some(rect_height) = self.rect_height {
-                object.insert("rectHeight".to_string(), serde_json::json!(rect_height));
-            }
-        }
-
-        value
-    }
-}
-
 fn synctex_scaled_to_big_point(value: f64) -> f64 {
     value * SYNCTEX_SCALED_POINT_TO_BIG_POINT
 }
@@ -1529,90 +1446,6 @@ fn derive_pdf_path_from_synctex_path(synctex_path: &str) -> Option<String> {
         return Some(format!("{path}.pdf"));
     }
     None
-}
-
-fn parse_synctex_view_output(output: &str) -> Result<Vec<ForwardSyncHit>, String> {
-    #[derive(Default)]
-    struct PartialHit {
-        page: Option<u32>,
-        x: Option<f64>,
-        y: Option<f64>,
-        h: Option<f64>,
-        v: Option<f64>,
-        width: Option<f64>,
-        height: Option<f64>,
-    }
-
-    impl PartialHit {
-        fn into_hit(self) -> Option<ForwardSyncHit> {
-            let page = self.page?;
-            let x = self.x?;
-            let y = self.y?;
-            let (rect_left, rect_top, rect_width, rect_height) =
-                match (self.h, self.v, self.width, self.height) {
-                    (Some(left), Some(bottom), Some(width), Some(height)) => (
-                        Some(left),
-                        Some(bottom - height),
-                        Some(width),
-                        Some(height),
-                    ),
-                    _ => (None, None, None, None),
-                };
-
-            Some(ForwardSyncHit {
-                page,
-                x,
-                y,
-                rect_left,
-                rect_top,
-                rect_width,
-                rect_height,
-            })
-        }
-    }
-
-    let mut results = Vec::new();
-    let mut current = PartialHit::default();
-
-    let flush = |current: &mut PartialHit, results: &mut Vec<ForwardSyncHit>| {
-        if let Some(hit) = std::mem::take(current).into_hit() {
-            results.push(hit);
-        }
-    };
-
-    for line in output.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("Output:") {
-            flush(&mut current, &mut results);
-            continue;
-        }
-
-        if let Some(value) = trimmed.strip_prefix("Page:") {
-            current.page = value.trim().parse::<u32>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("x:") {
-            current.x = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("y:") {
-            current.y = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("h:") {
-            current.h = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("v:") {
-            current.v = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("W:") {
-            current.width = value.trim().parse::<f64>().ok();
-        } else if let Some(value) = trimmed.strip_prefix("H:") {
-            current.height = value.trim().parse::<f64>().ok();
-        } else if trimmed == "after:" {
-            flush(&mut current, &mut results);
-        }
-    }
-
-    flush(&mut current, &mut results);
-
-    if results.is_empty() {
-        return Err("SyncTeX view output did not contain a complete result.".to_string());
-    }
-
-    Ok(results)
 }
 
 fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> {
@@ -1636,35 +1469,6 @@ fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> 
     }
 
     Err("SyncTeX edit output did not contain a complete result.".to_string())
-}
-
-fn run_synctex_view_cli(
-    synctex_binary: &str,
-    pdf_path: &str,
-    tex_path: &str,
-    line: u32,
-    column: u32,
-) -> Result<Vec<ForwardSyncHit>, String> {
-    let input = build_synctex_view_input(tex_path, line, column);
-    let mut command = background_command(synctex_binary);
-    apply_tex_locale_std(&mut command);
-    let output = command
-        .args(["view", "-i", &input, "-o", pdf_path])
-        .output()
-        .map_err(|e| format!("Failed to run synctex view: {}", e))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-
-    parse_synctex_view_output(&String::from_utf8_lossy(&output.stdout))
-}
-
-fn build_synctex_view_input(tex_path: &str, line: u32, column: u32) -> String {
-    // The CLI format is line:column:input, with optional page hint inserted
-    // before the input path. Passing 0 here would be parsed as part of the
-    // file name and make column-based forward sync ineffective.
-    format!("{}:{}:{}", line.max(1), column, tex_path)
 }
 
 fn run_synctex_edit_cli(
@@ -1824,65 +1628,6 @@ fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
     Ok(parse_synctex_content(&content))
 }
 
-fn forward_sync(
-    nodes: &[SyncNode],
-    tex_path: &str,
-    line: u32,
-) -> Result<serde_json::Value, String> {
-    forward_sync_point(nodes, tex_path, line).map(ForwardSyncPoint::into_json)
-}
-
-fn forward_sync_point(
-    nodes: &[SyncNode],
-    tex_path: &str,
-    line: u32,
-) -> Result<ForwardSyncPoint, String> {
-    // Find the node closest to the given line in the given file
-    let tex_canonical =
-        std::fs::canonicalize(tex_path).unwrap_or_else(|_| Path::new(tex_path).to_path_buf());
-
-    let mut best: Option<&SyncNode> = None;
-    let mut best_dist: u32 = u32::MAX;
-
-    for node in nodes {
-        let node_path = std::fs::canonicalize(&node.file)
-            .unwrap_or_else(|_| Path::new(&node.file).to_path_buf());
-
-        if node_path == tex_canonical {
-            let dist = if node.line >= line {
-                node.line - line
-            } else {
-                line - node.line
-            };
-            let should_replace = if dist < best_dist {
-                true
-            } else if dist == best_dist {
-                match best {
-                    Some(best_node) if node.kind == 'x' && best_node.kind != 'x' => true,
-                    Some(best_node) if node.kind == best_node.kind && node.x < best_node.x => true,
-                    None => true,
-                    _ => false,
-                }
-            } else {
-                false
-            };
-            if should_replace {
-                best_dist = dist;
-                best = Some(node);
-            }
-        }
-    }
-
-    match best {
-        Some(node) => Ok(ForwardSyncPoint {
-            page: node.page,
-            x: node.x,
-            y: node.y,
-        }),
-        None => Err("No SyncTeX match found for this line.".to_string()),
-    }
-}
-
 fn backward_sync(
     nodes: &[SyncNode],
     page: u32,
@@ -1911,47 +1656,5 @@ fn backward_sync(
             "line": node.line,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::parse_synctex_view_output;
-
-    #[test]
-    fn parse_synctex_view_output_collects_all_hits_and_rects() {
-        let output = r#"
-SyncTeX result begin
-Output:/tmp/example.pdf
-Page:2
-x:148.041159
-y:421.229248
-h:148.041159
-v:430.195608
-W:239.527695
-H:8.966360
-before:
-offset:-1
-middle:
-after:
-Output:/tmp/example.pdf
-Page:2
-x:192.145630
-y:376.486816
-before:
-offset:-1
-middle:
-after:
-SyncTeX result end
-"#;
-
-        let hits = parse_synctex_view_output(output).expect("expected hits");
-        assert_eq!(hits.len(), 2);
-        assert_eq!(hits[0].page, 2);
-        assert_eq!(hits[0].rect_left, Some(148.041159));
-        assert_eq!(hits[0].rect_top, Some(421.229248));
-        assert_eq!(hits[0].rect_width, Some(239.527695));
-        assert_eq!(hits[0].rect_height, Some(8.966360));
-        assert_eq!(hits[1].rect_left, None);
     }
 }

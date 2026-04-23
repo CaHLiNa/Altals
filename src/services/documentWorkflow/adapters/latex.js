@@ -103,7 +103,6 @@ export function buildLatexWorkflowUiState(state = {}, options = {}) {
     canShowProblems: errorCount > 0 || warningCount > 0,
     canRevealPreview: false,
     canOpenPdf: options.artifactReady === true,
-    forwardSync: 'precise',
     backwardSync: true,
     primaryAction: 'compile',
   }

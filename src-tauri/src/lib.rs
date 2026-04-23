@@ -527,7 +527,6 @@ pub fn run() {
             latex::download_tectonic,
             latex::run_chktex,
             latex::format_latex_document,
-            latex::synctex_forward,
             latex::synctex_backward,
             latex::read_latex_synctex,
         ])

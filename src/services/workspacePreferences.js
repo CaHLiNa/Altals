@@ -40,7 +40,6 @@ const DEFAULT_FILE_TREE_SORT_MODE = 'name'
 const DEFAULT_FILE_TREE_FOLD_DIRECTORIES = false
 const DEFAULT_PDF_VIEWER_ZOOM_MODE = 'page-width'
 const DEFAULT_PDF_VIEWER_SPREAD_MODE = 'single'
-const DEFAULT_PDF_VIEWER_AUTO_SYNC = true
 const DEFAULT_PDF_VIEWER_LAST_SCALE = ''
 const DEFAULT_MARKDOWN_CITATION_FORMAT = 'bracketed'
 const DEFAULT_LATEX_CITATION_COMMAND = 'cite'
@@ -77,7 +76,6 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'proseFont',
   'pdfViewerZoomMode',
   'pdfViewerSpreadMode',
-  'pdfViewerAutoSync',
   'pdfViewerLastScale',
   'markdownCitationFormat',
   'latexCitationCommand',
@@ -196,7 +194,6 @@ export function createWorkspacePreferenceState() {
     latexFont: 'mono',
     pdfViewerZoomMode: DEFAULT_PDF_VIEWER_ZOOM_MODE,
     pdfViewerSpreadMode: DEFAULT_PDF_VIEWER_SPREAD_MODE,
-    pdfViewerAutoSync: DEFAULT_PDF_VIEWER_AUTO_SYNC,
     pdfViewerLastScale: DEFAULT_PDF_VIEWER_LAST_SCALE,
     markdownCitationFormat: DEFAULT_MARKDOWN_CITATION_FORMAT,
     latexCitationCommand: DEFAULT_LATEX_CITATION_COMMAND,
@@ -424,10 +421,6 @@ export function setWorkspacePdfViewerZoomMode(value) {
 
 export function setWorkspacePdfViewerSpreadMode(value) {
   return normalizeWorkspacePdfViewerSpreadMode(value)
-}
-
-export function setWorkspacePdfViewerAutoSync(value) {
-  return value !== false
 }
 
 export function setWorkspacePdfViewerLastScale(value) {

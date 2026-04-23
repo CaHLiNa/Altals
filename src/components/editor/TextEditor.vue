@@ -160,7 +160,6 @@ async function appendLatexSyncDebug(entry = {}) {
 
 let view = null
 let backwardSyncHandler = null
-let latexCursorRequestHandler = null
 let markdownCursorRequestHandler = null
 let markdownBackwardSyncHandler = null
 let markdownPreviewSyncTimer = null
@@ -1084,15 +1083,6 @@ function ensureLatexWindowHandlers() {
     }
   }
 
-  if (!latexCursorRequestHandler) {
-    latexCursorRequestHandler = (event) => {
-      if (!view || event.detail?.texPath !== props.filePath) return
-      const pos = view.state.selection.main.head
-      const location = getLatexSyncLocation(pos)
-      if (!location) return
-      latexStore.requestForwardSync(props.filePath, location.line, location.column)
-    }
-  }
 }
 
 function ensureMarkdownWindowHandlers() {
@@ -1135,7 +1125,6 @@ function attachEditorRuntimeListeners() {
     editorContainer.value?.addEventListener('click', handleCitationClick)
   }
   if (supportsLatexRuntime) {
-    editorContainer.value?.addEventListener('dblclick', handleLatexDoubleClick)
     editorContainer.value?.addEventListener('click', handleLatexCitationClick)
   }
 
@@ -1149,7 +1138,6 @@ function attachEditorRuntimeListeners() {
   if (supportsLatexRuntime) {
     ensureLatexWindowHandlers()
     window.addEventListener('latex-backward-sync', backwardSyncHandler)
-    window.addEventListener('latex-request-cursor', latexCursorRequestHandler)
   }
 }
 
@@ -1160,7 +1148,6 @@ function detachEditorRuntimeListeners() {
     editorContainer.value?.removeEventListener('click', handleCitationClick)
   }
   if (supportsLatexRuntime) {
-    editorContainer.value?.removeEventListener('dblclick', handleLatexDoubleClick)
     editorContainer.value?.removeEventListener('click', handleLatexCitationClick)
   }
   if (markdownCursorRequestHandler) {
@@ -1171,9 +1158,6 @@ function detachEditorRuntimeListeners() {
   }
   if (backwardSyncHandler) {
     window.removeEventListener('latex-backward-sync', backwardSyncHandler)
-  }
-  if (latexCursorRequestHandler) {
-    window.removeEventListener('latex-request-cursor', latexCursorRequestHandler)
   }
 }
 
@@ -1445,47 +1429,6 @@ function hasActiveMarkdownPreviewTarget() {
   return workflowStore.hasPreviewForSource(props.filePath, 'html')
 }
 
-function hasActiveLatexPdfPreviewTarget() {
-  const workspacePreviewState = workflowStore.getWorkspacePreviewStateForFile(props.filePath)
-  if (
-    workspacePreviewState?.useWorkspace === true &&
-    workspacePreviewState?.previewVisible === true &&
-    workspacePreviewState?.previewKind === 'pdf'
-  ) {
-    return true
-  }
-
-  const previewPath = workflowStore.getOpenPreviewPathForSource(props.filePath, 'pdf')
-  if (!previewPath) return false
-  return !!editorStore.findPaneWithTab(previewPath)?.id
-}
-
-function triggerLatexForwardSyncAtPos(pos) {
-  if (!supportsLatexRuntime || !view) return
-  if (!workspace.pdfViewerAutoSync) return
-  if (!hasActiveLatexPdfPreviewTarget()) return
-  const location = getLatexSyncLocation(pos)
-  if (!location) return
-  latexStore.requestForwardSync(props.filePath, location.line, location.column)
-}
-
-function handleLatexDoubleClick(event) {
-  if (!supportsLatexRuntime || !view || event.button !== 0) return
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-  if (pos === null) return
-  triggerLatexForwardSyncAtPos(pos)
-}
-
-function getLatexSyncLocation(pos) {
-  if (!view || !Number.isInteger(pos)) return null
-  const line = view.state.doc.lineAt(pos)
-  if (!line?.number || line.number < 1) return null
-  return {
-    line: line.number,
-    column: Math.max(1, pos - line.from + 1),
-  }
-}
-
 function getMarkdownSyncLocation(pos) {
   if (!view || !Number.isInteger(pos)) return null
   const line = view.state.doc.lineAt(pos)
@@ -1589,7 +1532,6 @@ onUnmounted(() => {
   pendingContextMenuState = null
   clearContextMenuRestoreHandles()
   backwardSyncHandler = null
-  latexCursorRequestHandler = null
   markdownCursorRequestHandler = null
   markdownBackwardSyncHandler = null
 })

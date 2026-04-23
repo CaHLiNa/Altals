@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  basenamePath,
-  normalizeFsPath,
-} from '../documentIntelligence/workspaceGraph.js'
+import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
 
 /*
  * Adapted from LaTeX-Workshop:
@@ -65,13 +62,6 @@ function toRect(blocks) {
   }
 
   return new Rectangle({ top, bottom, left, right })
-}
-
-function getBlocks(linePageBlocks, lineNum) {
-  const pageBlocks = linePageBlocks[lineNum]
-  const pageNums = Object.keys(pageBlocks || {})
-  if (pageNums.length === 0) return []
-  return pageBlocks[Number(pageNums[0])] || []
 }
 
 function parseSyncTex(content = '') {
@@ -240,79 +230,6 @@ function parseSyncTex(content = '') {
   return pdfSyncObject
 }
 
-function latexWorkshopPathsMatch(candidatePath, targetPath) {
-  const normalizedCandidate = normalizeFsPath(candidatePath)
-  const normalizedTarget = normalizeFsPath(targetPath)
-  if (!normalizedCandidate || !normalizedTarget) return false
-  if (normalizedCandidate === normalizedTarget) return true
-  if (!normalizedCandidate.startsWith('/') && normalizedTarget.endsWith(`/${normalizedCandidate}`)) {
-    return true
-  }
-  return basenamePath(normalizedCandidate) === basenamePath(normalizedTarget)
-}
-
-function findInputFilePathForward(filePath, pdfSyncObject) {
-  return Object.keys(pdfSyncObject.blockNumberLine || {}).find(inputFilePath =>
-    latexWorkshopPathsMatch(inputFilePath, filePath),
-  )
-}
-
-export function computeLatexWorkshopForwardSync(content, texPath, line) {
-  const pdfSyncObject = parseSyncTex(content)
-  const inputFilePath = findInputFilePathForward(texPath, pdfSyncObject)
-  if (!inputFilePath) return null
-
-  const linePageBlocks = pdfSyncObject.blockNumberLine[inputFilePath]
-  const lineNums = Object.keys(linePageBlocks).map(Number).sort((left, right) => left - right)
-  if (lineNums.length === 0) return null
-
-  const lineIndex = lineNums.findIndex(value => value >= line)
-  if (lineIndex === 0 || lineNums[lineIndex] === line) {
-    const resolvedLine = lineNums[Math.max(0, lineIndex)]
-    const blocks = getBlocks(linePageBlocks, resolvedLine)
-    if (blocks.length === 0) return null
-    const rect = toRect(blocks)
-    return {
-      page: blocks[0].page,
-      x: rect.left + pdfSyncObject.offset.x,
-      y: rect.bottom + pdfSyncObject.offset.y,
-      indicator: true,
-    }
-  }
-
-  if (lineIndex < 0) {
-    const resolvedLine = lineNums[lineNums.length - 1]
-    const blocks = getBlocks(linePageBlocks, resolvedLine)
-    if (blocks.length === 0) return null
-    const rect = toRect(blocks)
-    return {
-      page: blocks[0].page,
-      x: rect.left + pdfSyncObject.offset.x,
-      y: rect.bottom + pdfSyncObject.offset.y,
-      indicator: true,
-    }
-  }
-
-  const line0 = lineNums[lineIndex - 1]
-  const blocks0 = getBlocks(linePageBlocks, line0)
-  const rect0 = toRect(blocks0)
-  const line1 = lineNums[lineIndex]
-  const blocks1 = getBlocks(linePageBlocks, line1)
-  if (blocks1.length === 0) return null
-  const rect1 = toRect(blocks1)
-  const bottom = rect0.bottom < rect1.bottom
-    ? rect0.bottom * (line1 - line) / (line1 - line0)
-      + rect1.bottom * (line - line0) / (line1 - line0)
-    : rect1.bottom
-
-  return {
-    page: blocks1[0].page,
-    x: rect1.left + pdfSyncObject.offset.x,
-    y: bottom + pdfSyncObject.offset.y,
-    indicator: true,
-  }
-}
-
 export function computeLatexWorkshopBackwardSync(content, page, x, y) {
   const pdfSyncObject = parseSyncTex(content)
   const y0 = y - pdfSyncObject.offset.y
@@ -369,16 +286,6 @@ export async function readLatexWorkshopSynctexContent(synctexPath) {
   const normalizedPath = normalizeFsPath(synctexPath)
   if (!normalizedPath) return ''
   return invoke('read_latex_synctex', { path: normalizedPath })
-}
-
-export async function requestLatexWorkshopForwardSync(options = {}) {
-  const synctexPath = normalizeFsPath(options.synctexPath)
-  const texPath = normalizeFsPath(options.texPath)
-  const line = Number(options.line || 0)
-  if (!synctexPath || !texPath || !Number.isInteger(line) || line < 1) return null
-
-  const content = await readLatexWorkshopSynctexContent(synctexPath)
-  return computeLatexWorkshopForwardSync(content, texPath, line)
 }
 
 export async function requestLatexWorkshopBackwardSync(options = {}) {

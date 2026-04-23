@@ -34,8 +34,6 @@ export const LATEX_BUILD_RECIPE_OPTIONS = Object.freeze([
 ])
 
 let latexStreamUnlistenPromise = null
-let latexForwardSyncRequestId = 0
-
 const LATEX_PREFERENCE_KEYS = [
   'compilerPreference',
   'enginePreference',
@@ -183,8 +181,6 @@ export const useLatexStore = defineStore('latex', {
     _latestSourceByTarget: {},
     buildQueueState: {},
     lintState: {},
-    // Pending forward SyncTeX requests keyed by TeX source path.
-    forwardSyncRequests: {},
     _preferencesHydrated: false,
     // Tectonic install state
     tectonicInstalled: false,
@@ -231,10 +227,6 @@ export const useLatexStore = defineStore('latex', {
 
     lintDiagnosticsForFile: (state) => (texPath) => {
       return state.lintState[texPath]?.diagnostics || []
-    },
-
-    forwardSyncRequestFor: (state) => (texPath) => {
-      return state.forwardSyncRequests[texPath] || null
     },
 
     hasAvailableCompiler: (state) => {
@@ -625,42 +617,12 @@ export const useLatexStore = defineStore('latex', {
       }
     },
 
-    requestForwardSync(texPath, line, column = 0) {
-      const lineNumber = Number(line)
-      const columnNumber = Number(column)
-      if (!texPath || !Number.isInteger(lineNumber) || lineNumber < 1) return null
-
-      const request = {
-        id: ++latexForwardSyncRequestId,
-        texPath,
-        line: lineNumber,
-        column: Number.isInteger(columnNumber) && columnNumber >= 0 ? columnNumber : 0,
-        requestedAt: Date.now(),
-      }
-
-      this.forwardSyncRequests = {
-        ...this.forwardSyncRequests,
-        [texPath]: request,
-      }
-      return request
-    },
-
-    clearForwardSync(texPath, requestId = null) {
-      if (!texPath || !this.forwardSyncRequests[texPath]) return
-      if (requestId != null && this.forwardSyncRequests[texPath]?.id !== requestId) return
-
-      const nextRequests = { ...this.forwardSyncRequests }
-      delete nextRequests[texPath]
-      this.forwardSyncRequests = nextRequests
-    },
-
     clearState(texPath) {
       delete this.compileState[texPath]
       delete this.lintState[texPath]
       this.cancelAutoCompile(texPath)
       this.clearBuildQueueState(texPath)
       this.clearBuildQueueState(resolveCachedLatexRootPath(texPath))
-      this.clearForwardSync(texPath)
     },
 
     async scheduleAutoBuildForPath(filePath, options = {}) {
@@ -735,7 +697,6 @@ export const useLatexStore = defineStore('latex', {
       this.buildQueueState = {}
       this.compileState = {}
       this.lintState = {}
-      this.forwardSyncRequests = {}
     },
 
     applyBrowserPreviewDiagnostics() {

@@ -85,13 +85,6 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           },
           getEditorStore: () => useEditorStore(),
           jumpPreviewToCursor: ({ kind, previewKind, sourcePath }) => {
-            if (kind === 'latex') {
-              window.dispatchEvent(new CustomEvent('latex-request-cursor', {
-                detail: { texPath: sourcePath },
-              }))
-              return
-            }
-
             if (kind === 'markdown' && previewKind === 'html') {
               window.dispatchEvent(new CustomEvent('markdown-request-cursor', {
                 detail: { sourcePath },

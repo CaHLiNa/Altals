@@ -9,14 +9,11 @@
       :kind="kind"
       :workspacePath="workspace.path || ''"
       :compileState="compileState"
-      :forwardSyncRequest="forwardSyncRequest"
       :pdfViewerZoomMode="workspace.pdfViewerZoomMode"
       :pdfViewerSpreadMode="workspace.pdfViewerSpreadMode"
-      :pdfViewerAutoSync="workspace.pdfViewerAutoSync"
       :pdfViewerLastScale="workspace.pdfViewerLastScale"
       @open-external="$emit('open-external')"
       @backward-sync="handleBackwardSync"
-      @forward-sync-handled="handleForwardSyncHandled"
     />
   </div>
 </template>
@@ -76,9 +73,6 @@ const compileState = computed(() => {
   return liveState || persistedState || null
 })
 
-const forwardSyncRequest = computed(() =>
-  props.kind === 'latex' ? latexStore.forwardSyncRequestFor(props.sourcePath) : null
-)
 const previewRevision = computed(() =>
   resolvePdfPreviewRevision({
     paneId: props.paneId,
@@ -139,13 +133,6 @@ async function scheduleThemeSnapshot() {
 function handleBackwardSync(detail) {
   if (!detail) return
   dispatchLatexBackwardSync(window, detail)
-}
-
-function handleForwardSyncHandled(detail) {
-  if (props.kind !== 'latex') return
-  const requestId = Number(detail?.id || 0)
-  if (!Number.isInteger(requestId) || requestId < 1) return
-  latexStore.clearForwardSync(props.sourcePath, requestId)
 }
 
 function handleWorkspaceThemeUpdated() {

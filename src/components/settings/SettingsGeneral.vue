@@ -276,21 +276,6 @@
           </div>
         </div>
 
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Follow source sync') }}</div>
-            <div class="settings-row-hint">
-              {{ t('Allow LaTeX source jumps to move the embedded PDF preview automatically.') }}
-            </div>
-          </div>
-          <div class="settings-row-control compact">
-            <UiSwitch
-              :model-value="workspace.pdfViewerAutoSync"
-              :aria-label="t('Follow source sync')"
-              @update:model-value="workspace.setPdfViewerAutoSync($event)"
-            />
-          </div>
-        </div>
       </div>
     </section>
   </div>

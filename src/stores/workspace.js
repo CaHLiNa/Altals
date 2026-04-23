@@ -25,7 +25,6 @@ import {
   setWorkspaceMarkdownCitationFormat,
   setWorkspaceMarkdownFont,
   setWorkspaceMarkdownPreviewSync,
-  setWorkspacePdfViewerAutoSync,
   setWorkspacePdfViewerLastScale,
   setWorkspacePdfViewerSpreadMode,
   setWorkspacePdfViewerZoomMode,
@@ -90,7 +89,6 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'latexFont',
   'pdfViewerZoomMode',
   'pdfViewerSpreadMode',
-  'pdfViewerAutoSync',
   'pdfViewerLastScale',
   'markdownCitationFormat',
   'latexCitationCommand',
@@ -477,12 +475,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     setPdfViewerSpreadMode(value) {
       return this.persistPreferences({
         pdfViewerSpreadMode: setWorkspacePdfViewerSpreadMode(value),
-      })
-    },
-
-    setPdfViewerAutoSync(value) {
-      return this.persistPreferences({
-        pdfViewerAutoSync: setWorkspacePdfViewerAutoSync(value),
       })
     },
 

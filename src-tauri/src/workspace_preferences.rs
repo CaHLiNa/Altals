@@ -27,7 +27,6 @@ const DEFAULT_FILE_TREE_SORT_MODE: &str = "name";
 const DEFAULT_FILE_TREE_FOLD_DIRECTORIES: bool = false;
 const DEFAULT_PDF_VIEWER_ZOOM_MODE: &str = "page-width";
 const DEFAULT_PDF_VIEWER_SPREAD_MODE: &str = "single";
-const DEFAULT_PDF_VIEWER_AUTO_SYNC: bool = true;
 const DEFAULT_PDF_VIEWER_LAST_SCALE: &str = "";
 const DEFAULT_MARKDOWN_CITATION_FORMAT: &str = "bracketed";
 const DEFAULT_LATEX_CITATION_COMMAND: &str = "cite";
@@ -75,8 +74,6 @@ pub struct WorkspacePreferences {
     pub pdf_viewer_zoom_mode: String,
     #[serde(default = "default_pdf_viewer_spread_mode")]
     pub pdf_viewer_spread_mode: String,
-    #[serde(default = "default_pdf_viewer_auto_sync")]
-    pub pdf_viewer_auto_sync: bool,
     #[serde(default = "default_pdf_viewer_last_scale")]
     pub pdf_viewer_last_scale: String,
     #[serde(default = "default_markdown_citation_format")]
@@ -111,7 +108,6 @@ impl Default for WorkspacePreferences {
             file_tree_fold_directories: default_file_tree_fold_directories(),
             pdf_viewer_zoom_mode: default_pdf_viewer_zoom_mode(),
             pdf_viewer_spread_mode: default_pdf_viewer_spread_mode(),
-            pdf_viewer_auto_sync: default_pdf_viewer_auto_sync(),
             pdf_viewer_last_scale: default_pdf_viewer_last_scale(),
             markdown_citation_format: default_markdown_citation_format(),
             latex_citation_command: default_latex_citation_command(),
@@ -242,10 +238,6 @@ fn default_pdf_viewer_zoom_mode() -> String {
 
 fn default_pdf_viewer_spread_mode() -> String {
     DEFAULT_PDF_VIEWER_SPREAD_MODE.to_string()
-}
-
-fn default_pdf_viewer_auto_sync() -> bool {
-    DEFAULT_PDF_VIEWER_AUTO_SYNC
 }
 
 fn default_pdf_viewer_last_scale() -> String {
@@ -584,7 +576,6 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         file_tree_fold_directories: preferences.file_tree_fold_directories,
         pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
         pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
-        pdf_viewer_auto_sync: preferences.pdf_viewer_auto_sync,
         pdf_viewer_last_scale: normalize_pdf_viewer_last_scale(&preferences.pdf_viewer_last_scale),
         markdown_citation_format: normalize_markdown_citation_format(
             &preferences.markdown_citation_format,
@@ -678,8 +669,6 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         .unwrap_or_else(default_pdf_viewer_zoom_mode);
     preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
         .unwrap_or_else(default_pdf_viewer_spread_mode);
-    preferences.pdf_viewer_auto_sync =
-        legacy_boolean(snapshot, "pdfViewerAutoSync", default_pdf_viewer_auto_sync());
     preferences.pdf_viewer_last_scale = legacy_string(snapshot, "pdfViewerLastScale")
         .unwrap_or_else(default_pdf_viewer_last_scale);
     preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")

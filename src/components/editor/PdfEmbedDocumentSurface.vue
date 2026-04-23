@@ -248,28 +248,6 @@
         </Scroller>
       </Viewport>
 
-      <div
-        v-if="forwardSyncHighlight"
-        class="pdf-artifact-preview__synctex-highlight"
-        aria-hidden="true"
-      >
-        <div
-          class="pdf-artifact-preview__synctex-highlight-rect"
-          :style="{
-            left: `${forwardSyncHighlight.left}px`,
-            top: `${forwardSyncHighlight.top}px`,
-            width: `${forwardSyncHighlight.width}px`,
-            height: `${forwardSyncHighlight.height}px`,
-          }"
-        ></div>
-        <div
-          class="pdf-artifact-preview__synctex-highlight-dot"
-          :style="{
-            left: `${forwardSyncHighlight.dotLeft}px`,
-            top: `${forwardSyncHighlight.dotTop}px`,
-          }"
-        ></div>
-      </div>
     </div>
 
     <SurfaceContextMenu
@@ -331,14 +309,12 @@ const props = defineProps({
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
-  forwardSyncPoint: { type: Object, default: null },
   restoreState: { type: Object, default: null },
 })
 
 const emit = defineEmits([
   'open-external',
   'reverse-sync-request',
-  'forward-sync-point-consumed',
   'reload-requested',
   'view-state-change',
   'restore-state-consumed',
@@ -371,7 +347,6 @@ const {
 
 const pageBindings = new Map()
 const pendingRestoreState = ref(null)
-const pendingForwardSyncPoint = ref(null)
 const initialLayoutHandled = ref(false)
 const saveInProgress = ref(false)
 const selectedText = ref('')
@@ -383,7 +358,6 @@ const searchQuery = ref('')
 const pageInputValue = ref('1')
 const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
-const forwardSyncHighlight = ref(null)
 
 const PdfEmbedPageSyncBridge = defineComponent({
   name: 'PdfEmbedPageSyncBridge',
@@ -418,8 +392,6 @@ let scheduledViewStateFrame = 0
 let restoreRevision = 0
 let searchDebounceTimer = 0
 let suppressSearchWatch = false
-let forwardSyncHighlightTimer = 0
-let forwardSyncHighlightFrame = 0
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -685,19 +657,6 @@ function clearSearchDebounceTimer() {
   if (!searchDebounceTimer || typeof window === 'undefined') return
   window.clearTimeout(searchDebounceTimer)
   searchDebounceTimer = 0
-}
-
-function clearForwardSyncHighlight() {
-  forwardSyncHighlight.value = null
-  if (typeof window === 'undefined') return
-  if (forwardSyncHighlightTimer) {
-    window.clearTimeout(forwardSyncHighlightTimer)
-    forwardSyncHighlightTimer = 0
-  }
-  if (forwardSyncHighlightFrame) {
-    window.cancelAnimationFrame(forwardSyncHighlightFrame)
-    forwardSyncHighlightFrame = 0
-  }
 }
 
 function closeSearchUi() {
@@ -1065,173 +1024,6 @@ function handleKeydown(event) {
   }
 }
 
-function scrollToPdfPoint(point = {}) {
-  const scrollScope = scroll.provides.value
-  if (!scrollScope) return false
-
-  const anchorPoint = resolveForwardSyncAnchorPoint(point)
-  const pageNumber = Number(anchorPoint?.page || point.page || 0)
-  if (!Number.isInteger(pageNumber) || pageNumber < 1) return false
-
-  const pageBinding = resolvePageBinding(pageNumber)
-  const pageHeight = Number(pageBinding?.page?.height || 0)
-  const x = Number(anchorPoint?.x)
-  const y = Number(anchorPoint?.y)
-
-  if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(pageHeight) && pageHeight > 0) {
-    scrollScope.scrollToPage({
-      pageNumber,
-      pageCoordinates: {
-        x: clamp(x, 0, pageBinding?.page?.width || x),
-        y: clamp(y, 0, pageHeight),
-      },
-      behavior: 'instant',
-      alignY: 35,
-    })
-    scheduleViewStateEmission()
-    return true
-  }
-
-  scrollScope.scrollToPage({
-    pageNumber,
-    behavior: 'instant',
-    alignY: 35,
-  })
-  scheduleViewStateEmission()
-  return true
-}
-
-function resolveForwardSyncHighlight(point = {}) {
-  const scrollScope = scrollCapability.value?.forDocument(props.documentId)
-  const viewportScope = viewportCapability.value?.forDocument(props.documentId)
-  if (!scrollScope || !viewportScope) return null
-
-  const anchorPoint = resolveForwardSyncAnchorPoint(point)
-  const rect = resolveForwardSyncRect(point)
-  const pageNumber = Number(anchorPoint?.page || point.page || 0)
-  const pageIndex = pageNumber - 1
-  const pdfX = Number(anchorPoint?.x)
-  const pdfY = Number(anchorPoint?.y)
-  if (
-    !Number.isInteger(pageNumber)
-    || pageNumber < 1
-    || !Number.isInteger(pageIndex)
-    || pageIndex < 0
-    || !Number.isFinite(pdfX)
-    || !Number.isFinite(pdfY)
-  ) {
-    return null
-  }
-
-  const currentScale = Number(documentState.value?.scale || 1)
-  const safeScale = Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1
-  const anchorRect = scrollScope.getRectPositionForPage(
-    pageIndex,
-    {
-      origin: { x: pdfX, y: pdfY },
-      size: { width: 1 / safeScale, height: 1 / safeScale },
-    }
-  )
-  const highlightSourceRect = rect || {
-    origin: {
-      x: Math.max(0, pdfX - 140 / safeScale * 0.4),
-      y: Math.max(0, pdfY - 18 / safeScale * 0.5),
-    },
-    size: {
-      width: 140 / safeScale,
-      height: 18 / safeScale,
-    },
-  }
-  const highlightRect = scrollScope.getRectPositionForPage(pageIndex, highlightSourceRect)
-  if (!anchorRect || !highlightRect) return null
-
-  const viewportMetrics = viewportScope.getMetrics()
-  const viewportInsetTop = 30
-  return {
-    left: highlightRect.origin.x - viewportMetrics.scrollLeft,
-    top: viewportInsetTop + highlightRect.origin.y - viewportMetrics.scrollTop,
-    width: Math.max(44, highlightRect.size.width),
-    height: Math.max(12, highlightRect.size.height),
-    dotLeft: anchorRect.origin.x - viewportMetrics.scrollLeft,
-    dotTop: viewportInsetTop + anchorRect.origin.y - viewportMetrics.scrollTop,
-  }
-}
-
-function resolveForwardSyncAnchorPoint(point = {}) {
-  const pageNumber = Number(point.page || 0)
-  if (!Number.isInteger(pageNumber) || pageNumber < 1) return null
-
-  const x = Number(point.x)
-  const y = Number(point.y)
-  if (Number.isFinite(x) && Number.isFinite(y)) {
-    return {
-      page: pageNumber,
-      x,
-      y,
-    }
-  }
-
-  const rectLeft = Number(point.rectLeft)
-  const rectTop = Number(point.rectTop)
-  if (Number.isFinite(rectLeft) && Number.isFinite(rectTop)) {
-    return {
-      page: pageNumber,
-      x: rectLeft,
-      y: rectTop,
-    }
-  }
-
-  return null
-}
-
-function resolveForwardSyncRect(point = {}) {
-  const rectLeft = Number(point.rectLeft)
-  const rectTop = Number(point.rectTop)
-  const rectWidth = Number(point.rectWidth)
-  const rectHeight = Number(point.rectHeight)
-
-  if (
-    !Number.isFinite(rectLeft)
-    || !Number.isFinite(rectTop)
-    || !Number.isFinite(rectWidth)
-    || !Number.isFinite(rectHeight)
-    || rectWidth <= 0
-    || rectHeight <= 0
-  ) {
-    return null
-  }
-
-  return {
-    origin: {
-      x: rectLeft,
-      y: rectTop,
-    },
-    size: {
-      width: rectWidth,
-      height: rectHeight,
-    },
-  }
-}
-
-function scheduleForwardSyncHighlight(point = {}) {
-  if (typeof window === 'undefined') {
-    forwardSyncHighlight.value = resolveForwardSyncHighlight(point)
-    return
-  }
-
-  clearForwardSyncHighlight()
-  forwardSyncHighlightFrame = window.requestAnimationFrame(() => {
-    forwardSyncHighlightFrame = 0
-    forwardSyncHighlight.value = resolveForwardSyncHighlight(point)
-    if (!forwardSyncHighlight.value) return
-
-    forwardSyncHighlightTimer = window.setTimeout(() => {
-      forwardSyncHighlightTimer = 0
-      forwardSyncHighlight.value = null
-    }, 1100)
-  })
-}
-
 function scrollToSearchResult(index) {
   const result = search.state.value?.results?.[index]
   const scrollScope = scroll.provides.value
@@ -1401,14 +1193,6 @@ watch(
 )
 
 watch(
-  () => props.forwardSyncPoint,
-  (nextPoint) => {
-    pendingForwardSyncPoint.value = nextPoint ? { ...nextPoint } : null
-  },
-  { immediate: true }
-)
-
-watch(
   () => [props.pdfViewerZoomMode, props.pdfViewerSpreadMode, props.pdfViewerLastScale],
   () => {
     if (pendingRestoreState.value) return
@@ -1447,7 +1231,6 @@ watch(
   () => props.documentId,
   () => {
     pageBindings.clear()
-    pendingForwardSyncPoint.value = null
     currentContextMenuReverseSyncDetail.value = null
     initialLayoutHandled.value = false
     selectionActive.value = false
@@ -1549,12 +1332,6 @@ watch(
         return
       }
 
-      if (pendingForwardSyncPoint.value && scrollToPdfPoint(pendingForwardSyncPoint.value)) {
-        scheduleForwardSyncHighlight(pendingForwardSyncPoint.value)
-        pendingForwardSyncPoint.value = null
-        emit('forward-sync-point-consumed')
-      }
-
       if (!initialLayoutHandled.value) {
         applyViewerPreferences()
         initialLayoutHandled.value = true
@@ -1575,22 +1352,9 @@ watch(
   { immediate: true }
 )
 
-watch(
-  () => pendingForwardSyncPoint.value,
-  (nextPoint) => {
-    if (!nextPoint || !initialLayoutHandled.value) return
-    if (scrollToPdfPoint(nextPoint)) {
-      scheduleForwardSyncHighlight(nextPoint)
-      pendingForwardSyncPoint.value = null
-      emit('forward-sync-point-consumed')
-    }
-  }
-)
-
 onUnmounted(() => {
   pageBindings.clear()
   clearSearchDebounceTimer()
-  clearForwardSyncHighlight()
 
   if (scheduledViewStateFrame && typeof window !== 'undefined') {
     window.cancelAnimationFrame(scheduledViewStateFrame)
@@ -1801,59 +1565,10 @@ onUnmounted(() => {
   cursor: text;
 }
 
-.pdf-artifact-preview__synctex-highlight {
-  position: absolute;
-  inset: 30px 0 0;
-  z-index: 12;
-  pointer-events: none;
-}
-
-.pdf-artifact-preview__synctex-highlight-rect {
-  position: absolute;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--focus-ring) 24%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--focus-ring) 42%, transparent),
-    0 0 0 10px color-mix(in srgb, var(--focus-ring) 12%, transparent);
-  animation: pdf-artifact-preview__synctex-fade 1.1s forwards;
-}
-
-.pdf-artifact-preview__synctex-highlight-dot {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  border: 2px solid color-mix(in srgb, var(--focus-ring) 84%, white);
-  background: color-mix(in srgb, var(--focus-ring) 22%, transparent);
-  box-shadow: 0 0 0 8px color-mix(in srgb, var(--focus-ring) 12%, transparent);
-  transform: translate(-50%, -50%);
-  animation: pdf-artifact-preview__synctex-pulse 0.9s ease-out forwards;
-}
-
 .pdf-artifact-preview__page canvas,
 .pdf-artifact-preview__page img {
   -webkit-user-drag: none;
   user-select: none;
-}
-
-@keyframes pdf-artifact-preview__synctex-fade {
-  0% {
-    opacity: 0.95;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes pdf-artifact-preview__synctex-pulse {
-  0% {
-    opacity: 0.95;
-    transform: translate(-50%, -50%) scale(0.72);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.8);
-  }
 }
 
 .pdf-artifact-preview__toolbar-search {
