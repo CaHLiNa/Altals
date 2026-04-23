@@ -563,7 +563,7 @@ function handleContextMenu(event) {
 .md-preview-content h5,
 .md-preview-content h6 {
   color: var(--hl-heading, var(--workspace-ink));
-  font-family: var(--font-display);
+  font-family: var(--font-markdown);
   margin: 2em 0 0.8em; 
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -577,9 +577,9 @@ function handleContextMenu(event) {
 }
 .md-preview-content h2 { font-size: 1.6em; font-weight: 600; }
 .md-preview-content h3 { font-size: 1.3em; font-weight: 600; }
-.md-preview-content h4 { font-size: 1.1em; font-weight: 600; font-family: var(--font-markdown); }
+.md-preview-content h4 { font-size: 1.1em; font-weight: 600; }
 .md-preview-content h5,
-.md-preview-content h6 { color: var(--text-secondary); font-family: var(--font-markdown); }
+.md-preview-content h6 { color: var(--text-secondary); }
 
 .md-preview-content p { margin: 1.2em 0; }
 
