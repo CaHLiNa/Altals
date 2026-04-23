@@ -1,40 +1,36 @@
 <!-- START OF FILE src/components/settings/SettingsEnvironment.vue -->
 <template>
   <div class="env-page settings-page">
-    <div class="env-page-header">
-      <div class="env-page-header-copy">
-        <h3 class="settings-section-title">{{ t('Environment') }}</h3>
-      </div>
-      <button
-        type="button"
-        class="diagnostics-refresh-btn"
-        :disabled="isRefreshingDiagnostics"
-        @click="redetectSystem"
-        :title="t('Refresh diagnostics')"
-      >
-        <svg
-          v-if="!isRefreshingDiagnostics"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-          <path d="M3 3v5h5"></path>
-          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-          <path d="M16 21v-5h5"></path>
-        </svg>
-        <span v-else class="diagnostics-spinner"></span>
-        <span class="diagnostics-refresh-label">{{ t('Refresh') }}</span>
-      </button>
-    </div>
-
     <section class="settings-group">
-      <h4 class="settings-group-title">LaTeX</h4>
+      <div class="settings-group-heading">
+        <h4 class="settings-group-title">LaTeX</h4>
+        <button
+          type="button"
+          class="diagnostics-refresh-btn"
+          :disabled="isRefreshingDiagnostics"
+          @click="redetectSystem"
+          :title="t('Refresh diagnostics')"
+        >
+          <svg
+            v-if="!isRefreshingDiagnostics"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 21v-5h5"></path>
+          </svg>
+          <span v-else class="diagnostics-spinner"></span>
+          <span class="diagnostics-refresh-label">{{ t('Refresh') }}</span>
+        </button>
+      </div>
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
@@ -314,17 +310,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.env-page-header {
+.settings-group-heading {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: -16px;
-}
-
-.env-page-header-copy {
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .is-disabled-row {
@@ -407,8 +397,8 @@ onMounted(() => {
 }
 
 @media (max-width: 720px) {
-  .env-page-header {
-    margin-bottom: -20px;
+  .settings-group-heading {
+    align-items: flex-start;
   }
 
   .diagnostics-refresh-label {
