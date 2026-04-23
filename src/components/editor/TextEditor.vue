@@ -379,11 +379,177 @@ function scheduleLatexWarmup(content = '') {
   }, 120)
 }
 
+const DISPLAY_MATH_ENVIRONMENT_NAMES = new Set([
+  'displaymath',
+  'equation',
+  'equation*',
+  'align',
+  'align*',
+  'aligned',
+  'alignedat',
+  'alignat',
+  'alignat*',
+  'gather',
+  'gather*',
+  'gathered',
+  'multline',
+  'multline*',
+  'flalign',
+  'flalign*',
+  'eqnarray',
+  'eqnarray*',
+  'split',
+  'math',
+])
+
+function stripLatexLineComment(line = '') {
+  let escaped = false
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    if (char === '%' && !escaped) {
+      return line.slice(0, index)
+    }
+    escaped = char === '\\' ? !escaped : false
+  }
+  return line
+}
+
+function parseLatexDisplayMathBoundary(lineText = '') {
+  const content = stripLatexLineComment(lineText).trim()
+  if (!content) return null
+
+  const environmentMatch = content.match(/^\\(begin|end)\{([^}]+)\}$/)
+  if (environmentMatch) {
+    const type = environmentMatch[1]
+    const environmentName = environmentMatch[2]
+    if (DISPLAY_MATH_ENVIRONMENT_NAMES.has(environmentName)) {
+      return {
+        kind: 'environment',
+        type,
+        token: environmentName,
+      }
+    }
+  }
+
+  if (content === '\\[') {
+    return { kind: 'delimiter', type: 'begin', token: '\\[' }
+  }
+  if (content === '\\]') {
+    return { kind: 'delimiter', type: 'end', token: '\\[' }
+  }
+  if (content === '$$') {
+    return { kind: 'delimiter', type: 'toggle', token: '$$' }
+  }
+
+  return null
+}
+
+function isIgnorableLatexForwardSyncLine(lineText = '') {
+  const content = stripLatexLineComment(lineText).trim()
+  if (!content) return true
+  if (parseLatexDisplayMathBoundary(content)) return true
+  return /^\\(?:label|tag|notag|nonumber|intertext|shortintertext)\b/.test(content)
+}
+
+function firstMeaningfulColumn(lineText = '') {
+  const searchText = stripLatexLineComment(String(lineText || ''))
+  const match = searchText.match(/\S/)
+  return match ? match.index + 1 : 1
+}
+
 function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
   if (!viewInstance?.state?.doc) return null
 
   const document = viewInstance.state.doc
   const currentLine = document.lineAt(pos)
+  const boundary = parseLatexDisplayMathBoundary(currentLine.text)
+
+  if (boundary?.kind === 'environment' && boundary.type === 'begin') {
+    let depth = 0
+    for (let lineNumber = currentLine.number + 1; lineNumber <= document.lines; lineNumber += 1) {
+      const line = document.line(lineNumber)
+      const lineBoundary = parseLatexDisplayMathBoundary(line.text)
+      if (lineBoundary?.kind === 'environment' && lineBoundary.token === boundary.token) {
+        if (lineBoundary.type === 'begin') {
+          depth += 1
+          continue
+        }
+        if (lineBoundary.type === 'end') {
+          if (depth === 0) break
+          depth -= 1
+          continue
+        }
+      }
+      if (depth === 0 && !isIgnorableLatexForwardSyncLine(line.text)) {
+        return {
+          line: line.number,
+          column: firstMeaningfulColumn(line.text),
+          semanticOrigin: 'direct',
+        }
+      }
+    }
+  }
+
+  if (boundary?.kind === 'environment' && boundary.type === 'end') {
+    let depth = 0
+    for (let lineNumber = currentLine.number - 1; lineNumber >= 1; lineNumber -= 1) {
+      const line = document.line(lineNumber)
+      const lineBoundary = parseLatexDisplayMathBoundary(line.text)
+      if (lineBoundary?.kind === 'environment' && lineBoundary.token === boundary.token) {
+        if (lineBoundary.type === 'end') {
+          depth += 1
+          continue
+        }
+        if (lineBoundary.type === 'begin') {
+          if (depth === 0) break
+          depth -= 1
+          continue
+        }
+      }
+      if (depth === 0 && !isIgnorableLatexForwardSyncLine(line.text)) {
+        return {
+          line: line.number,
+          column: firstMeaningfulColumn(line.text),
+          semanticOrigin: 'direct',
+        }
+      }
+    }
+  }
+
+  if (boundary?.kind === 'delimiter' && boundary.token === '\\[' && boundary.type === 'begin') {
+    for (let lineNumber = currentLine.number + 1; lineNumber <= document.lines; lineNumber += 1) {
+      const line = document.line(lineNumber)
+      const lineBoundary = parseLatexDisplayMathBoundary(line.text)
+      if (lineBoundary?.kind === 'delimiter' && lineBoundary.token === '\\[' && lineBoundary.type === 'end') {
+        break
+      }
+      if (!isIgnorableLatexForwardSyncLine(line.text)) {
+        return {
+          line: line.number,
+          column: firstMeaningfulColumn(line.text),
+          semanticOrigin: 'direct',
+        }
+      }
+    }
+  }
+
+  if (boundary?.kind === 'delimiter' && boundary.token === '\\[' && boundary.type === 'end') {
+    for (let lineNumber = currentLine.number - 1; lineNumber >= 1; lineNumber -= 1) {
+      const line = document.line(lineNumber)
+      const lineBoundary = parseLatexDisplayMathBoundary(line.text)
+      if (lineBoundary?.kind === 'delimiter' && lineBoundary.token === '\\[' && lineBoundary.type === 'begin') {
+        break
+      }
+      if (!isIgnorableLatexForwardSyncLine(line.text)) {
+        return {
+          line: line.number,
+          column: firstMeaningfulColumn(line.text),
+          semanticOrigin: 'direct',
+        }
+      }
+    }
+  }
+
   return {
     line: currentLine.number,
     column: Math.max(1, pos - currentLine.from + 1),
