@@ -11,6 +11,7 @@ mod fs_commands;
 mod fs_io;
 mod fs_tree;
 mod fs_tree_runtime;
+mod fs_watch_runtime;
 mod i18n_runtime;
 mod keychain;
 mod latex;
@@ -403,6 +404,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(latex::LatexState::default())
+        .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
 
@@ -421,6 +423,8 @@ pub fn run() {
             fs_commands::list_files_recursive,
             fs_commands::read_visible_tree,
             fs_commands::read_workspace_tree_snapshot,
+            fs_watch_runtime::workspace_tree_watch_start,
+            fs_watch_runtime::workspace_tree_watch_stop,
             fs_commands::read_file,
             fs_commands::read_file_base64,
             fs_commands::write_file,
