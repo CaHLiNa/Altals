@@ -28,6 +28,7 @@ const DEFAULT_FILE_TREE_FOLD_DIRECTORIES: bool = false;
 const DEFAULT_PDF_VIEWER_ZOOM_MODE: &str = "page-width";
 const DEFAULT_PDF_VIEWER_SPREAD_MODE: &str = "single";
 const DEFAULT_PDF_VIEWER_LAST_SCALE: &str = "";
+const DEFAULT_PDF_VIEWER_PAGE_THEME_MODE: &str = "theme";
 const DEFAULT_MARKDOWN_CITATION_FORMAT: &str = "bracketed";
 const DEFAULT_LATEX_CITATION_COMMAND: &str = "cite";
 const DEFAULT_CITATION_INSERT_ADDS_SPACE: bool = false;
@@ -76,6 +77,8 @@ pub struct WorkspacePreferences {
     pub pdf_viewer_spread_mode: String,
     #[serde(default = "default_pdf_viewer_last_scale")]
     pub pdf_viewer_last_scale: String,
+    #[serde(default = "default_pdf_viewer_page_theme_mode")]
+    pub pdf_viewer_page_theme_mode: String,
     #[serde(default = "default_markdown_citation_format")]
     pub markdown_citation_format: String,
     #[serde(default = "default_latex_citation_command")]
@@ -109,6 +112,7 @@ impl Default for WorkspacePreferences {
             pdf_viewer_zoom_mode: default_pdf_viewer_zoom_mode(),
             pdf_viewer_spread_mode: default_pdf_viewer_spread_mode(),
             pdf_viewer_last_scale: default_pdf_viewer_last_scale(),
+            pdf_viewer_page_theme_mode: default_pdf_viewer_page_theme_mode(),
             markdown_citation_format: default_markdown_citation_format(),
             latex_citation_command: default_latex_citation_command(),
             citation_insert_adds_space: default_citation_insert_adds_space(),
@@ -242,6 +246,10 @@ fn default_pdf_viewer_spread_mode() -> String {
 
 fn default_pdf_viewer_last_scale() -> String {
     DEFAULT_PDF_VIEWER_LAST_SCALE.to_string()
+}
+
+fn default_pdf_viewer_page_theme_mode() -> String {
+    DEFAULT_PDF_VIEWER_PAGE_THEME_MODE.to_string()
 }
 
 fn default_markdown_citation_format() -> String {
@@ -400,6 +408,13 @@ fn normalize_pdf_viewer_last_scale(value: &str) -> String {
                 rounded.to_string()
             })
             .unwrap_or_default(),
+    }
+}
+
+fn normalize_pdf_viewer_page_theme_mode(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "light" => "light".to_string(),
+        _ => "theme".to_string(),
     }
 }
 
@@ -577,6 +592,9 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
         pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
         pdf_viewer_last_scale: normalize_pdf_viewer_last_scale(&preferences.pdf_viewer_last_scale),
+        pdf_viewer_page_theme_mode: normalize_pdf_viewer_page_theme_mode(
+            &preferences.pdf_viewer_page_theme_mode,
+        ),
         markdown_citation_format: normalize_markdown_citation_format(
             &preferences.markdown_citation_format,
         ),
@@ -671,6 +689,8 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         .unwrap_or_else(default_pdf_viewer_spread_mode);
     preferences.pdf_viewer_last_scale = legacy_string(snapshot, "pdfViewerLastScale")
         .unwrap_or_else(default_pdf_viewer_last_scale);
+    preferences.pdf_viewer_page_theme_mode = legacy_string(snapshot, "pdfViewerPageThemeMode")
+        .unwrap_or_else(default_pdf_viewer_page_theme_mode);
     preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")
         .unwrap_or_else(default_markdown_citation_format);
     preferences.latex_citation_command = legacy_string(snapshot, "latexCitationCommand")
@@ -754,6 +774,7 @@ mod tests {
             pdf_viewer_zoom_mode: "weird".to_string(),
             pdf_viewer_spread_mode: "spread".to_string(),
             pdf_viewer_last_scale: "-1".to_string(),
+            pdf_viewer_page_theme_mode: "custom".to_string(),
             markdown_citation_format: "inline".to_string(),
             latex_citation_command: "smartcite".to_string(),
             ..WorkspacePreferences::default()
@@ -763,6 +784,7 @@ mod tests {
         assert_eq!(normalized.pdf_viewer_zoom_mode, "page-width");
         assert_eq!(normalized.pdf_viewer_spread_mode, "single");
         assert_eq!(normalized.pdf_viewer_last_scale, "");
+        assert_eq!(normalized.pdf_viewer_page_theme_mode, "theme");
         assert_eq!(normalized.markdown_citation_format, "bracketed");
         assert_eq!(normalized.latex_citation_command, "cite");
     }

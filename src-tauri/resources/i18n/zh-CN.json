@@ -57,6 +57,8 @@
   "Apply configured LaTeX formatting automatically on save.": "保存时自动应用已配置的 LaTeX 格式化。",
   "Default zoom": "默认缩放",
   "Choose how embedded PDFs open before any manual zooming.": "设置所有 PDF 在手动缩放前的默认打开方式。",
+  "Themed PDF pages": "主题化 PDF 页面",
+  "Use a theme-matched dark or light PDF page surface. Turn this off to always keep PDF pages light.": "开启后，PDF 页面会随应用主题切换深浅底色；关闭后，PDF 页面始终保持浅色。",
   "Remember last zoom": "记住上次缩放",
   "Page layout": "页面布局",
   "Choose whether embedded PDFs open in single-page or two-page spreads.": "设置所有 PDF 默认以单页还是双页跨页方式打开。",

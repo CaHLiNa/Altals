@@ -45,6 +45,8 @@
               :document-id="activeDocumentId"
               :artifactPath="artifactPath"
               :kind="kind"
+              :resolved-theme="resolvedTheme"
+              :pdf-viewer-page-theme-mode="pdfViewerPageThemeMode"
               :forward-sync-request="pendingForwardSyncRequest"
               :pdfViewerZoomMode="pdfViewerZoomMode"
               :pdfViewerSpreadMode="pdfViewerSpreadMode"
@@ -102,10 +104,12 @@ const props = defineProps({
   compileState: { type: Object, default: null },
   previewRevision: { type: Object, default: null },
   workspacePath: { type: String, default: '' },
+  resolvedTheme: { type: String, default: 'dark' },
   themeTokens: { type: Object, default: () => ({}) },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
+  pdfViewerPageThemeMode: { type: String, default: 'theme' },
 })
 
 const emit = defineEmits(['open-external', 'backward-sync'])
@@ -140,8 +144,19 @@ const surfaceStyle = computed(() => ({
       || props.themeTokens?.['--shell-editor-surface']
       || '#141311'
   ).trim(),
-  '--embedpdf-page': String(props.themeTokens?.['--surface-base'] || '#ffffff').trim(),
+  '--embedpdf-page': resolvePdfPageSurface(),
 }))
+
+function resolvePdfPageSurface() {
+  const pageThemeMode = String(props.pdfViewerPageThemeMode || '').trim().toLowerCase()
+  if (pageThemeMode === 'light') {
+    return '#fffdf8'
+  }
+
+  return props.resolvedTheme === 'dark'
+    ? '#1c1b18'
+    : '#ffffff'
+}
 
 const surfaceLoading = computed(() => previewLoadPending.value || engineLoading.value)
 const surfaceError = computed(() => {

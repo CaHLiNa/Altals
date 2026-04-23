@@ -201,6 +201,22 @@
       <div class="settings-group-body">
         <div class="settings-row">
           <div class="settings-row-copy">
+            <div class="settings-row-title">{{ t('Themed PDF pages') }}</div>
+            <div class="settings-row-description">
+              {{ t('Use a theme-matched dark or light PDF page surface. Turn this off to always keep PDF pages light.') }}
+            </div>
+          </div>
+          <div class="settings-row-control compact">
+            <UiSwitch
+              :model-value="workspace.pdfViewerPageThemeMode !== 'light'"
+              :aria-label="t('Themed PDF pages')"
+              @update:model-value="handlePdfViewerPageThemeToggle"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Default zoom') }}</div>
           </div>
           <div class="settings-row-control">
@@ -271,6 +287,10 @@ const pdfViewerSpreadOptions = computed(() => [
   { value: 'single', label: t('Single page') },
   { value: 'double', label: t('Two-page spread') },
 ])
+
+function handlePdfViewerPageThemeToggle(enabled) {
+  workspace.setPdfViewerPageThemeMode(enabled ? 'theme' : 'light')
+}
 
 const fileTreeSortOptions = computed(() => [
   { value: 'name', label: t('Name') },

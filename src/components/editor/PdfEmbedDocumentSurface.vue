@@ -1,8 +1,11 @@
 <template>
   <div
+    ref="surfaceRef"
     class="pdf-artifact-preview__surface"
     :style="surfaceStyle"
     :class="{
+      'is-dark-page-theme': shouldUseDarkPageTheme,
+      'is-dark-page-theme-suspended': shouldSuspendDarkPageTheme,
       'is-search-open': searchUiVisible,
       'has-thumbnails-open': thumbnailsVisible,
     }"
@@ -313,6 +316,8 @@ const props = defineProps({
   documentId: { type: String, required: true },
   artifactPath: { type: String, required: true },
   kind: { type: String, default: 'pdf' },
+  resolvedTheme: { type: String, default: 'dark' },
+  pdfViewerPageThemeMode: { type: String, default: 'theme' },
   forwardSyncRequest: { type: Object, default: null },
   pdfViewerZoomMode: { type: String, default: 'page-width' },
   pdfViewerSpreadMode: { type: String, default: 'single' },
@@ -354,9 +359,11 @@ const {
 } = useSurfaceContextMenu()
 
 const pageBindings = new Map()
+const surfaceRef = ref(null)
 const pendingRestoreState = ref(null)
 const initialLayoutHandled = ref(false)
 const layoutNudge = ref(0)
+const shouldSuspendDarkPageTheme = ref(false)
 const saveInProgress = ref(false)
 const selectedText = ref('')
 const selectionActive = ref(false)
@@ -369,6 +376,10 @@ const searchInputRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
+const shouldUseDarkPageTheme = computed(() =>
+  String(props.pdfViewerPageThemeMode || '').trim().toLowerCase() !== 'light'
+  && String(props.resolvedTheme || '').trim().toLowerCase() === 'dark'
+)
 const surfaceStyle = computed(() => ({
   '--pdf-layout-nudge': `${layoutNudge.value}px`,
 }))
@@ -410,6 +421,9 @@ let forwardSyncHighlightTimer = 0
 let lastHandledForwardSyncRequestId = 0
 let scheduledLayoutNudgeFrame = 0
 let layoutNudgeResetFrame = 0
+let darkPageThemeResumeTimer = 0
+let surfaceResizeObserver = null
+let lastObservedSurfaceWidth = 0
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -970,6 +984,23 @@ function clearScheduledLayoutNudge() {
     layoutNudgeResetFrame = 0
   }
   layoutNudge.value = 0
+}
+
+function clearDarkPageThemeSuspensionTimer() {
+  if (typeof window === 'undefined' || !darkPageThemeResumeTimer) return
+  window.clearTimeout(darkPageThemeResumeTimer)
+  darkPageThemeResumeTimer = 0
+}
+
+function suspendDarkPageThemeTemporarily() {
+  if (!shouldUseDarkPageTheme.value || typeof window === 'undefined') return
+
+  shouldSuspendDarkPageTheme.value = true
+  clearDarkPageThemeSuspensionTimer()
+  darkPageThemeResumeTimer = window.setTimeout(() => {
+    darkPageThemeResumeTimer = 0
+    shouldSuspendDarkPageTheme.value = false
+  }, 180)
 }
 
 function scheduleInitialLayoutNudge() {
@@ -1675,6 +1706,16 @@ watch(
 )
 
 watch(
+  shouldUseDarkPageTheme,
+  (enabled) => {
+    if (enabled) return
+    clearDarkPageThemeSuspensionTimer()
+    shouldSuspendDarkPageTheme.value = false
+  },
+  { immediate: true }
+)
+
+watch(
   () => search.state.value?.query,
   (nextQuery) => {
     const normalizedQuery = String(nextQuery || '')
@@ -1795,6 +1836,11 @@ watch(
 
 onUnmounted(() => {
   clearScheduledLayoutNudge()
+  clearDarkPageThemeSuspensionTimer()
+  if (surfaceResizeObserver) {
+    surfaceResizeObserver.disconnect()
+    surfaceResizeObserver = null
+  }
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
@@ -1807,6 +1853,22 @@ onUnmounted(() => {
 
 onMounted(() => {
   scheduleInitialLayoutNudge()
+
+  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
+
+  surfaceResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0]
+    const nextWidth = Math.round(Number(entry?.contentRect?.width || 0))
+    if (!Number.isFinite(nextWidth) || nextWidth <= 0) return
+    if (lastObservedSurfaceWidth > 0 && nextWidth !== lastObservedSurfaceWidth) {
+      suspendDarkPageThemeTemporarily()
+    }
+    lastObservedSurfaceWidth = nextWidth
+  })
+
+  if (surfaceRef.value) {
+    surfaceResizeObserver.observe(surfaceRef.value)
+  }
 })
 </script>
 
@@ -1971,6 +2033,10 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__thumbnail-image img) {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
+}
+
 .pdf-artifact-preview__thumbnail.is-active .pdf-artifact-preview__thumbnail-image {
   border-color: color-mix(in srgb, var(--focus-ring) 52%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
@@ -2016,6 +2082,11 @@ onMounted(() => {
 .pdf-artifact-preview__page img {
   -webkit-user-drag: none;
   user-select: none;
+}
+
+.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__page canvas),
+.pdf-artifact-preview__surface.is-dark-page-theme:not(.is-dark-page-theme-suspended) :deep(.pdf-artifact-preview__page img) {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
 }
 
 .pdf-artifact-preview__toolbar-search {

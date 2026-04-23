@@ -41,6 +41,7 @@ const DEFAULT_FILE_TREE_FOLD_DIRECTORIES = false
 const DEFAULT_PDF_VIEWER_ZOOM_MODE = 'page-width'
 const DEFAULT_PDF_VIEWER_SPREAD_MODE = 'single'
 const DEFAULT_PDF_VIEWER_LAST_SCALE = ''
+const DEFAULT_PDF_VIEWER_PAGE_THEME_MODE = 'theme'
 const DEFAULT_MARKDOWN_CITATION_FORMAT = 'bracketed'
 const DEFAULT_LATEX_CITATION_COMMAND = 'cite'
 const DEFAULT_CITATION_INSERT_ADDS_SPACE = false
@@ -77,6 +78,7 @@ const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'pdfViewerZoomMode',
   'pdfViewerSpreadMode',
   'pdfViewerLastScale',
+  'pdfViewerPageThemeMode',
   'markdownCitationFormat',
   'latexCitationCommand',
   'citationInsertAddsSpace',
@@ -195,6 +197,7 @@ export function createWorkspacePreferenceState() {
     pdfViewerZoomMode: DEFAULT_PDF_VIEWER_ZOOM_MODE,
     pdfViewerSpreadMode: DEFAULT_PDF_VIEWER_SPREAD_MODE,
     pdfViewerLastScale: DEFAULT_PDF_VIEWER_LAST_SCALE,
+    pdfViewerPageThemeMode: DEFAULT_PDF_VIEWER_PAGE_THEME_MODE,
     markdownCitationFormat: DEFAULT_MARKDOWN_CITATION_FORMAT,
     latexCitationCommand: DEFAULT_LATEX_CITATION_COMMAND,
     citationInsertAddsSpace: DEFAULT_CITATION_INSERT_ADDS_SPACE,
@@ -311,6 +314,12 @@ export function normalizeWorkspacePdfViewerLastScale(value) {
   return String(Math.round(numeric * 10000) / 10000)
 }
 
+export function normalizeWorkspacePdfViewerPageThemeMode(value) {
+  return String(value || '').trim().toLowerCase() === 'light'
+    ? 'light'
+    : DEFAULT_PDF_VIEWER_PAGE_THEME_MODE
+}
+
 export function normalizeWorkspaceMarkdownCitationFormat(value) {
   return String(value || '').trim().toLowerCase() === 'bare'
     ? 'bare'
@@ -425,6 +434,10 @@ export function setWorkspacePdfViewerSpreadMode(value) {
 
 export function setWorkspacePdfViewerLastScale(value) {
   return normalizeWorkspacePdfViewerLastScale(value)
+}
+
+export function setWorkspacePdfViewerPageThemeMode(value) {
+  return normalizeWorkspacePdfViewerPageThemeMode(value)
 }
 
 export function setWorkspaceMarkdownCitationFormat(value) {
