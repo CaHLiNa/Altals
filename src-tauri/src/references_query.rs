@@ -30,6 +30,8 @@ pub struct ReferencesQueryResolveParams {
     #[serde(default)]
     pub sort_key: String,
     #[serde(default)]
+    pub preferred_selected_reference_id: String,
+    #[serde(default)]
     pub file_contents: Value,
 }
 
@@ -442,6 +444,20 @@ pub async fn references_query_resolve(
         .cloned()
         .collect::<Vec<_>>();
 
+    let preferred_selected_reference_id = params.preferred_selected_reference_id.trim();
+    let selected_reference_id = if !preferred_selected_reference_id.is_empty()
+        && filtered_references
+            .iter()
+            .any(|reference| trim_string(reference.get("id")) == preferred_selected_reference_id)
+    {
+        preferred_selected_reference_id.to_string()
+    } else {
+        filtered_references
+            .first()
+            .map(|reference| trim_string(reference.get("id")))
+            .unwrap_or_default()
+    };
+
     Ok(json!({
         "query": {
             "selectedSectionKey": selected_section_key,
@@ -450,6 +466,7 @@ pub async fn references_query_resolve(
             "selectedTagKey": selected_tag_key,
             "searchQuery": params.search_query,
             "sortKey": sort_key,
+            "selectedReferenceId": selected_reference_id,
         },
         "sectionCounts": section_counts,
         "sourceCounts": source_counts,
@@ -457,6 +474,7 @@ pub async fn references_query_resolve(
         "tagCounts": tag_counts,
         "sortedReferences": sorted_references,
         "filteredReferences": filtered_references,
+        "selectedReferenceId": selected_reference_id,
         "citationUsageIndex": build_citation_usage_index(&params.file_contents),
     }))
 }
@@ -502,6 +520,7 @@ mod tests {
             selected_tag_key: "ai".to_string(),
             search_query: "alpha".to_string(),
             sort_key: "year-desc".to_string(),
+            preferred_selected_reference_id: "a".to_string(),
             file_contents: Value::Null,
         })
         .await
@@ -519,6 +538,7 @@ mod tests {
         assert_eq!(result["sourceCounts"]["zotero"].as_u64(), Some(1));
         assert_eq!(result["collectionCounts"]["reading"].as_u64(), Some(1));
         assert_eq!(result["tagCounts"]["ai"].as_u64(), Some(1));
+        assert_eq!(result["selectedReferenceId"].as_str(), Some("a"));
     }
 
     #[tokio::test]
@@ -546,5 +566,34 @@ mod tests {
                 .map(|v| v.len()),
             Some(1)
         );
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_first_filtered_reference_when_selected_is_hidden() {
+        let result = references_query_resolve(ReferencesQueryResolveParams {
+            library_sections: vec![json!({"key":"all"})],
+            source_sections: vec![json!({"key":"zotero"}), json!({"key":"manual"})],
+            references: vec![
+                json!({
+                    "id":"a",
+                    "title":"Alpha",
+                    "year":2024,
+                    "_source":"zotero"
+                }),
+                json!({
+                    "id":"b",
+                    "title":"Beta",
+                    "year":2022,
+                    "_source":"manual"
+                }),
+            ],
+            selected_source_key: "manual".to_string(),
+            preferred_selected_reference_id: "a".to_string(),
+            ..ReferencesQueryResolveParams::default()
+        })
+        .await
+        .expect("resolve query with fallback selection");
+
+        assert_eq!(result["selectedReferenceId"].as_str(), Some("b"));
     }
 }

@@ -20,7 +20,6 @@ import {
 import {
   buildDefaultReferenceLibrarySnapshot,
   normalizeReferenceLibrarySnapshotWithBackend,
-  normalizeReferenceRecordWithBackend,
   readOrCreateReferenceLibrarySnapshot,
   writeReferenceLibrarySnapshot,
 } from '../services/references/referenceLibraryIO.js'
@@ -70,6 +69,7 @@ function buildDefaultResolvedQueryState(state = {}) {
       selectedTagKey: state.selectedTagKey || '',
       searchQuery: state.searchQuery || '',
       sortKey: state.sortKey || 'year-desc',
+      selectedReferenceId: state.selectedReferenceId || '',
     },
     sectionCounts: {},
     sourceCounts: {},
@@ -100,7 +100,13 @@ async function invokeReferenceMutation(params = {}) {
 
 async function invokeReferenceQuery(params = {}) {
   if (!hasDesktopInvoke()) {
-    throw new Error('References query runtime requires desktop Rust backend.')
+    const references = Array.isArray(params.references) ? params.references : []
+    const selectedReferenceId = String(params.preferredSelectedReferenceId || references[0]?.id || '')
+    return buildDefaultResolvedQueryState({
+      ...params,
+      references,
+      selectedReferenceId,
+    })
   }
 
   return invoke('references_query_resolve', {
@@ -116,6 +122,7 @@ async function invokeReferenceQuery(params = {}) {
       selectedTagKey: String(params.selectedTagKey || ''),
       searchQuery: String(params.searchQuery || ''),
       sortKey: String(params.sortKey || ''),
+      preferredSelectedReferenceId: String(params.preferredSelectedReferenceId || ''),
       fileContents: params.fileContents && typeof params.fileContents === 'object' ? params.fileContents : {},
     },
   })
@@ -207,11 +214,11 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async commitLibrarySnapshot(projectRoot = '', snapshot = {}, options = {}) {
-      const { persist = true } = options
+      const { persist = true, preferredSelectedReferenceId = null } = options
       const nextSnapshot = persist
         ? await writeReferenceLibrarySnapshot(projectRoot, snapshot)
         : await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
-      this.applyLibrarySnapshot(nextSnapshot)
+      await this.applyLibrarySnapshot(nextSnapshot, { preferredSelectedReferenceId })
       return nextSnapshot
     },
 
@@ -230,6 +237,7 @@ export const useReferencesStore = defineStore('references', {
         selectedTagKey: this.selectedTagKey,
         searchQuery: this.searchQuery,
         sortKey: this.sortKey,
+        preferredSelectedReferenceId: this.selectedReferenceId,
         fileContents,
       })
 
@@ -243,10 +251,15 @@ export const useReferencesStore = defineStore('references', {
       this.selectedTagKey = String(query.selectedTagKey || '')
       this.sortKey = String(query.sortKey || 'year-desc')
       this.searchQuery = String(query.searchQuery ?? this.searchQuery ?? '')
+      this.selectedReferenceId = String(
+        this.resolvedQueryState?.selectedReferenceId ||
+        query.selectedReferenceId ||
+        this.selectedReferenceId ||
+        ''
+      )
     },
 
-    async syncResolvedQueryState(options = {}) {
-      const { ensureVisible = false } = options
+    async syncResolvedQueryState() {
       this.resolvedQueryState = buildDefaultResolvedQueryState({
         librarySections: this.librarySections,
         sourceSections: this.sourceSections,
@@ -259,25 +272,17 @@ export const useReferencesStore = defineStore('references', {
         selectedTagKey: this.selectedTagKey,
         searchQuery: this.searchQuery,
         sortKey: this.sortKey,
+        selectedReferenceId: this.selectedReferenceId,
       })
       await this.refreshResolvedQueryState()
-      if (ensureVisible) {
-        this.ensureSelectedReferenceVisible()
-      }
-    },
-
-    ensureSelectedReferenceVisible() {
-      if (this.filteredReferences.some((reference) => reference.id === this.selectedReferenceId)) {
-        return
-      }
-      this.selectedReferenceId = this.filteredReferences[0]?.id || ''
     },
 
     async persistLibrarySnapshot(projectRoot = '') {
       return this.commitLibrarySnapshot(projectRoot, this.buildLibrarySnapshotPayload())
     },
 
-    applyLibrarySnapshot(snapshot = {}) {
+    async applyLibrarySnapshot(snapshot = {}, options = {}) {
+      const { preferredSelectedReferenceId = null } = options
       const normalized = {
         ...buildDefaultReferenceLibrarySnapshot(),
         ...(snapshot && typeof snapshot === 'object' ? snapshot : {}),
@@ -297,10 +302,12 @@ export const useReferencesStore = defineStore('references', {
         this.selectedSourceKey = ''
       }
 
-      if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
-        this.selectedReferenceId = this.references[0]?.id || ''
+      if (preferredSelectedReferenceId !== null && preferredSelectedReferenceId !== undefined) {
+        this.selectedReferenceId = String(preferredSelectedReferenceId || '')
+      } else if (!this.references.some((reference) => reference.id === this.selectedReferenceId)) {
+        this.selectedReferenceId = ''
       }
-      void this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async loadWorkspaceLibrary(projectRoot = '', options = {}) {
@@ -309,11 +316,11 @@ export const useReferencesStore = defineStore('references', {
 
       try {
         const snapshot = await readOrCreateReferenceLibrarySnapshot(projectRoot, options)
-        this.applyLibrarySnapshot(snapshot)
+        await this.applyLibrarySnapshot(snapshot)
         await this.loadWorkspaceCitationStyles()
       } catch (error) {
         this.loadError = error?.message || t('Failed to load reference library')
-        this.applyLibrarySnapshot(buildDefaultReferenceLibrarySnapshot())
+        await this.applyLibrarySnapshot(buildDefaultReferenceLibrarySnapshot())
         setUserCitationStyles([])
       } finally {
         this.isLoading = false
@@ -372,10 +379,12 @@ export const useReferencesStore = defineStore('references', {
             imported: markedReferences,
           },
         })
-        await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload())
         const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-        if (selectedReferenceId) this.selectedReferenceId = selectedReferenceId
-        this.ensureSelectedReferenceVisible()
+        await this.commitLibrarySnapshot(
+          projectRoot,
+          mutation?.snapshot || this.buildLibrarySnapshotPayload(),
+          { preferredSelectedReferenceId: selectedReferenceId }
+        )
         const selectedReference = selectedReferenceId
           ? this.references.find((reference) => reference.id === selectedReferenceId) || null
           : null
@@ -414,10 +423,12 @@ export const useReferencesStore = defineStore('references', {
             imported: markedReferences,
           },
         })
-        await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload())
         const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
-        if (selectedReferenceId) this.selectedReferenceId = selectedReferenceId
-        this.ensureSelectedReferenceVisible()
+        await this.commitLibrarySnapshot(
+          projectRoot,
+          mutation?.snapshot || this.buildLibrarySnapshotPayload(),
+          { preferredSelectedReferenceId: selectedReferenceId }
+        )
         const selectedReference = selectedReferenceId
           ? this.references.find((reference) => reference.id === selectedReferenceId) || null
           : null
@@ -475,8 +486,9 @@ export const useReferencesStore = defineStore('references', {
       })
       if (mutation?.result?.removed !== true) return false
 
-      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
-      this.ensureSelectedReferenceVisible()
+      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+        preferredSelectedReferenceId: this.selectedReferenceId,
+      })
       return true
     },
 
@@ -486,7 +498,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async setSelectedSource(sourceKey = '') {
@@ -495,7 +507,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async setSelectedCollection(collectionKey = '') {
@@ -504,7 +516,7 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedTagKey = ''
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async setSelectedTag(tagKey = '') {
@@ -514,12 +526,12 @@ export const useReferencesStore = defineStore('references', {
       this.selectedSectionKey = 'all'
       this.selectedSourceKey = ''
       this.selectedCollectionKey = ''
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async setSearchQuery(value = '') {
       this.searchQuery = String(value || '')
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     async setSortKey(value = '') {
@@ -533,7 +545,7 @@ export const useReferencesStore = defineStore('references', {
       ].includes(value)
         ? value
         : 'year-desc'
-      await this.syncResolvedQueryState({ ensureVisible: true })
+      await this.syncResolvedQueryState()
     },
 
     setCitationStyle(style = 'apa') {
@@ -579,49 +591,49 @@ export const useReferencesStore = defineStore('references', {
         markForZoteroPush = true,
         persist = true,
       } = options
-      const duplicate = await findDuplicateReference(this.references, reference)
-      if (duplicate) return duplicate
-
       const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
-      const nextReference = await normalizeReferenceRecordWithBackend({
-        ...reference,
-        _appPushPending: shouldMark ? true : reference._appPushPending === true,
+      const mutation = await invokeReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'addReference',
+          reference,
+          markForZoteroPush: shouldMark ? true : reference._appPushPending === true,
+        },
       })
+      const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
 
       await this.commitLibrarySnapshot(
         projectRoot,
+        mutation?.snapshot || this.buildLibrarySnapshotPayload(),
         {
-          ...this.buildLibrarySnapshotPayload(),
-          references: [...this.references, nextReference],
-        },
-        { persist }
+          persist,
+          preferredSelectedReferenceId: selectedReferenceId,
+        }
       )
-      this.selectedReferenceId = nextReference.id
-      this.ensureSelectedReferenceVisible()
-      return this.references.find((reference) => reference.id === nextReference.id) || nextReference
+      return this.references.find((reference) => reference.id === selectedReferenceId) || null
     },
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
       const { persist = true } = options
-      const referenceIndex = this.references.findIndex((reference) => reference.id === referenceId)
-      if (referenceIndex === -1) return false
-
-      const normalizedReference = await normalizeReferenceRecordWithBackend({
-        ...this.references[referenceIndex],
-        ...updates,
+      const mutation = await invokeReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'updateReference',
+          referenceId,
+          updates,
+        },
       })
+      if (mutation?.result?.changed !== true) return false
+      const selectedReferenceId = String(mutation?.result?.selectedReferenceId || this.selectedReferenceId || '')
 
       await this.commitLibrarySnapshot(
         projectRoot,
+        mutation?.snapshot || this.buildLibrarySnapshotPayload(),
         {
-          ...this.buildLibrarySnapshotPayload(),
-          references: this.references.map((reference, index) =>
-            index === referenceIndex ? normalizedReference : reference
-          ),
-        },
-        { persist }
+          persist,
+          preferredSelectedReferenceId: selectedReferenceId,
+        }
       )
-      this.ensureSelectedReferenceVisible()
       return true
     },
 
@@ -629,13 +641,21 @@ export const useReferencesStore = defineStore('references', {
       const target = this.references.find((reference) => reference.id === referenceId)
       if (!target) return false
 
-      await this.commitLibrarySnapshot(projectRoot, {
-        ...this.buildLibrarySnapshotPayload(),
-        references: this.references.filter((reference) => reference.id !== referenceId),
+      const mutation = await invokeReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'removeReference',
+          referenceId,
+        },
       })
-      if (this.selectedReferenceId === referenceId) {
-        this.selectedReferenceId = this.filteredReferences[0]?.id || ''
-      }
+      if (mutation?.result?.removed !== true) return false
+      const preferredSelectedReferenceId = this.selectedReferenceId === referenceId
+        ? ''
+        : this.selectedReferenceId
+
+      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+        preferredSelectedReferenceId,
+      })
 
       if (target._pushedByApp && target._zoteroKey) {
         deleteFromZotero(target).catch(() => {})
@@ -654,8 +674,9 @@ export const useReferencesStore = defineStore('references', {
       })
       if (mutation?.result?.changed !== true) return false
 
-      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot)
-      this.ensureSelectedReferenceVisible()
+      await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
+        preferredSelectedReferenceId: this.selectedReferenceId,
+      })
       return mutation?.result?.toggledOn === true
     },
 
@@ -674,6 +695,8 @@ export const useReferencesStore = defineStore('references', {
         references: this.references.map((candidate, index) =>
           index === referenceIndex ? updatedReference : candidate
         ),
+      }, {
+        preferredSelectedReferenceId: referenceId,
       })
       return updatedReference
     },

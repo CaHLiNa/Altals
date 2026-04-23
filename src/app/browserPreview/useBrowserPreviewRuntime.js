@@ -82,7 +82,7 @@ export function useBrowserPreviewRuntime({
     }
 
     if (!referencesStore.references.length) {
-      referencesStore.applyLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
+      await referencesStore.applyLibrarySnapshot(readBrowserPreviewReferenceSnapshot())
     }
 
     latexStore.applyBrowserPreviewDiagnostics()

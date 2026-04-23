@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use crate::references_merge::{
     find_duplicate_reference_internal, merge_imported_references_internal,
 };
-use crate::references_snapshot::{normalize_snapshot, trim_string};
+use crate::references_snapshot::{normalize_reference_record, normalize_snapshot, trim_string};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +17,17 @@ pub struct ReferencesMutationApplyParams {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ReferencesMutationAction {
+    AddReference {
+        reference: Value,
+        #[serde(default)]
+        mark_for_zotero_push: bool,
+    },
+    UpdateReference {
+        reference_id: String,
+        #[serde(default)]
+        updates: Value,
+    },
+    RemoveReference { reference_id: String },
     CreateCollection { label: String },
     RenameCollection {
         collection_key: String,
@@ -485,12 +496,149 @@ fn apply_merge_imported_references(snapshot: &Value, imported: &[Value]) -> Valu
     })
 }
 
+fn apply_add_reference(snapshot: &Value, reference: &Value, mark_for_zotero_push: bool) -> Value {
+    let references = normalize_snapshot_references(snapshot);
+    let mut candidate = reference.as_object().cloned().unwrap_or_default();
+    if mark_for_zotero_push {
+        candidate.insert("_appPushPending".to_string(), Value::Bool(true));
+    }
+    let normalized_candidate = normalize_reference_record(&Value::Object(candidate));
+
+    if let Some(duplicate) = find_duplicate_reference_internal(&references, &normalized_candidate) {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "changed": false,
+                "duplicate": true,
+                "selectedReferenceId": trim_string(duplicate.get("id")),
+            },
+        });
+    }
+
+    let mut next_references = references;
+    let selected_reference_id = trim_string(normalized_candidate.get("id"));
+    next_references.push(normalized_candidate);
+
+    json!({
+        "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+        "result": {
+            "changed": true,
+            "duplicate": false,
+            "selectedReferenceId": selected_reference_id,
+        },
+    })
+}
+
+fn apply_update_reference(snapshot: &Value, reference_id: &str, updates: &Value) -> Value {
+    let references = normalize_snapshot_references(snapshot);
+    let reference_id = reference_id.trim();
+    if reference_id.is_empty() {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "changed": false,
+                "selectedReferenceId": "",
+            },
+        });
+    }
+
+    let Some(reference_index) = references
+        .iter()
+        .position(|reference| trim_string(reference.get("id")) == reference_id) else {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "changed": false,
+                "selectedReferenceId": "",
+            },
+        });
+    };
+
+    let mut merged_reference = references[reference_index]
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    if let Some(update_map) = updates.as_object() {
+        for (key, value) in update_map {
+            merged_reference.insert(key.clone(), value.clone());
+        }
+    }
+    let normalized_reference = normalize_reference_record(&Value::Object(merged_reference));
+    let selected_reference_id = trim_string(normalized_reference.get("id"));
+
+    let next_references = references
+        .into_iter()
+        .enumerate()
+        .map(|(index, reference)| {
+            if index == reference_index {
+                normalized_reference.clone()
+            } else {
+                reference
+            }
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+        "result": {
+            "changed": true,
+            "selectedReferenceId": selected_reference_id,
+        },
+    })
+}
+
+fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
+    let references = normalize_snapshot_references(snapshot);
+    let reference_id = reference_id.trim();
+    if reference_id.is_empty() {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "removed": false,
+            },
+        });
+    }
+
+    let next_references = references
+        .iter()
+        .filter(|reference| trim_string(reference.get("id")) != reference_id)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if next_references.len() == references.len() {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "removed": false,
+            },
+        });
+    }
+
+    json!({
+        "snapshot": normalized_snapshot_with(snapshot, None, Some(next_references)),
+        "result": {
+            "removed": true,
+        },
+    })
+}
+
 #[tauri::command]
 pub async fn references_mutation_apply(
     params: ReferencesMutationApplyParams,
 ) -> Result<Value, String> {
     let normalized_snapshot = normalize_snapshot(&params.snapshot);
     let result = match params.action {
+        ReferencesMutationAction::AddReference {
+            reference,
+            mark_for_zotero_push,
+        } => apply_add_reference(&normalized_snapshot, &reference, mark_for_zotero_push),
+        ReferencesMutationAction::UpdateReference {
+            reference_id,
+            updates,
+        } => apply_update_reference(&normalized_snapshot, &reference_id, &updates),
+        ReferencesMutationAction::RemoveReference { reference_id } => {
+            apply_remove_reference(&normalized_snapshot, &reference_id)
+        }
         ReferencesMutationAction::CreateCollection { label } => {
             apply_create_collection(&normalized_snapshot, &label)
         }
@@ -640,6 +788,79 @@ mod tests {
         assert_eq!(
             result["snapshot"]["references"][0]["collections"][0].as_str(),
             Some("reading")
+        );
+    }
+
+    #[tokio::test]
+    async fn add_reference_detects_duplicate_and_selects_existing() {
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            action: ReferencesMutationAction::AddReference {
+                reference: json!({
+                    "id": "new-ref",
+                    "title": "Adaptive Control",
+                    "year": 2024,
+                    "citationKey": "ada2024",
+                    "collections": [],
+                    "tags": []
+                }),
+                mark_for_zotero_push: false,
+            },
+        })
+        .await
+        .expect("add reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(false));
+        assert_eq!(result["result"]["duplicate"].as_bool(), Some(true));
+        assert_eq!(
+            result["result"]["selectedReferenceId"].as_str(),
+            Some("ref-1")
+        );
+    }
+
+    #[tokio::test]
+    async fn update_reference_normalizes_and_keeps_selection() {
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            action: ReferencesMutationAction::UpdateReference {
+                reference_id: "ref-1".to_string(),
+                updates: json!({
+                    "tags": [{ "label": "AI" }],
+                    "typeKey": "article"
+                }),
+            },
+        })
+        .await
+        .expect("update reference");
+
+        assert_eq!(result["result"]["changed"].as_bool(), Some(true));
+        assert_eq!(
+            result["snapshot"]["references"][0]["typeKey"].as_str(),
+            Some("journal-article")
+        );
+        assert_eq!(
+            result["snapshot"]["tags"].as_array().map(|items| items.len()),
+            Some(2)
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_reference_drops_entry() {
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            action: ReferencesMutationAction::RemoveReference {
+                reference_id: "ref-1".to_string(),
+            },
+        })
+        .await
+        .expect("remove reference");
+
+        assert_eq!(result["result"]["removed"].as_bool(), Some(true));
+        assert_eq!(
+            result["snapshot"]["references"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(0)
         );
     }
 }

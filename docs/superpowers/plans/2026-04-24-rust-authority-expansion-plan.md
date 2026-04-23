@@ -327,11 +327,13 @@
 - 前端 `references.js` 已开始消费 Rust query result
 - collection mutation 与 import selection contract 已开始消费 Rust mutation result
 - `referenceQueryBridge.js` / `referenceQueryRuntime.js` 已删除，query 侧不再保留独立 JS runtime 文件
+- add / update / remove reference 已开始消费 Rust mutation result
+- `selectedReferenceId` 的 filtered fallback 已改成由 Rust query 结果负责 reconcile
 
 剩余内容：
 
-- add/update/remove reference 的 mutation 协调进一步下沉
-- search / query state normalize 与 selectedReference reconcile 的完整 Rust contract
+- search / query state normalize 的剩余桌面 fallback 继续收口
+- `references.js` 中与 reference import / pdf attach / external sync 相邻的协调逻辑继续压薄
 - `references.js` 继续收口成 query input + selection state + UI dispatch
 
 ## 每个切片的共同验收标准

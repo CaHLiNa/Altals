@@ -152,7 +152,7 @@ export async function syncNow(projectRoot = '', referencesStore) {
       },
     })
 
-    referencesStore.applyLibrarySnapshot({
+    await referencesStore.applyLibrarySnapshot({
       version: 2,
       citationStyle: referencesStore.citationStyle,
       collections: referencesStore.collections,

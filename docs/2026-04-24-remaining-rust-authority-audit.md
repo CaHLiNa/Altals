@@ -204,6 +204,8 @@
 - `citedIn` 已消费 Rust query 返回的 citation usage index
 - collection create / rename / remove、reference collection toggle、import merge / selectedReference resolve 已改成消费 Rust mutation result
 - `referenceQueryBridge.js` / `referenceQueryRuntime.js` 已删除，query 路径改成现有 `references.js` 直接 invoke Rust command
+- add / update / remove reference 已改成消费 Rust mutation result
+- `selectedReferenceId` 的 filtered fallback 已改成由 Rust query 结果负责 reconcile，而不是前端 store 自己兜底
 
 ## 本审计的判断规则
 
