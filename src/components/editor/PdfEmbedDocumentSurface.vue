@@ -615,6 +615,33 @@ function buildForwardSyncRect(record = {}, pageMeta = null) {
   }
 }
 
+function buildForwardSyncPointFallbackRect(record = {}, pageMeta = null) {
+  const pageHeight = Number(pageMeta?.size?.height || 0)
+  const x = Number(record.x)
+  const y = Number(record.y)
+  if (
+    !Number.isFinite(pageHeight)
+    || pageHeight <= 0
+    || !Number.isFinite(x)
+    || !Number.isFinite(y)
+  ) {
+    return null
+  }
+
+  const highlightWidth = 42
+  const highlightHeight = 18
+  return {
+    origin: {
+      x: Math.max(0, x - highlightWidth * 0.25),
+      y: Math.max(0, pageHeight - y - highlightHeight * 0.5),
+    },
+    size: {
+      width: highlightWidth,
+      height: highlightHeight,
+    },
+  }
+}
+
 function buildForwardSyncOverlayEntries(request = null) {
   const requestId = Number(request?.requestId || 0)
   const records = Array.isArray(request?.target?.records) ? request.target.records : []
@@ -629,6 +656,7 @@ function buildForwardSyncOverlayEntries(request = null) {
       const pageMeta = resolveDocumentPageMeta(pageNumber)
       const pageBinding = resolvePageBinding(pageNumber)
       const rect = buildForwardSyncRect(record, pageMeta)
+        || buildForwardSyncPointFallbackRect(record, pageMeta)
       if (!pageMeta || !pageBinding || !rect) return null
 
       const positionedRect = scrollScope.getRectPositionForPage(pageNumber, rect)
@@ -1268,7 +1296,19 @@ async function applyForwardSyncRequest(request = null) {
     alignY: 34,
   })
 
-  forwardSyncOverlays.value = buildForwardSyncOverlayEntries(request)
+  await nextTick()
+  if (typeof window !== 'undefined') {
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  }
+
+  const overlayEntries = buildForwardSyncOverlayEntries(request)
+  if (overlayEntries.length === 0) {
+    queuedForwardSyncRequest.value = request
+    return false
+  }
+
+  forwardSyncOverlays.value = overlayEntries
   scheduleForwardSyncHighlightClear()
   scheduleViewStateEmission()
   return true
