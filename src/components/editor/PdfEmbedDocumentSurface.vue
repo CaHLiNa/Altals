@@ -646,12 +646,106 @@ function buildForwardSyncPointFallbackRect(record = {}, pageMeta = null) {
   }
 }
 
+function expandForwardSyncOverlayRect(entry = {}) {
+  const left = Number(entry.left || 0)
+  const top = Number(entry.top || 0)
+  const width = Number(entry.width || 0)
+  const height = Number(entry.height || 0)
+
+  const paddingX = Math.min(10, Math.max(3, width * 0.08))
+  const paddingY = Math.min(4, Math.max(1.5, height * 0.08))
+
+  return {
+    ...entry,
+    left: Math.max(0, left - paddingX),
+    top: Math.max(0, top - paddingY),
+    width: width + paddingX * 2,
+    height: height + paddingY * 2,
+  }
+}
+
+function shouldMergeForwardSyncOverlays(base = {}, candidate = {}) {
+  const baseTop = Number(base.top || 0)
+  const baseBottom = baseTop + Number(base.height || 0)
+  const baseLeft = Number(base.left || 0)
+  const baseRight = baseLeft + Number(base.width || 0)
+
+  const candidateTop = Number(candidate.top || 0)
+  const candidateBottom = candidateTop + Number(candidate.height || 0)
+  const candidateLeft = Number(candidate.left || 0)
+  const candidateRight = candidateLeft + Number(candidate.width || 0)
+
+  const verticalOverlap = Math.min(baseBottom, candidateBottom) - Math.max(baseTop, candidateTop)
+  const minHeight = Math.min(Number(base.height || 0), Number(candidate.height || 0))
+  const verticalCenterDistance = Math.abs(
+    (baseTop + baseBottom) * 0.5 - (candidateTop + candidateBottom) * 0.5,
+  )
+  const horizontalGap = Math.max(0, candidateLeft - baseRight, baseLeft - candidateRight)
+
+  return (
+    verticalOverlap >= Math.max(2, minHeight * 0.28)
+    || verticalCenterDistance <= Math.max(6, minHeight * 0.42)
+  ) && horizontalGap <= 28
+}
+
+function mergeForwardSyncOverlayEntries(entries = []) {
+  const groupedByPage = new Map()
+  for (const entry of entries) {
+    const pageEntries = groupedByPage.get(entry.pageNumber) || []
+    pageEntries.push(expandForwardSyncOverlayRect(entry))
+    groupedByPage.set(entry.pageNumber, pageEntries)
+  }
+
+  const merged = []
+  for (const [pageNumber, pageEntries] of groupedByPage.entries()) {
+    const sortedEntries = [...pageEntries].sort((left, right) => {
+      const topDelta = Number(left.top || 0) - Number(right.top || 0)
+      if (Math.abs(topDelta) > 3) return topDelta
+      return Number(left.left || 0) - Number(right.left || 0)
+    })
+
+    const mergedPageEntries = []
+    for (const entry of sortedEntries) {
+      const previousEntry = mergedPageEntries[mergedPageEntries.length - 1]
+      if (!previousEntry || !shouldMergeForwardSyncOverlays(previousEntry, entry)) {
+        mergedPageEntries.push({ ...entry })
+        continue
+      }
+
+      const nextLeft = Math.min(previousEntry.left, entry.left)
+      const nextTop = Math.min(previousEntry.top, entry.top)
+      const nextRight = Math.max(previousEntry.left + previousEntry.width, entry.left + entry.width)
+      const nextBottom = Math.max(previousEntry.top + previousEntry.height, entry.top + entry.height)
+
+      previousEntry.left = nextLeft
+      previousEntry.top = nextTop
+      previousEntry.width = nextRight - nextLeft
+      previousEntry.height = nextBottom - nextTop
+    }
+
+    merged.push(
+      ...mergedPageEntries.map((entry, index) => ({
+        key: `${pageNumber}:${index}:${Math.round(entry.left)}:${Math.round(entry.top)}`,
+        pageNumber,
+        style: {
+          left: `${Math.max(0, entry.left)}px`,
+          top: `${Math.max(0, entry.top)}px`,
+          width: `${Math.max(8, entry.width)}px`,
+          height: `${Math.max(8, entry.height)}px`,
+        },
+      })),
+    )
+  }
+
+  return merged
+}
+
 function buildForwardSyncOverlayEntries(request = null) {
   const requestId = Number(request?.requestId || 0)
   const records = Array.isArray(request?.target?.records) ? request.target.records : []
   if (!Number.isInteger(requestId) || requestId < 1 || records.length === 0) return []
 
-  return records
+  const rawEntries = records
     .map((record, index) => {
       const pageNumber = Number(record?.page || 0)
       const pageMeta = resolveDocumentPageMeta(pageNumber)
@@ -694,15 +788,15 @@ function buildForwardSyncOverlayEntries(request = null) {
       return {
         key: `${requestId}:${index}`,
         pageNumber,
-        style: {
-          left: `${Math.max(0, rotatedRect.origin.x)}px`,
-          top: `${Math.max(0, rotatedRect.origin.y)}px`,
-          width: `${Math.max(4, rotatedRect.size.width)}px`,
-          height: `${Math.max(4, rotatedRect.size.height)}px`,
-        },
+        left: Math.max(0, rotatedRect.origin.x),
+        top: Math.max(0, rotatedRect.origin.y),
+        width: Math.max(4, rotatedRect.size.width),
+        height: Math.max(4, rotatedRect.size.height),
       }
     })
     .filter(Boolean)
+
+  return mergeForwardSyncOverlayEntries(rawEntries)
 }
 
 function resolveForwardSyncOverlays(pageNumber) {
