@@ -116,8 +116,6 @@ function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
       context.workflowStore,
     ),
     artifactReady: resolveArtifactReady(filePath, adapter, context),
-    hasOpenLegacyPreview: options.hasOpenLegacyPreview === true,
-    preserveOpenLegacy: options.preserveOpenLegacy === true,
     hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
   }
 }

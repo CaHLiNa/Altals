@@ -629,6 +629,27 @@ mod tests {
     }
 
     #[test]
+    fn save_state_drops_preview_tabs_without_legacy_preservation() {
+        let state = build_persisted_editor_state(
+            &json!({
+                "type": "leaf",
+                "id": "pane-root",
+                "tabs": ["preview:/tmp/a.md", "/tmp/a.md"],
+                "activeTab": "/tmp/a.md"
+            }),
+            "pane-root",
+            "/tmp/a.md",
+            &[],
+        );
+
+        let tabs = state["paneTree"]["tabs"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(tabs, vec![json!("/tmp/a.md")]);
+    }
+
+    #[test]
     fn load_state_restores_active_pane_and_context() {
         let file_path = std::env::temp_dir().join("scribeflow-editor-session-test.md");
         fs::write(&file_path, "# test").expect("write temp file");
@@ -649,6 +670,32 @@ mod tests {
 
         assert_eq!(state["activePaneId"].as_str(), Some("pane-left"));
         assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
+    }
+
+    #[test]
+    fn load_state_keeps_legacy_preview_paths_out_of_context() {
+        let file_path = std::env::temp_dir().join("scribeflow-editor-session-preview.md");
+        fs::write(&file_path, "# preview").expect("write temp file");
+        let file_path = file_path.to_string_lossy().to_string();
+        let preview_path = format!("preview:{file_path}");
+
+        let state = normalize_loaded_editor_state(&json!({
+            "version": 1,
+            "activePaneId": "pane-root",
+            "paneTree": {
+                "type": "leaf",
+                "id": "pane-root",
+                "tabs": [preview_path, file_path],
+                "activeTab": preview_path
+            },
+            "lastContextPath": preview_path
+        }));
+
+        assert_eq!(
+            state["legacyPreviewPaths"].as_array().cloned().unwrap_or_default(),
+            vec![json!(format!("preview:{file_path}"))]
+        );
+        assert_eq!(state["lastContextPath"].as_str(), Some(""));
     }
 
     #[test]

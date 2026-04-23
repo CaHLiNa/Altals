@@ -17,6 +17,13 @@
 - `stores` 要持续保持薄，不要演化成另一层策略中心。
 - 优先做边界明确、可验证、并能把系统推向最优架构的切片，而不是保守地做无效增量。
 
+## Legacy Boundaries
+
+- legacy 层必须分成 `migration-only`、`fallback-only`、`temporary compat` 三类，不允许模糊地长期共存。
+- 只要 Rust authority 已覆盖主路径，就要删除前端同级 authority；剩余 legacy 只能保留为一次性迁移或只读兼容。
+- 当前 document workflow 的 legacy preview pane 已退出主路径，保留的 `preview:` tab 恢复逻辑只属于 editor session / workspace preview 的 temporary compat。
+- 每条 legacy path 都必须在审计文档里写明 delete condition 和 owner；没有退出条件的 legacy 分支视为需要优先清理。
+
 ## 桌面 UX 护栏
 
 - 除非用户明确批准更大范围的 UI 变化，否则应保留现有桌面端视觉与交互方向。

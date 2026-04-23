@@ -14,8 +14,6 @@ export const documentWorkflowResolvedStateActions = {
       hiddenByUser: request.hiddenByUser === true,
       previewRequested: request.previewRequested === true,
       artifactReady: request.artifactReady === true,
-      preserveOpenLegacy: request.preserveOpenLegacy === true,
-      hasOpenLegacyPreview: request.hasOpenLegacyPreview === true,
     })
   },
 

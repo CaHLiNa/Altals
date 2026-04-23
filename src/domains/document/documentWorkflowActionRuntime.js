@@ -1,34 +1,6 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
 import { resolveDocumentWorkflowAction } from '../../services/documentWorkflow/actionRuntimeBridge.js'
 
-const WORKSPACE_PREVIEW_DELIVERY = 'workspace'
-const LEGACY_PANE_PREVIEW_DELIVERY = 'legacy-pane'
-
-function resolvePreviewDelivery(options = {}) {
-  if (options.previewDelivery === LEGACY_PANE_PREVIEW_DELIVERY) {
-    return LEGACY_PANE_PREVIEW_DELIVERY
-  }
-  if (options.previewDelivery === WORKSPACE_PREVIEW_DELIVERY) {
-    return WORKSPACE_PREVIEW_DELIVERY
-  }
-  return options.allowLegacyPaneResult === true
-    ? LEGACY_PANE_PREVIEW_DELIVERY
-    : WORKSPACE_PREVIEW_DELIVERY
-}
-
-function createLegacyPanePreviewToggle(workflowStore, filePath, options = {}) {
-  const toggleOptions = {
-    previewKind: options.previewKind,
-    activatePreview: true,
-    sourcePaneId: options.sourcePaneId,
-    trigger: options.trigger,
-  }
-  if (options.jump === true) {
-    toggleOptions.jump = true
-  }
-  return workflowStore?.togglePreviewForSource?.(filePath, toggleOptions) || null
-}
-
 function planHasFollowUp(plan = null) {
   return !!(plan && typeof plan === 'object' && plan.followUpAction && typeof plan.followUpAction === 'object')
 }
@@ -49,7 +21,6 @@ export function createDocumentWorkflowActionRuntime({
     return resolveDocumentWorkflowAction({
       filePath,
       intent,
-      previewDelivery: resolvePreviewDelivery(options),
       uiState,
       previewState,
       artifactPath,
@@ -95,13 +66,6 @@ export function createDocumentWorkflowActionRuntime({
         const followUpResult = await executeActionPlan(filePath, followUpPlan, options)
         return followUpResult || buildResult
       }
-      case 'legacy-toggle-preview':
-        return createLegacyPanePreviewToggle(workflowStore, filePath, {
-          previewKind: plan.previewKind || options.previewKind,
-          jump: plan.jump === true,
-          sourcePaneId: options.sourcePaneId,
-          trigger: options.trigger || 'workflow-toggle-preview',
-        })
       case 'show-workspace-preview':
         return workflowStore.showWorkspacePreviewForFile?.(filePath, {
           previewKind: plan.previewKind || options.previewKind,

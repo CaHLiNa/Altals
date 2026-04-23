@@ -9,8 +9,6 @@ pub struct DocumentWorkflowActionResolveParams {
     #[serde(default)]
     pub intent: String,
     #[serde(default)]
-    pub preview_delivery: String,
-    #[serde(default)]
     pub ui_state: Value,
     #[serde(default)]
     pub preview_state: Value,
@@ -25,10 +23,6 @@ fn normalize_mode(preview_kind: &str) -> Option<&'static str> {
         "terminal" => Some("terminal-output"),
         _ => None,
     }
-}
-
-fn uses_legacy_preview(preview_delivery: &str) -> bool {
-    preview_delivery == "legacy-pane"
 }
 
 fn resolve_ui_kind(ui_state: &Value) -> String {
@@ -60,14 +54,6 @@ fn preview_mode(preview_state: &Value) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
-}
-
-fn build_legacy_toggle(preview_kind: &str, jump: bool) -> Value {
-    json!({
-        "actionType": "legacy-toggle-preview",
-        "previewKind": preview_kind,
-        "jump": jump,
-    })
 }
 
 fn build_workspace_show(preview_kind: &str, persist_preference: bool) -> Value {
@@ -110,16 +96,13 @@ fn build_noop() -> Value {
     })
 }
 
-fn resolve_markdown_action(intent: &str, preview_delivery: &str, preview_state: &Value) -> Value {
+fn resolve_markdown_action(intent: &str, preview_state: &Value) -> Value {
     let current_visible = preview_visible(preview_state);
     let current_mode = preview_mode(preview_state);
     let current_is_markdown = current_visible && current_mode == "markdown";
 
     match intent {
         "primary-action" | "reveal-preview" | "toggle-markdown-preview" => {
-            if uses_legacy_preview(preview_delivery) {
-                return build_legacy_toggle("html", intent == "reveal-preview");
-            }
             if current_is_markdown {
                 return build_workspace_hide();
             }
@@ -131,7 +114,6 @@ fn resolve_markdown_action(intent: &str, preview_delivery: &str, preview_state: 
 
 fn resolve_latex_action(
     intent: &str,
-    preview_delivery: &str,
     ui_state: &Value,
     preview_state: &Value,
     artifact_path: &str,
@@ -163,9 +145,6 @@ fn resolve_latex_action(
         "reveal-preview" => {
             if requested_preview_kind.is_empty() {
                 return build_noop();
-            }
-            if uses_legacy_preview(preview_delivery) {
-                return build_legacy_toggle(&requested_preview_kind, true);
             }
             if current_visible && current_mode == expected_mode {
                 return build_workspace_hide();
@@ -209,14 +188,9 @@ pub async fn document_workflow_action_resolve(
     }
 
     let plan = match ui_kind.as_str() {
-        "markdown" => resolve_markdown_action(
-            &params.intent,
-            &params.preview_delivery,
-            &params.preview_state,
-        ),
+        "markdown" => resolve_markdown_action(&params.intent, &params.preview_state),
         "latex" => resolve_latex_action(
             &params.intent,
-            &params.preview_delivery,
             &params.ui_state,
             &params.preview_state,
             &params.artifact_path,
@@ -238,7 +212,6 @@ mod tests {
         let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             intent: "reveal-pdf".to_string(),
-            preview_delivery: "workspace".to_string(),
             ui_state: json!({
                 "kind": "latex",
                 "previewKind": "pdf",
@@ -277,7 +250,6 @@ mod tests {
         let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.tex".to_string(),
             intent: "open-output".to_string(),
-            preview_delivery: "workspace".to_string(),
             ui_state: json!({
                 "kind": "latex",
                 "previewKind": "pdf",
@@ -306,7 +278,6 @@ mod tests {
         let value = document_workflow_action_resolve(DocumentWorkflowActionResolveParams {
             file_path: "/tmp/test.py".to_string(),
             intent: "primary-action".to_string(),
-            preview_delivery: String::new(),
             ui_state: json!({
                 "kind": "python",
                 "phase": "idle",

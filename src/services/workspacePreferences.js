@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
   clearStorageKeys,
-  hasDesktopInvoke,
   readStorageSnapshot,
 } from './bridgeStorage.js'
 

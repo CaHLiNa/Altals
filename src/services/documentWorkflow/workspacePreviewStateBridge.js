@@ -12,7 +12,5 @@ export async function resolveDocumentWorkspacePreviewState(params = {}) {
     hiddenByUser: params.hiddenByUser === true,
     previewRequested: params.previewRequested === true,
     artifactReady: params.artifactReady === true,
-    preserveOpenLegacy: params.preserveOpenLegacy === true,
-    hasOpenLegacyPreview: params.hasOpenLegacyPreview === true,
   })
 }

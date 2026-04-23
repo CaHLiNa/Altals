@@ -38,6 +38,5 @@ export function resolveMarkdownPreviewInput(filePath, options = {}) {
 
   return {
     sourcePath,
-    legacyPreviewPath: previewSourcePathFromPath(filePath) || '',
   }
 }

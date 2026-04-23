@@ -419,7 +419,7 @@ git commit -m "refactor: move document workflow authority to rust"
 - Modify: `docs/DOCUMENT_WORKFLOW.md`
 - Test: `src-tauri/src/editor_session_runtime.rs`
 
-- [ ] **Step 1: 建一份 legacy inventory**
+- [x] **Step 1: 建一份 legacy inventory**
 
 Run:
 
@@ -438,7 +438,7 @@ rg -n "legacy_|legacy|preserveOpenLegacy|allow_legacy|hasDesktopInvoke" src src-
 
 - `docs/2026-04-22-runtime-authority-audit.md`
 
-- [ ] **Step 2: 为每类 legacy path 增加退出条件**
+- [x] **Step 2: 为每类 legacy path 增加退出条件**
 
 在文档中明确：
 
@@ -449,19 +449,26 @@ rg -n "legacy_|legacy|preserveOpenLegacy|allow_legacy|hasDesktopInvoke" src src-
 | allow_legacy_pane_result | preview migration compat | preview binding rust authority complete | document workflow |
 ```
 
-- [ ] **Step 3: 删除已无必要的双权威逻辑**
+- [x] **Step 3: 删除已无必要的双权威逻辑**
 
 优先删：
 
 - 已由 Rust normalize 覆盖的前端同类规则
 - 仅为老 preview pane 保留、但当前主路径不再依赖的兼容逻辑
 
+当前结果：
+
+- 已删除 document workflow 主路径上的 `allowLegacyPaneResult`
+- 已删除 `previewDelivery=legacy-pane` / `legacy-toggle-preview` action 语义
+- 已删除 reconcile 输出中的 `preserveOpenLegacy` / `legacyPreviewPath` / `legacyPreviewPaneId`
+- 旧 `preview:` tab 只保留在 editor session restore 与 workspace preview resolve 的只读兼容路径中
+
 要求：
 
 - 删除前先有测试
 - 删除后更新文档
 
-- [ ] **Step 4: 验证历史迁移不回归**
+- [x] **Step 4: 验证历史迁移不回归**
 
 至少覆盖：
 
@@ -476,7 +483,7 @@ cargo test --manifest-path src-tauri/Cargo.toml editor_session_runtime workspace
 npm run build
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src-tauri/src/document_workflow.rs src-tauri/src/document_workflow_controller.rs src-tauri/src/document_workspace_preview_state.rs src-tauri/src/editor_session_runtime.rs src-tauri/src/workspace_preferences.rs src-tauri/src/workspace_lifecycle.rs src/services/workspacePreferences.js src/services/workspaceRecents.js docs/ARCHITECTURE.md docs/DOCUMENT_WORKFLOW.md docs/2026-04-22-runtime-authority-audit.md

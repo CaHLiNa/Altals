@@ -19,6 +19,13 @@
 - 文件格式适配器要与 `src/services/documentWorkflow/adapters/*` 和 `src/domains/document/*` 下的运行时适配层保持一致。
 - 编辑器相关的 UI 胶水放在 `src/components/*` 和 `src/composables/*`，不要塞进业务策略模块。
 
+## Legacy Off-Ramp
+
+- 主 document workflow 已不再主动走 legacy preview pane；Markdown / LaTeX / Python 的主预览语义统一落在 workspace preview 与 Rust action / state resolve。
+- 历史 `preview:` tab 仍允许以只读兼容方式恢复，目的是避免旧会话恢复时制造脏状态，而不是继续作为新 workflow capability。
+- `editor_session_runtime` 中的 `legacyPreviewPaths` 只用于历史会话恢复与安全保存，不得再作为新增功能的依赖面。
+- 如果后续切片继续改动 preview / workflow 行为，必须优先删除已失效的 legacy branch，而不是在其上继续叠兼容。
+
 ## 验证
 
 - 调查时运行能为当前文档工作流改动提供最佳覆盖的检查，而不是只跑最窄的一组命令。

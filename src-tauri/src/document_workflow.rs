@@ -1,10 +1,6 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::document_workflow_preview_binding::{
-    normalize_preview_binding_values, preview_binding_matches_source,
-};
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentWorkflowReconcileParams {
@@ -13,21 +9,11 @@ pub struct DocumentWorkflowReconcileParams {
     #[serde(default)]
     pub active_pane_id: String,
     #[serde(default)]
-    pub pane_tree: Value,
-    #[serde(default)]
     pub trigger: String,
     #[serde(default)]
     pub preview_prefs: Value,
     #[serde(default)]
-    pub detached_sources: Value,
-    #[serde(default)]
-    pub preview_bindings: Vec<Value>,
-    #[serde(default)]
-    pub force: bool,
-    #[serde(default)]
     pub preview_kind_override: String,
-    #[serde(default)]
-    pub allow_legacy_pane_result: bool,
 }
 
 pub(crate) fn is_preview_path(path: &str) -> bool {
@@ -102,81 +88,6 @@ pub(crate) fn create_workflow_preview_path(
     }
 }
 
-pub(crate) fn infer_workflow_preview_kind(
-    source_path: &str,
-    preview_path: &str,
-) -> Option<&'static str> {
-    if preview_path == format!("preview:{source_path}") {
-        Some("html")
-    } else {
-        None
-    }
-}
-
-fn get_leaves(node: &Value, leaves: &mut Vec<Value>) {
-    if node.is_null() {
-        return;
-    }
-    if node.get("type").and_then(Value::as_str) == Some("leaf") {
-        leaves.push(node.clone());
-        return;
-    }
-    if let Some(children) = node.get("children").and_then(Value::as_array) {
-        for child in children {
-            get_leaves(child, leaves);
-        }
-    }
-}
-
-pub(crate) fn find_right_neighbor_leaf(node: &Value, pane_id: &str) -> Option<Value> {
-    if node.get("type").and_then(Value::as_str) != Some("split")
-        || node.get("direction").and_then(Value::as_str) != Some("vertical")
-    {
-        return None;
-    }
-    let children = node.get("children").and_then(Value::as_array)?;
-    let left = children.first()?;
-    let right = children.get(1)?;
-    if left.get("id").and_then(Value::as_str) == Some(pane_id) {
-        return find_first_leaf(right);
-    }
-    None
-}
-
-pub(crate) fn find_first_leaf(node: &Value) -> Option<Value> {
-    if node.get("type").and_then(Value::as_str) == Some("leaf") {
-        return Some(node.clone());
-    }
-    node.get("children")
-        .and_then(Value::as_array)
-        .and_then(|children| children.iter().find_map(find_first_leaf))
-}
-
-fn is_preview_capable_leaf(leaf: &Value) -> bool {
-    let active_tab = leaf
-        .get("activeTab")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    active_tab.is_empty() || is_preview_path(active_tab)
-}
-
-pub(crate) fn matches_preview_binding(
-    tab_path: &str,
-    source_path: &str,
-    preferred_preview: Option<&str>,
-    preview_bindings: &[Value],
-) -> bool {
-    if let Some(binding) = normalize_preview_binding_values(preview_bindings.to_vec())
-        .into_iter()
-        .find(|binding| binding.get("previewPath").and_then(Value::as_str) == Some(tab_path))
-    {
-        return preview_binding_matches_source(&binding, source_path, preferred_preview);
-    }
-
-    let inferred = infer_workflow_preview_kind(source_path, tab_path);
-    inferred.is_some() && (preferred_preview.is_none() || inferred == preferred_preview)
-}
-
 pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcileParams) -> Value {
     let trigger = if params.trigger.trim().is_empty() {
         "manual".to_string()
@@ -197,6 +108,7 @@ pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcil
             "state": "inactive",
         });
     }
+
     let kind = kind.unwrap();
     let source_path = params.active_file.trim().to_string();
     let preferred_preview = if !params.preview_kind_override.trim().is_empty() {
@@ -205,52 +117,8 @@ pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcil
         preferred_preview_kind(kind, &params.preview_prefs)
     };
     let preview_path = create_workflow_preview_path(&source_path, kind, preferred_preview);
-    let is_detached = params
-        .detached_sources
-        .get(&source_path)
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
 
-    if params.allow_legacy_pane_result && is_detached && !params.force {
-        return json!({
-            "type": "detached",
-            "kind": kind,
-            "sourcePath": source_path,
-            "previewKind": preferred_preview,
-            "previewPath": preview_path,
-            "sourcePaneId": params.active_pane_id,
-            "previewPaneId": null,
-            "trigger": trigger,
-            "state": "detached-by-user",
-        });
-    }
-
-    let mut matched_legacy_preview: Option<(String, String)> = None;
-    let mut leaves = Vec::new();
-    get_leaves(&params.pane_tree, &mut leaves);
-    'outer: for leaf in &leaves {
-        let pane_id = leaf
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        if let Some(tabs) = leaf.get("tabs").and_then(Value::as_array) {
-            for tab in tabs {
-                let tab_path = tab.as_str().unwrap_or_default();
-                if matches_preview_binding(
-                    tab_path,
-                    &source_path,
-                    preferred_preview,
-                    &params.preview_bindings,
-                ) {
-                    matched_legacy_preview = Some((tab_path.to_string(), pane_id));
-                    break 'outer;
-                }
-            }
-        }
-    }
-
-    if !params.allow_legacy_pane_result && kind == "markdown" {
+    if kind == "markdown" {
         return json!({
             "type": "workspace-preview",
             "kind": kind,
@@ -263,73 +131,11 @@ pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcil
             "targetResolution": "not-needed",
             "trigger": trigger,
             "state": "workspace-preview",
-            "preserveOpenLegacy": matched_legacy_preview.is_some(),
-            "legacyReadOnly": false,
-            "legacyPreviewPath": matched_legacy_preview.as_ref().map(|value| value.0.clone()).unwrap_or_default(),
-            "legacyPreviewPaneId": matched_legacy_preview.as_ref().map(|value| value.1.clone()),
         });
-    }
-
-    if preferred_preview.is_none() || preview_path.is_none() {
-        return json!({
-            "type": "source-only",
-            "kind": kind,
-            "sourcePath": source_path,
-            "previewKind": preferred_preview,
-            "previewPath": preview_path,
-            "sourcePaneId": params.active_pane_id,
-            "trigger": trigger,
-            "previewPaneId": null,
-            "state": "source-only",
-        });
-    }
-
-    if let Some((matched_path, matched_pane_id)) = matched_legacy_preview {
-        return json!({
-            "type": "ready-existing",
-            "kind": kind,
-            "sourcePath": source_path,
-            "previewKind": preferred_preview,
-            "previewPath": matched_path,
-            "sourcePaneId": params.active_pane_id,
-            "trigger": trigger,
-            "previewPaneId": matched_pane_id,
-            "state": "ready",
-        });
-    }
-
-    if !params.force {
-        return json!({
-            "type": "source-only",
-            "kind": kind,
-            "sourcePath": source_path,
-            "previewKind": preferred_preview,
-            "previewPath": preview_path,
-            "sourcePaneId": params.active_pane_id,
-            "trigger": trigger,
-            "previewPaneId": null,
-            "state": "source-only",
-        });
-    }
-
-    if let Some(neighbor) = find_right_neighbor_leaf(&params.pane_tree, &params.active_pane_id) {
-        if is_preview_capable_leaf(&neighbor) {
-            return json!({
-                "type": "open-neighbor",
-                "kind": kind,
-                "sourcePath": source_path,
-                "previewKind": preferred_preview,
-                "previewPath": preview_path,
-                "sourcePaneId": params.active_pane_id,
-                "trigger": trigger,
-                "previewPaneId": neighbor.get("id").and_then(Value::as_str),
-                "state": "needs-preview",
-            });
-        }
     }
 
     json!({
-        "type": "split-right",
+        "type": "source-only",
         "kind": kind,
         "sourcePath": source_path,
         "previewKind": preferred_preview,
@@ -337,7 +143,7 @@ pub(crate) fn document_workflow_reconcile_value(params: DocumentWorkflowReconcil
         "sourcePaneId": params.active_pane_id,
         "trigger": trigger,
         "previewPaneId": null,
-        "state": "needs-preview",
+        "state": "source-only",
     })
 }
 
@@ -358,29 +164,11 @@ mod tests {
         let value = document_workflow_reconcile_value(DocumentWorkflowReconcileParams {
             active_file: "/tmp/demo.md".to_string(),
             active_pane_id: "pane-1".to_string(),
-            pane_tree: json!({
-                "type": "split",
-                "direction": "vertical",
-                "children": [
-                    { "type": "leaf", "id": "pane-1", "tabs": ["/tmp/demo.md"], "activeTab": "/tmp/demo.md" },
-                    { "type": "leaf", "id": "pane-2", "tabs": ["preview:/tmp/demo.md"], "activeTab": "preview:/tmp/demo.md" }
-                ]
-            }),
             trigger: "test".to_string(),
             preview_prefs: json!({
                 "markdown": { "preferredPreview": "html" }
             }),
-            detached_sources: Value::Null,
-            preview_bindings: vec![json!({
-                "previewPath": "preview:/tmp/demo.md",
-                "sourcePath": "/tmp/demo.md",
-                "previewKind": "html",
-                "kind": "markdown",
-                "paneId": "pane-2",
-            })],
-            force: false,
             preview_kind_override: String::new(),
-            allow_legacy_pane_result: false,
         });
 
         assert_eq!(
@@ -390,10 +178,6 @@ mod tests {
         assert_eq!(
             value.get("previewKind").and_then(Value::as_str),
             Some("html")
-        );
-        assert_eq!(
-            value.get("preserveOpenLegacy").and_then(Value::as_bool),
-            Some(true)
         );
     }
 }

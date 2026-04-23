@@ -25,10 +25,6 @@ pub struct DocumentWorkspacePreviewStateResolveParams {
     pub preview_requested: bool,
     #[serde(default)]
     pub artifact_ready: bool,
-    #[serde(default)]
-    pub preserve_open_legacy: bool,
-    #[serde(default)]
-    pub has_open_legacy_preview: bool,
 }
 
 fn normalize_path(path: &str) -> String {
@@ -88,7 +84,6 @@ fn create_preview_state(overrides: Value) -> Value {
         "reason": "unsupported-file",
         "legacyReadOnly": false,
         "allowPreviewCreation": false,
-        "preserveOpenLegacy": false,
         "sourcePath": "",
         "previewTargetPath": "",
         "previewFilePath": "",
@@ -162,7 +157,6 @@ pub async fn document_workspace_preview_state_resolve(
             "reason": "legacy-preview-tab",
             "legacyReadOnly": true,
             "allowPreviewCreation": false,
-            "preserveOpenLegacy": true,
             "sourcePath": source_path,
             "previewFilePath": path,
         })));
@@ -171,11 +165,9 @@ pub async fn document_workspace_preview_state_resolve(
     let Some(kind) = get_workspace_document_kind(&path, &params.workflow_kind) else {
         return Ok(create_preview_state(json!({
             "sourcePath": path,
-            "preserveOpenLegacy": params.preserve_open_legacy || params.has_open_legacy_preview,
         })));
     };
 
-    let preserve_open_legacy = params.preserve_open_legacy || params.has_open_legacy_preview;
     let requested_preview_kind = if !params.preview_kind.trim().is_empty() {
         params.preview_kind.trim().to_string()
     } else {
@@ -194,7 +186,6 @@ pub async fn document_workspace_preview_state_resolve(
             "reason": "workspace-markdown",
             "legacyReadOnly": false,
             "allowPreviewCreation": true,
-            "preserveOpenLegacy": preserve_open_legacy,
             "sourcePath": path,
             "previewFilePath": format!("preview:{path}"),
         }));
@@ -223,7 +214,6 @@ pub async fn document_workspace_preview_state_resolve(
             },
             "legacyReadOnly": false,
             "allowPreviewCreation": true,
-            "preserveOpenLegacy": preserve_open_legacy,
             "sourcePath": path,
             "previewFilePath": if terminal_preview_requested && !params.hidden_by_user { Value::String(path.clone()) } else { Value::String(String::new()) },
         }));
@@ -255,7 +245,6 @@ pub async fn document_workspace_preview_state_resolve(
         },
         "legacyReadOnly": false,
         "allowPreviewCreation": artifact_ready,
-        "preserveOpenLegacy": preserve_open_legacy,
         "sourcePath": path,
         "previewTargetPath": if artifact_ready { Value::String(resolved_target_path.clone()) } else { Value::String(String::new()) },
         "previewFilePath": if pdf_preview_requested && artifact_ready { Value::String(resolved_target_path) } else { Value::String(String::new()) },

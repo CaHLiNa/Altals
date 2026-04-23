@@ -131,25 +131,6 @@ pub fn find_open_preview_path_value(
         })
 }
 
-pub fn preview_binding_matches_source(
-    binding: &Value,
-    source_path: &str,
-    preferred_preview: Option<&str>,
-) -> bool {
-    let Some(binding) = serde_json::from_value::<DocumentWorkflowPreviewBinding>(binding.clone())
-        .ok()
-        .and_then(normalize_preview_binding)
-    else {
-        return false;
-    };
-
-    if binding.source_path != normalize_path(source_path) {
-        return false;
-    }
-
-    preferred_preview.is_none() || preferred_preview == Some(binding.preview_kind.as_str())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{normalize_preview_binding_set, DocumentWorkflowPreviewBinding};

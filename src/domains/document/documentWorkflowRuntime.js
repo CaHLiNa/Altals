@@ -38,9 +38,7 @@ export function createDocumentWorkflowRuntime({
       operation,
       activeFile: params.activeFile || editorStore.activeTab || '',
       activePaneId: params.activePaneId || editorStore.activePaneId || '',
-      paneTree: editorStore.paneTree || null,
       previewPrefs: getPreviewPrefs?.() || {},
-      detachedSources: getSession?.()?.detachedSources || {},
       previewBindings: Object.values(getPreviewBindings?.() || {}),
       session: getSession?.() || {},
       ...params,
@@ -109,7 +107,6 @@ export function createDocumentWorkflowRuntime({
         trigger: String(plan.followupRequest.trigger || ''),
         force: plan.followupRequest.force === true,
         previewKindOverride: String(plan.followupRequest.previewKindOverride || ''),
-        allowLegacyPaneResult: plan.followupRequest.allowLegacyPaneResult === true,
       })
       return applyPlan(followup)
     }
@@ -125,7 +122,6 @@ export function createDocumentWorkflowRuntime({
         trigger: options.trigger || 'manual',
         force: options.force === true,
         previewKindOverride: options.previewKindOverride || '',
-        allowLegacyPaneResult: options.allowLegacyPaneResult === true,
       })
       return applyPlan(plan)
     } finally {

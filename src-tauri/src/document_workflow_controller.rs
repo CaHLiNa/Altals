@@ -6,7 +6,7 @@ use crate::document_workflow::{
     preferred_preview_kind, DocumentWorkflowReconcileParams,
 };
 use crate::document_workflow_preview_binding::{
-    find_open_preview_path_value, find_preview_binding_value, normalize_preview_binding_values,
+    find_open_preview_path_value, find_preview_binding_value,
 };
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -19,13 +19,9 @@ pub struct DocumentWorkflowControllerParams {
     #[serde(default)]
     pub active_pane_id: String,
     #[serde(default)]
-    pub pane_tree: Value,
-    #[serde(default)]
     pub trigger: String,
     #[serde(default)]
     pub preview_prefs: Value,
-    #[serde(default)]
-    pub detached_sources: Value,
     #[serde(default)]
     pub preview_bindings: Vec<Value>,
     #[serde(default)]
@@ -34,8 +30,6 @@ pub struct DocumentWorkflowControllerParams {
     pub force: bool,
     #[serde(default)]
     pub preview_kind_override: String,
-    #[serde(default)]
-    pub allow_legacy_pane_result: bool,
     #[serde(default)]
     pub source_path: String,
     #[serde(default)]
@@ -131,15 +125,6 @@ fn build_session_state(result: &Value, fallback_pane_id: &str) -> Option<Value> 
             "previewSourcePath": Value::Null,
             "state": "inactive",
         })),
-        "detached" => Some(json!({
-            "activeFile": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "activeKind": result.get("kind").cloned().unwrap_or(Value::Null),
-            "sourcePaneId": result.get("sourcePaneId").cloned().unwrap_or(Value::Null),
-            "previewPaneId": Value::Null,
-            "previewKind": result.get("previewKind").cloned().unwrap_or(Value::Null),
-            "previewSourcePath": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "state": "detached-by-user",
-        })),
         "source-only" => Some(json!({
             "activeFile": result.get("sourcePath").cloned().unwrap_or(Value::Null),
             "activeKind": result.get("kind").cloned().unwrap_or(Value::Null),
@@ -158,55 +143,6 @@ fn build_session_state(result: &Value, fallback_pane_id: &str) -> Option<Value> 
             "previewSourcePath": result.get("sourcePath").or_else(|| result.get("filePath")).cloned().unwrap_or(Value::Null),
             "state": "workspace-preview",
         })),
-        "ready-existing" => Some(json!({
-            "activeFile": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "activeKind": result.get("kind").cloned().unwrap_or(Value::Null),
-            "sourcePaneId": result.get("sourcePaneId").cloned().unwrap_or(Value::Null),
-            "previewPaneId": result.get("previewPaneId").cloned().unwrap_or(Value::Null),
-            "previewKind": result.get("previewKind").cloned().unwrap_or(Value::Null),
-            "previewSourcePath": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "state": "ready",
-        })),
-        _ => None,
-    }
-}
-
-fn build_bind_preview(result: &Value, detach_on_close: bool) -> Option<Value> {
-    let result_type = result
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    match result_type {
-        "workspace-preview"
-            if result
-                .get("preserveOpenLegacy")
-                .and_then(Value::as_bool)
-                .unwrap_or(false) =>
-        {
-            let preview_path = result
-                .get("legacyPreviewPath")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            if preview_path.is_empty() {
-                return None;
-            }
-            Some(json!({
-                "previewPath": preview_path,
-                "sourcePath": result.get("sourcePath").or_else(|| result.get("filePath")).cloned().unwrap_or(Value::Null),
-                "previewKind": result.get("previewKind").cloned().unwrap_or(Value::Null),
-                "kind": result.get("kind").cloned().unwrap_or(Value::Null),
-                "paneId": result.get("legacyPreviewPaneId").cloned().unwrap_or(Value::Null),
-                "detachOnClose": false,
-            }))
-        }
-        "ready-existing" => Some(json!({
-            "previewPath": result.get("previewPath").cloned().unwrap_or(Value::Null),
-            "sourcePath": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "previewKind": result.get("previewKind").cloned().unwrap_or(Value::Null),
-            "kind": result.get("kind").cloned().unwrap_or(Value::Null),
-            "paneId": result.get("previewPaneId").cloned().unwrap_or(Value::Null),
-            "detachOnClose": detach_on_close,
-        })),
         _ => None,
     }
 }
@@ -214,61 +150,17 @@ fn build_bind_preview(result: &Value, detach_on_close: bool) -> Option<Value> {
 fn build_reconcile_plan(
     result: Value,
     fallback_pane_id: &str,
-    force: bool,
-    preview_kind_override: &str,
+    _force: bool,
+    _preview_kind_override: &str,
 ) -> Value {
-    let result_type = result
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
     let session_state = build_session_state(&result, fallback_pane_id);
-    let bind_preview = build_bind_preview(&result, true);
-    let pane_action = match result_type {
-        "open-neighbor" => Some(json!({
-            "type": "open-file-in-pane",
-            "previewPath": result.get("previewPath").cloned().unwrap_or(Value::Null),
-            "previewPaneId": result.get("previewPaneId").cloned().unwrap_or(Value::Null),
-            "activatePane": false,
-        })),
-        "split-right" => Some(json!({
-            "type": "split-pane-with-preview",
-            "previewPath": result.get("previewPath").cloned().unwrap_or(Value::Null),
-            "sourcePaneId": result.get("sourcePaneId").cloned().unwrap_or(Value::Null),
-        })),
-        "ready-existing" if force => Some(json!({
-            "type": "open-file-in-pane",
-            "previewPath": result.get("previewPath").cloned().unwrap_or(Value::Null),
-            "previewPaneId": result.get("previewPaneId").cloned().unwrap_or(Value::Null),
-            "activatePane": false,
-        })),
-        _ => None,
-    };
-
-    let needs_followup = matches!(result_type, "open-neighbor" | "split-right");
-    let followup = if needs_followup {
-        Some(json!({
-            "operation": "reconcile",
-            "activeFile": result.get("sourcePath").cloned().unwrap_or(Value::Null),
-            "activePaneId": result.get("sourcePaneId").cloned().unwrap_or(Value::Null),
-            "trigger": result.get("trigger").cloned().unwrap_or(Value::Null),
-            "force": false,
-            "previewKindOverride": if preview_kind_override.trim().is_empty() {
-                result.get("previewKind").cloned().unwrap_or(Value::Null)
-            } else {
-                Value::String(preview_kind_override.trim().to_string())
-            },
-            "allowLegacyPaneResult": false,
-        }))
-    } else {
-        None
-    };
 
     json!({
         "result": result,
         "sessionState": session_state,
-        "bindPreview": bind_preview,
-        "paneAction": pane_action,
-        "followupRequest": followup,
+        "bindPreview": Value::Null,
+        "paneAction": Value::Null,
+        "followupRequest": Value::Null,
     })
 }
 
@@ -276,14 +168,9 @@ fn execute_reconcile(params: &DocumentWorkflowControllerParams) -> Value {
     let reconcile = document_workflow_reconcile_value(DocumentWorkflowReconcileParams {
         active_file: params.active_file.clone(),
         active_pane_id: params.active_pane_id.clone(),
-        pane_tree: params.pane_tree.clone(),
         trigger: params.trigger.clone(),
         preview_prefs: params.preview_prefs.clone(),
-        detached_sources: params.detached_sources.clone(),
-        preview_bindings: normalize_preview_binding_values(params.preview_bindings.clone()),
-        force: params.force,
         preview_kind_override: params.preview_kind_override.clone(),
-        allow_legacy_pane_result: params.allow_legacy_pane_result,
     });
     build_reconcile_plan(
         reconcile,
@@ -344,7 +231,6 @@ fn execute_close(params: &DocumentWorkflowControllerParams) -> Value {
                 "trigger": if params.trigger.trim().is_empty() { "close-preview" } else { params.trigger.trim() },
                 "force": false,
                 "previewKindOverride": preview_kind,
-                "allowLegacyPaneResult": false,
             })
         } else {
             Value::Null
@@ -388,14 +274,9 @@ fn execute_ensure_or_reveal(params: &DocumentWorkflowControllerParams) -> Value 
     let reconcile = document_workflow_reconcile_value(DocumentWorkflowReconcileParams {
         active_file: source_path.clone(),
         active_pane_id: active_pane_id.clone(),
-        pane_tree: params.pane_tree.clone(),
         trigger,
         preview_prefs: params.preview_prefs.clone(),
-        detached_sources: params.detached_sources.clone(),
-        preview_bindings: normalize_preview_binding_values(params.preview_bindings.clone()),
-        force: true,
         preview_kind_override: preview_kind.clone(),
-        allow_legacy_pane_result: false,
     });
 
     let mut plan = build_reconcile_plan(reconcile, &active_pane_id, true, &preview_kind);
@@ -472,12 +353,6 @@ mod tests {
             source_path: "/tmp/demo.md".to_string(),
             source_pane_id: "pane-1".to_string(),
             preview_kind: "html".to_string(),
-            pane_tree: json!({
-                "type": "leaf",
-                "id": "pane-1",
-                "tabs": ["/tmp/demo.md"],
-                "activeTab": "/tmp/demo.md",
-            }),
             ..DocumentWorkflowControllerParams::default()
         })
         .await
