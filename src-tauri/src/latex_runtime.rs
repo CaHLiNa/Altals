@@ -1,7 +1,25 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::latex::{CompileResult, LatexError};
+
+const LATEX_RUNTIME_COMPILE_REQUESTED_EVENT: &str = "latex-runtime-compile-requested";
+const LATEX_AUTOCOMPILE_DEBOUNCE_MS: u64 = 1_200;
+
+#[derive(Default)]
+pub struct LatexRuntimeState {
+    queue: Arc<Mutex<HashMap<String, LatexRuntimeQueueEntry>>>,
+}
+
+#[derive(Debug, Clone)]
+struct LatexRuntimeQueueEntry {
+    state: LatexQueueStateInput,
+    generation: u64,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +106,13 @@ pub struct LatexCompileFinishParams {
     pub result: CompileResult,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexRuntimeCancelParams {
+    #[serde(default)]
+    pub target_paths: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LatexCompileStartResult {
@@ -101,7 +126,6 @@ struct LatexCompileStartResult {
 #[serde(rename_all = "camelCase")]
 struct LatexScheduleResult {
     queue_state: Value,
-    should_schedule_timer: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -110,8 +134,37 @@ struct LatexCompileFinishResult {
     source_state: Value,
     target_state: Value,
     queue_state: Option<Value>,
-    rerun_requested: bool,
-    next_source_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LatexRuntimeCompileRequestPayload {
+    source_path: String,
+    target_path: String,
+    reason: String,
+}
+
+fn runtime_key(target_path: &str, tex_path: &str) -> String {
+    if !target_path.trim().is_empty() {
+        target_path.trim().to_string()
+    } else {
+        tex_path.trim().to_string()
+    }
+}
+
+fn queue_state_to_value(state: &LatexQueueStateInput) -> Value {
+    json!({
+        "targetPath": state.target_path,
+        "recipe": state.recipe,
+        "buildExtraArgs": state.build_extra_args,
+        "pendingCount": state.pending_count,
+        "sourcePath": state.source_path,
+        "reason": state.reason,
+        "phase": state.phase,
+        "updatedAt": state.updated_at,
+        "scheduledAt": state.scheduled_at,
+        "startedAt": state.started_at,
+    })
 }
 
 fn normalize_queue_state(
@@ -124,7 +177,7 @@ fn normalize_queue_state(
     phase: &str,
     pending_count: u32,
     now: u64,
-) -> Value {
+) -> LatexQueueStateInput {
     let current = current.cloned().unwrap_or(LatexQueueStateInput {
         target_path: target_path.to_string(),
         recipe: build_recipe.to_string(),
@@ -138,18 +191,38 @@ fn normalize_queue_state(
         started_at: 0,
     });
 
-    json!({
-        "targetPath": if target_path.is_empty() { current.target_path } else { target_path.to_string() },
-        "recipe": if build_recipe.is_empty() { current.recipe } else { build_recipe.to_string() },
-        "buildExtraArgs": if build_extra_args.is_empty() { current.build_extra_args } else { build_extra_args.to_string() },
-        "pendingCount": pending_count,
-        "sourcePath": if tex_path.is_empty() { current.source_path } else { tex_path.to_string() },
-        "reason": if reason.is_empty() { current.reason } else { reason.to_string() },
-        "phase": phase,
-        "updatedAt": now,
-        "scheduledAt": current.scheduled_at,
-        "startedAt": if phase == "running" { now } else { current.started_at },
-    })
+    LatexQueueStateInput {
+        target_path: if target_path.is_empty() {
+            current.target_path
+        } else {
+            target_path.to_string()
+        },
+        recipe: if build_recipe.is_empty() {
+            current.recipe
+        } else {
+            build_recipe.to_string()
+        },
+        build_extra_args: if build_extra_args.is_empty() {
+            current.build_extra_args
+        } else {
+            build_extra_args.to_string()
+        },
+        pending_count,
+        source_path: if tex_path.is_empty() {
+            current.source_path
+        } else {
+            tex_path.to_string()
+        },
+        reason: if reason.is_empty() {
+            current.reason
+        } else {
+            reason.to_string()
+        },
+        phase: phase.to_string(),
+        updated_at: now,
+        scheduled_at: if phase == "scheduled" { now } else { current.scheduled_at },
+        started_at: if phase == "running" { now } else { current.started_at },
+    }
 }
 
 fn build_compiling_state(
@@ -230,266 +303,372 @@ fn build_error_result(message: &str) -> CompileResult {
     }
 }
 
-#[tauri::command]
-pub async fn latex_runtime_schedule(params: LatexScheduleParams) -> Result<Value, String> {
-    let current = params.queue_state.as_ref();
-    let phase = current.map(|value| value.phase.as_str()).unwrap_or_default();
+fn schedule_compile_request(
+    app: AppHandle,
+    queue: Arc<Mutex<HashMap<String, LatexRuntimeQueueEntry>>>,
+    key: String,
+    generation: u64,
+) {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(LATEX_AUTOCOMPILE_DEBOUNCE_MS)).await;
+        let payload = {
+            let guard = match queue.lock() {
+                Ok(guard) => guard,
+                Err(_) => return,
+            };
+            let Some(entry) = guard.get(&key) else {
+                return;
+            };
+            if entry.generation != generation || entry.state.phase != "scheduled" {
+                return;
+            }
+            LatexRuntimeCompileRequestPayload {
+                source_path: entry.state.source_path.clone(),
+                target_path: entry.state.target_path.clone(),
+                reason: entry.state.reason.clone(),
+            }
+        };
+        let _ = app_handle.emit(LATEX_RUNTIME_COMPILE_REQUESTED_EVENT, payload);
+    });
+}
 
-    let (next_phase, pending_count, should_schedule_timer) = match phase {
-        "running" => (
-            "running",
-            current.map(|value| value.pending_count).unwrap_or(0) + 1,
-            false,
-        ),
-        _ => ("scheduled", 0, true),
+fn emit_compile_request_now(
+    app: &AppHandle,
+    source_path: &str,
+    target_path: &str,
+    reason: &str,
+) {
+    let _ = app.emit(
+        LATEX_RUNTIME_COMPILE_REQUESTED_EVENT,
+        LatexRuntimeCompileRequestPayload {
+            source_path: source_path.to_string(),
+            target_path: target_path.to_string(),
+            reason: reason.to_string(),
+        },
+    );
+}
+
+#[tauri::command]
+pub async fn latex_runtime_schedule(
+    app: AppHandle,
+    state: State<'_, LatexRuntimeState>,
+    params: LatexScheduleParams,
+) -> Result<Value, String> {
+    let key = runtime_key(&params.target_path, &params.source_path);
+    let (queue_state, generation, should_debounce) = {
+        let mut guard = state
+            .queue
+            .lock()
+            .map_err(|_| "Failed to acquire latex runtime queue".to_string())?;
+        let current = guard
+            .get(&key)
+            .map(|entry| entry.state.clone())
+            .or(params.queue_state.clone());
+
+        let (next_phase, pending_count, should_debounce) = match current.as_ref().map(|value| value.phase.as_str()) {
+            Some("running") => (
+                "running",
+                current.as_ref().map(|value| value.pending_count).unwrap_or(0) + 1,
+                false,
+            ),
+            _ => ("scheduled", 0, true),
+        };
+
+        let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+        let queue_state = normalize_queue_state(
+            current.as_ref(),
+            &params.target_path,
+            &params.source_path,
+            &params.reason,
+            &params.build_recipe,
+            &params.build_extra_args,
+            next_phase,
+            pending_count,
+            params.now,
+        );
+        guard.insert(
+            key.clone(),
+            LatexRuntimeQueueEntry {
+                state: queue_state.clone(),
+                generation,
+            },
+        );
+        (queue_state, generation, should_debounce)
     };
 
-    let queue_state = normalize_queue_state(
-        current,
-        &params.target_path,
-        &params.source_path,
-        &params.reason,
-        &params.build_recipe,
-        &params.build_extra_args,
-        next_phase,
-        pending_count,
-        params.now,
-    );
+    if should_debounce {
+        schedule_compile_request(app, state.queue.clone(), key, generation);
+    }
 
     Ok(
         serde_json::to_value(LatexScheduleResult {
-            queue_state,
-            should_schedule_timer,
+            queue_state: queue_state_to_value(&queue_state),
         })
         .unwrap_or(Value::Null),
     )
 }
 
 #[tauri::command]
-pub async fn latex_runtime_compile_start(params: LatexCompileStartParams) -> Result<Value, String> {
-    let current = params.queue_state.as_ref();
-    let already_running = current
-        .map(|value| value.phase == "running")
-        .unwrap_or(false);
+pub async fn latex_runtime_cancel(
+    state: State<'_, LatexRuntimeState>,
+    params: LatexRuntimeCancelParams,
+) -> Result<(), String> {
+    let mut guard = state
+        .queue
+        .lock()
+        .map_err(|_| "Failed to acquire latex runtime queue".to_string())?;
 
-    if already_running {
+    for path in params.target_paths {
+        if path.trim().is_empty() {
+            continue;
+        }
+        let Some(current) = guard.get(&path).cloned() else {
+            continue;
+        };
+        if current.state.phase == "running" {
+            continue;
+        }
+        guard.remove(&path);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn latex_runtime_compile_start(
+    state: State<'_, LatexRuntimeState>,
+    params: LatexCompileStartParams,
+) -> Result<Value, String> {
+    let key = runtime_key(&params.target_path, &params.tex_path);
+    let (should_run, queue_state) = {
+        let mut guard = state
+            .queue
+            .lock()
+            .map_err(|_| "Failed to acquire latex runtime queue".to_string())?;
+        let current = guard
+            .get(&key)
+            .map(|entry| entry.state.clone())
+            .or(params.queue_state.clone());
+        let already_running = current
+            .as_ref()
+            .map(|value| value.phase == "running")
+            .unwrap_or(false);
+
         let queue_state = normalize_queue_state(
-            current,
+            current.as_ref(),
             &params.target_path,
             &params.tex_path,
             &params.reason,
             &params.build_recipe,
             &params.build_extra_args,
             "running",
-            current.map(|value| value.pending_count).unwrap_or(0) + 1,
+            if already_running {
+                current.as_ref().map(|value| value.pending_count).unwrap_or(0) + 1
+            } else {
+                current.as_ref().map(|value| value.pending_count).unwrap_or(0)
+            },
             params.now,
         );
-        return Ok(serde_json::to_value(LatexCompileStartResult {
-            should_run: false,
-            queue_state,
-            source_state: Value::Null,
-            target_state: None,
+        let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+        guard.insert(
+            key,
+            LatexRuntimeQueueEntry {
+                state: queue_state.clone(),
+                generation,
+            },
+        );
+        (!already_running, queue_state)
+    };
+
+    Ok(
+        serde_json::to_value(LatexCompileStartResult {
+            should_run,
+            queue_state: queue_state_to_value(&queue_state),
+            source_state: if should_run {
+                build_compiling_state(
+                    &params.target_path,
+                    &params.build_recipe,
+                    &params.build_extra_args,
+                    None,
+                )
+            } else {
+                Value::Null
+            },
+            target_state: if should_run && params.target_path != params.tex_path {
+                Some(build_compiling_state(
+                    &params.target_path,
+                    &params.build_recipe,
+                    &params.build_extra_args,
+                    Some(&params.tex_path),
+                ))
+            } else {
+                None
+            },
         })
-        .unwrap_or(Value::Null));
-    }
-
-    let queue_state = normalize_queue_state(
-        current,
-        &params.target_path,
-        &params.tex_path,
-        &params.reason,
-        &params.build_recipe,
-        &params.build_extra_args,
-        "running",
-        current.map(|value| value.pending_count).unwrap_or(0),
-        params.now,
-    );
-
-    Ok(serde_json::to_value(LatexCompileStartResult {
-        should_run: true,
-        queue_state,
-        source_state: build_compiling_state(
-            &params.target_path,
-            &params.build_recipe,
-            &params.build_extra_args,
-            None,
-        ),
-        target_state: if params.target_path != params.tex_path {
-            Some(build_compiling_state(
-                &params.target_path,
-                &params.build_recipe,
-                &params.build_extra_args,
-                Some(&params.tex_path),
-            ))
-        } else {
-            None
-        },
-    })
-    .unwrap_or(Value::Null))
+        .unwrap_or(Value::Null),
+    )
 }
 
 #[tauri::command]
 pub async fn latex_runtime_compile_finish(
+    app: AppHandle,
+    state: State<'_, LatexRuntimeState>,
     params: LatexCompileFinishParams,
 ) -> Result<Value, String> {
-    let rerun_requested = params
-        .queue_state
-        .as_ref()
-        .map(|value| value.pending_count > 0)
-        .unwrap_or(false);
-    let next_source_path = params
-        .queue_state
-        .as_ref()
-        .map(|value| value.source_path.clone())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| params.tex_path.clone());
+    let key = runtime_key(&params.target_path, &params.tex_path);
+    let (queue_state, next_source_path) = {
+        let mut guard = state
+            .queue
+            .lock()
+            .map_err(|_| "Failed to acquire latex runtime queue".to_string())?;
+        let current = guard
+            .get(&key)
+            .map(|entry| entry.state.clone())
+            .or(params.queue_state.clone());
+        let rerun_requested = current
+            .as_ref()
+            .map(|value| value.pending_count > 0)
+            .unwrap_or(false);
+        let next_source_path = current
+            .as_ref()
+            .map(|value| value.source_path.clone())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| params.tex_path.clone());
 
-    let queue_state = if rerun_requested {
-        Some(normalize_queue_state(
-            params.queue_state.as_ref(),
-            &params.target_path,
-            &next_source_path,
-            "rerun",
-            &params.build_recipe,
-            &params.build_extra_args,
-            "queued",
-            0,
-            params.now,
-        ))
-    } else {
-        None
+        if rerun_requested {
+            let next_queue_state = normalize_queue_state(
+                current.as_ref(),
+                &params.target_path,
+                &next_source_path,
+                "rerun",
+                &params.build_recipe,
+                &params.build_extra_args,
+                "queued",
+                0,
+                params.now,
+            );
+            let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+            guard.insert(
+                key.clone(),
+                LatexRuntimeQueueEntry {
+                    state: next_queue_state.clone(),
+                    generation,
+                },
+            );
+            (Some(next_queue_state), next_source_path)
+        } else {
+            guard.remove(&key);
+            (None, next_source_path)
+        }
     };
 
-    Ok(serde_json::to_value(LatexCompileFinishResult {
-        source_state: build_finished_state(
-            &params.target_path,
-            &params.project_root_path,
-            &params.project_preview_path,
-            &params.build_recipe,
-            &params.build_extra_args,
-            params.now,
-            &params.result,
-            None,
-        ),
-        target_state: build_finished_state(
-            &params.target_path,
-            &params.project_root_path,
-            &params.project_preview_path,
-            &params.build_recipe,
-            &params.build_extra_args,
-            params.now,
-            &params.result,
-            Some(&params.tex_path),
-        ),
-        queue_state,
-        rerun_requested,
-        next_source_path,
-    })
-    .unwrap_or(Value::Null))
+    if queue_state.is_some() {
+        emit_compile_request_now(&app, &next_source_path, &params.target_path, "rerun");
+    }
+
+    Ok(
+        serde_json::to_value(LatexCompileFinishResult {
+            source_state: build_finished_state(
+                &params.target_path,
+                &params.project_root_path,
+                &params.project_preview_path,
+                &params.build_recipe,
+                &params.build_extra_args,
+                params.now,
+                &params.result,
+                None,
+            ),
+            target_state: build_finished_state(
+                &params.target_path,
+                &params.project_root_path,
+                &params.project_preview_path,
+                &params.build_recipe,
+                &params.build_extra_args,
+                params.now,
+                &params.result,
+                Some(&params.tex_path),
+            ),
+            queue_state: queue_state.as_ref().map(queue_state_to_value),
+        })
+        .unwrap_or(Value::Null),
+    )
 }
 
 #[tauri::command]
-pub async fn latex_runtime_compile_fail(params: LatexCompileFinishParams) -> Result<Value, String> {
-    latex_runtime_compile_finish(LatexCompileFinishParams {
-        result: build_error_result(
-            &params
-                .result
-                .errors
-                .first()
-                .map(|error| error.message.clone())
-                .unwrap_or_else(|| params.result.log.clone()),
-        ),
-        ..params
-    })
+pub async fn latex_runtime_compile_fail(
+    app: AppHandle,
+    state: State<'_, LatexRuntimeState>,
+    params: LatexCompileFinishParams,
+) -> Result<Value, String> {
+    latex_runtime_compile_finish(
+        app,
+        state,
+        LatexCompileFinishParams {
+            result: build_error_result(
+                &params
+                    .result
+                    .errors
+                    .first()
+                    .map(|error| error.message.clone())
+                    .unwrap_or_else(|| params.result.log.clone()),
+            ),
+            ..params
+        },
+    )
     .await
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        latex_runtime_compile_finish, latex_runtime_schedule, LatexCompileFinishParams,
-        LatexQueueStateInput, LatexScheduleParams,
-    };
-    use crate::latex::CompileResult;
+    use super::{normalize_queue_state, runtime_key, LatexQueueStateInput};
 
-    #[tokio::test]
-    async fn schedule_keeps_running_phase_and_increments_pending_when_busy() {
-        let result = latex_runtime_schedule(LatexScheduleParams {
-            source_path: "/workspace/chapters/a.tex".to_string(),
-            target_path: "/workspace/main.tex".to_string(),
-            reason: "save".to_string(),
-            build_recipe: "default".to_string(),
-            build_extra_args: "".to_string(),
-            now: 123,
-            queue_state: Some(LatexQueueStateInput {
-                target_path: "/workspace/main.tex".to_string(),
-                recipe: "default".to_string(),
-                build_extra_args: "".to_string(),
-                pending_count: 1,
-                source_path: "/workspace/old.tex".to_string(),
-                reason: "save".to_string(),
-                phase: "running".to_string(),
-                updated_at: 100,
-                scheduled_at: 90,
-                started_at: 95,
-            }),
-        })
-        .await
-        .expect("schedule");
-
-        assert_eq!(result["shouldScheduleTimer"].as_bool(), Some(false));
-        assert_eq!(result["queueState"]["phase"].as_str(), Some("running"));
-        assert_eq!(result["queueState"]["pendingCount"].as_u64(), Some(2));
+    #[test]
+    fn runtime_key_prefers_target_path() {
         assert_eq!(
-            result["queueState"]["sourcePath"].as_str(),
-            Some("/workspace/chapters/a.tex")
+            runtime_key("/workspace/main.tex", "/workspace/chapter.tex"),
+            "/workspace/main.tex"
+        );
+        assert_eq!(
+            runtime_key("", "/workspace/chapter.tex"),
+            "/workspace/chapter.tex"
         );
     }
 
-    #[tokio::test]
-    async fn compile_finish_requests_rerun_from_pending_queue() {
-        let result = latex_runtime_compile_finish(LatexCompileFinishParams {
-            tex_path: "/workspace/chapters/a.tex".to_string(),
+    #[test]
+    fn normalize_queue_state_updates_runtime_fields() {
+        let current = LatexQueueStateInput {
             target_path: "/workspace/main.tex".to_string(),
-            project_root_path: "/workspace".to_string(),
-            project_preview_path: "/workspace/main.pdf".to_string(),
-            build_recipe: "default".to_string(),
+            recipe: "default".to_string(),
             build_extra_args: "".to_string(),
-            now: 456,
-            queue_state: Some(LatexQueueStateInput {
-                target_path: "/workspace/main.tex".to_string(),
-                recipe: "default".to_string(),
-                build_extra_args: "".to_string(),
-                pending_count: 1,
-                source_path: "/workspace/chapters/b.tex".to_string(),
-                reason: "save".to_string(),
-                phase: "running".to_string(),
-                updated_at: 400,
-                scheduled_at: 390,
-                started_at: 395,
-            }),
-            result: CompileResult {
-                success: true,
-                pdf_path: Some("/workspace/main.pdf".to_string()),
-                synctex_path: Some("/workspace/main.synctex.gz".to_string()),
-                errors: vec![],
-                warnings: vec![],
-                log: String::new(),
-                duration_ms: 12,
-                compiler_backend: None,
-                command_preview: None,
-                requested_program: None,
-                requested_program_applied: false,
-            },
-        })
-        .await
-        .expect("finish");
+            pending_count: 1,
+            source_path: "/workspace/old.tex".to_string(),
+            reason: "save".to_string(),
+            phase: "running".to_string(),
+            updated_at: 10,
+            scheduled_at: 20,
+            started_at: 30,
+        };
 
-        assert_eq!(result["rerunRequested"].as_bool(), Some(true));
-        assert_eq!(
-            result["nextSourcePath"].as_str(),
-            Some("/workspace/chapters/b.tex")
+        let next = normalize_queue_state(
+            Some(&current),
+            "/workspace/main.tex",
+            "/workspace/new.tex",
+            "rerun",
+            "clean-build",
+            "-halt-on-error",
+            "queued",
+            0,
+            99,
         );
-        assert_eq!(result["queueState"]["phase"].as_str(), Some("queued"));
+
+        assert_eq!(next.target_path, "/workspace/main.tex");
+        assert_eq!(next.source_path, "/workspace/new.tex");
+        assert_eq!(next.reason, "rerun");
+        assert_eq!(next.recipe, "clean-build");
+        assert_eq!(next.build_extra_args, "-halt-on-error");
+        assert_eq!(next.phase, "queued");
+        assert_eq!(next.pending_count, 0);
+        assert_eq!(next.updated_at, 99);
     }
 }

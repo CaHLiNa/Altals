@@ -416,6 +416,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(latex::LatexState::default())
+        .manage(latex_runtime::LatexRuntimeState::default())
         .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default());
@@ -526,6 +527,7 @@ pub fn run() {
             latex_project_graph::latex_compile_targets_resolve,
             latex_project_graph::latex_affected_root_targets_resolve,
             latex_runtime::latex_runtime_compile_start,
+            latex_runtime::latex_runtime_cancel,
             latex_runtime::latex_runtime_schedule,
             latex_runtime::latex_runtime_compile_finish,
             latex_runtime::latex_runtime_compile_fail,
