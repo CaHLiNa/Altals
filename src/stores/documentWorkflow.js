@@ -307,6 +307,14 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       return this._getDocumentWorkflowRuntime().reconcile(options)
     },
 
+    async applyHydratedPersistentState(state = {}) {
+      this.ensureLatexArtifactPersistenceListener()
+      this.applyPersistentState(state)
+      await this.reconcileLatexPreviewStates()
+      this._persistentStateHydrated = true
+      return this.snapshotPersistentState()
+    },
+
     cleanup() {
       clearTimeout(this._persistentStateSaveTimer)
       this._persistentStateSaveTimer = null

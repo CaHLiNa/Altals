@@ -1,7 +1,21 @@
 use crate::app_dirs;
+use crate::document_workflow_session::{
+    document_workflow_session_load, DocumentWorkflowPersistentState,
+    DocumentWorkflowPersistentStateLoadParams,
+};
+use crate::editor_session_runtime::{
+    editor_recent_files_load, editor_session_load, EditorRecentFilesLoadParams,
+    EditorSessionLoadParams, RecentFileEntry,
+};
+use crate::references_backend::{
+    references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
+};
+use crate::references_runtime::{references_scan_workspace_styles, CitationStyleScanParams};
+use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
 use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
@@ -136,6 +150,23 @@ pub struct WorkspaceLifecycleResolveBootstrapPlanParams {
     pub restore_editor_session: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceLifecycleLoadBootstrapDataParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_data_dir: String,
+    #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default)]
+    pub legacy_workspace_data_dir: String,
+    #[serde(default)]
+    pub legacy_project_root: String,
+    #[serde(default = "default_restore_editor_session")]
+    pub restore_editor_session: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceOpenState {
@@ -151,6 +182,23 @@ pub struct WorkspaceOpenState {
     pub claude_config_dir: String,
     #[serde(flatten)]
     pub lifecycle: WorkspaceBootstrapState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBootstrapHydratedData {
+    #[serde(default)]
+    pub references_snapshot: Value,
+    #[serde(default)]
+    pub reference_styles: Value,
+    #[serde(default)]
+    pub zotero_config: Value,
+    #[serde(default)]
+    pub document_workflow_state: DocumentWorkflowPersistentState,
+    #[serde(default)]
+    pub recent_files: Vec<RecentFileEntry>,
+    #[serde(default)]
+    pub editor_session_state: Value,
 }
 
 impl Default for WorkspaceLifecycleState {
@@ -416,9 +464,7 @@ fn build_workspace_bootstrap_plan(
     restore_editor_session: bool,
 ) -> WorkspaceBootstrapPlan {
     let mut tasks = vec![
-        workspace_bootstrap_task("references.loadWorkspaceLibrary", 0, true, false),
-        workspace_bootstrap_task("documentWorkflow.hydratePersistentState", 0, true, false),
-        workspace_bootstrap_task("editor.loadRecentFiles", 0, true, false),
+        workspace_bootstrap_task("workspace.loadBootstrapData", 0, true, false),
         workspace_bootstrap_task("files.loadFileTree", 0, !has_cached_tree, false),
         workspace_bootstrap_task(
             "references.zoteroAutoSync",
@@ -574,6 +620,60 @@ pub async fn workspace_lifecycle_resolve_bootstrap_plan(
         params.has_cached_tree,
         params.restore_editor_session,
     ))
+}
+
+#[tauri::command]
+pub async fn workspace_lifecycle_load_bootstrap_data(
+    params: WorkspaceLifecycleLoadBootstrapDataParams,
+) -> Result<WorkspaceBootstrapHydratedData, String> {
+    let references_snapshot = references_library_load_workspace(ReferenceLibraryLoadWorkspaceParams {
+        global_config_dir: params.global_config_dir.clone(),
+        legacy_workspace_data_dir: params.legacy_workspace_data_dir,
+        legacy_project_root: params.legacy_project_root,
+    })
+    .await?;
+
+    let reference_styles = references_scan_workspace_styles(CitationStyleScanParams {
+        workspace_path: params.workspace_path.clone(),
+    })
+    .await?;
+
+    let zotero_config = references_zotero_config_load(ZoteroConfigPathParams {
+        global_config_dir: params.global_config_dir.clone(),
+    })
+    .await?;
+
+    let document_workflow_state = document_workflow_session_load(
+        DocumentWorkflowPersistentStateLoadParams {
+            workspace_data_dir: params.workspace_data_dir.clone(),
+            legacy_state: DocumentWorkflowPersistentState::default(),
+        },
+    )
+    .await?;
+
+    let recent_files = editor_recent_files_load(EditorRecentFilesLoadParams {
+        workspace_data_dir: params.workspace_data_dir.clone(),
+        legacy_recent_files: Vec::new(),
+    })
+    .await?;
+
+    let editor_session_state = if params.restore_editor_session {
+        editor_session_load(EditorSessionLoadParams {
+            workspace_data_dir: params.workspace_data_dir,
+        })
+        .await?
+    } else {
+        Value::Null
+    };
+
+    Ok(WorkspaceBootstrapHydratedData {
+        references_snapshot,
+        reference_styles,
+        zotero_config,
+        document_workflow_state,
+        recent_files,
+        editor_session_state,
+    })
 }
 
 #[tauri::command]

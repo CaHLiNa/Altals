@@ -327,6 +327,12 @@ export const useReferencesStore = defineStore('references', {
       }
     },
 
+    async applyWorkspaceLibraryBootstrap(snapshot = {}, referenceStyles = []) {
+      await this.applyLibrarySnapshot(snapshot)
+      setUserCitationStyles(Array.isArray(referenceStyles) ? referenceStyles : [])
+      return this.buildLibrarySnapshotPayload()
+    },
+
     async loadWorkspaceCitationStyles() {
       if (isBrowserPreviewRuntime()) {
         setUserCitationStyles([])

@@ -526,6 +526,11 @@ export const useEditorStore = defineStore('editor', {
       this.recentFiles = await loadRecentFilesForWorkspace(useWorkspaceStore().workspaceDataDir, workspacePath)
     },
 
+    applyRecentFilesSnapshot(recentFiles = []) {
+      this.recentFiles = Array.isArray(recentFiles) ? recentFiles : []
+      return this.recentFiles
+    },
+
     _persistRecentFiles() {
       const workspace = useWorkspaceStore()
       void persistRecentFilesForWorkspace(workspace.workspaceDataDir, workspace.path, this.recentFiles)
@@ -564,6 +569,19 @@ export const useEditorStore = defineStore('editor', {
         ? state.lastContextPath
         : null
 
+      return true
+    },
+
+    applyEditorSessionState(state = null) {
+      if (!state || typeof state !== 'object') return false
+
+      this.restoreGeneration += 1
+      this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
+      this.activePaneId = state.activePaneId || ROOT_PANE_ID
+      this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
+      this.lastContextPath = isContextCandidatePath(state.lastContextPath)
+        ? state.lastContextPath
+        : null
       return true
     },
 

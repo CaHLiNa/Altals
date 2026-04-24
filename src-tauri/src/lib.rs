@@ -547,6 +547,7 @@ pub fn run() {
             workspace_access::workspace_bookmark_remove,
             workspace_lifecycle::workspace_lifecycle_load,
             workspace_lifecycle::workspace_lifecycle_prepare_close,
+            workspace_lifecycle::workspace_lifecycle_load_bootstrap_data,
             workspace_lifecycle::workspace_lifecycle_prepare_open,
             workspace_lifecycle::workspace_lifecycle_record_opened,
             workspace_lifecycle::workspace_lifecycle_resolve_bootstrap_plan,

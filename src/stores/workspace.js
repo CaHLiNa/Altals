@@ -272,6 +272,19 @@ export const useWorkspaceStore = defineStore('workspace', {
       })
     },
 
+    async loadWorkspaceBootstrapData(options = {}) {
+      return invoke('workspace_lifecycle_load_bootstrap_data', {
+        params: {
+          globalConfigDir: this.globalConfigDir || '',
+          workspaceDataDir: this.workspaceDataDir || '',
+          workspacePath: this.path || '',
+          legacyWorkspaceDataDir: options.legacyWorkspaceDataDir || this.workspaceDataDir || '',
+          legacyProjectRoot: options.legacyProjectRoot || this.path || '',
+          restoreEditorSession: options.restoreEditorSession !== false,
+        },
+      })
+    },
+
     async ensureWorkspaceBootstrapReady(path = this.path) {
       if (!path) return
       const promise = this._workspaceBootstrapPromise

@@ -18,7 +18,7 @@ import {
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
-import { loadZoteroConfig, syncNow } from '../../services/references/zoteroSync.js'
+import { syncNow } from '../../services/references/zoteroSync.js'
 import {
   isBrowserPreviewRuntime,
   parseBrowserPreviewPath,
@@ -162,20 +162,24 @@ export function useWorkspaceLifecycle() {
       })
 
       let loadTreePromise = null
+      let bootstrapData = null
 
       const runBootstrapTask = async (task) => {
         switch (task?.key) {
-          case 'references.loadWorkspaceLibrary':
-            await referencesStore.loadWorkspaceLibrary(workspace.globalConfigDir, {
+          case 'workspace.loadBootstrapData':
+            bootstrapData = await workspace.loadWorkspaceBootstrapData({
               legacyWorkspaceDataDir: workspace.workspaceDataDir,
               legacyProjectRoot: workspace.path,
+              restoreEditorSession,
             })
-            return
-          case 'documentWorkflow.hydratePersistentState':
-            await workflowStore.hydratePersistentState(true)
-            return
-          case 'editor.loadRecentFiles':
-            await editorStore.loadRecentFiles(targetPath)
+            await referencesStore.applyWorkspaceLibraryBootstrap(
+              bootstrapData?.referencesSnapshot || {},
+              bootstrapData?.referenceStyles || [],
+            )
+            await workflowStore.applyHydratedPersistentState(
+              bootstrapData?.documentWorkflowState || {},
+            )
+            editorStore.applyRecentFilesSnapshot(bootstrapData?.recentFiles || [])
             return
           case 'files.loadFileTree':
             loadTreePromise = filesStore.loadFileTree({
@@ -191,7 +195,7 @@ export function useWorkspaceLifecycle() {
             }
             return
           case 'references.zoteroAutoSync': {
-            const zoteroConfig = await loadZoteroConfig()
+            const zoteroConfig = bootstrapData?.zoteroConfig || null
             if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
             await syncNow(workspace.globalConfigDir, referencesStore)
             return
@@ -199,7 +203,7 @@ export function useWorkspaceLifecycle() {
           case 'editor.restoreEditorState': {
             let restored = false
             if (restoreEditorSession) {
-              restored = await editorStore.restoreEditorState()
+              restored = editorStore.applyEditorSessionState(bootstrapData?.editorSessionState)
             }
             if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
             if (!restored && editorStore.allOpenFiles.size === 0) {
