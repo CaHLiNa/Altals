@@ -46,9 +46,6 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
   })
 }
 
-const ACTIVE_TREE_POLL_INTERVAL_MS = 15000
-const IDLE_TREE_POLL_INTERVAL_MS = 60000
-const TREE_ACTIVITY_WINDOW_MS = 15000
 const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
 
 function isTauriDesktopRuntime() {
@@ -253,12 +250,6 @@ export const useFilesStore = defineStore('files', {
       return true
     },
 
-    _clearTreePollTimer() {
-      if (!this._treePollTimer) return
-      clearTimeout(this._treePollTimer)
-      this._treePollTimer = null
-    },
-
     _teardownNativeWatcher() {
       if (typeof this._nativeWatcherUnlisten === 'function') {
         this._nativeWatcherUnlisten()
@@ -278,47 +269,36 @@ export const useFilesStore = defineStore('files', {
       this._treeActivityHandlers = null
     },
 
-    _scheduleNextTreePoll() {
-      this._clearTreePollTimer()
-
+    _notifyTreeVisibility(visible) {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-
-      const now = Date.now()
-      const lastActivityAt = this._lastTreeActivityAt || 0
-      const isActive = now - lastActivityAt <= TREE_ACTIVITY_WINDOW_MS
-      const delayMs = isActive ? ACTIVE_TREE_POLL_INTERVAL_MS : IDLE_TREE_POLL_INTERVAL_MS
-
-      this._treePollTimer = window.setTimeout(async () => {
-        this._treePollTimer = null
-        const activeWorkspacePath = useWorkspaceStore().path
-        if (!activeWorkspacePath || (typeof document !== 'undefined' && document.visibilityState !== 'visible')) {
-          this._scheduleNextTreePoll()
-          return
-        }
-
-        try {
-          await this.refreshVisibleTree({ suppressErrors: true, reason: 'poll' })
-        } catch {
-          // Workspace may have closed between scheduling and execution.
-        } finally {
-          this._scheduleNextTreePoll()
-        }
-      }, delayMs)
+      void invoke('workspace_tree_watch_set_visibility', {
+        params: {
+          path: workspacePath,
+          visible: visible === true,
+        },
+      }).catch(() => {})
     },
 
     noteTreeActivity() {
-      this._lastTreeActivityAt = Date.now()
-      if (useWorkspaceStore().path) {
-        this._scheduleNextTreePoll()
-      }
+      const workspacePath = useWorkspaceStore().path
+      if (!workspacePath) return
+      void invoke('workspace_tree_watch_note_activity', {
+        params: {
+          path: workspacePath,
+        },
+      }).catch(() => {})
     },
 
     _setupActivityHooks() {
       this._teardownActivityHooks()
       const focusHandler = () => this.noteTreeActivity()
-      const visibilityHandler = () => this._scheduleNextTreePoll()
+      const visibilityHandler = () => {
+        this._notifyTreeVisibility(document.visibilityState === 'visible')
+        if (document.visibilityState === 'visible') {
+          this.noteTreeActivity()
+        }
+      }
       this._treeActivityHandlers = { focusHandler, visibilityHandler }
       window.addEventListener('focus', focusHandler)
       document.addEventListener('visibilitychange', visibilityHandler)
@@ -339,14 +319,11 @@ export const useFilesStore = defineStore('files', {
           if (!activeWorkspacePath) return
           if (String(payload.workspacePath || '') !== String(activeWorkspacePath || '')) return
           if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-          this._lastTreeActivityAt = Date.now()
           void this.refreshVisibleTree({
             suppressErrors: true,
             reason: String(payload.reason || 'fs-watch'),
           }).catch(() => {
             // Workspace may have changed while the refresh event was in flight.
-          }).finally(() => {
-            this._scheduleNextTreePoll()
           })
         }).catch(() => null)
       } catch (error) {
@@ -699,9 +676,9 @@ export const useFilesStore = defineStore('files', {
       this._teardownNativeWatcher()
       this._teardownActivityHooks()
       this._setupActivityHooks()
-      this.noteTreeActivity()
       await this._setupNativeWatcher()
-      this._scheduleNextTreePoll()
+      this._notifyTreeVisibility(typeof document === 'undefined' || document.visibilityState === 'visible')
+      this.noteTreeActivity()
     },
 
     async toggleDir(path) {
@@ -911,10 +888,8 @@ export const useFilesStore = defineStore('files', {
     },
 
     cleanup() {
-      this._clearTreePollTimer()
       this._teardownNativeWatcher()
       this._teardownActivityHooks()
-      this._lastTreeActivityAt = 0
       this._treeRefreshGeneration = (this._treeRefreshGeneration || 0) + 1
       this._treeRefreshPromise = null
       this._treeRefreshQueued = false
