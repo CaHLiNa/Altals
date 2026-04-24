@@ -10,6 +10,12 @@ use tauri::State;
 
 const WORKSPACE_LIFECYCLE_VERSION: u32 = 1;
 const MAX_RECENT_WORKSPACES: usize = 10;
+const WORKSPACE_BOOTSTRAP_BACKGROUND_WINDOW_MS: u64 = 600;
+const WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS: u64 = 80;
+const WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_CACHED_DELAY_MS: u64 = 30;
+const WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_LOAD_DELAY_MS: u64 = 90;
+const WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_CACHED_DELAY_MS: u64 = 40;
+const WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_LOAD_DELAY_MS: u64 = 120;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +56,30 @@ pub struct WorkspaceBootstrapState {
     pub reopen_last_workspace_on_launch: bool,
     #[serde(default = "default_reopen_last_session_on_launch")]
     pub reopen_last_session_on_launch: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBootstrapTask {
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub delay_ms: u64,
+    #[serde(default)]
+    pub await_completion: bool,
+    #[serde(default)]
+    pub await_tree_load: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBootstrapPlan {
+    #[serde(default)]
+    pub block_on_initial_tree_load: bool,
+    #[serde(default)]
+    pub background_window_ms: u64,
+    #[serde(default)]
+    pub tasks: Vec<WorkspaceBootstrapTask>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +125,15 @@ pub struct WorkspaceLifecyclePrepareOpenParams {
     pub global_config_dir: String,
     #[serde(default)]
     pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceLifecycleResolveBootstrapPlanParams {
+    #[serde(default)]
+    pub has_cached_tree: bool,
+    #[serde(default = "default_restore_editor_session")]
+    pub restore_editor_session: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -159,6 +198,10 @@ fn default_reopen_last_workspace_on_launch() -> bool {
 }
 
 fn default_reopen_last_session_on_launch() -> bool {
+    true
+}
+
+fn default_restore_editor_session() -> bool {
     true
 }
 
@@ -354,6 +397,74 @@ fn ensure_workspace_dir(path: &str) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|error| error.to_string())
 }
 
+fn workspace_bootstrap_task(
+    key: &str,
+    delay_ms: u64,
+    await_completion: bool,
+    await_tree_load: bool,
+) -> WorkspaceBootstrapTask {
+    WorkspaceBootstrapTask {
+        key: key.to_string(),
+        delay_ms,
+        await_completion,
+        await_tree_load,
+    }
+}
+
+fn build_workspace_bootstrap_plan(
+    has_cached_tree: bool,
+    restore_editor_session: bool,
+) -> WorkspaceBootstrapPlan {
+    let mut tasks = vec![
+        workspace_bootstrap_task("references.loadWorkspaceLibrary", 0, true, false),
+        workspace_bootstrap_task("documentWorkflow.hydratePersistentState", 0, true, false),
+        workspace_bootstrap_task("editor.loadRecentFiles", 0, true, false),
+        workspace_bootstrap_task("files.loadFileTree", 0, !has_cached_tree, false),
+        workspace_bootstrap_task(
+            "references.zoteroAutoSync",
+            WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS,
+            false,
+            false,
+        ),
+    ];
+
+    if restore_editor_session {
+        tasks.push(workspace_bootstrap_task(
+            "editor.restoreEditorState",
+            if has_cached_tree {
+                WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_CACHED_DELAY_MS
+            } else {
+                WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_LOAD_DELAY_MS
+            },
+            false,
+            false,
+        ));
+    }
+
+    tasks.push(workspace_bootstrap_task(
+        "files.restoreCachedExpandedDirs",
+        if has_cached_tree {
+            WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_CACHED_DELAY_MS
+        } else {
+            WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_LOAD_DELAY_MS
+        },
+        false,
+        true,
+    ));
+    tasks.push(workspace_bootstrap_task(
+        "files.startWatching",
+        0,
+        false,
+        false,
+    ));
+
+    WorkspaceBootstrapPlan {
+        block_on_initial_tree_load: !has_cached_tree,
+        background_window_ms: WORKSPACE_BOOTSTRAP_BACKGROUND_WINDOW_MS,
+        tasks,
+    }
+}
+
 fn write_workspace_bootstrap_file(
     workspace_data_dir: &str,
     workspace_id: &str,
@@ -456,6 +567,16 @@ pub async fn workspace_lifecycle_prepare_open(
 }
 
 #[tauri::command]
+pub async fn workspace_lifecycle_resolve_bootstrap_plan(
+    params: WorkspaceLifecycleResolveBootstrapPlanParams,
+) -> Result<WorkspaceBootstrapPlan, String> {
+    Ok(build_workspace_bootstrap_plan(
+        params.has_cached_tree,
+        params.restore_editor_session,
+    ))
+}
+
+#[tauri::command]
 pub async fn workspace_lifecycle_prepare_close(
     scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
@@ -465,10 +586,10 @@ pub async fn workspace_lifecycle_prepare_close(
 #[cfg(test)]
 mod tests {
     use super::{
-        hash_workspace_path, normalize_workspace_lifecycle_state, record_workspace_opened,
-        resolve_claude_config_dir, resolve_workspace_data_dir, workspace_lifecycle_load,
-        workspace_lifecycle_save, RecentWorkspaceEntry, WorkspaceLifecycleLoadParams,
-        WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
+        build_workspace_bootstrap_plan, hash_workspace_path, normalize_workspace_lifecycle_state,
+        record_workspace_opened, resolve_claude_config_dir, resolve_workspace_data_dir,
+        workspace_lifecycle_load, workspace_lifecycle_save, RecentWorkspaceEntry,
+        WorkspaceLifecycleLoadParams, WorkspaceLifecycleSaveParams, WorkspaceLifecycleState,
     };
     use std::fs;
 
@@ -580,5 +701,57 @@ mod tests {
         assert_eq!(normalized.recent_workspaces[0].name, "demo");
         assert_eq!(normalized.recent_workspaces[1].path, "/tmp/old");
         assert_eq!(normalized.last_workspace, "/tmp/demo");
+    }
+
+    #[test]
+    fn builds_cached_tree_bootstrap_plan() {
+        let plan = build_workspace_bootstrap_plan(true, true);
+
+        assert!(!plan.block_on_initial_tree_load);
+        assert_eq!(plan.background_window_ms, 600);
+        assert_eq!(
+            plan.tasks.iter().find(|task| task.key == "files.loadFileTree"),
+            Some(&super::WorkspaceBootstrapTask {
+                key: "files.loadFileTree".to_string(),
+                delay_ms: 0,
+                await_completion: false,
+                await_tree_load: false,
+            })
+        );
+        assert_eq!(
+            plan.tasks
+                .iter()
+                .find(|task| task.key == "editor.restoreEditorState")
+                .map(|task| task.delay_ms),
+            Some(30)
+        );
+    }
+
+    #[test]
+    fn builds_uncached_tree_bootstrap_plan_without_editor_restore() {
+        let plan = build_workspace_bootstrap_plan(false, false);
+
+        assert!(plan.block_on_initial_tree_load);
+        assert_eq!(
+            plan.tasks.iter().find(|task| task.key == "files.loadFileTree"),
+            Some(&super::WorkspaceBootstrapTask {
+                key: "files.loadFileTree".to_string(),
+                delay_ms: 0,
+                await_completion: true,
+                await_tree_load: false,
+            })
+        );
+        assert!(
+            plan.tasks
+                .iter()
+                .all(|task| task.key != "editor.restoreEditorState")
+        );
+        assert_eq!(
+            plan.tasks
+                .iter()
+                .find(|task| task.key == "files.restoreCachedExpandedDirs")
+                .map(|task| (task.delay_ms, task.await_tree_load)),
+            Some((120, true))
+        );
     }
 }

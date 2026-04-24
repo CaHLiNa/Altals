@@ -253,9 +253,23 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.workspaceDataDir = String(prepared?.workspaceDataDir || '')
       this.claudeConfigDir = String(prepared?.claudeConfigDir || '')
       this._workspaceBootstrapGeneration += 1
-      this._workspaceBootstrapPromise = Promise.resolve()
+      this._workspaceBootstrapPromise = null
       this.applyWorkspaceLifecycleState(prepared || {})
       this._lifecycleHydrated = true
+    },
+
+    trackWorkspaceBootstrap(promise = null) {
+      this._workspaceBootstrapPromise = promise ? Promise.resolve(promise) : null
+      return this._workspaceBootstrapPromise
+    },
+
+    async resolveWorkspaceBootstrapPlan(options = {}) {
+      return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
+        params: {
+          hasCachedTree: options.hasCachedTree === true,
+          restoreEditorSession: options.restoreEditorSession !== false,
+        },
+      })
     },
 
     async ensureWorkspaceBootstrapReady(path = this.path) {

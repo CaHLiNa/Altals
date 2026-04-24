@@ -40,7 +40,6 @@ export function useWorkspaceLifecycle() {
 
   const setupWizardVisible = ref(false)
 
-  let backgroundWorkspaceLoadTimer = null
   let backgroundWorkspaceTaskTimers = []
   let workspaceLoadGeneration = 0
   let lastFocusRefresh = 0
@@ -54,10 +53,6 @@ export function useWorkspaceLifecycle() {
   }
 
   function cancelWorkspaceBackgroundTasks() {
-    if (backgroundWorkspaceLoadTimer) {
-      clearTimeout(backgroundWorkspaceLoadTimer)
-      backgroundWorkspaceLoadTimer = null
-    }
     for (const timer of backgroundWorkspaceTaskTimers) {
       clearTimeout(timer)
     }
@@ -159,55 +154,106 @@ export function useWorkspaceLifecycle() {
 
     try {
       await workspace.openWorkspace(targetPath)
-      await referencesStore.loadWorkspaceLibrary(workspace.globalConfigDir, {
-        legacyWorkspaceDataDir: workspace.workspaceDataDir,
-        legacyProjectRoot: workspace.path,
-      })
-      await workflowStore.hydratePersistentState(true)
-      scheduleWorkspaceBackgroundTask(80, loadGeneration, targetPath, async () => {
-        const zoteroConfig = await loadZoteroConfig()
-        if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
-        await syncNow(workspace.globalConfigDir, referencesStore)
-      }, 'references.zoteroAutoSync')
-      await editorStore.loadRecentFiles(targetPath)
-
       const hadCachedTree = filesStore.restoreCachedTree(targetPath)
-      const loadTreePromise = filesStore.loadFileTree({
-        suppressErrors: hadCachedTree,
-        keepCurrentTreeOnError: hadCachedTree,
+
+      const bootstrapPlan = await workspace.resolveWorkspaceBootstrapPlan({
+        hasCachedTree: hadCachedTree,
+        restoreEditorSession,
       })
-      if (!hadCachedTree) {
-        await loadTreePromise
-      } else {
-        loadTreePromise.catch((error) => {
-          console.warn('[workspace] Background file tree refresh failed:', error)
-        })
+
+      let loadTreePromise = null
+
+      const runBootstrapTask = async (task) => {
+        switch (task?.key) {
+          case 'references.loadWorkspaceLibrary':
+            await referencesStore.loadWorkspaceLibrary(workspace.globalConfigDir, {
+              legacyWorkspaceDataDir: workspace.workspaceDataDir,
+              legacyProjectRoot: workspace.path,
+            })
+            return
+          case 'documentWorkflow.hydratePersistentState':
+            await workflowStore.hydratePersistentState(true)
+            return
+          case 'editor.loadRecentFiles':
+            await editorStore.loadRecentFiles(targetPath)
+            return
+          case 'files.loadFileTree':
+            loadTreePromise = filesStore.loadFileTree({
+              suppressErrors: hadCachedTree,
+              keepCurrentTreeOnError: hadCachedTree,
+            })
+            if (task.awaitCompletion) {
+              await loadTreePromise
+            } else {
+              loadTreePromise.catch((error) => {
+                console.warn('[workspace] Background file tree refresh failed:', error)
+              })
+            }
+            return
+          case 'references.zoteroAutoSync': {
+            const zoteroConfig = await loadZoteroConfig()
+            if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
+            await syncNow(workspace.globalConfigDir, referencesStore)
+            return
+          }
+          case 'editor.restoreEditorState': {
+            let restored = false
+            if (restoreEditorSession) {
+              restored = await editorStore.restoreEditorState()
+            }
+            if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+            if (!restored && editorStore.allOpenFiles.size === 0) {
+              editorStore.openNewTab()
+            }
+            return
+          }
+          case 'files.restoreCachedExpandedDirs':
+            if (task.awaitTreeLoad && loadTreePromise) {
+              await loadTreePromise.catch(() => {})
+            }
+            if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
+            await filesStore.restoreCachedExpandedDirs(targetPath)
+            return
+          case 'files.startWatching':
+            await filesStore.startWatching()
+            return
+          default:
+            console.warn('[workspace] Unknown bootstrap task:', task?.key)
+        }
       }
-      if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
 
-      scheduleWorkspaceBackgroundTask(hadCachedTree ? 30 : 90, loadGeneration, targetPath, async () => {
-        let restored = false
-        if (restoreEditorSession) {
-          restored = await editorStore.restoreEditorState()
+      const bootstrapPromise = (async () => {
+        for (const task of bootstrapPlan?.tasks || []) {
+          if (Number(task?.delayMs || 0) > 0 || task?.awaitCompletion !== true) {
+            scheduleWorkspaceBackgroundTask(
+              Number(task?.delayMs || 0),
+              loadGeneration,
+              targetPath,
+              () => runBootstrapTask(task),
+              task?.key || 'workspace.bootstrapTask',
+            )
+            continue
+          }
+
+          await runBootstrapTask(task)
         }
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        if (!restored && editorStore.allOpenFiles.size === 0) {
-          editorStore.openNewTab()
+
+        if (editorStore.allOpenFiles.size === 0) editorStore.openNewTab()
+
+        const backgroundWindowMs = Number(bootstrapPlan?.backgroundWindowMs || 0)
+        if (backgroundWindowMs > 0) {
+          scheduleWorkspaceBackgroundTask(
+            backgroundWindowMs,
+            loadGeneration,
+            targetPath,
+            async () => {},
+            'workspace.bootstrapWindow',
+          )
         }
-      }, 'editor.restoreEditorState')
+      })()
 
-      scheduleWorkspaceBackgroundTask(hadCachedTree ? 40 : 120, loadGeneration, targetPath, async () => {
-        await loadTreePromise.catch(() => {})
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        await filesStore.restoreCachedExpandedDirs(targetPath)
-      }, 'files.restoreCachedExpandedDirs')
-
-      scheduleWorkspaceBackgroundTask(0, loadGeneration, targetPath, () => filesStore.startWatching(), 'files.startWatching')
-
-      backgroundWorkspaceLoadTimer = window.setTimeout(() => {
-        if (loadGeneration !== workspaceLoadGeneration || workspace.path !== targetPath) return
-        backgroundWorkspaceLoadTimer = null
-      }, 600)
+      workspace.trackWorkspaceBootstrap(bootstrapPromise)
+      await bootstrapPromise
 
       uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
     } catch (error) {
