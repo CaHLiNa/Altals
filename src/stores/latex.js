@@ -4,11 +4,10 @@ import { listen } from '@tauri-apps/api/event'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
-import { resolveCachedLatexRootPath, resolveLatexCompileTarget } from '../services/latex/root'
+import { resolveCachedLatexRootPath } from '../services/latex/root'
 import {
   stableContentFingerprint,
   resolveLatexCompileTargetsForChange,
-  resolveLatexProjectGraph,
 } from '../services/latex/projectGraph'
 import { isBrowserPreviewRuntime } from '../app/browserPreview/routes.js'
 import { basenamePath } from '../utils/path'
@@ -183,6 +182,41 @@ async function ensureLatexRuntimeCompileRequestListener() {
   })
 
   await latexRuntimeCompileRequestUnlistenPromise
+}
+
+async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
+  const filesStore = useFilesStore()
+  const workspaceStore = useWorkspaceStore()
+  const normalizedSourcePath = String(sourcePath || '').trim()
+  if (!normalizedSourcePath) return null
+
+  const contentOverrides = options.sourceContent === undefined
+    ? (options.contentOverrides || {})
+    : {
+        ...(options.contentOverrides || {}),
+        [normalizedSourcePath]: options.sourceContent,
+      }
+
+  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
+  const resolved = await invoke('latex_compile_request_resolve', {
+    params: {
+      sourcePath: normalizedSourcePath,
+      flatFiles: Array.isArray(flatFiles)
+        ? flatFiles.map((entry) => String(entry?.path || entry || '')).filter(Boolean)
+        : [],
+      contentOverrides,
+    },
+  }).catch(() => null)
+
+  const rootPath = String(resolved?.rootPath || normalizedSourcePath)
+  return {
+    filesStore,
+    workspaceStore,
+    sourcePath: String(resolved?.sourcePath || normalizedSourcePath),
+    rootPath,
+    previewPath: String(resolved?.previewPath || `${rootPath.replace(/\.(tex|latex)$/i, '')}.pdf`),
+    contentOverrides,
+  }
 }
 
 export const useLatexStore = defineStore('latex', {
@@ -376,31 +410,16 @@ export const useLatexStore = defineStore('latex', {
     },
 
     async resolveCompileRequest(texPath, options = {}) {
-      const filesStore = useFilesStore()
-      const workspaceStore = useWorkspaceStore()
-      const contentOverrides = options.sourceContent === undefined
-        ? options.contentOverrides
-        : {
-            ...(options.contentOverrides || {}),
-            [texPath]: options.sourceContent,
-          }
-
-      const project = await resolveLatexProjectGraph(texPath, {
-        filesStore,
-        workspacePath: workspaceStore.path,
-        contentOverrides,
-      }).catch(() => null)
-      const compileTargetPath = await resolveLatexCompileTarget(texPath, {
-        filesStore,
-        workspacePath: workspaceStore.path,
-        contentOverrides,
-      }).catch(() => texPath)
-
+      const resolved = await resolveLatexCompileRequestFromRust(texPath, options)
       return {
-        filesStore,
-        workspaceStore,
-        project,
-        compileTargetPath: compileTargetPath || texPath,
+        filesStore: resolved?.filesStore || useFilesStore(),
+        workspaceStore: resolved?.workspaceStore || useWorkspaceStore(),
+        project: resolved ? {
+          sourcePath: resolved.sourcePath,
+          rootPath: resolved.rootPath,
+          previewPath: resolved.previewPath,
+        } : null,
+        compileTargetPath: resolved?.rootPath || texPath,
       }
     },
 
