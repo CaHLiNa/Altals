@@ -250,6 +250,14 @@ export const useFilesStore = defineStore('files', {
       return true
     },
 
+    applyBootstrapTreeState(snapshot = {}, workspacePath = null) {
+      const targetWorkspace = workspacePath || useWorkspaceStore().path
+      this._applyWorkspaceSnapshot(snapshot, targetWorkspace, { preserveFlatFiles: true })
+      this.expandedDirs = new Set(snapshot?.expandedDirs || [])
+      this._cacheWorkspaceSnapshot(targetWorkspace)
+      return this.tree
+    },
+
     _teardownNativeWatcher() {
       if (typeof this._nativeWatcherUnlisten === 'function') {
         this._nativeWatcherUnlisten()

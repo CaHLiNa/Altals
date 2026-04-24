@@ -10,6 +10,12 @@ use crate::editor_session_runtime::{
 use crate::references_backend::{
     references_library_load_workspace, ReferenceLibraryLoadWorkspaceParams,
 };
+use crate::fs_tree::FileEntry;
+use crate::fs_tree_runtime::{
+    fs_tree_load_workspace_state, fs_tree_restore_cached_expanded_state,
+    FsTreeLoadWorkspaceStateParams, FsTreeRestoreCachedExpandedStateParams,
+    FsTreeWorkspaceStateResult,
+};
 use crate::references_runtime::{references_scan_workspace_styles, CitationStyleScanParams};
 use crate::references_zotero::{references_zotero_config_load, ZoteroConfigPathParams};
 use crate::security::{clear_allowed_roots_internal, set_allowed_roots_internal, WorkspaceScopeState};
@@ -26,10 +32,6 @@ const WORKSPACE_LIFECYCLE_VERSION: u32 = 1;
 const MAX_RECENT_WORKSPACES: usize = 10;
 const WORKSPACE_BOOTSTRAP_BACKGROUND_WINDOW_MS: u64 = 600;
 const WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS: u64 = 80;
-const WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_CACHED_DELAY_MS: u64 = 30;
-const WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_LOAD_DELAY_MS: u64 = 90;
-const WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_CACHED_DELAY_MS: u64 = 40;
-const WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_LOAD_DELAY_MS: u64 = 120;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -165,6 +167,14 @@ pub struct WorkspaceLifecycleLoadBootstrapDataParams {
     pub legacy_project_root: String,
     #[serde(default = "default_restore_editor_session")]
     pub restore_editor_session: bool,
+    #[serde(default)]
+    pub current_tree: Vec<FileEntry>,
+    #[serde(default)]
+    pub cached_root_expanded_dirs: Vec<String>,
+    #[serde(default = "default_include_hidden")]
+    pub include_hidden: bool,
+    #[serde(default)]
+    pub has_cached_tree: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -199,6 +209,8 @@ pub struct WorkspaceBootstrapHydratedData {
     pub recent_files: Vec<RecentFileEntry>,
     #[serde(default)]
     pub editor_session_state: Value,
+    #[serde(default)]
+    pub file_tree_state: Option<FsTreeWorkspaceStateResult>,
 }
 
 impl Default for WorkspaceLifecycleState {
@@ -250,6 +262,10 @@ fn default_reopen_last_session_on_launch() -> bool {
 }
 
 fn default_restore_editor_session() -> bool {
+    true
+}
+
+fn default_include_hidden() -> bool {
     true
 }
 
@@ -459,13 +475,9 @@ fn workspace_bootstrap_task(
     }
 }
 
-fn build_workspace_bootstrap_plan(
-    has_cached_tree: bool,
-    restore_editor_session: bool,
-) -> WorkspaceBootstrapPlan {
+fn build_workspace_bootstrap_plan(has_cached_tree: bool) -> WorkspaceBootstrapPlan {
     let mut tasks = vec![
         workspace_bootstrap_task("workspace.loadBootstrapData", 0, true, false),
-        workspace_bootstrap_task("files.loadFileTree", 0, !has_cached_tree, false),
         workspace_bootstrap_task(
             "references.zoteroAutoSync",
             WORKSPACE_BOOTSTRAP_ZOTERO_AUTOSYNC_DELAY_MS,
@@ -473,30 +485,6 @@ fn build_workspace_bootstrap_plan(
             false,
         ),
     ];
-
-    if restore_editor_session {
-        tasks.push(workspace_bootstrap_task(
-            "editor.restoreEditorState",
-            if has_cached_tree {
-                WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_CACHED_DELAY_MS
-            } else {
-                WORKSPACE_BOOTSTRAP_EDITOR_RESTORE_LOAD_DELAY_MS
-            },
-            false,
-            false,
-        ));
-    }
-
-    tasks.push(workspace_bootstrap_task(
-        "files.restoreCachedExpandedDirs",
-        if has_cached_tree {
-            WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_CACHED_DELAY_MS
-        } else {
-            WORKSPACE_BOOTSTRAP_RESTORE_EXPANDED_DIRS_LOAD_DELAY_MS
-        },
-        false,
-        true,
-    ));
     tasks.push(workspace_bootstrap_task(
         "files.startWatching",
         0,
@@ -616,10 +604,8 @@ pub async fn workspace_lifecycle_prepare_open(
 pub async fn workspace_lifecycle_resolve_bootstrap_plan(
     params: WorkspaceLifecycleResolveBootstrapPlanParams,
 ) -> Result<WorkspaceBootstrapPlan, String> {
-    Ok(build_workspace_bootstrap_plan(
-        params.has_cached_tree,
-        params.restore_editor_session,
-    ))
+    let _ = params.restore_editor_session;
+    Ok(build_workspace_bootstrap_plan(params.has_cached_tree))
 }
 
 #[tauri::command]
@@ -666,6 +652,31 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
         Value::Null
     };
 
+    let file_tree_state = if params.workspace_path.trim().is_empty() {
+        None
+    } else if params.has_cached_tree {
+        Some(
+            fs_tree_restore_cached_expanded_state(FsTreeRestoreCachedExpandedStateParams {
+                workspace_path: params.workspace_path.clone(),
+                current_tree: params.current_tree,
+                cached_root_expanded_dirs: params.cached_root_expanded_dirs,
+                max_dirs: 6,
+                include_hidden: params.include_hidden,
+            })
+            .await?,
+        )
+    } else {
+        Some(
+            fs_tree_load_workspace_state(FsTreeLoadWorkspaceStateParams {
+                workspace_path: params.workspace_path.clone(),
+                current_tree: params.current_tree,
+                extra_dirs: Vec::new(),
+                include_hidden: params.include_hidden,
+            })
+            .await?,
+        )
+    };
+
     Ok(WorkspaceBootstrapHydratedData {
         references_snapshot,
         reference_styles,
@@ -673,6 +684,7 @@ pub async fn workspace_lifecycle_load_bootstrap_data(
         document_workflow_state,
         recent_files,
         editor_session_state,
+        file_tree_state,
     })
 }
 
@@ -805,37 +817,31 @@ mod tests {
 
     #[test]
     fn builds_cached_tree_bootstrap_plan() {
-        let plan = build_workspace_bootstrap_plan(true, true);
+        let plan = build_workspace_bootstrap_plan(true);
 
         assert!(!plan.block_on_initial_tree_load);
         assert_eq!(plan.background_window_ms, 600);
         assert_eq!(
-            plan.tasks.iter().find(|task| task.key == "files.loadFileTree"),
+            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
-                key: "files.loadFileTree".to_string(),
+                key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
-                await_completion: false,
+                await_completion: true,
                 await_tree_load: false,
             })
         );
-        assert_eq!(
-            plan.tasks
-                .iter()
-                .find(|task| task.key == "editor.restoreEditorState")
-                .map(|task| task.delay_ms),
-            Some(30)
-        );
+        assert!(plan.tasks.iter().all(|task| task.key != "editor.restoreEditorState"));
     }
 
     #[test]
     fn builds_uncached_tree_bootstrap_plan_without_editor_restore() {
-        let plan = build_workspace_bootstrap_plan(false, false);
+        let plan = build_workspace_bootstrap_plan(false);
 
         assert!(plan.block_on_initial_tree_load);
         assert_eq!(
-            plan.tasks.iter().find(|task| task.key == "files.loadFileTree"),
+            plan.tasks.iter().find(|task| task.key == "workspace.loadBootstrapData"),
             Some(&super::WorkspaceBootstrapTask {
-                key: "files.loadFileTree".to_string(),
+                key: "workspace.loadBootstrapData".to_string(),
                 delay_ms: 0,
                 await_completion: true,
                 await_tree_load: false,
@@ -846,12 +852,6 @@ mod tests {
                 .iter()
                 .all(|task| task.key != "editor.restoreEditorState")
         );
-        assert_eq!(
-            plan.tasks
-                .iter()
-                .find(|task| task.key == "files.restoreCachedExpandedDirs")
-                .map(|task| (task.delay_ms, task.await_tree_load)),
-            Some((120, true))
-        );
+        assert!(plan.tasks.iter().all(|task| task.key != "files.restoreCachedExpandedDirs"));
     }
 }

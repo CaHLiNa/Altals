@@ -55,7 +55,7 @@ pub struct FsTreeRestoreCachedExpandedStateParams {
     pub include_hidden: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsTreeWorkspaceStateResult {
     #[serde(default)]

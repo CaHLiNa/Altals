@@ -281,6 +281,12 @@ export const useWorkspaceStore = defineStore('workspace', {
           legacyWorkspaceDataDir: options.legacyWorkspaceDataDir || this.workspaceDataDir || '',
           legacyProjectRoot: options.legacyProjectRoot || this.path || '',
           restoreEditorSession: options.restoreEditorSession !== false,
+          currentTree: Array.isArray(options.currentTree) ? options.currentTree : [],
+          cachedRootExpandedDirs: Array.isArray(options.cachedRootExpandedDirs)
+            ? options.cachedRootExpandedDirs
+            : [],
+          includeHidden: options.includeHidden !== false,
+          hasCachedTree: options.hasCachedTree === true,
         },
       })
     },
