@@ -29,7 +29,6 @@
   font-weight: 100 800;
   font-style: normal;
   font-display: swap;
-  font-variant-ligatures: none;
 }
 @font-face {
   font-family: 'JetBrains Mono';
@@ -37,7 +36,6 @@
   font-weight: 100 800;
   font-style: italic;
   font-display: swap;
-  font-variant-ligatures: none;
 }
 
 @font-face {

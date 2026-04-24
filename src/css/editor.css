@@ -2,7 +2,8 @@
 .cm-editor {
   height: 100%;
   font-family: var(--font-mono);
-  font-variant-ligatures: none;
+  font-variant-ligatures: normal;
+  font-feature-settings: 'calt' 1;
   font-size: var(--editor-font-size);
   background: transparent !important;
 }
@@ -17,6 +18,7 @@
   margin: 0 auto;
   font-family: var(--font-markdown);
   font-variant-ligatures: normal;
+  font-feature-settings: 'calt' 1;
   line-height: 1.8 !important; 
   /* 加大底部留白，原生实现“打字机”滚动，允许把最后一行滚至屏幕中央 */
   padding: 12px 24px 45vh !important; 
@@ -27,6 +29,8 @@
   max-width: var(--editor-wrap-column, 860px);
   margin: 0 auto;
   font-family: var(--font-latex);
+  font-variant-ligatures: normal;
+  font-feature-settings: 'calt' 1;
   line-height: 1.65 !important;
   padding: 12px 24px 45vh !important;
   color: var(--workspace-ink);
