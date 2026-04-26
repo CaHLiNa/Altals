@@ -29,7 +29,6 @@ import {
   importReferencesFromText,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
-import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -48,15 +47,6 @@ function resolveCollection(collections = [], collectionKey = '') {
     collections.find((collection) => normalizeCollectionMembershipValue(collection.label) === normalizedKey) ||
     null
   )
-}
-
-async function shouldMarkReferenceForZoteroPush() {
-  try {
-    const config = await loadZoteroConfig()
-    return Boolean(config?.pushTarget)
-  } catch {
-    return false
-  }
 }
 
 function buildDefaultResolvedQueryState(state = {}) {
@@ -347,18 +337,13 @@ export const useReferencesStore = defineStore('references', {
           reusedExisting: false,
         }
       }
-      const shouldMark = importedReferences.length > 0 ? await shouldMarkReferenceForZoteroPush() : false
-      const markedReferences = shouldMark
-        ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
-        : importedReferences
-
       this.importInFlight = true
       try {
         const mutation = await invokeReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
-            imported: markedReferences,
+            imported: importedReferences,
           },
         })
         const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
@@ -394,15 +379,11 @@ export const useReferencesStore = defineStore('references', {
           }
         }
 
-        const shouldMark = await shouldMarkReferenceForZoteroPush()
-        const markedReferences = shouldMark
-          ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
-          : importedReferences
         const mutation = await invokeReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
-            imported: markedReferences,
+            imported: importedReferences,
           },
         })
         const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
@@ -569,17 +550,12 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async addReference(projectRoot = '', reference = {}, options = {}) {
-      const {
-        markForZoteroPush = true,
-        persist = true,
-      } = options
-      const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
+      const { persist = true } = options
       const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'addReference',
           reference,
-          markForZoteroPush: shouldMark ? true : reference._appPushPending === true,
         },
       })
       const selectedReferenceId = String(mutation?.result?.selectedReferenceId || '')
@@ -620,9 +596,6 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeReference(projectRoot = '', referenceId = '') {
-      const target = this.references.find((reference) => reference.id === referenceId)
-      if (!target) return false
-
       const mutation = await invokeReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
@@ -638,10 +611,6 @@ export const useReferencesStore = defineStore('references', {
       await this.commitLibrarySnapshot(projectRoot, mutation.snapshot, {
         preferredSelectedReferenceId,
       })
-
-      if (target._pushedByApp && target._zoteroKey) {
-        deleteFromZotero(target).catch(() => {})
-      }
       return true
     },
 

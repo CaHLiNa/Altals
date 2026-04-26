@@ -18,7 +18,6 @@ import {
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
-import { syncNow } from '../../services/references/zoteroSync.js'
 import { basenamePath } from '../../utils/path'
 import { isTauriDesktopRuntime } from '../../platform'
 
@@ -185,12 +184,6 @@ export function useWorkspaceLifecycle() {
               }
             }
             return
-          case 'references.zoteroAutoSync': {
-            const zoteroConfig = bootstrapData?.zoteroConfig || null
-            if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
-            await syncNow(workspace.globalConfigDir, referencesStore)
-            return
-          }
           case 'files.startWatching':
             await filesStore.startWatching()
             return

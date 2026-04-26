@@ -692,7 +692,10 @@ mod tests {
         }));
 
         assert_eq!(
-            state["legacyPreviewPaths"].as_array().cloned().unwrap_or_default(),
+            state["legacyPreviewPaths"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default(),
             vec![json!(format!("preview:{file_path}"))]
         );
         assert_eq!(state["lastContextPath"].as_str(), Some(""));

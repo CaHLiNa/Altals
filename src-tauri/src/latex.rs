@@ -592,7 +592,9 @@ fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> 
         }
 
         if matches!(key, "x" | "y" | "h" | "v" | "W" | "H") {
-            if let Some(number) = serde_json::Number::from_f64(value.parse::<f64>().unwrap_or(f64::NAN)) {
+            if let Some(number) =
+                serde_json::Number::from_f64(value.parse::<f64>().unwrap_or(f64::NAN))
+            {
                 current.insert(key.to_string(), serde_json::Value::Number(number));
             }
         }
@@ -609,10 +611,7 @@ fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> 
     }
 
     Ok(serde_json::Value::Array(
-        records
-            .into_iter()
-            .map(serde_json::Value::Object)
-            .collect(),
+        records.into_iter().map(serde_json::Value::Object).collect(),
     ))
 }
 

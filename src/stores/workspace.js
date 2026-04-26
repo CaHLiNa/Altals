@@ -71,7 +71,8 @@ function snapshotWorkspacePreferences(store) {
 
 function normalizeSettingsSectionValue(section = '') {
   const normalized = String(section || '').trim()
-  return normalized || 'general'
+  if (!normalized) return 'general'
+  return normalized === 'zotero' ? 'references' : normalized
 }
 
 const WORKSPACE_LIFECYCLE_KEYS = [

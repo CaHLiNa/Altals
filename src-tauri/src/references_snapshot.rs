@@ -247,6 +247,8 @@ pub(crate) fn normalize_reference_record(reference: &Value) -> Value {
         Value::Bool(!fulltext_path.is_empty() || bool_value(map.get("hasFullText"))),
     );
     map.insert("typeKey".to_string(), Value::String(type_key));
+    map.remove("_pushedByApp");
+    map.remove("_appPushPending");
     Value::Object(map)
 }
 
@@ -325,7 +327,10 @@ fn extract_year_from_text(value: &str) -> Option<i64> {
     value
         .split(|ch: char| !ch.is_ascii_digit())
         .find_map(|part| match part.len() {
-            4 => part.parse::<i64>().ok().filter(|year| (1000..=2999).contains(year)),
+            4 => part
+                .parse::<i64>()
+                .ok()
+                .filter(|year| (1000..=2999).contains(year)),
             _ => None,
         })
 }
@@ -381,7 +386,8 @@ fn build_author_names_from_csl(csl: &Value) -> Vec<String> {
 }
 
 fn sanitize_citation_key_component(value: &str) -> String {
-    value.chars()
+    value
+        .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect::<String>()
         .to_lowercase()

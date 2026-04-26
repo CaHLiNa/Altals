@@ -58,17 +58,12 @@ export function getReferenceTypeLabelKey(typeKey = '') {
 }
 
 export function normalizeReferenceRecord(reference = {}) {
-  const {
-    _pushedByApp,
-    _appPushPending,
-    ...rest
-  } = reference
   const authors = Array.isArray(reference.authors) ? reference.authors : []
   const pdfPath = String(reference.pdfPath || '').trim()
   const fulltextPath = String(reference.fulltextPath || '').trim()
 
   return {
-    ...rest,
+    ...reference,
     authors,
     authorLine: String(reference.authorLine || authors.join('; ')),
     collections: Array.isArray(reference.collections) ? reference.collections : [],
@@ -80,7 +75,5 @@ export function normalizeReferenceRecord(reference = {}) {
     hasPdf: pdfPath ? true : reference.hasPdf === true,
     hasFullText: fulltextPath ? true : reference.hasFullText === true,
     typeKey: normalizeReferenceTypeKey(reference.typeKey || reference.typeLabel),
-    _pushedByApp: _pushedByApp === true,
-    _appPushPending: _appPushPending === true,
   }
 }
