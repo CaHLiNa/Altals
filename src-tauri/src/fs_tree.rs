@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 const HIDDEN_WORKSPACE_FILES: &[&str] = &[
+    ".altals-latex-sync-debug.jsonl",
     ".scribeflow-latex-sync-debug.jsonl",
     "_instructions.md",
     "instructions.md",
@@ -62,7 +63,10 @@ fn file_modified_timestamp(metadata: &fs::Metadata, is_dir: bool) -> Option<u64>
         .map(|d| d.as_secs())
 }
 
-pub fn read_dir_shallow_entries(dir: &Path, include_hidden: bool) -> Result<Vec<FileEntry>, String> {
+pub fn read_dir_shallow_entries(
+    dir: &Path,
+    include_hidden: bool,
+) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
     let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
 

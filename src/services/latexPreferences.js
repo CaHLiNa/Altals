@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  clearStorageKeys,
-  readStorageSnapshot,
-} from './bridgeStorage.js'
+import { clearStorageKeys, readStorageSnapshot } from './bridgeStorage.js'
 
 const LEGACY_LATEX_PREFERENCE_KEYS = [
   'latex.compilerPreference',
@@ -21,7 +18,6 @@ export function createLatexPreferenceState() {
     enginePreference: 'auto',
     autoCompile: false,
     formatOnSave: false,
-    buildRecipe: 'default',
     buildExtraArgs: '',
     customSystemTexPath: '',
   }
@@ -36,21 +32,22 @@ function clearLegacyLatexPreferenceStorage() {
 }
 
 function normalizeCompilerPreference(value) {
-  const normalized = String(value || '').trim().toLowerCase()
-  return ['auto', 'system', 'tectonic'].includes(normalized) ? normalized : 'auto'
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+  return ['auto', 'system', 'tectonic'].includes(normalized)
+    ? normalized
+    : 'auto'
 }
 
 function normalizeEnginePreference(compilerPreference, value) {
   if (compilerPreference === 'tectonic') return 'auto'
-  const normalized = String(value || '').trim().toLowerCase()
-  return ['auto', 'xelatex', 'pdflatex', 'lualatex'].includes(normalized) ? normalized : 'auto'
-}
-
-function normalizeBuildRecipe(value) {
-  const normalized = String(value || '').trim().toLowerCase()
-  return ['default', 'shell-escape', 'clean-build', 'shell-escape-clean'].includes(normalized)
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+  return ['auto', 'xelatex', 'pdflatex', 'lualatex'].includes(normalized)
     ? normalized
-    : 'default'
+    : 'auto'
 }
 
 export async function loadLatexPreferences(globalConfigDir = '') {
@@ -68,7 +65,10 @@ export async function loadLatexPreferences(globalConfigDir = '') {
   }
 }
 
-export async function saveLatexPreferences(globalConfigDir = '', preferences = {}) {
+export async function saveLatexPreferences(
+  globalConfigDir = '',
+  preferences = {},
+) {
   const normalized = await invoke('latex_preferences_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),

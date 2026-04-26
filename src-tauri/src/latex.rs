@@ -65,7 +65,6 @@ pub async fn compile_latex(
     tex_path: String,
     compiler_preference: Option<String>,
     engine_preference: Option<String>,
-    build_recipe: Option<String>,
     build_extra_args: Option<String>,
     custom_system_tex_path: Option<String>,
     custom_tectonic_path: Option<String>,
@@ -83,7 +82,6 @@ pub async fn compile_latex(
         &tex_path,
         compiler_preference,
         engine_preference,
-        build_recipe,
         build_extra_args,
         custom_system_tex_path,
         custom_tectonic_path,
@@ -592,7 +590,9 @@ fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> 
         }
 
         if matches!(key, "x" | "y" | "h" | "v" | "W" | "H") {
-            if let Some(number) = serde_json::Number::from_f64(value.parse::<f64>().unwrap_or(f64::NAN)) {
+            if let Some(number) =
+                serde_json::Number::from_f64(value.parse::<f64>().unwrap_or(f64::NAN))
+            {
                 current.insert(key.to_string(), serde_json::Value::Number(number));
             }
         }
@@ -609,10 +609,7 @@ fn parse_synctex_view_output(output: &str) -> Result<serde_json::Value, String> 
     }
 
     Ok(serde_json::Value::Array(
-        records
-            .into_iter()
-            .map(serde_json::Value::Object)
-            .collect(),
+        records.into_iter().map(serde_json::Value::Object).collect(),
     ))
 }
 

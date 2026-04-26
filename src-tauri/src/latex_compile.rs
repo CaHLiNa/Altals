@@ -7,7 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::latex::{CompileResult, LatexError};
 use crate::latex_diagnostics::parse_latex_output;
-use crate::latex_tools::{find_tectonic, find_system_tex};
+use crate::latex_tools::{find_system_tex, find_tectonic};
 use crate::process_utils::background_tokio_command;
 
 const LATEX_COMPILE_STREAM_EVENT: &str = "latex-compile-stream";
@@ -136,27 +136,6 @@ pub(crate) async fn run_command_with_stdin(
         String::from_utf8_lossy(&output.stdout).to_string(),
         String::from_utf8_lossy(&output.stderr).to_string(),
     ))
-}
-
-fn normalize_build_recipe(recipe: Option<&str>) -> &'static str {
-    match recipe
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("shell-escape") => "shell-escape",
-        Some("clean-build") => "clean-build",
-        Some("shell-escape-clean") => "shell-escape-clean",
-        _ => "default",
-    }
-}
-
-fn build_latexmk_recipe_args(recipe: Option<&str>) -> Vec<&'static str> {
-    match normalize_build_recipe(recipe) {
-        "shell-escape" => vec!["-shell-escape"],
-        "clean-build" => vec!["-gg"],
-        "shell-escape-clean" => vec!["-shell-escape", "-gg"],
-        _ => Vec::new(),
-    }
 }
 
 fn parse_build_extra_args(extra_args: Option<&str>) -> Result<Vec<String>, String> {
@@ -467,7 +446,6 @@ pub(crate) async fn compile_with_system_tex(
     start: std::time::Instant,
     requested_program: Option<String>,
     engine_preference: Option<String>,
-    build_recipe: Option<String>,
     build_extra_args: Option<String>,
 ) -> Result<CompileResult, String> {
     let tex = Path::new(tex_path);
@@ -495,11 +473,6 @@ pub(crate) async fn compile_with_system_tex(
         "-file-line-error".to_string(),
         "-halt-on-error".to_string(),
     ];
-    args.extend(
-        build_latexmk_recipe_args(build_recipe.as_deref())
-            .into_iter()
-            .map(String::from),
-    );
     args.extend(parse_build_extra_args(build_extra_args.as_deref())?);
     args.push(tex_arg);
 
@@ -523,7 +496,6 @@ pub(crate) async fn compile_latex_with_preference(
     tex_path: &str,
     compiler_preference: Option<String>,
     engine_preference: Option<String>,
-    build_recipe: Option<String>,
     build_extra_args: Option<String>,
     custom_system_tex_path: Option<String>,
     custom_tectonic_path: Option<String>,
@@ -549,7 +521,6 @@ pub(crate) async fn compile_latex_with_preference(
                 start,
                 requested_program.clone(),
                 Some(engine_preference.clone()),
-                build_recipe.clone(),
                 build_extra_args.clone(),
             )
             .await
@@ -577,7 +548,6 @@ pub(crate) async fn compile_latex_with_preference(
                     start,
                     requested_program.clone(),
                     Some(engine_preference.clone()),
-                    build_recipe.clone(),
                     build_extra_args.clone(),
                 )
                 .await

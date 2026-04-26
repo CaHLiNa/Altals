@@ -115,7 +115,6 @@ import {
   LATEX_BACKWARD_SYNC_EVENT,
   dispatchLatexForwardSync,
 } from '../../services/latex/pdfPreviewSync.js'
-import { readWorkspaceTextFile, saveWorkspaceTextFile } from '../../services/fileStoreIO.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
 import EditorContextMenu from './EditorContextMenu.vue'
@@ -142,25 +141,6 @@ const referencesStore = useReferencesStore()
 const { t } = useI18n()
 const loadError = computed(() => files.getFileLoadError(props.filePath))
 
-async function appendLatexSyncDebug(entry = {}) {
-  const workspacePath = String(workspace.path || '').trim()
-  if (!workspacePath) return
-  const logPath = `${workspacePath}/${LATEX_SYNC_DEBUG_LOG}`
-  const line = `${JSON.stringify({
-    ts: new Date().toISOString(),
-    stage: 'editor',
-    filePath: props.filePath,
-    paneId: props.paneId,
-    ...entry,
-  })}\n`
-  try {
-    const previous = await readWorkspaceTextFile(logPath).catch(() => '')
-    await saveWorkspaceTextFile(logPath, `${previous}${line}`)
-  } catch {
-    // Ignore debug log failures.
-  }
-}
-
 let view = null
 let backwardSyncHandler = null
 let latexSourceDoubleClickHandler = null
@@ -176,7 +156,6 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let lastPersistedContent = ''
-const LATEX_SYNC_DEBUG_LOG = '.altals-latex-sync-debug.jsonl'
 let suppressMarkdownPreviewScrollSyncUntil = 0
 
 const isDraftFile = isDraftPath(props.filePath)
@@ -1226,13 +1205,6 @@ function ensureLatexWindowHandlers() {
         textAfterSelection,
         strictLine,
       }
-      await appendLatexSyncDebug({
-        event: 'backward-sync-received',
-        detail: event.detail || null,
-        normalizedFile,
-        normalizedCurrentPath,
-        location,
-      })
       if (normalizedFile) {
         const targetFileName = basenamePath(normalizedFile) || normalizedFile
         const currentFileName = basenamePath(normalizedCurrentPath) || normalizedCurrentPath
@@ -1241,10 +1213,6 @@ function ensureLatexWindowHandlers() {
           !normalizedFile.includes('/') && targetFileName === currentFileName
         if (!exactMatch && !fileNameOnlyMatch) {
           if (editorStore.activeTab !== props.filePath) return
-          await appendLatexSyncDebug({
-            event: 'backward-sync-reveal-foreign',
-            location,
-          })
           await revealLatexSourceLocation(editorStore, location, {
             paneId: props.paneId,
             center: true,
@@ -1253,10 +1221,6 @@ function ensureLatexWindowHandlers() {
         }
       }
       if (line && line > 0) {
-        await appendLatexSyncDebug({
-          event: 'backward-sync-reveal-current',
-          location,
-        })
         await revealLatexSourceLocation(editorStore, location, {
           paneId: props.paneId,
           center: true,
@@ -1289,11 +1253,6 @@ function ensureLatexEditorHandlers() {
         paneId: props.paneId,
         reason: 'double-click',
       }
-
-      await appendLatexSyncDebug({
-        event: 'forward-sync-dispatched',
-        detail: syncDetail,
-      })
 
       await workflowStore.revealWorkflowPdfForFile(props.filePath, {
         sourcePaneId: props.paneId,

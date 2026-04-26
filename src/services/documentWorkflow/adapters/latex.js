@@ -1,25 +1,24 @@
 import { isLatex } from '../../../utils/fileTypes.js'
-import { buildLatexLintProblems, buildLatexProjectProblemsSync } from '../../latex/diagnostics.js'
+import {
+  buildLatexLintProblems,
+  buildLatexProjectProblemsSync,
+} from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
 
 function resolveKnownLatexArtifactPath(sourcePath, context = {}) {
   const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
   return (
-    state?.previewPath
-    || state?.pdfPath
-    || context.workflowStore?.getLatexArtifactPathForFile?.(sourcePath)
-    || ''
+    state?.previewPath ||
+    state?.pdfPath ||
+    context.workflowStore?.getLatexArtifactPathForFile?.(sourcePath) ||
+    ''
   )
 }
 
-function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
-  const recipe = state?.buildRecipe || queueState?.recipe || 'default'
+function buildBuildStatusSuffix(context = {}, state = {}, queueState = null) {
   const extraArgs = state?.buildExtraArgs || queueState?.buildExtraArgs || ''
   const parts = []
 
-  if (recipe && recipe !== 'default') {
-    parts.push(context.latexStore?.buildRecipeLabelFor?.(recipe) || recipe)
-  }
   if (extraArgs) {
     parts.push(context.t?.('Custom args') || 'Custom args')
   }
@@ -28,16 +27,17 @@ function buildRecipeStatusSuffix(context = {}, state = {}, queueState = null) {
 }
 
 function appendStatusSuffix(base, context = {}, state = {}, queueState = null) {
-  const suffix = buildRecipeStatusSuffix(context, state, queueState)
+  const suffix = buildBuildStatusSuffix(context, state, queueState)
   return suffix ? `${base} · ${suffix}` : base
 }
 
 function formatCompileDuration(state = {}, context = {}, queueState = null) {
   const t = context.t || ((value) => value)
   if (state?.status === 'compiling') {
-    const base = queueState?.pendingCount > 0
-      ? `${t('Compiling...')} · ${t('Queued +{count}', { count: queueState.pendingCount })}`
-      : t('Compiling...')
+    const base =
+      queueState?.pendingCount > 0
+        ? `${t('Compiling...')} · ${t('Queued +{count}', { count: queueState.pendingCount })}`
+        : t('Compiling...')
     return appendStatusSuffix(base, context, state, queueState)
   }
   if (queueState?.phase === 'scheduled' || queueState?.phase === 'queued') {
@@ -85,14 +85,23 @@ export function buildLatexWorkflowProblems(sourcePath, state = {}) {
 
 export function buildLatexWorkflowUiState(state = {}, options = {}) {
   const problems = buildLatexWorkflowProblems('', state)
-  const errorCount = problems.filter(problem => problem.severity === 'error').length
-  const warningCount = problems.filter(problem => problem.severity === 'warning').length
+  const errorCount = problems.filter(
+    (problem) => problem.severity === 'error',
+  ).length
+  const warningCount = problems.filter(
+    (problem) => problem.severity === 'warning',
+  ).length
 
   let phase = 'idle'
   if (state?.status === 'compiling') phase = 'compiling'
-  else if (options.queuePhase === 'scheduled' || options.queuePhase === 'queued') phase = 'queued'
+  else if (
+    options.queuePhase === 'scheduled' ||
+    options.queuePhase === 'queued'
+  )
+    phase = 'queued'
   else if (state?.status === 'error') phase = 'error'
-  else if (options.previewAvailable || state?.status === 'success') phase = 'ready'
+  else if (options.previewAvailable || state?.status === 'success')
+    phase = 'ready'
 
   return {
     kind: 'latex',
@@ -121,9 +130,11 @@ const latexPreviewAdapter = {
   },
 
   getTargetPath(sourcePath, context) {
-    return resolveKnownLatexArtifactPath(sourcePath, context)
-      || resolveCachedLatexPreviewPath(sourcePath)
-      || ''
+    return (
+      resolveKnownLatexArtifactPath(sourcePath, context) ||
+      resolveCachedLatexPreviewPath(sourcePath) ||
+      ''
+    )
   },
 
   ensure(sourcePath, context, options = {}) {
@@ -149,7 +160,8 @@ const latexCompileAdapter = {
   },
 
   async ensureReady(_filePath) {
-    const { ensureLatexCompileReady } = await import('../../environmentPreflight.js')
+    const { ensureLatexCompileReady } =
+      await import('../../environmentPreflight.js')
     return ensureLatexCompileReady()
   },
 
@@ -162,13 +174,18 @@ const latexCompileAdapter = {
   },
 
   getDiagnostics(filePath, context) {
-    return buildLatexWorkflowProblems(filePath, this.stateForFile(filePath, context) || {})
+    return buildLatexWorkflowProblems(
+      filePath,
+      this.stateForFile(filePath, context) || {},
+    )
   },
 
   getArtifactPath(filePath, context) {
-    return resolveKnownLatexArtifactPath(filePath, context)
-      || resolveCachedLatexPreviewPath(filePath)
-      || ''
+    return (
+      resolveKnownLatexArtifactPath(filePath, context) ||
+      resolveCachedLatexPreviewPath(filePath) ||
+      ''
+    )
   },
 
   getStatusText(filePath, context) {
@@ -197,7 +214,8 @@ export const latexDocumentAdapter = {
   compile: latexCompileAdapter,
 
   getProblems(filePath, context = {}) {
-    const lintDiagnostics = context.latexStore?.lintDiagnosticsForFile(filePath) || []
+    const lintDiagnostics =
+      context.latexStore?.lintDiagnosticsForFile(filePath) || []
     return [
       ...latexCompileAdapter.getDiagnostics(filePath, context),
       ...buildLatexProjectProblemsSync(filePath),
@@ -207,8 +225,12 @@ export const latexDocumentAdapter = {
 
   getUiState(filePath, context = {}) {
     const problems = this.getProblems(filePath, context)
-    const errorCount = problems.filter(problem => problem.severity === 'error').length
-    const warningCount = problems.filter(problem => problem.severity === 'warning').length
+    const errorCount = problems.filter(
+      (problem) => problem.severity === 'error',
+    ).length
+    const warningCount = problems.filter(
+      (problem) => problem.severity === 'warning',
+    ).length
     const queueState = context.latexStore?.queueStateForFile?.(filePath) || null
     return {
       ...buildLatexWorkflowUiState(

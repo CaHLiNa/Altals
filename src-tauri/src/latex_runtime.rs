@@ -29,8 +29,6 @@ pub struct LatexQueueStateInput {
     #[serde(default)]
     pub target_path: String,
     #[serde(default)]
-    pub recipe: String,
-    #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
     pub pending_count: u32,
@@ -58,8 +56,6 @@ pub struct LatexCompileStartParams {
     #[serde(default)]
     pub reason: String,
     #[serde(default)]
-    pub build_recipe: String,
-    #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
     pub now: u64,
@@ -76,8 +72,6 @@ pub struct LatexScheduleParams {
     pub target_path: String,
     #[serde(default)]
     pub reason: String,
-    #[serde(default)]
-    pub build_recipe: String,
     #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
@@ -97,8 +91,6 @@ pub struct LatexCompileFinishParams {
     pub project_root_path: String,
     #[serde(default)]
     pub project_preview_path: String,
-    #[serde(default)]
-    pub build_recipe: String,
     #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
@@ -121,8 +113,6 @@ pub struct LatexCompileExecuteParams {
     pub project_preview_path: String,
     #[serde(default)]
     pub reason: String,
-    #[serde(default)]
-    pub build_recipe: String,
     #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
@@ -217,7 +207,6 @@ fn runtime_key(target_path: &str, tex_path: &str) -> String {
 fn queue_state_to_value(state: &LatexQueueStateInput) -> Value {
     json!({
         "targetPath": state.target_path,
-        "recipe": state.recipe,
         "buildExtraArgs": state.build_extra_args,
         "pendingCount": state.pending_count,
         "sourcePath": state.source_path,
@@ -241,7 +230,6 @@ fn normalize_queue_state(
     target_path: &str,
     tex_path: &str,
     reason: &str,
-    build_recipe: &str,
     build_extra_args: &str,
     phase: &str,
     pending_count: u32,
@@ -249,7 +237,6 @@ fn normalize_queue_state(
 ) -> LatexQueueStateInput {
     let current = current.cloned().unwrap_or(LatexQueueStateInput {
         target_path: target_path.to_string(),
-        recipe: build_recipe.to_string(),
         build_extra_args: build_extra_args.to_string(),
         pending_count: 0,
         source_path: tex_path.to_string(),
@@ -265,11 +252,6 @@ fn normalize_queue_state(
             current.target_path
         } else {
             target_path.to_string()
-        },
-        recipe: if build_recipe.is_empty() {
-            current.recipe
-        } else {
-            build_recipe.to_string()
         },
         build_extra_args: if build_extra_args.is_empty() {
             current.build_extra_args
@@ -289,14 +271,21 @@ fn normalize_queue_state(
         },
         phase: phase.to_string(),
         updated_at: now,
-        scheduled_at: if phase == "scheduled" { now } else { current.scheduled_at },
-        started_at: if phase == "running" { now } else { current.started_at },
+        scheduled_at: if phase == "scheduled" {
+            now
+        } else {
+            current.scheduled_at
+        },
+        started_at: if phase == "running" {
+            now
+        } else {
+            current.started_at
+        },
     }
 }
 
 fn build_compiling_state(
     target_path: &str,
-    build_recipe: &str,
     build_extra_args: &str,
     linked_source_path: Option<&str>,
 ) -> Value {
@@ -305,7 +294,6 @@ fn build_compiling_state(
         "errors": [],
         "warnings": [],
         "compileTargetPath": target_path,
-        "buildRecipe": build_recipe,
         "buildExtraArgs": build_extra_args,
     });
 
@@ -320,7 +308,6 @@ fn build_finished_state(
     target_path: &str,
     project_root_path: &str,
     project_preview_path: &str,
-    build_recipe: &str,
     build_extra_args: &str,
     now: u64,
     result: &CompileResult,
@@ -338,7 +325,6 @@ fn build_finished_state(
         "compileTargetPath": target_path,
         "projectRootPath": project_root_path,
         "previewPath": if project_preview_path.is_empty() { result.pdf_path.clone() } else { Some(project_preview_path.to_string()) },
-        "buildRecipe": build_recipe,
         "buildExtraArgs": build_extra_args,
     });
 
@@ -416,12 +402,7 @@ fn schedule_compile_request(
     });
 }
 
-fn emit_compile_request_now(
-    app: &AppHandle,
-    source_path: &str,
-    target_path: &str,
-    reason: &str,
-) {
+fn emit_compile_request_now(app: &AppHandle, source_path: &str, target_path: &str, reason: &str) {
     let _ = app.emit(
         LATEX_RUNTIME_COMPILE_REQUESTED_EVENT,
         LatexRuntimeCompileRequestPayload {
@@ -449,22 +430,29 @@ pub async fn latex_runtime_schedule(
             .map(|entry| entry.state.clone())
             .or(params.queue_state.clone());
 
-        let (next_phase, pending_count, should_debounce) = match current.as_ref().map(|value| value.phase.as_str()) {
-            Some("running") => (
-                "running",
-                current.as_ref().map(|value| value.pending_count).unwrap_or(0) + 1,
-                false,
-            ),
-            _ => ("scheduled", 0, true),
-        };
+        let (next_phase, pending_count, should_debounce) =
+            match current.as_ref().map(|value| value.phase.as_str()) {
+                Some("running") => (
+                    "running",
+                    current
+                        .as_ref()
+                        .map(|value| value.pending_count)
+                        .unwrap_or(0)
+                        + 1,
+                    false,
+                ),
+                _ => ("scheduled", 0, true),
+            };
 
-        let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+        let generation = guard
+            .get(&key)
+            .map(|entry| entry.generation + 1)
+            .unwrap_or(1);
         let queue_state = normalize_queue_state(
             current.as_ref(),
             &params.target_path,
             &params.source_path,
             &params.reason,
-            &params.build_recipe,
             &params.build_extra_args,
             next_phase,
             pending_count,
@@ -484,12 +472,10 @@ pub async fn latex_runtime_schedule(
         schedule_compile_request(app, state.queue.clone(), key, generation);
     }
 
-    Ok(
-        serde_json::to_value(LatexScheduleResult {
-            queue_state: queue_state_to_value(&queue_state),
-        })
-        .unwrap_or(Value::Null),
-    )
+    Ok(serde_json::to_value(LatexScheduleResult {
+        queue_state: queue_state_to_value(&queue_state),
+    })
+    .unwrap_or(Value::Null))
 }
 
 #[tauri::command]
@@ -566,17 +552,26 @@ pub async fn latex_runtime_compile_start(
             &params.target_path,
             &params.tex_path,
             &params.reason,
-            &params.build_recipe,
             &params.build_extra_args,
             "running",
             if already_running {
-                current.as_ref().map(|value| value.pending_count).unwrap_or(0) + 1
+                current
+                    .as_ref()
+                    .map(|value| value.pending_count)
+                    .unwrap_or(0)
+                    + 1
             } else {
-                current.as_ref().map(|value| value.pending_count).unwrap_or(0)
+                current
+                    .as_ref()
+                    .map(|value| value.pending_count)
+                    .unwrap_or(0)
             },
             params.now,
         );
-        let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+        let generation = guard
+            .get(&key)
+            .map(|entry| entry.generation + 1)
+            .unwrap_or(1);
         guard.insert(
             key,
             LatexRuntimeQueueEntry {
@@ -587,33 +582,25 @@ pub async fn latex_runtime_compile_start(
         (!already_running, queue_state)
     };
 
-    Ok(
-        serde_json::to_value(LatexCompileStartResult {
-            should_run,
-            queue_state: queue_state_to_value(&queue_state),
-            source_state: if should_run {
-                build_compiling_state(
-                    &params.target_path,
-                    &params.build_recipe,
-                    &params.build_extra_args,
-                    None,
-                )
-            } else {
-                Value::Null
-            },
-            target_state: if should_run && params.target_path != params.tex_path {
-                Some(build_compiling_state(
-                    &params.target_path,
-                    &params.build_recipe,
-                    &params.build_extra_args,
-                    Some(&params.tex_path),
-                ))
-            } else {
-                None
-            },
-        })
-        .unwrap_or(Value::Null),
-    )
+    Ok(serde_json::to_value(LatexCompileStartResult {
+        should_run,
+        queue_state: queue_state_to_value(&queue_state),
+        source_state: if should_run {
+            build_compiling_state(&params.target_path, &params.build_extra_args, None)
+        } else {
+            Value::Null
+        },
+        target_state: if should_run && params.target_path != params.tex_path {
+            Some(build_compiling_state(
+                &params.target_path,
+                &params.build_extra_args,
+                Some(&params.tex_path),
+            ))
+        } else {
+            None
+        },
+    })
+    .unwrap_or(Value::Null))
 }
 
 #[tauri::command]
@@ -648,13 +635,15 @@ pub async fn latex_runtime_compile_finish(
                 &params.target_path,
                 &next_source_path,
                 "rerun",
-                &params.build_recipe,
                 &params.build_extra_args,
                 "queued",
                 0,
                 params.now,
             );
-            let generation = guard.get(&key).map(|entry| entry.generation + 1).unwrap_or(1);
+            let generation = guard
+                .get(&key)
+                .map(|entry| entry.generation + 1)
+                .unwrap_or(1);
             guard.insert(
                 key.clone(),
                 LatexRuntimeQueueEntry {
@@ -673,32 +662,28 @@ pub async fn latex_runtime_compile_finish(
         emit_compile_request_now(&app, &next_source_path, &params.target_path, "rerun");
     }
 
-    Ok(
-        serde_json::to_value(LatexCompileFinishResult {
-            source_state: build_finished_state(
-                &params.target_path,
-                &params.project_root_path,
-                &params.project_preview_path,
-                &params.build_recipe,
-                &params.build_extra_args,
-                params.now,
-                &params.result,
-                None,
-            ),
-            target_state: build_finished_state(
-                &params.target_path,
-                &params.project_root_path,
-                &params.project_preview_path,
-                &params.build_recipe,
-                &params.build_extra_args,
-                params.now,
-                &params.result,
-                Some(&params.tex_path),
-            ),
-            queue_state: queue_state.as_ref().map(queue_state_to_value),
-        })
-        .unwrap_or(Value::Null),
-    )
+    Ok(serde_json::to_value(LatexCompileFinishResult {
+        source_state: build_finished_state(
+            &params.target_path,
+            &params.project_root_path,
+            &params.project_preview_path,
+            &params.build_extra_args,
+            params.now,
+            &params.result,
+            None,
+        ),
+        target_state: build_finished_state(
+            &params.target_path,
+            &params.project_root_path,
+            &params.project_preview_path,
+            &params.build_extra_args,
+            params.now,
+            &params.result,
+            Some(&params.tex_path),
+        ),
+        queue_state: queue_state.as_ref().map(queue_state_to_value),
+    })
+    .unwrap_or(Value::Null))
 }
 
 #[tauri::command]
@@ -749,7 +734,6 @@ pub async fn latex_runtime_compile_execute(
             tex_path: params.tex_path.clone(),
             target_path: params.target_path.clone(),
             reason: params.reason.clone(),
-            build_recipe: params.build_recipe.clone(),
             build_extra_args: params.build_extra_args.clone(),
             now: params.now,
             queue_state: None,
@@ -789,7 +773,6 @@ pub async fn latex_runtime_compile_execute(
         &params.target_path,
         params.compiler_preference,
         params.engine_preference,
-        Some(params.build_recipe.clone()),
         Some(params.build_extra_args.clone()),
         params.custom_system_tex_path,
         params.custom_tectonic_path,
@@ -817,7 +800,6 @@ pub async fn latex_runtime_compile_execute(
             target_path: params.target_path,
             project_root_path: params.project_root_path,
             project_preview_path: params.project_preview_path,
-            build_recipe: params.build_recipe,
             build_extra_args: params.build_extra_args,
             now: current_time_ms(),
             queue_state: None,
@@ -826,15 +808,13 @@ pub async fn latex_runtime_compile_execute(
     )
     .await?;
 
-    Ok(
-        serde_json::to_value(LatexCompileExecuteResult {
-            source_state: finish.get("sourceState").cloned().unwrap_or(Value::Null),
-            target_state: finish.get("targetState").cloned().unwrap_or(Value::Null),
-            queue_state: finish.get("queueState").cloned(),
-            result: compile_result,
-        })
-        .unwrap_or(Value::Null),
-    )
+    Ok(serde_json::to_value(LatexCompileExecuteResult {
+        source_state: finish.get("sourceState").cloned().unwrap_or(Value::Null),
+        target_state: finish.get("targetState").cloned().unwrap_or(Value::Null),
+        queue_state: finish.get("queueState").cloned(),
+        result: compile_result,
+    })
+    .unwrap_or(Value::Null))
 }
 
 #[cfg(test)]
@@ -857,7 +837,6 @@ mod tests {
     fn normalize_queue_state_updates_runtime_fields() {
         let current = LatexQueueStateInput {
             target_path: "/workspace/main.tex".to_string(),
-            recipe: "default".to_string(),
             build_extra_args: "".to_string(),
             pending_count: 1,
             source_path: "/workspace/old.tex".to_string(),
@@ -873,7 +852,6 @@ mod tests {
             "/workspace/main.tex",
             "/workspace/new.tex",
             "rerun",
-            "clean-build",
             "-halt-on-error",
             "queued",
             0,
@@ -883,7 +861,6 @@ mod tests {
         assert_eq!(next.target_path, "/workspace/main.tex");
         assert_eq!(next.source_path, "/workspace/new.tex");
         assert_eq!(next.reason, "rerun");
-        assert_eq!(next.recipe, "clean-build");
         assert_eq!(next.build_extra_args, "-halt-on-error");
         assert_eq!(next.phase, "queued");
         assert_eq!(next.pending_count, 0);

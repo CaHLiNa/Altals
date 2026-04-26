@@ -9,7 +9,6 @@ const DEFAULT_COMPILER_PREFERENCE: &str = "auto";
 const DEFAULT_ENGINE_PREFERENCE: &str = "auto";
 const DEFAULT_AUTO_COMPILE: bool = false;
 const DEFAULT_FORMAT_ON_SAVE: bool = false;
-const DEFAULT_BUILD_RECIPE: &str = "default";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -22,8 +21,6 @@ pub struct LatexPreferences {
     pub auto_compile: bool,
     #[serde(default = "default_format_on_save")]
     pub format_on_save: bool,
-    #[serde(default = "default_build_recipe")]
-    pub build_recipe: String,
     #[serde(default)]
     pub build_extra_args: String,
     #[serde(default)]
@@ -64,7 +61,6 @@ impl Default for LatexPreferences {
             engine_preference: default_engine_preference(),
             auto_compile: default_auto_compile(),
             format_on_save: default_format_on_save(),
-            build_recipe: default_build_recipe(),
             build_extra_args: String::new(),
             custom_system_tex_path: String::new(),
         }
@@ -89,10 +85,6 @@ fn default_auto_compile() -> bool {
 
 fn default_format_on_save() -> bool {
     DEFAULT_FORMAT_ON_SAVE
-}
-
-fn default_build_recipe() -> String {
-    DEFAULT_BUILD_RECIPE.to_string()
 }
 
 fn normalize_root(path: &str) -> String {
@@ -167,15 +159,6 @@ fn normalize_engine_preference(compiler_preference: &str, value: &str) -> String
     }
 }
 
-fn normalize_build_recipe(value: &str) -> String {
-    match value.trim().to_lowercase().as_str() {
-        "shell-escape" => "shell-escape".to_string(),
-        "clean-build" => "clean-build".to_string(),
-        "shell-escape-clean" => "shell-escape-clean".to_string(),
-        _ => DEFAULT_BUILD_RECIPE.to_string(),
-    }
-}
-
 fn normalize_build_extra_args(value: &str) -> String {
     value.trim().to_string()
 }
@@ -223,12 +206,6 @@ fn build_preferences_from_legacy_snapshot(
             snapshot.get("latex.formatOnSave"),
             DEFAULT_FORMAT_ON_SAVE,
         ),
-        build_recipe: normalize_build_recipe(
-            snapshot
-                .get("latex.buildRecipe")
-                .map(String::as_str)
-                .unwrap_or(DEFAULT_BUILD_RECIPE),
-        ),
         build_extra_args: normalize_build_extra_args(
             snapshot
                 .get("latex.buildExtraArgs")
@@ -256,7 +233,6 @@ pub fn normalize_latex_preferences(preferences: LatexPreferences) -> LatexPrefer
         ),
         auto_compile: false,
         format_on_save: false,
-        build_recipe: normalize_build_recipe(&preferences.build_recipe),
         build_extra_args: normalize_build_extra_args(&preferences.build_extra_args),
         custom_system_tex_path: normalize_custom_system_tex_path(
             &preferences.custom_system_tex_path,
@@ -315,7 +291,6 @@ mod tests {
                 engine_preference: "xelatex".to_string(),
                 auto_compile: true,
                 format_on_save: true,
-                build_recipe: "shell-escape".to_string(),
                 build_extra_args: "  -interaction=nonstopmode  ".to_string(),
                 custom_system_tex_path: " /Library/TeX/texbin/latexmk ".to_string(),
             },
@@ -342,7 +317,10 @@ mod tests {
         legacy_preferences.insert("latex.compilerPreference".to_string(), "system".to_string());
         legacy_preferences.insert("latex.enginePreference".to_string(), "xelatex".to_string());
         legacy_preferences.insert("latex.autoCompile".to_string(), "true".to_string());
-        legacy_preferences.insert("latex.buildRecipe".to_string(), "clean-build".to_string());
+        legacy_preferences.insert(
+            "latex.buildExtraArgs".to_string(),
+            "  -interaction=nonstopmode  ".to_string(),
+        );
 
         let loaded = latex_preferences_load(LatexPreferencesLoadParams {
             global_config_dir: temp_dir.to_string_lossy().to_string(),
@@ -355,7 +333,7 @@ mod tests {
         assert_eq!(loaded.engine_preference, "xelatex");
         assert!(!loaded.auto_compile);
         assert!(!loaded.format_on_save);
-        assert_eq!(loaded.build_recipe, "clean-build");
+        assert_eq!(loaded.build_extra_args, "-interaction=nonstopmode");
 
         fs::remove_dir_all(temp_dir).ok();
     }

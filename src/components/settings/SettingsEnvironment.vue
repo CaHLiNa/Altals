@@ -24,7 +24,9 @@
           >
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
             <path d="M3 3v5h5"></path>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path
+              d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
+            ></path>
             <path d="M16 21v-5h5"></path>
           </svg>
           <span v-else class="diagnostics-spinner"></span>
@@ -37,13 +39,19 @@
             <div class="settings-row-title">{{ t('Compiler') }}</div>
           </div>
           <div class="settings-row-control">
-            <UiSelect v-model="compilerPreference" size="sm" :options="compilerOptions" />
+            <UiSelect
+              v-model="compilerPreference"
+              size="sm"
+              :options="compilerOptions"
+            />
           </div>
         </div>
 
         <div
           class="settings-row"
-          :class="{ 'is-disabled-row': latexStore.compilerPreference === 'tectonic' }"
+          :class="{
+            'is-disabled-row': latexStore.compilerPreference === 'tectonic',
+          }"
         >
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('LaTeX Engine') }}</div>
@@ -55,15 +63,6 @@
               :options="engineOptions"
               :disabled="latexStore.compilerPreference === 'tectonic'"
             />
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ t('Build recipe') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect v-model="buildRecipe" size="sm" :options="latexBuildRecipeOptions" />
           </div>
         </div>
 
@@ -85,7 +84,10 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Tectonic') }}</div>
-            <div v-if="latexStore.downloadError" class="settings-row-hint text-error">
+            <div
+              v-if="latexStore.downloadError"
+              class="settings-row-hint text-error"
+            >
               {{ latexStore.downloadError }}
             </div>
           </div>
@@ -96,11 +98,16 @@
             </template>
             <template v-else-if="latexStore.downloading">
               <span class="status-text">{{
-                t('Downloading {progress}%', { progress: latexStore.downloadProgress })
+                t('Downloading {progress}%', {
+                  progress: latexStore.downloadProgress,
+                })
               }}</span>
             </template>
             <template v-else>
-              <button class="diagnostic-action-btn" @click="latexStore.downloadTectonic()">
+              <button
+                class="diagnostic-action-btn"
+                @click="latexStore.downloadTectonic()"
+              >
                 {{ latexStore.downloadError ? t('Retry') : t('Download') }}
               </button>
             </template>
@@ -160,10 +167,7 @@
             <div class="settings-row-title">{{ t('Runtime') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
-            <span
-              class="status-dot"
-              :class="pythonDiagnosticsDotClass"
-            ></span>
+            <span class="status-dot" :class="pythonDiagnosticsDotClass"></span>
             <span class="status-text">{{ pythonDiagnosticsText }}</span>
           </div>
         </div>
@@ -174,11 +178,7 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
-import {
-  LATEX_BUILD_RECIPE_OPTIONS,
-  formatLatexBuildRecipeLabel,
-  useLatexStore,
-} from '../../stores/latex'
+import { useLatexStore } from '../../stores/latex'
 import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -187,12 +187,6 @@ const latexStore = useLatexStore()
 const pythonStore = usePythonStore()
 const { t } = useI18n()
 
-const latexBuildRecipeOptions = computed(() =>
-  LATEX_BUILD_RECIPE_OPTIONS.map((value) => ({
-    value,
-    label: formatLatexBuildRecipeLabel(value, t),
-  }))
-)
 const compilerOptions = computed(() => [
   { value: 'auto', label: t('Auto (prefer System TeX)') },
   { value: 'system', label: t('System TeX (latexmk)') },
@@ -217,7 +211,9 @@ const pythonInterpreterOptions = computed(() => {
     const runtimePath = String(runtime?.path || '').trim()
     if (!runtimePath) continue
 
-    const versionLabel = runtime?.version ? `Python ${runtime.version}` : t('Python')
+    const versionLabel = runtime?.version
+      ? `Python ${runtime.version}`
+      : t('Python')
 
     options.push({
       value: runtimePath,
@@ -227,8 +223,10 @@ const pythonInterpreterOptions = computed(() => {
   }
 
   if (
-    pythonStore.interpreterPreference !== 'auto'
-    && !options.some((option) => option.value === pythonStore.interpreterPreference)
+    pythonStore.interpreterPreference !== 'auto' &&
+    !options.some(
+      (option) => option.value === pythonStore.interpreterPreference,
+    )
   ) {
     options.push({
       value: pythonStore.interpreterPreference,
@@ -247,10 +245,6 @@ const compilerPreference = computed({
 const enginePreference = computed({
   get: () => latexStore.enginePreference,
   set: (value) => latexStore.setEnginePreference(value),
-})
-const buildRecipe = computed({
-  get: () => latexStore.buildRecipe,
-  set: (value) => latexStore.setBuildRecipe(value),
 })
 const pythonInterpreterPreference = computed({
   get: () => pythonStore.interpreterPreference,
@@ -271,8 +265,8 @@ const pythonDiagnosticsText = computed(() => {
   }
 
   if (
-    pythonStore.interpreterPreference !== 'auto'
-    && pythonStore.detectedInterpreterCount > 0
+    pythonStore.interpreterPreference !== 'auto' &&
+    pythonStore.detectedInterpreterCount > 0
   ) {
     return t('Unavailable')
   }
@@ -284,9 +278,9 @@ const pythonDiagnosticsText = computed(() => {
 
 const isRefreshingDiagnostics = computed(
   () =>
-    pythonStore.checkingInterpreter
-    || latexStore.checkingCompilers
-    || latexStore.checkingTools,
+    pythonStore.checkingInterpreter ||
+    latexStore.checkingCompilers ||
+    latexStore.checkingTools,
 )
 
 async function redetectSystem() {
