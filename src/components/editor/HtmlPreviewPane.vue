@@ -44,7 +44,7 @@ const { t } = useI18n()
 
 const fileName = computed(() => basenamePath(props.filePath) || props.filePath)
 const fileUrl = computed(() =>
-  (isTauriDesktopRuntime()
+  (isTauriDesktopRuntime
     ? toWorkspaceProtocolUrl(props.filePath, workspace, {
         version: fileName.value,
       })

@@ -80,15 +80,7 @@ function buildDefaultResolvedQueryState(state = {}) {
   }
 }
 
-function hasDesktopInvoke() {
-  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
-}
-
 async function invokeReferenceMutation(params = {}) {
-  if (!hasDesktopInvoke()) {
-    throw new Error('References mutation runtime requires desktop Rust backend.')
-  }
-
   return invoke('references_mutation_apply', {
     params: {
       snapshot: params.snapshot && typeof params.snapshot === 'object' ? params.snapshot : {},
@@ -98,16 +90,6 @@ async function invokeReferenceMutation(params = {}) {
 }
 
 async function invokeReferenceQuery(params = {}) {
-  if (!hasDesktopInvoke()) {
-    const references = Array.isArray(params.references) ? params.references : []
-    const selectedReferenceId = String(params.preferredSelectedReferenceId || references[0]?.id || '')
-    return buildDefaultResolvedQueryState({
-      ...params,
-      references,
-      selectedReferenceId,
-    })
-  }
-
   return invoke('references_query_resolve', {
     params: {
       librarySections: Array.isArray(params.librarySections) ? params.librarySections : [],

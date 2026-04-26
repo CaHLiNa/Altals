@@ -49,7 +49,7 @@ const fileExt = computed(() => {
 const browserSafeImageExts = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'])
 const usesNativeImageUrl = computed(() => browserSafeImageExts.has(fileExt.value))
 const nativeFileUrl = computed(() =>
-  (isTauriDesktopRuntime()
+  (isTauriDesktopRuntime
     ? toWorkspaceProtocolUrl(props.filePath, workspace, {
         version: fileName.value,
       })
@@ -71,7 +71,7 @@ async function loadPreview() {
   previewError.value = ''
   previewUrl.value = ''
 
-  if (!isTauriDesktopRuntime()) return
+  if (!isTauriDesktopRuntime) return
   if (usesNativeImageUrl.value) return
 
   try {

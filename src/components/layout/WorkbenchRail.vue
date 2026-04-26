@@ -128,7 +128,7 @@ import {
   IconLayoutSidebarRightCollapse,
 } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'
-import { isMac, modKey } from '../../platform'
+import { isMac, isTauriDesktopRuntime, modKey } from '../../platform'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({
@@ -161,7 +161,7 @@ const TOPBAR_HEIGHT = 42
 const DEFAULT_SIDE_PADDING = 12
 const MAC_TRAFFIC_LIGHT_SAFE_PADDING = 68
 const FULLSCREEN_LEFT_PADDING = 12
-const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+const isTauriDesktop = isTauriDesktopRuntime
 const WINDOW_DRAGGING_CLASS = 'window-dragging'
 
 const isNativeFullscreen = ref(false)

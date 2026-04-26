@@ -186,7 +186,7 @@ import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { confirmUnsavedChanges } from './services/unsavedChanges'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
-import { isMac } from './platform'
+import { isMac, isTauriDesktopRuntime } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
@@ -208,7 +208,7 @@ const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const { t } = useI18n()
-const isMacDesktop = typeof window !== 'undefined' && isMac && !!window.__TAURI_INTERNALS__
+const isMacDesktop = isMac && isTauriDesktopRuntime
 
 void applyAppWindowConstraints()
 

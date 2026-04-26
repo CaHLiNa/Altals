@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
   clearStorageKeys,
-  hasDesktopInvoke,
   readStorageSnapshot,
 } from './bridgeStorage.js'
 
@@ -46,11 +45,6 @@ const DEFAULT_MARKDOWN_CITATION_FORMAT = 'bracketed'
 const DEFAULT_LATEX_CITATION_COMMAND = 'cite'
 const DEFAULT_CITATION_INSERT_ADDS_SPACE = false
 const SYSTEM_THEME_MEDIA = '(prefers-color-scheme: dark)'
-const DEFAULT_WORKBENCH_SURFACE = 'workspace'
-const DEFAULT_WORKSPACE_SIDEBAR_PANEL = 'files'
-const DEFAULT_SETTINGS_SIDEBAR_PANEL = 'files'
-const DEFAULT_WORKSPACE_INSPECTOR_PANEL = 'outline'
-const DEFAULT_SETTINGS_INSPECTOR_PANEL = ''
 
 const LEGACY_WORKSPACE_PREFERENCE_KEYS = [
   'primarySurface',
@@ -130,35 +124,6 @@ function normalizeWorkspaceThemeId(value) {
   }
 }
 
-function normalizeBrowserPreviewWorkbenchSurface(value) {
-  return String(value || '').trim() === 'settings' ? 'settings' : DEFAULT_WORKBENCH_SURFACE
-}
-
-function normalizeBrowserPreviewWorkbenchSidebarPanel(surface, panel) {
-  const normalizedSurface = normalizeBrowserPreviewWorkbenchSurface(surface)
-  const normalizedPanel = String(panel || '').trim()
-  if (normalizedSurface === 'settings') {
-    return normalizedPanel === DEFAULT_SETTINGS_SIDEBAR_PANEL
-      ? normalizedPanel
-      : DEFAULT_SETTINGS_SIDEBAR_PANEL
-  }
-
-  return ['files', 'references'].includes(normalizedPanel)
-    ? normalizedPanel
-    : DEFAULT_WORKSPACE_SIDEBAR_PANEL
-}
-
-function normalizeBrowserPreviewWorkbenchInspectorPanel(surface, panel) {
-  const normalizedSurface = normalizeBrowserPreviewWorkbenchSurface(surface)
-  const normalizedPanel = String(panel || '').trim()
-  if (normalizedSurface === 'settings') {
-    return DEFAULT_SETTINGS_INSPECTOR_PANEL
-  }
-  return normalizedPanel === DEFAULT_WORKSPACE_INSPECTOR_PANEL
-    ? normalizedPanel
-    : DEFAULT_WORKSPACE_INSPECTOR_PANEL
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
@@ -230,23 +195,6 @@ export async function saveWorkspacePreferences(globalConfigDir = '', preferences
 }
 
 export async function normalizeWorkbenchState(state = {}) {
-  if (!hasDesktopInvoke()) {
-    const primarySurface = normalizeBrowserPreviewWorkbenchSurface(state.primarySurface)
-    return {
-      primarySurface,
-      leftSidebarOpen: state.leftSidebarOpen !== false,
-      leftSidebarPanel: normalizeBrowserPreviewWorkbenchSidebarPanel(
-        primarySurface,
-        state.leftSidebarPanel
-      ),
-      rightSidebarOpen: state.rightSidebarOpen === true,
-      rightSidebarPanel: normalizeBrowserPreviewWorkbenchInspectorPanel(
-        primarySurface,
-        state.rightSidebarPanel
-      ),
-    }
-  }
-
   return invoke('workbench_state_normalize', {
     params: {
       primarySurface: String(state.primarySurface || ''),
@@ -495,10 +443,6 @@ export function setWorkspaceLatexFont(name) {
 }
 
 export async function loadWorkspaceSystemFontFamilies() {
-  if (!hasDesktopInvoke()) {
-    return [...FALLBACK_SYSTEM_FONT_FAMILIES]
-  }
-
   try {
     const fonts = await invoke('workspace_preferences_list_system_fonts')
     const normalized = Array.isArray(fonts)

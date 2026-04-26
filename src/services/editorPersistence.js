@@ -1,9 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
   clearStorageKeys,
-  hasDesktopInvoke,
   readStorageJson,
-  writeStorageJson,
 } from './bridgeStorage.js'
 
 const STATE_VERSION = 1
@@ -93,9 +91,6 @@ function clearLegacyRecentFiles(workspacePath = '') {
 
 export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '') {
   if (!workspaceDataDir) return []
-  if (!hasDesktopInvoke()) {
-    return readLegacyRecentFiles(workspacePath)
-  }
 
   const recentFiles = await invoke('editor_recent_files_load', {
     params: {
@@ -110,12 +105,6 @@ export async function loadRecentFiles(workspaceDataDir = '', workspacePath = '')
 export async function saveRecentFiles(workspaceDataDir = '', workspacePath = '', recentFiles = []) {
   const normalized = normalizeRecentFiles(recentFiles)
   if (!workspaceDataDir) return normalized
-  if (!hasDesktopInvoke()) {
-    if (workspacePath) {
-      writeStorageJson(recentFilesStorageKey(workspacePath), normalized)
-    }
-    return normalized
-  }
 
   const saved = await invoke('editor_recent_files_save', {
     params: {

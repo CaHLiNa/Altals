@@ -6,9 +6,7 @@ import {
 } from '../domains/workbench/workbenchMotionRuntime.js'
 import {
   clearStorageKeys,
-  hasDesktopInvoke,
   readStorageValue,
-  writeStorageValue,
 } from '../services/bridgeStorage.js'
 import { MAX_WORKBENCH_SIDEBAR_PANEL_COUNT } from '../shared/workbenchSidebarPanels.js'
 import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspectorPanels.js'
@@ -70,15 +68,8 @@ function readLegacyLayoutState() {
   }
 }
 
-function saveBrowserPreviewLayoutState(state = {}) {
-  writeStorageValue('leftSidebarWidth', state.leftSidebarWidth)
-  writeStorageValue('rightSidebarWidth', state.rightSidebarWidth)
-  writeStorageValue('bottomPanelHeight', state.bottomPanelHeight)
-}
-
 async function loadWorkbenchLayoutState() {
   const legacyState = readLegacyLayoutState()
-  if (!hasDesktopInvoke()) return legacyState
 
   const state = await invoke('workbench_layout_load', {
     params: {
@@ -98,11 +89,6 @@ async function saveWorkbenchLayoutState() {
     rightSidebarWidth: rightSidebarWidth.value,
     bottomPanelHeight: bottomPanelHeight.value,
   }
-  if (!hasDesktopInvoke()) {
-    saveBrowserPreviewLayoutState(state)
-    return state
-  }
-
   const saved = await invoke('workbench_layout_save', {
     params: {
       state,

@@ -1,13 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-function requireTauriInvoke() {
-  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    throw new Error('Tauri invoke is required for reference import.')
-  }
-}
-
 export async function parseBibTeXText(content = '') {
-  requireTauriInvoke()
   const parsed = await invoke('references_import_parse_text', {
     params: {
       content,
@@ -18,7 +11,6 @@ export async function parseBibTeXText(content = '') {
 }
 
 export async function parseRisText(content = '') {
-  requireTauriInvoke()
   const parsed = await invoke('references_import_parse_text', {
     params: {
       content,
@@ -29,7 +21,6 @@ export async function parseRisText(content = '') {
 }
 
 export async function parseCSLJSONText(content = '') {
-  requireTauriInvoke()
   const parsed = await invoke('references_import_parse_text', {
     params: {
       content,
@@ -40,7 +31,6 @@ export async function parseCSLJSONText(content = '') {
 }
 
 export async function detectReferenceImportFormat(content = '') {
-  requireTauriInvoke()
   return invoke('references_import_detect_format', {
     params: {
       content,
@@ -49,7 +39,6 @@ export async function detectReferenceImportFormat(content = '') {
 }
 
 export async function parseReferenceImportText(content = '', format = 'auto') {
-  requireTauriInvoke()
   const parsed = await invoke('references_import_parse_text', {
     params: {
       content,
@@ -72,7 +61,6 @@ export async function importReferencesFromText(content = '') {
 }
 
 export async function importReferenceFromPdf(filePath = '') {
-  requireTauriInvoke()
   const imported = await invoke('references_import_pdf', {
     params: {
       filePath,
@@ -82,7 +70,6 @@ export async function importReferenceFromPdf(filePath = '') {
 }
 
 export async function findDuplicateReference(existing = [], candidate = {}) {
-  requireTauriInvoke()
   const duplicate = await invoke('references_find_duplicate', {
     params: {
       existing,
@@ -93,7 +80,6 @@ export async function findDuplicateReference(existing = [], candidate = {}) {
 }
 
 export async function mergeImportedReferences(existing = [], imported = []) {
-  requireTauriInvoke()
   const merged = await invoke('references_merge_imported', {
     params: {
       existing,

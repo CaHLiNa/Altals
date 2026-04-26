@@ -61,15 +61,6 @@ export function useI18n() {
 }
 
 async function loadRuntimeBundle() {
-  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    return {
-      locale: detectBrowserLocale(),
-      systemLocale: detectBrowserLocale(),
-      messages: {},
-      aliases: {},
-    }
-  }
-
   try {
     const preferredLocale = await loadSavedLocalePreference()
     const payload = await invoke('i18n_runtime_load', {
@@ -88,8 +79,8 @@ async function loadRuntimeBundle() {
     }
   } catch {
     return {
-      locale: detectBrowserLocale(),
-      systemLocale: detectBrowserLocale(),
+      locale: DEFAULT_LOCALE,
+      systemLocale: DEFAULT_LOCALE,
       messages: {},
       aliases: {},
     }
@@ -97,10 +88,6 @@ async function loadRuntimeBundle() {
 }
 
 async function loadSavedLocalePreference() {
-  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    return DEFAULT_LOCALE_PREFERENCE
-  }
-
   try {
     const globalConfigDir = await invoke('get_global_config_dir')
     const preferences = await invoke('workspace_preferences_load', {
@@ -132,15 +119,6 @@ export async function initLocale() {
 
 export async function applyLocalePreference(preferredLocale = DEFAULT_LOCALE_PREFERENCE) {
   const normalizedPreference = normalizeLocalePreference(preferredLocale)
-
-  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    const fallbackLocale =
-      normalizedPreference === DEFAULT_LOCALE_PREFERENCE
-        ? detectBrowserLocale()
-        : normalizedPreference
-    applyLocaleState(fallbackLocale)
-    return locale.value
-  }
 
   const payload = await invoke('i18n_runtime_load', {
     params: {

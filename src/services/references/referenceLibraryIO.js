@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { hasDesktopInvoke } from '../bridgeStorage.js'
 import {
   LEGACY_REFERENCE_FIXTURE_IDS,
   LEGACY_REFERENCE_FIXTURE_TITLES,
@@ -82,10 +81,6 @@ export function normalizeReferenceLibrarySnapshot(raw = {}) {
 }
 
 export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}) {
-  if (!hasDesktopInvoke()) {
-    return normalizeReferenceLibrarySnapshot(snapshot)
-  }
-
   const normalized = await invoke('references_snapshot_normalize', {
     params: {
       snapshot,
@@ -96,10 +91,6 @@ export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}
 }
 
 export async function normalizeReferenceRecordWithBackend(reference = {}) {
-  if (!hasDesktopInvoke()) {
-    return reference && typeof reference === 'object' ? reference : {}
-  }
-
   const normalized = await invoke('references_record_normalize', {
     params: {
       reference,
@@ -114,10 +105,6 @@ export async function readOrCreateReferenceLibrarySnapshot(globalConfigDir = '',
   const referencesDir = resolveReferencesDataDir(globalConfigDir)
   const libraryFile = resolveReferenceLibraryFile(globalConfigDir)
   if (!referencesDir || !libraryFile) {
-    return buildDefaultReferenceLibrarySnapshot()
-  }
-
-  if (!hasDesktopInvoke()) {
     return buildDefaultReferenceLibrarySnapshot()
   }
 
@@ -136,10 +123,6 @@ export async function writeReferenceLibrarySnapshot(globalConfigDir = '', snapsh
   const normalizedSnapshot = await normalizeReferenceLibrarySnapshotWithBackend({
     ...snapshot,
   })
-
-  if (!hasDesktopInvoke()) {
-    return normalizedSnapshot
-  }
 
   await invoke('references_library_write', {
     params: {

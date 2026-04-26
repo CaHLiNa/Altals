@@ -1,4 +1,4 @@
-import { clearStorageKeys, hasDesktopInvoke, readStorageJson } from '../bridgeStorage.js'
+import { clearStorageKeys, readStorageJson } from '../bridgeStorage.js'
 import { invokeDocumentWorkflowBridge } from './invokeBridge.js'
 
 const PREFS_KEY = 'documentWorkflow.previewPrefs'
@@ -39,19 +39,7 @@ function clearLegacyPreviewPrefs() {
   clearStorageKeys([PREFS_KEY])
 }
 
-function loadBrowserPreviewState() {
-  const base = createDocumentWorkflowPersistentState()
-  return {
-    ...base,
-    previewPrefs: readLegacyPreviewPrefs(),
-  }
-}
-
 export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
-  if (!hasDesktopInvoke()) {
-    return loadBrowserPreviewState()
-  }
-
   const state = await invokeDocumentWorkflowBridge('document_workflow_session_load', {
     workspaceDataDir: String(workspaceDataDir || ''),
     legacyState: {
@@ -65,13 +53,6 @@ export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
 }
 
 export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
-  if (!hasDesktopInvoke()) {
-    return {
-      ...createDocumentWorkflowPersistentState(),
-      ...state,
-    }
-  }
-
   const normalized = await invokeDocumentWorkflowBridge('document_workflow_session_save', {
     workspaceDataDir: String(workspaceDataDir || ''),
     state,

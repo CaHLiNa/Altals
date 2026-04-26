@@ -20,6 +20,7 @@ import {
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { syncNow } from '../../services/references/zoteroSync.js'
 import { basenamePath } from '../../utils/path'
+import { isTauriDesktopRuntime } from '../../platform'
 
 export function useWorkspaceLifecycle() {
   const workspace = useWorkspaceStore()
@@ -40,7 +41,7 @@ export function useWorkspaceLifecycle() {
   let lastFocusRefresh = 0
   let unlistenWindowFocusChange = null
 
-  const isTauriDesktop = typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+  const isTauriDesktop = isTauriDesktopRuntime
 
   function normalizeWorkspacePath(path = '') {
     const normalized = String(path || '').replace(/\/+$/, '')

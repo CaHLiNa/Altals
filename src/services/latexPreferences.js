@@ -1,11 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import {
   clearStorageKeys,
-  hasDesktopInvoke,
-  readStorageBoolean,
   readStorageSnapshot,
-  readStorageValue,
-  writeStorageValue,
 } from './bridgeStorage.js'
 
 const LEGACY_LATEX_PREFERENCE_KEYS = [
@@ -57,54 +53,7 @@ function normalizeBuildRecipe(value) {
     : 'default'
 }
 
-function normalizeBrowserPreviewPreferences(preferences = {}) {
-  const compilerPreference = normalizeCompilerPreference(preferences.compilerPreference)
-  return {
-    ...createLatexPreferenceState(),
-    ...preferences,
-    compilerPreference,
-    enginePreference: normalizeEnginePreference(compilerPreference, preferences.enginePreference),
-    autoCompile: false,
-    formatOnSave: false,
-    buildRecipe: normalizeBuildRecipe(preferences.buildRecipe),
-    buildExtraArgs: String(preferences.buildExtraArgs || '').trim(),
-    customSystemTexPath: String(preferences.customSystemTexPath || '').trim(),
-  }
-}
-
-function loadBrowserPreviewLatexPreferences() {
-  const preferences = normalizeBrowserPreviewPreferences({
-    compilerPreference: readStorageValue('latex.compilerPreference', 'auto'),
-    enginePreference: readStorageValue('latex.enginePreference', 'auto'),
-    buildRecipe: readStorageValue('latex.buildRecipe', 'default'),
-    buildExtraArgs: readStorageValue('latex.buildExtraArgs', ''),
-    customSystemTexPath: readStorageValue('latex.customSystemTexPath', ''),
-  })
-
-  clearLegacyLatexPreferenceStorage()
-  return preferences
-}
-
-function saveBrowserPreviewLatexPreferences(preferences = {}) {
-  const normalized = normalizeBrowserPreviewPreferences(preferences)
-
-  writeStorageValue('latex.compilerPreference', normalized.compilerPreference)
-  writeStorageValue('latex.enginePreference', normalized.enginePreference)
-  writeStorageValue('latex.autoCompile', null)
-  writeStorageValue('latex.formatOnSave', null)
-  writeStorageValue('latex.buildRecipe', normalized.buildRecipe)
-  writeStorageValue('latex.buildExtraArgs', normalized.buildExtraArgs)
-  writeStorageValue('latex.customSystemTexPath', normalized.customSystemTexPath)
-  writeStorageValue('latex.customLatexmkPath', null)
-
-  return normalized
-}
-
 export async function loadLatexPreferences(globalConfigDir = '') {
-  if (!hasDesktopInvoke()) {
-    return loadBrowserPreviewLatexPreferences()
-  }
-
   const preferences = await invoke('latex_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -120,10 +69,6 @@ export async function loadLatexPreferences(globalConfigDir = '') {
 }
 
 export async function saveLatexPreferences(globalConfigDir = '', preferences = {}) {
-  if (!hasDesktopInvoke()) {
-    return saveBrowserPreviewLatexPreferences(preferences)
-  }
-
   const normalized = await invoke('latex_preferences_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),

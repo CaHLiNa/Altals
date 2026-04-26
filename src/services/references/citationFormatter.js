@@ -8,12 +8,6 @@ export function isFastCitationStyle(style = 'apa') {
   return FAST_STYLE_IDS.has(String(style || '').trim())
 }
 
-function requireTauriInvoke() {
-  if (typeof window === 'undefined' || typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    throw new Error('Tauri invoke is required for citation formatting.')
-  }
-}
-
 async function resolveWorkspacePath() {
   try {
     const workspace = useWorkspaceStore()
@@ -24,7 +18,6 @@ async function resolveWorkspacePath() {
 }
 
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number) {
-  requireTauriInvoke()
   const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
@@ -41,7 +34,6 @@ async function formatFromReference(style = 'apa', mode = 'reference', reference 
 }
 
 async function formatFromCsl(style = 'apa', mode = 'reference', cslItems = [], number, locale = 'en-GB') {
-  requireTauriInvoke()
   const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {
@@ -74,7 +66,6 @@ export async function formatCitation(style = 'apa', mode = 'reference', referenc
 }
 
 export async function formatBibliography(style = 'apa', references = []) {
-  requireTauriInvoke()
   const effectiveStyle = normalizeCitationStyle(style)
   return invoke('references_citation_render', {
     params: {

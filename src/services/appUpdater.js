@@ -65,10 +65,6 @@ export async function checkForAppUpdates(currentVersion = '') {
 
 export async function openReleasesPage(url = RELEASES_URL) {
   const targetUrl = String(url || RELEASES_URL)
-  if (typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke !== 'function') {
-    window.open(targetUrl, '_blank', 'noopener')
-    return
-  }
   const { open } = await import('@tauri-apps/plugin-shell')
   await open(targetUrl)
 }

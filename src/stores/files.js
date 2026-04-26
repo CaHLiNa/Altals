@@ -38,6 +38,7 @@ import { basenamePath, dirnamePath } from '../utils/path'
 import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
+import { isTauriDesktopRuntime } from '../platform'
 
 function readWorkspaceSnapshot(path, loadedDirs = []) {
   const workspace = useWorkspaceStore()
@@ -47,10 +48,6 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
 }
 
 const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
-
-function isTauriDesktopRuntime() {
-  return typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
-}
 
 async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
   const workspace = useWorkspaceStore()

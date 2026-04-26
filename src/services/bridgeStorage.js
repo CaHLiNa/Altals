@@ -1,7 +1,3 @@
-export function hasDesktopInvoke() {
-  return typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__?.invoke === 'function'
-}
-
 export function readStorageValue(key, fallback = '') {
   try {
     const value = localStorage.getItem(key)

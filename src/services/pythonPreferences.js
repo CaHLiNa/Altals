@@ -1,9 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  hasDesktopInvoke,
-  readStorageValue,
-  writeStorageValue,
-} from './bridgeStorage.js'
 
 export function createPythonPreferenceState() {
   return {
@@ -27,23 +22,7 @@ function normalizePythonPreferences(preferences = {}) {
   }
 }
 
-function loadBrowserPreviewPythonPreferences() {
-  return normalizePythonPreferences({
-    interpreterPreference: readStorageValue('python.interpreterPreference', 'auto'),
-  })
-}
-
-function saveBrowserPreviewPythonPreferences(preferences = {}) {
-  const normalized = normalizePythonPreferences(preferences)
-  writeStorageValue('python.interpreterPreference', normalized.interpreterPreference)
-  return normalized
-}
-
 export async function loadPythonPreferences(globalConfigDir = '') {
-  if (!hasDesktopInvoke()) {
-    return loadBrowserPreviewPythonPreferences()
-  }
-
   const preferences = await invoke('python_preferences_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
@@ -54,10 +33,6 @@ export async function loadPythonPreferences(globalConfigDir = '') {
 }
 
 export async function savePythonPreferences(globalConfigDir = '', preferences = {}) {
-  if (!hasDesktopInvoke()) {
-    return saveBrowserPreviewPythonPreferences(preferences)
-  }
-
   const normalized = await invoke('python_preferences_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
