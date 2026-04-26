@@ -10,7 +10,6 @@
 
 - `src/`：Vue 前端
 - `src-tauri/`：Tauri / Rust runtime
-- `.github/workflows/ci.yml`：最小 CI
 - `package.json`、`vite.config.js`、`index.html`：frontend build contract
 
 已不再保留：
