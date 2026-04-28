@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
@@ -29,6 +28,7 @@ import {
   restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
   revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
   setWorkspaceTreeVisibility,
+  listenWorkspaceTreeRefreshRequested,
   startWorkspaceTreeWatch,
   stopWorkspaceTreeWatch,
 } from '../services/workspaceTreeRuntime'
@@ -55,8 +55,6 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
     includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
-
-const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
 
 async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
   const workspace = useWorkspaceStore()
@@ -298,8 +296,7 @@ export const useFilesStore = defineStore('files', {
       try {
         await startWorkspaceTreeWatch(workspacePath)
         this._nativeWatcherActive = true
-        this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, (event) => {
-          const payload = event.payload || {}
+        this._nativeWatcherUnlisten = await listenWorkspaceTreeRefreshRequested((payload) => {
           const activeWorkspacePath = useWorkspaceStore().path
           if (!activeWorkspacePath) return
           if (String(payload.workspacePath || '') !== String(activeWorkspacePath || '')) return
@@ -310,7 +307,7 @@ export const useFilesStore = defineStore('files', {
           }).catch(() => {
             // Workspace may have changed while the refresh event was in flight.
           })
-        }).catch(() => null)
+        })
       } catch (error) {
         this._nativeWatcherUnlisten = null
         this._nativeWatcherActive = false

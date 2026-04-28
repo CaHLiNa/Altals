@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import { listen } from '@tauri-apps/api/event'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
@@ -11,6 +10,9 @@ import {
   downloadTectonic,
   executeLatexCompile,
   formatLatexDocument,
+  listenLatexCompileStream,
+  listenLatexRuntimeCompileRequested,
+  listenTectonicDownloadProgress,
   resolveLatexCompileRequest,
   resolveLatexLintState,
   scheduleLatexRuntime,
@@ -152,8 +154,7 @@ async function ensureLatexStreamListener() {
     return
   }
 
-  latexStreamUnlistenPromise = listen('latex-compile-stream', (event) => {
-    const payload = event.payload || {}
+  latexStreamUnlistenPromise = listenLatexCompileStream((payload) => {
     pushLatexStreamToTerminal({
       texPath: payload.texPath,
       line: payload.line,
@@ -173,20 +174,16 @@ async function ensureLatexRuntimeCompileRequestListener() {
     return
   }
 
-  latexRuntimeCompileRequestUnlistenPromise = listen(
-    'latex-runtime-compile-requested',
-    (event) => {
-      const payload = event.payload || {}
-      const latexStore = useLatexStore()
-      const sourcePath = String(payload.sourcePath || '')
-      const targetPath = String(payload.targetPath || sourcePath)
-      if (!sourcePath) return
-      void latexStore.compile(sourcePath, {
-        reason: String(payload.reason || 'save'),
-        targetPath,
-      })
-    },
-  )
+  latexRuntimeCompileRequestUnlistenPromise = listenLatexRuntimeCompileRequested((payload) => {
+    const latexStore = useLatexStore()
+    const sourcePath = String(payload.sourcePath || '')
+    const targetPath = String(payload.targetPath || sourcePath)
+    if (!sourcePath) return
+    void latexStore.compile(sourcePath, {
+      reason: String(payload.reason || 'save'),
+      targetPath,
+    })
+  })
 
   await latexRuntimeCompileRequestUnlistenPromise
 }
@@ -862,8 +859,8 @@ export const useLatexStore = defineStore('latex', {
       this.downloadProgress = 0
       this.downloadError = null
 
-      const unlisten = await listen('tectonic-download-progress', (event) => {
-        this.downloadProgress = event.payload.percent
+      const unlisten = await listenTectonicDownloadProgress((payload) => {
+        this.downloadProgress = payload.percent
       })
 
       try {

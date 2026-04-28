@@ -1,4 +1,17 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+
+export async function listenLatexCompileStream(handler = () => {}) {
+  return listen('latex-compile-stream', (event) => {
+    handler(event.payload || {})
+  }).catch(() => () => {})
+}
+
+export async function listenLatexRuntimeCompileRequested(handler = () => {}) {
+  return listen('latex-runtime-compile-requested', (event) => {
+    handler(event.payload || {})
+  }).catch(() => () => {})
+}
 
 export async function resolveLatexCompileRequest(params = {}) {
   return invoke('latex_compile_request_resolve', {

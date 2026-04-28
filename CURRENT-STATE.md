@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-As of 2026-04-27, this repository is no longer a minimal demo. It is a medium-complexity Tauri desktop workspace with a working main path around `workspace -> file tree -> multi-pane editor -> document workflow -> references`.
+As of 2026-04-28, this repository is no longer a minimal demo. It is a medium-complexity Tauri desktop workspace with a working main path around `workspace -> file tree -> multi-pane editor -> document workflow -> references`.
 
 This document records the current product surface, architecture shape, and debt profile so future work can stay aligned with the desktop-first scope.
 
@@ -113,6 +113,7 @@ Current state:
 
 - The repository contains a substantial references subsystem.
 - It supports local library state, metadata refresh, BibTeX import/export, PDF import, citation rendering, Crossref lookup, and Zotero sync/account handling.
+- Reference asset storage and PDF fulltext extraction now resolve in Rust instead of the frontend runtime layer.
 - References also influence workspace bootstrap and right-side detail views.
 
 Interpretation:
@@ -142,8 +143,8 @@ What is already working well:
 
 What is not fully cleaned up:
 
-- UI-layer direct `invoke()` usage has been removed from `app/`, `components/`, `composables/`, and `i18n/`, and a repo guard now enforces that boundary.
-- The same boundary tightening now covers selected main-path stores: `workspace`, `files`, `links`, `latex`, and `references`.
+- UI-layer direct Tauri API usage has been removed from `app/`, `components/`, `composables/`, and `i18n/`, and a repo guard now enforces that boundary for both `@tauri-apps/api/core` and `@tauri-apps/api/event`.
+- The same boundary tightening now covers selected main-path stores: `workspace`, `files`, `links`, `latex`, and `references`, so Tauri event listeners also stay inside `services/*`.
 - Remaining bridge calls are now concentrated in `services/*`, and several previously broad bridge files have started to split into narrower runtime slices.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
@@ -158,7 +159,7 @@ What is not fully cleaned up:
 ### Boundary Debt
 
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
-- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/latexWorkshopSynctex`, `latex/projectGraph`, and `pdf/artifactPreview` now route through narrower sub-services, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
+- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/latexWorkshopSynctex`, `latex/projectGraph`, and `pdf/artifactPreview` now route through narrower sub-services, and `references/referenceAssets` is now a thinner Rust-backed bridge, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 
 ### Scope Debt
 

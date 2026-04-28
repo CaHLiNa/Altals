@@ -9,6 +9,7 @@ export {
   stopWorkspaceTreeWatch,
   setWorkspaceTreeVisibility,
   noteWorkspaceTreeActivity,
+  listenWorkspaceTreeRefreshRequested,
 } from './workspaceTreeWatchRuntime.js'
 
 export { readDirShallow } from './workspaceTreeReadRuntime.js'

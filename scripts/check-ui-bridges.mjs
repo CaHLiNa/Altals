@@ -16,7 +16,7 @@ const GUARDED_FILES = [
   'src/stores/references.js',
 ]
 const SOURCE_FILE_PATTERN = /\.(js|vue)$/u
-const TAURI_CORE_IMPORT_PATTERN = /@tauri-apps\/api\/core/u
+const TAURI_API_IMPORT_PATTERN = /@tauri-apps\/api\/(?:core|event)\b/u
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -50,7 +50,7 @@ async function main() {
 
     for (const filePath of files) {
       const content = await readFile(filePath, 'utf8')
-      const match = TAURI_CORE_IMPORT_PATTERN.exec(content)
+      const match = TAURI_API_IMPORT_PATTERN.exec(content)
       if (!match) continue
 
       violations.push({
@@ -63,7 +63,7 @@ async function main() {
   for (const relativeFilePath of GUARDED_FILES) {
     const absoluteFilePath = path.join(ROOT, relativeFilePath)
     const content = await readFile(absoluteFilePath, 'utf8')
-    const match = TAURI_CORE_IMPORT_PATTERN.exec(content)
+    const match = TAURI_API_IMPORT_PATTERN.exec(content)
     if (!match) continue
 
     violations.push({
@@ -73,11 +73,11 @@ async function main() {
   }
 
   if (violations.length === 0) {
-    console.log('UI bridge guard passed: guarded UI layers, i18n entrypoints, and selected main-path stores have no direct @tauri-apps/api/core imports.')
+    console.log('UI bridge guard passed: guarded UI layers, i18n entrypoints, and selected main-path stores have no direct @tauri-apps/api/core or @tauri-apps/api/event imports.')
     return
   }
 
-  console.error('UI bridge guard failed. Move Tauri core access out of guarded UI layers:')
+  console.error('UI bridge guard failed. Move Tauri API access out of guarded UI layers:')
   for (const violation of violations) {
     console.error(`- ${violation.filePath}:${violation.line}`)
   }

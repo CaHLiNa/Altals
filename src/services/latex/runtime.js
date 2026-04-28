@@ -1,4 +1,6 @@
 export {
+  listenLatexCompileStream,
+  listenLatexRuntimeCompileRequested,
   resolveLatexCompileRequest,
   scheduleLatexRuntime,
   executeLatexCompile,
@@ -12,4 +14,5 @@ export {
   checkLatexTools,
   formatLatexDocument,
   downloadTectonic,
+  listenTectonicDownloadProgress,
 } from './toolingRuntime.js'
