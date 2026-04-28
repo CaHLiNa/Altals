@@ -3,8 +3,8 @@ use image::codecs::png::PngEncoder;
 use image::{ColorType, GenericImageView, ImageEncoder, ImageReader};
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use tokio::task;
@@ -135,6 +135,17 @@ fn path_status_internal(path: &Path) -> PathStatusResult {
             .map(fs::Metadata::len),
         modified,
     }
+}
+
+fn workspace_read_text_file_blocking(
+    path: &Path,
+    max_bytes: Option<u64>,
+) -> Result<String, String> {
+    read_text_file_with_limit(path, max_bytes)
+}
+
+fn workspace_write_text_file_blocking(path: &Path, content: &str) -> Result<(), String> {
+    fs::write(path, content).map_err(|e| e.to_string())
 }
 
 fn resolve_unique_copy_destination(path: &Path, dir: &Path, is_dir: bool) -> PathBuf {
@@ -530,30 +541,6 @@ pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Res
 }
 
 #[tauri::command]
-pub async fn read_file(path: String, max_bytes: Option<u64>) -> Result<String, String> {
-    eprintln!("[fs] read_file start path={}", path);
-    let started = std::time::Instant::now();
-    let path_for_read = path.clone();
-    let result =
-        run_blocking(move || read_text_file_with_limit(Path::new(&path_for_read), max_bytes)).await;
-    match &result {
-        Ok(content) => eprintln!(
-            "[fs] read_file ok path={} bytes={} elapsed_ms={}",
-            path,
-            content.len(),
-            started.elapsed().as_millis()
-        ),
-        Err(error) => eprintln!(
-            "[fs] read_file err path={} elapsed_ms={} error={}",
-            path,
-            started.elapsed().as_millis(),
-            error
-        ),
-    }
-    result
-}
-
-#[tauri::command]
 pub async fn read_file_base64(path: String) -> Result<String, String> {
     run_blocking(move || {
         let bytes = fs::read(&path).map_err(|e| e.to_string())?;
@@ -575,13 +562,23 @@ pub async fn render_image_preview(
 }
 
 #[tauri::command]
-pub async fn write_file(
+pub async fn workspace_read_text_file(
+    path: String,
+    max_bytes: Option<u64>,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<String, String> {
+    let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || workspace_read_text_file_blocking(&resolved, max_bytes)).await
+}
+
+#[tauri::command]
+pub async fn workspace_write_text_file(
     path: String,
     content: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || fs::write(&resolved, &content).map_err(|e| e.to_string())).await
+    run_blocking(move || workspace_write_text_file_blocking(&resolved, &content)).await
 }
 
 #[tauri::command]
@@ -915,7 +912,8 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking,
+        workspace_duplicate_path_blocking, workspace_read_text_file_blocking,
+        workspace_write_text_file_blocking,
     };
     use std::fs;
 
@@ -992,6 +990,28 @@ mod tests {
             fs::read_to_string(&duplicated.path).expect("read duplicated file"),
             "hello"
         );
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_text_file_read_write_respects_limit() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-text-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let file_path = temp_dir.join("note.md");
+
+        workspace_write_text_file_blocking(&file_path, "hello workspace")
+            .expect("write workspace text");
+        let content =
+            workspace_read_text_file_blocking(&file_path, Some(32)).expect("read workspace text");
+        assert_eq!(content, "hello workspace");
+
+        let error =
+            workspace_read_text_file_blocking(&file_path, Some(4)).expect_err("limit should fail");
+        assert!(error.starts_with("FILE_TOO_LARGE:4:"));
 
         fs::remove_dir_all(temp_dir).ok();
     }

@@ -190,7 +190,7 @@ pub fn workspace_clear_allowed_roots(
     clear_allowed_roots_internal(state.inner())
 }
 
-pub fn ensure_allowed_mutation_path(
+pub fn ensure_allowed_workspace_path(
     state: &WorkspaceScopeState,
     path: &Path,
 ) -> Result<PathBuf, String> {
@@ -207,6 +207,13 @@ pub fn ensure_allowed_mutation_path(
             canonical.display()
         ))
     }
+}
+
+pub fn ensure_allowed_mutation_path(
+    state: &WorkspaceScopeState,
+    path: &Path,
+) -> Result<PathBuf, String> {
+    ensure_allowed_workspace_path(state, path)
 }
 
 pub fn resolve_allowed_scoped_path(
@@ -297,4 +304,49 @@ pub fn canonicalize_for_scope(path: &Path) -> Result<PathBuf, String> {
 
 fn is_within_root(path: &Path, root: &Path) -> bool {
     path == root || path.starts_with(root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_allowed_workspace_path, set_allowed_roots_internal, WorkspaceScopeState};
+    use std::fs;
+
+    #[test]
+    fn ensure_allowed_workspace_path_rejects_unregistered_scope() {
+        let state = WorkspaceScopeState::default();
+        let error = ensure_allowed_workspace_path(&state, std::path::Path::new("/tmp"))
+            .expect_err("unregistered scope should fail");
+
+        assert_eq!(error, "No active workspace roots are registered");
+    }
+
+    #[test]
+    fn ensure_allowed_workspace_path_allows_workspace_and_rejects_outside() {
+        let temp_root =
+            std::env::temp_dir().join(format!("scribeflow-scope-root-{}", uuid::Uuid::new_v4()));
+        let outside_root =
+            std::env::temp_dir().join(format!("scribeflow-scope-outside-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_root).expect("create workspace root");
+        fs::create_dir_all(&outside_root).expect("create outside root");
+
+        let allowed_file = temp_root.join("note.md");
+        let outside_file = outside_root.join("note.md");
+        fs::write(&allowed_file, "inside").expect("write allowed file");
+        fs::write(&outside_file, "outside").expect("write outside file");
+
+        let state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&state, &temp_root.to_string_lossy(), None, None, None)
+            .expect("register workspace root");
+
+        let allowed = ensure_allowed_workspace_path(&state, &allowed_file)
+            .expect("workspace file should be allowed");
+        assert!(allowed.ends_with("note.md"));
+
+        let error = ensure_allowed_workspace_path(&state, &outside_file)
+            .expect_err("outside file should be rejected");
+        assert!(error.starts_with("Path is outside the allowed workspace roots:"));
+
+        fs::remove_dir_all(temp_root).ok();
+        fs::remove_dir_all(outside_root).ok();
+    }
 }

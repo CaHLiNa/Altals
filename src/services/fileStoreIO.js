@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { TEXT_FILE_READ_LIMIT_BYTES } from '../domains/files/workspaceTextFileLimits.js'
 
 export async function readWorkspaceTextFile(path, maxBytes = TEXT_FILE_READ_LIMIT_BYTES) {
-  return invoke('read_file', { path, maxBytes })
+  return invoke('workspace_read_text_file', { path, maxBytes })
 }
 
 export async function saveWorkspaceTextFile(path, content) {
@@ -10,7 +10,7 @@ export async function saveWorkspaceTextFile(path, content) {
 }
 
 export async function writeTextFile(path, content) {
-  await invoke('write_file', { path, content })
+  await invoke('workspace_write_text_file', { path, content })
 }
 
 export async function createWorkspaceFile(dirPath, name, options = {}) {
