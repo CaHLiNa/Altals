@@ -11,11 +11,11 @@
         @contextmenu.prevent.stop
       >
         <template v-if="!entry || entry.is_dir">
-          <button type="button" class="context-menu-item" @click.stop="$emit('create', { ext: null, isDir: true })">
+          <button type="button" class="context-menu-item" @click.stop="selectAction('create', { ext: null, isDir: true })">
             <IconFolderPlus :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ t('New Folder') }}</span>
           </button>
-          <button type="button" class="context-menu-item" @click.stop="$emit('create', { ext: null })">
+          <button type="button" class="context-menu-item" @click.stop="selectAction('create', { ext: null })">
             <IconFilePlus :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ t('New File...') }}</span>
           </button>
@@ -25,7 +25,7 @@
             :key="template.id"
             type="button"
             class="context-menu-item"
-            @click.stop="$emit('create', { ext: template.ext, suggestedName: template.filename, initialContent: template.content })"
+            @click.stop="selectAction('create', { ext: template.ext, suggestedName: template.filename, initialContent: template.content })"
           >
             <component :is="template.ext === '.tex' ? IconMath : IconFileText" :size="14" :stroke-width="1.5" />
             <span class="flex-1">{{ template.label }}</span>
@@ -35,15 +35,15 @@
 
         <template v-if="entry">
           <div v-if="entry.is_dir" class="context-menu-separator"></div>
-          <button type="button" class="context-menu-item" @click.stop="$emit('rename', entry)">
+          <button type="button" class="context-menu-item" @click.stop="selectAction('rename', entry)">
             <IconPencil :size="14" :stroke-width="1.5" />
             {{ t('Rename') }}
           </button>
-          <button type="button" class="context-menu-item" @click.stop="$emit('duplicate', entry)">
+          <button type="button" class="context-menu-item" @click.stop="selectAction('duplicate', entry)">
             <IconCopy :size="14" :stroke-width="1.5" />
             {{ t('Duplicate') }}
           </button>
-          <button type="button" class="context-menu-item context-menu-item-danger" @click.stop="$emit('delete', entry)">
+          <button type="button" class="context-menu-item context-menu-item-danger" @click.stop="selectAction('delete', entry)">
             <IconTrash :size="14" :stroke-width="1.5" />
             {{ t('Delete') }}
           </button>
@@ -51,7 +51,7 @@
 
         <template v-if="selectedCount > 1">
           <div class="context-menu-separator"></div>
-          <button type="button" class="context-menu-item context-menu-item-danger" @click.stop="$emit('delete-selected')">
+          <button type="button" class="context-menu-item context-menu-item-danger" @click.stop="selectAction('delete-selected')">
             <IconTrash :size="14" :stroke-width="1.5" />
             {{ t('Delete {count} selected', { count: selectedCount }) }}
           </button>
@@ -59,7 +59,7 @@
 
         <template v-if="entry">
           <div class="context-menu-separator"></div>
-          <button type="button" class="context-menu-item" @click.stop="$emit('reveal-in-finder', entry)">
+          <button type="button" class="context-menu-item" @click.stop="selectAction('reveal-in-finder', entry)">
             <IconExternalLink :size="14" :stroke-width="1.5" />
             {{ revealLabel }}
           </button>
@@ -117,6 +117,11 @@ async function calculatePosition() {
 
 function handleKeyDown(e) {
   if (e.key === 'Escape') emit('close')
+}
+
+function selectAction(eventName, payload) {
+  emit('close')
+  emit(eventName, payload)
 }
 
 onMounted(() => {
