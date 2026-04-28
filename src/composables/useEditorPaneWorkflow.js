@@ -1,4 +1,4 @@
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { isDraftPath, isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
@@ -28,11 +28,34 @@ export function useEditorPaneWorkflow(options) {
     }
   }
 
-  const workflowUiState = computed(() => (
+  const resolvedWorkflowUiState = computed(() => (
     activeTabRef.value && !isDraftPath(activeTabRef.value)
       ? workflowStore.getUiStateForFile(activeTabRef.value, buildWorkflowOptions())
       : null
   ))
+  const stableWorkflowUiState = ref(null)
+  const stableWorkflowPath = ref('')
+
+  watch(
+    [activeTabRef, resolvedWorkflowUiState],
+    ([activePath, nextState]) => {
+      const nextPath = activePath && !isDraftPath(activePath) ? activePath : ''
+      if (nextPath !== stableWorkflowPath.value) {
+        stableWorkflowPath.value = nextPath
+        stableWorkflowUiState.value = nextState || null
+        return
+      }
+
+      if (nextState) {
+        stableWorkflowUiState.value = nextState
+      } else if (!nextPath) {
+        stableWorkflowUiState.value = null
+      }
+    },
+    { immediate: true },
+  )
+
+  const workflowUiState = computed(() => stableWorkflowUiState.value)
   const activeDocumentAdapter = computed(() => (
     activeTabRef.value && !isDraftPath(activeTabRef.value) ? getDocumentAdapterForFile(activeTabRef.value) : null
   ))
