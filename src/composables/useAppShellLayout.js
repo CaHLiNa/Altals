@@ -1,4 +1,3 @@
-import { invoke } from '@tauri-apps/api/core'
 import { onMounted, ref } from 'vue'
 import {
   flushWorkbenchMotionCommit,
@@ -8,6 +7,10 @@ import {
   clearStorageKeys,
   readStorageValue,
 } from '../services/bridgeStorage.js'
+import {
+  loadWorkbenchLayout,
+  saveWorkbenchLayout,
+} from '../services/workbenchLayout.js'
 import { MAX_WORKBENCH_SIDEBAR_PANEL_COUNT } from '../shared/workbenchSidebarPanels.js'
 import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspectorPanels.js'
 
@@ -71,11 +74,7 @@ function readLegacyLayoutState() {
 async function loadWorkbenchLayoutState() {
   const legacyState = readLegacyLayoutState()
 
-  const state = await invoke('workbench_layout_load', {
-    params: {
-      legacyState,
-    },
-  })
+  const state = await loadWorkbenchLayout(legacyState)
   clearLegacyLayoutStorage()
   return {
     ...legacyState,
@@ -89,11 +88,7 @@ async function saveWorkbenchLayoutState() {
     rightSidebarWidth: rightSidebarWidth.value,
     bottomPanelHeight: bottomPanelHeight.value,
   }
-  const saved = await invoke('workbench_layout_save', {
-    params: {
-      state,
-    },
-  })
+  const saved = await saveWorkbenchLayout(state)
   clearLegacyLayoutStorage()
   return saved || state
 }
