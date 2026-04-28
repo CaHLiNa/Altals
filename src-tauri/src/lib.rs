@@ -563,6 +563,8 @@ pub fn run() {
             latex::download_tectonic,
             latex::run_chktex,
             latex::format_latex_document,
+            latex::latex_preview_resolve_sync_target_path,
+            latex::latex_preview_resolve_editor_selection,
             latex::synctex_forward,
             latex::synctex_backward,
         ])

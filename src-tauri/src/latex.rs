@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use tauri::Emitter;
 
+use crate::fs_tree::{collect_files_recursive, FileEntry};
 use crate::latex_compile::{
     apply_tex_locale_std, apply_tex_locale_tokio, apply_user_perl_local_lib_env_tokio,
     compile_latex_with_preference, latexindent_is_healthy, latexindent_null_path,
@@ -56,6 +57,42 @@ pub struct CompileResult {
     pub command_preview: Option<String>,
     pub requested_program: Option<String>,
     pub requested_program_applied: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexPreviewSyncTargetPathParams {
+    #[serde(default)]
+    pub reported_file: String,
+    #[serde(default)]
+    pub source_path: String,
+    #[serde(default)]
+    pub compile_target_path: String,
+    #[serde(default)]
+    pub workspace_path: String,
+    #[serde(default = "default_include_hidden")]
+    pub include_hidden: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexPreviewEditorSelectionParams {
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    pub line: usize,
+    #[serde(default)]
+    pub column: usize,
+    #[serde(default)]
+    pub text_before_selection: String,
+    #[serde(default)]
+    pub text_after_selection: String,
+    #[serde(default)]
+    pub strict_line: bool,
+}
+
+fn default_include_hidden() -> bool {
+    true
 }
 
 #[tauri::command]
@@ -1004,9 +1041,433 @@ fn forward_sync(nodes: &[SyncNode], file_path: &str, line: u32) -> Result<serde_
     Ok(serde_json::Value::Array(records))
 }
 
+fn collapse_preview_path_segments(value: &str) -> String {
+    let normalized = normalize_synctex_path(value);
+    if normalized.is_empty() {
+        return String::new();
+    }
+
+    let has_drive_prefix = normalized.len() >= 3
+        && normalized.as_bytes()[1] == b':'
+        && normalized.as_bytes()[2] == b'/';
+    let is_absolute = normalized.starts_with('/');
+    let drive_prefix = if has_drive_prefix {
+        normalized[..2].to_string()
+    } else {
+        String::new()
+    };
+    let seed = if has_drive_prefix {
+        &normalized[3..]
+    } else if is_absolute {
+        &normalized[1..]
+    } else {
+        normalized.as_str()
+    };
+
+    let mut next_segments = Vec::new();
+    for segment in seed.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            if !next_segments.is_empty() {
+                next_segments.pop();
+            }
+            continue;
+        }
+        next_segments.push(segment.to_string());
+    }
+
+    if has_drive_prefix {
+        if next_segments.is_empty() {
+            format!("{drive_prefix}/")
+        } else {
+            format!("{drive_prefix}/{}", next_segments.join("/"))
+        }
+    } else if is_absolute {
+        if next_segments.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{}", next_segments.join("/"))
+        }
+    } else {
+        next_segments.join("/")
+    }
+}
+
+fn dirname_path(path: &str) -> String {
+    Path::new(path)
+        .parent()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default()
+}
+
+fn split_preview_path_segments(value: &str) -> Vec<String> {
+    let normalized = collapse_preview_path_segments(value);
+    if normalized.is_empty() {
+        return Vec::new();
+    }
+
+    let has_drive_prefix = normalized.len() >= 3
+        && normalized.as_bytes()[1] == b':'
+        && normalized.as_bytes()[2] == b'/';
+    let seed = if has_drive_prefix {
+        &normalized[3..]
+    } else if normalized.starts_with('/') {
+        &normalized[1..]
+    } else {
+        normalized.as_str()
+    };
+
+    seed
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| segment.to_string())
+        .collect()
+}
+
+fn trailing_segment_match_count(left: &str, right: &str) -> usize {
+    let left_segments = split_preview_path_segments(left);
+    let right_segments = split_preview_path_segments(right);
+    let mut matches = 0usize;
+
+    while matches < left_segments.len()
+        && matches < right_segments.len()
+        && left_segments[left_segments.len() - 1 - matches]
+            == right_segments[right_segments.len() - 1 - matches]
+    {
+        matches += 1;
+    }
+
+    matches
+}
+
+fn is_preview_tex_path(value: &str) -> bool {
+    let normalized = normalize_synctex_path(value).to_ascii_lowercase();
+    normalized.ends_with(".tex") || normalized.ends_with(".latex")
+}
+
+fn score_moved_path_candidate(candidate_path: &str, reported_path: &str) -> i32 {
+    let normalized_candidate = collapse_preview_path_segments(candidate_path);
+    let normalized_reported = collapse_preview_path_segments(reported_path);
+    if normalized_candidate.is_empty() || normalized_reported.is_empty() {
+        return -1;
+    }
+    if normalized_candidate == normalized_reported {
+        return 10_000;
+    }
+
+    let candidate_segments = split_preview_path_segments(&normalized_candidate);
+    let reported_segments = split_preview_path_segments(&normalized_reported);
+    if candidate_segments.is_empty() || reported_segments.is_empty() {
+        return -1;
+    }
+    if candidate_segments.last() != reported_segments.last() {
+        return -1;
+    }
+
+    100 + (trailing_segment_match_count(&normalized_candidate, &normalized_reported) as i32) * 25
+}
+
+fn read_workspace_tex_paths(workspace_path: &str, include_hidden: bool) -> Vec<String> {
+    let normalized_workspace_path = normalize_synctex_path(workspace_path);
+    if normalized_workspace_path.is_empty() {
+        return Vec::new();
+    }
+
+    let mut entries: Vec<FileEntry> = Vec::new();
+    if collect_files_recursive(
+        Path::new(&normalized_workspace_path),
+        &mut entries,
+        include_hidden,
+    )
+    .is_err()
+    {
+        return Vec::new();
+    }
+
+    let mut paths = entries
+        .into_iter()
+        .map(|entry| normalize_synctex_path(&entry.path))
+        .filter(|path| is_preview_tex_path(path))
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn resolve_relative_preview_path(base_dir: &str, reported_path: &str) -> String {
+    if base_dir.trim().is_empty() {
+        return collapse_preview_path_segments(reported_path);
+    }
+
+    normalize_synctex_path(
+        &Path::new(base_dir)
+            .join(reported_path)
+            .to_string_lossy(),
+    )
+}
+
+fn resolve_moved_absolute_latex_path(params: &LatexPreviewSyncTargetPathParams) -> String {
+    let normalized_reported = collapse_preview_path_segments(&params.reported_file);
+    if normalized_reported.is_empty() {
+        return String::new();
+    }
+    if !normalized_reported.starts_with('/')
+        && !(normalized_reported.len() >= 3
+            && normalized_reported.as_bytes()[1] == b':'
+            && normalized_reported.as_bytes()[2] == b'/')
+    {
+        return normalized_reported;
+    }
+    if Path::new(&normalized_reported).exists() {
+        return normalized_reported;
+    }
+
+    let source_path = normalize_synctex_path(&params.source_path);
+    let compile_target_path = normalize_synctex_path(&params.compile_target_path);
+    let workspace_path = normalize_synctex_path(&params.workspace_path);
+    let mut candidates = vec![source_path, compile_target_path];
+    candidates.extend(read_workspace_tex_paths(
+        &workspace_path,
+        params.include_hidden,
+    ));
+
+    let mut best_path = String::new();
+    let mut best_score = -1;
+    for candidate in candidates {
+        let score = score_moved_path_candidate(&candidate, &normalized_reported);
+        if score > best_score {
+            best_path = candidate;
+            best_score = score;
+        }
+    }
+
+    if !best_path.is_empty() && best_score >= 125 && Path::new(&best_path).exists() {
+        return best_path;
+    }
+
+    normalized_reported
+}
+
+fn resolve_sync_target_path_internal(params: &LatexPreviewSyncTargetPathParams) -> String {
+    let normalized_reported = collapse_preview_path_segments(&params.reported_file);
+    if normalized_reported.is_empty() {
+        return String::new();
+    }
+
+    if normalized_reported.starts_with('/')
+        || (normalized_reported.len() >= 3
+            && normalized_reported.as_bytes()[1] == b':'
+            && normalized_reported.as_bytes()[2] == b'/')
+    {
+        return resolve_moved_absolute_latex_path(params);
+    }
+
+    let normalized_compile_target_path = normalize_synctex_path(&params.compile_target_path);
+    let normalized_source_path = normalize_synctex_path(&params.source_path);
+    let workspace_path = normalize_synctex_path(&params.workspace_path);
+    let base_dirs = vec![
+        if normalized_compile_target_path.is_empty() {
+            String::new()
+        } else {
+            dirname_path(&normalized_compile_target_path)
+        },
+        if normalized_source_path.is_empty() {
+            String::new()
+        } else {
+            dirname_path(&normalized_source_path)
+        },
+        workspace_path,
+    ];
+
+    for base_dir in base_dirs.iter().filter(|value| !value.is_empty()) {
+        let resolved = resolve_relative_preview_path(base_dir, &normalized_reported);
+        if !resolved.is_empty() && Path::new(&resolved).exists() {
+            return resolved;
+        }
+    }
+
+    for base_dir in base_dirs.iter().filter(|value| !value.is_empty()) {
+        let resolved = resolve_relative_preview_path(base_dir, &normalized_reported);
+        if !resolved.is_empty() {
+            return resolved;
+        }
+    }
+
+    normalized_reported
+}
+
+fn utf16_units(value: &str) -> Vec<u16> {
+    value.encode_utf16().collect()
+}
+
+fn find_utf16_indexes(source: &[u16], needle: &[u16]) -> Vec<usize> {
+    let mut out = Vec::new();
+    if needle.is_empty() || needle.len() > source.len() {
+        return out;
+    }
+
+    for index in 0..=source.len() - needle.len() {
+        if source[index..index + needle.len()] == *needle {
+            out.push(index);
+        }
+    }
+
+    out
+}
+
+fn score_column_matches(
+    line_text: &str,
+    text_before_selection_full: &str,
+    text_after_selection_full: &str,
+) -> Option<usize> {
+    let line_units = utf16_units(line_text);
+    let before_units = utf16_units(text_before_selection_full);
+    let after_units = utf16_units(text_after_selection_full);
+    let max_length = before_units.len().max(after_units.len());
+    let mut previous_column_matches: Option<HashMap<usize, usize>> = None;
+
+    for length in 5..=max_length {
+        let mut columns = Vec::new();
+
+        if !before_units.is_empty() {
+            let start = before_units.len().saturating_sub(length);
+            let before_slice = &before_units[start..];
+            let before_columns = find_utf16_indexes(&line_units, before_slice)
+                .into_iter()
+                .map(|index| index + before_slice.len())
+                .collect::<Vec<_>>();
+            columns.extend(before_columns);
+        }
+
+        if !after_units.is_empty() {
+            let end = length.min(after_units.len());
+            let after_slice = &after_units[..end];
+            columns.extend(find_utf16_indexes(&line_units, after_slice));
+        }
+
+        let mut column_matches = HashMap::new();
+        for column in columns {
+            *column_matches.entry(column).or_insert(0usize) += 1;
+        }
+
+        let mut values = column_matches.values().copied().collect::<Vec<_>>();
+        values.sort_unstable();
+        if values.len() > 1 && values[0] == values[1] {
+            previous_column_matches = Some(column_matches);
+            continue;
+        }
+        if !values.is_empty() {
+            return column_matches
+                .into_iter()
+                .max_by_key(|(_, count)| *count)
+                .map(|(column, _)| column);
+        }
+        if let Some(previous) = previous_column_matches.take() {
+            if !previous.is_empty() {
+                return previous
+                    .into_iter()
+                    .max_by_key(|(_, count)| *count)
+                    .map(|(column, _)| column);
+            }
+        }
+        return None;
+    }
+
+    None
+}
+
+fn build_line_records(content: &str) -> Vec<(String, usize)> {
+    let mut records = Vec::new();
+    let mut utf16_offset = 0usize;
+    for segment in content.split('\n') {
+        records.push((segment.to_string(), utf16_offset));
+        utf16_offset += segment.encode_utf16().count() + 1;
+    }
+    records
+}
+
+fn resolve_editor_selection_internal(
+    params: &LatexPreviewEditorSelectionParams,
+) -> Option<serde_json::Value> {
+    if params.line < 1 {
+        return None;
+    }
+
+    let line_records = build_line_records(&params.content);
+    if line_records.is_empty() {
+        return None;
+    }
+
+    let safe_line = params.line.clamp(1, line_records.len());
+    let line_utf16_len = line_records[safe_line - 1].0.encode_utf16().count();
+    if params.text_before_selection.len() >= 5 || params.text_after_selection.len() >= 5 {
+        let candidate_rows = if params.strict_line {
+            vec![safe_line]
+        } else {
+            vec![safe_line, safe_line.saturating_sub(1), safe_line + 1]
+        };
+        let mut normalized_rows = Vec::new();
+        for row in candidate_rows {
+            if row == 0 || row > line_records.len() || normalized_rows.contains(&row) {
+                continue;
+            }
+            normalized_rows.push(row);
+        }
+
+        for row in normalized_rows {
+            let candidate_line = &line_records[row - 1].0;
+            let Some(column) = score_column_matches(
+                candidate_line,
+                &params.text_before_selection,
+                &params.text_after_selection,
+            ) else {
+                continue;
+            };
+            let safe_column = column.min(candidate_line.encode_utf16().count());
+            return Some(serde_json::json!({
+                "lineNumber": row,
+                "column": safe_column,
+            }));
+        }
+    }
+
+    if params.column > 0 && params.column <= line_utf16_len {
+        return Some(serde_json::json!({
+            "lineNumber": safe_line,
+            "column": params.column,
+        }));
+    }
+
+    Some(serde_json::json!({
+        "lineNumber": safe_line,
+        "column": 0,
+    }))
+}
+
+#[tauri::command]
+pub async fn latex_preview_resolve_sync_target_path(
+    params: LatexPreviewSyncTargetPathParams,
+) -> Result<String, String> {
+    Ok(resolve_sync_target_path_internal(&params))
+}
+
+#[tauri::command]
+pub async fn latex_preview_resolve_editor_selection(
+    params: LatexPreviewEditorSelectionParams,
+) -> Result<serde_json::Value, String> {
+    Ok(resolve_editor_selection_internal(&params).unwrap_or(serde_json::Value::Null))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{forward_sync, parse_synctex_content, parse_synctex_view_output};
+    use super::{
+        forward_sync, parse_synctex_content, parse_synctex_view_output,
+        resolve_editor_selection_internal, resolve_sync_target_path_internal,
+        LatexPreviewEditorSelectionParams, LatexPreviewSyncTargetPathParams,
+    };
+    use std::fs;
 
     #[test]
     fn parse_synctex_view_output_supports_rectangle_records() {
@@ -1075,5 +1536,50 @@ h1,12:65536,131072:32768,16384
         assert_eq!(parsed["indicator"].as_bool(), Some(true));
         assert!(parsed["W"].as_f64().unwrap_or_default() > 0.0);
         assert!(parsed["H"].as_f64().unwrap_or_default() > 0.0);
+    }
+
+    #[test]
+    fn resolve_editor_selection_prefers_neighboring_line_when_not_strict() {
+        let parsed = resolve_editor_selection_internal(&LatexPreviewEditorSelectionParams {
+            content: "alpha beta\nprefix target suffix\n".to_string(),
+            line: 1,
+            column: 0,
+            text_before_selection: "prefix ".to_string(),
+            text_after_selection: "target".to_string(),
+            strict_line: false,
+        })
+        .expect("selection");
+
+        assert_eq!(parsed["lineNumber"].as_u64(), Some(2));
+        assert_eq!(parsed["column"].as_u64(), Some(7));
+    }
+
+    #[test]
+    fn resolve_sync_target_path_uses_workspace_match_for_moved_absolute_path() {
+        let base_dir = std::env::temp_dir().join(format!(
+            "scribeflow-preview-sync-{}",
+            std::process::id()
+        ));
+        let workspace_dir = base_dir.join("workspace");
+        let source_dir = workspace_dir.join("sections");
+        fs::create_dir_all(&source_dir).expect("create workspace");
+        let target_path = source_dir.join("intro.tex");
+        fs::write(&target_path, "\\section{Intro}\n").expect("write tex file");
+
+        let resolved = resolve_sync_target_path_internal(&LatexPreviewSyncTargetPathParams {
+            reported_file: "/moved/location/intro.tex".to_string(),
+            source_path: target_path.to_string_lossy().to_string(),
+            compile_target_path: String::new(),
+            workspace_path: workspace_dir.to_string_lossy().to_string(),
+            include_hidden: true,
+        });
+
+        assert_eq!(
+            resolved.replace('\\', "/"),
+            target_path.to_string_lossy().replace('\\', "/"),
+        );
+
+        let _ = fs::remove_file(&target_path);
+        let _ = fs::remove_dir_all(&base_dir);
     }
 }
