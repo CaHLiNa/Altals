@@ -7,7 +7,7 @@ export async function openLocalPath(path) {
   if (!targetPath) return false
 
   try {
-    await invoke('open_path_in_default_app', { path: targetPath })
+    await invoke('workspace_open_path_in_default_app', { path: targetPath })
     return true
   } catch (error) {
     useToastStore().showOnce(

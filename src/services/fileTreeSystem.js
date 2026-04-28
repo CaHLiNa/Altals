@@ -69,7 +69,7 @@ export function listenWorkspaceTreeRefreshRequests(handler) {
 }
 
 export async function revealPathInFileManager(entry) {
-  return invoke('reveal_in_file_manager', { path: entry.path })
+  return invoke('workspace_reveal_in_file_manager', { path: entry.path })
 }
 
 export async function listenNativeFileDropEvents(handlers) {

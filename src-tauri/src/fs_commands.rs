@@ -144,6 +144,13 @@ fn workspace_path_status_internal(
     Ok(path_status_internal(&resolved))
 }
 
+fn workspace_external_path_internal(
+    scope_state: &WorkspaceScopeState,
+    path: &Path,
+) -> Result<PathBuf, String> {
+    security::ensure_allowed_workspace_path(scope_state, path)
+}
+
 fn workspace_read_text_file_blocking(
     path: &Path,
     max_bytes: Option<u64>,
@@ -760,9 +767,7 @@ pub async fn workspace_path_status(
     workspace_path_status_internal(scope_state.inner(), Path::new(&path))
 }
 
-#[tauri::command]
-pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
-    let target = Path::new(&path);
+fn reveal_in_file_manager_blocking(target: &Path) -> Result<(), String> {
     if !target.exists() {
         return Err("Path does not exist".to_string());
     }
@@ -823,80 +828,93 @@ pub async fn reveal_in_file_manager(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn open_path_in_default_app(path: String) -> Result<(), String> {
-    run_blocking(move || {
-        let target = PathBuf::from(&path);
-        if !target.exists() {
-            return Err("Path does not exist".to_string());
-        }
+pub async fn workspace_reveal_in_file_manager(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    let resolved = workspace_external_path_internal(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || reveal_in_file_manager_blocking(&resolved)).await
+}
 
-        #[cfg(target_os = "macos")]
-        {
-            let ext = target
-                .extension()
-                .and_then(|value| value.to_str())
-                .map(|value| value.to_ascii_lowercase())
-                .unwrap_or_default();
-            if matches!(ext.as_str(), "eps" | "ps") {
-                let converted_pdf = convert_postscript_to_pdf(&target)?;
-                let preview_status = background_command("open")
-                    .args(["-a", "Preview", &converted_pdf.to_string_lossy()])
-                    .status()
-                    .map_err(|error| format!("Failed to launch Preview: {error}"))?;
-                if preview_status.success() {
-                    return Ok(());
-                }
-            }
-            let prefer_preview = matches!(
-                ext.as_str(),
-                "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
-            );
+fn open_path_in_default_app_blocking(target: &Path) -> Result<(), String> {
+    if !target.exists() {
+        return Err("Path does not exist".to_string());
+    }
 
-            if prefer_preview {
-                let preview_status = background_command("open")
-                    .args(["-a", "Preview", &target.to_string_lossy()])
-                    .status()
-                    .map_err(|error| format!("Failed to launch Preview: {error}"))?;
-                if preview_status.success() {
-                    return Ok(());
-                }
-            }
-
-            let status = background_command("open")
-                .arg(&target)
+    #[cfg(target_os = "macos")]
+    {
+        let ext = target
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase())
+            .unwrap_or_default();
+        if matches!(ext.as_str(), "eps" | "ps") {
+            let converted_pdf = convert_postscript_to_pdf(target)?;
+            let preview_status = background_command("open")
+                .args(["-a", "Preview", &converted_pdf.to_string_lossy()])
                 .status()
-                .map_err(|error| format!("Failed to open file: {error}"))?;
-            if status.success() {
+                .map_err(|error| format!("Failed to launch Preview: {error}"))?;
+            if preview_status.success() {
                 return Ok(());
             }
-            return Err(format!("Failed to open file in the default app: {status}"));
         }
+        let prefer_preview = matches!(
+            ext.as_str(),
+            "eps" | "ps" | "pdf" | "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp" | "svg" | "tif" | "tiff"
+        );
 
-        #[cfg(target_os = "windows")]
-        {
-            let status = background_command("cmd")
-                .args(["/C", "start", "", &target.to_string_lossy()])
+        if prefer_preview {
+            let preview_status = background_command("open")
+                .args(["-a", "Preview", &target.to_string_lossy()])
                 .status()
-                .map_err(|error| format!("Failed to open file: {error}"))?;
-            if status.success() {
+                .map_err(|error| format!("Failed to launch Preview: {error}"))?;
+            if preview_status.success() {
                 return Ok(());
             }
-            return Err(format!("Failed to open file in the default app: {status}"));
         }
 
-        #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-        {
-            let status = background_command("xdg-open")
-                .arg(&target)
-                .status()
-                .map_err(|error| format!("Failed to open file: {error}"))?;
-            if status.success() {
-                return Ok(());
-            }
-            return Err(format!("Failed to open file in the default app: {status}"));
+        let status = background_command("open")
+            .arg(target)
+            .status()
+            .map_err(|error| format!("Failed to open file: {error}"))?;
+        if status.success() {
+            return Ok(());
         }
-    })
-    .await
+        return Err(format!("Failed to open file in the default app: {status}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let status = background_command("cmd")
+            .args(["/C", "start", "", &target.to_string_lossy()])
+            .status()
+            .map_err(|error| format!("Failed to open file: {error}"))?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to open file in the default app: {status}"));
+    }
+
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        let status = background_command("xdg-open")
+            .arg(target)
+            .status()
+            .map_err(|error| format!("Failed to open file: {error}"))?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to open file in the default app: {status}"));
+    }
+}
+
+#[tauri::command]
+pub async fn workspace_open_path_in_default_app(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<(), String> {
+    let resolved = workspace_external_path_internal(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || open_path_in_default_app_blocking(&resolved)).await
 }
 
 #[tauri::command]
@@ -917,7 +935,8 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking, workspace_path_status_internal,
+        workspace_duplicate_path_blocking, workspace_external_path_internal,
+        workspace_path_status_internal,
         workspace_read_file_base64_blocking, workspace_read_text_file_blocking,
         workspace_write_file_base64_blocking, workspace_write_text_file_blocking,
     };
@@ -985,6 +1004,43 @@ mod tests {
         assert!(!missing_status.is_dir);
 
         let outside_error = workspace_path_status_internal(&state, &outside_file)
+            .expect_err("outside path should be rejected");
+        assert!(outside_error.starts_with("Path is outside the allowed workspace roots:"));
+
+        fs::remove_dir_all(workspace_dir).ok();
+        fs::remove_dir_all(outside_dir).ok();
+    }
+
+    #[test]
+    fn workspace_external_path_respects_registered_scope() {
+        let workspace_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-external-path-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let outside_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-external-path-outside-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_dir).expect("create workspace dir");
+        fs::create_dir_all(&outside_dir).expect("create outside dir");
+        let workspace_file = workspace_dir.join("note.md");
+        let outside_file = outside_dir.join("note.md");
+        fs::write(&workspace_file, "hello").expect("write workspace file");
+        fs::write(&outside_file, "outside").expect("write outside file");
+
+        let state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&state, &workspace_dir.to_string_lossy(), None, None, None)
+            .expect("register workspace root");
+
+        let resolved = workspace_external_path_internal(&state, &workspace_file)
+            .expect("workspace external path should resolve");
+        assert!(resolved.ends_with("note.md"));
+
+        let missing = workspace_external_path_internal(&state, &workspace_dir.join("missing.pdf"))
+            .expect("missing workspace path should still resolve inside scope");
+        assert!(missing.ends_with("missing.pdf"));
+
+        let outside_error = workspace_external_path_internal(&state, &outside_file)
             .expect_err("outside path should be rejected");
         assert!(outside_error.starts_with("Path is outside the allowed workspace roots:"));
 
