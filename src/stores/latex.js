@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { useFilesStore } from './files'
 import { useWorkspaceStore } from './workspace'
 import { t } from '../i18n'
-import { resolveCachedLatexRootPath } from '../services/latex/root'
 import {
   checkLatexCompilers,
   checkLatexTools,
@@ -42,6 +41,38 @@ const LATEX_PREFERENCE_KEYS = [
 
 function fileNameForLog(texPath = '') {
   return basenamePath(texPath) || texPath
+}
+
+function normalizeLatexRuntimePath(path = '') {
+  return String(path || '').trim()
+}
+
+function resolveLatexTargetPathFromState(storeState = {}, texPath = '') {
+  const normalizedPath = normalizeLatexRuntimePath(texPath)
+  if (!normalizedPath) return ''
+
+  const directCompileTarget = normalizeLatexRuntimePath(
+    storeState.compileState?.[normalizedPath]?.compileTargetPath,
+  )
+  if (directCompileTarget) return directCompileTarget
+
+  const directQueueTarget = normalizeLatexRuntimePath(
+    storeState.buildQueueState?.[normalizedPath]?.targetPath,
+  )
+  if (directQueueTarget) return directQueueTarget
+
+  for (const [statePath, state] of Object.entries(storeState.compileState || {})) {
+    if (normalizeLatexRuntimePath(state?.linkedSourcePath) !== normalizedPath) continue
+    return normalizeLatexRuntimePath(state?.compileTargetPath || statePath)
+  }
+
+  for (const queueState of Object.values(storeState.buildQueueState || {})) {
+    if (normalizeLatexRuntimePath(queueState?.sourcePath) !== normalizedPath) continue
+    const targetPath = normalizeLatexRuntimePath(queueState?.targetPath)
+    if (targetPath) return targetPath
+  }
+
+  return normalizedPath
 }
 
 function formatIssue(issue) {
@@ -313,32 +344,36 @@ export const useLatexStore = defineStore('latex', {
 
   getters: {
     stateForFile: (state) => (texPath) => {
+      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath] ||
-        state.compileState[resolveCachedLatexRootPath(texPath)] ||
+        state.compileState[targetPath] ||
         null
       )
     },
 
     isCompiling: (state) => (texPath) => {
+      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       const s =
         state.compileState[texPath] ||
-        state.compileState[resolveCachedLatexRootPath(texPath)]
+        state.compileState[targetPath]
       return s?.status === 'compiling'
     },
 
     errorsForFile: (state) => (texPath) => {
+      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath]?.errors ||
-        state.compileState[resolveCachedLatexRootPath(texPath)]?.errors ||
+        state.compileState[targetPath]?.errors ||
         []
       )
     },
 
     warningsForFile: (state) => (texPath) => {
+      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.compileState[texPath]?.warnings ||
-        state.compileState[resolveCachedLatexRootPath(texPath)]?.warnings ||
+        state.compileState[targetPath]?.warnings ||
         []
       )
     },
@@ -365,9 +400,10 @@ export const useLatexStore = defineStore('latex', {
     hasLatexFormatter: (state) => state.latexindentInstalled,
 
     queueStateForFile: (state) => (texPath) => {
+      const targetPath = resolveLatexTargetPathFromState(state, texPath)
       return (
         state.buildQueueState[texPath] ||
-        state.buildQueueState[resolveCachedLatexRootPath(texPath)] ||
+        state.buildQueueState[targetPath] ||
         null
       )
     },
@@ -636,7 +672,7 @@ export const useLatexStore = defineStore('latex', {
         const targetKey =
           this.compileState[texPath]?.compileTargetPath ||
           options.targetPath ||
-          resolveCachedLatexRootPath(texPath) ||
+          resolveLatexTargetPathFromState(this, texPath) ||
           texPath
         this.applyCompileStatePatch(texPath, {
           status: 'error',
@@ -681,7 +717,7 @@ export const useLatexStore = defineStore('latex', {
     },
 
     cancelAutoCompile(texPath) {
-      const rootPath = resolveCachedLatexRootPath(texPath)
+      const rootPath = resolveLatexTargetPathFromState(this, texPath)
       const targetPaths = [texPath, rootPath].filter(Boolean)
       if (targetPaths.length > 0) {
         void cancelLatexRuntime(targetPaths).catch(() => {})
@@ -700,7 +736,7 @@ export const useLatexStore = defineStore('latex', {
       delete this.lintState[texPath]
       this.cancelAutoCompile(texPath)
       this.clearBuildQueueState(texPath)
-      this.clearBuildQueueState(resolveCachedLatexRootPath(texPath))
+      this.clearBuildQueueState(resolveLatexTargetPathFromState(this, texPath))
     },
 
     async scheduleAutoBuildForPath(filePath, options = {}) {

@@ -1,4 +1,3 @@
-import { stripExtension } from '../documentIntelligence/workspaceGraph.js'
 import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
 
 const SOURCE_GRAPH_CACHE = new Map()
@@ -48,12 +47,4 @@ export function cacheLatexProjectGraph(sourcePath = '', key = '', graph = null) 
 
 export function getCachedLatexProjectGraph(sourcePath = '') {
   return readCachedLatexProjectGraphEntry(sourcePath)?.graph || null
-}
-
-export function getCachedLatexRootPath(sourcePath = '') {
-  return getCachedLatexProjectGraph(sourcePath)?.rootPath || normalizeFsPath(sourcePath)
-}
-
-export function getCachedLatexPreviewPath(sourcePath = '') {
-  return getCachedLatexProjectGraph(sourcePath)?.previewPath || `${stripExtension(sourcePath)}.pdf`
 }
