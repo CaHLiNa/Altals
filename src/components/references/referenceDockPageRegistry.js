@@ -39,9 +39,9 @@ export const referenceDockPageRegistry = createInlineDockPageRegistry([
     id: REFERENCE_DOCK_CITED_IN_PAGE,
     resolve(context = {}) {
       const count = Number(context.citedInCount || 0)
-      const label = count > 0
-        ? `${context.t?.('Cited In') || 'Cited In'} (${count})`
-        : context.t?.('Cited In') || 'Cited In'
+      if (count <= 0) return null
+
+      const label = `${context.t?.('Cited In') || 'Cited In'} (${count})`
 
       return {
         key: REFERENCE_DOCK_CITED_IN_PAGE,

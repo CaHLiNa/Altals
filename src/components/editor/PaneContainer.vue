@@ -42,6 +42,8 @@
         :pane-id="renderNode.id"
         :preview-state="documentPreviewState"
         :document-dock-resizing="documentDockResizing"
+        :problems-reveal-path="documentProblemsRevealPath"
+        :problems-reveal-token="documentProblemsRevealToken"
         @close="$emit('inline-dock-close')"
       />
     </InlineDockFrame>
@@ -49,10 +51,14 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { DOCUMENT_DOCK_PROBLEMS_PAGE } from '../../domains/editor/documentDockPages.js'
 import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
+import { resolveCachedLatexRootPath } from '../../services/latex/root.js'
 import { isNewTab, isPreviewPath } from '../../utils/fileTypes'
 import { useI18n } from '../../i18n'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
@@ -81,9 +87,12 @@ defineEmits([
 ])
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const containerRef = ref(null)
 const lastDocumentTab = ref(null)
+const documentProblemsRevealPath = ref('')
+const documentProblemsRevealToken = ref(0)
 
 const renderNode = computed(() => {
   if (props.node?.type === 'leaf') return props.node
@@ -123,10 +132,66 @@ watch(
   },
   { flush: 'post', immediate: true }
 )
+watch(
+  () => props.documentDockOpen,
+  (isOpen, wasOpen) => {
+    if (isOpen || wasOpen !== true || documentProblemsRevealToken.value <= 0) return
+    documentProblemsRevealPath.value = ''
+  }
+)
 
 function resolveContainerWidth() {
   return containerRef.value?.getBoundingClientRect?.().width || 0
 }
+
+function compileEventMatchesActiveDocument(detail = {}) {
+  const activePath = String(documentTab.value || '').trim()
+  if (!activePath || getDocumentWorkflowKind(activePath) !== 'latex') return false
+
+  const issuePaths = [
+    ...(Array.isArray(detail.errors) ? detail.errors : []),
+    ...(Array.isArray(detail.warnings) ? detail.warnings : []),
+  ].map((problem) => String(problem?.file || problem?.sourcePath || '').trim()).filter(Boolean)
+  const eventPaths = [
+    detail.texPath,
+    detail.sourcePath,
+    detail.compileTargetPath,
+    ...issuePaths,
+  ].map((path) => String(path || '').trim()).filter(Boolean)
+  const activeRootPath = String(resolveCachedLatexRootPath(activePath) || '').trim()
+
+  return eventPaths.includes(activePath) ||
+    (!!activeRootPath && eventPaths.includes(activeRootPath))
+}
+
+async function handleLatexCompileDone(event = {}) {
+  const detail = event.detail || {}
+  if (!compileEventMatchesActiveDocument(detail)) return
+
+  const hasCompileIssues =
+    (Array.isArray(detail.errors) && detail.errors.length > 0) ||
+    (Array.isArray(detail.warnings) && detail.warnings.length > 0)
+  if (!hasCompileIssues) return
+
+  await nextTick()
+  const activePath = String(documentTab.value || '').trim()
+  const compileProblems = workflowStore.getProblemsForFile(activePath, { t })
+    .filter((problem) => problem.origin === 'compile')
+  if (compileProblems.length === 0) return
+
+  documentProblemsRevealPath.value = activePath
+  documentProblemsRevealToken.value += 1
+  void workspace.openDocumentDock()
+  void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+}
+
+onMounted(() => {
+  window.addEventListener('latex-compile-done', handleLatexCompileDone)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('latex-compile-done', handleLatexCompileDone)
+})
 </script>
 
 <style scoped>

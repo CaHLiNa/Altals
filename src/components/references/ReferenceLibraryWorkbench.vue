@@ -288,6 +288,7 @@ const selectedReferenceCitedInFiles = computed(() => {
   const files = referencesStore.citedIn[selectedReferenceCitationKey.value]
   return Array.isArray(files) ? files : []
 })
+const hasSelectedReferenceCitations = computed(() => selectedReferenceCitedInFiles.value.length > 0)
 const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
 const showReferencePdfTab = computed(
   () => referencesStore.selectedReferencePdfTabOpen && canPreviewSelectedReferencePdf.value
@@ -310,7 +311,7 @@ const activeReferenceDockKey = computed(() => {
   if (activePage === REFERENCE_DOCK_PDF_PAGE && showReferencePdfTab.value) {
     return REFERENCE_DOCK_PDF_PAGE
   }
-  if (activePage === REFERENCE_DOCK_CITED_IN_PAGE) {
+  if (activePage === REFERENCE_DOCK_CITED_IN_PAGE && hasSelectedReferenceCitations.value) {
     return REFERENCE_DOCK_CITED_IN_PAGE
   }
   return REFERENCE_DOCK_DETAILS_PAGE
@@ -502,6 +503,16 @@ watch(
   (canPreviewPdf) => {
     if (!canPreviewPdf && activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE) {
       closeReferencePdfTab()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => hasSelectedReferenceCitations.value,
+  (hasCitations) => {
+    if (!hasCitations && workspace.referenceDockActivePage === REFERENCE_DOCK_CITED_IN_PAGE) {
+      void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
     }
   },
   { immediate: true }

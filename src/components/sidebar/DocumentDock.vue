@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
@@ -37,6 +37,7 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
+import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
 import { basenamePath } from '../../utils/path'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import { documentDockPageRegistry } from './documentDockPageRegistry.js'
@@ -46,16 +47,34 @@ const props = defineProps({
   paneId: { type: String, required: true },
   previewState: { type: Object, default: null },
   documentDockResizing: { type: Boolean, default: false },
+  problemsRevealPath: { type: String, default: '' },
+  problemsRevealToken: { type: Number, default: 0 },
 })
+
+const emit = defineEmits(['close'])
 
 const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
+const dismissedProblemsRevealToken = ref(0)
 
 const hasPreview = computed(() => props.previewState?.previewVisible === true)
 const comparisonTabs = computed(() => editorStore.documentDockTabs || [])
-const documentProblems = computed(() => workflowStore.getProblemsForFile(props.filePath, { t }))
+const documentProblems = computed(() =>
+  workflowStore.getProblemsForFile(props.filePath, { t })
+    .filter((problem) => problem.origin === 'compile')
+)
+const problemCount = computed(() =>
+  getDocumentWorkflowKind(props.filePath) === 'latex' ? documentProblems.value.length : 0
+)
+const hasProblemsPage = computed(
+  () =>
+    problemCount.value > 0 &&
+    props.problemsRevealPath === props.filePath &&
+    props.problemsRevealToken > 0 &&
+    dismissedProblemsRevealToken.value !== props.problemsRevealToken
+)
 const previewMode = computed(() => props.previewState?.previewMode || null)
 const documentLabel = computed(() => basenamePath(props.filePath) || props.filePath)
 const dockPages = computed(() =>
@@ -68,7 +87,7 @@ const dockPages = computed(() =>
     hasPreview: hasPreview.value,
     pageDefinitions: workspace.documentDockPageDefinitions,
     paneId: props.paneId,
-    problemCount: documentProblems.value.length,
+    problemCount: hasProblemsPage.value ? problemCount.value : 0,
     previewMode: previewMode.value,
     previewState: props.previewState,
     t,
@@ -82,7 +101,7 @@ const activeDockKey = computed(() => {
     return DOCUMENT_DOCK_PREVIEW_PAGE
   }
 
-  if (activePage === DOCUMENT_DOCK_PROBLEMS_PAGE) {
+  if (activePage === DOCUMENT_DOCK_PROBLEMS_PAGE && hasProblemsPage.value) {
     return DOCUMENT_DOCK_PROBLEMS_PAGE
   }
 
@@ -97,10 +116,29 @@ const activeDockKey = computed(() => {
   if (hasPreview.value) return DOCUMENT_DOCK_PREVIEW_PAGE
   return comparisonTabs.value.length > 0
     ? documentDockFileKey(comparisonTabs.value[0])
-    : DOCUMENT_DOCK_PROBLEMS_PAGE
+    : hasProblemsPage.value
+      ? DOCUMENT_DOCK_PROBLEMS_PAGE
+      : ''
 })
 const activeDockPage = computed(() => findInlineDockPage(dockPages.value, activeDockKey.value))
 const usesImmersivePreview = computed(() => activeDockPage.value?.immersive === true)
+
+watch(
+  () => hasProblemsPage.value,
+  (hasProblems) => {
+    if (hasProblems || workspace.documentDockActivePage !== DOCUMENT_DOCK_PROBLEMS_PAGE) return
+    if (hasPreview.value) {
+      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
+      return
+    }
+    if (comparisonTabs.value.length > 0) {
+      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
+      return
+    }
+    emit('close')
+  },
+  { immediate: true }
+)
 
 function activateDockPage(page = {}) {
   if (page.type === DOCUMENT_DOCK_PREVIEW_PAGE) {
@@ -125,8 +163,12 @@ function closePreview() {
     void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
     return
   }
-  void workspace.openDocumentDock()
-  void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+  if (hasProblemsPage.value) {
+    void workspace.openDocumentDock()
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+    return
+  }
+  emit('close')
 }
 
 function closeFilePage(page = {}) {
@@ -138,7 +180,11 @@ function closeFilePage(page = {}) {
   editorStore.closeDocumentDockFile(path)
 
   if (!hasPreview.value && onlyComparisonTab) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+    if (hasProblemsPage.value) {
+      void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PROBLEMS_PAGE)
+      return
+    }
+    emit('close')
     return
   }
 
@@ -152,6 +198,20 @@ function closeFilePage(page = {}) {
   }
 }
 
+function closeProblemsPage() {
+  dismissedProblemsRevealToken.value = props.problemsRevealToken
+
+  if (hasPreview.value) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
+    return
+  }
+  if (comparisonTabs.value.length > 0) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
+    return
+  }
+  emit('close')
+}
+
 function closeDockPage(page = {}) {
   if (page.type === DOCUMENT_DOCK_PREVIEW_PAGE) {
     closePreview()
@@ -159,6 +219,10 @@ function closeDockPage(page = {}) {
   }
   if (page.type === DOCUMENT_DOCK_FILE_PAGE) {
     closeFilePage(page)
+    return
+  }
+  if (page.type === DOCUMENT_DOCK_PROBLEMS_PAGE) {
+    closeProblemsPage()
   }
 }
 

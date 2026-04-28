@@ -4,6 +4,32 @@ import {
   buildLatexProjectProblemsSync,
 } from '../../latex/diagnostics.js'
 import { resolveCachedLatexPreviewPath } from '../../latex/root.js'
+import {
+  dirnamePath,
+  normalizeFsPath,
+  resolveRelativePath,
+} from '../../documentIntelligence/workspaceGraph.js'
+
+function isAbsoluteFsPath(value = '') {
+  const normalized = normalizeFsPath(value)
+  return normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)
+}
+
+function resolveLatexProblemSourcePath(problem = {}, fallbackSourcePath = '', state = {}) {
+  const reportedPath = normalizeFsPath(problem.file || fallbackSourcePath)
+  if (!reportedPath) return normalizeFsPath(fallbackSourcePath)
+  if (isAbsoluteFsPath(reportedPath)) return reportedPath
+
+  const basePath = normalizeFsPath(
+    state.compileTargetPath ||
+    state.projectRootPath ||
+    fallbackSourcePath
+  )
+  if (!basePath) return reportedPath
+
+  const baseDir = dirnamePath(basePath || fallbackSourcePath)
+  return resolveRelativePath(baseDir, reportedPath)
+}
 
 function resolveKnownLatexArtifactPath(sourcePath, context = {}) {
   const state = latexCompileAdapter.stateForFile(sourcePath, context) || null
@@ -58,28 +84,34 @@ export function buildLatexWorkflowProblems(sourcePath, state = {}) {
   const warnings = Array.isArray(state?.warnings) ? state.warnings : []
 
   return [
-    ...errors.map((problem, index) => ({
-      id: `latex:error:${problem.file || sourcePath}:${index}`,
-      sourcePath: problem.file || sourcePath,
-      line: problem.line ?? null,
-      column: problem.column ?? null,
-      severity: 'error',
-      message: problem.message || '',
-      origin: 'compile',
-      actionable: true,
-      raw: problem.raw || problem.message || '',
-    })),
-    ...warnings.map((problem, index) => ({
-      id: `latex:warning:${problem.file || sourcePath}:${index}`,
-      sourcePath: problem.file || sourcePath,
-      line: problem.line ?? null,
-      column: problem.column ?? null,
-      severity: 'warning',
-      message: problem.message || '',
-      origin: 'compile',
-      actionable: true,
-      raw: problem.raw || problem.message || '',
-    })),
+    ...errors.map((problem, index) => {
+      const problemSourcePath = resolveLatexProblemSourcePath(problem, sourcePath, state)
+      return {
+        id: `latex:error:${problemSourcePath}:${index}`,
+        sourcePath: problemSourcePath,
+        line: problem.line ?? null,
+        column: problem.column ?? null,
+        severity: 'error',
+        message: problem.message || '',
+        origin: 'compile',
+        actionable: true,
+        raw: problem.raw || problem.message || '',
+      }
+    }),
+    ...warnings.map((problem, index) => {
+      const problemSourcePath = resolveLatexProblemSourcePath(problem, sourcePath, state)
+      return {
+        id: `latex:warning:${problemSourcePath}:${index}`,
+        sourcePath: problemSourcePath,
+        line: problem.line ?? null,
+        column: problem.column ?? null,
+        severity: 'warning',
+        message: problem.message || '',
+        origin: 'compile',
+        actionable: true,
+        raw: problem.raw || problem.message || '',
+      }
+    }),
   ]
 }
 

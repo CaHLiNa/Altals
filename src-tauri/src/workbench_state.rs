@@ -301,9 +301,9 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
                 ),
                 dock_page_definition(
                     DOCUMENT_DOCK_PROBLEMS_PAGE,
+                    false,
                     true,
-                    false,
-                    false,
+                    true,
                     DEFAULT_DOCUMENT_DOCK_PAGE,
                 ),
                 dock_page_definition(
@@ -327,8 +327,8 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
                 ),
                 dock_page_definition(
                     REFERENCE_DOCK_CITED_IN_PAGE,
-                    true,
                     false,
+                    true,
                     false,
                     DEFAULT_REFERENCE_DOCK_PAGE,
                 ),
@@ -551,8 +551,12 @@ mod tests {
         assert_eq!(contract.document.pages[0].fallback_page, "file");
         assert!(contract.document.pages[0].closeable);
         assert_eq!(contract.document.pages[1].fallback_page, "preview");
-        assert!(!contract.document.pages[1].closeable);
+        assert!(!contract.document.pages[1].permanent);
+        assert!(contract.document.pages[1].dynamic);
+        assert!(contract.document.pages[1].closeable);
         assert_eq!(contract.reference.pages[1].fallback_page, "details");
+        assert!(!contract.reference.pages[1].permanent);
+        assert!(contract.reference.pages[1].dynamic);
         assert!(!contract.reference.pages[1].closeable);
         assert!(contract.reference.pages[2].closeable);
     }

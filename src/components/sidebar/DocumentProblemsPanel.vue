@@ -62,9 +62,11 @@ import {
 import { useI18n } from '../../i18n'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 
 const props = defineProps({
   filePath: { type: String, required: true },
+  paneId: { type: String, default: '' },
 })
 
 const { t } = useI18n()
@@ -73,6 +75,7 @@ const workflowStore = useDocumentWorkflowStore()
 
 const problems = computed(() =>
   workflowStore.getProblemsForFile(props.filePath, { t })
+    .filter((problem) => problem.origin === 'compile')
     .map((problem, index) => ({
       ...problem,
       id: problem.id || `${problem.sourcePath || props.filePath}:${index}`,
@@ -101,11 +104,31 @@ function formatLocation(problem = {}) {
   return `${t('Line')} ${line}:${column}`
 }
 
-function handleProblemClick(problem = {}) {
+async function handleProblemClick(problem = {}) {
   const sourcePath = String(problem.sourcePath || '').trim()
-  if (sourcePath && sourcePath !== props.filePath) {
-    editorStore.openFile(sourcePath)
+  const line = Number(problem.line || 0)
+  const column = Number(problem.column || 0)
+
+  if (sourcePath && Number.isInteger(line) && line > 0) {
+    const revealed = await revealLatexSourceLocation(
+      editorStore,
+      {
+        filePath: sourcePath,
+        line,
+        column,
+      },
+      {
+        paneId: props.paneId,
+        center: true,
+      }
+    )
+    if (revealed) {
+      workflowStore.focusProblem(problem)
+      return
+    }
   }
+
+  if (sourcePath && sourcePath !== props.filePath) editorStore.openFile(sourcePath)
   workflowStore.focusProblem(problem)
 }
 </script>

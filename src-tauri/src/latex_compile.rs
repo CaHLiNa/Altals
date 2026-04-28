@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
@@ -224,7 +224,9 @@ fn build_compile_result_from_logs(
 ) -> CompileResult {
     let dir = tex.parent().unwrap_or_else(|| Path::new("."));
     let full_log = format!("{}\n{}", stdout, stderr);
-    let (mut errors, warnings) = parse_latex_output(&full_log);
+    let (mut errors, mut warnings) = parse_latex_output(&full_log);
+    resolve_latex_issue_file_paths(&mut errors, dir);
+    resolve_latex_issue_file_paths(&mut warnings, dir);
 
     let stem = tex.file_stem().unwrap_or_default().to_string_lossy();
     let pdf_path = dir.join(format!("{}.pdf", stem));
@@ -269,6 +271,57 @@ fn build_compile_result_from_logs(
         command_preview: Some(meta.command_preview),
         requested_program: meta.requested_program,
         requested_program_applied: meta.requested_program_applied,
+    }
+}
+
+fn normalize_latex_diagnostic_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(Path::new(std::path::MAIN_SEPARATOR_STR)),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let _ = normalized.pop();
+            }
+            Component::Normal(part) => normalized.push(part),
+        }
+    }
+
+    normalized
+}
+
+fn resolve_latex_issue_file_path(compile_dir: &Path, file: &str) -> Option<String> {
+    let trimmed = file
+        .trim()
+        .trim_matches(|ch| ch == '"' || ch == '\'')
+        .trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let portable_file = trimmed.replace('\\', "/");
+    let reported_path = Path::new(&portable_file);
+    let resolved_path = if reported_path.is_absolute() {
+        reported_path.to_path_buf()
+    } else {
+        compile_dir.join(reported_path)
+    };
+
+    Some(
+        normalize_latex_diagnostic_path(&resolved_path)
+            .to_string_lossy()
+            .replace('\\', "/"),
+    )
+}
+
+fn resolve_latex_issue_file_paths(issues: &mut [LatexError], compile_dir: &Path) {
+    for issue in issues {
+        let Some(file) = issue.file.as_deref() else {
+            continue;
+        };
+        issue.file = resolve_latex_issue_file_path(compile_dir, file);
     }
 }
 
@@ -565,5 +618,56 @@ pub(crate) async fn compile_latex_with_preference(
                 Err("No LaTeX compiler found. Install MacTeX/TeX Live, or install Tectonic in Settings.".to_string())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_latex_issue_file_path, resolve_latex_issue_file_paths};
+    use crate::latex::LatexError;
+    use std::path::Path;
+
+    #[test]
+    fn resolves_relative_latex_issue_files_against_compile_dir() {
+        let compile_dir = Path::new("/tmp/workspace/paper");
+        let resolved = resolve_latex_issue_file_path(compile_dir, "chapters/intro.tex")
+            .expect("relative diagnostic path should resolve");
+
+        assert_eq!(resolved, "/tmp/workspace/paper/chapters/intro.tex");
+    }
+
+    #[test]
+    fn normalizes_dot_segments_in_latex_issue_files() {
+        let compile_dir = Path::new("/tmp/workspace/paper/sections");
+        let resolved = resolve_latex_issue_file_path(compile_dir, "../main.tex")
+            .expect("parent diagnostic path should resolve");
+
+        assert_eq!(resolved, "/tmp/workspace/paper/main.tex");
+    }
+
+    #[test]
+    fn leaves_absolute_latex_issue_files_absolute() {
+        let compile_dir = Path::new("/tmp/workspace/paper");
+        let resolved = resolve_latex_issue_file_path(compile_dir, "/tmp/workspace/shared.tex")
+            .expect("absolute diagnostic path should resolve");
+
+        assert_eq!(resolved, "/tmp/workspace/shared.tex");
+    }
+
+    #[test]
+    fn clears_empty_latex_issue_files() {
+        let compile_dir = Path::new("/tmp/workspace/paper");
+        let mut issues = vec![LatexError {
+            file: Some("  ".to_string()),
+            line: Some(12),
+            column: None,
+            message: "Missing brace".to_string(),
+            severity: "error".to_string(),
+            raw: None,
+        }];
+
+        resolve_latex_issue_file_paths(&mut issues, compile_dir);
+
+        assert_eq!(issues[0].file, None);
     }
 }

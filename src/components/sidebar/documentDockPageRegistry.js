@@ -113,9 +113,9 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
     id: DOCUMENT_DOCK_PROBLEMS_PAGE,
     resolve(context = {}) {
       const count = Number(context.problemCount || 0)
-      const label = count > 0
-        ? `${context.t?.('Problems') || 'Problems'} (${count})`
-        : context.t?.('Problems') || 'Problems'
+      if (count <= 0) return null
+
+      const label = `${context.t?.('Problems') || 'Problems'} (${count})`
 
       return {
         key: DOCUMENT_DOCK_PROBLEMS_PAGE,
@@ -126,10 +126,14 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
         tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
         labelClass: 'document-dock__preview-label',
         iconClass: 'document-dock__preview-icon',
-        closeable: false,
+        closeClass: 'document-dock__tab-close',
+        closeTitle: context.t?.('Hide problems') || 'Hide problems',
+        closeable: true,
+        closeWhenActiveOnly: true,
         component: DocumentProblemsPanel,
         componentProps: {
           filePath: context.filePath,
+          paneId: context.paneId,
         },
       }
     },

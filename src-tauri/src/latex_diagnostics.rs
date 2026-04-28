@@ -64,33 +64,60 @@ pub(crate) fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexErr
                     }
                 }
             }
+        } else if let Some(line_num) =
+            extract_warning_continuation_line(trimmed, generic_line_re.as_ref())
+        {
+            if let Some(last) = warnings.last_mut() {
+                if last.line.is_none() {
+                    last.line = Some(line_num);
+                }
+                last.raw = Some(match last.raw.take() {
+                    Some(raw) if !raw.is_empty() => format!("{raw}\n{trimmed}"),
+                    _ => trimmed.to_string(),
+                });
+            }
         } else if let Some((file, line_num, column, message)) = extract_file_line_col_error(trimmed)
         {
-            errors.push(make_latex_issue(
-                Some(file),
-                Some(line_num),
-                Some(column),
-                message,
-                "error",
-                Some(trimmed.to_string()),
-            ));
+            if is_latex_warning_line(message) {
+                warnings.push(make_latex_issue(
+                    Some(file),
+                    Some(line_num),
+                    Some(column),
+                    message,
+                    "warning",
+                    Some(trimmed.to_string()),
+                ));
+            } else {
+                errors.push(make_latex_issue(
+                    Some(file),
+                    Some(line_num),
+                    Some(column),
+                    message,
+                    "error",
+                    Some(trimmed.to_string()),
+                ));
+            }
         } else if let Some((file, line_num, message)) = extract_file_line_error(trimmed) {
-            errors.push(make_latex_issue(
-                Some(file),
-                Some(line_num),
-                None,
-                message,
-                "error",
-                Some(trimmed.to_string()),
-            ));
-        } else if trimmed.contains("LaTeX Warning:")
-            || (trimmed.starts_with("Package ") && trimmed.contains(" Warning:"))
-            || (trimmed.starts_with("Class ") && trimmed.contains(" Warning:"))
-            || trimmed.starts_with("Overfull ")
-            || trimmed.starts_with("Underfull ")
-            || trimmed.contains("undefined references")
-            || trimmed.contains("Label(s) may have changed")
-        {
+            if is_latex_warning_line(message) {
+                warnings.push(make_latex_issue(
+                    Some(file),
+                    Some(line_num),
+                    None,
+                    message,
+                    "warning",
+                    Some(trimmed.to_string()),
+                ));
+            } else {
+                errors.push(make_latex_issue(
+                    Some(file),
+                    Some(line_num),
+                    None,
+                    message,
+                    "error",
+                    Some(trimmed.to_string()),
+                ));
+            }
+        } else if is_latex_warning_line(trimmed) {
             let mut line_num = extract_line_number_from_warning(trimmed, generic_line_re.as_ref());
             if line_num.is_none() {
                 if let Some(re) = undefined_ref_re.as_ref() {
@@ -120,6 +147,27 @@ pub(crate) fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexErr
     }
 
     (errors, warnings)
+}
+
+fn is_latex_warning_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    let lowered = trimmed.to_ascii_lowercase();
+
+    trimmed.contains("LaTeX Warning:")
+        || trimmed.contains("LaTeX Font Warning:")
+        || trimmed.contains("LaTeX3 Warning:")
+        || (trimmed.starts_with("Package ") && trimmed.contains(" Warning:"))
+        || (trimmed.starts_with("Class ") && trimmed.contains(" Warning:"))
+        || lowered.starts_with("pdftex warning")
+        || lowered.starts_with("xetex warning")
+        || lowered.starts_with("luatex warning")
+        || lowered.starts_with("warning--")
+        || trimmed.starts_with("Overfull ")
+        || trimmed.starts_with("Underfull ")
+        || trimmed.contains("undefined references")
+        || trimmed.contains("Label(s) may have changed")
+        || lowered.starts_with("latexmk: summary of warnings")
+        || lowered.contains("latex failed to resolve")
 }
 
 fn make_latex_issue(
@@ -184,6 +232,14 @@ fn extract_line_number_from_warning(msg: &str, generic_line_re: Option<&Regex>) 
         }
     }
     None
+}
+
+fn extract_warning_continuation_line(line: &str, generic_line_re: Option<&Regex>) -> Option<u32> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('(') || !trimmed.contains("input line") {
+        return None;
+    }
+    extract_line_number_from_warning(trimmed, generic_line_re)
 }
 
 fn extract_overfull_underfull_range(msg: &str) -> Option<(u32, u32)> {
@@ -393,5 +449,56 @@ pub(crate) fn adjust_chktex_columns_for_source(
         }
 
         diagnostic.column = Some(convert_chktex_column(column, line_text, tab_size));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_latex_output;
+
+    #[test]
+    fn parses_latex_font_warning_lines() {
+        let (_, warnings) = parse_latex_output(
+            "LaTeX Font Warning: Font shape `OMS/cmr/m/n' undefined\n\
+             (Font)              using `OMS/cmsy/m/n' instead on input line 42.",
+        );
+
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].severity, "warning");
+        assert_eq!(warnings[0].line, Some(42));
+    }
+
+    #[test]
+    fn parses_engine_warning_lines() {
+        let (_, warnings) = parse_latex_output(
+            "pdfTeX warning (ext4): destination with the same identifier \
+             (name{page.1}) has been already used, duplicate ignored",
+        );
+
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].severity, "warning");
+    }
+
+    #[test]
+    fn parses_file_line_warning_as_warning_not_error() {
+        let (errors, warnings) = parse_latex_output(
+            "main.tex:12: LaTeX Font Warning: Some font shapes were not available.",
+        );
+
+        assert!(errors.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].file.as_deref(), Some("main.tex"));
+        assert_eq!(warnings[0].line, Some(12));
+    }
+
+    #[test]
+    fn parses_latexmk_warning_summary_lines() {
+        let (_, warnings) = parse_latex_output(
+            "Latexmk: Summary of warnings from last run of *latex:\n\
+             Latex failed to resolve 1 reference(s)",
+        );
+
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings.iter().all(|warning| warning.severity == "warning"));
     }
 }

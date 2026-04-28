@@ -5,7 +5,7 @@ const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
     defaultPage: 'preview',
     pages: [
       { id: 'preview', permanent: true, dynamic: false, closeable: true, fallbackPage: 'file' },
-      { id: 'problems', permanent: true, dynamic: false, closeable: false, fallbackPage: 'preview' },
+      { id: 'problems', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
       { id: 'file', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
     ],
   },
@@ -13,7 +13,7 @@ const FALLBACK_DOCK_PAGE_CONTRACT = Object.freeze({
     defaultPage: 'details',
     pages: [
       { id: 'details', permanent: true, dynamic: false, closeable: false, fallbackPage: 'details' },
-      { id: 'cited-in', permanent: true, dynamic: false, closeable: false, fallbackPage: 'details' },
+      { id: 'cited-in', permanent: false, dynamic: true, closeable: false, fallbackPage: 'details' },
       { id: 'pdf', permanent: false, dynamic: true, closeable: true, fallbackPage: 'details' },
     ],
   },
