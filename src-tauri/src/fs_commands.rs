@@ -528,22 +528,6 @@ pub async fn write_file_base64(
 }
 
 #[tauri::command]
-pub async fn create_file(
-    path: String,
-    content: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || {
-        if resolved.exists() {
-            return Err("File already exists".to_string());
-        }
-        fs::write(&resolved, &content).map_err(|e| e.to_string())
-    })
-    .await
-}
-
-#[tauri::command]
 pub async fn workspace_create_file(
     dir_path: String,
     name: String,
@@ -574,19 +558,6 @@ pub async fn create_dir(
 ) -> Result<(), String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
     run_blocking(move || fs::create_dir_all(&resolved).map_err(|e| e.to_string())).await
-}
-
-#[tauri::command]
-pub async fn rename_path(
-    old_path: String,
-    new_path: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let resolved_old =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&old_path))?;
-    let resolved_new =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&new_path))?;
-    run_blocking(move || fs::rename(&resolved_old, &resolved_new).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
@@ -627,36 +598,6 @@ pub async fn delete_path(
         } else {
             fs::remove_file(&resolved).map_err(|e| e.to_string())
         }
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn copy_file(
-    src: String,
-    dest: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let resolved_dest =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dest))?;
-    run_blocking(move || {
-        fs::copy(&src, &resolved_dest).map_err(|e| e.to_string())?;
-        Ok(())
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn copy_dir(
-    src: String,
-    dest: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let resolved_dest =
-        security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&dest))?;
-    run_blocking(move || {
-        let src = Path::new(&src);
-        copy_dir_recursive(src, &resolved_dest).map_err(|e| e.to_string())
     })
     .await
 }
