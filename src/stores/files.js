@@ -1,6 +1,4 @@
 import { defineStore } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { nanoid } from './utils'
 import { useWorkspaceStore } from './workspace'
@@ -39,6 +37,17 @@ import { t } from '../i18n'
 import { useToastStore } from './toast'
 import { useUxStatusStore } from './uxStatus'
 import { isTauriDesktopRuntime } from '../platform'
+import {
+  listenWorkspaceTreeRefreshRequests,
+  loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
+  noteWorkspaceTreeWatchActivity,
+  readDirectoryShallow,
+  restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
+  revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
+  setWorkspaceTreeWatchVisibility,
+  startWorkspaceTreeWatch,
+  stopWorkspaceTreeWatch,
+} from '../services/fileTreeSystem'
 
 function readWorkspaceSnapshot(path, loadedDirs = []) {
   const workspace = useWorkspaceStore()
@@ -47,42 +56,34 @@ function readWorkspaceSnapshot(path, loadedDirs = []) {
   })
 }
 
-const WORKSPACE_TREE_REFRESH_REQUESTED_EVENT = 'workspace-tree-refresh-requested'
-
 async function loadWorkspaceTreeState(currentTree = [], extraDirs = []) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_load_workspace_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      currentTree,
-      extraDirs,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return loadWorkspaceTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    currentTree,
+    extraDirs,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
 async function revealWorkspaceTreeState(targetPath = '', currentTree = []) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_reveal_workspace_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      targetPath,
-      currentTree,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return revealWorkspaceTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    targetPath,
+    currentTree,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
 async function restoreCachedExpandedTreeState(currentTree = [], cachedRootExpandedDirs = [], maxDirs = 6) {
   const workspace = useWorkspaceStore()
-  return invoke('fs_tree_restore_cached_expanded_state', {
-    params: {
-      workspacePath: workspace.path || '',
-      currentTree,
-      cachedRootExpandedDirs,
-      maxDirs,
-      includeHidden: workspace.fileTreeShowHidden !== false,
-    },
+  return restoreCachedExpandedTreeStateFromRust({
+    workspacePath: workspace.path || '',
+    currentTree,
+    cachedRootExpandedDirs,
+    maxDirs,
+    includeHidden: workspace.fileTreeShowHidden !== false,
   })
 }
 
@@ -261,7 +262,7 @@ export const useFilesStore = defineStore('files', {
       }
       this._nativeWatcherUnlisten = null
       if (this._nativeWatcherActive) {
-        invoke('workspace_tree_watch_stop').catch(() => {})
+        stopWorkspaceTreeWatch().catch(() => {})
       }
       this._nativeWatcherActive = false
     },
@@ -277,22 +278,13 @@ export const useFilesStore = defineStore('files', {
     _notifyTreeVisibility(visible) {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void invoke('workspace_tree_watch_set_visibility', {
-        params: {
-          path: workspacePath,
-          visible: visible === true,
-        },
-      }).catch(() => {})
+      void setWorkspaceTreeWatchVisibility(workspacePath, visible).catch(() => {})
     },
 
     noteTreeActivity() {
       const workspacePath = useWorkspaceStore().path
       if (!workspacePath) return
-      void invoke('workspace_tree_watch_note_activity', {
-        params: {
-          path: workspacePath,
-        },
-      }).catch(() => {})
+      void noteWorkspaceTreeWatchActivity(workspacePath).catch(() => {})
     },
 
     _setupActivityHooks() {
@@ -316,9 +308,9 @@ export const useFilesStore = defineStore('files', {
       if (!workspacePath || !isTauriDesktopRuntime()) return
 
       try {
-        await invoke('workspace_tree_watch_start', { path: workspacePath })
+        await startWorkspaceTreeWatch(workspacePath)
         this._nativeWatcherActive = true
-        this._nativeWatcherUnlisten = await listen(WORKSPACE_TREE_REFRESH_REQUESTED_EVENT, (event) => {
+        this._nativeWatcherUnlisten = await listenWorkspaceTreeRefreshRequests((event) => {
           const payload = event.payload || {}
           const activeWorkspacePath = useWorkspaceStore().path
           if (!activeWorkspacePath) return
@@ -589,10 +581,10 @@ export const useFilesStore = defineStore('files', {
           return findTreeEntry(snapshot?.tree || [], path)?.children || []
         }
 
-        const children = await invoke('read_dir_shallow', {
+        const children = await readDirectoryShallow(
           path,
-          includeHidden: useWorkspaceStore().fileTreeShowHidden !== false,
-        })
+          useWorkspaceStore().fileTreeShowHidden !== false,
+        )
         const entry = findTreeEntry(this.tree ?? [], path)
         if (entry) {
           entry.children = children

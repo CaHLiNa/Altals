@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "npm run build",
+    "guard:ui-bridges": "node scripts/check-ui-bridges.mjs",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri": "tauri"

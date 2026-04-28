@@ -6,6 +6,10 @@ export async function readWorkspaceTextFile(path, maxBytes = TEXT_FILE_READ_LIMI
 }
 
 export async function saveWorkspaceTextFile(path, content) {
+  await writeTextFile(path, content)
+}
+
+export async function writeTextFile(path, content) {
   await invoke('write_file', { path, content })
 }
 

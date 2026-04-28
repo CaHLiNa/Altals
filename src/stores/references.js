@@ -1,5 +1,4 @@
 import { defineStore, getActivePinia } from 'pinia'
-import { invoke } from '@tauri-apps/api/core'
 import { t } from '../i18n/index.js'
 import { useWorkspaceStore } from './workspace.js'
 import { formatCitation } from '../services/references/citationFormatter.js'
@@ -29,6 +28,11 @@ import {
   importReferencesFromText,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
+import {
+  applyReferenceMutation,
+  resolveReferenceQuery,
+  scanWorkspaceCitationStyles,
+} from '../services/references/referenceRuntime.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 
 function normalizeCollectionMembershipValue(value = '') {
@@ -78,35 +82,6 @@ function buildDefaultResolvedQueryState(state = {}) {
     filteredReferences: Array.isArray(state.references) ? state.references : [],
     citationUsageIndex: {},
   }
-}
-
-async function invokeReferenceMutation(params = {}) {
-  return invoke('references_mutation_apply', {
-    params: {
-      snapshot: params.snapshot && typeof params.snapshot === 'object' ? params.snapshot : {},
-      action: params.action && typeof params.action === 'object' ? params.action : { type: '' },
-    },
-  })
-}
-
-async function invokeReferenceQuery(params = {}) {
-  return invoke('references_query_resolve', {
-    params: {
-      librarySections: Array.isArray(params.librarySections) ? params.librarySections : [],
-      sourceSections: Array.isArray(params.sourceSections) ? params.sourceSections : [],
-      collections: Array.isArray(params.collections) ? params.collections : [],
-      tags: Array.isArray(params.tags) ? params.tags : [],
-      references: Array.isArray(params.references) ? params.references : [],
-      selectedSectionKey: String(params.selectedSectionKey || ''),
-      selectedSourceKey: String(params.selectedSourceKey || ''),
-      selectedCollectionKey: String(params.selectedCollectionKey || ''),
-      selectedTagKey: String(params.selectedTagKey || ''),
-      searchQuery: String(params.searchQuery || ''),
-      sortKey: String(params.sortKey || ''),
-      preferredSelectedReferenceId: String(params.preferredSelectedReferenceId || ''),
-      fileContents: params.fileContents && typeof params.fileContents === 'object' ? params.fileContents : {},
-    },
-  })
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -206,7 +181,7 @@ export const useReferencesStore = defineStore('references', {
     async refreshResolvedQueryState() {
       const pinia = getActivePinia()
       const fileContents = pinia?.state?.value?.files?.fileContents || {}
-      const resolved = await invokeReferenceQuery({
+      const resolved = await resolveReferenceQuery({
         librarySections: this.librarySections,
         sourceSections: this.sourceSections,
         collections: this.collections,
@@ -322,11 +297,7 @@ export const useReferencesStore = defineStore('references', {
         return []
       }
 
-      const styles = await invoke('references_scan_workspace_styles', {
-        params: {
-          workspacePath,
-        },
-      }).catch(() => [])
+      const styles = await scanWorkspaceCitationStyles(workspacePath).catch(() => [])
 
       const normalized = Array.isArray(styles) ? styles : []
       setUserCitationStyles(normalized)
@@ -354,7 +325,7 @@ export const useReferencesStore = defineStore('references', {
 
       this.importInFlight = true
       try {
-        const mutation = await invokeReferenceMutation({
+        const mutation = await applyReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
@@ -398,7 +369,7 @@ export const useReferencesStore = defineStore('references', {
         const markedReferences = shouldMark
           ? importedReferences.map((reference) => ({ ...reference, _appPushPending: true }))
           : importedReferences
-        const mutation = await invokeReferenceMutation({
+        const mutation = await applyReferenceMutation({
           snapshot: this.buildLibrarySnapshotPayload(),
           action: {
             type: 'mergeImportedReferences',
@@ -426,7 +397,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async createCollection(projectRoot = '', label = '') {
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'createCollection',
@@ -442,7 +413,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async renameCollection(projectRoot = '', collectionKey = '', nextLabel = '') {
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'renameCollection',
@@ -459,7 +430,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async removeCollection(projectRoot = '', collectionKey = '') {
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'removeCollection',
@@ -574,7 +545,7 @@ export const useReferencesStore = defineStore('references', {
         persist = true,
       } = options
       const shouldMark = markForZoteroPush ? await shouldMarkReferenceForZoteroPush() : false
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'addReference',
@@ -597,7 +568,7 @@ export const useReferencesStore = defineStore('references', {
 
     async updateReference(projectRoot = '', referenceId = '', updates = {}, options = {}) {
       const { persist = true } = options
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'updateReference',
@@ -623,7 +594,7 @@ export const useReferencesStore = defineStore('references', {
       const target = this.references.find((reference) => reference.id === referenceId)
       if (!target) return false
 
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'removeReference',
@@ -646,7 +617,7 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async toggleReferenceCollection(projectRoot = '', referenceId = '', collectionKey = '') {
-      const mutation = await invokeReferenceMutation({
+      const mutation = await applyReferenceMutation({
         snapshot: this.buildLibrarySnapshotPayload(),
         action: {
           type: 'toggleReferenceCollection',

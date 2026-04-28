@@ -1,5 +1,8 @@
 import { computed, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import {
+  loadI18nRuntime,
+  loadSavedLocalePreference as loadSavedLocalePreferenceFromRuntime,
+} from '../services/i18nRuntime.js'
 
 const DEFAULT_LOCALE = 'en-US'
 const DEFAULT_LOCALE_PREFERENCE = 'system'
@@ -63,11 +66,7 @@ export function useI18n() {
 async function loadRuntimeBundle() {
   try {
     const preferredLocale = await loadSavedLocalePreference()
-    const payload = await invoke('i18n_runtime_load', {
-      params: {
-        preferredLocale,
-      },
-    })
+    const payload = await loadI18nRuntime(preferredLocale)
     return {
       locale: normalizeLocale(payload?.locale || DEFAULT_LOCALE),
       systemLocale: normalizeLocale(payload?.systemLocale || payload?.locale || DEFAULT_LOCALE),
@@ -89,14 +88,8 @@ async function loadRuntimeBundle() {
 
 async function loadSavedLocalePreference() {
   try {
-    const globalConfigDir = await invoke('get_global_config_dir')
-    const preferences = await invoke('workspace_preferences_load', {
-      params: {
-        globalConfigDir: String(globalConfigDir || ''),
-        legacyPreferences: {},
-      },
-    })
-    return normalizeLocalePreference(preferences?.preferredLocale || DEFAULT_LOCALE_PREFERENCE)
+    const preferredLocale = await loadSavedLocalePreferenceFromRuntime(DEFAULT_LOCALE_PREFERENCE)
+    return normalizeLocalePreference(preferredLocale)
   } catch {
     return DEFAULT_LOCALE_PREFERENCE
   }
@@ -120,11 +113,7 @@ export async function initLocale() {
 export async function applyLocalePreference(preferredLocale = DEFAULT_LOCALE_PREFERENCE) {
   const normalizedPreference = normalizeLocalePreference(preferredLocale)
 
-  const payload = await invoke('i18n_runtime_load', {
-    params: {
-      preferredLocale: normalizedPreference,
-    },
-  })
+  const payload = await loadI18nRuntime(normalizedPreference)
   applyLocaleState(payload?.locale, payload?.messages, payload?.aliases)
   return locale.value
 }
