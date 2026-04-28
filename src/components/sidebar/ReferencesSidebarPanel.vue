@@ -1,23 +1,6 @@
 <template>
   <section class="references-sidebar-panel" :aria-label="t('Reference Library')">
     <div class="references-sidebar-panel__content">
-      <div class="references-sidebar-panel__search-row">
-        <UiInput
-          v-model="searchQuery"
-          size="sm"
-          shell-class="references-sidebar-panel__search-input"
-          :placeholder="t('Search references')"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-        >
-          <template #prefix>
-            <IconSearch :size="14" :stroke-width="1.6" />
-          </template>
-        </UiInput>
-      </div>
-
       <div class="references-sidebar-panel__section">
         <div class="references-sidebar-panel__section-title">{{ t('Library') }}</div>
         <button
@@ -177,7 +160,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import {
   IconBook2,
   IconCircleDashedCheck,
@@ -186,7 +169,6 @@ import {
   IconInbox,
   IconPaperclip,
   IconPlus,
-  IconSearch,
   IconSettings,
   IconBooks,
 } from '@tabler/icons-vue'
@@ -222,11 +204,6 @@ const {
   openSurfaceContextMenu,
   handleSurfaceContextMenuSelect,
 } = useSurfaceContextMenu()
-
-const searchQuery = computed({
-  get: () => referencesStore.searchQuery,
-  set: (value) => referencesStore.setSearchQuery(value),
-})
 
 function iconForSection(sectionKey) {
   if (sectionKey === 'unfiled') return IconInbox
@@ -318,11 +295,6 @@ function openCollectionContextMenu(event, collection) {
   })
 }
 
-function activateFilter() {}
-
-defineExpose({
-  activateFilter,
-})
 </script>
 
 <style scoped>
@@ -345,52 +317,11 @@ defineExpose({
   padding: 0;
 }
 
-.references-sidebar-panel__search-row {
-  padding: 14px 8px 0;
-}
-
 .references-sidebar-panel__create-input {
-  border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
+  border-color: color-mix(in srgb, var(--sidebar-input-border) 68%, transparent);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
+  background: color-mix(in srgb, var(--sidebar-input-surface) 72%, transparent);
   box-shadow: none;
-}
-
-:deep(.references-sidebar-panel__search-input) {
-  border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
-  min-height: 28px;
-  padding-inline: 10px;
-  gap: var(--sidebar-inline-gap);
-  box-shadow: none;
-  opacity: 1;
-}
-
-:deep(.references-sidebar-panel__search-input:focus-within) {
-  border-color: color-mix(in srgb, var(--sidebar-search-border-focus) 80%, transparent);
-  background: color-mix(in srgb, var(--sidebar-search-surface-focus) 78%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 42%, transparent);
-  opacity: 1;
-}
-
-:deep(.references-sidebar-panel__search-input .ui-input-control) {
-  font-size: var(--sidebar-font-search);
-  line-height: 1.1;
-}
-
-:deep(.references-sidebar-panel__search-input .ui-input-control::placeholder) {
-  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
-  opacity: 1;
-}
-
-:deep(.references-sidebar-panel__search-input.ui-input-shell--sm) {
-  min-height: 28px;
-  padding-inline: 10px;
-}
-
-:deep(.references-sidebar-panel__search-input .ui-input-affix) {
-  height: 14px;
 }
 
 .references-sidebar-panel__section-header {

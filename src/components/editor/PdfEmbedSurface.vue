@@ -52,6 +52,8 @@
               :pdfViewerSpreadMode="pdfViewerSpreadMode"
               :pdfViewerLastScale="pdfViewerLastScale"
               :restore-state="pendingRestoreState"
+              :compact-toolbar="compactToolbar"
+              :defer-compact-resize-fit="deferCompactResizeFit"
               @open-external="$emit('open-external')"
               @reload-requested="reloadPdf"
               @reverse-sync-request="handleReverseSyncRequest"
@@ -110,6 +112,8 @@ const props = defineProps({
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
   pdfViewerPageThemeMode: { type: String, default: 'theme' },
+  compactToolbar: { type: Boolean, default: false },
+  deferCompactResizeFit: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['open-external', 'backward-sync'])

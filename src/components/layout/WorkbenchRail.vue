@@ -67,46 +67,18 @@
     <div class="workbench-rail-side workbench-rail-side-right">
       <div class="workbench-rail-controls" data-window-drag-ignore="true">
         <UiButton
-          v-if="splitPaneAvailable"
+          v-if="rightSidebarAvailable"
           class="workbench-rail-button"
-          shell-class="workbench-rail-pane-button"
           variant="ghost"
           size="icon-sm"
-          :active="splitPaneOpen"
-          :title="t('Toggle split pane ({shortcut})', { shortcut: `${modKey}+J` })"
-          :aria-label="t('Toggle split pane')"
+          :active="rightSidebarOpen"
+          :title="t('Toggle right sidebar')"
+          :aria-label="t('Toggle right sidebar')"
           data-window-drag-ignore="true"
-          @click="$emit('toggle-split-pane')"
-        >
-          <IconLayoutColumns :size="16" :stroke-width="1.75" />
-        </UiButton>
-
-        <UiButton
-          v-if="inspectorAvailable"
-          class="workbench-rail-button"
-          shell-class="workbench-rail-pane-button"
-          variant="ghost"
-          size="icon-sm"
-          :active="rightSidebarOpen && rightSidebarPanel === 'outline'"
-          :title="
-            rightSidebarOpen && rightSidebarPanel === 'outline'
-              ? t('Hide outline')
-              : t('Open outline')
-          "
-          :aria-label="
-            rightSidebarOpen && rightSidebarPanel === 'outline'
-              ? t('Hide outline')
-              : t('Open outline')
-          "
-          data-window-drag-ignore="true"
-          @click="handleInspectorButtonClick"
+          @click="$emit('toggle-right-sidebar')"
         >
           <component
-            :is="
-              rightSidebarOpen && rightSidebarPanel === 'outline'
-                ? IconLayoutSidebarRightCollapse
-                : IconLayoutSidebarRight
-            "
+            :is="rightSidebarOpen ? IconLayoutSidebarRightCollapse : IconLayoutSidebarRight"
             :size="16"
             :stroke-width="1.75"
           />
@@ -120,7 +92,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   IconBook2,
-  IconLayoutColumns,
   IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRight,
@@ -135,7 +106,7 @@ import {
   startNativeWindowDrag,
 } from '../../services/nativeWindow.js'
 
-const props = defineProps({
+defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },
   documentTitleTargetId: { type: String, default: 'app-shell-topbar-document-title' },
   currentDocumentLabel: { type: String, default: '' },
@@ -144,19 +115,14 @@ const props = defineProps({
   leftSidebarAvailable: { type: Boolean, default: true },
   leftSidebarOpen: { type: Boolean, default: true },
   leftSidebarPanel: { type: String, default: 'files' },
+  rightSidebarAvailable: { type: Boolean, default: true },
   rightSidebarOpen: { type: Boolean, default: false },
-  rightSidebarPanel: { type: String, default: 'outline' },
-  splitPaneAvailable: { type: Boolean, default: true },
-  splitPaneOpen: { type: Boolean, default: false },
-  inspectorAvailable: { type: Boolean, default: false },
 })
 
-const emit = defineEmits([
+defineEmits([
   'toggle-left-sidebar',
   'open-reference-library',
-  'open-outline-inspector',
   'toggle-right-sidebar',
-  'toggle-split-pane',
 ])
 
 const { t } = useI18n()
@@ -230,14 +196,6 @@ function endWindowDragGuard() {
   document.body.classList.remove(WINDOW_DRAGGING_CLASS)
   removeDragGuards?.()
   removeDragGuards = null
-}
-
-function handleInspectorButtonClick() {
-  if (props.rightSidebarOpen && props.rightSidebarPanel === 'outline') {
-    emit('toggle-right-sidebar')
-    return
-  }
-  emit('open-outline-inspector')
 }
 
 onMounted(async () => {

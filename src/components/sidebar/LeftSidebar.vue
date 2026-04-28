@@ -1,30 +1,71 @@
 <template>
   <div class="left-shell-sidebar">
-    <FileTree
-      v-if="workspace.leftSidebarPanel === 'files'"
-      ref="activeSidebarRef"
-      :collapsed="false"
-      :embedded="true"
-      :heading-collapsible="false"
-      :heading-label="fileTreeHeadingLabel"
-      @open-settings="$emit('open-settings')"
-      @open-folder="$emit('open-folder')"
-      @open-workspace="$emit('open-workspace', $event)"
-      @close-folder="$emit('close-folder')"
-    />
-    <ReferencesSidebarPanel
-      v-else
-      ref="activeSidebarRef"
-      @open-settings="$emit('open-settings')"
-    />
+    <template v-if="workspace.leftSidebarPanel === 'files'">
+      <div class="left-shell-sidebar__switcher" role="tablist" :aria-label="t('Document sidebar')">
+        <UiButton
+          class="left-shell-sidebar__switcher-button"
+          variant="ghost"
+          size="sm"
+          :active="documentSidebarMode === 'files'"
+          :title="t('Files')"
+          :aria-label="t('Files')"
+          role="tab"
+          :aria-selected="documentSidebarMode === 'files'"
+          @click="documentSidebarMode = 'files'"
+        >
+          {{ t('Files') }}
+        </UiButton>
+        <UiButton
+          class="left-shell-sidebar__switcher-button"
+          variant="ghost"
+          size="sm"
+          :active="documentSidebarMode === 'outline'"
+          :title="t('Contents')"
+          :aria-label="t('Contents')"
+          role="tab"
+          :aria-selected="documentSidebarMode === 'outline'"
+          @click="documentSidebarMode = 'outline'"
+        >
+          {{ t('Contents') }}
+        </UiButton>
+      </div>
+
+      <div class="left-shell-sidebar__content">
+        <FileTree
+          v-show="documentSidebarMode === 'files'"
+          ref="fileTreeRef"
+          :collapsed="false"
+          :embedded="true"
+          :heading-collapsible="false"
+          :heading-label="fileTreeHeadingLabel"
+          @open-settings="$emit('open-settings')"
+          @open-folder="$emit('open-folder')"
+          @open-workspace="$emit('open-workspace', $event)"
+          @close-folder="$emit('close-folder')"
+        />
+        <OutlinePanel
+          v-show="documentSidebarMode === 'outline'"
+          embedded
+          :overrideActiveFile="documentTab"
+          class="left-shell-sidebar__outline"
+        />
+      </div>
+    </template>
+
+    <ReferencesSidebarPanel v-else @open-settings="$emit('open-settings')" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useEditorStore } from '../../stores/editor'
+import { useI18n } from '../../i18n'
+import { isNewTab } from '../../utils/fileTypes'
 import FileTree from './FileTree.vue'
 import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
+import OutlinePanel from '../panel/OutlinePanel.vue'
+import UiButton from '../shared/ui/UiButton.vue'
 
 defineEmits([
   'open-settings',
@@ -34,23 +75,51 @@ defineEmits([
 ])
 
 const workspace = useWorkspaceStore()
-const activeSidebarRef = ref(null)
+const editorStore = useEditorStore()
+const { t } = useI18n()
+const fileTreeRef = ref(null)
+const documentSidebarMode = ref('files')
+const lastDocumentTab = ref(null)
 const fileTreeHeadingLabel = computed(() => '')
+const documentTab = computed(() => {
+  const active = editorStore.activeTab
+  if (active && !isNewTab(active)) {
+    return active
+  }
+  return lastDocumentTab.value
+})
+
+watch(
+  () => editorStore.activeTab,
+  (tab) => {
+    if (tab && !isNewTab(tab)) {
+      lastDocumentTab.value = tab
+    }
+  },
+  { flush: 'post', immediate: true }
+)
 
 async function focusFileTree(method, ...args) {
   if (!workspace.isWorkspaceSurface) {
     workspace.openWorkspaceSurface()
     await nextTick()
   }
-  activeSidebarRef.value?.[method]?.(...args)
+  if (workspace.leftSidebarPanel !== 'files') {
+    workspace.setLeftSidebarPanel('files')
+    await nextTick()
+  }
+  documentSidebarMode.value = 'files'
+  await nextTick()
+  fileTreeRef.value?.[method]?.(...args)
 }
 
 function collapseSidebarFolders() {
-  activeSidebarRef.value?.collapseAllFolders?.()
+  fileTreeRef.value?.collapseAllFolders?.()
 }
 
 function openSidebarCreateMenu(anchorEl = null) {
-  activeSidebarRef.value?.toggleCreateMenuFrom?.(anchorEl)
+  documentSidebarMode.value = 'files'
+  fileTreeRef.value?.toggleCreateMenuFrom?.(anchorEl)
 }
 
 // Expose FileTree methods for App.vue
@@ -60,9 +129,6 @@ defineExpose({
   },
   async createNewFile(ext = '.md') {
     await focusFileTree('createNewFile', ext)
-  },
-  async activateFilter() {
-    await focusFileTree('activateFilter')
   },
   collapseAllFolders() {
     collapseSidebarFolders()
@@ -75,8 +141,8 @@ defineExpose({
 
 <style scoped>
 .left-shell-sidebar {
-  --sidebar-shell-top: 18px;
-  --sidebar-shell-inline: 8px;
+  --sidebar-shell-top: 34px;
+  --sidebar-shell-inline: 12px;
   --sidebar-shell-bottom: 2px;
   display: flex;
   flex-direction: column;
@@ -84,6 +150,7 @@ defineExpose({
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  gap: 8px;
   padding: var(--sidebar-shell-top) var(--sidebar-shell-inline) var(--sidebar-shell-bottom);
   background: var(
     --sidebar-shell-surface,
@@ -94,8 +161,60 @@ defineExpose({
     saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
-.left-shell-sidebar > :last-child {
+.left-shell-sidebar__content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.left-shell-sidebar__content > * {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.left-shell-sidebar__switcher {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  flex: 0 0 auto;
+  gap: 2px;
+  margin: 0 4px;
+  padding: 1px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--sidebar-item-hover) 72%, transparent);
+}
+
+.left-shell-sidebar__switcher-button {
+  flex: 1 1 0;
+  width: auto;
+  height: 22px;
+  min-height: 22px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-align: center;
+}
+
+.left-shell-sidebar__switcher-button:hover:not(:disabled) {
+  background: var(--sidebar-item-hover);
+  color: var(--text-primary);
+}
+
+.left-shell-sidebar__switcher-button.is-active {
+  background: var(--list-active-bg);
+  color: var(--text-primary);
+}
+
+.left-shell-sidebar__outline {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.left-shell-sidebar__content :deep(.file-tree-scroll) {
+  padding-top: 0;
 }
 </style>

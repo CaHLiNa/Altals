@@ -142,7 +142,7 @@ export function createWorkspacePreferenceState() {
     leftSidebarOpen: true,
     leftSidebarPanel: 'files',
     rightSidebarOpen: false,
-    rightSidebarPanel: 'outline',
+    rightSidebarPanel: 'dock',
     autoSave: true,
     softWrap: true,
     wrapColumn: 0,

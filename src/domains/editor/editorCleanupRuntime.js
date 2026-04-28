@@ -22,6 +22,8 @@ export function createEmptyEditorRuntimeState({ restoreGeneration = 0 } = {}) {
     activePaneId: ROOT_PANE_ID,
     dirtyFiles: new Set(),
     legacyPreviewPaths: new Set(),
+    documentDockTabs: [],
+    activeDocumentDockTab: null,
     recentFiles: [],
     lastContextPath: null,
     cursorOffset: 0,

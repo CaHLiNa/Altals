@@ -7,6 +7,8 @@
       'is-dark-page-theme': shouldUseDarkPageTheme,
       'is-search-open': searchUiVisible,
       'has-thumbnails-open': thumbnailsVisible,
+      'is-compact-toolbar': compactToolbar,
+      'is-compact-fit-pending': compactToolbar && !compactFitWidthReady,
     }"
     tabindex="0"
     data-surface-context-guard="true"
@@ -15,7 +17,11 @@
     @mousedown.capture="handleMouseDownCapture"
     @keydown.capture="handleKeydown"
   >
-    <div class="pdf-artifact-preview__toolbar" data-no-embedpdf-interaction="true">
+    <div
+      v-if="!compactToolbar"
+      class="pdf-artifact-preview__toolbar"
+      data-no-embedpdf-interaction="true"
+    >
       <div class="pdf-artifact-preview__toolbar-main">
         <div class="pdf-artifact-preview__toolbar-main-left">
           <UiButton
@@ -322,6 +328,8 @@ const props = defineProps({
   pdfViewerSpreadMode: { type: String, default: 'single' },
   pdfViewerLastScale: { type: String, default: '' },
   restoreState: { type: Object, default: null },
+  compactToolbar: { type: Boolean, default: false },
+  deferCompactResizeFit: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -361,6 +369,7 @@ const pageBindings = new Map()
 const surfaceRef = ref(null)
 const pendingRestoreState = ref(null)
 const initialLayoutHandled = ref(false)
+const compactFitWidthReady = ref(!props.compactToolbar)
 const layoutNudge = ref(0)
 const saveInProgress = ref(false)
 const selectedText = ref('')
@@ -419,6 +428,13 @@ let forwardSyncHighlightTimer = 0
 let lastHandledForwardSyncRequestId = 0
 let scheduledLayoutNudgeFrame = 0
 let layoutNudgeResetFrame = 0
+let compactFitWidthFrame = 0
+let compactFitWidthRevealFrame = 0
+let compactFitWidthRetryCount = 0
+const COMPACT_FIT_WIDTH_MAX_RETRIES = 8
+let compactFitWidthRevealRetryCount = 0
+const COMPACT_FIT_WIDTH_REVEAL_MAX_RETRIES = 10
+let compactFitWidthPendingAfterResize = false
 
 const hasSearchResults = computed(() => Number(search.state.value?.total || 0) > 0)
 const isMatchCaseEnabled = computed(() =>
@@ -927,6 +943,93 @@ function applyViewerPreferences() {
   applyZoomValue(resolvePreferredZoomValue())
 }
 
+function cancelCompactFitWidthFrame() {
+  if (typeof window === 'undefined') return
+  if (compactFitWidthFrame) {
+    window.cancelAnimationFrame(compactFitWidthFrame)
+    compactFitWidthFrame = 0
+  }
+  if (compactFitWidthRevealFrame) {
+    window.cancelAnimationFrame(compactFitWidthRevealFrame)
+    compactFitWidthRevealFrame = 0
+  }
+}
+
+function revealCompactFitWidthAfterPaint() {
+  if (typeof window === 'undefined') {
+    compactFitWidthReady.value = true
+    return
+  }
+
+  if (compactFitWidthRevealFrame) {
+    window.cancelAnimationFrame(compactFitWidthRevealFrame)
+  }
+  compactFitWidthRevealFrame = window.requestAnimationFrame(() => {
+    compactFitWidthRevealFrame = 0
+
+    const readyToReveal =
+      !props.compactToolbar ||
+      (
+        initialLayoutHandled.value &&
+        pageBindings.size > 0 &&
+        resolveScaleValueFromZoomState() === 'page-width'
+      )
+
+    if (readyToReveal) {
+      compactFitWidthRevealRetryCount = 0
+      compactFitWidthReady.value = true
+      return
+    }
+
+    compactFitWidthRevealRetryCount += 1
+    if (compactFitWidthRevealRetryCount <= COMPACT_FIT_WIDTH_REVEAL_MAX_RETRIES) {
+      scheduleCompactFitWidth()
+      revealCompactFitWidthAfterPaint()
+      return
+    }
+
+    compactFitWidthRevealRetryCount = 0
+    compactFitWidthReady.value = true
+  })
+}
+
+function scheduleCompactFitWidth(options = {}) {
+  if (!props.compactToolbar || typeof window === 'undefined') return
+  if (props.deferCompactResizeFit && compactFitWidthReady.value && options.force !== true) {
+    compactFitWidthPendingAfterResize = true
+    return
+  }
+  if (compactFitWidthFrame) return
+
+  compactFitWidthFrame = window.requestAnimationFrame(() => {
+    compactFitWidthFrame = 0
+    if (!props.compactToolbar) return
+    if (props.deferCompactResizeFit && compactFitWidthReady.value && options.force !== true) {
+      compactFitWidthPendingAfterResize = true
+      return
+    }
+
+    const zoomScope = zoom.provides.value
+    if (!zoomScope) {
+      compactFitWidthRetryCount += 1
+      if (!compactFitWidthReady.value && compactFitWidthRetryCount <= COMPACT_FIT_WIDTH_MAX_RETRIES) {
+        scheduleCompactFitWidth()
+        return
+      }
+      compactFitWidthReady.value = true
+      return
+    }
+
+    compactFitWidthRetryCount = 0
+    compactFitWidthPendingAfterResize = false
+    zoomScope.requestZoom?.(ZoomMode.FitWidth)
+    scheduleViewStateEmission()
+    if (!compactFitWidthReady.value) {
+      revealCompactFitWidthAfterPaint()
+    }
+  })
+}
+
 function captureCurrentViewState() {
   const viewportScope = viewportCapability.value?.forDocument(props.documentId)
   if (!viewportScope) return null
@@ -983,6 +1086,7 @@ function clearScheduledLayoutNudge() {
 
 function scheduleInitialLayoutNudge() {
   if (typeof window === 'undefined') return
+  if (props.compactToolbar) return
   if (initialLayoutHandled.value || pageBindings.size > 0) return
 
   clearScheduledLayoutNudge()
@@ -1622,7 +1726,7 @@ watch(
   () => resolveScaleValueFromZoomState(),
   (nextScaleValue) => {
     const normalizedScaleValue = normalizeWorkspacePdfViewerLastScale(nextScaleValue)
-    if (normalizedScaleValue && workspace.pdfViewerLastScale !== normalizedScaleValue) {
+    if (!props.compactToolbar && normalizedScaleValue && workspace.pdfViewerLastScale !== normalizedScaleValue) {
       void workspace.setPdfViewerLastScale(normalizedScaleValue).catch(() => {})
     }
     scheduleViewStateEmission()
@@ -1659,8 +1763,40 @@ watch(
     searchQuery.value = ''
     searchUiVisible.value = false
     scheduleViewStateEmission()
-    scheduleInitialLayoutNudge()
+    if (!props.compactToolbar) {
+      scheduleInitialLayoutNudge()
+    }
   }
+)
+
+watch(
+  [() => props.compactToolbar, () => props.documentId],
+  ([compactToolbar]) => {
+    cancelCompactFitWidthFrame()
+    compactFitWidthRetryCount = 0
+    compactFitWidthRevealRetryCount = 0
+    compactFitWidthPendingAfterResize = false
+    compactFitWidthReady.value = !compactToolbar
+    if (compactToolbar) {
+      scheduleCompactFitWidth()
+    }
+  },
+  { immediate: true, flush: 'post' }
+)
+
+watch(
+  () => props.deferCompactResizeFit,
+  (deferFit) => {
+    if (deferFit) {
+      if (compactFitWidthReady.value) {
+        compactFitWidthPendingAfterResize = true
+      }
+      return
+    }
+    if (!compactFitWidthPendingAfterResize) return
+    scheduleCompactFitWidth({ force: true })
+  },
+  { flush: 'post' }
 )
 
 watch(
@@ -1705,6 +1841,25 @@ watch(
     if (!searchUiVisible.value && !String(nextQuery || '').trim()) return
     scheduleSearchExecution(nextQuery)
   }
+)
+
+watch(
+  [() => surfaceRef.value, () => props.compactToolbar, () => props.documentId],
+  ([surfaceElement, compactToolbar], _, onCleanup) => {
+    if (!compactToolbar || !surfaceElement || typeof ResizeObserver !== 'function') return
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleCompactFitWidth()
+    })
+    resizeObserver.observe(surfaceElement)
+    scheduleCompactFitWidth()
+
+    onCleanup(() => {
+      resizeObserver.disconnect()
+      cancelCompactFitWidthFrame()
+    })
+  },
+  { immediate: true, flush: 'post' }
 )
 
 watch(
@@ -1777,6 +1932,10 @@ watch(
         applyViewerPreferences()
         initialLayoutHandled.value = true
         clearScheduledLayoutNudge()
+        if (props.compactToolbar) {
+          scheduleCompactFitWidth()
+          revealCompactFitWidthAfterPaint()
+        }
       }
       if (queuedForwardSyncRequest.value) {
         const queuedRequest = queuedForwardSyncRequest.value
@@ -1804,6 +1963,7 @@ watch(
 
 onUnmounted(() => {
   clearScheduledLayoutNudge()
+  cancelCompactFitWidthFrame()
   pageBindings.clear()
   clearSearchDebounceTimer()
   clearForwardSyncHighlight()
@@ -1815,7 +1975,9 @@ onUnmounted(() => {
 })
 
 onMounted(() => {
-  scheduleInitialLayoutNudge()
+  if (!props.compactToolbar) {
+    scheduleInitialLayoutNudge()
+  }
 })
 </script>
 
@@ -2006,6 +2168,20 @@ onMounted(() => {
   padding-top: 30px;
   box-sizing: border-box;
   background: var(--embedpdf-surface);
+}
+
+.pdf-artifact-preview__surface.is-compact-toolbar .pdf-artifact-preview__viewport {
+  padding-top: 0;
+  visibility: visible;
+}
+
+.pdf-artifact-preview__surface.is-compact-fit-pending .pdf-artifact-preview__viewport {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pdf-artifact-preview__surface.is-compact-toolbar .pdf-artifact-preview__thumbnails {
+  top: 0;
 }
 
 .pdf-artifact-preview__page-shell {
@@ -2265,6 +2441,10 @@ onMounted(() => {
 
   .pdf-artifact-preview__viewport {
     padding-top: 56px;
+  }
+
+  .pdf-artifact-preview__surface.is-compact-toolbar .pdf-artifact-preview__viewport {
+    padding-top: 0;
   }
 
   .pdf-artifact-preview__toolbar-search {

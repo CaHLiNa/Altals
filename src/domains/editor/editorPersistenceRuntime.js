@@ -14,6 +14,8 @@ function buildEditorStatePayload({
   paneTree,
   activePaneId,
   legacyPreviewPaths,
+  documentDockTabs,
+  activeDocumentDockTab,
   lastContextPath,
 } = {}) {
   return {
@@ -23,6 +25,10 @@ function buildEditorStatePayload({
     legacyPreviewPaths: Array.isArray(legacyPreviewPaths)
       ? legacyPreviewPaths
       : Array.from(legacyPreviewPaths || []),
+    documentDockTabs: Array.isArray(documentDockTabs)
+      ? documentDockTabs
+      : Array.from(documentDockTabs || []),
+    activeDocumentDockTab: String(activeDocumentDockTab || ''),
     lastContextPath: String(lastContextPath || ''),
   }
 }
@@ -51,6 +57,8 @@ export function scheduleEditorStateSave({
   paneTree,
   activePaneId,
   legacyPreviewPaths,
+  documentDockTabs,
+  activeDocumentDockTab,
   lastContextPath,
   delayMs = 500,
 } = {}) {
@@ -59,6 +67,8 @@ export function scheduleEditorStateSave({
     paneTree,
     activePaneId,
     legacyPreviewPaths,
+    documentDockTabs,
+    activeDocumentDockTab,
     lastContextPath,
   })
   const nextStateKey = buildEditorStateKey(payload)
@@ -71,6 +81,8 @@ export function scheduleEditorStateSave({
   saveStateTimer = setTimeout(() => {
     void saveState(payload.workspaceDataDir, payload.paneTree, payload.activePaneId, {
       legacyPreviewPaths: payload.legacyPreviewPaths,
+      documentDockTabs: payload.documentDockTabs,
+      activeDocumentDockTab: payload.activeDocumentDockTab,
       lastContextPath: payload.lastContextPath,
     }).then((result) => {
       if (result != null) {
@@ -91,6 +103,8 @@ export async function flushEditorStateSave({
   paneTree,
   activePaneId,
   legacyPreviewPaths,
+  documentDockTabs,
+  activeDocumentDockTab,
   lastContextPath,
 } = {}) {
   const payload = buildEditorStatePayload({
@@ -98,6 +112,8 @@ export async function flushEditorStateSave({
     paneTree,
     activePaneId,
     legacyPreviewPaths,
+    documentDockTabs,
+    activeDocumentDockTab,
     lastContextPath,
   })
   const nextStateKey = buildEditorStateKey(payload)
@@ -109,6 +125,8 @@ export async function flushEditorStateSave({
   }
   const result = await saveState(payload.workspaceDataDir, payload.paneTree, payload.activePaneId, {
     legacyPreviewPaths: payload.legacyPreviewPaths,
+    documentDockTabs: payload.documentDockTabs,
+    activeDocumentDockTab: payload.activeDocumentDockTab,
     lastContextPath: payload.lastContextPath,
   })
   if (result != null) {
@@ -131,6 +149,8 @@ export async function loadEditorStateSnapshot(workspaceDataDir) {
       paneTree: state.paneTree,
       activePaneId: state.activePaneId,
       legacyPreviewPaths: state.legacyPreviewPaths,
+      documentDockTabs: state.documentDockTabs,
+      activeDocumentDockTab: state.activeDocumentDockTab,
       lastContextPath: state.lastContextPath,
     }))
   }

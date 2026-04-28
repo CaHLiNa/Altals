@@ -13,9 +13,7 @@ import {
   findPane,
   findPaneWithTab,
   findParent,
-  findRightNeighborLeaf,
   ROOT_PANE_ID,
-  splitPaneNode,
 } from '../domains/editor/paneTreeLayout'
 import {
   closePaneTab,
@@ -100,6 +98,9 @@ export const useEditorStore = defineStore('editor', {
       }
 
       walk(state.paneTree)
+      for (const tab of state.documentDockTabs || []) {
+        files.add(tab)
+      }
       return files
     },
 
@@ -144,16 +145,9 @@ export const useEditorStore = defineStore('editor', {
       return findFirstLeaf(node)
     },
 
-    findRightNeighborLeaf(paneId) {
-      return findRightNeighborLeaf(this.paneTree, paneId)
-    },
-
     getCompanionPaneId(paneId) {
-      if (this.paneTree?.type !== 'split' || !Array.isArray(this.paneTree.children)) return null
-      const [leftPane, rightPane] = this.paneTree.children
-      if (leftPane?.id === paneId) return rightPane?.id || null
-      if (rightPane?.id === paneId) return leftPane?.id || null
-      return rightPane?.id || leftPane?.id || null
+      void paneId
+      return null
     },
 
     _findLeaf(predicate) {
@@ -195,17 +189,47 @@ export const useEditorStore = defineStore('editor', {
     },
 
     openNewTabBeside() {
-      const newPaneId = this.splitPaneWith(this.activePaneId, 'vertical', createNewTabPath())
-      if (newPaneId) {
-        this.activePaneId = newPaneId
-        this.saveEditorState()
-      }
-      return newPaneId
+      this.openNewTab(this.activePaneId)
+      return this.activePaneId
     },
 
     openFileInPane(path, paneId, options = {}) {
       if (!path || !paneId) return null
       return this._getEditorOpenRoutingRuntime().openFileInPane(path, paneId, options)
+    },
+
+    openDocumentDockFile(path) {
+      if (!path || isLauncherTab(path) || isPreviewPath(path)) return false
+      if (!this.documentDockTabs.includes(path)) {
+        this.documentDockTabs.push(path)
+      }
+      this.activeDocumentDockTab = path
+      this.recordFileOpen(path)
+      this._rememberContextPath(path)
+      this.saveEditorState()
+      return true
+    },
+
+    setActiveDocumentDockFile(path) {
+      if (!path || !this.documentDockTabs.includes(path)) return false
+      this.activeDocumentDockTab = path
+      this._rememberContextPath(path)
+      this.saveEditorState()
+      return true
+    },
+
+    closeDocumentDockFile(path) {
+      if (!path) return false
+      const index = this.documentDockTabs.indexOf(path)
+      if (index === -1) return false
+
+      this.documentDockTabs.splice(index, 1)
+      if (this.activeDocumentDockTab === path) {
+        this.activeDocumentDockTab =
+          this.documentDockTabs[Math.min(index, this.documentDockTabs.length - 1)] || null
+      }
+      this.saveEditorState()
+      return true
     },
 
     _revealInTree(path) {
@@ -278,47 +302,6 @@ export const useEditorStore = defineStore('editor', {
       this.saveEditorState()
     },
 
-    splitPane(_direction) {
-      const pane = this.findPane(this.paneTree, this.activePaneId)
-      if (!pane) return null
-
-      const existingCompanionPaneId = this.getCompanionPaneId(pane.id)
-      if (existingCompanionPaneId) {
-        this.activePaneId = existingCompanionPaneId
-        this.saveEditorState()
-        return existingCompanionPaneId
-      }
-
-      const newPaneId = `pane-${nanoid()}`
-      const newPane = splitPaneNode(this.paneTree, pane.id, newPaneId)
-      if (!newPane) return null
-
-      this.activePaneId = newPane.id
-      this.saveEditorState()
-      return newPane.id
-    },
-
-    splitPaneWith(paneId, direction, tab) {
-      const pane = this.findPane(this.paneTree, paneId)
-      if (!pane || !tab) return null
-
-      const existingCompanionPaneId = this.getCompanionPaneId(paneId)
-      if (existingCompanionPaneId) {
-        this.openFileInPane(tab, existingCompanionPaneId, { activatePane: false })
-        this.activePaneId = paneId
-        this.saveEditorState()
-        return existingCompanionPaneId
-      }
-
-      const newPaneId = `pane-${nanoid()}`
-      const newPane = splitPaneNode(this.paneTree, paneId, newPaneId, [tab], tab)
-      if (!newPane) return null
-
-      this.activePaneId = paneId
-      this.saveEditorState()
-      return newPane.id
-    },
-
     setActivePane(paneId) {
       if (!paneId || this.activePaneId === paneId) return
       this.activePaneId = paneId
@@ -339,16 +322,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     setSplitRatio(splitNode, ratio, { persist = false } = {}) {
-      if (!splitNode || splitNode !== this.paneTree || splitNode.type !== 'split') return
-      splitNode.ratio = Math.max(0.15, Math.min(0.85, Number(ratio) || 0.5))
-      if (persist) {
-        this.saveEditorState()
-      }
+      void splitNode
+      void ratio
+      void persist
     },
 
     commitSplitRatio(splitNode) {
-      if (!splitNode || splitNode !== this.paneTree || splitNode.type !== 'split') return
-      this.setSplitRatio(splitNode, splitNode.ratio, { persist: true })
+      void splitNode
     },
 
     updateFilePath(oldPath, newPath) {
@@ -380,6 +360,14 @@ export const useEditorStore = defineStore('editor', {
 
       if (this.lastContextPath === oldPath) {
         this.lastContextPath = newPath
+      }
+
+      const dockTabIndex = this.documentDockTabs.indexOf(oldPath)
+      if (dockTabIndex !== -1) {
+        this.documentDockTabs.splice(dockTabIndex, 1, newPath)
+      }
+      if (this.activeDocumentDockTab === oldPath) {
+        this.activeDocumentDockTab = newPath
       }
 
       if (this.dirtyFiles.has(oldPath)) {
@@ -423,6 +411,8 @@ export const useEditorStore = defineStore('editor', {
       for (const paneId of leaves) {
         this.closeTab(paneId, path)
       }
+
+      this.closeDocumentDockFile(path)
 
       this.clearFileDirty(path)
     },
@@ -525,6 +515,8 @@ export const useEditorStore = defineStore('editor', {
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
+        documentDockTabs: this.documentDockTabs,
+        activeDocumentDockTab: this.activeDocumentDockTab,
         lastContextPath: this.lastContextPath,
       })
     },
@@ -535,6 +527,8 @@ export const useEditorStore = defineStore('editor', {
         paneTree: this.paneTree,
         activePaneId: this.activePaneId,
         legacyPreviewPaths: this.legacyPreviewPaths,
+        documentDockTabs: this.documentDockTabs,
+        activeDocumentDockTab: this.activeDocumentDockTab,
         lastContextPath: this.lastContextPath,
       })
     },
@@ -548,6 +542,10 @@ export const useEditorStore = defineStore('editor', {
       this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
       this.activePaneId = state.activePaneId || ROOT_PANE_ID
       this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
+      this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
+      this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
+        ? state.activeDocumentDockTab
+        : this.documentDockTabs[0] || null
       this.lastContextPath = isContextCandidatePath(state.lastContextPath)
         ? state.lastContextPath
         : null
@@ -562,6 +560,10 @@ export const useEditorStore = defineStore('editor', {
       this.paneTree = state.paneTree || createEmptyEditorRuntimeState().paneTree
       this.activePaneId = state.activePaneId || ROOT_PANE_ID
       this.legacyPreviewPaths = new Set(state.legacyPreviewPaths || [])
+      this.documentDockTabs = Array.isArray(state.documentDockTabs) ? state.documentDockTabs : []
+      this.activeDocumentDockTab = this.documentDockTabs.includes(state.activeDocumentDockTab)
+        ? state.activeDocumentDockTab
+        : this.documentDockTabs[0] || null
       this.lastContextPath = isContextCandidatePath(state.lastContextPath)
         ? state.lastContextPath
         : null

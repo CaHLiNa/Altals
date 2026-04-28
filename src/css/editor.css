@@ -8,31 +8,244 @@
   background: transparent !important;
 }
 
+.inline-dock {
+  --inline-dock-toolbar-height: 31px;
+  --inline-dock-control-height: 30px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+}
+
+.inline-dock__tabbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: var(--inline-dock-toolbar-height);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--workbench-divider-soft);
+  background: var(--shell-editor-surface);
+}
+
+.inline-dock__tabs {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 3px;
+  height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.inline-dock__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.inline-dock__tab,
+.inline-dock__tab-label,
+.inline-dock__tab-close {
+  display: inline-flex;
+  align-items: center;
+}
+
+.inline-dock__tab,
+.inline-dock__tab-close {
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inline-dock__tab {
+  position: relative;
+  justify-content: flex-start;
+  flex: 0 1 190px;
+  gap: 6px;
+  min-width: 96px;
+  max-width: 220px;
+  height: var(--inline-dock-control-height);
+  padding: 0 6px 0 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.inline-dock__tab.is-active {
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+}
+
+.inline-dock__tab-label {
+  flex: 1 1 auto;
+  gap: 7px;
+  min-width: 0;
+}
+
+.inline-dock__tab-icon {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.inline-dock__tab:hover .inline-dock__tab-icon,
+.inline-dock__tab:focus-within .inline-dock__tab-icon {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.inline-dock__tab-label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inline-dock__tab-close {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  z-index: 2;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.94);
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.inline-dock__tab:hover .inline-dock__tab-close,
+.inline-dock__tab:focus-within .inline-dock__tab-close {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.inline-dock__tab-close:hover,
+.inline-dock__tab-close:focus-visible {
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
+  color: var(--text-primary);
+}
+
+.inline-dock__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 8px 10px 10px 12px;
+  overflow: hidden;
+}
+
+.inline-dock__body.is-immersive,
+.inline-dock__body.is-flush {
+  padding: 0;
+}
+
+.inline-dock__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.workbench-inline-dock-resize-slot {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 6;
+  width: 0;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.workbench-inline-dock-resize-slot.is-visible {
+  opacity: 1;
+}
+
+.workbench-inline-dock-resize-slot.is-hidden {
+  pointer-events: none;
+}
+
+.workbench-inline-dock-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  margin: 0;
+}
+
+.workbench-inline-dock-region {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--shell-editor-surface) 86%, var(--surface-base) 14%);
+  opacity: 1;
+  transition: opacity 120ms ease;
+}
+
+.workbench-inline-dock-region.is-collapsed {
+  opacity: 0;
+  pointer-events: none;
+  border-left-color: transparent;
+}
+
+.workbench-inline-dock-region.is-resizing {
+  transition: none;
+  user-select: none;
+}
+
 .cm-editor.cm-focused {
   outline: none;
 }
 
-/* 呼吸感：收紧排版，让文字区居中 */
+/* Keep editor text aligned to the document pane boundary; wrapColumn still constrains width. */
 .cm-prose-file .cm-content {
-  max-width: var(--editor-wrap-column, 760px);
-  margin: 0 auto;
+  max-width: var(--editor-wrap-column, none);
+  margin: 0;
   font-family: var(--font-markdown);
   font-variant-ligatures: normal;
   font-feature-settings: 'calt' 1;
-  line-height: 1.8 !important; 
+  line-height: 1.8 !important;
   /* 加大底部留白，原生实现“打字机”滚动，允许把最后一行滚至屏幕中央 */
-  padding: 12px 24px 45vh !important; 
+  padding: 12px 16px 45vh !important;
   color: var(--workspace-ink);
 }
 
 .cm-latex-file .cm-content {
-  max-width: var(--editor-wrap-column, 860px);
-  margin: 0 auto;
+  max-width: var(--editor-wrap-column, none);
+  margin: 0;
   font-family: var(--font-latex);
   font-variant-ligatures: normal;
   font-feature-settings: 'calt' 1;
   line-height: 1.65 !important;
-  padding: 12px 24px 45vh !important;
+  padding: 12px 16px 45vh !important;
   color: var(--workspace-ink);
 }
 
@@ -44,10 +257,10 @@
 }
 
 .cm-lineNumbers .cm-gutterElement {
-  padding: 0 16px 0 8px !important;
+  padding: 0 10px 0 6px !important;
   opacity: 0.5; 
   transition: opacity 0.15s ease;
-  min-width: 36px;
+  min-width: 32px;
   text-align: right;
   font-family: var(--font-mono);
   font-size: 0.85em;

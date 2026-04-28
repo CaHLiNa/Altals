@@ -14,8 +14,7 @@ export function useAppShellEventBridge({
   workspace,
   editorStore,
   filesStore,
-  toggleSplitPane,
-  leftSidebarRef,
+  workflowStore,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
@@ -74,12 +73,6 @@ export function useAppShellEventBridge({
       return
     }
 
-    if (isMod(event) && event.key === 'j') {
-      event.preventDefault()
-      toggleSplitPane?.()
-      return
-    }
-
     if (isMod(event) && event.key === ',') {
       event.preventDefault()
       workspace.settingsOpen ? workspace.closeSettings() : workspace.openSettings()
@@ -113,18 +106,18 @@ export function useAppShellEventBridge({
       return
     }
 
-    if (isMod(event) && event.key === 'f') {
-      const sidebarEl = document.querySelector('[data-sidebar="left"]')
-      if (sidebarEl && sidebarEl.contains(document.activeElement)) {
-        event.preventDefault()
-        leftSidebarRef.value?.activateFilter()
-        return
-      }
-    }
-
     if (event.key === 'Escape') {
       if (workspace.settingsOpen) {
         workspace.closeSettings()
+        event.preventDefault()
+        return
+      }
+      const activePath = editorStore.activeTab
+      const previewState = activePath
+        ? workflowStore?.getWorkspacePreviewStateForFile?.(activePath)
+        : null
+      if (previewState?.previewVisible === true) {
+        await workflowStore?.hideWorkspacePreviewForFile?.(activePath)
         event.preventDefault()
         return
       }

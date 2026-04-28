@@ -7,6 +7,7 @@
         class="flex-1 min-w-0 h-full"
         :filePath="filePath"
         :paneId="paneId"
+        :read-only="readOnly"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
         @editor-stats="(stats) => $emit('editor-stats', stats)"
         @selection-change="(selection) => $emit('selection-change', selection)"
@@ -23,6 +24,7 @@ const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))
 defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  readOnly: { type: Boolean, default: false },
 })
 
 defineEmits(['cursor-change', 'editor-stats', 'selection-change'])

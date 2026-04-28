@@ -71,7 +71,6 @@ function buildDefaultResolvedQueryState(state = {}) {
       selectedSourceKey: state.selectedSourceKey || '',
       selectedCollectionKey: state.selectedCollectionKey || '',
       selectedTagKey: state.selectedTagKey || '',
-      searchQuery: state.searchQuery || '',
       sortKey: state.sortKey || 'year-desc',
       selectedReferenceId: state.selectedReferenceId || '',
     },
@@ -98,7 +97,6 @@ export const useReferencesStore = defineStore('references', {
     selectedCollectionKey: '',
     selectedTagKey: '',
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
-    searchQuery: '',
     sortKey: 'year-desc',
     resolvedQueryState: buildDefaultResolvedQueryState({
       librarySections: REFERENCE_LIBRARY_SECTIONS,
@@ -110,7 +108,6 @@ export const useReferencesStore = defineStore('references', {
       selectedSourceKey: '',
       selectedCollectionKey: '',
       selectedTagKey: '',
-      searchQuery: '',
       sortKey: 'year-desc',
     }),
     isLoading: false,
@@ -192,7 +189,6 @@ export const useReferencesStore = defineStore('references', {
         selectedSourceKey: this.selectedSourceKey,
         selectedCollectionKey: this.selectedCollectionKey,
         selectedTagKey: this.selectedTagKey,
-        searchQuery: this.searchQuery,
         sortKey: this.sortKey,
         preferredSelectedReferenceId: this.selectedReferenceId,
         fileContents,
@@ -207,7 +203,6 @@ export const useReferencesStore = defineStore('references', {
       this.selectedCollectionKey = String(query.selectedCollectionKey || '')
       this.selectedTagKey = String(query.selectedTagKey || '')
       this.sortKey = String(query.sortKey || 'year-desc')
-      this.searchQuery = String(query.searchQuery ?? this.searchQuery ?? '')
       this.selectedReferenceId = String(
         this.resolvedQueryState?.selectedReferenceId ||
         query.selectedReferenceId ||
@@ -227,7 +222,6 @@ export const useReferencesStore = defineStore('references', {
         selectedSourceKey: this.selectedSourceKey,
         selectedCollectionKey: this.selectedCollectionKey,
         selectedTagKey: this.selectedTagKey,
-        searchQuery: this.searchQuery,
         sortKey: this.sortKey,
         selectedReferenceId: this.selectedReferenceId,
       })
@@ -492,11 +486,6 @@ export const useReferencesStore = defineStore('references', {
       await this.syncResolvedQueryState()
     },
 
-    async setSearchQuery(value = '') {
-      this.searchQuery = String(value || '')
-      await this.syncResolvedQueryState()
-    },
-
     async setSortKey(value = '') {
       this.sortKey = [
         'year-desc',
@@ -709,7 +698,6 @@ export const useReferencesStore = defineStore('references', {
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
-      this.searchQuery = ''
       this.sortKey = 'year-desc'
       this.resolvedQueryState = buildDefaultResolvedQueryState({
         librarySections: this.librarySections,
@@ -721,7 +709,6 @@ export const useReferencesStore = defineStore('references', {
         selectedSourceKey: this.selectedSourceKey,
         selectedCollectionKey: this.selectedCollectionKey,
         selectedTagKey: this.selectedTagKey,
-        searchQuery: this.searchQuery,
         sortKey: this.sortKey,
       })
       this.isLoading = false

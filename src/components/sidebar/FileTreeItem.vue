@@ -5,7 +5,6 @@
       :class="{
         'is-active-row': isActive,
         'is-selected-row': !isActive && isSelected,
-        'is-filter-highlighted': isFilterHighlighted,
         'tree-item-dragover': entry.is_dir && dragOverDir === entry.path,
       }"
       :style="{ paddingLeft: treeRowPadding(depth) + 'px' }"
@@ -62,13 +61,7 @@
       </template>
       <template v-else>
         <span class="file-tree-item-label truncate">
-          <template v-if="filterQuery && nameSegments.length > 1">
-            <template v-for="(seg, i) in nameSegments" :key="i">
-              <span v-if="seg.match" class="file-tree-item-match">{{ seg.text }}</span>
-              <template v-else>{{ seg.text }}</template>
-            </template>
-          </template>
-          <template v-else>{{ entry.name }}</template>
+          {{ entry.name }}
         </span>
       </template>
     </div>
@@ -117,9 +110,6 @@
         :newItemIsDir="newItemIsDir"
         :selectedPaths="selectedPaths"
         :dragOverDir="dragOverDir"
-        :filterQuery="filterQuery"
-        :forceExpand="forceExpand"
-        :filterHighlightPath="filterHighlightPath"
         @open-file="$emit('open-file', $event)"
         @select-file="$emit('select-file', $event)"
         @context-menu="$emit('context-menu', $event)"
@@ -180,9 +170,6 @@ const props = defineProps({
   newItemIsDir: { type: Boolean, default: false },
   selectedPaths: { type: Object, default: () => new Set() },
   dragOverDir: { type: String, default: null },
-  filterQuery: { type: String, default: '' },
-  forceExpand: { type: Boolean, default: false },
-  filterHighlightPath: { type: String, default: '' },
   suppressChildren: { type: Boolean, default: false },
 })
 
@@ -212,10 +199,7 @@ const TREE_NEW_ITEM_OFFSET = 14
 const renameInputEl = ref(null)
 const newItemInput = ref(null)
 
-const isExpanded = computed(() => props.forceExpand || files.isDirExpanded(props.entry.path))
-const isFilterHighlighted = computed(
-  () => props.filterHighlightPath && props.entry.path === props.filterHighlightPath
-)
+const isExpanded = computed(() => files.isDirExpanded(props.entry.path))
 const isActive = computed(() => editor.activeTab === props.entry.path)
 const isSelected = computed(() => props.selectedPaths.has(props.entry.path))
 const isRenaming = computed(() => props.renamingPath === props.entry.path)
@@ -248,20 +232,6 @@ const ICON_COMPONENTS = {
 const fileIconComponent = computed(() => {
   const iconName = getFileIconName(props.entry.name)
   return ICON_COMPONENTS[iconName] || IconFile
-})
-
-const nameSegments = computed(() => {
-  if (!props.filterQuery) return[{ text: props.entry.name, match: false }]
-  const q = props.filterQuery.toLowerCase()
-  const name = props.entry.name
-  const idx = name.toLowerCase().indexOf(q)
-  if (idx === -1) return [{ text: name, match: false }]
-  const segments =[]
-  if (idx > 0) segments.push({ text: name.slice(0, idx), match: false })
-  segments.push({ text: name.slice(idx, idx + q.length), match: true })
-  if (idx + q.length < name.length)
-    segments.push({ text: name.slice(idx + q.length), match: false })
-  return segments
 })
 
 watch(isRenaming, (v) => {
@@ -447,10 +417,6 @@ function treeNewItemPadding(depth) {
   opacity: 0.9;
 }
 
-.file-tree-item-row.is-filter-highlighted:not(.is-active-row):not(.is-selected-row) {
-  background: var(--sidebar-item-hover);
-}
-
 .file-tree-item-icon {
   color: var(--text-muted);
   opacity: 0.8;
@@ -464,10 +430,6 @@ function treeNewItemPadding(depth) {
 .file-tree-item-label {
   font-size: 13px;
   line-height: 1.2;
-}
-
-.file-tree-item-match {
-  color: var(--accent);
 }
 
 .file-tree-item-rename-input {

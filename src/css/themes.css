@@ -238,10 +238,8 @@
   --workspace-paper-muted: #161616;
   --workspace-ink: #f0f0f0;
 
-  --sidebar-search-surface: rgba(255, 255, 255, 0.06);
-  --sidebar-search-surface-focus: rgba(255, 255, 255, 0.1);
-  --sidebar-search-border: rgba(255, 255, 255, 0.08);
-  --sidebar-search-border-focus: rgba(255, 255, 255, 0.15);
+  --sidebar-input-surface: rgba(255, 255, 255, 0.06);
+  --sidebar-input-border: rgba(255, 255, 255, 0.08);
 
   --sidebar-item-hover: rgba(255, 255, 255, 0.06);
   --sidebar-item-active: rgba(255, 255, 255, 0.12);
@@ -486,10 +484,8 @@
   --workspace-ink: #171719;
 
   --sidebar-shell-surface: rgba(240, 240, 240, 0.65);
-  --sidebar-search-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
-  --sidebar-search-surface-focus: color-mix(in srgb, var(--panel-surface) 40%, transparent);
-  --sidebar-search-border: color-mix(in srgb, black 6%, transparent);
-  --sidebar-search-border-focus: color-mix(in srgb, black 12%, transparent);
+  --sidebar-input-surface: color-mix(in srgb, var(--panel-surface) 28%, transparent);
+  --sidebar-input-border: color-mix(in srgb, black 6%, transparent);
 
   --sidebar-item-hover: rgba(0, 0, 0, 0.05);
   --sidebar-item-active: rgba(0, 0, 0, 0.08);

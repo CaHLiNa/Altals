@@ -1,7 +1,7 @@
 <template>
   <div
     class="text-editor-shell h-full w-full"
-    :class="{ 'cm-prose-file': isMd, 'cm-latex-file': isLatexEditor }"
+    :class="{ 'cm-prose-file': isMd, 'cm-latex-file': isLatexEditor, 'is-read-only': props.readOnly }"
     :data-editor-filepath="props.filePath"
   >
     <div
@@ -26,10 +26,10 @@
     :y="ctxMenu.y"
     :has-selection="ctxMenu.hasSelection"
     :view="view"
-    :show-format-document="isLatexEditor"
-    :show-insert-citation="isMd || isLatexEditor"
-    :show-markdown-insert-table="isMd"
-    :show-markdown-format-table="ctxMenu.showMarkdownFormatTable"
+    :show-format-document="!props.readOnly && isLatexEditor"
+    :show-insert-citation="!props.readOnly && (isMd || isLatexEditor)"
+    :show-markdown-insert-table="!props.readOnly && isMd"
+    :show-markdown-format-table="!props.readOnly && ctxMenu.showMarkdownFormatTable"
     @close="closeContextMenu"
     @format-document="handleFormatDocument"
     @insert-citation="handleInsertCitation"
@@ -125,6 +125,7 @@ import { useI18n } from '../../i18n'
 const props = defineProps({
   filePath: { type: String, required: true },
   paneId: { type: String, required: true },
+  readOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
@@ -536,7 +537,7 @@ function resolveLatexForwardSyncTarget(viewInstance, pos = 0) {
 }
 
 async function handleFormatDocument() {
-  if (!view || !isLatexEditor) return
+  if (props.readOnly || !view || !isLatexEditor) return
 
   if (!latexStore.hasLatexFormatter) {
     void latexStore.checkTools().catch(() => {})
@@ -572,12 +573,12 @@ async function handleFormatDocument() {
 }
 
 function handleFormatMarkdownTable() {
-  if (!view || !isMd) return
+  if (props.readOnly || !view || !isMd) return
   formatCurrentMarkdownTable(view)
 }
 
 function handleInsertMarkdownTable() {
-  if (!view || !isMd) return
+  if (props.readOnly || !view || !isMd) return
   insertMarkdownTable(view)
 }
 
@@ -1125,11 +1126,14 @@ onMounted(async () => {
     showLineNumbers: workspace.editorLineNumbers,
     highlightActiveLineEnabled: workspace.editorHighlightActiveLine,
     languageExtension,
-    autoSaveEnabled: workspace.autoSave && !isDraftFile,
-    onDocChanged: handleDocumentChanged,
-    onSave: (nextContent) => {
-      void persistEditorContent(nextContent)
-    },
+    readOnly: props.readOnly,
+    autoSaveEnabled: !props.readOnly && workspace.autoSave && !isDraftFile,
+    onDocChanged: props.readOnly ? null : handleDocumentChanged,
+    onSave: props.readOnly
+      ? null
+      : (nextContent) => {
+          void persistEditorContent(nextContent)
+        },
     onCursorChange: (pos) => emit('cursor-change', pos),
     onStats: (stats) => emit('editor-stats', stats),
     extraExtensions: runtimeExtensions,
@@ -1417,7 +1421,7 @@ function handleWikiLinkClick(event) {
 }
 
 function handleCitationClick(event) {
-  if (!view || event.metaKey || event.ctrlKey) return
+  if (props.readOnly || !view || event.metaKey || event.ctrlKey) return
 
   const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return
@@ -1448,7 +1452,7 @@ function handleCitationClick(event) {
 }
 
 function handleLatexCitationClick(event) {
-  if (!view || event.metaKey || event.ctrlKey) return
+  if (props.readOnly || !view || event.metaKey || event.ctrlKey) return
 
   const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
   if (pos === null) return

@@ -1,4 +1,4 @@
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { dirnamePath } from '../utils/path'
 
 const TREE_ROW_HEIGHT = 24
@@ -15,49 +15,12 @@ function flattenVisibleRows(entries, depth = 0, rows = [], options = {}) {
   return rows
 }
 
-function filterTreeEntries(entries, query) {
-  const normalizedQuery = query.toLowerCase()
-  const matchesPath = normalizedQuery.includes('/')
-  const result = []
-
-  for (const entry of entries) {
-    const target = matchesPath
-      ? entry.path.toLowerCase()
-      : String(entry.display_name || entry.name || '').toLowerCase()
-    if (entry.is_dir) {
-      if (target.includes(normalizedQuery)) {
-        result.push(entry)
-      } else if (Array.isArray(entry.children)) {
-        const filteredChildren = filterTreeEntries(entry.children, query)
-        if (filteredChildren.length > 0) {
-          result.push({ ...entry, children: filteredChildren })
-        }
-      }
-    } else if (target.includes(normalizedQuery)) {
-      result.push(entry)
-    }
-  }
-
-  return result
-}
-
-function collectFileMatches(entries, result) {
-  for (const entry of entries) {
-    if (entry.is_dir && Array.isArray(entry.children)) {
-      collectFileMatches(entry.children, result)
-    } else if (!entry.is_dir) {
-      result.push(entry)
-    }
-  }
-}
-
-export function useFileTreeFilter(options) {
+export function useFileTreeRows(options) {
   const {
     files,
     editor,
     workspace,
     treeContainer,
-    filterInputEl,
     isMod,
     getDisplayTree = () => files.tree,
   } = options
@@ -66,32 +29,14 @@ export function useFileTreeFilter(options) {
   const containerHeight = ref(0)
   let treeResizeObserver = null
 
-  const filterActive = ref(true)
-  const filterQuery = ref('')
-  const filterSelectedIdx = ref(0)
   const selectedPaths = reactive(new Set())
   let lastSelectedPath = null
 
-  const filteredTree = computed(() => {
-    const displayTree = getDisplayTree()
-    if (!filterQuery.value) return displayTree
-    return filterTreeEntries(displayTree, filterQuery.value)
-  })
-
-  const filterMatches = computed(() => {
-    if (!filterQuery.value) return []
-    const matches = []
-    collectFileMatches(filteredTree.value, matches)
-    return matches
-  })
-
-  const displayTree = computed(() =>
-    filterActive.value && filterQuery.value ? filteredTree.value : getDisplayTree()
-  )
+  const displayTree = computed(() => getDisplayTree())
 
   const visibleRows = computed(() =>
     flattenVisibleRows(displayTree.value, 0, [], {
-      expandAll: filterActive.value && !!filterQuery.value,
+      expandAll: false,
       isDirExpanded: (path) => files.isDirExpanded(path),
     })
   )
@@ -114,12 +59,6 @@ export function useFileTreeFilter(options) {
   const virtualRows = computed(() => visibleRows.value.slice(virtualStart.value, virtualEnd.value))
   const virtualOffset = computed(() => virtualStart.value * TREE_ROW_HEIGHT)
   const totalTreeHeight = computed(() => visibleRows.value.length * TREE_ROW_HEIGHT)
-
-  const filterHighlightPath = computed(() => {
-    if (!filterActive.value || !filterQuery.value || filterMatches.value.length === 0) return ''
-    const index = Math.min(filterSelectedIdx.value, filterMatches.value.length - 1)
-    return filterMatches.value[index]?.path || ''
-  })
 
   function getVisiblePaths() {
     return visibleRows.value.map((row) => row.entry.path)
@@ -263,62 +202,6 @@ export function useFileTreeFilter(options) {
     lastSelectedPath = path
   }
 
-  function activateFilter() {
-    filterActive.value = true
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        const input = filterInputEl.value
-        input?.focus?.()
-        input?.select?.()
-      })
-    })
-  }
-
-  function closeFilter() {
-    filterQuery.value = ''
-    filterSelectedIdx.value = 0
-    nextTick(() => {
-      treeContainer.value?.focus()
-    })
-  }
-
-  function openFilteredMatch() {
-    if (filterMatches.value.length === 0) return
-    const index = Math.min(filterSelectedIdx.value, filterMatches.value.length - 1)
-    const match = filterMatches.value[index]
-    if (!match) return
-    editor.openFile(match.path)
-    closeFilter()
-  }
-
-  function handleFilterKeydown(event) {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      closeFilter()
-      return
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      if (filterMatches.value.length > 0) {
-        filterSelectedIdx.value = (filterSelectedIdx.value + 1) % filterMatches.value.length
-      }
-      return
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      if (filterMatches.value.length > 0) {
-        filterSelectedIdx.value =
-          (filterSelectedIdx.value - 1 + filterMatches.value.length) % filterMatches.value.length
-      }
-      return
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      openFilteredMatch()
-    }
-  }
-
   async function handleTreeKeydown(event) {
     if (event.key === 'ArrowUp') {
       event.preventDefault()
@@ -357,12 +240,6 @@ export function useFileTreeFilter(options) {
       if (visible.length > 0) selectSinglePath(visible[visible.length - 1])
       return
     }
-    if (isMod(event) && event.key === 'f') {
-      event.preventDefault()
-      event.stopPropagation()
-      activateFilter()
-      return
-    }
     if (event.key === 'Enter' && selectedPaths.size === 1) {
       event.preventDefault()
       const activePath = [...selectedPaths][0]
@@ -377,10 +254,6 @@ export function useFileTreeFilter(options) {
       event.__fileTreeDeleteSelected = true
     }
   }
-
-  watch(filterQuery, () => {
-    filterSelectedIdx.value = 0
-  })
 
   onMounted(() => {
     containerHeight.value = treeContainer.value?.clientHeight || 0
@@ -400,10 +273,6 @@ export function useFileTreeFilter(options) {
   })
 
   return {
-    filterActive,
-    filterQuery,
-    filterMatches,
-    filterHighlightPath,
     visibleRows,
     virtualRows,
     virtualOffset,
@@ -412,9 +281,6 @@ export function useFileTreeFilter(options) {
     onTreeScroll,
     onSelectFile,
     handleTreeKeydown,
-    handleFilterKeydown,
-    activateFilter,
-    closeFilter,
     findEntry,
     getActivePath,
   }

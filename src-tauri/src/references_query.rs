@@ -26,8 +26,6 @@ pub struct ReferencesQueryResolveParams {
     #[serde(default)]
     pub selected_tag_key: String,
     #[serde(default)]
-    pub search_query: String,
-    #[serde(default)]
     pub sort_key: String,
     #[serde(default)]
     pub preferred_selected_reference_id: String,
@@ -148,53 +146,6 @@ fn filter_reference_by_tag(reference: &Value, tag_key: &str) -> bool {
             };
             candidate == normalized_tag
         })
-}
-
-fn normalize_reference_search_tokens(reference: &Value) -> Vec<String> {
-    let mut tokens = Vec::new();
-    for field in [
-        "title",
-        "authorLine",
-        "source",
-        "citationKey",
-        "identifier",
-        "pages",
-    ] {
-        let value = trim_string(reference.get(field));
-        if !value.is_empty() {
-            tokens.push(value.to_lowercase());
-        }
-    }
-
-    if let Some(authors) = reference.get("authors").and_then(Value::as_array) {
-        for author in authors {
-            if let Some(text) = author.as_str() {
-                let normalized = text.trim().to_lowercase();
-                if !normalized.is_empty() {
-                    tokens.push(normalized);
-                }
-            }
-        }
-    }
-
-    if let Some(tags) = reference.get("tags").and_then(Value::as_array) {
-        for tag in tags {
-            if let Some(text) = tag.as_str() {
-                let normalized = text.trim().to_lowercase();
-                if !normalized.is_empty() {
-                    tokens.push(normalized);
-                }
-            } else {
-                let normalized =
-                    trim_string(tag.get("label")).if_empty_then(|| trim_string(tag.get("key")));
-                if !normalized.is_empty() {
-                    tokens.push(normalized.to_lowercase());
-                }
-            }
-        }
-    }
-
-    tokens
 }
 
 fn normalized_author_sort_text(reference: &Value) -> String {
@@ -353,7 +304,6 @@ pub async fn references_query_resolve(
         }
     };
 
-    let search_query = params.search_query.trim().to_lowercase();
     let sort_key = normalize_sort_key(&params.sort_key);
 
     let section_counts = build_count_map(
@@ -433,14 +383,6 @@ pub async fn references_query_resolve(
             filter_reference_by_collection(reference, &selected_collection_key, &params.collections)
         })
         .filter(|reference| filter_reference_by_tag(reference, &selected_tag_key))
-        .filter(|reference| {
-            if search_query.is_empty() {
-                return true;
-            }
-            normalize_reference_search_tokens(reference)
-                .iter()
-                .any(|token| token.contains(&search_query))
-        })
         .cloned()
         .collect::<Vec<_>>();
 
@@ -464,7 +406,6 @@ pub async fn references_query_resolve(
             "selectedSourceKey": selected_source_key,
             "selectedCollectionKey": selected_collection_key,
             "selectedTagKey": selected_tag_key,
-            "searchQuery": params.search_query,
             "sortKey": sort_key,
             "selectedReferenceId": selected_reference_id,
         },
@@ -518,7 +459,6 @@ mod tests {
             selected_source_key: "zotero".to_string(),
             selected_collection_key: "reading".to_string(),
             selected_tag_key: "ai".to_string(),
-            search_query: "alpha".to_string(),
             sort_key: "year-desc".to_string(),
             preferred_selected_reference_id: "a".to_string(),
             file_contents: Value::Null,

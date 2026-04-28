@@ -10,10 +10,12 @@
       :kind="kind"
       :workspacePath="workspace.path || ''"
       :compileState="compileState"
-      :pdfViewerZoomMode="workspace.pdfViewerZoomMode"
-      :pdfViewerSpreadMode="workspace.pdfViewerSpreadMode"
-      :pdfViewerLastScale="workspace.pdfViewerLastScale"
+      :pdfViewerZoomMode="effectivePdfViewerZoomMode"
+      :pdfViewerSpreadMode="effectivePdfViewerSpreadMode"
+      :pdfViewerLastScale="effectivePdfViewerLastScale"
       :pdfViewerPageThemeMode="workspace.pdfViewerPageThemeMode"
+      :compact-toolbar="compactToolbar"
+      :defer-compact-resize-fit="deferCompactResizeFit"
       @open-external="$emit('open-external')"
       @backward-sync="handleBackwardSync"
     />
@@ -50,6 +52,8 @@ const props = defineProps({
   sourcePath: { type: String, required: true },
   artifactPath: { type: String, required: true },
   kind: { type: String, required: true },
+  compactToolbar: { type: Boolean, default: false },
+  deferCompactResizeFit: { type: Boolean, default: false },
 })
 
 defineEmits(['open-external'])
@@ -84,6 +88,15 @@ const previewRevision = computed(() =>
     kind: props.kind,
     compileState: compileState.value,
   })
+)
+const effectivePdfViewerZoomMode = computed(() =>
+  props.compactToolbar ? 'page-width' : workspace.pdfViewerZoomMode
+)
+const effectivePdfViewerSpreadMode = computed(() =>
+  props.compactToolbar ? 'single' : workspace.pdfViewerSpreadMode
+)
+const effectivePdfViewerLastScale = computed(() =>
+  props.compactToolbar ? '' : workspace.pdfViewerLastScale
 )
 
 function refreshThemeTokens() {

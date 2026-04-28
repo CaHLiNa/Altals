@@ -26,7 +26,7 @@ export function resolveDocumentWorkspaceTextRoute(options = {}) {
 
   return {
     useWorkspaceSurface,
-    previewVisible: useWorkspaceSurface && documentPreviewState?.previewVisible === true,
+    previewVisible: false,
     previewMode: useWorkspaceSurface ? documentPreviewState?.previewMode || null : null,
     previewTargetPath: useWorkspaceSurface ? documentPreviewState?.previewTargetPath || '' : '',
     previewFilePath: useWorkspaceSurface ? documentPreviewState?.previewFilePath || '' : '',

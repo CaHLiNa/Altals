@@ -16,8 +16,12 @@ import { MAX_WORKBENCH_INSPECTOR_PANEL_COUNT } from '../shared/workbenchInspecto
 
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 240
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 360
+const DEFAULT_DOCUMENT_DOCK_WIDTH = 360
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 250
 const MIN_MAIN_WORKBENCH_WIDTH = 320
+const MIN_DOCUMENT_EDITOR_WIDTH = 320
+const MIN_DOCUMENT_DOCK_WIDTH = 180
+const DOCUMENT_DOCK_MAX_CONTAINER_RATIO = 0.6
 const FALLBACK_LEFT_SIDEBAR_MIN_WIDTH = 220
 const FALLBACK_RIGHT_SIDEBAR_MIN_WIDTH = 260
 const FALLBACK_LEFT_SIDEBAR_MIN_FLOOR_WIDTH = 176
@@ -32,12 +36,19 @@ const SHELL_CHROME_BUTTON_SIZE = 30
 const SHELL_CHROME_BUTTON_GAP = 4
 const SHELL_CHROME_HORIZONTAL_PADDING = 16
 
-const LAYOUT_STORAGE_KEYS = ['leftSidebarWidth', 'rightSidebarWidth', 'bottomPanelHeight']
+const LAYOUT_STORAGE_KEYS = [
+  'leftSidebarWidth',
+  'rightSidebarWidth',
+  'documentDockWidth',
+  'bottomPanelHeight',
+]
 
 const leftSidebarWidth = ref(DEFAULT_LEFT_SIDEBAR_WIDTH)
 const rightSidebarWidth = ref(DEFAULT_RIGHT_SIDEBAR_WIDTH)
+const documentDockWidth = ref(DEFAULT_DOCUMENT_DOCK_WIDTH)
 const bottomPanelHeight = ref(DEFAULT_BOTTOM_PANEL_HEIGHT)
 const rightSidebarPreSnapWidth = ref(null)
+const documentDockPreSnapWidth = ref(null)
 const isLeftSidebarResizing = ref(false)
 const isRightSidebarResizing = ref(false)
 
@@ -45,8 +56,10 @@ let sidebarWidthSaveTimer = null
 let viewportResizeFrame = null
 let pendingLeftSidebarWidth = leftSidebarWidth.value
 let pendingRightSidebarWidth = rightSidebarWidth.value
+let pendingDocumentDockWidth = documentDockWidth.value
 const LEFT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:left-sidebar-width'
 const RIGHT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:right-sidebar-width'
+const DOCUMENT_DOCK_WIDTH_MOTION_KEY = 'workbench:document-dock-width'
 
 function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
@@ -67,6 +80,7 @@ function readLegacyLayoutState() {
   return {
     leftSidebarWidth: readNumberFromStorage('leftSidebarWidth', DEFAULT_LEFT_SIDEBAR_WIDTH),
     rightSidebarWidth: readNumberFromStorage('rightSidebarWidth', DEFAULT_RIGHT_SIDEBAR_WIDTH),
+    documentDockWidth: readNumberFromStorage('documentDockWidth', DEFAULT_DOCUMENT_DOCK_WIDTH),
     bottomPanelHeight: readNumberFromStorage('bottomPanelHeight', DEFAULT_BOTTOM_PANEL_HEIGHT),
   }
 }
@@ -86,6 +100,7 @@ async function saveWorkbenchLayoutState() {
   const state = {
     leftSidebarWidth: leftSidebarWidth.value,
     rightSidebarWidth: rightSidebarWidth.value,
+    documentDockWidth: documentDockWidth.value,
     bottomPanelHeight: bottomPanelHeight.value,
   }
   const saved = await saveWorkbenchLayout(state)
@@ -250,6 +265,46 @@ function commitRightSidebarWidth(value) {
   debounceSidebarWidthSave()
 }
 
+function normalizeDocumentDockResizeOptions(options = {}) {
+  const minMainWidth = Number(options.minMainWidth)
+  const minDockWidth = Number(options.minDockWidth)
+  const maxContainerRatio = Number(options.maxContainerRatio)
+
+  return {
+    minMainWidth: Number.isFinite(minMainWidth) && minMainWidth > 0
+      ? minMainWidth
+      : MIN_DOCUMENT_EDITOR_WIDTH,
+    minDockWidth: Number.isFinite(minDockWidth) && minDockWidth > 0
+      ? minDockWidth
+      : MIN_DOCUMENT_DOCK_WIDTH,
+    maxContainerRatio: Number.isFinite(maxContainerRatio) && maxContainerRatio > 0
+      ? maxContainerRatio
+      : DOCUMENT_DOCK_MAX_CONTAINER_RATIO,
+  }
+}
+
+function resolveMaximumDocumentDockWidth(containerWidth = window.innerWidth, options = {}) {
+  const normalizedContainerWidth = Number(containerWidth)
+  if (!Number.isFinite(normalizedContainerWidth) || normalizedContainerWidth <= 0) {
+    return Number.MAX_SAFE_INTEGER
+  }
+  const resizeOptions = normalizeDocumentDockResizeOptions(options)
+  const maxByEditorWidth = Math.floor(normalizedContainerWidth - resizeOptions.minMainWidth)
+  const maxByContainerRatio = Math.floor(normalizedContainerWidth * resizeOptions.maxContainerRatio)
+  return Math.max(
+    resizeOptions.minDockWidth,
+    Math.min(maxByEditorWidth, maxByContainerRatio)
+  )
+}
+
+function commitDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  const nextWidth = normalizeSidebarWidth(value, DEFAULT_DOCUMENT_DOCK_WIDTH)
+  const resizeOptions = normalizeDocumentDockResizeOptions(options)
+  const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
+  documentDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  debounceSidebarWidthSave()
+}
+
 function scheduleRightSidebarWidth(value) {
   pendingRightSidebarWidth = value
   scheduleWorkbenchMotionCommit(
@@ -259,14 +314,25 @@ function scheduleRightSidebarWidth(value) {
   )
 }
 
+function scheduleDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  pendingDocumentDockWidth = value
+  scheduleWorkbenchMotionCommit(
+    DOCUMENT_DOCK_WIDTH_MOTION_KEY,
+    pendingDocumentDockWidth,
+    (nextWidth) => commitDocumentDockWidth(nextWidth, containerWidth, options),
+  )
+}
+
 function flushScheduledSidebarWidths() {
   flushWorkbenchMotionCommit(LEFT_SIDEBAR_WIDTH_MOTION_KEY)
   flushWorkbenchMotionCommit(RIGHT_SIDEBAR_WIDTH_MOTION_KEY)
+  flushWorkbenchMotionCommit(DOCUMENT_DOCK_WIDTH_MOTION_KEY)
 }
 
 function commitSidebarWidthsToViewport() {
   commitLeftSidebarWidth(leftSidebarWidth.value)
   commitRightSidebarWidth(rightSidebarWidth.value)
+  commitDocumentDockWidth(documentDockWidth.value)
 }
 
 function scheduleViewportSidebarClamp() {
@@ -295,6 +361,33 @@ function onBottomResize(event) {
 function onRightResize(event) {
   scheduleRightSidebarWidth(window.innerWidth - event.x)
   rightSidebarPreSnapWidth.value = null
+}
+
+function setRightSidebarWidth(value) {
+  scheduleRightSidebarWidth(value)
+  rightSidebarPreSnapWidth.value = null
+}
+
+function setDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
+  scheduleDocumentDockWidth(value, containerWidth, options)
+  documentDockPreSnapWidth.value = null
+}
+
+function snapDocumentDockWidth(containerWidth = window.innerWidth, options = {}) {
+  const normalizedContainerWidth = Number(containerWidth)
+  const snapBaseWidth =
+    Number.isFinite(normalizedContainerWidth) && normalizedContainerWidth > 0
+      ? normalizedContainerWidth
+      : window.innerWidth
+  const halfContainer = Math.floor(snapBaseWidth / 2)
+  if (documentDockPreSnapWidth.value !== null) {
+    commitDocumentDockWidth(documentDockPreSnapWidth.value, snapBaseWidth, options)
+    documentDockPreSnapWidth.value = null
+    return
+  }
+
+  documentDockPreSnapWidth.value = documentDockWidth.value
+  commitDocumentDockWidth(halfContainer, snapBaseWidth, options)
 }
 
 function onRightResizeSnap() {
@@ -355,12 +448,17 @@ export function useAppShellLayout() {
       layoutState.rightSidebarWidth,
       DEFAULT_RIGHT_SIDEBAR_WIDTH
     )
+    documentDockWidth.value = normalizeSidebarWidth(
+      layoutState.documentDockWidth,
+      layoutState.rightSidebarWidth || DEFAULT_DOCUMENT_DOCK_WIDTH
+    )
     bottomPanelHeight.value = Math.max(
       100,
       Math.min(600, normalizeSidebarWidth(layoutState.bottomPanelHeight, DEFAULT_BOTTOM_PANEL_HEIGHT))
     )
     pendingLeftSidebarWidth = leftSidebarWidth.value
     pendingRightSidebarWidth = rightSidebarWidth.value
+    pendingDocumentDockWidth = documentDockWidth.value
 
     window.addEventListener('resize', onWindowResize)
     scheduleViewportSidebarClamp()
@@ -369,6 +467,7 @@ export function useAppShellLayout() {
   return {
     leftSidebarWidth,
     rightSidebarWidth,
+    documentDockWidth,
     bottomPanelHeight,
     isLeftSidebarResizing,
     isRightSidebarResizing,
@@ -377,6 +476,9 @@ export function useAppShellLayout() {
     endLeftSidebarResize,
     onBottomResize,
     onRightResize,
+    setRightSidebarWidth,
+    setDocumentDockWidth,
+    snapDocumentDockWidth,
     startRightSidebarResize,
     endRightSidebarResize,
     onRightResizeSnap,

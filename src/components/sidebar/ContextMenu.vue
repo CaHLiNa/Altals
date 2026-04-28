@@ -34,6 +34,16 @@
         </template>
 
         <template v-if="entry">
+          <button
+            v-if="!entry.is_dir"
+            type="button"
+            class="context-menu-item"
+            @click.stop="selectAction('open-in-document-dock', entry)"
+          >
+            <IconLayoutSidebarRight :size="14" :stroke-width="1.5" />
+            {{ t('Open for right comparison') }}
+          </button>
+          <div v-if="!entry.is_dir" class="context-menu-separator"></div>
           <div v-if="entry.is_dir" class="context-menu-separator"></div>
           <button type="button" class="context-menu-item" @click.stop="selectAction('rename', entry)">
             <IconPencil :size="14" :stroke-width="1.5" />
@@ -73,7 +83,7 @@
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   IconFileText, IconMath, IconFilePlus, IconFolderPlus,
-  IconPencil, IconCopy, IconTrash, IconExternalLink,
+  IconPencil, IconCopy, IconTrash, IconExternalLink, IconLayoutSidebarRight,
 } from '@tabler/icons-vue'
 import { isMac } from '../../platform'
 import { useI18n } from '../../i18n'
@@ -92,7 +102,14 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'close', 'create', 'rename', 'duplicate', 'delete', 'delete-selected', 'reveal-in-finder',
+  'close',
+  'create',
+  'rename',
+  'duplicate',
+  'delete',
+  'delete-selected',
+  'reveal-in-finder',
+  'open-in-document-dock',
 ])
 
 const menuRef = ref(null)

@@ -29,6 +29,8 @@ function createEmptyState() {
     },
     activePaneId: 'pane-root',
     legacyPreviewPaths: [],
+    documentDockTabs: [],
+    activeDocumentDockTab: '',
     lastContextPath: '',
   }
 }
@@ -43,6 +45,10 @@ export async function saveState(workspaceDataDir, paneTree, activePaneId, option
       legacyPreviewPaths: Array.isArray(options.legacyPreviewPaths)
         ? options.legacyPreviewPaths
         : Array.from(options.legacyPreviewPaths || []),
+      documentDockTabs: Array.isArray(options.documentDockTabs)
+        ? options.documentDockTabs
+        : Array.from(options.documentDockTabs || []),
+      activeDocumentDockTab: String(options.activeDocumentDockTab || ''),
       lastContextPath: String(options.lastContextPath || ''),
     },
   })

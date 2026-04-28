@@ -21,7 +21,6 @@ export function resolveReferenceQuery(params = {}) {
       selectedSourceKey: String(params.selectedSourceKey || ''),
       selectedCollectionKey: String(params.selectedCollectionKey || ''),
       selectedTagKey: String(params.selectedTagKey || ''),
-      searchQuery: String(params.searchQuery || ''),
       sortKey: String(params.sortKey || ''),
       preferredSelectedReferenceId: String(params.preferredSelectedReferenceId || ''),
       fileContents: params.fileContents && typeof params.fileContents === 'object' ? params.fileContents : {},

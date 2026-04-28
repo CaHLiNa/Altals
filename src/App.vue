@@ -23,18 +23,11 @@
         :left-sidebar-available="workspace.isWorkspaceSurface"
         :left-sidebar-open="leftSidebarVisible"
         :left-sidebar-panel="workspace.leftSidebarPanel"
-        :right-sidebar-open="workspace.rightSidebarOpen"
-        :right-sidebar-panel="workspace.rightSidebarPanel"
-        :split-pane-available="
-          workspace.isWorkspaceSurface && workspace.leftSidebarPanel !== 'references'
-        "
-        :split-pane-open="splitPaneOpen"
-        :inspector-available="supportsRightSidebar"
+        :right-sidebar-available="supportsRightSidebar"
+        :right-sidebar-open="rightRailOpen"
         @open-reference-library="toggleReferenceLibrary"
-        @open-outline-inspector="openOutlineInspector"
         @toggle-left-sidebar="workspace.toggleLeftSidebar()"
-        @toggle-split-pane="toggleSplitPane"
-        @toggle-right-sidebar="workspace.toggleRightSidebar()"
+        @toggle-right-sidebar="toggleRightDock"
       />
 
       <div class="app-shell-workbench flex flex-1 overflow-hidden">
@@ -66,7 +59,6 @@
             <KeepAlive :max="2">
               <LeftSidebar
                 v-if="workspace.isWorkspaceSurface && workspace.isOpen"
-                ref="leftSidebarRef"
                 @open-settings="workspace.openSettings()"
                 @open-folder="pickWorkspace"
                 @open-workspace="openWorkspace"
@@ -98,7 +90,7 @@
             class="app-shell-main-card flex-1 overflow-hidden relative"
             :class="{
               'has-left-sidebar': leftSidebarVisible,
-              'has-right-sidebar': workspace.rightSidebarOpen && supportsRightSidebar,
+              'has-right-sidebar': rightRailOpen,
               'is-empty-workspace-shell': !workspace.isOpen,
             }"
           >
@@ -109,46 +101,16 @@
                 v-bind="activeWorkbenchProps"
                 :class="activeWorkbenchClass"
                 @cursor-change="onCursorChange"
+                @document-dock-close="closeDocumentDock"
+                @document-dock-resize="onDocumentDockResize"
+                @document-dock-resize-end="endRightSidebarResize"
+                @document-dock-resize-snap="onDocumentDockResizeSnap"
+                @document-dock-resize-start="startRightSidebarResize"
                 @selection-change="onSelectionChange"
               />
             </KeepAlive>
           </div>
         </div>
-
-        <template v-if="supportsRightSidebar">
-          <div
-            class="app-shell-resize-slot"
-            :class="{
-              'is-visible': workspace.rightSidebarOpen,
-              'is-hidden': !workspace.rightSidebarOpen,
-            }"
-          >
-            <ResizeHandle
-              class="app-shell-resize-handle app-shell-resize-handle-right"
-              direction="vertical"
-              @resize="onRightResize"
-              @resize-start="startRightSidebarResize"
-              @resize-end="endRightSidebarResize"
-              @dblclick="onRightResizeSnap"
-            />
-          </div>
-
-          <div
-            class="app-shell-region app-shell-region-right shrink-0 overflow-hidden"
-            :class="{
-              'is-open': workspace.rightSidebarOpen,
-              'is-collapsed': !workspace.rightSidebarOpen,
-              'is-resizing': isRightSidebarResizing,
-            }"
-            data-sidebar="right"
-            :aria-hidden="workspace.rightSidebarOpen ? 'false' : 'true'"
-            :style="{
-              width: workspace.rightSidebarOpen ? `${rightSidebarWidth}px` : '0px',
-            }"
-          >
-            <RightSidebar class="app-shell-sidebar app-shell-sidebar-right" />
-          </div>
-        </template>
       </div>
     </div>
 
@@ -183,13 +145,11 @@ import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
-import { confirmUnsavedChanges } from './services/unsavedChanges'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
 import { isMac, isTauriDesktopRuntime } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
-const RightSidebar = defineAsyncComponent(() => import('./components/sidebar/RightSidebar.vue'))
 const SettingsSidebar = defineAsyncComponent(
   () => import('./components/settings/SettingsSidebar.vue')
 )
@@ -212,18 +172,37 @@ const isMacDesktop = isMac && isTauriDesktopRuntime
 
 void applyAppWindowConstraints()
 
-const leftSidebarRef = ref(null)
 const isZenMode = ref(false)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
   () => workspace.isOpen && (workspace.isSettingsSurface || workspace.leftSidebarOpen)
 )
-const splitPaneOpen = computed(
+const activeDocumentPreviewState = computed(() => {
+  const activePath = editorStore.activeTab
+  if (!activePath || isNewTab(activePath) || isPreviewPath(activePath)) return null
+  return workflowStore.getWorkspacePreviewStateForFile(activePath) || null
+})
+const activeDocumentPreviewOpen = computed(
   () =>
-    editorStore.paneTree?.type === 'split' &&
-    Array.isArray(editorStore.paneTree.children) &&
-    editorStore.paneTree.children.length === 2
+    workspace.isWorkspaceSurface &&
+    workspace.leftSidebarPanel !== 'references' &&
+    activeDocumentPreviewState.value?.previewVisible === true
+)
+const referenceDetailOpen = computed(
+  () =>
+    workspace.isWorkspaceSurface &&
+    workspace.leftSidebarPanel === 'references' &&
+    workspace.rightSidebarOpen
+)
+const documentInternalDockOpen = computed(
+  () =>
+    workspace.isWorkspaceSurface &&
+    workspace.leftSidebarPanel !== 'references' &&
+    (workspace.rightSidebarOpen || activeDocumentPreviewOpen.value)
+)
+const rightRailOpen = computed(
+  () => supportsRightSidebar.value && (documentInternalDockOpen.value || referenceDetailOpen.value)
 )
 const activeWorkbenchComponent = computed(() => {
   if (workspace.isSettingsSurface) return Settings
@@ -238,10 +217,17 @@ const activeWorkbenchProps = computed(() =>
   workspace.isSettingsSurface
     ? {}
     : workspace.leftSidebarPanel === 'references'
-      ? {}
+      ? {
+          referenceDetailOpen: referenceDetailOpen.value,
+          referenceDetailWidth: documentDockWidth.value,
+          referenceDetailResizing: isRightSidebarResizing.value,
+        }
       : {
           node: editorStore.paneTree,
           topbarTabsTargetSelector: '#app-shell-topbar-document-title',
+          documentDockOpen: documentInternalDockOpen.value,
+          documentDockWidth: documentDockWidth.value,
+          documentDockResizing: isRightSidebarResizing.value,
         }
 )
 const activeWorkbenchClass = computed(() => 'h-full min-h-0 w-full')
@@ -285,38 +271,36 @@ function toggleReferenceLibrary() {
   }
 }
 
-function openOutlineInspector() {
-  workspace.setRightSidebarPanel('outline')
-  workspace.openRightSidebar()
-}
+async function toggleRightDock() {
+  if (!supportsRightSidebar.value) return
 
-function getSecondaryPane() {
-  if (!splitPaneOpen.value) return null
-  return editorStore.paneTree.children?.[1] || null
-}
-
-async function toggleSplitPane() {
-  if (!splitPaneOpen.value) {
-    const newPaneId = editorStore.splitPane('vertical')
-    if (!newPaneId) return
-    const newPane = editorStore.findPane(editorStore.paneTree, newPaneId)
-    if (newPane && !(newPane.tabs ||[]).length) {
-      editorStore.openNewTab(newPaneId)
-    }
+  if (workspace.leftSidebarPanel === 'references') {
+    workspace.toggleRightSidebar()
     return
   }
 
-  const secondaryPane = getSecondaryPane()
-  if (!secondaryPane) return
-
-  const result = await confirmUnsavedChanges(secondaryPane.tabs ||[])
-  if (result.choice === 'cancel') return
-
-  for (const tab of secondaryPane.tabs ||[]) {
-    workflowStore.handlePreviewClosed(tab)
+  if (documentInternalDockOpen.value) {
+    await closeDocumentDock()
+    return
   }
 
-  editorStore.collapsePane(secondaryPane.id)
+  workspace.openRightSidebar()
+}
+
+async function closeDocumentDock() {
+  if (workspace.leftSidebarPanel !== 'references' && workspace.rightSidebarOpen) {
+    workspace.closeRightSidebar()
+  }
+
+  const activePath = editorStore.activeTab
+  if (
+    activeDocumentPreviewOpen.value &&
+    activePath &&
+    !isNewTab(activePath) &&
+    !isPreviewPath(activePath)
+  ) {
+    await workflowStore.hideWorkspacePreviewForFile(activePath)
+  }
 }
 
 function handleEditorTyping() {
@@ -341,16 +325,16 @@ onBeforeUnmount(() => {
 
 const {
   leftSidebarWidth,
-  rightSidebarWidth,
+  documentDockWidth,
   isLeftSidebarResizing,
   isRightSidebarResizing,
   onLeftResize,
   startLeftSidebarResize,
   endLeftSidebarResize,
-  onRightResize,
+  setDocumentDockWidth,
+  snapDocumentDockWidth,
   startRightSidebarResize,
   endRightSidebarResize,
-  onRightResizeSnap,
   cleanupAppShellLayout,
 } = useAppShellLayout()
 const { closeWorkspace, handleVisibilityChange, openWorkspace, pickWorkspace, setupWizardVisible } =
@@ -365,12 +349,27 @@ function onSelectionChange(selection) {
   void selection
 }
 
+function onDocumentDockResize(event = {}) {
+  setDocumentDockWidth(event.width, event.containerWidth, {
+    minDockWidth: event.minDockWidth,
+    minMainWidth: event.minMainWidth,
+    maxContainerRatio: event.maxContainerRatio,
+  })
+}
+
+function onDocumentDockResizeSnap(event = {}) {
+  snapDocumentDockWidth(event.containerWidth, {
+    minDockWidth: event.minDockWidth,
+    minMainWidth: event.minMainWidth,
+    maxContainerRatio: event.maxContainerRatio,
+  })
+}
+
 useAppShellEventBridge({
   workspace,
   editorStore,
   filesStore,
-  toggleSplitPane,
-  leftSidebarRef,
+  workflowStore,
   handleVisibilityChange,
   pickWorkspace,
   closeWorkspace,
@@ -406,11 +405,10 @@ useAppTeardown({
 }
 
 .app-shell-root.is-mac-vibrant .app-shell-region-right {
-  background: transparent;
+  background: color-mix(in srgb, var(--app-canvas) 88%, var(--surface-base) 12%);
 }
 
-.app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region,
-.app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
+.app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region {
   backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
 }
 
@@ -419,7 +417,7 @@ useAppTeardown({
 }
 
 .app-shell-root.is-mac-vibrant :deep(.right-shell-sidebar) {
-  border-left: none;
+  border-left-color: color-mix(in srgb, var(--border) 52%, transparent);
 }
 
 /* =========================================================================
@@ -577,10 +575,10 @@ useAppTeardown({
 }
 
 .app-shell-main-card.has-right-sidebar {
-  margin-right: -10px;
-  padding-right: 10px;
-  border-top-right-radius: 10px;
-  border-bottom-right-radius: 10px;
+  margin-right: 0;
+  padding-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .app-shell-resize-slot {

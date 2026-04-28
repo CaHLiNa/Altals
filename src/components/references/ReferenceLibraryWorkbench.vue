@@ -1,141 +1,256 @@
 <!-- START OF FILE src/components/references/ReferenceLibraryWorkbench.vue -->
 <template>
-  <section class="reference-workbench" data-surface-context-guard="true">
-    
-    <!-- 紧凑工具栏 (Compact Toolbar) -->
-    <header class="reference-workbench__toolbar">
-      <div class="reference-workbench__toolbar-group">
-        <UiButton variant="secondary" size="sm" shell-class="workbench-action-btn" @click="showAddDialog = true">
-          <template #leading><IconPlus :size="14" :stroke-width="2" /></template>
-          {{ t('Add') }}
-        </UiButton>
-        <div class="workbench-toolbar-divider"></div>
-        <UiButton
-          variant="ghost"
-          size="sm"
-          shell-class="workbench-action-btn"
-          :loading="referencesStore.importInFlight"
-          :disabled="referencesStore.isLoading"
-          @click="handleImportPdf"
-        >
-          <template #leading><IconFileTypePdf :size="14" :stroke-width="1.8" /></template>
-          {{ t('PDF') }}
-        </UiButton>
-        <UiButton
-          variant="ghost"
-          size="sm"
-          shell-class="workbench-action-btn"
-          :loading="referencesStore.importInFlight"
-          :disabled="referencesStore.isLoading"
-          @click="handleImportBibTeX"
-        >
-          <template #leading><IconFileCode :size="14" :stroke-width="1.8" /></template>
-          {{ t('BibTeX') }}
-        </UiButton>
+  <section
+    ref="workbenchRef"
+    class="reference-workbench"
+    :class="{
+      'has-reference-detail': referenceDetailOpen,
+      'is-reference-detail-resizing': referenceDetailResizing,
+    }"
+    data-surface-context-guard="true"
+  >
+    <div class="reference-workbench__main">
+      <!-- 紧凑工具栏 (Compact Toolbar) -->
+      <header class="reference-workbench__toolbar">
+        <div class="reference-workbench__toolbar-group">
+          <UiButton variant="secondary" size="sm" shell-class="workbench-action-btn" @click="showAddDialog = true">
+            <template #leading><IconPlus :size="14" :stroke-width="2" /></template>
+            {{ t('Add') }}
+          </UiButton>
+          <div class="workbench-toolbar-divider"></div>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            shell-class="workbench-action-btn"
+            :loading="referencesStore.importInFlight"
+            :disabled="referencesStore.isLoading"
+            @click="handleImportPdf"
+          >
+            <template #leading><IconFileTypePdf :size="14" :stroke-width="1.8" /></template>
+            {{ t('PDF') }}
+          </UiButton>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            shell-class="workbench-action-btn"
+            :loading="referencesStore.importInFlight"
+            :disabled="referencesStore.isLoading"
+            @click="handleImportBibTeX"
+          >
+            <template #leading><IconFileCode :size="14" :stroke-width="1.8" /></template>
+            {{ t('BibTeX') }}
+          </UiButton>
+        </div>
+
+        <div class="reference-workbench__toolbar-group">
+          <UiButton
+            variant="ghost"
+            size="sm"
+            shell-class="workbench-action-btn"
+            :disabled="referencesStore.references.length === 0"
+            @click="handleExportBibTeX"
+          >
+            <template #leading><IconShare :size="14" :stroke-width="1.8" /></template>
+            {{ t('Export') }}
+          </UiButton>
+        </div>
+      </header>
+
+      <div v-if="referencesStore.isLoading" class="reference-workbench__empty ui-empty-copy">
+        {{ t('Loading references...') }}
       </div>
 
-      <div class="reference-workbench__toolbar-group">
-        <UiButton
-          variant="ghost"
-          size="sm"
-          shell-class="workbench-action-btn"
-          :disabled="referencesStore.references.length === 0"
-          @click="handleExportBibTeX"
-        >
-          <template #leading><IconShare :size="14" :stroke-width="1.8" /></template>
-          {{ t('Export') }}
-        </UiButton>
-      </div>
-    </header>
-
-    <div v-if="referencesStore.isLoading" class="reference-workbench__empty ui-empty-copy">
-      {{ t('Loading references...') }}
-    </div>
-
-    <div v-else-if="referencesStore.loadError" class="reference-workbench__empty ui-empty-copy">
-      {{ referencesStore.loadError }}
-    </div>
-
-    <div v-else-if="filteredReferences.length === 0" class="reference-workbench__empty ui-empty-copy">
-      {{ t('No references in this section yet.') }}
-    </div>
-
-    <div v-else class="reference-workbench__content">
-      <!-- 极简原生表头 (Native Table Header) -->
-      <div class="reference-workbench__table-head">
-        <button
-          type="button"
-          class="reference-workbench__head-button"
-          :class="{ 'is-active': isSortActive('title') }"
-          @click="toggleTitleSort"
-        >
-          <span>{{ t('Title') }}</span>
-          <IconChevronDown 
-            v-if="isSortActive('title')" 
-            class="sort-arrow" 
-            :class="{ 'is-asc': sortKey === 'title-asc' }" 
-            :size="12" 
-            :stroke-width="2.5" 
-          />
-        </button>
-        <button
-          type="button"
-          class="reference-workbench__head-button"
-          :class="{ 'is-active': isSortActive('author') }"
-          @click="toggleAuthorSort"
-        >
-          <span>{{ t('Authors') }}</span>
-          <IconChevronDown 
-            v-if="isSortActive('author')" 
-            class="sort-arrow" 
-            :class="{ 'is-asc': sortKey === 'author-asc' }" 
-            :size="12" 
-            :stroke-width="2.5" 
-          />
-        </button>
-        <button
-          type="button"
-          class="reference-workbench__head-button"
-          :class="{ 'is-active': isSortActive('year') }"
-          @click="toggleYearSort"
-        >
-          <span>{{ t('Year') }}</span>
-          <IconChevronDown 
-            v-if="isSortActive('year')" 
-            class="sort-arrow" 
-            :class="{ 'is-asc': sortKey === 'year-asc' }" 
-            :size="12" 
-            :stroke-width="2.5" 
-          />
-        </button>
-        <div class="reference-workbench__head-label">{{ t('Source') }}</div>
+      <div v-else-if="referencesStore.loadError" class="reference-workbench__empty ui-empty-copy">
+        {{ referencesStore.loadError }}
       </div>
 
-      <div
-        v-for="reference in filteredReferences"
-        :key="reference.id"
-        class="reference-workbench__row"
-        :class="{ 'is-active': reference.id === selectedReference?.id }"
-        @click="handleReferenceRowClick(reference)"
-        @contextmenu.prevent="openReferenceContextMenu($event, reference)"
+      <div v-else-if="filteredReferences.length === 0" class="reference-workbench__empty ui-empty-copy">
+        {{ t('No references in this section yet.') }}
+      </div>
+
+      <div v-else class="reference-workbench__content">
+        <!-- 极简原生表头 (Native Table Header) -->
+        <div class="reference-workbench__table-head">
+          <button
+            type="button"
+            class="reference-workbench__head-button"
+            :class="{ 'is-active': isSortActive('title') }"
+            @click="toggleTitleSort"
+          >
+            <span>{{ t('Title') }}</span>
+            <IconChevronDown
+              v-if="isSortActive('title')"
+              class="sort-arrow"
+              :class="{ 'is-asc': sortKey === 'title-asc' }"
+              :size="12"
+              :stroke-width="2.5"
+            />
+          </button>
+          <button
+            type="button"
+            class="reference-workbench__head-button"
+            :class="{ 'is-active': isSortActive('author') }"
+            @click="toggleAuthorSort"
+          >
+            <span>{{ t('Authors') }}</span>
+            <IconChevronDown
+              v-if="isSortActive('author')"
+              class="sort-arrow"
+              :class="{ 'is-asc': sortKey === 'author-asc' }"
+              :size="12"
+              :stroke-width="2.5"
+            />
+          </button>
+          <button
+            type="button"
+            class="reference-workbench__head-button"
+            :class="{ 'is-active': isSortActive('year') }"
+            @click="toggleYearSort"
+          >
+            <span>{{ t('Year') }}</span>
+            <IconChevronDown
+              v-if="isSortActive('year')"
+              class="sort-arrow"
+              :class="{ 'is-asc': sortKey === 'year-asc' }"
+              :size="12"
+              :stroke-width="2.5"
+            />
+          </button>
+          <div class="reference-workbench__head-label">{{ t('Source') }}</div>
+        </div>
+
+        <div
+          v-for="reference in filteredReferences"
+          :key="reference.id"
+          class="reference-workbench__row"
+          :class="{ 'is-active': reference.id === selectedReference?.id }"
+          @click="handleReferenceRowClick(reference)"
+          @contextmenu.prevent="openReferenceContextMenu($event, reference)"
+        >
+          <div class="reference-workbench__cell reference-workbench__cell--title">
+            <span class="reference-workbench__title-icon" aria-hidden="true">
+              <IconFileText :size="14" :stroke-width="1.8" />
+            </span>
+            <span class="reference-workbench__truncate">{{ reference.title }}</span>
+          </div>
+          <div class="reference-workbench__cell">
+            <span class="reference-workbench__truncate">{{ getReferenceAuthorLabel(reference) }}</span>
+          </div>
+          <div class="reference-workbench__cell">
+            {{ reference.year || '—' }}
+          </div>
+          <div class="reference-workbench__cell">
+            <span class="reference-workbench__truncate">{{ reference.source || '—' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="reference-workbench__detail-resize-slot workbench-inline-dock-resize-slot"
+      :class="{ 'is-visible': referenceDetailOpen, 'is-hidden': !referenceDetailOpen }"
+    >
+      <ResizeHandle
+        class="reference-workbench__detail-resize-handle workbench-inline-dock-resize-handle"
+        direction="vertical"
+        @resize="handleReferenceDetailResize"
+        @resize-start="handleReferenceDetailResizeStart"
+        @resize-end="handleReferenceDetailResizeEnd"
+        @dblclick="handleReferenceDetailResizeSnap"
+      />
+    </div>
+
+    <aside
+      class="reference-workbench__detail-dock workbench-inline-dock-region"
+      :class="{
+        'is-open': referenceDetailOpen,
+        'is-collapsed': !referenceDetailOpen,
+        'is-resizing': referenceDetailResizing,
+      }"
+      :aria-hidden="referenceDetailOpen ? 'false' : 'true'"
+      :style="{ width: referenceDetailOpen ? `${referenceDetailDockWidth}px` : '0px' }"
+    >
+      <section
+        v-if="referenceDetailOpen"
+        class="reference-workbench__detail-shell inline-dock"
+        :aria-label="t('Details')"
       >
-        <div class="reference-workbench__cell reference-workbench__cell--title">
-          <span class="reference-workbench__title-icon" aria-hidden="true">
-            <IconFileText :size="14" :stroke-width="1.8" />
-          </span>
-          <span class="reference-workbench__truncate">{{ reference.title }}</span>
+        <header class="reference-workbench__detail-tabbar inline-dock__tabbar">
+          <div class="reference-workbench__detail-tabs inline-dock__tabs" role="tablist" :aria-label="t('Details')">
+            <div
+              class="reference-workbench__detail-tab reference-workbench__detail-tab--icon reference-workbench__detail-tab--details inline-dock__tab"
+              :class="{ 'is-active': activeReferenceDockTab === REFERENCE_DETAILS_TAB }"
+              role="tab"
+              :aria-selected="activeReferenceDockTab === REFERENCE_DETAILS_TAB"
+              tabindex="0"
+              :title="detailTabLabel"
+              :aria-label="detailTabLabel"
+              @click="activateReferenceDetailsTab"
+              @keydown.enter.prevent="activateReferenceDetailsTab"
+              @keydown.space.prevent="activateReferenceDetailsTab"
+            >
+              <div class="reference-workbench__detail-tab-label inline-dock__tab-label">
+                <IconFileText
+                  class="reference-workbench__detail-tab-icon inline-dock__tab-icon"
+                  :size="15"
+                  :stroke-width="1.8"
+                />
+              </div>
+            </div>
+
+            <div
+              v-if="showReferencePdfTab"
+              class="reference-workbench__detail-tab reference-workbench__detail-tab--icon reference-workbench__detail-tab--pdf inline-dock__tab"
+              :class="{ 'is-active': activeReferenceDockTab === REFERENCE_PDF_TAB }"
+              role="tab"
+              :aria-selected="activeReferenceDockTab === REFERENCE_PDF_TAB"
+              tabindex="0"
+              :title="pdfTabLabel"
+              :aria-label="pdfTabLabel"
+              @click="activateReferencePdfTab"
+              @keydown.enter.prevent="activateReferencePdfTab"
+              @keydown.space.prevent="activateReferencePdfTab"
+            >
+              <div class="reference-workbench__detail-tab-label inline-dock__tab-label">
+                <IconFileTypePdf
+                  class="reference-workbench__detail-tab-icon inline-dock__tab-icon"
+                  :size="15"
+                  :stroke-width="1.8"
+                />
+              </div>
+              <button
+                v-if="activeReferenceDockTab === REFERENCE_PDF_TAB"
+                type="button"
+                class="reference-workbench__detail-tab-close inline-dock__tab-close"
+                :title="t('Close')"
+                :aria-label="t('Close')"
+                @click.stop="closeReferencePdfTab"
+              >
+                <IconX :size="12" :stroke-width="2" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div class="reference-workbench__detail-body inline-dock__body is-flush">
+          <ReferenceDetailPanel
+            v-if="activeReferenceDockTab === REFERENCE_DETAILS_TAB"
+            class="reference-workbench__detail-panel"
+            @open-pdf-preview="activateReferencePdfTab"
+          />
+          <DocumentDockFileSurface
+            v-else-if="activeReferenceDockTab === REFERENCE_PDF_TAB && selectedReferencePdfPath"
+            class="reference-workbench__detail-panel"
+            :file-path="selectedReferencePdfPath"
+            pane-id="reference-library"
+            :document-dock-resizing="referenceDetailResizing"
+          />
+          <div v-else class="reference-workbench__detail-empty inline-dock__empty">
+            {{ t('No PDF attached') }}
+          </div>
         </div>
-        <div class="reference-workbench__cell">
-          <span class="reference-workbench__truncate">{{ getReferenceAuthorLabel(reference) }}</span>
-        </div>
-        <div class="reference-workbench__cell">
-          {{ reference.year || '—' }}
-        </div>
-        <div class="reference-workbench__cell">
-          <span class="reference-workbench__truncate">{{ reference.source || '—' }}</span>
-        </div>
-      </div>
-    </div>
+      </section>
+    </aside>
 
     <SurfaceContextMenu
       :visible="menuVisible"
@@ -155,14 +270,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { 
   IconFileText, 
   IconPlus, 
   IconFileTypePdf, 
   IconFileCode, 
   IconShare,
-  IconChevronDown
+  IconChevronDown,
+  IconX
 } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
@@ -179,15 +295,41 @@ import {
 } from '../../services/references/crossref.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
+import ResizeHandle from '../layout/ResizeHandle.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
+
+const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
+const DocumentDockFileSurface = defineAsyncComponent(() => import('../sidebar/DocumentDockFileSurface.vue'))
+
+const props = defineProps({
+  referenceDetailOpen: { type: Boolean, default: false },
+  referenceDetailWidth: { type: Number, default: 360 },
+  referenceDetailResizing: { type: Boolean, default: false },
+})
+
+const emit = defineEmits([
+  'document-dock-resize',
+  'document-dock-resize-start',
+  'document-dock-resize-end',
+  'document-dock-resize-snap',
+])
 
 const { t } = useI18n()
 const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const uxStatusStore = useUxStatusStore()
+const REFERENCE_DETAILS_TAB = 'details'
+const REFERENCE_PDF_TAB = 'pdf'
+const REFERENCE_DETAIL_MIN_WIDTH = 420
+const REFERENCE_LIST_MIN_WIDTH = 520
+const REFERENCE_DETAIL_MAX_CONTAINER_RATIO = 0.52
 const showAddDialog = ref(false)
+const workbenchRef = ref(null)
+const detailResizeStartWidth = ref(null)
+const activeReferenceDockTab = ref(REFERENCE_DETAILS_TAB)
+const referencePdfTabOpen = ref(false)
 const {
   menuVisible,
   menuX,
@@ -200,6 +342,14 @@ const {
 
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
+const detailTabLabel = computed(() => selectedReference.value?.title || t('Details'))
+const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
+const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
+const showReferencePdfTab = computed(() => referencePdfTabOpen.value && canPreviewSelectedReferencePdf.value)
+const referenceDetailDockWidth = computed(() =>
+  Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
+)
+const pdfTabLabel = computed(() => t('PDF'))
 const sortKey = computed({
   get: () => referencesStore.sortKey,
   set: (value) => referencesStore.setSortKey(value),
@@ -232,8 +382,127 @@ function toggleYearSort() {
 function handleReferenceRowClick(reference = {}) {
   if (!reference?.id) return
   referencesStore.selectReference(reference.id)
+  referencePdfTabOpen.value = false
+  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
   void workspace.openRightSidebar()
 }
+
+function activateReferenceDetailsTab() {
+  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+}
+
+function activateReferencePdfTab() {
+  if (!canPreviewSelectedReferencePdf.value) return
+  referencePdfTabOpen.value = true
+  activeReferenceDockTab.value = REFERENCE_PDF_TAB
+  void workspace.openRightSidebar()
+}
+
+function closeReferencePdfTab() {
+  referencePdfTabOpen.value = false
+  activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+}
+
+function handleReferenceDetailResizeStart() {
+  detailResizeStartWidth.value = props.referenceDetailWidth
+  emit('document-dock-resize-start')
+}
+
+function resolveReferenceWorkbenchWidth() {
+  return workbenchRef.value?.getBoundingClientRect?.().width || 0
+}
+
+function resolveReferenceDetailMaxWidth(containerWidth = resolveReferenceWorkbenchWidth()) {
+  const normalizedContainerWidth = Number(containerWidth)
+  if (!Number.isFinite(normalizedContainerWidth) || normalizedContainerWidth <= 0) {
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  const maxByListWidth = Math.floor(normalizedContainerWidth - REFERENCE_LIST_MIN_WIDTH)
+  const maxByRatio = Math.floor(normalizedContainerWidth * REFERENCE_DETAIL_MAX_CONTAINER_RATIO)
+  return Math.max(REFERENCE_DETAIL_MIN_WIDTH, Math.min(maxByListWidth, maxByRatio))
+}
+
+function emitReferenceDetailResize(width, containerWidth = resolveReferenceWorkbenchWidth()) {
+  emit('document-dock-resize', {
+    width,
+    containerWidth,
+    minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
+    minMainWidth: REFERENCE_LIST_MIN_WIDTH,
+    maxContainerRatio: REFERENCE_DETAIL_MAX_CONTAINER_RATIO,
+  })
+}
+
+function clampReferenceDetailWidthToList() {
+  if (!props.referenceDetailOpen) return
+
+  const containerWidth = resolveReferenceWorkbenchWidth()
+  const maxWidth = resolveReferenceDetailMaxWidth(containerWidth)
+  if (
+    props.referenceDetailWidth >= REFERENCE_DETAIL_MIN_WIDTH &&
+    props.referenceDetailWidth <= maxWidth
+  ) {
+    return
+  }
+
+  emitReferenceDetailResize(props.referenceDetailWidth, containerWidth)
+}
+
+function handleReferenceDetailResize(event = {}) {
+  const startWidth = detailResizeStartWidth.value ?? props.referenceDetailWidth
+  emitReferenceDetailResize(startWidth - Number(event.dx || 0))
+}
+
+function handleReferenceDetailResizeEnd() {
+  detailResizeStartWidth.value = null
+  emit('document-dock-resize-end')
+}
+
+function handleReferenceDetailResizeSnap() {
+  emit('document-dock-resize-snap', {
+    containerWidth: workbenchRef.value?.getBoundingClientRect?.().width || 0,
+    minDockWidth: REFERENCE_DETAIL_MIN_WIDTH,
+    minMainWidth: REFERENCE_LIST_MIN_WIDTH,
+    maxContainerRatio: REFERENCE_DETAIL_MAX_CONTAINER_RATIO,
+  })
+}
+
+watch(
+  () => props.referenceDetailOpen,
+  (isOpen) => {
+    if (isOpen) return
+    referencePdfTabOpen.value = false
+    activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+  }
+)
+
+watch(
+  [() => props.referenceDetailOpen, () => props.referenceDetailWidth],
+  () => {
+    void nextTick(() => {
+      clampReferenceDetailWidthToList()
+    })
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  () => selectedReference.value?.id || '',
+  () => {
+    referencePdfTabOpen.value = false
+    activeReferenceDockTab.value = REFERENCE_DETAILS_TAB
+  }
+)
+
+watch(
+  () => canPreviewSelectedReferencePdf.value,
+  (canPreviewPdf) => {
+    if (!canPreviewPdf && activeReferenceDockTab.value === REFERENCE_PDF_TAB) {
+      closeReferencePdfTab()
+    }
+  },
+  { immediate: true }
+)
 
 function referenceIsInCollection(reference = {}, collectionKey = '') {
   const collection = availableCollections.value.find((item) => item.key === collectionKey)
@@ -676,10 +945,80 @@ async function handleExportBibTeX() {
 <style scoped>
 .reference-workbench {
   display: flex;
-  flex-direction: column;
   height: 100%;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: transparent;
+}
+
+.reference-workbench__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.reference-workbench__detail-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.reference-workbench__detail-shell {
+  width: 100%;
+}
+
+.reference-workbench__detail-tabbar {
+  padding: 0 8px;
+}
+
+.reference-workbench__detail-tabs {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.reference-workbench__detail-tab--icon {
+  flex: 0 0 28px;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  height: 26px;
+  padding: 0;
+  border-radius: 5px;
+}
+
+.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-label {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 0;
+}
+
+.reference-workbench__detail-tab--details.inline-dock__tab:hover .reference-workbench__detail-tab-icon,
+.reference-workbench__detail-tab--details.inline-dock__tab:focus-within .reference-workbench__detail-tab-icon {
+  opacity: 1;
+  transform: none;
+}
+
+.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-close {
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+.reference-workbench__detail-tab--icon:hover .reference-workbench__detail-tab-close,
+.reference-workbench__detail-tab--icon:focus-within .reference-workbench__detail-tab-close {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:hover .reference-workbench__detail-tab-icon,
+.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:focus-within .reference-workbench__detail-tab-icon {
+  opacity: 1;
+  transform: none;
 }
 
 /* =========================================================================
@@ -689,10 +1028,14 @@ async function handleExportBibTeX() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: 0 0 auto;
   gap: 12px;
-  height: 44px; /* 降低高度，原先可能被撑得太大 */
+  height: 31px;
+  min-height: 31px;
   padding: 0 12px;
-  background: var(--panel-surface); /* 工具栏与下方表头保持色彩一致，融合度更高 */
+  border-bottom: 1px solid var(--workbench-divider-soft);
+  background: var(--shell-editor-surface);
+  overflow: hidden;
 }
 
 .reference-workbench__toolbar-group {
@@ -724,9 +1067,9 @@ async function handleExportBibTeX() {
 }
 
 :deep(.workbench-action-btn.ui-button--secondary) {
-  background: var(--surface-raised);
+  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: none;
 }
 
 :deep(.workbench-action-btn.ui-button--ghost:hover) {
@@ -750,9 +1093,10 @@ async function handleExportBibTeX() {
 .reference-workbench__table-head,
 .reference-workbench__row {
   display: grid;
-  grid-template-columns: minmax(280px, 3fr) minmax(140px, 1.35fr) 72px minmax(160px, 1.4fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1.35fr) 64px minmax(0, 1.4fr);
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 /* 极致纤薄的表头 */
@@ -762,7 +1106,6 @@ async function handleExportBibTeX() {
   z-index: 2;
   height: 28px; /* Finder 原生列表视图表头高度 */
   padding: 0 16px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent); /* 分隔上方的 Toolbar */
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   background: var(--panel-surface); /* 同步颜色 */
   color: var(--text-muted);
@@ -874,17 +1217,18 @@ async function handleExportBibTeX() {
 @media (max-width: 1200px) {
   .reference-workbench__table-head,
   .reference-workbench__row {
-    grid-template-columns: minmax(220px, 2.5fr) minmax(120px, 1.2fr) 68px minmax(120px, 1.2fr);
+    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1.2fr) 62px minmax(0, 1.2fr);
     gap: 12px;
   }
 }
 
 @media (max-width: 920px) {
   .reference-workbench__toolbar {
-    height: auto;
-    flex-wrap: wrap;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    height: 31px;
+    min-height: 31px;
+    flex-wrap: nowrap;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 }
 </style>

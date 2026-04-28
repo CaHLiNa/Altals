@@ -1,13 +1,5 @@
 export const ROOT_PANE_ID = 'pane-root'
 
-const DEFAULT_SPLIT_RATIO = 0.5
-const MIN_SPLIT_RATIO = 0.15
-const MAX_SPLIT_RATIO = 0.85
-
-function clampSplitRatio(value) {
-  return Math.max(MIN_SPLIT_RATIO, Math.min(MAX_SPLIT_RATIO, Number(value) || DEFAULT_SPLIT_RATIO))
-}
-
 function cloneLeaf(node, fallbackId = ROOT_PANE_ID) {
   return {
     type: 'leaf',
@@ -31,12 +23,8 @@ function collectLeaves(node, leaves = []) {
   return leaves
 }
 
-function findCompanionLeaf(rootNode, paneId) {
-  if (rootNode?.type !== 'split' || rootNode.direction !== 'vertical') return null
-  const [leftLeaf, rightLeaf] = rootNode.children || []
-  if (leftLeaf?.id === paneId) return rightLeaf || null
-  if (rightLeaf?.id === paneId) return leftLeaf || null
-  return rightLeaf || leftLeaf || null
+function isContextTab(path = '') {
+  return !!path && !String(path).startsWith('newtab:') && !String(path).startsWith('preview:')
 }
 
 export function normalizePaneTree(node) {
@@ -53,14 +41,28 @@ export function normalizePaneTree(node) {
   ))
 
   if (leaves.length === 0) return cloneLeaf(null)
-  if (leaves.length === 1) return leaves[0]
+  if (leaves.length === 1) return cloneLeaf(leaves[0], ROOT_PANE_ID)
 
-  return {
-    type: 'split',
-    direction: 'vertical',
-    ratio: clampSplitRatio(node.ratio),
-    children: [leaves[0], leaves[1]],
+  const tabs = []
+  const seen = new Set()
+  let activeTab = null
+
+  for (const leaf of leaves) {
+    for (const tab of leaf.tabs || []) {
+      if (seen.has(tab)) continue
+      seen.add(tab)
+      tabs.push(tab)
+    }
+    if (leaf.activeTab && (!activeTab || (!isContextTab(activeTab) && isContextTab(leaf.activeTab)))) {
+      activeTab = leaf.activeTab
+    }
   }
+
+  return cloneLeaf({
+    id: ROOT_PANE_ID,
+    tabs,
+    activeTab: tabs.includes(activeTab) ? activeTab : tabs[0] || null,
+  })
 }
 
 export function findPane(node, id) {
@@ -121,40 +123,6 @@ export function findFirstLeaf(node) {
     }
   }
   return null
-}
-
-export function findRightNeighborLeaf(rootNode, paneId) {
-  if (rootNode?.type !== 'split' || rootNode.direction !== 'vertical') return null
-  const [leftLeaf, rightLeaf] = rootNode.children || []
-  return leftLeaf?.id === paneId ? findFirstLeaf(rightLeaf) : null
-}
-
-export function splitPaneNode(rootNode, paneId, newPaneId, newPaneTabs = [], newPaneActiveTab = null) {
-  if (!rootNode || !newPaneId) return null
-
-  const companionLeaf = findCompanionLeaf(rootNode, paneId)
-  if (companionLeaf) return companionLeaf
-
-  const pane = findPane(rootNode, paneId)
-  if (!pane || pane.type !== 'leaf') return null
-
-  const currentData = cloneLeaf(pane, pane.id)
-  const newPane = {
-    type: 'leaf',
-    id: newPaneId,
-    tabs: [...newPaneTabs],
-    activeTab: newPaneActiveTab,
-  }
-
-  Object.keys(rootNode).forEach((key) => delete rootNode[key])
-  Object.assign(rootNode, {
-    type: 'split',
-    direction: 'vertical',
-    ratio: DEFAULT_SPLIT_RATIO,
-    children: [currentData, newPane],
-  })
-
-  return newPane
 }
 
 export function collapsePaneNode(rootNode, paneId, activePaneId = null) {

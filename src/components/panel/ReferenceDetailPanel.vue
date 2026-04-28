@@ -18,7 +18,7 @@
             class="inspector-icon-btn"
             :disabled="!canOpenPdf"
             :title="t('Open PDF')"
-            @click="handleOpenPdf"
+            @click="handlePreviewPdf"
           >
             <IconFileText :size="16" :stroke-width="1.5" />
           </button>
@@ -244,8 +244,11 @@
         </div>
         
         <div class="inspector-file-actions">
-          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdf">
-            <template #leading><IconFileText :size="14"/></template> {{ t('Open') }}
+          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handlePreviewPdf">
+            <template #leading><IconFileText :size="14"/></template> {{ t('Preview') }}
+          </UiButton>
+          <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdfInEditor">
+            <template #leading><IconExternalLink :size="14"/></template> {{ t('Open in Editor') }}
           </UiButton>
           <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
             <template #leading><IconFolder :size="14"/></template> Finder
@@ -275,6 +278,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
   IconChevronRight,
+  IconExternalLink,
   IconFileText,
   IconFolder,
   IconRefresh,
@@ -303,6 +307,7 @@ const editorStore = useEditorStore()
 const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const workspace = useWorkspaceStore()
+const emit = defineEmits(['open-pdf-preview'])
 
 const ratingOptions = [1, 2, 3, 4, 5]
 
@@ -627,7 +632,12 @@ async function handleRefreshMetadata() {
   }
 }
 
-async function handleOpenPdf() {
+function handlePreviewPdf() {
+  if (!canOpenPdf.value) return
+  emit('open-pdf-preview')
+}
+
+async function handleOpenPdfInEditor() {
   if (!canOpenPdf.value) return
   editorStore.openFile(selectedReferencePdfPath.value)
   workspace.setLeftSidebarPanel('files')
@@ -970,7 +980,7 @@ details[open] .disclosure-icon {
 ========================================== */
 .inspector-file-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 

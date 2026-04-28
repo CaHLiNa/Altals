@@ -1,27 +1,18 @@
 <template>
-  <!-- Leaf pane -->
-  <EditorPane
-    v-if="node.type === 'leaf'"
-    :key="`pane:${node.id}:${editorStore.restoreGeneration}`"
-    :paneId="node.id"
-    :tabs="node.tabs"
-    :activeTab="node.activeTab"
-    :topbarTabsTargetSelector="topbarTabsTargetSelector"
-    :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
-    @cursor-change="(pos) => $emit('cursor-change', pos)"
-    @editor-stats="(stats) => $emit('editor-stats', stats)"
-    @selection-change="(selection) => $emit('selection-change', selection)"
-  />
-
-  <!-- Split pane -->
-  <div
-    v-else-if="node.type === 'split'"
-    ref="splitContainer"
-    class="pane-container-split flex h-full w-full"
+  <section
+    ref="containerRef"
+    class="pane-container"
+    :class="{
+      'has-document-dock': isDocumentDockOpen,
+      'is-document-dock-resizing': documentDockResizing,
+    }"
   >
-    <div :style="firstChildStyle" class="pane-container-slot overflow-hidden">
-      <PaneContainer
-        :node="node.children[0]"
+    <div class="pane-container__editor">
+      <EditorPane
+        :key="`pane:${renderNode.id}:${editorStore.restoreGeneration}`"
+        :paneId="renderNode.id"
+        :tabs="renderNode.tabs"
+        :activeTab="renderNode.activeTab"
         :topbarTabsTargetSelector="topbarTabsTargetSelector"
         :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
         @cursor-change="(pos) => $emit('cursor-change', pos)"
@@ -30,87 +21,157 @@
       />
     </div>
 
-    <SplitHandle
-      direction="vertical"
-      @resize="(e) => handleResize(e)"
-      @resize-end="handleResizeEnd"
-    />
-
-    <div :style="secondChildStyle" class="pane-container-slot overflow-hidden">
-      <PaneContainer
-        :node="node.children[1]"
-        :topbarTabsTargetSelector="topbarTabsTargetSelector"
-        :topbarWorkflowTargetSelector="topbarWorkflowTargetSelector"
-        @cursor-change="(pos) => $emit('cursor-change', pos)"
-        @editor-stats="(stats) => $emit('editor-stats', stats)"
-        @selection-change="(selection) => $emit('selection-change', selection)"
+    <div
+      class="pane-container__dock-resize-slot workbench-inline-dock-resize-slot"
+      :class="{ 'is-visible': isDocumentDockOpen, 'is-hidden': !isDocumentDockOpen }"
+    >
+      <ResizeHandle
+        class="pane-container__dock-resize-handle workbench-inline-dock-resize-handle"
+        direction="vertical"
+        @resize="handleDocumentDockResize"
+        @resize-start="handleDocumentDockResizeStart"
+        @resize-end="handleDocumentDockResizeEnd"
+        @dblclick="handleDocumentDockResizeSnap"
       />
     </div>
-  </div>
+
+    <aside
+      class="pane-container__document-dock workbench-inline-dock-region"
+      :class="{
+        'is-open': isDocumentDockOpen,
+        'is-collapsed': !isDocumentDockOpen,
+        'is-resizing': documentDockResizing,
+      }"
+      :aria-hidden="isDocumentDockOpen ? 'false' : 'true'"
+      :style="{ width: isDocumentDockOpen ? `${documentDockWidth}px` : '0px' }"
+    >
+      <DocumentDock
+        v-if="isDocumentDockOpen && dockContextPath"
+        :file-path="dockContextPath"
+        :pane-id="renderNode.id"
+        :preview-state="documentPreviewState"
+        :document-dock-resizing="documentDockResizing"
+        @close="$emit('document-dock-close')"
+      />
+    </aside>
+  </section>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import {
-  flushWorkbenchMotionCommit,
-  scheduleWorkbenchMotionCommit,
-} from '../../domains/workbench/workbenchMotionRuntime.js'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { isNewTab, isPreviewPath } from '../../utils/fileTypes'
+import ResizeHandle from '../layout/ResizeHandle.vue'
 import EditorPane from './EditorPane.vue'
-import SplitHandle from './SplitHandle.vue'
+
+const DocumentDock = defineAsyncComponent(() => import('../sidebar/DocumentDock.vue'))
 
 const props = defineProps({
   node: { type: Object, required: true },
   topbarTabsTargetSelector: { type: String, default: '' },
   topbarWorkflowTargetSelector: { type: String, default: '' },
+  documentDockOpen: { type: Boolean, default: false },
+  documentDockWidth: { type: Number, default: 360 },
+  documentDockResizing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['cursor-change', 'editor-stats', 'selection-change'])
+const emit = defineEmits([
+  'cursor-change',
+  'editor-stats',
+  'selection-change',
+  'document-dock-resize',
+  'document-dock-resize-start',
+  'document-dock-resize-end',
+  'document-dock-resize-snap',
+  'document-dock-close',
+])
 const editorStore = useEditorStore()
-const splitContainer = ref(null)
-const splitMotionKey = computed(() => `pane-split:${props.node?.id || 'root'}`)
+const workflowStore = useDocumentWorkflowStore()
+const containerRef = ref(null)
+const lastDocumentTab = ref(null)
+const dockResizeStartWidth = ref(null)
 
-const firstChildStyle = computed(() => {
-  if (props.node.type !== 'split') return {}
-  const ratio = props.node.ratio || 0.5
-  return { width: `calc(${ratio * 100}% - 1px)` }
+const renderNode = computed(() => {
+  if (props.node?.type === 'leaf') return props.node
+  return editorStore.findFirstLeaf(props.node) || {
+    type: 'leaf',
+    id: ROOT_PANE_ID,
+    tabs: [],
+    activeTab: null,
+  }
 })
-
-const secondChildStyle = computed(() => {
-  if (props.node.type !== 'split') return {}
-  const ratio = props.node.ratio || 0.5
-  return { width: `calc(${(1 - ratio) * 100}% - 1px)` }
+const documentTab = computed(() => {
+  const active = editorStore.activeTab
+  if (active && !isNewTab(active) && !isPreviewPath(active)) {
+    return active
+  }
+  return lastDocumentTab.value
 })
+const documentPreviewState = computed(() => {
+  if (!documentTab.value) return null
+  return workflowStore.getWorkspacePreviewStateForFile(documentTab.value) || null
+})
+const documentPreviewVisible = computed(() => documentPreviewState.value?.previewVisible === true)
+const isDocumentDockOpen = computed(() => props.documentDockOpen || documentPreviewVisible.value)
+const dockContextPath = computed(
+  () =>
+    documentTab.value ||
+    editorStore.activeDocumentDockTab ||
+    editorStore.documentDockTabs?.[0] ||
+    ''
+)
 
-function handleResize(e) {
-  if (props.node.type !== 'split') return
+watch(
+  () => editorStore.activeTab,
+  (tab) => {
+    if (tab && !isNewTab(tab) && !isPreviewPath(tab)) {
+      lastDocumentTab.value = tab
+    }
+  },
+  { flush: 'post', immediate: true }
+)
 
-  const container = splitContainer.value
-  if (!container) return
+function handleDocumentDockResizeStart() {
+  dockResizeStartWidth.value = props.documentDockWidth
+  emit('document-dock-resize-start')
+}
 
-  const rect = container.getBoundingClientRect()
-  if (!rect.width) return
-  const ratio = (e.x - rect.left) / rect.width
-
-  scheduleWorkbenchMotionCommit(splitMotionKey.value, ratio, (nextRatio) => {
-    editorStore.setSplitRatio(props.node, nextRatio)
+function handleDocumentDockResize(event = {}) {
+  const startWidth = dockResizeStartWidth.value ?? props.documentDockWidth
+  emit('document-dock-resize', {
+    width: startWidth - Number(event.dx || 0),
+    containerWidth: containerRef.value?.getBoundingClientRect?.().width || 0,
   })
 }
 
-function handleResizeEnd() {
-  if (props.node.type !== 'split') return
-  flushWorkbenchMotionCommit(splitMotionKey.value)
-  editorStore.commitSplitRatio(props.node)
+function handleDocumentDockResizeEnd() {
+  dockResizeStartWidth.value = null
+  emit('document-dock-resize-end')
+}
+
+function handleDocumentDockResizeSnap() {
+  const containerWidth = containerRef.value?.getBoundingClientRect?.().width || 0
+  emit('document-dock-resize-snap', { containerWidth })
 }
 </script>
 
 <style scoped>
-.pane-container-split {
-  gap: 0;
-}
-
-.pane-container-slot {
+.pane-container {
+  display: flex;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  background: var(--shell-editor-surface);
 }
+
+.pane-container__editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 </style>

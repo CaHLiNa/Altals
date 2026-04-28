@@ -92,12 +92,6 @@ export function createDocumentWorkflowRuntime({
           activatePane: paneAction.activatePane === true,
         })
       }
-    } else if (paneAction?.type === 'split-pane-with-preview') {
-      const previewPath = String(paneAction.previewPath || '')
-      const sourcePaneId = String(paneAction.sourcePaneId || '')
-      if (previewPath && sourcePaneId) {
-        editorStore.splitPaneWith(sourcePaneId, 'vertical', previewPath)
-      }
     }
 
     if (plan.followupRequest && typeof plan.followupRequest === 'object') {

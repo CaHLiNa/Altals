@@ -55,26 +55,6 @@
 
     <template v-if="!collapsed">
       <div class="file-tree-body">
-        <!-- Search input -->
-        <div class="file-tree-search-row shrink-0">
-          <UiInput
-            ref="filterInputEl"
-            v-model="filterQuery"
-            size="sm"
-            shell-class="file-tree-search-input"
-            :placeholder="t('Search files')"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-            @keydown="handleFilterInputKeydown"
-          >
-            <template #prefix>
-              <IconSearch :size="14" :stroke-width="1.6" class="file-tree-search-icon" />
-            </template>
-          </UiInput>
-        </div>
-
         <!-- Tree -->
         <div
           ref="treeContainer"
@@ -122,9 +102,6 @@
                 :newItemIsDir="renaming.isDir"
                 :selectedPaths="selectedPaths"
                 :dragOverDir="dragOverDir"
-                :filterQuery="filterActive ? filterQuery : ''"
-                :forceExpand="filterActive && !!filterQuery"
-                :filterHighlightPath="filterHighlightPath"
                 :suppressChildren="true"
                 @open-file="openFile"
                 @select-file="onSelectFile"
@@ -150,13 +127,7 @@
           </div>
 
           <div
-            v-if="filterActive && filterQuery && filterMatches.length === 0"
-            class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
-          >
-            {{ t('No matches') }}
-          </div>
-          <div
-            v-else-if="visibleRows.length === 0 && !renaming.active"
+            v-if="visibleRows.length === 0 && !renaming.active"
             class="file-tree-empty-state px-3 py-4 ui-sidebar-empty"
           >
             {{ t('No files yet') }}
@@ -217,6 +188,7 @@
         @delete="handleDelete"
         @delete-selected="handleDeleteSelected"
         @reveal-in-finder="revealInFinder"
+        @open-in-document-dock="openInDocumentDock"
       />
 
       <!-- Workspace dropdown menu -->
@@ -359,7 +331,6 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import {
   IconFolderMinus,
-  IconSearch,
   IconPlus,
   IconFileText,
   IconMath,
@@ -371,7 +342,7 @@ import {
 import { useI18n } from '../../i18n'
 import { revealPathInFileManager, workspacePathExists } from '../../services/fileTreeSystem'
 import { askNativeDialog } from '../../services/nativeDialog.js'
-import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
+import { useFileTreeRows } from '../../composables/useFileTreeRows'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
 import { resolveFloatingReference } from '../../utils/floatingReference'
@@ -416,7 +387,6 @@ const fileTreeDisplayEntries = computed(() =>
 
 const treeContainer = ref(null)
 const renameInput = ref(null)
-const filterInputEl = ref(null)
 const workspaceMenuAnchorEl = ref(null)
 const workspaceMenuEl = ref(null)
 const newBtnEl = ref(null)
@@ -442,10 +412,6 @@ const renaming = reactive({
 })
 
 const {
-  filterActive,
-  filterQuery,
-  filterMatches,
-  filterHighlightPath,
   visibleRows,
   virtualRows,
   virtualOffset,
@@ -453,17 +419,14 @@ const {
   selectedPaths,
   onTreeScroll,
   onSelectFile,
-  handleFilterKeydown,
-  activateFilter,
   findEntry,
   getActivePath,
   handleTreeKeydown: rawHandleTreeKeydown,
-} = useFileTreeFilter({
+} = useFileTreeRows({
   files,
   editor,
   workspace,
   treeContainer,
-  filterInputEl,
   isMod,
   getDisplayTree: () => fileTreeDisplayEntries.value,
 })
@@ -492,8 +455,11 @@ function openFile(path) {
   editor.openFile(path)
 }
 
-function handleFilterInputKeydown(event) {
-  handleFilterKeydown(event)
+function openInDocumentDock(entry) {
+  if (!entry?.path || entry.is_dir) return
+  workspace.openWorkspaceSurface()
+  workspace.openRightSidebar()
+  editor.openDocumentDockFile(entry.path)
 }
 
 async function handleTreeKeydown(e) {
@@ -895,7 +861,6 @@ defineExpose({
 
     startInlineTypedFileCreate(targetDir, ext)
   },
-  activateFilter,
   collapseAllFolders,
   toggleCreateMenuFrom(anchorEl = null) {
     toggleNewMenu(anchorEl)
@@ -984,51 +949,6 @@ defineExpose({
 
 .file-tree-chevron-open {
   transform: rotate(90deg);
-}
-
-.file-tree-search-row {
-  padding: 14px 8px 0;
-}
-
-:deep(.file-tree-search-input) {
-  border-color: color-mix(in srgb, var(--sidebar-search-border) 68%, transparent);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--sidebar-search-surface) 72%, transparent);
-  min-height: 28px;
-  padding-inline: 10px;
-  gap: var(--sidebar-inline-gap);
-  box-shadow: none;
-  opacity: 1;
-}
-
-:deep(.file-tree-search-input:focus-within) {
-  border-color: color-mix(in srgb, var(--sidebar-search-border-focus) 80%, transparent);
-  background: color-mix(in srgb, var(--sidebar-search-surface-focus) 78%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 42%, transparent);
-  opacity: 1;
-}
-
-:deep(.file-tree-search-input .ui-input-control) {
-  font-size: var(--sidebar-font-search);
-  line-height: 1.1;
-}
-
-:deep(.file-tree-search-input .ui-input-control::placeholder) {
-  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
-  opacity: 1;
-}
-
-.file-tree-search-icon {
-  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
-}
-
-:deep(.file-tree-search-input.ui-input-shell--sm) {
-  min-height: 28px;
-  padding-inline: 10px;
-}
-
-:deep(.file-tree-search-input .ui-input-affix) {
-  height: 14px;
 }
 
 .file-tree-root-rename-row {

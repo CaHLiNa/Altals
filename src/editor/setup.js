@@ -167,6 +167,7 @@ export function createEditorExtensions({
   onDocChanged,
   onCursorChange,
   onStats,
+  readOnly = false,
   softWrap = true,
   wrapColumn = 0,
   spellcheckEnabled = false,
@@ -201,6 +202,7 @@ export function createEditorExtensions({
     rectangularSelection(),
     crosshairCursor(),
     selectionMatchesLikeVSCode(),
+    ...(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
 
     // Language (dynamic — passed by caller)
     ...(languageExtension ? [languageExtension] : []),

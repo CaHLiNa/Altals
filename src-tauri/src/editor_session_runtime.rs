@@ -10,9 +10,6 @@ const STATE_VERSION: u64 = 1;
 const RECENT_FILES_VERSION: u64 = 1;
 const MAX_RECENT_FILES: usize = 20;
 const ROOT_PANE_ID: &str = "pane-root";
-const DEFAULT_SPLIT_RATIO: f64 = 0.5;
-const MIN_SPLIT_RATIO: f64 = 0.15;
-const MAX_SPLIT_RATIO: f64 = 0.85;
 const REMOVED_VIRTUAL_TAB_PREFIXES: &[&str] = &["library:", "ref:@"];
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,6 +30,10 @@ pub struct EditorSessionSaveParams {
     pub active_pane_id: String,
     #[serde(default)]
     pub legacy_preview_paths: Vec<String>,
+    #[serde(default)]
+    pub document_dock_tabs: Vec<String>,
+    #[serde(default)]
+    pub active_document_dock_tab: String,
     #[serde(default)]
     pub last_context_path: String,
 }
@@ -84,10 +85,6 @@ impl Default for RecentFilesFile {
 
 fn default_recent_files_version() -> u64 {
     RECENT_FILES_VERSION
-}
-
-fn clamp_ratio(value: f64) -> f64 {
-    value.max(MIN_SPLIT_RATIO).min(MAX_SPLIT_RATIO)
 }
 
 fn is_preview_path(path: &str) -> bool {
@@ -158,6 +155,44 @@ fn collect_all_tabs(node: &Value, tabs: &mut Vec<String>) {
             collect_all_tabs(child, tabs);
         }
     }
+}
+
+fn merge_leaves_into_root(leaves: Vec<Value>) -> Value {
+    let mut seen = HashSet::new();
+    let mut tabs = Vec::new();
+    let mut active_tab = None;
+
+    for leaf in leaves {
+        let leaf_tabs = leaf
+            .get("tabs")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|tab| tab.as_str().map(|value| value.to_string()))
+            .collect::<Vec<_>>();
+
+        for tab in leaf_tabs {
+            if seen.insert(tab.clone()) {
+                tabs.push(tab);
+            }
+        }
+
+        if let Some(candidate) = leaf.get("activeTab").and_then(Value::as_str) {
+            if active_tab.is_none()
+                || (!is_context_candidate_path(active_tab.as_deref().unwrap_or_default())
+                    && is_context_candidate_path(candidate))
+            {
+                active_tab = Some(candidate.to_string());
+            }
+        }
+    }
+
+    let resolved_active_tab = active_tab
+        .filter(|tab| tabs.iter().any(|candidate| candidate == tab))
+        .or_else(|| tabs.first().cloned());
+
+    make_leaf(ROOT_PANE_ID, tabs, resolved_active_tab)
 }
 
 fn find_first_leaf(node: &Value) -> Option<Value> {
@@ -243,6 +278,42 @@ fn normalize_tabs_for_load(tabs: &[Value]) -> Vec<String> {
         .collect()
 }
 
+fn is_valid_document_dock_tab_for_save(path: &str) -> bool {
+    !path.is_empty()
+        && !is_virtual_new_tab(path)
+        && !is_preview_path(path)
+        && !is_virtual_draft_tab(path)
+        && !is_removed_virtual_tab_path(path)
+}
+
+fn normalize_document_dock_tabs_for_save(tabs: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for tab in tabs {
+        let path = tab.trim().to_string();
+        if !is_valid_document_dock_tab_for_save(&path) || !seen.insert(path.clone()) {
+            continue;
+        }
+        normalized.push(path);
+    }
+    normalized
+}
+
+fn normalize_document_dock_tabs_for_load(tabs: &[Value]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for tab in tabs.iter().filter_map(Value::as_str) {
+        if !is_valid_document_dock_tab_for_save(tab) || !is_valid_tab_path(tab) {
+            continue;
+        }
+        let path = tab.to_string();
+        if seen.insert(path.clone()) {
+            normalized.push(path);
+        }
+    }
+    normalized
+}
+
 fn serialize_leaf_for_save(
     node: &Value,
     preserved_legacy_preview_paths: &HashSet<String>,
@@ -323,16 +394,11 @@ fn serialize_pane_tree_for_save(
             })
             .collect::<Vec<_>>();
 
-        if children.len() < 2 {
-            return children.into_iter().next();
+        if children.is_empty() {
+            return None;
         }
 
-        return Some(json!({
-            "type": "split",
-            "direction": "vertical",
-            "ratio": clamp_ratio(node.get("ratio").and_then(Value::as_f64).unwrap_or(DEFAULT_SPLIT_RATIO)),
-            "children": [children[0].clone(), children[1].clone()],
-        }));
+        return Some(merge_leaves_into_root(children));
     }
 
     None
@@ -358,26 +424,8 @@ fn normalize_loaded_pane_tree(node: &Value) -> Value {
     if normalized_leaves.is_empty() {
         return make_leaf(ROOT_PANE_ID, Vec::new(), None);
     }
-    if normalized_leaves.len() == 1 {
-        return normalized_leaves[0].clone();
-    }
 
-    make_split(
-        normalized_leaves[0].clone(),
-        normalized_leaves[1].clone(),
-        node.get("ratio")
-            .and_then(Value::as_f64)
-            .unwrap_or(DEFAULT_SPLIT_RATIO),
-    )
-}
-
-fn make_split(left: Value, right: Value, ratio: f64) -> Value {
-    json!({
-        "type": "split",
-        "direction": "vertical",
-        "ratio": clamp_ratio(ratio),
-        "children": [left, right],
-    })
+    merge_leaves_into_root(normalized_leaves)
 }
 
 fn build_persisted_editor_state(
@@ -385,12 +433,28 @@ fn build_persisted_editor_state(
     active_pane_id: &str,
     last_context_path: &str,
     legacy_preview_paths: &[String],
+    document_dock_tabs: &[String],
+    active_document_dock_tab: &str,
 ) -> Value {
     let preserved = normalize_legacy_preview_paths(legacy_preview_paths);
+    let normalized_document_dock_tabs = normalize_document_dock_tabs_for_save(document_dock_tabs);
+    let normalized_active_document_dock_tab = if normalized_document_dock_tabs
+        .iter()
+        .any(|tab| tab == active_document_dock_tab)
+    {
+        active_document_dock_tab.to_string()
+    } else {
+        normalized_document_dock_tabs
+            .first()
+            .cloned()
+            .unwrap_or_default()
+    };
     json!({
         "version": STATE_VERSION,
         "paneTree": serialize_pane_tree_for_save(pane_tree, &preserved),
         "activePaneId": active_pane_id,
+        "documentDockTabs": normalized_document_dock_tabs,
+        "activeDocumentDockTab": normalized_active_document_dock_tab,
         "lastContextPath": last_context_path,
     })
 }
@@ -406,6 +470,25 @@ fn normalize_loaded_editor_state(state: &Value) -> Value {
         .filter(|tab| is_preview_path(tab))
         .cloned()
         .collect::<Vec<_>>();
+    let document_dock_tabs = normalize_document_dock_tabs_for_load(
+        &state
+            .get("documentDockTabs")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
+    let document_dock_tab_set = document_dock_tabs.iter().cloned().collect::<HashSet<_>>();
+    let active_document_dock_tab = state
+        .get("activeDocumentDockTab")
+        .and_then(Value::as_str)
+        .filter(|path| document_dock_tab_set.contains(*path))
+        .map(|value| value.to_string())
+        .or_else(|| document_dock_tabs.first().cloned())
+        .unwrap_or_default();
+    let context_candidates = open_tabs
+        .union(&document_dock_tab_set)
+        .cloned()
+        .collect::<HashSet<_>>();
 
     let active_pane_id = state
         .get("activePaneId")
@@ -437,14 +520,27 @@ fn normalize_loaded_editor_state(state: &Value) -> Value {
     let last_context_path = state
         .get("lastContextPath")
         .and_then(Value::as_str)
-        .filter(|path| is_context_candidate_path(path) && open_tabs.contains(*path))
+        .filter(|path| is_context_candidate_path(path) && context_candidates.contains(*path))
         .map(|value| value.to_string())
+        .or_else(|| {
+            if is_context_candidate_path(&active_document_dock_tab) {
+                Some(active_document_dock_tab.clone())
+            } else {
+                None
+            }
+        })
         .or_else(|| {
             context_leaf.as_ref().and_then(|leaf| {
                 leaf.get("activeTab")
                     .and_then(Value::as_str)
                     .map(|value| value.to_string())
             })
+        })
+        .or_else(|| {
+            all_tabs
+                .iter()
+                .find(|path| is_context_candidate_path(path))
+                .cloned()
         })
         .unwrap_or_default();
 
@@ -453,6 +549,8 @@ fn normalize_loaded_editor_state(state: &Value) -> Value {
         "paneTree": pane_tree,
         "activePaneId": active_pane_id,
         "legacyPreviewPaths": legacy_preview_paths,
+        "documentDockTabs": document_dock_tabs,
+        "activeDocumentDockTab": active_document_dock_tab,
         "lastContextPath": last_context_path,
     })
 }
@@ -541,6 +639,8 @@ pub async fn editor_session_save(params: EditorSessionSaveParams) -> Result<Valu
         &params.active_pane_id,
         &params.last_context_path,
         &params.legacy_preview_paths,
+        &params.document_dock_tabs,
+        &params.active_document_dock_tab,
     );
     let file_path = state_file_path(workspace_data_dir);
     let serialized = serde_json::to_string_pretty(&state)
@@ -619,6 +719,8 @@ mod tests {
             "pane-root",
             "/tmp/a.md",
             &["preview:/tmp/a.md".to_string()],
+            &[],
+            "",
         );
 
         let tabs = state["paneTree"]["tabs"]
@@ -640,6 +742,8 @@ mod tests {
             "pane-root",
             "/tmp/a.md",
             &[],
+            &[],
+            "",
         );
 
         let tabs = state["paneTree"]["tabs"]
@@ -668,7 +772,7 @@ mod tests {
             }
         }));
 
-        assert_eq!(state["activePaneId"].as_str(), Some("pane-left"));
+        assert_eq!(state["activePaneId"].as_str(), Some("pane-root"));
         assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
     }
 
@@ -692,10 +796,48 @@ mod tests {
         }));
 
         assert_eq!(
-            state["legacyPreviewPaths"].as_array().cloned().unwrap_or_default(),
+            state["legacyPreviewPaths"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default(),
             vec![json!(format!("preview:{file_path}"))]
         );
-        assert_eq!(state["lastContextPath"].as_str(), Some(""));
+        assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
+    }
+
+    #[test]
+    fn save_and_load_state_preserves_document_dock_tabs() {
+        let file_path = std::env::temp_dir().join("scribeflow-editor-session-dock.md");
+        fs::write(&file_path, "# dock").expect("write temp file");
+        let file_path = file_path.to_string_lossy().to_string();
+
+        let saved = build_persisted_editor_state(
+            &json!({
+                "type": "leaf",
+                "id": "pane-root",
+                "tabs": ["newtab:1"],
+                "activeTab": "newtab:1"
+            }),
+            "pane-root",
+            &file_path,
+            &[],
+            &[file_path.clone(), "preview:/tmp/ignored.md".to_string()],
+            &file_path,
+        );
+        let state = normalize_loaded_editor_state(&saved);
+
+        assert_eq!(
+            state["documentDockTabs"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default(),
+            vec![json!(file_path.clone())]
+        );
+        assert_eq!(
+            state["activeDocumentDockTab"].as_str(),
+            Some(file_path.as_str())
+        );
+        assert_eq!(state["lastContextPath"].as_str(), Some(file_path.as_str()));
     }
 
     #[test]

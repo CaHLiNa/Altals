@@ -8,6 +8,7 @@ const SETTINGS_SURFACE: &str = "settings";
 const WORKBENCH_LAYOUT_VERSION: u32 = 1;
 const DEFAULT_LEFT_SIDEBAR_WIDTH: i64 = 240;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH: i64 = 360;
+const DEFAULT_DOCUMENT_DOCK_WIDTH: i64 = 360;
 const DEFAULT_BOTTOM_PANEL_HEIGHT: i64 = 250;
 const MIN_SIDEBAR_WIDTH: i64 = 0;
 const MAX_SIDEBAR_WIDTH: i64 = 2000;
@@ -16,7 +17,7 @@ const MAX_BOTTOM_PANEL_HEIGHT: i64 = 600;
 
 const DEFAULT_WORKSPACE_SIDEBAR_PANEL: &str = "files";
 const DEFAULT_SETTINGS_SIDEBAR_PANEL: &str = "files";
-const DEFAULT_WORKSPACE_INSPECTOR_PANEL: &str = "outline";
+const DEFAULT_WORKSPACE_INSPECTOR_PANEL: &str = "dock";
 const DEFAULT_SETTINGS_INSPECTOR_PANEL: &str = "";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,6 +42,8 @@ pub struct WorkbenchLayoutState {
     pub left_sidebar_width: i64,
     #[serde(default = "default_right_sidebar_width")]
     pub right_sidebar_width: i64,
+    #[serde(default = "default_document_dock_width")]
+    pub document_dock_width: i64,
     #[serde(default = "default_bottom_panel_height")]
     pub bottom_panel_height: i64,
 }
@@ -85,6 +88,7 @@ impl Default for WorkbenchLayoutState {
         Self {
             left_sidebar_width: default_left_sidebar_width(),
             right_sidebar_width: default_right_sidebar_width(),
+            document_dock_width: default_document_dock_width(),
             bottom_panel_height: default_bottom_panel_height(),
         }
     }
@@ -100,6 +104,10 @@ fn default_left_sidebar_width() -> i64 {
 
 fn default_right_sidebar_width() -> i64 {
     DEFAULT_RIGHT_SIDEBAR_WIDTH
+}
+
+fn default_document_dock_width() -> i64 {
+    DEFAULT_DOCUMENT_DOCK_WIDTH
 }
 
 fn default_bottom_panel_height() -> i64 {
@@ -212,6 +220,11 @@ pub fn normalize_workbench_layout_state(state: WorkbenchLayoutState) -> Workbenc
         ),
         right_sidebar_width: clamp_i64(
             state.right_sidebar_width,
+            MIN_SIDEBAR_WIDTH,
+            MAX_SIDEBAR_WIDTH,
+        ),
+        document_dock_width: clamp_i64(
+            state.document_dock_width,
             MIN_SIDEBAR_WIDTH,
             MAX_SIDEBAR_WIDTH,
         ),
@@ -330,11 +343,13 @@ mod tests {
         let normalized = normalize_workbench_layout_state(WorkbenchLayoutState {
             left_sidebar_width: -1,
             right_sidebar_width: 5000,
+            document_dock_width: 3200,
             bottom_panel_height: 10,
         });
 
         assert_eq!(normalized.left_sidebar_width, 0);
         assert_eq!(normalized.right_sidebar_width, 2000);
+        assert_eq!(normalized.document_dock_width, 2000);
         assert_eq!(normalized.bottom_panel_height, 100);
     }
 }

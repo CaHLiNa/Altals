@@ -6,55 +6,24 @@
         key="workspace-reference-detail"
         class="right-shell-pane"
       />
-      <OutlinePanel
-        v-else-if="workspace.rightSidebarOpen"
-        key="workspace-outline"
-        embedded
-        :overrideActiveFile="documentTab"
-        class="right-shell-pane"
-      />
     </KeepAlive>
   </div>
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
-import { useEditorStore } from '../../stores/editor'
+import { defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { isNewTab } from '../../utils/fileTypes'
 
-const OutlinePanel = defineAsyncComponent(() => import('../panel/OutlinePanel.vue'))
 const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
 
-const editorStore = useEditorStore()
 const workspace = useWorkspaceStore()
-
-const lastDocumentTab = ref(null)
-
-const documentTab = computed(() => {
-  const active = editorStore.activeTab
-  if (active && !isNewTab(active)) {
-    return active
-  }
-  return lastDocumentTab.value
-})
-
-watch(
-  () => editorStore.activeTab,
-  (tab) => {
-    if (tab && !isNewTab(tab)) {
-      lastDocumentTab.value = tab
-    }
-  },
-  { flush: 'post', immediate: true }
-)
 </script>
 
 <style scoped>
 .right-shell-sidebar {
   --sidebar-shell-top: 42px;
-  --sidebar-shell-inline: 8px;
-  --sidebar-shell-bottom: 2px;
+  --sidebar-shell-inline: 10px;
+  --sidebar-shell-bottom: 10px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -62,13 +31,9 @@ watch(
   min-height: 0;
   overflow: hidden;
   padding: var(--sidebar-shell-top) var(--sidebar-shell-inline) var(--sidebar-shell-bottom);
-  background: var(
-    --sidebar-shell-surface,
-    color-mix(in srgb, var(--panel-surface) 56%, transparent)
-  );
+  border-left: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--app-canvas) 88%, var(--surface-base) 12%);
   box-shadow: none;
-  backdrop-filter: blur(var(--sidebar-shell-blur, 18px))
-    saturate(var(--sidebar-shell-saturate, 1.08));
 }
 
 .right-shell-pane {
