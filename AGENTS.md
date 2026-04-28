@@ -42,7 +42,11 @@ ScribeFlow 是一个本地优先的桌面学术研究工作台。主产品是 Ta
 ## 3. Rust-first 约束
 
 - runtime authority、文件系统、编译、引用、workspace 规则优先 Rust
-- Vue 层负责渲染、交互、短期状态和 Rust command 调用
+- 除必要的前端 UI 行为外，其他能力默认下沉到 Rust；不要把路径规则、文件系统策略、编译调度、引用处理、workspace policy 继续留在 JS
+- Vue 层只负责渲染、交互、短期状态和 Rust command 调用
+- JS 只作为 Vue 与 Rust 之间的 bridge；bridge 层不承接新的 runtime 规则、持久化策略或系统能力
+- 做 Rust 化收口时，禁止通过新增 JS 文件来承接被下沉的逻辑；如果只是把复杂度从一个 JS 文件拆到另一个新 JS 文件，视为未完成减 JS
+- 允许新增 Rust 模块与 command；如确实需要前端配套，优先收缩现有 JS 文件为薄 bridge，而不是扩张 `src/services/*` 的 JS 面积
 - 不新增新的前端 backend center
 
 默认模块职责：
