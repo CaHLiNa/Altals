@@ -8,6 +8,8 @@ use tauri::{AppHandle, Emitter, State};
 use crate::latex::{CompileResult, LatexError, LatexState};
 use crate::latex_compile::compile_latex_with_preference;
 use crate::latex_tools::find_chktex;
+use crate::security;
+use crate::security::WorkspaceScopeState;
 
 const LATEX_RUNTIME_COMPILE_REQUESTED_EVENT: &str = "latex-runtime-compile-requested";
 const LATEX_AUTOCOMPILE_DEBOUNCE_MS: u64 = 1_200;
@@ -202,6 +204,19 @@ fn runtime_key(target_path: &str, tex_path: &str) -> String {
     } else {
         tex_path.trim().to_string()
     }
+}
+
+fn resolve_scoped_optional_path(
+    scope_state: &WorkspaceScopeState,
+    path: &str,
+) -> Result<String, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+    Ok(security::ensure_allowed_workspace_path(scope_state, std::path::Path::new(trimmed))?
+        .to_string_lossy()
+        .to_string())
 }
 
 fn queue_state_to_value(state: &LatexQueueStateInput) -> Value {
@@ -505,7 +520,17 @@ pub async fn latex_runtime_cancel(
 }
 
 #[tauri::command]
-pub async fn latex_runtime_lint_resolve(params: LatexLintResolveParams) -> Result<Value, String> {
+pub async fn latex_runtime_lint_resolve(
+    params: LatexLintResolveParams,
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<Value, String> {
+    latex_runtime_lint_resolve_scoped(params, Some(scope_state.inner())).await
+}
+
+async fn latex_runtime_lint_resolve_scoped(
+    params: LatexLintResolveParams,
+    scope_state: Option<&WorkspaceScopeState>,
+) -> Result<Value, String> {
     if params.tex_path.trim().is_empty() {
         return Ok(build_lint_state_result("unavailable", Vec::new(), None));
     }
@@ -514,11 +539,27 @@ pub async fn latex_runtime_lint_resolve(params: LatexLintResolveParams) -> Resul
         return Ok(build_lint_state_result("unavailable", Vec::new(), None));
     }
 
+    let tex_path = match scope_state {
+        Some(state) => resolve_scoped_optional_path(state, &params.tex_path)?,
+        None => params.tex_path,
+    };
+    let workspace_path = match (scope_state, params.workspace_path) {
+        (Some(state), Some(path)) => {
+            let resolved = resolve_scoped_optional_path(state, &path)?;
+            if resolved.is_empty() {
+                None
+            } else {
+                Some(resolved)
+            }
+        }
+        (_, workspace_path) => workspace_path,
+    };
+
     match crate::latex::run_chktex(
-        params.tex_path,
+        tex_path,
         params.content,
         params.custom_system_tex_path,
-        params.workspace_path,
+        workspace_path,
     )
     .await
     {
@@ -716,7 +757,22 @@ pub async fn latex_runtime_compile_execute(
     runtime_state: State<'_, LatexRuntimeState>,
     latex_state: State<'_, LatexState>,
     params: LatexCompileExecuteParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = LatexCompileExecuteParams {
+        tex_path: resolve_scoped_optional_path(scope_state.inner(), &params.tex_path)?,
+        target_path: resolve_scoped_optional_path(scope_state.inner(), &params.target_path)?,
+        project_root_path: resolve_scoped_optional_path(
+            scope_state.inner(),
+            &params.project_root_path,
+        )?,
+        project_preview_path: resolve_scoped_optional_path(
+            scope_state.inner(),
+            &params.project_preview_path,
+        )?,
+        ..params
+    };
+
     {
         let mut compiling = latex_state
             .compiling
@@ -819,7 +875,11 @@ pub async fn latex_runtime_compile_execute(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_queue_state, runtime_key, LatexQueueStateInput};
+    use super::{
+        normalize_queue_state, resolve_scoped_optional_path, runtime_key, LatexQueueStateInput,
+    };
+    use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
+    use std::fs;
 
     #[test]
     fn runtime_key_prefers_target_path() {
@@ -865,5 +925,45 @@ mod tests {
         assert_eq!(next.phase, "queued");
         assert_eq!(next.pending_count, 0);
         assert_eq!(next.updated_at, 99);
+    }
+
+    #[test]
+    fn scoped_latex_runtime_paths_respect_workspace_roots() {
+        let workspace_dir = std::env::temp_dir().join(format!(
+            "scribeflow-latex-runtime-scope-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let outside_dir = std::env::temp_dir().join(format!(
+            "scribeflow-latex-runtime-scope-outside-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_dir).expect("create workspace dir");
+        fs::create_dir_all(&outside_dir).expect("create outside dir");
+        let workspace_file = workspace_dir.join("main.tex");
+        let outside_file = outside_dir.join("main.tex");
+        fs::write(&workspace_file, "\\documentclass{article}").expect("write workspace tex");
+        fs::write(&outside_file, "\\documentclass{article}").expect("write outside tex");
+
+        let state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&state, &workspace_dir.to_string_lossy(), None, None, None)
+            .expect("register workspace root");
+
+        let resolved = resolve_scoped_optional_path(&state, &workspace_file.to_string_lossy())
+            .expect("workspace path should resolve");
+        assert!(resolved.ends_with("main.tex"));
+
+        let missing = resolve_scoped_optional_path(
+            &state,
+            &workspace_dir.join("missing.pdf").to_string_lossy(),
+        )
+        .expect("missing workspace path should resolve");
+        assert!(missing.ends_with("missing.pdf"));
+
+        let outside_error = resolve_scoped_optional_path(&state, &outside_file.to_string_lossy())
+            .expect_err("outside path should be rejected");
+        assert!(outside_error.starts_with("Path is outside the allowed workspace roots:"));
+
+        fs::remove_dir_all(workspace_dir).ok();
+        fs::remove_dir_all(outside_dir).ok();
     }
 }

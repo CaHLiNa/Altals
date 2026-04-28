@@ -554,7 +554,6 @@ pub fn run() {
             latex::check_latex_compilers,
             latex::check_latex_tools,
             latex::download_tectonic,
-            latex::run_chktex,
             latex::format_latex_document,
             latex::workspace_synctex_forward,
             latex::workspace_synctex_backward,

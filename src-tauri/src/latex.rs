@@ -132,7 +132,6 @@ pub async fn check_latex_tools(
     })
 }
 
-#[tauri::command]
 pub async fn run_chktex(
     tex_path: String,
     content: Option<String>,
@@ -195,12 +194,14 @@ pub async fn format_latex_document(
     tex_path: String,
     content: String,
     custom_system_tex_path: Option<String>,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<String, String> {
     let latexindent = find_latexindent(custom_system_tex_path.as_deref()).ok_or_else(|| {
         "latexindent not found. Install it with your TeX distribution.".to_string()
     })?;
 
-    let tex = Path::new(&tex_path);
+    let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&tex_path))?;
+    let tex = resolved.as_path();
     let dir = tex.parent().ok_or("Invalid tex path")?;
 
     let mut command = crate::process_utils::background_tokio_command(&latexindent);
