@@ -101,8 +101,8 @@ const menuGroups = computed(() => {
 })
 
 function handleSelect(item) {
-  item?.action?.()
   emit('close')
+  item?.action?.()
 }
 
 // 编辑器行为
