@@ -1,5 +1,4 @@
 import { onMounted, onUnmounted, ref } from 'vue'
-import { open } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -19,6 +18,7 @@ import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 import { syncNow } from '../../services/references/zoteroSync.js'
 import { pathExists } from '../../services/pathExists.js'
 import { onNativeWindowFocusChanged } from '../../services/nativeWindow.js'
+import { pickWorkspaceDirectory } from '../../services/workspacePicker.js'
 import { basenamePath } from '../../utils/path'
 import { isTauriDesktopRuntime } from '../../platform'
 
@@ -98,14 +98,7 @@ export function useWorkspaceLifecycle() {
   }
 
   async function pickWorkspace() {
-    const { homeDir } = await import('@tauri-apps/api/path')
-    const home = await homeDir()
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t('Open Workspace'),
-      defaultPath: home,
-    })
+    const selected = await pickWorkspaceDirectory(t('Open Workspace'))
 
     if (selected) {
       const bookmarkedPath = await captureWorkspaceBookmark(selected)
