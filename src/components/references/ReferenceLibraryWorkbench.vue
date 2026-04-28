@@ -164,75 +164,23 @@
         class="reference-workbench__detail-shell inline-dock"
         :aria-label="t('Details')"
       >
-        <header class="reference-workbench__detail-tabbar inline-dock__tabbar">
-          <div class="reference-workbench__detail-tabs inline-dock__tabs" role="tablist" :aria-label="t('Details')">
-            <div
-              class="reference-workbench__detail-tab reference-workbench__detail-tab--icon reference-workbench__detail-tab--details inline-dock__tab"
-              :class="{ 'is-active': activeReferenceDockTab === REFERENCE_DETAILS_TAB }"
-              role="tab"
-              :aria-selected="activeReferenceDockTab === REFERENCE_DETAILS_TAB"
-              tabindex="0"
-              :title="detailTabLabel"
-              :aria-label="detailTabLabel"
-              @click="activateReferenceDetailsTab"
-              @keydown.enter.prevent="activateReferenceDetailsTab"
-              @keydown.space.prevent="activateReferenceDetailsTab"
-            >
-              <div class="reference-workbench__detail-tab-label inline-dock__tab-label">
-                <IconFileText
-                  class="reference-workbench__detail-tab-icon inline-dock__tab-icon"
-                  :size="15"
-                  :stroke-width="1.8"
-                />
-              </div>
-            </div>
-
-            <div
-              v-if="showReferencePdfTab"
-              class="reference-workbench__detail-tab reference-workbench__detail-tab--icon reference-workbench__detail-tab--pdf inline-dock__tab"
-              :class="{ 'is-active': activeReferenceDockTab === REFERENCE_PDF_TAB }"
-              role="tab"
-              :aria-selected="activeReferenceDockTab === REFERENCE_PDF_TAB"
-              tabindex="0"
-              :title="pdfTabLabel"
-              :aria-label="pdfTabLabel"
-              @click="activateReferencePdfTab"
-              @keydown.enter.prevent="activateReferencePdfTab"
-              @keydown.space.prevent="activateReferencePdfTab"
-            >
-              <div class="reference-workbench__detail-tab-label inline-dock__tab-label">
-                <IconFileTypePdf
-                  class="reference-workbench__detail-tab-icon inline-dock__tab-icon"
-                  :size="15"
-                  :stroke-width="1.8"
-                />
-              </div>
-              <button
-                v-if="activeReferenceDockTab === REFERENCE_PDF_TAB"
-                type="button"
-                class="reference-workbench__detail-tab-close inline-dock__tab-close"
-                :title="t('Close')"
-                :aria-label="t('Close')"
-                @click.stop="closeReferencePdfTab"
-              >
-                <IconX :size="12" :stroke-width="2" />
-              </button>
-            </div>
-          </div>
-        </header>
+        <InlineDockTabBar
+          :active-key="activeReferenceDockKey"
+          :aria-label="t('Details')"
+          :pages="referenceDockPages"
+          tabbar-class="reference-workbench__detail-tabbar"
+          tabs-class="reference-workbench__detail-tabs"
+          @activate="activateReferenceDockPage"
+          @close="closeReferenceDockPage"
+        />
 
         <div class="reference-workbench__detail-body inline-dock__body is-flush">
-          <ReferenceDetailPanel
-            v-if="activeReferenceDockTab === REFERENCE_DETAILS_TAB"
-            class="reference-workbench__detail-panel"
-            @open-pdf-preview="activateReferencePdfTab"
-          />
-          <DocumentDockFileSurface
-            v-else-if="activeReferenceDockTab === REFERENCE_PDF_TAB && selectedReferencePdfPath"
-            class="reference-workbench__detail-panel"
-            :file-path="selectedReferencePdfPath"
-            pane-id="reference-library"
-            :document-dock-resizing="referenceDetailResizing"
+          <component
+            :is="activeReferenceDockPage?.component"
+            v-if="activeReferenceDockPage?.component"
+            :class="activeReferenceDockPage?.componentClass"
+            v-bind="activeReferenceDockPage?.componentProps || {}"
+            v-on="activeReferenceDockPage?.componentEvents || {}"
           />
           <div v-else class="reference-workbench__detail-empty inline-dock__empty">
             {{ t('No PDF attached') }}
@@ -259,15 +207,14 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { 
   IconFileText, 
   IconPlus, 
   IconFileTypePdf, 
   IconFileCode, 
   IconShare,
-  IconChevronDown,
-  IconX
+  IconChevronDown
 } from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
@@ -283,13 +230,17 @@ import {
   searchByMetadata,
 } from '../../services/references/crossref.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
+import { findInlineDockPage } from '../../domains/workbench/inlineDockPageRegistry.js'
+import {
+  REFERENCE_DOCK_DETAILS_PAGE,
+  REFERENCE_DOCK_PDF_PAGE,
+} from '../../domains/references/referenceDockPages.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
+import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
-
-const ReferenceDetailPanel = defineAsyncComponent(() => import('../panel/ReferenceDetailPanel.vue'))
-const DocumentDockFileSurface = defineAsyncComponent(() => import('../sidebar/DocumentDockFileSurface.vue'))
+import { referenceDockPageRegistry } from './referenceDockPageRegistry.js'
 
 const props = defineProps({
   referenceDetailOpen: { type: Boolean, default: false },
@@ -309,8 +260,6 @@ const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const toastStore = useToastStore()
 const uxStatusStore = useUxStatusStore()
-const REFERENCE_DETAILS_TAB = 'details'
-const REFERENCE_PDF_TAB = 'pdf'
 const REFERENCE_DETAIL_MIN_WIDTH = 420
 const REFERENCE_LIST_MIN_WIDTH = 520
 const REFERENCE_DETAIL_MAX_CONTAINER_RATIO = 0.52
@@ -329,17 +278,35 @@ const {
 
 const filteredReferences = computed(() => referencesStore.filteredReferences)
 const selectedReference = computed(() => referencesStore.selectedReference)
-const activeReferenceDockTab = computed(() => referencesStore.referenceDockActiveTab)
-const detailTabLabel = computed(() => selectedReference.value?.title || t('Details'))
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
 const canPreviewSelectedReferencePdf = computed(() => selectedReferencePdfPath.value.length > 0)
 const showReferencePdfTab = computed(
   () => referencesStore.selectedReferencePdfTabOpen && canPreviewSelectedReferencePdf.value
 )
+const referenceDockPages = computed(() =>
+  referenceDockPageRegistry.resolvePages({
+    allowedPageIds: workspace.referenceDockPageIds,
+    openPdfPreview: activateReferencePdfTab,
+    referenceDetailResizing: props.referenceDetailResizing,
+    selectedReference: selectedReference.value,
+    selectedReferencePdfPath: selectedReferencePdfPath.value,
+    showReferencePdfTab: showReferencePdfTab.value,
+    t,
+  })
+)
+const activeReferenceDockKey = computed(() => {
+  const activePage = String(workspace.referenceDockActivePage || REFERENCE_DOCK_DETAILS_PAGE)
+  if (activePage === REFERENCE_DOCK_PDF_PAGE && showReferencePdfTab.value) {
+    return REFERENCE_DOCK_PDF_PAGE
+  }
+  return REFERENCE_DOCK_DETAILS_PAGE
+})
+const activeReferenceDockPage = computed(() =>
+  findInlineDockPage(referenceDockPages.value, activeReferenceDockKey.value)
+)
 const referenceDetailDockWidth = computed(() =>
   Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
 )
-const pdfTabLabel = computed(() => t('PDF'))
 const sortKey = computed({
   get: () => referencesStore.sortKey,
   set: (value) => referencesStore.setSortKey(value),
@@ -372,22 +339,42 @@ function toggleYearSort() {
 function handleReferenceRowClick(reference = {}) {
   if (!reference?.id) return
   referencesStore.selectReference(reference.id)
-  referencesStore.resetReferenceDockTabs()
+  resetReferenceDockTabs()
   void workspace.openReferenceDock()
 }
 
 function activateReferenceDetailsTab() {
-  referencesStore.activateReferenceDockDetails()
+  void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
 }
 
 function activateReferencePdfTab() {
   if (!canPreviewSelectedReferencePdf.value) return
-  referencesStore.activateReferenceDockPdf(selectedReference.value?.id)
+  if (!referencesStore.openReferenceDockPdf(selectedReference.value?.id)) return
   void workspace.openReferenceDock()
+  void workspace.setReferenceDockActivePage(REFERENCE_DOCK_PDF_PAGE)
+}
+
+function activateReferenceDockPage(page = {}) {
+  if (page.type === REFERENCE_DOCK_DETAILS_PAGE) {
+    activateReferenceDetailsTab()
+    return
+  }
+  if (page.type === REFERENCE_DOCK_PDF_PAGE) {
+    activateReferencePdfTab()
+  }
 }
 
 function closeReferencePdfTab() {
   referencesStore.closeReferenceDockPdf(selectedReference.value?.id)
+  if (activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE) {
+    void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
+  }
+}
+
+function closeReferenceDockPage(page = {}) {
+  if (page.type === REFERENCE_DOCK_PDF_PAGE) {
+    closeReferencePdfTab()
+  }
 }
 
 function clearReferenceDockCloseResetTimer() {
@@ -398,6 +385,7 @@ function clearReferenceDockCloseResetTimer() {
 
 function resetReferenceDockTabs() {
   referencesStore.resetReferenceDockTabs()
+  void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
 }
 
 function handleReferenceDetailResizeStart() {
@@ -494,7 +482,7 @@ watch(
 watch(
   () => canPreviewSelectedReferencePdf.value,
   (canPreviewPdf) => {
-    if (!canPreviewPdf && activeReferenceDockTab.value === REFERENCE_PDF_TAB) {
+    if (!canPreviewPdf && activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE) {
       closeReferencePdfTab()
     }
   },
@@ -974,16 +962,16 @@ async function handleExportBibTeX() {
   width: 100%;
 }
 
-.reference-workbench__detail-tabbar {
+:deep(.reference-workbench__detail-tabbar) {
   padding: 0 8px;
 }
 
-.reference-workbench__detail-tabs {
+:deep(.reference-workbench__detail-tabs) {
   flex: 0 0 auto;
   gap: 4px;
 }
 
-.reference-workbench__detail-tab--icon {
+:deep(.reference-workbench__detail-tab--icon) {
   flex: 0 0 26px;
   justify-content: center;
   width: 26px;
@@ -994,32 +982,32 @@ async function handleExportBibTeX() {
   border-radius: 5px;
 }
 
-.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-label {
+:deep(.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-label) {
   flex: 0 0 auto;
   justify-content: center;
   gap: 0;
 }
 
-.reference-workbench__detail-tab--details.inline-dock__tab:hover .reference-workbench__detail-tab-icon,
-.reference-workbench__detail-tab--details.inline-dock__tab:focus-within .reference-workbench__detail-tab-icon {
+:deep(.reference-workbench__detail-tab--details.inline-dock__tab:hover .reference-workbench__detail-tab-icon),
+:deep(.reference-workbench__detail-tab--details.inline-dock__tab:focus-within .reference-workbench__detail-tab-icon) {
   opacity: 1;
   transform: none;
 }
 
-.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-close {
+:deep(.reference-workbench__detail-tab--icon .reference-workbench__detail-tab-close) {
   left: 50%;
   width: 22px;
   height: 22px;
   transform: translate(-50%, -50%) scale(0.94);
 }
 
-.reference-workbench__detail-tab--icon:hover .reference-workbench__detail-tab-close,
-.reference-workbench__detail-tab--icon:focus-within .reference-workbench__detail-tab-close {
+:deep(.reference-workbench__detail-tab--icon:hover .reference-workbench__detail-tab-close),
+:deep(.reference-workbench__detail-tab--icon:focus-within .reference-workbench__detail-tab-close) {
   transform: translate(-50%, -50%) scale(1);
 }
 
-.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:hover .reference-workbench__detail-tab-icon,
-.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:focus-within .reference-workbench__detail-tab-icon {
+:deep(.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:hover .reference-workbench__detail-tab-icon),
+:deep(.reference-workbench__detail-tab--pdf:not(.is-active).inline-dock__tab:focus-within .reference-workbench__detail-tab-icon) {
   opacity: 1;
   transform: none;
 }

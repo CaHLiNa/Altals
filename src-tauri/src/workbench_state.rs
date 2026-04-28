@@ -20,6 +20,10 @@ const DEFAULT_WORKSPACE_SIDEBAR_PANEL: &str = "files";
 const DEFAULT_SETTINGS_SIDEBAR_PANEL: &str = "files";
 const DEFAULT_WORKSPACE_INSPECTOR_PANEL: &str = "dock";
 const DEFAULT_SETTINGS_INSPECTOR_PANEL: &str = "";
+const DEFAULT_DOCUMENT_DOCK_PAGE: &str = "preview";
+const DEFAULT_REFERENCE_DOCK_PAGE: &str = "details";
+const DOCUMENT_DOCK_FILE_PAGE: &str = "file";
+const REFERENCE_DOCK_PDF_PAGE: &str = "pdf";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +42,10 @@ pub struct WorkbenchState {
     pub document_dock_open: bool,
     #[serde(default = "default_reference_dock_open")]
     pub reference_dock_open: bool,
+    #[serde(default = "default_document_dock_active_page")]
+    pub document_dock_active_page: String,
+    #[serde(default = "default_reference_dock_active_page")]
+    pub reference_dock_active_page: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -53,6 +61,28 @@ pub struct WorkbenchLayoutState {
     pub reference_dock_width: i64,
     #[serde(default = "default_bottom_panel_height")]
     pub bottom_panel_height: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchDockPageDefinition {
+    pub id: String,
+    pub permanent: bool,
+    pub dynamic: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchDockSurfaceContract {
+    pub default_page: String,
+    pub pages: Vec<WorkbenchDockPageDefinition>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchDockPageContract {
+    pub document: WorkbenchDockSurfaceContract,
+    pub reference: WorkbenchDockSurfaceContract,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +118,8 @@ impl Default for WorkbenchState {
             right_sidebar_panel: default_right_sidebar_panel(),
             document_dock_open: default_document_dock_open(),
             reference_dock_open: default_reference_dock_open(),
+            document_dock_active_page: default_document_dock_active_page(),
+            reference_dock_active_page: default_reference_dock_active_page(),
         }
     }
 }
@@ -156,6 +188,14 @@ fn default_reference_dock_open() -> bool {
     false
 }
 
+fn default_document_dock_active_page() -> String {
+    DEFAULT_DOCUMENT_DOCK_PAGE.to_string()
+}
+
+fn default_reference_dock_active_page() -> String {
+    DEFAULT_REFERENCE_DOCK_PAGE.to_string()
+}
+
 fn allowed_sidebar_panels(surface: &str) -> &'static [&'static str] {
     match surface {
         SETTINGS_SURFACE => &[DEFAULT_SETTINGS_SIDEBAR_PANEL],
@@ -211,6 +251,47 @@ pub fn normalize_workbench_inspector_panel(surface: &str, panel: &str) -> String
     }
 }
 
+pub fn normalize_document_dock_page(value: &str) -> String {
+    match value.trim() {
+        DOCUMENT_DOCK_FILE_PAGE => DOCUMENT_DOCK_FILE_PAGE.to_string(),
+        _ => DEFAULT_DOCUMENT_DOCK_PAGE.to_string(),
+    }
+}
+
+pub fn normalize_reference_dock_page(value: &str) -> String {
+    match value.trim() {
+        REFERENCE_DOCK_PDF_PAGE => REFERENCE_DOCK_PDF_PAGE.to_string(),
+        _ => DEFAULT_REFERENCE_DOCK_PAGE.to_string(),
+    }
+}
+
+fn dock_page_definition(id: &str, permanent: bool, dynamic: bool) -> WorkbenchDockPageDefinition {
+    WorkbenchDockPageDefinition {
+        id: id.to_string(),
+        permanent,
+        dynamic,
+    }
+}
+
+pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
+    WorkbenchDockPageContract {
+        document: WorkbenchDockSurfaceContract {
+            default_page: DEFAULT_DOCUMENT_DOCK_PAGE.to_string(),
+            pages: vec![
+                dock_page_definition(DEFAULT_DOCUMENT_DOCK_PAGE, true, false),
+                dock_page_definition(DOCUMENT_DOCK_FILE_PAGE, false, true),
+            ],
+        },
+        reference: WorkbenchDockSurfaceContract {
+            default_page: DEFAULT_REFERENCE_DOCK_PAGE.to_string(),
+            pages: vec![
+                dock_page_definition(DEFAULT_REFERENCE_DOCK_PAGE, true, false),
+                dock_page_definition(REFERENCE_DOCK_PDF_PAGE, false, true),
+            ],
+        },
+    }
+}
+
 pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
     let primary_surface = normalize_workbench_surface(&state.primary_surface);
     let left_sidebar_panel =
@@ -238,6 +319,10 @@ pub fn normalize_workbench_state(state: WorkbenchState) -> WorkbenchState {
         ),
         document_dock_open,
         reference_dock_open,
+        document_dock_active_page: normalize_document_dock_page(&state.document_dock_active_page),
+        reference_dock_active_page: normalize_reference_dock_page(
+            &state.reference_dock_active_page,
+        ),
     }
 }
 
@@ -318,6 +403,11 @@ pub async fn workbench_state_normalize(params: WorkbenchState) -> Result<Workben
 }
 
 #[tauri::command]
+pub async fn workbench_dock_page_contract_load() -> Result<WorkbenchDockPageContract, String> {
+    Ok(workbench_dock_page_contract())
+}
+
+#[tauri::command]
 pub async fn workbench_layout_load(
     params: WorkbenchLayoutLoadParams,
 ) -> Result<WorkbenchLayoutState, String> {
@@ -337,9 +427,10 @@ pub async fn workbench_layout_save(
 #[cfg(test)]
 mod tests {
     use super::{
+        normalize_document_dock_page, normalize_reference_dock_page,
         normalize_workbench_inspector_panel, normalize_workbench_layout_state,
-        normalize_workbench_sidebar_panel, normalize_workbench_state, WorkbenchLayoutState,
-        WorkbenchState,
+        normalize_workbench_sidebar_panel, normalize_workbench_state, workbench_dock_page_contract,
+        WorkbenchLayoutState, WorkbenchState,
     };
 
     #[test]
@@ -372,6 +463,8 @@ mod tests {
             right_sidebar_panel: "outline".to_string(),
             document_dock_open: false,
             reference_dock_open: false,
+            document_dock_active_page: "missing".to_string(),
+            reference_dock_active_page: "pdf".to_string(),
         });
 
         assert_eq!(normalized.primary_surface, "settings");
@@ -379,6 +472,38 @@ mod tests {
         assert_eq!(normalized.right_sidebar_panel, "");
         assert!(normalized.document_dock_open);
         assert!(normalized.right_sidebar_open);
+        assert_eq!(normalized.document_dock_active_page, "preview");
+        assert_eq!(normalized.reference_dock_active_page, "pdf");
+    }
+
+    #[test]
+    fn dock_page_contract_defines_allowed_pages() {
+        let contract = workbench_dock_page_contract();
+        let document_page_ids: Vec<_> = contract
+            .document
+            .pages
+            .iter()
+            .map(|page| page.id.as_str())
+            .collect();
+        let reference_page_ids: Vec<_> = contract
+            .reference
+            .pages
+            .iter()
+            .map(|page| page.id.as_str())
+            .collect();
+
+        assert_eq!(contract.document.default_page, "preview");
+        assert_eq!(contract.reference.default_page, "details");
+        assert_eq!(document_page_ids, vec!["preview", "file"]);
+        assert_eq!(reference_page_ids, vec!["details", "pdf"]);
+    }
+
+    #[test]
+    fn dock_page_normalization_falls_back_to_contract_defaults() {
+        assert_eq!(normalize_document_dock_page("file"), "file");
+        assert_eq!(normalize_document_dock_page("unknown"), "preview");
+        assert_eq!(normalize_reference_dock_page("pdf"), "pdf");
+        assert_eq!(normalize_reference_dock_page("unknown"), "details");
     }
 
     #[test]

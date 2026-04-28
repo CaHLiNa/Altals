@@ -590,7 +590,9 @@ fn normalize_workspace_preferences(preferences: WorkspacePreferences) -> Workspa
         file_tree_sort_mode: normalize_file_tree_sort_mode(&preferences.file_tree_sort_mode),
         file_tree_fold_directories: preferences.file_tree_fold_directories,
         pdf_viewer_zoom_mode: normalize_pdf_viewer_zoom_mode(&preferences.pdf_viewer_zoom_mode),
-        pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(&preferences.pdf_viewer_spread_mode),
+        pdf_viewer_spread_mode: normalize_pdf_viewer_spread_mode(
+            &preferences.pdf_viewer_spread_mode,
+        ),
         pdf_viewer_last_scale: normalize_pdf_viewer_last_scale(&preferences.pdf_viewer_last_scale),
         pdf_viewer_page_theme_mode: normalize_pdf_viewer_page_theme_mode(
             &preferences.pdf_viewer_page_theme_mode,
@@ -637,6 +639,7 @@ fn legacy_true_only_boolean(snapshot: &HashMap<String, String>, key: &str, fallb
 
 fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePreferences {
     let mut preferences = WorkspacePreferences::default();
+    let default_workbench = WorkbenchState::default();
 
     preferences.workbench.primary_surface =
         legacy_string(snapshot, "primarySurface").unwrap_or_else(default_primary_surface);
@@ -648,6 +651,22 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         legacy_true_only_boolean(snapshot, "rightSidebarOpen", default_right_sidebar_open());
     preferences.workbench.right_sidebar_panel =
         legacy_string(snapshot, "rightSidebarPanel").unwrap_or_else(default_right_sidebar_panel);
+    preferences.workbench.document_dock_open = legacy_true_only_boolean(
+        snapshot,
+        "documentDockOpen",
+        default_workbench.document_dock_open,
+    );
+    preferences.workbench.reference_dock_open = legacy_true_only_boolean(
+        snapshot,
+        "referenceDockOpen",
+        default_workbench.reference_dock_open,
+    );
+    preferences.workbench.document_dock_active_page =
+        legacy_string(snapshot, "documentDockActivePage")
+            .unwrap_or(default_workbench.document_dock_active_page);
+    preferences.workbench.reference_dock_active_page =
+        legacy_string(snapshot, "referenceDockActivePage")
+            .unwrap_or(default_workbench.reference_dock_active_page);
 
     preferences.auto_save = legacy_boolean(snapshot, "autoSave", default_auto_save());
     preferences.soft_wrap = legacy_boolean(snapshot, "softWrap", default_soft_wrap());
@@ -663,8 +682,11 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         legacy_string(snapshot, "latexFont").unwrap_or_else(default_latex_font);
     preferences.preferred_locale =
         legacy_string(snapshot, "preferredLocale").unwrap_or_else(default_preferred_locale);
-    preferences.markdown_preview_sync =
-        legacy_boolean(snapshot, "markdownPreviewSync", default_markdown_preview_sync());
+    preferences.markdown_preview_sync = legacy_boolean(
+        snapshot,
+        "markdownPreviewSync",
+        default_markdown_preview_sync(),
+    );
     preferences.editor_spellcheck =
         legacy_true_only_boolean(snapshot, "editorSpellcheck", default_editor_spellcheck());
     preferences.editor_line_numbers =
@@ -674,8 +696,11 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         "editorHighlightActiveLine",
         default_editor_highlight_active_line(),
     );
-    preferences.file_tree_show_hidden =
-        legacy_boolean(snapshot, "fileTreeShowHidden", default_file_tree_show_hidden());
+    preferences.file_tree_show_hidden = legacy_boolean(
+        snapshot,
+        "fileTreeShowHidden",
+        default_file_tree_show_hidden(),
+    );
     preferences.file_tree_sort_mode =
         legacy_string(snapshot, "fileTreeSortMode").unwrap_or_else(default_file_tree_sort_mode);
     preferences.file_tree_fold_directories = legacy_boolean(
@@ -683,12 +708,12 @@ fn migrate_legacy_preferences(snapshot: &HashMap<String, String>) -> WorkspacePr
         "fileTreeFoldDirectories",
         default_file_tree_fold_directories(),
     );
-    preferences.pdf_viewer_zoom_mode = legacy_string(snapshot, "pdfViewerZoomMode")
-        .unwrap_or_else(default_pdf_viewer_zoom_mode);
+    preferences.pdf_viewer_zoom_mode =
+        legacy_string(snapshot, "pdfViewerZoomMode").unwrap_or_else(default_pdf_viewer_zoom_mode);
     preferences.pdf_viewer_spread_mode = legacy_string(snapshot, "pdfViewerSpreadMode")
         .unwrap_or_else(default_pdf_viewer_spread_mode);
-    preferences.pdf_viewer_last_scale = legacy_string(snapshot, "pdfViewerLastScale")
-        .unwrap_or_else(default_pdf_viewer_last_scale);
+    preferences.pdf_viewer_last_scale =
+        legacy_string(snapshot, "pdfViewerLastScale").unwrap_or_else(default_pdf_viewer_last_scale);
     preferences.pdf_viewer_page_theme_mode = legacy_string(snapshot, "pdfViewerPageThemeMode")
         .unwrap_or_else(default_pdf_viewer_page_theme_mode);
     preferences.markdown_citation_format = legacy_string(snapshot, "markdownCitationFormat")
@@ -748,11 +773,15 @@ mod tests {
         let legacy = std::collections::HashMap::from([
             ("theme".to_string(), "monokai".to_string()),
             ("leftSidebarPanel".to_string(), "references".to_string()),
+            ("referenceDockOpen".to_string(), "true".to_string()),
+            ("referenceDockActivePage".to_string(), "pdf".to_string()),
         ]);
 
         let migrated = migrate_legacy_preferences(&legacy);
         assert_eq!(migrated.theme, "dark");
         assert_eq!(migrated.workbench.left_sidebar_panel, "references");
+        assert!(migrated.workbench.reference_dock_open);
+        assert_eq!(migrated.workbench.reference_dock_active_page, "pdf");
     }
 
     #[test]

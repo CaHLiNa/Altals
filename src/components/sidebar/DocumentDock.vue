@@ -1,89 +1,21 @@
 <template>
   <section class="document-dock inline-dock" :aria-label="t('Document sidebar')">
-    <header v-if="hasDockTabs" class="document-dock__tabbar inline-dock__tabbar">
-      <div class="document-dock__tabs inline-dock__tabs" role="tablist" :aria-label="t('Document sidebar')">
-        <div
-          v-if="hasPreview"
-          class="document-dock__preview-tab document-dock__preview-tab--icon inline-dock__tab"
-          :class="{ 'is-active': activeDockKey === PREVIEW_DOCK_KEY }"
-          role="tab"
-          :aria-selected="activeDockKey === PREVIEW_DOCK_KEY"
-          :aria-label="documentLabel"
-          tabindex="0"
-          :title="documentLabel"
-          @click="activatePreviewTab"
-          @keydown.enter.prevent="activatePreviewTab"
-          @keydown.space.prevent="activatePreviewTab"
-        >
-          <div class="document-dock__preview-label inline-dock__tab-label">
-            <component
-              :is="previewTabIcon"
-              class="document-dock__preview-icon inline-dock__tab-icon"
-              :size="15"
-              :stroke-width="1.8"
-            />
-          </div>
-          <button
-            v-if="activeDockKey === PREVIEW_DOCK_KEY"
-            type="button"
-            class="document-dock__tab-close inline-dock__tab-close"
-            :title="t('Hide preview')"
-            :aria-label="t('Hide preview')"
-            @click.stop="closePreview"
-          >
-            <IconX :size="12" :stroke-width="2" />
-          </button>
-        </div>
-
-        <div
-          v-for="tabPath in comparisonTabs"
-          :key="tabPath"
-          class="document-dock__preview-tab inline-dock__tab"
-          :class="{ 'is-active': activeDockKey === fileDockKey(tabPath) }"
-          role="tab"
-          :aria-selected="activeDockKey === fileDockKey(tabPath)"
-          tabindex="0"
-          :title="labelForPath(tabPath)"
-          @click="activateComparisonTab(tabPath)"
-          @keydown.enter.prevent="activateComparisonTab(tabPath)"
-          @keydown.space.prevent="activateComparisonTab(tabPath)"
-        >
-          <div class="document-dock__preview-label inline-dock__tab-label">
-            <component
-              :is="iconForPath(tabPath)"
-              class="document-dock__preview-icon inline-dock__tab-icon"
-              :size="15"
-              :stroke-width="1.8"
-            />
-            <span>{{ labelForPath(tabPath) }}</span>
-          </div>
-          <button
-            type="button"
-            class="document-dock__tab-close inline-dock__tab-close"
-            :title="t('Close tab')"
-            :aria-label="t('Close tab')"
-            @click.stop="closeComparisonTab(tabPath)"
-          >
-            <IconX :size="12" :stroke-width="2" />
-          </button>
-        </div>
-      </div>
-    </header>
+    <InlineDockTabBar
+      v-if="hasDockTabs"
+      :active-key="activeDockKey"
+      :aria-label="t('Document sidebar')"
+      :pages="dockPages"
+      tabbar-class="document-dock__tabbar"
+      tabs-class="document-dock__tabs"
+      @activate="activateDockPage"
+      @close="closeDockPage"
+    />
 
     <div class="document-dock__body inline-dock__body" :class="{ 'is-immersive': usesImmersivePreview }">
-      <DocumentDockFileSurface
-        v-if="activeComparisonPath"
-        :file-path="activeComparisonPath"
-        :pane-id="paneId"
-        :document-dock-resizing="documentDockResizing"
-      />
-      <DocumentPreviewDock
-        v-else-if="hasPreview"
-        :file-path="filePath"
-        :pane-id="paneId"
-        :preview-state="previewState"
-        :compact-pdf-toolbar="usesImmersivePreview"
-        :document-dock-resizing="documentDockResizing"
+      <component
+        :is="activeDockPage?.component"
+        v-if="activeDockPage?.component"
+        v-bind="activeDockPage?.componentProps || {}"
       />
       <div v-else class="document-dock__empty inline-dock__empty">
         {{ t('No preview') }}
@@ -93,40 +25,20 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed } from 'vue'
 import {
-  IconBraces,
-  IconBrandCss3,
-  IconBrandHtml5,
-  IconBrandJavascript,
-  IconBrandPython,
-  IconBrandTypescript,
-  IconBrandVue,
-  IconBook2,
-  IconDatabase,
-  IconFile,
-  IconFileCode,
-  IconFileText,
-  IconFileTypeDoc,
-  IconFileTypeDocx,
-  IconFileTypePdf,
-  IconMath,
-  IconNotebook,
-  IconPhoto,
-  IconSparkles,
-  IconTable,
-  IconTerminal2,
-  IconX,
-} from '@tabler/icons-vue'
+  DOCUMENT_DOCK_FILE_PAGE,
+  DOCUMENT_DOCK_PREVIEW_PAGE,
+  documentDockFileKey,
+} from '../../domains/editor/documentDockPages.js'
+import { findInlineDockPage } from '../../domains/workbench/inlineDockPageRegistry.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
-import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
-import { getFileIconName } from '../../utils/fileTypes'
 import { basenamePath } from '../../utils/path'
-
-const DocumentPreviewDock = defineAsyncComponent(() => import('./DocumentPreviewDock.vue'))
-const DocumentDockFileSurface = defineAsyncComponent(() => import('./DocumentDockFileSurface.vue'))
+import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
+import { documentDockPageRegistry } from './documentDockPageRegistry.js'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -139,119 +51,103 @@ const emit = defineEmits(['close'])
 
 const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
+const workspace = useWorkspaceStore()
 const { t } = useI18n()
-const PREVIEW_DOCK_KEY = 'preview'
-const requestedDockKey = ref('')
-
-const ICON_COMPONENTS = {
-  IconFile,
-  IconFileText,
-  IconBraces,
-  IconFileCode,
-  IconTerminal2,
-  IconBrandJavascript,
-  IconBrandTypescript,
-  IconBrandPython,
-  IconBrandHtml5,
-  IconBrandCss3,
-  IconBrandVue,
-  IconPhoto,
-  IconFileTypePdf,
-  IconTable,
-  IconDatabase,
-  IconSparkles,
-  IconFileTypeDocx,
-  IconFileTypeDoc,
-  IconMath,
-  IconNotebook,
-  IconBook2,
-}
 
 const hasPreview = computed(() => props.previewState?.previewVisible === true)
 const comparisonTabs = computed(() => editorStore.documentDockTabs || [])
-const hasDockTabs = computed(() => hasPreview.value || comparisonTabs.value.length > 0)
 const previewMode = computed(() => props.previewState?.previewMode || null)
-const previewKind = computed(() => getDocumentWorkflowKind(props.filePath) || 'document')
 const documentLabel = computed(() => basenamePath(props.filePath) || props.filePath)
-const usesImmersivePreview = computed(
-  () =>
-    activeDockKey.value === PREVIEW_DOCK_KEY &&
-    previewMode.value === 'pdf-artifact' &&
-    previewKind.value === 'latex'
+const dockPages = computed(() =>
+  documentDockPageRegistry.resolvePages({
+    allowedPageIds: workspace.documentDockPageIds,
+    comparisonTabs: comparisonTabs.value,
+    documentDockResizing: props.documentDockResizing,
+    documentLabel: documentLabel.value,
+    filePath: props.filePath,
+    hasPreview: hasPreview.value,
+    paneId: props.paneId,
+    previewMode: previewMode.value,
+    previewState: props.previewState,
+    t,
+  })
 )
-const previewTabIcon = computed(() => {
-  if (previewMode.value === 'pdf-artifact') return IconFileTypePdf
-  if (previewMode.value === 'terminal-output') return IconTerminal2
-  return IconFileText
-})
+const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
-  const requestedKey = requestedDockKey.value
-  if (requestedKey === PREVIEW_DOCK_KEY && hasPreview.value) return PREVIEW_DOCK_KEY
+  const activePage = String(workspace.documentDockActivePage || DOCUMENT_DOCK_PREVIEW_PAGE)
 
-  if (requestedKey.startsWith('file:')) {
-    const path = requestedKey.slice('file:'.length)
-    if (comparisonTabs.value.includes(path)) return requestedKey
+  if (activePage === DOCUMENT_DOCK_PREVIEW_PAGE && hasPreview.value) {
+    return DOCUMENT_DOCK_PREVIEW_PAGE
   }
 
-  if (editorStore.activeDocumentDockTab && comparisonTabs.value.includes(editorStore.activeDocumentDockTab)) {
-    return fileDockKey(editorStore.activeDocumentDockTab)
+  if (
+    activePage === DOCUMENT_DOCK_FILE_PAGE &&
+    editorStore.activeDocumentDockTab &&
+    comparisonTabs.value.includes(editorStore.activeDocumentDockTab)
+  ) {
+    return documentDockFileKey(editorStore.activeDocumentDockTab)
   }
 
-  if (hasPreview.value) return PREVIEW_DOCK_KEY
-  return comparisonTabs.value.length > 0 ? fileDockKey(comparisonTabs.value[0]) : ''
+  if (hasPreview.value) return DOCUMENT_DOCK_PREVIEW_PAGE
+  return comparisonTabs.value.length > 0 ? documentDockFileKey(comparisonTabs.value[0]) : ''
 })
-const activeComparisonPath = computed(() => {
-  if (!activeDockKey.value.startsWith('file:')) return ''
-  return activeDockKey.value.slice('file:'.length)
-})
+const activeDockPage = computed(() => findInlineDockPage(dockPages.value, activeDockKey.value))
+const usesImmersivePreview = computed(() => activeDockPage.value?.immersive === true)
+
+function activateDockPage(page = {}) {
+  if (page.type === DOCUMENT_DOCK_PREVIEW_PAGE) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
+    return
+  }
+
+  if (page.type === DOCUMENT_DOCK_FILE_PAGE && page.path) {
+    editorStore.setActiveDocumentDockFile(page.path)
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
+  }
+}
 
 function closePreview() {
   void workflowStore.hideWorkspacePreviewForFile(props.filePath)
   if (comparisonTabs.value.length > 0) {
-    requestedDockKey.value = fileDockKey(editorStore.activeDocumentDockTab || comparisonTabs.value[0])
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
     return
   }
   emit('close')
 }
 
-function fileDockKey(path) {
-  return `file:${path}`
-}
+function closeFilePage(page = {}) {
+  const path = page.path
+  if (!path) return
 
-function labelForPath(path) {
-  return basenamePath(path) || path
-}
-
-function iconForPath(path) {
-  return ICON_COMPONENTS[getFileIconName(path)] || IconFile
-}
-
-function activatePreviewTab() {
-  requestedDockKey.value = PREVIEW_DOCK_KEY
-}
-
-function activateComparisonTab(path) {
-  editorStore.setActiveDocumentDockFile(path)
-  requestedDockKey.value = fileDockKey(path)
-}
-
-function closeComparisonTab(path) {
+  const isActivePage = activeDockKey.value === page.key
   const onlyComparisonTab = comparisonTabs.value.length === 1 && comparisonTabs.value[0] === path
   editorStore.closeDocumentDockFile(path)
+
   if (!hasPreview.value && onlyComparisonTab) {
     emit('close')
+    return
+  }
+
+  if (!isActivePage) return
+  if (comparisonTabs.value.length > 1) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
+    return
+  }
+  if (hasPreview.value) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PREVIEW_PAGE)
   }
 }
 
-watch(
-  () => editorStore.activeDocumentDockTab,
-  (path) => {
-    if (path && comparisonTabs.value.includes(path)) {
-      requestedDockKey.value = fileDockKey(path)
-    }
-  },
-  { flush: 'post', immediate: true }
-)
+function closeDockPage(page = {}) {
+  if (page.type === DOCUMENT_DOCK_PREVIEW_PAGE) {
+    closePreview()
+    return
+  }
+  if (page.type === DOCUMENT_DOCK_FILE_PAGE) {
+    closeFilePage(page)
+  }
+}
+
 </script>
 
 <style scoped>
@@ -260,7 +156,7 @@ watch(
   width: 100%;
 }
 
-.document-dock__preview-tab--icon {
+:deep(.document-dock__preview-tab--icon) {
   flex: 0 0 30px;
   justify-content: center;
   width: 30px;
@@ -271,32 +167,32 @@ watch(
   border-radius: 6px;
 }
 
-.document-dock__preview-tab--icon .document-dock__preview-label {
+:deep(.document-dock__preview-tab--icon .document-dock__preview-label) {
   flex: 0 0 auto;
   justify-content: center;
   gap: 0;
 }
 
-.document-dock__preview-tab--icon .document-dock__preview-icon {
+:deep(.document-dock__preview-tab--icon .document-dock__preview-icon) {
   opacity: 1;
   transform: none;
 }
 
-.document-dock__preview-tab--icon:hover .document-dock__preview-icon,
-.document-dock__preview-tab--icon:focus-within .document-dock__preview-icon {
+:deep(.document-dock__preview-tab--icon:hover .document-dock__preview-icon),
+:deep(.document-dock__preview-tab--icon:focus-within .document-dock__preview-icon) {
   opacity: 1;
   transform: none;
 }
 
-.document-dock__preview-tab--icon .document-dock__tab-close {
+:deep(.document-dock__preview-tab--icon .document-dock__tab-close) {
   left: 50%;
   width: 22px;
   height: 22px;
   transform: translate(-50%, -50%) scale(0.94);
 }
 
-.document-dock__preview-tab--icon:hover .document-dock__tab-close,
-.document-dock__preview-tab--icon:focus-within .document-dock__tab-close {
+:deep(.document-dock__preview-tab--icon:hover .document-dock__tab-close),
+:deep(.document-dock__preview-tab--icon:focus-within .document-dock__tab-close) {
   transform: translate(-50%, -50%) scale(1);
 }
 </style>

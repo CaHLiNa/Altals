@@ -35,9 +35,10 @@ import {
   scanWorkspaceCitationStyles,
 } from '../services/references/referenceRuntime.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
-
-const REFERENCE_DOCK_DETAILS_TAB = 'details'
-const REFERENCE_DOCK_PDF_TAB = 'pdf'
+import {
+  REFERENCE_DOCK_DETAILS_PAGE,
+  REFERENCE_DOCK_PDF_PAGE,
+} from '../domains/references/referenceDockPages.js'
 
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -100,7 +101,6 @@ export const useReferencesStore = defineStore('references', {
     selectedCollectionKey: '',
     selectedTagKey: '',
     selectedReferenceId: REFERENCE_FIXTURES[0]?.id || '',
-    referenceDockActiveTab: REFERENCE_DOCK_DETAILS_TAB,
     referenceDockPdfOpen: false,
     referenceDockPdfReferenceId: '',
     sortKey: 'year-desc',
@@ -277,11 +277,15 @@ export const useReferencesStore = defineStore('references', {
         !this.references.some((reference) => reference.id === this.referenceDockPdfReferenceId)
       ) {
         this.closeReferenceDockPdf()
-      } else if (
-        this.referenceDockActiveTab === REFERENCE_DOCK_PDF_TAB &&
-        !this.selectedReferencePdfTabOpen
-      ) {
-        this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
+      } else {
+        const workspace = useWorkspaceStore()
+        if (
+          workspace.referenceDockActivePage !== REFERENCE_DOCK_PDF_PAGE ||
+          this.selectedReferencePdfTabOpen
+        ) {
+          return
+        }
+        void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
       }
     },
 
@@ -534,16 +538,11 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = referenceId
     },
 
-    activateReferenceDockDetails() {
-      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
-    },
-
-    activateReferenceDockPdf(referenceId = this.selectedReferenceId) {
+    openReferenceDockPdf(referenceId = this.selectedReferenceId) {
       const normalizedReferenceId = String(referenceId || '').trim()
       if (!normalizedReferenceId) return false
       this.referenceDockPdfOpen = true
       this.referenceDockPdfReferenceId = normalizedReferenceId
-      this.referenceDockActiveTab = REFERENCE_DOCK_PDF_TAB
       return true
     },
 
@@ -553,11 +552,9 @@ export const useReferencesStore = defineStore('references', {
         this.referenceDockPdfOpen = false
         this.referenceDockPdfReferenceId = ''
       }
-      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
     },
 
     resetReferenceDockTabs() {
-      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
       this.referenceDockPdfOpen = false
       this.referenceDockPdfReferenceId = ''
     },
@@ -753,7 +750,6 @@ export const useReferencesStore = defineStore('references', {
       this.selectedCollectionKey = ''
       this.selectedTagKey = ''
       this.selectedReferenceId = REFERENCE_FIXTURES[0]?.id || ''
-      this.referenceDockActiveTab = REFERENCE_DOCK_DETAILS_TAB
       this.referenceDockPdfOpen = false
       this.referenceDockPdfReferenceId = ''
       this.sortKey = 'year-desc'

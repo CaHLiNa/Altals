@@ -37,6 +37,11 @@ import {
   resolveWorkspaceBootstrapPlan as resolveWorkspaceBootstrapPlanFromRust,
   saveWorkspaceLifecycleState as saveWorkspaceLifecycleStateToRust,
 } from '../services/workspaceRecents'
+import {
+  createWorkbenchDockPageContract,
+  dockPageIdsForSurface,
+  loadWorkbenchDockPageContract,
+} from '../services/workbenchDockPages'
 
 const WORKSPACE_PREFERENCE_KEYS = [
   'primarySurface',
@@ -46,6 +51,8 @@ const WORKSPACE_PREFERENCE_KEYS = [
   'rightSidebarPanel',
   'documentDockOpen',
   'referenceDockOpen',
+  'documentDockActivePage',
+  'referenceDockActivePage',
   'autoSave',
   'wrapColumn',
   'editorFontSize',
@@ -136,7 +143,9 @@ export const useWorkspaceStore = defineStore('workspace', {
     _workspaceBootstrapPromise: null,
     _workspaceBootstrapGeneration: 0,
     _preferencesHydrated: false,
+    _dockPageContractHydrated: false,
     _lifecycleHydrated: false,
+    dockPageContract: createWorkbenchDockPageContract(),
     ...createWorkspaceLifecycleState(),
     ...createWorkspacePreferenceState(),
   }),
@@ -152,6 +161,8 @@ export const useWorkspaceStore = defineStore('workspace', {
       state.globalConfigDir ? `${state.globalConfigDir}/claude-hooks` : null,
     legacyProjectDir: (state) => (state.path ? `${state.path}/.project` : null),
     legacyClaudeDir: (state) => (state.path ? `${state.path}/.claude` : null),
+    documentDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'document'),
+    referenceDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'reference'),
   },
 
   actions: {
@@ -207,9 +218,20 @@ export const useWorkspaceStore = defineStore('workspace', {
       return preferences
     },
 
+    async hydrateDockPageContract(force = false) {
+      if (!force && this._dockPageContractHydrated) return this.dockPageContract
+
+      this.dockPageContract = await loadWorkbenchDockPageContract().catch(() =>
+        createWorkbenchDockPageContract()
+      )
+      this._dockPageContractHydrated = true
+      return this.dockPageContract
+    },
+
     hydrateWorkspaceRuntime(force = false) {
       return Promise.all([
         this.hydratePreferences(force),
+        this.hydrateDockPageContract(force),
         this.hydrateLifecycleState(force),
       ])
     },
@@ -420,6 +442,12 @@ export const useWorkspaceStore = defineStore('workspace', {
       })
     },
 
+    setDocumentDockActivePage(page) {
+      return this.persistPreferences({
+        documentDockActivePage: String(page || ''),
+      })
+    },
+
     toggleReferenceDock() {
       return this.persistPreferences({
         referenceDockOpen: !this.referenceDockOpen,
@@ -437,6 +465,12 @@ export const useWorkspaceStore = defineStore('workspace', {
       if (!this.referenceDockOpen) return
       return this.persistPreferences({
         referenceDockOpen: false,
+      })
+    },
+
+    setReferenceDockActivePage(page) {
+      return this.persistPreferences({
+        referenceDockActivePage: String(page || ''),
       })
     },
 

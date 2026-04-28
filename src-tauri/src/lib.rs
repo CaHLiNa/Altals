@@ -546,6 +546,7 @@ pub fn run() {
             workspace_lifecycle::workspace_lifecycle_resolve_bootstrap_plan,
             workspace_lifecycle::workspace_lifecycle_save,
             workbench_state::workbench_state_normalize,
+            workbench_state::workbench_dock_page_contract_load,
             workbench_state::workbench_layout_load,
             workbench_state::workbench_layout_save,
             workspace_preferences::workspace_preferences_load,

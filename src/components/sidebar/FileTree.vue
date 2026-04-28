@@ -321,6 +321,7 @@ import { ref, reactive, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { DOCUMENT_DOCK_FILE_PAGE } from '../../domains/editor/documentDockPages.js'
 import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
@@ -459,6 +460,7 @@ function openInDocumentDock(entry) {
   if (!entry?.path || entry.is_dir) return
   workspace.openWorkspaceSurface()
   workspace.openDocumentDock()
+  workspace.setDocumentDockActivePage(DOCUMENT_DOCK_FILE_PAGE)
   editor.openDocumentDockFile(entry.path)
 }
 
