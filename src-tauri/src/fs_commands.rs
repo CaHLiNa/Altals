@@ -620,15 +620,6 @@ pub async fn workspace_create_file(
 }
 
 #[tauri::command]
-pub async fn create_dir(
-    path: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<(), String> {
-    let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || fs::create_dir_all(&resolved).map_err(|e| e.to_string())).await
-}
-
-#[tauri::command]
 pub async fn workspace_create_dir(
     dir_path: String,
     name: String,

@@ -442,7 +442,6 @@ pub fn run() {
             fs_commands::workspace_read_text_file,
             fs_commands::workspace_write_text_file,
             fs_commands::workspace_create_file,
-            fs_commands::create_dir,
             fs_commands::workspace_create_dir,
             fs_commands::workspace_rename_path,
             fs_commands::workspace_delete_path,

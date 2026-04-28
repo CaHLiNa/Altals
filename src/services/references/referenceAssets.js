@@ -36,17 +36,6 @@ export function resolveGlobalReferenceFulltextDir(globalConfigDir = '') {
   return base ? `${base}/${FULLTEXT_DIRNAME}` : ''
 }
 
-export async function ensureGlobalReferenceAssetDirs(globalConfigDir = '') {
-  const referencesDir = resolveGlobalReferencesDir(globalConfigDir)
-  const pdfsDir = resolveGlobalReferencePdfsDir(globalConfigDir)
-  const fulltextDir = resolveGlobalReferenceFulltextDir(globalConfigDir)
-  if (!referencesDir || !pdfsDir || !fulltextDir) return
-
-  await invoke('create_dir', { path: referencesDir })
-  await invoke('create_dir', { path: pdfsDir })
-  await invoke('create_dir', { path: fulltextDir })
-}
-
 async function storeReferencePdfWithOptions(
   globalConfigDir = '',
   reference = {},
