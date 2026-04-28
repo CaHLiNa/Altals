@@ -20,6 +20,8 @@ use crate::latex_tools::{
     tectonic_binary_name, LatexCompilerStatus, LatexToolStatus,
 };
 use crate::process_utils::background_command;
+use crate::security;
+use crate::security::WorkspaceScopeState;
 
 pub struct LatexState {
     pub compiling: Mutex<HashMap<String, bool>>,
@@ -388,18 +390,23 @@ pub async fn download_tectonic(app: tauri::AppHandle) -> Result<String, String> 
 }
 
 #[tauri::command]
-pub async fn synctex_backward(
+pub async fn workspace_synctex_backward(
     synctex_path: String,
     page: u32,
     x: f64,
     y: f64,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<serde_json::Value, String> {
-    let synctex = Path::new(&synctex_path);
+    let synctex = security::ensure_allowed_workspace_path(
+        scope_state.inner(),
+        Path::new(&synctex_path),
+    )?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
-    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&synctex_path) {
+    let resolved_synctex_path = synctex.to_string_lossy().to_string();
+    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&resolved_synctex_path) {
         if let Some(binary) = find_synctex(None) {
             if let Ok(result) = run_synctex_edit_cli(&binary, &pdf_path, page, x, y) {
                 return Ok(result);
@@ -407,28 +414,35 @@ pub async fn synctex_backward(
         }
     }
 
-    let data = parse_synctex_gz(&synctex_path)?;
+    let data = parse_synctex_gz(&resolved_synctex_path)?;
     backward_sync(&data, page, x, y)
 }
 
 #[tauri::command]
-pub async fn synctex_forward(
+pub async fn workspace_synctex_forward(
     synctex_path: String,
     file_path: String,
     line: u32,
     column: u32,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<serde_json::Value, String> {
-    let synctex = Path::new(&synctex_path);
+    let synctex = security::ensure_allowed_workspace_path(
+        scope_state.inner(),
+        Path::new(&synctex_path),
+    )?;
     if !synctex.exists() {
         return Err("SyncTeX file not found. Recompile with SyncTeX enabled.".to_string());
     }
 
-    let normalized_file_path = file_path.trim();
-    if normalized_file_path.is_empty() {
+    if file_path.trim().is_empty() {
         return Err("Source file path is required for forward SyncTeX.".to_string());
     }
+    let normalized_file_path =
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&file_path))?;
+    let resolved_synctex_path = synctex.to_string_lossy().to_string();
+    let resolved_file_path = normalized_file_path.to_string_lossy().to_string();
 
-    let pdf_path = derive_pdf_path_from_synctex_path(&synctex_path)
+    let pdf_path = derive_pdf_path_from_synctex_path(&resolved_synctex_path)
         .ok_or_else(|| "Could not derive PDF path from SyncTeX file.".to_string())?;
 
     let binary = find_synctex(None).ok_or_else(|| {
@@ -438,7 +452,7 @@ pub async fn synctex_forward(
 
     run_synctex_view_cli(
         &binary,
-        normalized_file_path,
+        &resolved_file_path,
         &pdf_path,
         line.max(1),
         column.max(1),
@@ -446,17 +460,25 @@ pub async fn synctex_forward(
 }
 
 #[tauri::command]
-pub async fn read_latex_synctex(path: String) -> Result<String, String> {
-    let normalized = Path::new(&path);
+pub async fn workspace_read_latex_synctex(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<String, String> {
+    let normalized =
+        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
     if !normalized.exists() {
         return Err("SyncTeX file not found.".to_string());
     }
 
-    if path.ends_with(".gz") {
+    if normalized
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.eq_ignore_ascii_case("gz"))
+    {
         use std::io::Read;
 
         let file =
-            std::fs::File::open(normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
+            std::fs::File::open(&normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
         let mut decoder = flate2::read::GzDecoder::new(file);
         let mut content = String::new();
         decoder
@@ -465,7 +487,7 @@ pub async fn read_latex_synctex(path: String) -> Result<String, String> {
         return Ok(content);
     }
 
-    std::fs::read_to_string(normalized).map_err(|e| format!("Cannot read synctex: {}", e))
+    std::fs::read_to_string(&normalized).map_err(|e| format!("Cannot read synctex: {}", e))
 }
 
 const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;

@@ -395,7 +395,7 @@ export function computeLatexWorkshopForwardSync(content, filePath, line) {
 export async function readLatexWorkshopSynctexContent(synctexPath) {
   const normalizedPath = normalizeFsPath(synctexPath)
   if (!normalizedPath) return ''
-  return invoke('read_latex_synctex', { path: normalizedPath })
+  return invoke('workspace_read_latex_synctex', { path: normalizedPath })
 }
 
 export async function requestLatexWorkshopBackwardSync(options = {}) {

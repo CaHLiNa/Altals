@@ -25,7 +25,7 @@ export async function requestLatexPdfBackwardSync(options = {}) {
   }
 
   try {
-    const result = await invoke('synctex_backward', {
+    const result = await invoke('workspace_synctex_backward', {
       synctexPath,
       page,
       x,
@@ -135,7 +135,7 @@ export async function requestLatexPdfForwardSync(options = {}) {
   }
 
   try {
-    const result = await invoke('synctex_forward', {
+    const result = await invoke('workspace_synctex_forward', {
       synctexPath,
       filePath,
       line,

@@ -556,9 +556,9 @@ pub fn run() {
             latex::download_tectonic,
             latex::run_chktex,
             latex::format_latex_document,
-            latex::synctex_forward,
-            latex::synctex_backward,
-            latex::read_latex_synctex,
+            latex::workspace_synctex_forward,
+            latex::workspace_synctex_backward,
+            latex::workspace_read_latex_synctex,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
