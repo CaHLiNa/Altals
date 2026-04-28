@@ -6,6 +6,8 @@ export {
 
 export {
   createWorkspaceFile,
+  createWorkspaceDocumentFile,
+  resolveWorkspaceDocumentTemplateContent,
   duplicateWorkspacePath,
   createWorkspaceFolder,
   renameWorkspacePath,

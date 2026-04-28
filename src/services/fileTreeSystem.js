@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-export { pathExists } from './pathExists.js'
 
 export async function revealPathInFileManager(entry) {
   return invoke('reveal_in_file_manager', { path: entry.path })

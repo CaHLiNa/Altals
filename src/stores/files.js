@@ -12,6 +12,7 @@ import {
 } from '../services/fileStoreEffects'
 import {
   copyExternalWorkspaceFile,
+  createWorkspaceDocumentFile,
   createWorkspaceFile,
   createWorkspaceFolder,
   deleteWorkspacePath as removeWorkspacePath,
@@ -343,6 +344,7 @@ export const useFilesStore = defineStore('files', {
       if (!this._fileCreationRuntime) {
         this._fileCreationRuntime = createFileCreationRuntime({
           createWorkspaceFile: (dirPath, name, options = {}) => createWorkspaceFile(dirPath, name, options),
+          createWorkspaceDocumentFile: (dirPath, options = {}) => createWorkspaceDocumentFile(dirPath, options),
           duplicateWorkspacePath: (path) => duplicateWorkspacePath(path),
           createWorkspaceFolder: (dirPath, name) => createWorkspaceFolder(dirPath, name),
           copyExternalWorkspaceFile: (srcPath, destDir) => copyExternalWorkspaceFile(srcPath, destDir),
@@ -815,6 +817,10 @@ export const useFilesStore = defineStore('files', {
 
     async createFile(dirPath, name, options = {}) {
       return this._getFileCreationRuntime().createFile(dirPath, name, options)
+    },
+
+    async createDocumentFile(dirPath, options = {}) {
+      return this._getFileCreationRuntime().createDocumentFile(dirPath, options)
     },
 
     async duplicatePath(path) {

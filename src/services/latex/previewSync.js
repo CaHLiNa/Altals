@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { focusEditorLineWithHighlight, focusEditorRangeWithHighlight } from '../../editor/revealHighlight.js'
-import { normalizeFsPath } from '../documentIntelligence/workspaceGraph.js'
+import { normalizeFsPath } from '../../utils/path.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
 

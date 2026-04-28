@@ -2,6 +2,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { isMod } from '../../platform'
 import { getViewerType, isNewTab } from '../../utils/fileTypes'
 import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks'
+import { resolveWorkspaceDocumentTemplateContent } from '../../services/fileStoreIO'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
 
 function preferredNewFileExtension(path = '') {
@@ -20,11 +21,26 @@ export function useAppShellEventBridge({
   pickWorkspace,
   closeWorkspace,
 }) {
-  function createDraftDocument(ext = '.md', options = {}) {
+  async function resolveDraftInitialContent(options = {}) {
+    if (typeof options.initialContent === 'string') {
+      return options.initialContent
+    }
+
+    if (typeof options.templateId !== 'string' || !options.templateId) {
+      return ''
+    }
+
+    return resolveWorkspaceDocumentTemplateContent(
+      options.templateId,
+      typeof options.suggestedName === 'string' ? options.suggestedName : '',
+    ).catch(() => '')
+  }
+
+  async function createDraftDocument(ext = '.md', options = {}) {
     const draftPath = filesStore.createDraftFile({
       ext,
       suggestedName: options.suggestedName,
-      initialContent: options.initialContent,
+      initialContent: await resolveDraftInitialContent(options),
     })
     const targetPaneId = editorStore.activePaneId
     if (targetPaneId) {
@@ -55,9 +71,9 @@ export function useAppShellEventBridge({
       event.preventDefault()
       const tab = editorStore.activeTab
       if (tab && !isNewTab(tab) && getViewerType(tab) === 'text') {
-        createDraftDocument(preferredNewFileExtension(tab))
+        await createDraftDocument(preferredNewFileExtension(tab))
       } else {
-        createDraftDocument('.md')
+        await createDraftDocument('.md')
       }
       return
     }
@@ -137,13 +153,14 @@ export function useAppShellEventBridge({
 
   async function handleNewFile() {
     if (!workspace.isOpen) return
-    createDraftDocument('.md')
+    await createDraftDocument('.md')
   }
 
   async function handleBeginNewFile(event) {
     if (!workspace.isOpen) return
     const ext = typeof event?.detail?.ext === 'string' ? event.detail.ext : '.md'
-    createDraftDocument(ext, {
+    await createDraftDocument(ext, {
+      templateId: event?.detail?.templateId,
       suggestedName: event?.detail?.suggestedName,
       initialContent: event?.detail?.initialContent,
     })

@@ -8,14 +8,33 @@ export async function createWorkspaceFile(dirPath, name, options = {}) {
   })
 }
 
+export async function createWorkspaceDocumentFile(dirPath, options = {}) {
+  return invoke('workspace_create_document_file', {
+    params: {
+      dirPath,
+      ext: typeof options.ext === 'string' ? options.ext : '',
+      templateId: typeof options.templateId === 'string' ? options.templateId : '',
+      suggestedName: typeof options.suggestedName === 'string' ? options.suggestedName : '',
+    },
+  })
+}
+
+export async function resolveWorkspaceDocumentTemplateContent(templateId = '', name = '') {
+  return invoke('workspace_document_template_content', {
+    params: {
+      templateId: String(templateId || ''),
+      name: String(name || ''),
+    },
+  })
+}
+
 export async function duplicateWorkspacePath(path) {
   return invoke('workspace_duplicate_path', { path })
 }
 
 export async function createWorkspaceFolder(dirPath, name) {
-  const fullPath = `${dirPath}/${name}`
-  await invoke('create_dir', { path: fullPath })
-  return fullPath
+  const result = await invoke('workspace_create_dir', { dirPath, name })
+  return result?.path || ''
 }
 
 export async function renameWorkspacePath(oldPath, newPath) {

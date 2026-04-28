@@ -313,9 +313,9 @@
             class="context-menu-item"
             @click.stop="
               handleNewMenuCreate({
+                templateId: template.id,
                 ext: template.ext,
                 suggestedName: template.filename,
-                initialContent: template.content,
               })
             "
           >
@@ -350,7 +350,6 @@ import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime'
-import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeItem from './FileTreeItem.vue'
 import { isMod, modKey } from '../../platform'
@@ -370,7 +369,7 @@ import {
 } from '@tabler/icons-vue'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useI18n } from '../../i18n'
-import { pathExists, revealPathInFileManager } from '../../services/fileTreeSystem'
+import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { useFileTreeFilter } from '../../composables/useFileTreeFilter'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
@@ -402,10 +401,6 @@ const workspaceName = computed(() => {
   return basenamePath(workspace.path)
 })
 const recentWorkspaces = computed(() => workspace.recentWorkspaces.slice(0, 5))
-const workspaceSnapshot = computed(
-  () => files.lastWorkspaceSnapshot || { flatFiles: files.flatFiles }
-)
-const workspaceFlatFiles = computed(() => listWorkspaceFlatFileEntries(workspaceSnapshot.value))
 const fileTreeDisplayEntries = computed(() =>
   applyFileTreeDisplayPreferences(files.tree, {
     showHidden: workspace.fileTreeShowHidden,
@@ -675,28 +670,13 @@ async function createTypedFile(dir, ext, options = {}) {
     files.expandedDirs.add(dir)
   }
 
-  const preferredName =
-    typeof options.suggestedName === 'string' && options.suggestedName.trim()
-      ? options.suggestedName.trim()
-      : `${t('Untitled')}${ext}`
-  const normalizedName = preferredName.endsWith(ext) ? preferredName : `${preferredName}${ext}`
-  const baseName = normalizedName.endsWith(ext)
-    ? normalizedName.slice(0, normalizedName.length - ext.length)
-    : normalizedName
-  let name = `${baseName}${ext}`
-  let i = 2
-  while (
-    workspaceFlatFiles.value.some((f) => f.name === name) ||
-    (await pathExists(`${dir}/${name}`))
-  ) {
-    name = `${baseName} ${i}${ext}`
-    i++
-  }
-
-  const path = await files.createFile(dir, name, {
-    initialContent: typeof options.initialContent === 'string' ? options.initialContent : '',
+  const path = await files.createDocumentFile(dir, {
+    ext,
+    templateId: typeof options.templateId === 'string' ? options.templateId : '',
+    suggestedName: typeof options.suggestedName === 'string' ? options.suggestedName : '',
   })
   if (path) {
+    const name = basenamePath(path)
     files.markTransientFile(path)
     workspace.openWorkspaceSurface()
     editor.openFile(path)
@@ -709,7 +689,7 @@ async function createTypedFile(dir, ext, options = {}) {
 }
 
 // Handle "+ New" header dropdown selection (target: workspace root)
-function handleNewMenuCreate({ ext, isDir, suggestedName = '', initialContent = '' }) {
+function handleNewMenuCreate({ ext, isDir, templateId = '', suggestedName = '' }) {
   closeNewMenu()
   const dir = workspace.path
   if (!dir) return
@@ -720,12 +700,12 @@ function handleNewMenuCreate({ ext, isDir, suggestedName = '', initialContent = 
     // "Other..." — generic inline create
     startInlineCreate(dir, false)
   } else {
-    createTypedFile(dir, ext, { suggestedName, initialContent })
+    createTypedFile(dir, ext, { templateId, suggestedName })
   }
 }
 
 // Handle context menu creation (target: clicked folder or workspace root)
-function handleContextCreate({ ext, isDir, suggestedName = '', initialContent = '' }) {
+function handleContextCreate({ ext, isDir, templateId = '', suggestedName = '' }) {
   const dir = contextMenu.entry?.is_dir ? contextMenu.entry.path : workspace.path
   if (!dir) return
 
@@ -734,7 +714,7 @@ function handleContextCreate({ ext, isDir, suggestedName = '', initialContent = 
   } else if (!ext) {
     startInlineCreate(dir, false)
   } else {
-    createTypedFile(dir, ext, { suggestedName, initialContent })
+    createTypedFile(dir, ext, { templateId, suggestedName })
   }
 }
 

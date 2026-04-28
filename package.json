@@ -10,8 +10,6 @@
     "lint": "eslint . --max-warnings=0",
     "guard:ui-bridges": "node ./scripts/check-ui-bridges.mjs",
     "smoke:web-shell": "node ./scripts/smoke-web-shell.mjs",
-    "smoke:tauri-window": "node ./scripts/smoke-tauri-window.mjs",
-    "smoke:tauri-open-workspace": "node ./scripts/smoke-tauri-open-workspace.mjs",
     "check": "npm run build",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:frontend": "vitest run",

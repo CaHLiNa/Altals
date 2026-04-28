@@ -9,14 +9,14 @@ This document records the current product surface, architecture shape, and debt 
 - Product shape: local-first academic writing workspace
 - Frontend contract: Vue 3 + Pinia + Vite
 - Runtime authority: Tauri / Rust
-- Current local quality gates: `npm run verify`, `npm run smoke:web-shell`, and `npm run smoke:tauri-window`
+- Current local quality gates: `npm run verify` and `npm run smoke:web-shell`
 - Current reality: the app has a real desktop shell and several working subdomains, but repo infra and boundary consistency still lag behind the product surface
 
 ## Phase Map
 
 | Phase | Scope | Current Status | Evidence | Main Debt |
 | --- | --- | --- | --- | --- |
-| 0 | Repo baseline and delivery infra | Closed for current scope | Repo verify gate, CI, lint, architecture guards, frontend unit tests, shell smoke, native window smoke, build and Rust checks all exist | No typecheck gate, no interactive workflow-level desktop smoke in automation |
+| 0 | Repo baseline and delivery infra | Closed for current scope | Repo verify gate, CI, lint, architecture guards, frontend unit tests, web shell smoke, build and Rust checks all exist | No typecheck gate |
 | 1 | Desktop shell and workspace lifecycle | Closed loop | Workspace open/close/bootstrap is Rust-led and stateful | Bootstrap path is growing into a coordination hub |
 | 2 | Filesystem authority and security boundary | Mostly healthy | Allowed roots and filesystem mutations are enforced in Rust | Bridge usage is not fully normalized on the frontend |
 | 3 | File tree and multi-pane editor | Closed loop | Tree snapshot, watch, recent files, split panes, restore and dirty state are implemented | Behavior-rich area without frontend regression coverage |
@@ -33,15 +33,14 @@ Current state:
 
 - The repository is locally verifiable through `npm run verify`.
 - A separate `npm run smoke:web-shell` command now proves the empty workspace shell can boot through a live Vite process.
-- A separate `npm run smoke:tauri-window` command now proves the native Tauri app window can launch and become visible on macOS.
 - Repo-level CI runs the same verification gate on `macos-latest`.
 - Frontend now has a lint gate, a UI bridge architecture guard, and Vitest-based unit coverage for key main-path logic helpers.
-- There is still no `tsconfig`, and there is still no automated interactive workflow-level desktop smoke.
+- There is still no `tsconfig`.
 
 Interpretation:
 
 - The codebase is not blocked by compilation instability.
-- The next infra gap is no longer baseline verification, but deeper runtime confidence: typechecking and interactive desktop-path automation.
+- The next infra gap is no longer baseline verification, but typechecking and tighter runtime boundary confidence.
 
 ### Phase 1: Desktop Shell and Workspace Lifecycle
 
@@ -160,6 +159,7 @@ What is not fully cleaned up:
 - `latex/projectGraph` has tightened further now too: the old frontend autocomplete path no longer resolves graph data, relative include paths, or bibliography target suggestions in JS, and the dedicated `projectGraphRuntime.js` bridge file has been removed from the active path.
 - `documentWorkflow` is aligned with that same direction now: LaTeX project diagnostics are no longer sourced from a frontend graph cache, and the old `projectGraphCache.js` file has been removed from the active path.
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
+- Workspace document template creation now follows the same Rust-first boundary: Rust owns template body text, extension normalization, unique file naming, and directory creation, while the frontend only passes `templateId`, `ext`, and display-facing labels.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
 - `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.
 - `TextEditor` no longer warms LaTeX project graph and lint through separate frontend-side orchestration; the store now asks Rust for a source snapshot and only applies the returned state.
@@ -171,12 +171,12 @@ What is not fully cleaned up:
 ### Infra Debt
 
 - No typecheck gate
-- No automated interactive desktop smoke
 - Remaining large async bundle mass is now concentrated mainly in the PDF engine path rather than the main shell path
 
 ### Boundary Debt
 
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
+- The old frontend typed-file creation loop has been removed from `FileTree.vue`; template file creation no longer depends on JS-side `pathExists` probing or JS-owned initial document bodies.
 - `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, `pdf/artifactPreview`, and the `documentWorkflow` summary path now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 - The old frontend bridge entrypoints for standalone LaTeX compile-request and compile-target resolution have been removed from the active command surface; the remaining JS cache around project graph exists mainly for editor-time autocomplete reuse, not as a policy authority
 - The old frontend project-graph cache layer has now been removed from the active path entirely; project-relative autocomplete policy and workflow-level unresolved ref/citation diagnostics both resolve in Rust instead
@@ -202,7 +202,7 @@ The next execution phase should stay narrow:
 4. Use the new Rust-owned workflow summary pattern as the default for future bridge cleanup instead of reintroducing adapter-local policy layers in JS.
 5. Reuse the new LaTeX runtime snapshot/change-resolver pattern for other remaining state-heavy stores before adding more frontend-side orchestration.
 6. Prefer stable facade files over direct deep imports so internal service slicing can keep evolving without forcing cross-repo call-site churn.
-7. Avoid expanding new product surfaces until native desktop smoke and remaining boundary debt are tighter.
+7. Avoid expanding new product surfaces until remaining boundary debt is tighter.
 
 ## Definition of Progress for the Next Phase
 

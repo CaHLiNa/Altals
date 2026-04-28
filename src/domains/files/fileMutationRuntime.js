@@ -1,4 +1,4 @@
-import { basenamePath, dirnamePath } from '../../utils/path'
+import { dirnamePath } from '../../utils/path'
 
 function moveCachedValue(oldPath, newPath, { hasValue, getValue, setValue, deleteValue } = {}) {
   if (!hasValue?.(oldPath)) return
@@ -71,13 +71,9 @@ export function createFileMutationRuntime({
   }
 
   async function movePath(srcPath, destDir) {
-    const name = basenamePath(srcPath)
-    let destPath = `${destDir}/${name}`
-    if (srcPath === destPath) return true
-
     try {
       const result = await relocateWorkspacePath?.(srcPath, destDir)
-      destPath = result?.destPath || destPath
+      const destPath = result?.destPath || srcPath
       await syncTreeAfterMutation?.({ expandPath: destDir })
 
       await handleMovedPathEffects?.(srcPath, destPath)
