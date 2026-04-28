@@ -6,7 +6,7 @@ export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
   if (!normalizedPath) return ''
 
-  return invoke('read_file_base64', { path: normalizedPath })
+  return invoke('workspace_read_file_base64', { path: normalizedPath })
 }
 
 export async function requestLatexPdfBackwardSync(options = {}) {
@@ -171,7 +171,7 @@ export async function writePdfArtifactBase64(filePath, data) {
   const normalizedData = String(data || '')
   if (!normalizedPath || !normalizedData) return
 
-  return invoke('write_file_base64', {
+  return invoke('workspace_write_file_base64', {
     path: normalizedPath,
     data: normalizedData,
   })

@@ -148,6 +148,18 @@ fn workspace_write_text_file_blocking(path: &Path, content: &str) -> Result<(), 
     fs::write(path, content).map_err(|e| e.to_string())
 }
 
+fn workspace_read_file_base64_blocking(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    Ok(STANDARD.encode(&bytes))
+}
+
+fn workspace_write_file_base64_blocking(path: &Path, data: &str) -> Result<(), String> {
+    let bytes = STANDARD
+        .decode(data)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
+    fs::write(path, &bytes).map_err(|e| format!("Write error: {}", e))
+}
+
 fn resolve_unique_copy_destination(path: &Path, dir: &Path, is_dir: bool) -> PathBuf {
     let name = path
         .file_name()
@@ -541,15 +553,6 @@ pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Res
 }
 
 #[tauri::command]
-pub async fn read_file_base64(path: String) -> Result<String, String> {
-    run_blocking(move || {
-        let bytes = fs::read(&path).map_err(|e| e.to_string())?;
-        Ok(STANDARD.encode(&bytes))
-    })
-    .await
-}
-
-#[tauri::command]
 pub async fn render_image_preview(
     path: String,
     max_size: Option<u32>,
@@ -582,19 +585,22 @@ pub async fn workspace_write_text_file(
 }
 
 #[tauri::command]
-pub async fn write_file_base64(
+pub async fn workspace_read_file_base64(
+    path: String,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<String, String> {
+    let resolved = security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
+    run_blocking(move || workspace_read_file_base64_blocking(&resolved)).await
+}
+
+#[tauri::command]
+pub async fn workspace_write_file_base64(
     path: String,
     data: String,
     scope_state: tauri::State<'_, WorkspaceScopeState>,
 ) -> Result<(), String> {
     let resolved = security::ensure_allowed_mutation_path(scope_state.inner(), Path::new(&path))?;
-    run_blocking(move || {
-        let bytes = STANDARD
-            .decode(&data)
-            .map_err(|e| format!("Base64 decode error: {}", e))?;
-        fs::write(&resolved, &bytes).map_err(|e| format!("Write error: {}", e))
-    })
-    .await
+    run_blocking(move || workspace_write_file_base64_blocking(&resolved, &data)).await
 }
 
 #[tauri::command]
@@ -912,7 +918,8 @@ pub async fn get_home_dir() -> Result<String, String> {
 mod tests {
     use super::{
         path_status_internal, workspace_create_dir_blocking, workspace_delete_path_blocking,
-        workspace_duplicate_path_blocking, workspace_read_text_file_blocking,
+        workspace_duplicate_path_blocking, workspace_read_file_base64_blocking,
+        workspace_read_text_file_blocking, workspace_write_file_base64_blocking,
         workspace_write_text_file_blocking,
     };
     use std::fs;
@@ -1012,6 +1019,42 @@ mod tests {
         let error =
             workspace_read_text_file_blocking(&file_path, Some(4)).expect_err("limit should fail");
         assert!(error.starts_with("FILE_TOO_LARGE:4:"));
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_base64_file_read_write_roundtrips_bytes() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-base64-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let file_path = temp_dir.join("artifact.pdf");
+
+        workspace_write_file_base64_blocking(&file_path, "AAECA/8=").expect("write base64");
+        let bytes = fs::read(&file_path).expect("read artifact bytes");
+        assert_eq!(bytes, vec![0, 1, 2, 3, 255]);
+
+        let encoded = workspace_read_file_base64_blocking(&file_path).expect("read base64");
+        assert_eq!(encoded, "AAECA/8=");
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn workspace_base64_file_write_rejects_invalid_payload() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-workspace-base64-invalid-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let file_path = temp_dir.join("artifact.pdf");
+
+        let error = workspace_write_file_base64_blocking(&file_path, "not base64 !!!")
+            .expect_err("invalid base64 should fail");
+        assert!(error.starts_with("Base64 decode error:"));
+        assert!(!file_path.exists());
 
         fs::remove_dir_all(temp_dir).ok();
     }
