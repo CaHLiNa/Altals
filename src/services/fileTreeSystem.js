@@ -39,13 +39,6 @@ export function restoreCachedExpandedTreeState(params = {}) {
   })
 }
 
-export function readDirectoryShallow(path, includeHidden = true) {
-  return invoke('read_dir_shallow', {
-    path,
-    includeHidden,
-  })
-}
-
 export function startWorkspaceTreeWatch(path) {
   return invoke('workspace_tree_watch_start', { path })
 }

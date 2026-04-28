@@ -11,7 +11,6 @@ use tokio::task;
 
 use crate::app_dirs;
 use crate::fs_io::read_text_file_with_limit;
-use crate::fs_tree::{read_dir_shallow_entries, FileEntry};
 use crate::process_utils::background_command;
 use crate::security;
 use crate::security::WorkspaceScopeState;
@@ -543,13 +542,6 @@ fn render_postscript_preview(path: &Path, max_size: u32) -> Result<ImagePreviewR
         base64: STANDARD.encode(bytes),
         renderer: "ghostscript".to_string(),
     })
-}
-
-#[tauri::command]
-pub async fn read_dir_shallow(path: String, include_hidden: Option<bool>) -> Result<Vec<FileEntry>, String> {
-    let path_for_read = path.clone();
-    let include_hidden = include_hidden.unwrap_or(true);
-    run_blocking(move || read_dir_shallow_entries(Path::new(&path_for_read), include_hidden)).await
 }
 
 #[tauri::command]

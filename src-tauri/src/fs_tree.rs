@@ -63,39 +63,6 @@ fn file_modified_timestamp(metadata: &fs::Metadata, is_dir: bool) -> Option<u64>
         .map(|d| d.as_secs())
 }
 
-pub fn read_dir_shallow_entries(
-    dir: &Path,
-    include_hidden: bool,
-) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
-
-    for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-        let file_type = metadata.file_type();
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-
-        if should_skip_entry(&name, is_dir, is_symlink, include_hidden) {
-            continue;
-        }
-
-        entries.push(FileEntry {
-            name,
-            path: path.to_string_lossy().to_string(),
-            is_dir,
-            children: None,
-            modified: file_modified_timestamp(&metadata, is_dir),
-        });
-    }
-
-    sort_entries(&mut entries);
-    Ok(entries)
-}
-
 fn collect_snapshot_entries(
     dir: &Path,
     loaded_dirs: &HashSet<String>,

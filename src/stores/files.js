@@ -41,7 +41,6 @@ import {
   listenWorkspaceTreeRefreshRequests,
   loadWorkspaceTreeState as loadWorkspaceTreeStateFromRust,
   noteWorkspaceTreeWatchActivity,
-  readDirectoryShallow,
   restoreCachedExpandedTreeState as restoreCachedExpandedTreeStateFromRust,
   revealWorkspaceTreeState as revealWorkspaceTreeStateFromRust,
   setWorkspaceTreeWatchVisibility,
@@ -575,22 +574,11 @@ export const useFilesStore = defineStore('files', {
 
       const loadPromise = (async () => {
         const workspacePath = useWorkspaceStore().path
-        if (workspacePath) {
-          const snapshot = await loadWorkspaceTreeState(this.tree ?? [], [path])
-          this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
-          return findTreeEntry(snapshot?.tree || [], path)?.children || []
-        }
+        if (!workspacePath) return []
 
-        const children = await readDirectoryShallow(
-          path,
-          useWorkspaceStore().fileTreeShowHidden !== false,
-        )
-        const entry = findTreeEntry(this.tree ?? [], path)
-        if (entry) {
-          entry.children = children
-        }
-        this._setTree(this.tree ?? [], workspacePath, { preserveFlatFiles: true })
-        return children
+        const snapshot = await loadWorkspaceTreeState(this.tree ?? [], [path])
+        this._applyWorkspaceSnapshot(snapshot, workspacePath, { preserveFlatFiles: true })
+        return findTreeEntry(snapshot?.tree || [], path)?.children || []
       })()
 
       this._dirLoadPromises.set(path, loadPromise)
