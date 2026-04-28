@@ -1,10 +1,11 @@
 export {
   stableContentFingerprint,
   getCachedLatexProjectGraph,
+  cacheLatexProjectGraph,
+  buildLatexProjectGraphCacheKey,
 } from './projectGraphCache.js'
 
 export {
   resolveLatexProjectGraph,
   buildRelativeLatexInputPath,
-  resolveLatexCompileTargetsForChange,
 } from './projectGraphRuntime.js'

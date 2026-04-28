@@ -14,6 +14,7 @@ export function stableContentFingerprint(value = '') {
 
 export function buildLatexProjectGraphCacheKey(sourcePath, options = {}) {
   const normalizedSource = normalizeFsPath(sourcePath)
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
   const flatFiles = Array.isArray(options.flatFiles)
     ? options.flatFiles.map((entry) => normalizeFsPath(entry.path || entry)).filter(Boolean)
     : []
@@ -26,6 +27,7 @@ export function buildLatexProjectGraphCacheKey(sourcePath, options = {}) {
     .sort((left, right) => left.path.localeCompare(right.path))
   return JSON.stringify({
     sourcePath: normalizedSource,
+    workspacePath,
     flatFiles,
     overrideEntries,
   })

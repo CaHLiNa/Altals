@@ -101,10 +101,6 @@ import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useLatexStore } from '../../stores/latex'
 import { useReferencesStore } from '../../stores/references'
 import { isDraftPath, isMarkdown, isLatex, isLatexEditorFile } from '../../utils/fileTypes'
-import {
-  getCachedLatexProjectGraph,
-  resolveLatexProjectGraph,
-} from '../../services/latex/projectGraph'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
   MARKDOWN_BACKWARD_SYNC_EVENT,
@@ -326,17 +322,9 @@ function scheduleLatexWarmup(content = '') {
     latexWarmupHandle = null
     try {
       await latexStore.checkTools()
-      await Promise.allSettled([
-        latexStore.refreshLint(props.filePath, {
-          sourceContent: content,
-        }),
-        getCachedLatexProjectGraph(props.filePath)
-          ? Promise.resolve()
-          : resolveLatexProjectGraph(props.filePath, {
-              filesStore: files,
-              workspacePath: workspace.path,
-            }),
-      ])
+      await latexStore.warmupSource(props.filePath, {
+        sourceContent: content,
+      })
     } catch {
       // Warmup failures should not block editor startup.
     }
@@ -1086,7 +1074,6 @@ onMounted(async () => {
         override:[
           createLatexCompletionSource({
             filePath: props.filePath,
-            filesStore: files,
             workspacePath: workspace.path,
           }),
         ],

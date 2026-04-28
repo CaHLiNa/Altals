@@ -101,6 +101,7 @@ Interpretation:
 Current state:
 
 - LaTeX support includes compiler detection, runtime scheduling, diagnostics, logs, SyncTeX, formatting, and Tectonic download flow.
+- LaTeX source warmup, compile-request resolution, change-target resolution, and lint state now resolve through Rust runtime snapshot/change commands instead of frontend file-discovery helpers.
 - Python support includes interpreter detection, preference persistence, runtime listing, and compile state tracking.
 
 Interpretation:
@@ -151,9 +152,11 @@ What is not fully cleaned up:
 - `latex/projectGraph` also carries less frontend surface now: unused JS facade entrypoints and an unused Rust command have been removed, leaving fewer non-UI call paths around project-target resolution.
 - `latex/projectGraph` workspace file discovery no longer depends on a dedicated frontend helper file; Rust can now resolve workspace flat files itself when the bridge only provides `workspacePath`.
 - `latex/root` fallback helpers have also been removed from the active path; compile target fallback now prefers existing runtime state, and the remaining project-graph cache is narrower instead of acting as a general root/preview authority.
+- `latex/runtime` has tightened further now: editor warmup, compile-request lookup, change-target lookup, and lint refresh no longer ask the frontend to prepare flat file lists before invoking Rust.
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
 - `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.
+- `TextEditor` no longer warms LaTeX project graph and lint through separate frontend-side orchestration; the store now asks Rust for a source snapshot and only applies the returned state.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
 ## Debt Map
@@ -168,6 +171,7 @@ What is not fully cleaned up:
 
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
 - `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, `pdf/artifactPreview`, and the `documentWorkflow` summary path now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
+- The old frontend bridge entrypoints for standalone LaTeX compile-request and compile-target resolution have been removed from the active command surface; the remaining JS cache around project graph exists mainly for editor-time autocomplete reuse, not as a policy authority
 
 ### Scope Debt
 
@@ -188,8 +192,9 @@ The next execution phase should stay narrow:
 2. Preserve repo trust through the verify gate and CI instead of letting new work bypass them.
 3. Continue shrinking broad service-level bridge surfaces into more focused runtime wrappers where it is low-risk to do so, especially in remaining large services that still mix path policy, persistence, and command orchestration.
 4. Use the new Rust-owned workflow summary pattern as the default for future bridge cleanup instead of reintroducing adapter-local policy layers in JS.
-5. Prefer stable facade files over direct deep imports so internal service slicing can keep evolving without forcing cross-repo call-site churn.
-6. Avoid expanding new product surfaces until native desktop smoke and remaining boundary debt are tighter.
+5. Reuse the new LaTeX runtime snapshot/change-resolver pattern for other remaining state-heavy stores before adding more frontend-side orchestration.
+6. Prefer stable facade files over direct deep imports so internal service slicing can keep evolving without forcing cross-repo call-site churn.
+7. Avoid expanding new product surfaces until native desktop smoke and remaining boundary debt are tighter.
 
 ## Definition of Progress for the Next Phase
 

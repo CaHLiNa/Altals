@@ -1128,7 +1128,7 @@ pub(crate) fn resolve_graph_value(params: &LatexProjectGraphParams) -> Option<Va
     }))
 }
 
-fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> Vec<Value> {
+pub(crate) fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> Vec<Value> {
     let normalized_changed = normalize_fs_path(&params.changed_path);
     if normalized_changed.is_empty()
         || (!is_latex_source_path(&normalized_changed)
@@ -1200,55 +1200,6 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 #[tauri::command]
 pub async fn latex_project_graph_resolve(params: LatexProjectGraphParams) -> Result<Value, String> {
     Ok(resolve_graph_value(&params).unwrap_or(Value::Null))
-}
-
-#[tauri::command]
-pub async fn latex_compile_request_resolve(
-    params: LatexProjectGraphParams,
-) -> Result<Value, String> {
-    let graph = resolve_graph_value(&params).unwrap_or(Value::Null);
-    if graph.is_null() {
-        return Ok(json!({
-            "sourcePath": normalize_fs_path(&params.source_path),
-            "rootPath": normalize_fs_path(&params.source_path),
-            "previewPath": build_preview_path(&normalize_fs_path(&params.source_path)),
-        }));
-    }
-    Ok(json!({
-        "sourcePath": graph.get("sourcePath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
-        "rootPath": graph.get("rootPath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
-        "previewPath": graph.get("previewPath").cloned().unwrap_or(Value::String(build_preview_path(&normalize_fs_path(&params.source_path)))),
-    }))
-}
-
-#[tauri::command]
-pub async fn latex_compile_targets_resolve(
-    params: LatexAffectedRootsParams,
-) -> Result<Value, String> {
-    let normalized_changed = normalize_fs_path(&params.changed_path);
-    if normalized_changed.is_empty() {
-        return Ok(Value::Array(Vec::new()));
-    }
-
-    if is_latex_source_path(&normalized_changed) {
-        let request = latex_compile_request_resolve(LatexProjectGraphParams {
-            source_path: normalized_changed.clone(),
-            workspace_path: params.workspace_path.clone(),
-            flat_files: params.flat_files.clone(),
-            include_hidden: params.include_hidden,
-            content_overrides: params.content_overrides.clone(),
-        })
-        .await?;
-        return Ok(Value::Array(vec![request]));
-    }
-
-    if is_bibliography_path(&normalized_changed) {
-        return Ok(Value::Array(resolve_affected_root_targets_internal(
-            &params,
-        )));
-    }
-
-    Ok(Value::Array(Vec::new()))
 }
 
 #[cfg(test)]

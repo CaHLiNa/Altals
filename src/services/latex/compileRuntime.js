@@ -13,14 +13,33 @@ export async function listenLatexRuntimeCompileRequested(handler = () => {}) {
   }).catch(() => () => {})
 }
 
-export async function resolveLatexCompileRequest(params = {}) {
-  return invoke('latex_compile_request_resolve', {
+export async function resolveLatexRuntimeSource(params = {}) {
+  return invoke('latex_runtime_source_resolve', {
     params: {
       sourcePath: String(params.sourcePath || ''),
-      flatFiles: Array.isArray(params.flatFiles) ? params.flatFiles : [],
+      workspacePath: String(params.workspacePath || ''),
+      includeHidden: params.includeHidden !== false,
       contentOverrides: params.contentOverrides && typeof params.contentOverrides === 'object'
         ? params.contentOverrides
         : {},
+      sourceContent: typeof params.sourceContent === 'string' ? params.sourceContent : null,
+      customSystemTexPath: params.customSystemTexPath || null,
+      includeProjectGraph: params.includeProjectGraph === true,
+    },
+  })
+}
+
+export async function resolveLatexRuntimeChange(params = {}) {
+  return invoke('latex_runtime_change_resolve', {
+    params: {
+      changedPath: String(params.changedPath || ''),
+      workspacePath: String(params.workspacePath || ''),
+      includeHidden: params.includeHidden !== false,
+      contentOverrides: params.contentOverrides && typeof params.contentOverrides === 'object'
+        ? params.contentOverrides
+        : {},
+      sourceContent: typeof params.sourceContent === 'string' ? params.sourceContent : null,
+      customSystemTexPath: params.customSystemTexPath || null,
     },
   })
 }

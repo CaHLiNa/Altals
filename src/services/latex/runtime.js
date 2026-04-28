@@ -1,7 +1,8 @@
 export {
   listenLatexCompileStream,
   listenLatexRuntimeCompileRequested,
-  resolveLatexCompileRequest,
+  resolveLatexRuntimeSource,
+  resolveLatexRuntimeChange,
   scheduleLatexRuntime,
   executeLatexCompile,
   cancelLatexRuntime,
