@@ -88,7 +88,8 @@ Current state:
 
 - Markdown, LaTeX, and Python are routed through shared workflow state and preview/build actions.
 - Preview preference, preview visibility, artifact path resolution, and workspace preview state are unified.
-- Rust mirrors this with dedicated document workflow modules and tests.
+- Rust now resolves the workflow summary contract itself: `uiState`, normalized `problems`, runtime-backed `artifactPath`, and status metadata for Markdown / LaTeX / Python.
+- Frontend document adapters have been reduced to thin preview/compile bridges instead of owning their own workflow diagnostics and state-derivation layers.
 
 Interpretation:
 
@@ -152,6 +153,7 @@ What is not fully cleaned up:
 - `latex/root` fallback helpers have also been removed from the active path; compile target fallback now prefers existing runtime state, and the remaining project-graph cache is narrower instead of acting as a general root/preview authority.
 - `documentOutline` follows the same direction now: the frontend no longer gathers workspace flat files for outline resolution, and Rust can derive the needed workspace file set from `workspacePath`.
 - `latex/previewSync` has now shed most of its non-UI authority too: moved-file path repair and in-editor selection matching resolve in Rust commands, while the frontend side only waits for views and applies the final editor focus.
+- `documentWorkflow` has now crossed the same boundary: the old adapter-local workflow derivation for Markdown / LaTeX / Python has been collapsed into a Rust summary resolver, and the deleted `latex/diagnostics.js` mapping layer no longer sits between runtime state and workflow UI.
 - The repo still carries light traces of earlier scope, even after the desktop-focused slim-down.
 
 ## Debt Map
@@ -165,7 +167,7 @@ What is not fully cleaned up:
 ### Boundary Debt
 
 - Bridge conventions now hold across UI layers, i18n entrypoints, and the main product-facing stores
-- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, and `pdf/artifactPreview` now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
+- `workspacePreferences`, `workspacePermissions`, `references/zoteroSync`, `references/referenceLibraryIO`, `references/referenceImport`, `references/referenceAssets`, `references/crossref`, `references/citationFormatter`, `editorPersistence`, `workspaceRecents`, `workspaceTreeRuntime`, `latex/runtime`, `latexPreferences`, `latex/projectGraph`, `pdf/latexPdfSync`, `pdf/artifactPreview`, and the `documentWorkflow` summary path now route through narrower Rust-backed bridges, but other bridge-heavy service modules still aggregate multiple Rust command families and should be split further when it reduces coupling
 
 ### Scope Debt
 
@@ -185,8 +187,9 @@ The next execution phase should stay narrow:
 1. Keep the main path centered on `workspace / editor / preview-build / references`.
 2. Preserve repo trust through the verify gate and CI instead of letting new work bypass them.
 3. Continue shrinking broad service-level bridge surfaces into more focused runtime wrappers where it is low-risk to do so, especially in remaining large services that still mix path policy, persistence, and command orchestration.
-4. Prefer stable facade files over direct deep imports so internal service slicing can keep evolving without forcing cross-repo call-site churn.
-5. Avoid expanding new product surfaces until native desktop smoke and remaining boundary debt are tighter.
+4. Use the new Rust-owned workflow summary pattern as the default for future bridge cleanup instead of reintroducing adapter-local policy layers in JS.
+5. Prefer stable facade files over direct deep imports so internal service slicing can keep evolving without forcing cross-repo call-site churn.
+6. Avoid expanding new product surfaces until native desktop smoke and remaining boundary debt are tighter.
 
 ## Definition of Progress for the Next Phase
 

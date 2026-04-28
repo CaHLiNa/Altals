@@ -2,6 +2,8 @@ import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
 } from '../../services/documentWorkflow/adapters/index.js'
+import { buildMarkdownDraftProblems } from '../../services/markdown/diagnostics.js'
+import { getCachedLatexProjectGraph } from '../../services/latex/projectGraph.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -58,9 +60,19 @@ function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = 
   return adapter?.preview?.getTargetPath?.(filePath, context, options) || ''
 }
 
-function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = {}) {
-  if (options.expectedTargetPath) return options.expectedTargetPath
-  return adapter?.compile?.getArtifactPath?.(filePath, context, options) || ''
+function resolveArtifactPath(filePath, adapter, context, options = {}) {
+  if (!adapter || !filePath) return ''
+  if (typeof options.artifactPath === 'string') return options.artifactPath
+  if (adapter.kind === 'latex') {
+    const latexState = context.latexStore?.stateForFile?.(filePath) || null
+    return (
+      latexState?.previewPath ||
+      latexState?.pdfPath ||
+      context.workflowStore?.getLatexArtifactPathForFile?.(filePath) ||
+      ''
+    )
+  }
+  return ''
 }
 
 function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
@@ -74,16 +86,7 @@ function resolveNativePreviewSupported(filePath, adapter, context, requestedPrev
 }
 
 function resolveArtifactReady(filePath, adapter, context) {
-  if (!adapter || !filePath) return false
-  if (adapter.kind === 'latex') {
-    const latexState = context.latexStore?.stateForFile?.(filePath) || null
-    return Boolean(
-      latexState?.pdfPath
-      || latexState?.previewPath
-      || context.workflowStore?.getLatexArtifactPathForFile?.(filePath),
-    )
-  }
-  return false
+  return Boolean(resolveArtifactPath(filePath, adapter, context))
 }
 
 function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, workflowStore = null) {
@@ -127,18 +130,30 @@ function resolvePreviewState(filePath, adapter, context, options = {}) {
   return context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request) || null
 }
 
-function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, previewState = null) {
+function buildWorkflowStateRequest(filePath, adapter, context, options = {}, previewState = null) {
   if (!adapter) return null
 
   return {
     filePath,
-    artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
+    artifactPath: resolveArtifactPath(filePath, adapter, context, options),
     previewState,
     markdownState: adapter.kind === 'markdown'
       ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
       : null,
+    markdownDraftProblems: adapter.kind === 'markdown'
+      ? buildMarkdownDraftProblems(
+        filePath,
+        context.filesStore?.fileContents?.[filePath] || '',
+      )
+      : null,
     latexState: adapter.kind === 'latex'
       ? context.latexStore?.stateForFile?.(filePath) || {}
+      : null,
+    latexLintDiagnostics: adapter.kind === 'latex'
+      ? context.latexStore?.lintDiagnosticsForFile?.(filePath) || []
+      : null,
+    latexProjectGraph: adapter.kind === 'latex'
+      ? getCachedLatexProjectGraph(filePath)
       : null,
     pythonState: adapter.kind === 'python'
       ? context.pythonStore?.stateForFile?.(filePath) || {}
@@ -149,10 +164,77 @@ function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, p
   }
 }
 
-function resolveWorkflowUiState(filePath, adapter, context, options = {}, previewState = null) {
+function resolveWorkflowState(filePath, adapter, context, options = {}, previewState = null) {
   if (!adapter) return null
-  const request = buildWorkflowUiStateRequest(filePath, adapter, context, options, previewState)
-  return context.workflowStore?.ensureResolvedWorkflowUiState?.(filePath, request) || null
+  const request = buildWorkflowStateRequest(filePath, adapter, context, options, previewState)
+  return context.workflowStore?.ensureResolvedWorkflowState?.(filePath, request) || null
+}
+
+function appendStatusSuffix(base = '', suffixes = []) {
+  const normalizedBase = String(base || '').trim()
+  if (!normalizedBase) return ''
+  const normalizedSuffixes = (Array.isArray(suffixes) ? suffixes : [])
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+  return normalizedSuffixes.length > 0
+    ? `${normalizedBase} · ${normalizedSuffixes.join(' · ')}`
+    : normalizedBase
+}
+
+function formatResolvedWorkflowStatus(summary = null, context = {}) {
+  const uiState = summary?.uiState || null
+  const status = summary?.status || {}
+  const t = context.t || ((value) => value)
+  if (!uiState) return ''
+
+  if (uiState.kind === 'markdown') {
+    if (status.phase === 'rendering') return t('Rendering...')
+    if (status.phase === 'error') return t('Preview failed')
+    return ''
+  }
+
+  if (uiState.kind === 'latex') {
+    const suffixes = status.hasCustomArgs ? [t('Custom args')] : []
+    if (status.phase === 'compiling') {
+      const base = Number(status.pendingCount || 0) > 0
+        ? `${t('Compiling...')} · ${t('Queued +{count}', { count: Number(status.pendingCount || 0) })}`
+        : t('Compiling...')
+      return appendStatusSuffix(base, suffixes)
+    }
+    if (status.phase === 'queued') {
+      return appendStatusSuffix(t('Queued'), suffixes)
+    }
+    if (status.phase !== 'ready') return ''
+
+    const durationMs = Number(status.durationMs || 0)
+    const durationText = durationMs <= 0
+      ? t('Compiled')
+      : durationMs < 1000
+        ? `${durationMs}ms`
+        : `${(durationMs / 1000).toFixed(1)}s`
+    return appendStatusSuffix(durationText, suffixes)
+  }
+
+  if (uiState.kind === 'python') {
+    if (status.phase === 'running') return t('Running...')
+    if (status.phase === 'error') return t('Run failed')
+    if (status.phase !== 'ready') return ''
+
+    const durationMs = Number(status.durationMs || 0)
+    const durationText = durationMs > 0
+      ? durationMs < 1000
+        ? `${durationMs}ms`
+        : `${(durationMs / 1000).toFixed(1)}s`
+      : t('Ready')
+    const version = String(status.interpreterVersion || '').trim()
+    if (version) {
+      return `${durationText} · Python ${version}`
+    }
+    const interpreterLabel = String(status.interpreterLabel || '').trim()
+    return interpreterLabel ? `${durationText} · ${interpreterLabel}` : durationText
+  }
+
+  return ''
 }
 
 export function getDocumentWorkflowStatusTone(uiState = null) {
@@ -212,8 +294,14 @@ export function createDocumentWorkflowBuildRuntime({
     }
 
     const previewState = resolvePreviewState(filePath, adapter, context, options)
-    const uiState = resolveWorkflowUiState(filePath, adapter, context, options, previewState)
-    const artifactReady = resolveArtifactReady(filePath, adapter, context)
+    const workflowState = resolveWorkflowState(filePath, adapter, context, options, previewState)
+    const uiState = workflowState?.uiState || null
+    const artifactPath = String(
+      workflowState?.artifactPath ||
+      resolveArtifactPath(filePath, adapter, context, options) ||
+      '',
+    )
+    const artifactReady = !!artifactPath
     const nativePreviewSupported = resolveNativePreviewSupported(
       filePath,
       adapter,
@@ -224,6 +312,7 @@ export function createDocumentWorkflowBuildRuntime({
     return {
       ...context,
       adapter,
+      workflowState,
       workflowUiState: uiState,
       previewState,
       workspacePreviewState: previewState,
@@ -233,6 +322,7 @@ export function createDocumentWorkflowBuildRuntime({
       previewVisible: previewState?.previewVisible === true,
       previewTargetPath: previewState?.previewTargetPath || '',
       targetResolution: previewState?.targetResolution || null,
+      artifactPath,
       artifactReady,
       nativePreviewSupported,
     }
@@ -245,7 +335,7 @@ export function createDocumentWorkflowBuildRuntime({
 
   function getProblemsForFile(filePath, options = {}) {
     const context = buildAdapterContext(filePath, options)
-    return context.adapter?.getProblems?.(filePath, context) || []
+    return context.workflowState?.problems || []
   }
 
   function getUiStateForFile(filePath, options = {}) {
@@ -254,12 +344,11 @@ export function createDocumentWorkflowBuildRuntime({
 
   function getStatusTextForFile(filePath, options = {}) {
     const context = buildAdapterContext(filePath, options)
-    return context.adapter?.compile?.getStatusText?.(filePath, context) || ''
+    return formatResolvedWorkflowStatus(context.workflowState, context)
   }
 
   function getArtifactPathForFile(filePath, options = {}) {
-    const context = buildAdapterContext(filePath, options)
-    return context.adapter?.compile?.getArtifactPath?.(filePath, context) || ''
+    return buildAdapterContext(filePath, options).artifactPath || ''
   }
 
   function getWorkspacePreviewStateForFile(filePath, options = {}) {

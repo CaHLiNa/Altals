@@ -1,4 +1,4 @@
-import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../../services/documentWorkflow/workflowUiStateBridge.js'
+import { resolveDocumentWorkflowState as resolveDocumentWorkflowStateFromBackend } from '../../services/documentWorkflow/workflowUiStateBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../../services/documentWorkflow/workspacePreviewStateBridge.js'
 
 export const documentWorkflowResolvedStateActions = {
@@ -38,73 +38,76 @@ export const documentWorkflowResolvedStateActions = {
     }
   },
 
-  buildResolvedWorkflowUiStateKey(request = {}) {
+  buildResolvedWorkflowStateKey(request = {}) {
     return JSON.stringify({
       filePath: String(request.filePath || ''),
       artifactPath: String(request.artifactPath || ''),
       previewState: request.previewState || null,
       markdownState: request.markdownState || null,
+      markdownDraftProblems: request.markdownDraftProblems || null,
       latexState: request.latexState || null,
+      latexLintDiagnostics: request.latexLintDiagnostics || null,
+      latexProjectGraph: request.latexProjectGraph || null,
       pythonState: request.pythonState || null,
       queueState: request.queueState || null,
     })
   },
 
-  getResolvedWorkflowUiState(filePath, request = {}) {
+  getResolvedWorkflowState(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
-    const entry = this.resolvedWorkflowUiStates[normalizedPath] || null
+    const entry = this.resolvedWorkflowStates[normalizedPath] || null
     if (!entry) return null
-    const key = this.buildResolvedWorkflowUiStateKey(request)
+    const key = this.buildResolvedWorkflowStateKey(request)
     return entry.key === key ? entry.state : null
   },
 
-  setResolvedWorkflowUiState(filePath, request = {}, state = null) {
+  setResolvedWorkflowState(filePath, request = {}, state = null) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return
-    this.resolvedWorkflowUiStates = {
-      ...this.resolvedWorkflowUiStates,
+    this.resolvedWorkflowStates = {
+      ...this.resolvedWorkflowStates,
       [normalizedPath]: {
-        key: this.buildResolvedWorkflowUiStateKey(request),
+        key: this.buildResolvedWorkflowStateKey(request),
         state,
       },
     }
   },
 
-  async refreshResolvedWorkflowUiState(filePath, request = {}) {
+  async refreshResolvedWorkflowState(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
 
-    if (!this._resolvedWorkflowUiStateInflight) {
-      this._resolvedWorkflowUiStateInflight = new Map()
+    if (!this._resolvedWorkflowStateInflight) {
+      this._resolvedWorkflowStateInflight = new Map()
     }
 
-    const key = this.buildResolvedWorkflowUiStateKey(request)
+    const key = this.buildResolvedWorkflowStateKey(request)
     const inflightKey = `${normalizedPath}::${key}`
-    if (this._resolvedWorkflowUiStateInflight.has(inflightKey)) {
-      return this._resolvedWorkflowUiStateInflight.get(inflightKey)
+    if (this._resolvedWorkflowStateInflight.has(inflightKey)) {
+      return this._resolvedWorkflowStateInflight.get(inflightKey)
     }
 
-    const task = resolveDocumentWorkflowUiStateFromBackend(request)
+    const task = resolveDocumentWorkflowStateFromBackend(request)
       .then((state) => {
-        this.setResolvedWorkflowUiState(normalizedPath, request, state)
+        this.setResolvedWorkflowState(normalizedPath, request, state)
         return state
       })
       .catch(() => null)
       .finally(() => {
-        this._resolvedWorkflowUiStateInflight.delete(inflightKey)
+        this._resolvedWorkflowStateInflight.delete(inflightKey)
       })
 
-    this._resolvedWorkflowUiStateInflight.set(inflightKey, task)
+    this._resolvedWorkflowStateInflight.set(inflightKey, task)
     return task
   },
 
-  ensureResolvedWorkflowUiState(filePath, request = {}) {
+  ensureResolvedWorkflowState(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
-    const cached = this.getResolvedWorkflowUiState(normalizedPath, request)
+    const cached = this.getResolvedWorkflowState(normalizedPath, request)
     if (cached) return cached
-    void this.refreshResolvedWorkflowUiState(normalizedPath, request)
+    void this.refreshResolvedWorkflowState(normalizedPath, request)
     return null
   },
 

@@ -35,7 +35,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
     latexArtifactPaths: {},
     latexPreviewStates: {},
     resolvedWorkspacePreviewStates: {},
-    resolvedWorkflowUiStates: {},
+    resolvedWorkflowStates: {},
     _isReconciling: false,
     _lastTrigger: null,
     _persistentStateHydrated: false,
@@ -322,12 +322,12 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
       this.applyPersistentState(createDefaultDocumentWorkflowPersistentState())
       this.markdownPreviewState = {}
       this.resolvedWorkspacePreviewStates = {}
-      this.resolvedWorkflowUiStates = {}
+      this.resolvedWorkflowStates = {}
       this._isReconciling = false
       this._lastTrigger = null
       this._persistentStateHydrated = false
       this._resolvedWorkspacePreviewStateInflight?.clear?.()
-      this._resolvedWorkflowUiStateInflight?.clear?.()
+      this._resolvedWorkflowStateInflight?.clear?.()
     },
   },
 })
