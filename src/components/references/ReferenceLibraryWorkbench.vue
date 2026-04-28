@@ -155,6 +155,7 @@
       resize-slot-class="reference-workbench__detail-resize-slot"
       resize-handle-class="reference-workbench__detail-resize-handle"
       :get-container-width="resolveReferenceWorkbenchWidth"
+      @motion-state-change="handleReferenceDetailMotionStateChange"
       @resize="handleReferenceDetailResize"
       @resize-start="handleReferenceDetailResizeStart"
       @resize-end="handleReferenceDetailResizeEnd"
@@ -230,7 +231,11 @@ import {
   searchByMetadata,
 } from '../../services/references/crossref.js'
 import { basenamePath, dirnamePath } from '../../utils/path'
-import { findInlineDockPage } from '../../domains/workbench/inlineDockPageRegistry.js'
+import {
+  findInlineDockPage,
+  resolveInlineDockActivePageKey,
+  resolveInlineDockFallbackPageType,
+} from '../../domains/workbench/inlineDockPageRegistry.js'
 import {
   REFERENCE_DOCK_CITED_IN_PAGE,
   REFERENCE_DOCK_DETAILS_PAGE,
@@ -264,8 +269,10 @@ const uxStatusStore = useUxStatusStore()
 const REFERENCE_DETAIL_MIN_WIDTH = 420
 const REFERENCE_LIST_MIN_WIDTH = 520
 const REFERENCE_DETAIL_MAX_CONTAINER_RATIO = 0.52
+const REFERENCE_DOCK_CLOSE_RESET_DELAY_MS = 680
 const showAddDialog = ref(false)
 const workbenchRef = ref(null)
+const referenceDetailMotionActive = ref(false)
 let referenceDockCloseResetTimer = null
 const {
   menuVisible,
@@ -299,7 +306,7 @@ const referenceDockPages = computed(() =>
     citedInCount: selectedReferenceCitedInFiles.value.length,
     openPdfPreview: activateReferencePdfTab,
     pageDefinitions: workspace.referenceDockPageDefinitions,
-    referenceDetailResizing: props.referenceDetailResizing,
+    referenceDetailResizing: referenceDetailLayoutLocked.value,
     selectedReference: selectedReference.value,
     selectedReferencePdfPath: selectedReferencePdfPath.value,
     showReferencePdfTab: showReferencePdfTab.value,
@@ -307,20 +314,18 @@ const referenceDockPages = computed(() =>
   })
 )
 const activeReferenceDockKey = computed(() => {
-  const activePage = String(workspace.referenceDockActivePage || REFERENCE_DOCK_DETAILS_PAGE)
-  if (activePage === REFERENCE_DOCK_PDF_PAGE && showReferencePdfTab.value) {
-    return REFERENCE_DOCK_PDF_PAGE
-  }
-  if (activePage === REFERENCE_DOCK_CITED_IN_PAGE && hasSelectedReferenceCitations.value) {
-    return REFERENCE_DOCK_CITED_IN_PAGE
-  }
-  return REFERENCE_DOCK_DETAILS_PAGE
+  return resolveInlineDockActivePageKey(referenceDockPages.value, workspace.referenceDockActivePage, {
+    defaultType: workspace.referenceDockDefaultPage || REFERENCE_DOCK_DETAILS_PAGE,
+  })
 })
 const activeReferenceDockPage = computed(() =>
   findInlineDockPage(referenceDockPages.value, activeReferenceDockKey.value)
 )
 const referenceDetailDockWidth = computed(() =>
   Math.max(REFERENCE_DETAIL_MIN_WIDTH, Number(props.referenceDetailWidth) || 0)
+)
+const referenceDetailLayoutLocked = computed(() =>
+  props.referenceDetailResizing || referenceDetailMotionActive.value
 )
 const sortKey = computed({
   get: () => referencesStore.sortKey,
@@ -383,16 +388,27 @@ function activateReferenceDockPage(page = {}) {
   }
 }
 
-function closeReferencePdfTab() {
+function resolveReferenceDockFallbackPage(page = {}) {
+  return resolveInlineDockFallbackPageType(
+    referenceDockPages.value.filter((candidate) => candidate.key !== page.key),
+    page,
+    { defaultType: workspace.referenceDockDefaultPage || REFERENCE_DOCK_DETAILS_PAGE }
+  ) || REFERENCE_DOCK_DETAILS_PAGE
+}
+
+function closeReferencePdfTab(page = {}) {
+  const wasActive =
+    activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE ||
+    workspace.referenceDockActivePage === REFERENCE_DOCK_PDF_PAGE
   referencesStore.closeReferenceDockPdf(selectedReference.value?.id)
-  if (activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE) {
-    void workspace.setReferenceDockActivePage(REFERENCE_DOCK_DETAILS_PAGE)
+  if (wasActive) {
+    void workspace.setReferenceDockActivePage(resolveReferenceDockFallbackPage(page))
   }
 }
 
 function closeReferenceDockPage(page = {}) {
   if (page.type === REFERENCE_DOCK_PDF_PAGE) {
-    closeReferencePdfTab()
+    closeReferencePdfTab(page)
   }
 }
 
@@ -409,6 +425,10 @@ function resetReferenceDockTabs() {
 
 function handleReferenceDetailResizeStart() {
   emit('inline-dock-resize-start')
+}
+
+function handleReferenceDetailMotionStateChange(isActive) {
+  referenceDetailMotionActive.value = isActive === true
 }
 
 function resolveReferenceWorkbenchWidth() {
@@ -477,7 +497,7 @@ watch(
     referenceDockCloseResetTimer = window.setTimeout(() => {
       referenceDockCloseResetTimer = null
       resetReferenceDockTabs()
-    }, 280)
+    }, REFERENCE_DOCK_CLOSE_RESET_DELAY_MS)
   }
 )
 
@@ -501,8 +521,12 @@ watch(
 watch(
   () => canPreviewSelectedReferencePdf.value,
   (canPreviewPdf) => {
-    if (!canPreviewPdf && activeReferenceDockKey.value === REFERENCE_DOCK_PDF_PAGE) {
-      closeReferencePdfTab()
+    if (!canPreviewPdf && workspace.referenceDockActivePage === REFERENCE_DOCK_PDF_PAGE) {
+      closeReferencePdfTab({
+        key: REFERENCE_DOCK_PDF_PAGE,
+        type: REFERENCE_DOCK_PDF_PAGE,
+        fallbackPage: REFERENCE_DOCK_DETAILS_PAGE,
+      })
     }
   },
   { immediate: true }

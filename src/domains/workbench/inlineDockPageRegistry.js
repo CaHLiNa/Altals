@@ -83,3 +83,59 @@ export function findInlineDockPage(pages = [], key = '') {
   if (!normalizedKey) return null
   return pages.find((page) => page.key === normalizedKey) || null
 }
+
+function normalizeType(value = '') {
+  return String(value || '').trim()
+}
+
+export function findFirstInlineDockPageByType(pages = [], type = '', preferredKey = '') {
+  const normalizedType = normalizeType(type)
+  if (!normalizedType) return null
+
+  const typedPages = pages.filter((page) => page?.type === normalizedType)
+  if (preferredKey) {
+    const preferredPage = typedPages.find((page) => page.key === preferredKey)
+    if (preferredPage) return preferredPage
+  }
+  return typedPages[0] || null
+}
+
+export function resolveInlineDockActivePageKey(pages = [], requestedType = '', options = {}) {
+  const normalizedPages = Array.isArray(pages) ? pages.filter((page) => page?.key) : []
+  if (normalizedPages.length === 0) return ''
+
+  const preferredKeysByType = options.preferredKeysByType || {}
+  const resolveByType = (type) =>
+    findFirstInlineDockPageByType(normalizedPages, type, preferredKeysByType[type] || '')?.key || ''
+
+  const requestedKey = resolveByType(normalizeType(requestedType))
+  if (requestedKey) return requestedKey
+
+  const defaultKey = resolveByType(normalizeType(options.defaultType))
+  if (defaultKey) return defaultKey
+
+  const fallbackTypes = Array.isArray(options.fallbackTypes) ? options.fallbackTypes : []
+  for (const fallbackType of fallbackTypes.map(normalizeType).filter(Boolean)) {
+    const fallbackKey = resolveByType(fallbackType)
+    if (fallbackKey) return fallbackKey
+  }
+
+  return normalizedPages[0]?.key || ''
+}
+
+export function resolveInlineDockFallbackPageType(pages = [], closedPage = {}, options = {}) {
+  const normalizedPages = Array.isArray(pages) ? pages.filter((page) => page?.key) : []
+  if (normalizedPages.length === 0) return ''
+
+  const fallbackTypes = [
+    closedPage?.fallbackPage,
+    closedPage?.lifecycle?.fallbackPage,
+    options.defaultType,
+  ].map(normalizeType).filter(Boolean)
+
+  for (const type of fallbackTypes) {
+    if (findFirstInlineDockPageByType(normalizedPages, type)) return type
+  }
+
+  return normalizedPages[0]?.type || ''
+}

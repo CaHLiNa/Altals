@@ -31,6 +31,7 @@
       resize-slot-class="pane-container__dock-resize-slot"
       resize-handle-class="pane-container__dock-resize-handle"
       :get-container-width="resolveContainerWidth"
+      @motion-state-change="handleDocumentDockMotionStateChange"
       @resize="(event) => $emit('inline-dock-resize', event)"
       @resize-start="$emit('inline-dock-resize-start')"
       @resize-end="$emit('inline-dock-resize-end')"
@@ -41,7 +42,7 @@
         :file-path="dockContextPath"
         :pane-id="renderNode.id"
         :preview-state="documentPreviewState"
-        :document-dock-resizing="documentDockResizing"
+        :document-dock-resizing="documentDockLayoutLocked"
         :problems-reveal-path="documentProblemsRevealPath"
         :problems-reveal-token="documentProblemsRevealToken"
         @close="$emit('inline-dock-close')"
@@ -91,6 +92,7 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const containerRef = ref(null)
 const lastDocumentTab = ref(null)
+const documentDockMotionActive = ref(false)
 const documentProblemsRevealPath = ref('')
 const documentProblemsRevealToken = ref(0)
 
@@ -116,6 +118,9 @@ const documentPreviewState = computed(() => {
 })
 const documentPreviewVisible = computed(() => documentPreviewState.value?.previewVisible === true)
 const isDocumentDockOpen = computed(() => props.documentDockOpen || documentPreviewVisible.value)
+const documentDockLayoutLocked = computed(() =>
+  props.documentDockResizing || documentDockMotionActive.value
+)
 const dockContextPath = computed(
   () =>
     documentTab.value ||
@@ -142,6 +147,10 @@ watch(
 
 function resolveContainerWidth() {
   return containerRef.value?.getBoundingClientRect?.().width || 0
+}
+
+function handleDocumentDockMotionStateChange(isActive) {
+  documentDockMotionActive.value = isActive === true
 }
 
 function compileEventMatchesActiveDocument(detail = {}) {

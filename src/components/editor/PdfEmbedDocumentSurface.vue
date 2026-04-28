@@ -996,7 +996,7 @@ function revealCompactFitWidthAfterPaint() {
 
 function scheduleCompactFitWidth(options = {}) {
   if (!props.compactToolbar || typeof window === 'undefined') return
-  if (props.deferCompactResizeFit && compactFitWidthReady.value && options.force !== true) {
+  if (props.deferCompactResizeFit && options.force !== true) {
     compactFitWidthPendingAfterResize = true
     return
   }
@@ -1005,7 +1005,7 @@ function scheduleCompactFitWidth(options = {}) {
   compactFitWidthFrame = window.requestAnimationFrame(() => {
     compactFitWidthFrame = 0
     if (!props.compactToolbar) return
-    if (props.deferCompactResizeFit && compactFitWidthReady.value && options.force !== true) {
+    if (props.deferCompactResizeFit && options.force !== true) {
       compactFitWidthPendingAfterResize = true
       return
     }
@@ -1789,9 +1789,8 @@ watch(
   () => props.deferCompactResizeFit,
   (deferFit) => {
     if (deferFit) {
-      if (compactFitWidthReady.value) {
-        compactFitWidthPendingAfterResize = true
-      }
+      compactFitWidthPendingAfterResize = true
+      cancelCompactFitWidthFrame()
       return
     }
     if (!compactFitWidthPendingAfterResize) return

@@ -34,12 +34,12 @@
       width: open ? `${width}px` : '0px',
     }"
   >
-    <slot v-if="shouldRenderContent" />
+    <slot v-if="shouldRenderContent" :motion-active="motionActive" />
   </aside>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useDelayedRender } from '../../composables/useDelayedRender.js'
 import { useInlineDockResize } from '../../composables/useInlineDockResize.js'
 import ResizeHandle from './ResizeHandle.vue'
@@ -51,6 +51,7 @@ const props = defineProps({
   resizing: { type: Boolean, default: false },
   width: { type: Number, default: 360 },
   closeDelayMs: { type: Number, default: 680 },
+  motionDelayMs: { type: Number, default: 680 },
   regionClass: { type: [String, Array, Object], default: '' },
   resizeSlotClass: { type: [String, Array, Object], default: '' },
   resizeHandleClass: { type: [String, Array, Object], default: '' },
@@ -58,17 +59,58 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
+  'motion-state-change',
   'resize',
   'resize-start',
   'resize-end',
   'resize-snap',
 ])
 
+const motionActive = ref(false)
 const renderSource = computed(() => props.open && props.renderActive)
 const shouldRenderContent = useDelayedRender(
   () => renderSource.value,
   { delayMs: props.closeDelayMs }
 )
+let motionTimer = null
+
+function clearMotionTimer() {
+  if (motionTimer === null) return
+  globalThis.clearTimeout?.(motionTimer)
+  motionTimer = null
+}
+
+function setMotionActive(nextValue) {
+  if (motionActive.value === nextValue) return
+  motionActive.value = nextValue
+  emit('motion-state-change', nextValue)
+}
+
+function startMotionWindow() {
+  clearMotionTimer()
+  setMotionActive(true)
+  const delayMs = Math.max(0, Number(props.motionDelayMs) || 0)
+  motionTimer = globalThis.setTimeout?.(() => {
+    motionTimer = null
+    setMotionActive(false)
+  }, delayMs) ?? null
+
+  if (motionTimer === null) {
+    setMotionActive(false)
+  }
+}
+
+watch(
+  () => props.open,
+  (isOpen, wasOpen) => {
+    if (wasOpen === undefined || isOpen === wasOpen) return
+    startMotionWindow()
+  }
+)
+
+onBeforeUnmount(() => {
+  clearMotionTimer()
+})
 
 const {
   handleResize,

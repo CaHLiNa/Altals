@@ -39,6 +39,7 @@ import {
 } from '../services/workspaceRecents'
 import {
   createWorkbenchDockPageContract,
+  dockDefaultPageForSurface,
   dockPageDefinitionsForSurface,
   dockPageIdsForSurface,
   loadWorkbenchDockPageContract,
@@ -168,6 +169,8 @@ export const useWorkspaceStore = defineStore('workspace', {
       dockPageDefinitionsForSurface(state.dockPageContract, 'reference'),
     documentDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'document'),
     referenceDockPageIds: (state) => dockPageIdsForSurface(state.dockPageContract, 'reference'),
+    documentDockDefaultPage: (state) => dockDefaultPageForSurface(state.dockPageContract, 'document'),
+    referenceDockDefaultPage: (state) => dockDefaultPageForSurface(state.dockPageContract, 'reference'),
   },
 
   actions: {

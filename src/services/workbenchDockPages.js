@@ -74,3 +74,8 @@ export function dockPageDefinitionsForSurface(contract = {}, surface = '') {
   const pages = contract?.[surface]?.pages
   return Array.isArray(pages) ? pages.filter((page) => page?.id) : []
 }
+
+export function dockDefaultPageForSurface(contract = {}, surface = '') {
+  const definition = contract?.[surface]
+  return String(definition?.defaultPage || '').trim()
+}

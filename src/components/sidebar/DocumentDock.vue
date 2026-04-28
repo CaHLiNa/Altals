@@ -32,7 +32,10 @@ import {
   DOCUMENT_DOCK_PREVIEW_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
-import { findInlineDockPage } from '../../domains/workbench/inlineDockPageRegistry.js'
+import {
+  findInlineDockPage,
+  resolveInlineDockActivePageKey,
+} from '../../domains/workbench/inlineDockPageRegistry.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -95,30 +98,17 @@ const dockPages = computed(() =>
 )
 const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
-  const activePage = String(workspace.documentDockActivePage || DOCUMENT_DOCK_PREVIEW_PAGE)
-
-  if (activePage === DOCUMENT_DOCK_PREVIEW_PAGE && hasPreview.value) {
-    return DOCUMENT_DOCK_PREVIEW_PAGE
-  }
-
-  if (activePage === DOCUMENT_DOCK_PROBLEMS_PAGE && hasProblemsPage.value) {
-    return DOCUMENT_DOCK_PROBLEMS_PAGE
-  }
-
-  if (
-    activePage === DOCUMENT_DOCK_FILE_PAGE &&
-    editorStore.activeDocumentDockTab &&
-    comparisonTabs.value.includes(editorStore.activeDocumentDockTab)
-  ) {
-    return documentDockFileKey(editorStore.activeDocumentDockTab)
-  }
-
-  if (hasPreview.value) return DOCUMENT_DOCK_PREVIEW_PAGE
-  return comparisonTabs.value.length > 0
-    ? documentDockFileKey(comparisonTabs.value[0])
-    : hasProblemsPage.value
-      ? DOCUMENT_DOCK_PROBLEMS_PAGE
+  const activeFileKey =
+    editorStore.activeDocumentDockTab && comparisonTabs.value.includes(editorStore.activeDocumentDockTab)
+      ? documentDockFileKey(editorStore.activeDocumentDockTab)
       : ''
+  return resolveInlineDockActivePageKey(dockPages.value, workspace.documentDockActivePage, {
+    defaultType: workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
+    fallbackTypes: [DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
+    preferredKeysByType: {
+      [DOCUMENT_DOCK_FILE_PAGE]: activeFileKey,
+    },
+  })
 })
 const activeDockPage = computed(() => findInlineDockPage(dockPages.value, activeDockKey.value))
 const usesImmersivePreview = computed(() => activeDockPage.value?.immersive === true)
