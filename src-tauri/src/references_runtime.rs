@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use crate::references_merge::{
     find_duplicate_reference_internal, merge_imported_references_internal, title_similarity,
 };
+use crate::references_pdf::validate_reference_pdf_path;
 use crate::references_snapshot::{
     csl_to_reference_record, extract_csl_year, normalize_reference_record, reference_record_to_csl,
     trim_string, StringExt,
@@ -288,6 +289,7 @@ async fn search_by_metadata_internal(
 }
 
 fn extract_pdf_metadata_internal(path: &Path) -> Result<Value, String> {
+    validate_reference_pdf_path(path)?;
     let extracted_text = pdf_extract::extract_text(path)
         .map_err(|error| format!("Failed to extract PDF text: {error}"))?;
     let first_text = extracted_text
@@ -535,9 +537,7 @@ pub async fn references_merge_imported(params: ReferenceMergeParams) -> Result<V
 pub async fn references_import_pdf(params: ReferencePdfImportParams) -> Result<Value, String> {
     let normalized_path = params.file_path.trim();
     let path = Path::new(normalized_path);
-    if !path.exists() {
-        return Err(format!("PDF file not found: {}", path.display()));
-    }
+    validate_reference_pdf_path(path)?;
 
     let metadata_result = extract_pdf_metadata_internal(path)?;
     let first_text = trim_string(metadata_result.get("firstText"));

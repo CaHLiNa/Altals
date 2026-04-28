@@ -1,12 +1,38 @@
 use lopdf::{Document, Object, StringFormat};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::fs;
 use std::path::Path;
+
+const MAX_REFERENCE_PDF_BYTES: u64 = 250 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferencePdfPathParams {
     pub file_path: String,
+}
+
+pub(crate) fn validate_reference_pdf_path(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("PDF file not found: {}", path.display()));
+    }
+    if !path.is_file() {
+        return Err(format!("PDF path is not a file: {}", path.display()));
+    }
+    let is_pdf = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"));
+    if !is_pdf {
+        return Err("Reference PDF source must be a .pdf file.".to_string());
+    }
+
+    let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
+    if metadata.len() > MAX_REFERENCE_PDF_BYTES {
+        return Err("Reference PDF source is too large.".to_string());
+    }
+
+    Ok(())
 }
 
 fn decode_pdf_string(bytes: &[u8]) -> String {
@@ -70,9 +96,7 @@ fn first_non_empty_line(text: &str) -> String {
 #[tauri::command]
 pub async fn references_pdf_extract_text(params: ReferencePdfPathParams) -> Result<String, String> {
     let path = Path::new(params.file_path.trim());
-    if !path.exists() {
-        return Err(format!("PDF file not found: {}", path.display()));
-    }
+    validate_reference_pdf_path(path)?;
     pdf_extract::extract_text(path).map_err(|error| format!("Failed to extract PDF text: {error}"))
 }
 
@@ -82,9 +106,7 @@ pub async fn references_pdf_extract_metadata(
 ) -> Result<Value, String> {
     let normalized_path = params.file_path.trim();
     let path = Path::new(normalized_path);
-    if !path.exists() {
-        return Err(format!("PDF file not found: {}", path.display()));
-    }
+    validate_reference_pdf_path(path)?;
 
     let extracted_text = pdf_extract::extract_text(path)
         .map_err(|error| format!("Failed to extract PDF text: {error}"))?;
@@ -138,4 +160,27 @@ pub async fn references_pdf_extract_metadata(
             "year": year,
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_reference_pdf_path;
+    use std::fs;
+
+    #[test]
+    fn reference_pdf_validation_rejects_non_pdf_files() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-pdf-validation-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let txt_path = temp_dir.join("paper.txt");
+        fs::write(&txt_path, "not a pdf").expect("write txt");
+
+        let error =
+            validate_reference_pdf_path(&txt_path).expect_err("non-pdf should be rejected");
+        assert_eq!(error, "Reference PDF source must be a .pdf file.");
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
 }

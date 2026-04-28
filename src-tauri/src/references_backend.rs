@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::references_merge::merge_library_snapshots;
+use crate::references_pdf::validate_reference_pdf_path;
 use crate::references_snapshot::{
     bool_value, build_default_snapshot, clone_array, is_effectively_empty_snapshot,
     normalize_reference_record, normalize_snapshot, trim_string, StringExt,
@@ -261,6 +262,7 @@ fn store_reference_asset(params: &ReferenceAssetStoreParams) -> Result<Value, St
     if params.global_config_dir.trim().is_empty() || normalized_source.is_empty() {
         return Ok(normalize_reference_record(&params.reference));
     }
+    validate_reference_pdf_path(Path::new(normalized_source))?;
 
     let Some(references_dir) = references_dir(&params.global_config_dir) else {
         return Ok(normalize_reference_record(&params.reference));
