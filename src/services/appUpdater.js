@@ -1,4 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app'
+import { openExternalHttpUrl } from './externalLinks.js'
 const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
 const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
 
@@ -65,6 +66,8 @@ export async function checkForAppUpdates(currentVersion = '') {
 
 export async function openReleasesPage(url = RELEASES_URL) {
   const targetUrl = String(url || RELEASES_URL)
-  const { open } = await import('@tauri-apps/plugin-shell')
-  await open(targetUrl)
+  const opened = await openExternalHttpUrl(targetUrl)
+  if (!opened) {
+    throw new Error('Release URL is not a valid HTTP URL.')
+  }
 }
