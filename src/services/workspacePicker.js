@@ -1,9 +1,9 @@
-import { homeDir } from '@tauri-apps/api/path'
-import { open } from '@tauri-apps/plugin-dialog'
+import { openNativeDialog } from './nativeDialog.js'
+import { getHomeDirCached } from './workspacePaths.js'
 
 export async function pickWorkspaceDirectory(title = 'Open Workspace') {
-  const home = await homeDir()
-  return open({
+  const home = await getHomeDirCached()
+  return openNativeDialog({
     directory: true,
     multiple: false,
     title,

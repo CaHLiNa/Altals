@@ -1,4 +1,5 @@
 import { dirnamePath, normalizeFsPath } from '../utils/path'
+import { getHomeDir } from './appDirs.js'
 
 let cachedHomeDir = undefined
 
@@ -37,8 +38,7 @@ export function normalizePathValue(value = '') {
 export async function getHomeDirCached() {
   if (cachedHomeDir !== undefined) return cachedHomeDir
   try {
-    const { homeDir } = await import('@tauri-apps/api/path')
-    cachedHomeDir = normalizePathValue(await homeDir())
+    cachedHomeDir = normalizePathValue(await getHomeDir())
   } catch {
     cachedHomeDir = ''
   }
