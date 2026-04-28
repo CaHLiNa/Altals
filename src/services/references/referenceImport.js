@@ -48,6 +48,16 @@ export async function parseReferenceImportText(content = '', format = 'auto') {
   return Array.isArray(parsed) ? parsed : []
 }
 
+export async function parseReferenceImportFile(filePath = '', format = 'auto') {
+  const parsed = await invoke('references_import_parse_file', {
+    params: {
+      filePath,
+      format,
+    },
+  })
+  return Array.isArray(parsed) ? parsed : []
+}
+
 export async function importReferencesFromText(content = '') {
   const trimmed = String(content || '').trim()
   if (!trimmed) return []

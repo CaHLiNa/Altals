@@ -170,7 +170,7 @@ import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import { readWorkspaceTextFile, renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
+import { renameWorkspacePath, writeTextFile } from '../../services/fileStoreIO'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
 import {
   hydrateReferenceFromCsl,
@@ -594,9 +594,11 @@ async function handleImportBibTeX() {
   })
 
   try {
-    const content = await readWorkspaceTextFile(String(selected))
-    const importResult =
-      await referencesStore.importBibTeXContent(workspace.globalConfigDir, content)
+    const importResult = await referencesStore.importReferenceFile(
+      workspace.globalConfigDir,
+      String(selected),
+      'bibtex'
+    )
     const importedCount = Number(importResult?.importedCount || 0)
 
     uxStatusStore.success(

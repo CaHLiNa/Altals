@@ -4,6 +4,7 @@ export {
   importReferenceFromPdf,
   importReferencesFromText,
   mergeImportedReferences,
+  parseReferenceImportFile,
   parseBibTeXText,
   parseCSLJSONText,
   parseReferenceImportText,

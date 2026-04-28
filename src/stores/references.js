@@ -26,6 +26,7 @@ import {
   findDuplicateReference,
   importReferenceFromPdf,
   importReferencesFromText,
+  parseReferenceImportFile,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
 import {
@@ -308,8 +309,17 @@ export const useReferencesStore = defineStore('references', {
       return this.importReferenceText(projectRoot, content, 'bibtex')
     },
 
+    async importReferenceFile(projectRoot = '', filePath = '', format = 'auto') {
+      const importedReferences = await parseReferenceImportFile(filePath, format)
+      return this.importParsedReferences(projectRoot, importedReferences)
+    },
+
     async importReferenceText(projectRoot = '', content = '', format = 'auto') {
       const importedReferences = await parseReferenceImportText(content, format)
+      return this.importParsedReferences(projectRoot, importedReferences)
+    },
+
+    async importParsedReferences(projectRoot = '', importedReferences = []) {
       if (importedReferences.length === 0) {
         return {
           importedCount: 0,

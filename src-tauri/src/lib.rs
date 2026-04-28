@@ -473,6 +473,7 @@ pub fn run() {
             references_import::references_crossref_lookup_by_doi,
             references_import::references_crossref_search_by_metadata,
             references_import::references_import_parse_text,
+            references_import::references_import_parse_file,
             references_import::references_import_detect_format,
             references_import::references_import_from_text,
             references_import::references_export_bibtex,

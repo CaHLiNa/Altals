@@ -2,10 +2,13 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
 
 const CROSSREF_API: &str = "https://api.crossref.org/works";
 const DOI_API: &str = "https://doi.org";
 const CROSSREF_USER_AGENT: &str = "ScribeFlow/1.0 (desktop references)";
+const MAX_REFERENCE_IMPORT_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +33,15 @@ pub struct CrossrefSearchParams {
 pub struct ReferenceImportTextParams {
     #[serde(default)]
     pub content: String,
+    #[serde(default)]
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceImportFileParams {
+    #[serde(default)]
+    pub file_path: String,
     #[serde(default)]
     pub format: String,
 }
@@ -797,6 +809,51 @@ fn detect_reference_import_format(content: &str) -> String {
     "unknown".to_string()
 }
 
+fn normalize_reference_import_file_format(
+    path: &Path,
+    requested_format: &str,
+) -> Result<String, String> {
+    let inferred = match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("bib") | Some("bibtex") => "bibtex",
+        Some("ris") => "ris",
+        Some("json") | Some("csljson") => "csl-json",
+        _ => return Err("Unsupported reference import file type.".to_string()),
+    };
+
+    let requested = requested_format.trim().to_ascii_lowercase();
+    if requested.is_empty() || requested == "auto" || requested == inferred {
+        return Ok(inferred.to_string());
+    }
+
+    Err(format!(
+        "Reference import format '{requested}' does not match file type '{inferred}'."
+    ))
+}
+
+fn read_reference_import_file(path: &Path, format: &str) -> Result<(String, String), String> {
+    if !path.exists() {
+        return Err(format!("Reference import file not found: {}", path.display()));
+    }
+    if !path.is_file() {
+        return Err(format!("Reference import path is not a file: {}", path.display()));
+    }
+
+    let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
+    if metadata.len() > MAX_REFERENCE_IMPORT_FILE_BYTES {
+        return Err("Reference import file is too large.".to_string());
+    }
+
+    let resolved_format = normalize_reference_import_file_format(path, format)?;
+    let content = fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read reference import file: {error}"))?;
+    Ok((content, resolved_format))
+}
+
 fn parse_reference_import_text(content: &str, format: &str) -> Vec<Value> {
     let effective = if format.trim().is_empty() || format == "auto" {
         detect_reference_import_format(content)
@@ -1046,6 +1103,23 @@ pub async fn references_import_detect_format(
 }
 
 #[tauri::command]
+pub async fn references_import_parse_file(
+    params: ReferenceImportFileParams,
+) -> Result<Value, String> {
+    let file_path = params.file_path.trim();
+    if file_path.is_empty() {
+        return Ok(Value::Array(Vec::new()));
+    }
+
+    let (content, resolved_format) =
+        read_reference_import_file(Path::new(file_path), &params.format)?;
+    Ok(Value::Array(parse_reference_import_text(
+        &content,
+        &resolved_format,
+    )))
+}
+
+#[tauri::command]
 pub async fn references_import_from_text(
     params: ReferenceImportTextParams,
 ) -> Result<Value, String> {
@@ -1212,5 +1286,65 @@ impl StringExt for String {
         } else {
             self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{references_import_parse_file, ReferenceImportFileParams};
+    use std::fs;
+
+    #[tokio::test]
+    async fn parses_supported_reference_import_file() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-import-file-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let bib_path = temp_dir.join("sample.bib");
+        fs::write(
+            &bib_path,
+            r#"@article{lovelace2024,
+  title = {Analytical Engines},
+  author = {Lovelace, Ada},
+  year = {2024}
+}"#,
+        )
+        .expect("write bib file");
+
+        let parsed = references_import_parse_file(ReferenceImportFileParams {
+            file_path: bib_path.to_string_lossy().to_string(),
+            format: "auto".to_string(),
+        })
+        .await
+        .expect("parse bib file");
+
+        let records = parsed.as_array().expect("parsed records");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0]["citationKey"].as_str(), Some("lovelace2024"));
+
+        fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn rejects_unsupported_reference_import_file_type() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-import-reject-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let txt_path = temp_dir.join("sample.txt");
+        fs::write(&txt_path, "@article{bad}").expect("write txt file");
+
+        let error = references_import_parse_file(ReferenceImportFileParams {
+            file_path: txt_path.to_string_lossy().to_string(),
+            format: "auto".to_string(),
+        })
+        .await
+        .expect_err("unsupported file should be rejected");
+
+        assert_eq!(error, "Unsupported reference import file type.");
+
+        fs::remove_dir_all(temp_dir).ok();
     }
 }
