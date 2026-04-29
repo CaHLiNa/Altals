@@ -50,6 +50,15 @@ pub(crate) fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexErr
                 "error",
                 Some(trimmed.to_string()),
             ));
+        } else if let Some(message) = parse_bibtex_error(trimmed) {
+            errors.push(make_latex_issue(
+                None,
+                None,
+                None,
+                message,
+                "error",
+                Some(trimmed.to_string()),
+            ));
         } else if trimmed.starts_with("l.") {
             if let Some(num_str) = trimmed.strip_prefix("l.") {
                 let parts: Vec<&str> = num_str.splitn(2, ' ').collect();
@@ -147,6 +156,20 @@ pub(crate) fn parse_latex_output(output: &str) -> (Vec<LatexError>, Vec<LatexErr
     }
 
     (errors, warnings)
+}
+
+fn parse_bibtex_error(line: &str) -> Option<&'static str> {
+    let trimmed = line.trim();
+    if trimmed.contains(r"I found no \citation commands") {
+        return Some("BibTeX found no citations. Add a citation such as \\cite{key}, or use \\nocite{*} to include every bibliography entry.");
+    }
+    if trimmed.contains(r"I found no \bibstyle command") {
+        return Some("BibTeX found no bibliography style. Add \\bibliographystyle{plain} before \\bibliography{...}.");
+    }
+    if trimmed.contains(r"I found no \bibdata command") {
+        return Some("BibTeX found no bibliography database. Add \\bibliography{references} before \\end{document}.");
+    }
+    None
 }
 
 fn is_latex_warning_line(line: &str) -> bool {
@@ -500,5 +523,19 @@ mod tests {
 
         assert_eq!(warnings.len(), 2);
         assert!(warnings.iter().all(|warning| warning.severity == "warning"));
+    }
+
+    #[test]
+    fn parses_bibtex_missing_style_and_citation_errors() {
+        let (errors, _) = parse_latex_output(
+            "I found no \\citation commands---while reading file main.aux\n\
+             I found no \\bibstyle command---while reading file main.aux\n\
+             I found no \\bibdata command---while reading file main.aux",
+        );
+
+        assert_eq!(errors.len(), 3);
+        assert!(errors[0].message.contains("\\nocite{*}"));
+        assert!(errors[1].message.contains("\\bibliographystyle{plain}"));
+        assert!(errors[2].message.contains("\\bibliography{references}"));
     }
 }
