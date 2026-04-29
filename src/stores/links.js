@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useWorkspaceStore } from './workspace'
 import { useFilesStore } from './files'
 import { extractMarkdownHeadingTexts } from '../services/markdown/parser.js'
+import { extractMarkdownWikiLinks } from '../services/markdown/runtimeBridge.js'
 import { filterWorkspaceFlatFilesByExtension } from '../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import { readWorkspaceTextFile } from '../services/fileStoreIO'
 import { basenamePath, dirnamePath } from '../utils/path'
@@ -10,37 +11,6 @@ import { basenamePath, dirnamePath } from '../utils/path'
 
 function normalizeName(name) {
   return name.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
-}
-
-function parseWikiLinks(content) {
-  const links = []
-  const re = /\[\[([^\]]+)\]\]/g
-  let m
-  while ((m = re.exec(content)) !== null) {
-    const raw = m[1]
-    const from = m.index
-    const to = from + m[0].length
-    let target = raw
-    let display = null
-    let heading = null
-
-    // [[target|display]]
-    const pipeIdx = raw.indexOf('|')
-    if (pipeIdx !== -1) {
-      target = raw.substring(0, pipeIdx)
-      display = raw.substring(pipeIdx + 1)
-    }
-
-    // [[target#heading]]
-    const hashIdx = target.indexOf('#')
-    if (hashIdx !== -1) {
-      heading = target.substring(hashIdx + 1)
-      target = target.substring(0, hashIdx)
-    }
-
-    links.push({ target: target.trim(), display, heading, from, to, raw })
-  }
-  return links
 }
 
 export function parseHeadings(content) {
@@ -54,22 +24,6 @@ function fileNameFromPath(path) {
 
 function dirFromPath(path) {
   return dirnamePath(path)
-}
-
-// Check if a character offset is inside a code block
-function isInsideCodeBlock(content, offset) {
-  // Check fenced code blocks
-  const fenced = /^```[^\n]*\n[\s\S]*?^```/gm
-  let m
-  while ((m = fenced.exec(content)) !== null) {
-    if (offset >= m.index && offset < m.index + m[0].length) return true
-  }
-  // Check inline code
-  const inline = /`[^`]+`/g
-  while ((m = inline.exec(content)) !== null) {
-    if (offset >= m.index && offset < m.index + m[0].length) return true
-  }
-  return false
 }
 
 export const useLinksStore = defineStore('links', {
@@ -248,7 +202,7 @@ export const useLinksStore = defineStore('links', {
             content = await readWorkspaceTextFile(file.path)
           }
 
-          const links = parseWikiLinks(content)
+          const links = await extractMarkdownWikiLinks(content)
           const linksToUpdate = links.filter(l => {
             const normTarget = normalizeName(l.target)
             const normOld = normalizeName(oldName)
@@ -307,9 +261,7 @@ export const useLinksStore = defineStore('links', {
       // Headings
       this.headings[path] = await parseHeadings(content)
 
-      // Forward links (skip those inside code blocks)
-      const links = parseWikiLinks(content)
-      this.forwardLinks[path] = links.filter(l => !isInsideCodeBlock(content, l.from))
+      this.forwardLinks[path] = await extractMarkdownWikiLinks(content)
     },
 
     _removeFileFromIndex(path) {

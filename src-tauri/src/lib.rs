@@ -520,6 +520,7 @@ pub fn run() {
             editor_session_runtime::editor_recent_files_save,
             markdown_runtime::markdown_extract_diagnostics,
             markdown_runtime::markdown_extract_headings,
+            markdown_runtime::markdown_extract_wiki_links,
             python_preferences::python_preferences_load,
             python_preferences::python_preferences_save,
             python_runtime::python_runtime_detect,

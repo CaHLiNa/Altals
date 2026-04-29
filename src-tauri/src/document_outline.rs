@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use tauri::State;
 
-use crate::latex_project_graph::{resolve_graph_value, LatexProjectGraphParams};
+use crate::latex_project_graph::{
+    graph_params_with_workspace_files, resolve_graph_value, LatexProjectGraphParams,
+};
 use crate::markdown_runtime::{extract_markdown_headings, MarkdownHeadingItem};
+use crate::security::WorkspaceScopeState;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +16,8 @@ pub struct DocumentOutlineResolveParams {
     pub file_path: String,
     #[serde(default)]
     pub content: String,
+    #[serde(default)]
+    pub workspace_path: String,
     #[serde(default)]
     pub flat_files: Vec<String>,
     #[serde(default)]
@@ -185,19 +191,30 @@ fn markdown_outline_items(
 fn latex_outline_items(
     params: &DocumentOutlineResolveParams,
     normalized_path: &str,
+    scope_state: &WorkspaceScopeState,
 ) -> Vec<DocumentOutlineItem> {
     let mut content_overrides = params.content_overrides.clone();
     if !params.content.is_empty() && !content_overrides.contains_key(normalized_path) {
         content_overrides.insert(normalized_path.to_string(), params.content.clone());
     }
 
-    let graph = resolve_graph_value(&LatexProjectGraphParams {
+    let graph_params = graph_params_with_workspace_files(
+        LatexProjectGraphParams {
+            source_path: normalized_path.to_string(),
+            workspace_path: params.workspace_path.clone(),
+            flat_files: params.flat_files.clone(),
+            content_overrides: content_overrides.clone(),
+        },
+        scope_state,
+    )
+    .unwrap_or_else(|_| LatexProjectGraphParams {
         source_path: normalized_path.to_string(),
-        workspace_path: String::new(),
+        workspace_path: params.workspace_path.clone(),
         flat_files: params.flat_files.clone(),
         content_overrides,
-    })
-    .unwrap_or(Value::Null);
+    });
+
+    let graph = resolve_graph_value(&graph_params).unwrap_or(Value::Null);
 
     graph
         .get("outlineItems")
@@ -212,6 +229,7 @@ fn latex_outline_items(
 #[tauri::command]
 pub async fn document_outline_resolve(
     params: DocumentOutlineResolveParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Vec<DocumentOutlineItem>, String> {
     let normalized_path = normalize_path(&params.file_path);
     if normalized_path.is_empty() {
@@ -225,7 +243,7 @@ pub async fn document_outline_resolve(
     }
 
     if is_latex_path(&normalized_path) {
-        let items = latex_outline_items(&params, &normalized_path);
+        let items = latex_outline_items(&params, &normalized_path, scope_state.inner());
         return Ok(enrich_outline_tree(items, &normalized_path));
     }
 

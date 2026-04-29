@@ -7,7 +7,7 @@ function normalizeFlatFiles(entries = []) {
     .filter(Boolean)
 }
 
-async function resolveFlatFiles(options = {}) {
+function resolveFlatFiles(options = {}) {
   const explicit = normalizeFlatFiles(options.flatFiles || [])
   if (explicit.length > 0) return explicit
 
@@ -17,11 +17,6 @@ async function resolveFlatFiles(options = {}) {
   const cached = normalizeFlatFiles(options.filesStore?.flatFiles || [])
   if (cached.length > 0) return cached
 
-  if (options.filesStore?.ensureFlatFilesReady) {
-    const entries = await options.filesStore.ensureFlatFilesReady().catch(() => [])
-    return normalizeFlatFiles(entries)
-  }
-
   return []
 }
 
@@ -29,7 +24,7 @@ export async function resolveDocumentOutlineItems(filePath, options = {}) {
   const normalizedPath = String(filePath || '').trim()
   if (!normalizedPath) return []
 
-  const flatFiles = await resolveFlatFiles(options)
+  const flatFiles = resolveFlatFiles(options)
   const contentOverrides = options.contentOverrides && typeof options.contentOverrides === 'object'
     ? options.contentOverrides
     : {}
@@ -38,6 +33,7 @@ export async function resolveDocumentOutlineItems(filePath, options = {}) {
     params: {
       filePath: normalizedPath,
       content: String(options.content || ''),
+      workspacePath: String(options.workspacePath || ''),
       flatFiles,
       contentOverrides,
     },

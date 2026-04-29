@@ -12,3 +12,10 @@ export async function extractMarkdownDraftProblems(content = '', sourcePath = ''
     sourcePath: String(sourcePath || ''),
   })
 }
+
+export async function extractMarkdownWikiLinks(content = '') {
+  const links = await invoke('markdown_extract_wiki_links', {
+    content: String(content || ''),
+  })
+  return Array.isArray(links) ? links : []
+}

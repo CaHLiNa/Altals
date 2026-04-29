@@ -53,7 +53,7 @@ Current baseline on 2026-04-29:
 - Vite build passed
 - Bundle budget check passed
 - Rust check passed
-- Rust tests passed: 131 tests
+- Rust tests passed: 132 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -117,7 +117,7 @@ First seam:
 
 ### Phase 3: Leaf Rustification
 
-Status: in progress.
+Status: completed.
 
 Goal:
 
@@ -146,10 +146,12 @@ Done:
 - LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`; the previous frontend candidate probe fallback has been removed.
 - The unused frontend LaTeX affected-root / compile-target resolver exports were removed; the active compile target path remains the Rust-backed store path.
 - LaTeX project graph, compile request and affected-root target commands can now discover `.tex`, `.latex` and `.bib` files from the registered workspace root in Rust when the frontend has no cached flat file list, so frontend LaTeX services no longer trigger workspace snapshot reads just to feed resolver inputs.
+- Document outline resolution now passes cached file lists when available and otherwise lets Rust discover LaTeX project files from the registered workspace root, removing the last outline-specific frontend flat-file scan.
+- Markdown wiki-link extraction for the links/backlinks index now runs through `markdown_extract_wiki_links`, so the links store keeps indexing and resolution state while Rust owns the read-only Markdown parsing and code-block exclusion.
 
 Current seam:
 
-- continue replacing remaining frontend-only read-only resolvers with Rust-backed leaf commands, without changing editor shell or shared workflow contracts.
+- Phase 3 leaf migration is closed. Remaining frontend parsers are intentionally UI-local: CodeMirror citation decorations, Markdown table editing, Markdown snippet triggers, CSV preview parsing and DOM preview transforms depend on live editor/view state or browser APIs and are not backend authority seams.
 
 Frozen by default:
 

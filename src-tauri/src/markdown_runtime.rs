@@ -29,6 +29,17 @@ pub struct MarkdownDiagnosticItem {
     pub raw: String,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownWikiLinkItem {
+    pub target: String,
+    pub display: Option<String>,
+    pub heading: Option<String>,
+    pub from: usize,
+    pub to: usize,
+    pub raw: String,
+}
+
 fn markdown_parse_options() -> ParseOptions {
     let constructs = Constructs {
         gfm_autolink_literal: true,
@@ -146,6 +157,72 @@ fn collect_text_from_children(children: &[Node]) -> String {
         text.push_str(&collect_text_from_node(child));
     }
     text
+}
+
+fn parse_wiki_links_from_text_segment(
+    content: &str,
+    segment: &str,
+    segment_byte_start: usize,
+    items: &mut Vec<MarkdownWikiLinkItem>,
+) {
+    let mut search_start = 0usize;
+    while let Some(relative_start) = segment[search_start..].find("[[") {
+        let link_start = search_start + relative_start;
+        let inner_start = link_start + 2;
+        let Some(relative_end) = segment[inner_start..].find("]]") else {
+            break;
+        };
+        let inner_end = inner_start + relative_end;
+        let link_end = inner_end + 2;
+        let raw = segment[inner_start..inner_end].to_string();
+        let mut target = raw.as_str();
+        let mut display = None;
+        let mut heading = None;
+
+        if let Some(pipe_index) = target.find('|') {
+            display = Some(target[pipe_index + 1..].to_string());
+            target = &target[..pipe_index];
+        }
+
+        if let Some(hash_index) = target.find('#') {
+            heading = Some(target[hash_index + 1..].to_string());
+            target = &target[..hash_index];
+        }
+
+        items.push(MarkdownWikiLinkItem {
+            target: target.trim().to_string(),
+            display,
+            heading,
+            from: utf16_offset_for_byte_offset(content, segment_byte_start + link_start),
+            to: utf16_offset_for_byte_offset(content, segment_byte_start + link_end),
+            raw,
+        });
+
+        search_start = link_end;
+    }
+}
+
+fn walk_wiki_links(node: &Node, items: &mut Vec<MarkdownWikiLinkItem>, content: &str) {
+    match node {
+        Node::Text(text) => {
+            if let Some(position) = text.position.as_ref() {
+                parse_wiki_links_from_text_segment(
+                    content,
+                    &text.value,
+                    position.start.offset,
+                    items,
+                );
+            }
+        }
+        Node::InlineCode(_) | Node::Code(_) => {}
+        _ => {
+            if let Some(children) = node.children() {
+                for child in children {
+                    walk_wiki_links(child, items, content);
+                }
+            }
+        }
+    }
 }
 
 fn walk_headings(node: &Node, items: &mut Vec<MarkdownHeadingItem>, content: &str) {
@@ -444,6 +521,16 @@ pub(crate) fn extract_markdown_diagnostics(
     Ok(normalize_markdown_diagnostics(problems))
 }
 
+pub(crate) fn extract_markdown_wiki_links(
+    content: &str,
+) -> Result<Vec<MarkdownWikiLinkItem>, String> {
+    let tree = to_mdast(content, &markdown_parse_options())
+        .map_err(|error| format!("Failed to parse markdown wiki links: {error}"))?;
+    let mut items = Vec::new();
+    walk_wiki_links(&tree, &mut items, content);
+    Ok(items)
+}
+
 #[tauri::command]
 pub async fn markdown_extract_headings(
     content: String,
@@ -459,9 +546,18 @@ pub async fn markdown_extract_diagnostics(
     extract_markdown_diagnostics(&normalize_source_path(source_path), &content)
 }
 
+#[tauri::command]
+pub async fn markdown_extract_wiki_links(
+    content: String,
+) -> Result<Vec<MarkdownWikiLinkItem>, String> {
+    extract_markdown_wiki_links(&content)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{extract_markdown_diagnostics, extract_markdown_headings};
+    use super::{
+        extract_markdown_diagnostics, extract_markdown_headings, extract_markdown_wiki_links,
+    };
 
     #[test]
     fn uses_utf16_offsets_for_non_ascii_markdown() {
@@ -505,5 +601,18 @@ mod tests {
 
         assert_eq!(problems[3].line, Some(8));
         assert_eq!(problems[3].message, "Duplicate footnote definition: [^a].");
+    }
+
+    #[test]
+    fn extracts_wiki_links_outside_code_with_utf16_offsets() {
+        let content = "前言 [[Note#Intro|读]]\n`[[Ignored]]`\n\n```md\n[[AlsoIgnored]]\n```\n";
+        let links = extract_markdown_wiki_links(content).unwrap();
+
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target, "Note");
+        assert_eq!(links[0].heading.as_deref(), Some("Intro"));
+        assert_eq!(links[0].display.as_deref(), Some("读"));
+        assert_eq!(links[0].raw, "Note#Intro|读");
+        assert_eq!(links[0].from, 3);
     }
 }

@@ -211,7 +211,7 @@ fn collect_workspace_latex_paths(
         .collect())
 }
 
-fn graph_params_with_workspace_files(
+pub(crate) fn graph_params_with_workspace_files(
     mut params: LatexProjectGraphParams,
     scope_state: &WorkspaceScopeState,
 ) -> Result<LatexProjectGraphParams, String> {

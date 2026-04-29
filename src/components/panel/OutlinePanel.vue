@@ -82,6 +82,7 @@ import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { isMarkdown, isLatex, getViewerType } from '../../utils/fileTypes'
 import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime'
 import { useI18n } from '../../i18n'
@@ -96,6 +97,7 @@ defineEmits(['toggle-collapse'])
 const editorStore = useEditorStore()
 const workflowStore = useDocumentWorkflowStore()
 const filesStore = useFilesStore()
+const workspaceStore = useWorkspaceStore()
 const { t } = useI18n()
 const collapsedHeadings = ref({})
 
@@ -142,6 +144,7 @@ async function refreshDocumentOutline() {
     const items = await resolveDocumentOutlineItems(path, {
       content,
       filesStore,
+      workspacePath: workspaceStore.path,
       contentOverrides: { [path]: content },
     })
     if (requestId === outlineRequestId && activeFile.value === path) {
