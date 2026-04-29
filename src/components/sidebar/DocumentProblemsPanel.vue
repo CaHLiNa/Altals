@@ -75,7 +75,6 @@ const workflowStore = useDocumentWorkflowStore()
 
 const problems = computed(() =>
   workflowStore.getProblemsForFile(props.filePath, { t })
-    .filter((problem) => problem.origin === 'compile')
     .map((problem, index) => ({
       ...problem,
       id: problem.id || `${problem.sourcePath || props.filePath}:${index}`,

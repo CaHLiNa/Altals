@@ -126,6 +126,7 @@ Done:
 - the old frontend-only LaTeX citation key extractor has been removed from the editor citation module.
 - an unused exported Markdown citation-group parser was removed from drag/drop text insertion helpers.
 - Markdown draft diagnostics now have a staged Rust runtime command `markdown_extract_diagnostics` with parity-focused tests and a thin frontend bridge.
+- The document dock Problems page now surfaces draft / project diagnostics instead of only compile-origin diagnostics.
 - LaTeX SyncTeX target path resolution now goes through Rust command `latex_sync_target_resolve`, with the previous frontend resolver kept as fallback.
 - LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`, with the previous frontend candidate probe kept as fallback.
 

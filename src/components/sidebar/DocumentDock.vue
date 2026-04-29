@@ -68,10 +68,9 @@ const hasPreview = computed(() => props.previewState?.previewVisible === true)
 const comparisonTabs = computed(() => editorStore.documentDockTabs || [])
 const documentProblems = computed(() =>
   workflowStore.getProblemsForFile(props.filePath, { t })
-    .filter((problem) => problem.origin === 'compile')
 )
 const problemCount = computed(() =>
-  getDocumentWorkflowKind(props.filePath) === 'latex' ? documentProblems.value.length : 0
+  getDocumentWorkflowKind(props.filePath) ? documentProblems.value.length : 0
 )
 const hasProblemsPage = computed(
   () =>
