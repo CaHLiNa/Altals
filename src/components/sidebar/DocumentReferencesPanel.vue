@@ -1,60 +1,53 @@
 <template>
   <section class="document-references-panel" :aria-label="t('Document references')">
-    <div class="document-references-panel__search">
-      <IconSearch :size="14" :stroke-width="1.9" />
-      <input
-        v-model="query"
-        class="document-references-panel__search-input"
-        type="search"
-        :placeholder="t('Search library')"
-        autocomplete="off"
-        spellcheck="false"
-      />
-    </div>
-
-    <div
-      v-if="hasSearchQuery"
-      class="document-references-panel__section document-references-panel__section--results"
-    >
-      <div class="document-references-panel__section-title">
+    <div class="document-references-panel__search-shell">
+      <div class="document-references-panel__search">
         <IconSearch :size="14" :stroke-width="1.9" />
-        <span>{{ t('Search results') }}</span>
+        <input
+          v-model="query"
+          class="document-references-panel__search-input"
+          type="search"
+          :placeholder="t('Search library')"
+          autocomplete="off"
+          spellcheck="false"
+        />
       </div>
 
-      <div v-if="availableResults.length" class="document-references-panel__list scrollbar-hidden">
-        <article
-          v-for="reference in availableResults"
-          :key="reference.id"
-          class="document-references-panel__reference"
-        >
-          <div class="document-references-panel__reference-body">
-            <div class="document-references-panel__reference-title">
-              {{ reference.title || reference.citationKey || reference.id }}
-            </div>
-            <div class="document-references-panel__reference-meta">
-              <span>{{ formatAuthors(reference) }}</span>
-              <span v-if="reference.year">{{ reference.year }}</span>
-            </div>
-            <div class="document-references-panel__key">@{{ reference.citationKey || reference.id }}</div>
-          </div>
-          <button
-            type="button"
-            class="document-references-panel__mini-action"
-            @click="addReference(reference.id)"
+      <div v-if="hasSearchQuery" class="document-references-panel__search-popover">
+        <div v-if="availableResults.length" class="document-references-panel__list document-references-panel__search-list scrollbar-hidden">
+          <article
+            v-for="reference in availableResults"
+            :key="reference.id"
+            class="document-references-panel__reference"
           >
-            {{ t('Add') }}
-          </button>
-        </article>
-      </div>
+            <div class="document-references-panel__reference-body">
+              <div class="document-references-panel__reference-title">
+                {{ reference.title || reference.citationKey || reference.id }}
+              </div>
+              <div class="document-references-panel__reference-meta">
+                <span>{{ formatAuthors(reference) }}</span>
+                <span v-if="reference.year">{{ reference.year }}</span>
+              </div>
+              <div class="document-references-panel__key">@{{ reference.citationKey || reference.id }}</div>
+            </div>
+            <button
+              type="button"
+              class="document-references-panel__mini-action"
+              @click="addReference(reference.id)"
+            >
+              {{ t('Add') }}
+            </button>
+          </article>
+        </div>
 
-      <div v-else class="document-references-panel__empty">
-        {{ t('No matching unselected references.') }}
+        <div v-else class="document-references-panel__empty document-references-panel__popover-empty">
+          {{ t('No matching unselected references.') }}
+        </div>
       </div>
     </div>
 
     <div
       class="document-references-panel__section document-references-panel__section--selected"
-      :class="{ 'is-secondary': hasSearchQuery }"
     >
       <div class="document-references-panel__section-title">
         <IconBook2 :size="14" :stroke-width="1.9" />
@@ -201,11 +194,16 @@ async function removeReference(referenceId = '') {
   font-family: var(--font-ui);
 }
 
+.document-references-panel__search-shell {
+  position: relative;
+  z-index: 10;
+  flex: 0 0 auto;
+}
+
 .document-references-panel__search {
   display: flex;
   align-items: center;
   gap: 7px;
-  flex: 0 0 auto;
   min-height: 30px;
   padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
@@ -230,6 +228,30 @@ async function removeReference(referenceId = '') {
   font-size: 12.5px;
 }
 
+.document-references-panel__search-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.18),
+    0 0 0 1px color-mix(in srgb, var(--surface-muted) 24%, transparent);
+}
+
+.document-references-panel__search-list {
+  max-height: min(430px, calc(100vh - 180px));
+  padding: 6px;
+}
+
+.document-references-panel__popover-empty {
+  padding: 10px 12px;
+}
+
 .document-references-panel__missing,
 .document-references-panel__section {
   display: flex;
@@ -242,13 +264,8 @@ async function removeReference(referenceId = '') {
   min-height: 0;
 }
 
-.document-references-panel__section--results,
 .document-references-panel__section--selected {
   flex: 1 1 auto;
-}
-
-.document-references-panel__section.is-secondary {
-  flex: 0 0 auto;
 }
 
 .document-references-panel__section-title {
