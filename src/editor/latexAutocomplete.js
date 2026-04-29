@@ -119,6 +119,12 @@ const MATH_COMMANDS = [
   { label: '\\vec{}', type: 'keyword', detail: 'Vector arrow', apply: '\\vec{$}' },
 ]
 
+function resolveReferenceScopePathOption(options = {}) {
+  const option = options.referenceScopePath
+  if (typeof option === 'function') return option() || ''
+  return option || ''
+}
+
 const MISC_COMMANDS = [
   { label: '\\documentclass{}', type: 'keyword', detail: 'Document class', apply: '\\documentclass{$}' },
   { label: '\\title{}', type: 'keyword', detail: 'Document title', apply: '\\title{$}' },
@@ -275,9 +281,10 @@ async function projectAwareCompletion(context, options = {}) {
   if (!citeContext && !refContext && !fileContext) return null
 
   if (citeContext && options.referencesStore && typeof options.referencesStore.documentReferencesForTex === 'function') {
+    const referenceScopePath = resolveReferenceScopePathOption(options) || filePath
     const values = uniqueBy(
       options.referencesStore
-        .documentReferencesForTex(filePath)
+        .documentReferencesForTex(referenceScopePath)
         .map((reference) => reference.citationKey || reference.id)
     )
     return buildFilteredResult(context, values, 'Document citation key', 'variable')

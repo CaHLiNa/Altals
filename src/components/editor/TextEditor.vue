@@ -45,7 +45,7 @@
     :query="citPalette.query"
     :cites="citPalette.cites"
     :latex-command="citPalette.latexCommand"
-    :document-path="isLatexEditor ? props.filePath : ''"
+    :document-path="isLatexEditor ? latexReferenceScopePath : ''"
     :reference-scope="isLatexEditor ? 'document' : 'library'"
     @insert="onCitInsert"
     @update="onCitUpdate"
@@ -107,6 +107,7 @@ import {
   getCachedLatexProjectGraph,
   resolveLatexProjectGraph,
 } from '../../services/latex/projectGraph'
+import { resolveLatexReferenceScopePath } from '../../services/latex/root.js'
 import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
 import {
   MARKDOWN_BACKWARD_SYNC_EVENT,
@@ -167,6 +168,7 @@ const isTex = isLatex(props.filePath)
 const isLatexEditor = isLatexEditorFile(props.filePath)
 const runtimeFilePath = isDraftFile ? '' : props.filePath
 const supportsLatexRuntime = !isDraftFile && isTex
+const latexReferenceScopePath = ref(props.filePath)
 const isMacPlatform =
   typeof navigator !== 'undefined' &&
   /mac/i.test(navigator.userAgentData?.platform || navigator.platform || '')
@@ -358,6 +360,29 @@ function scheduleLatexWarmup(content = '') {
   latexWarmupHandle = window.setTimeout(() => {
     void runWarmup()
   }, 120)
+}
+
+function currentLatexReferenceScopePath() {
+  return latexReferenceScopePath.value || props.filePath
+}
+
+async function refreshLatexReferenceScopePath(content = '') {
+  if (!isLatexEditor || !props.filePath) {
+    latexReferenceScopePath.value = props.filePath
+    return latexReferenceScopePath.value
+  }
+
+  const contentOverrides = typeof content === 'string'
+    ? { [props.filePath]: content }
+    : {}
+  const resolved = await resolveLatexReferenceScopePath(props.filePath, {
+    filesStore: files,
+    workspacePath: workspace.path,
+    contentOverrides,
+  }).catch(() => props.filePath)
+
+  latexReferenceScopePath.value = resolved || props.filePath
+  return latexReferenceScopePath.value
 }
 
 const DISPLAY_MATH_ENVIRONMENT_NAMES = new Set([
@@ -628,7 +653,7 @@ function buildLatexCitationInsertText(key, latexCommand = null) {
 
 function resolveCitationReference(key = '') {
   if (isLatexEditor) {
-    return referencesStore.getDocumentReferenceByKey(props.filePath, key)
+    return referencesStore.getDocumentReferenceByKey(currentLatexReferenceScopePath(), key)
   }
   return referencesStore.getByKey(key)
 }
@@ -910,6 +935,7 @@ onMounted(async () => {
   editorStore.clearFileDirty(props.filePath)
 
   if (supportsLatexRuntime) {
+    await refreshLatexReferenceScopePath(content)
     scheduleLatexWarmup(content)
   }
 
@@ -1070,7 +1096,7 @@ onMounted(async () => {
     extraExtensions.push(createLatexTextmateHighlightExtension())
     extraExtensions.push(
       ...latexCitationsExtension({
-        getByKey: (key) => referencesStore.getDocumentReferenceByKey(props.filePath, key),
+        getByKey: (key) => referencesStore.getDocumentReferenceByKey(currentLatexReferenceScopePath(), key),
       }, {
         isOpen: () => citPalette.show,
         onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
@@ -1104,6 +1130,7 @@ onMounted(async () => {
             filesStore: files,
             workspacePath: workspace.path,
             referencesStore,
+            referenceScopePath: currentLatexReferenceScopePath,
           }),
         ],
         activateOnTyping: true,

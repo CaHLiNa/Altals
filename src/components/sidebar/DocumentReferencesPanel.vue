@@ -116,7 +116,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import {
   IconAlertTriangle,
   IconBook2,
@@ -128,6 +128,7 @@ import { useI18n } from '../../i18n'
 import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { resolveLatexReferenceScopePath } from '../../services/latex/root.js'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -139,6 +140,9 @@ const referencesStore = useReferencesStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const query = ref('')
+const referenceScopePath = ref(props.filePath)
+let referenceScopeRequestId = 0
+let referenceScopeTimer = null
 const hasSearchQuery = computed(() => query.value.trim().length > 0)
 
 const documentContent = computed(() =>
@@ -146,7 +150,8 @@ const documentContent = computed(() =>
     ? filesStore.fileContents[props.filePath]
     : ''
 )
-const selectedReferences = computed(() => referencesStore.documentReferencesForTex(props.filePath))
+const documentReferencePath = computed(() => referenceScopePath.value || props.filePath)
+const selectedReferences = computed(() => referencesStore.documentReferencesForTex(documentReferencePath.value))
 const selectedCitationKeys = computed(
   () => new Set(selectedReferences.value.map((reference) => reference.citationKey || reference.id))
 )
@@ -162,9 +167,45 @@ const availableResults = computed(() => {
   const normalizedQuery = query.value.trim()
   if (!normalizedQuery) return []
   return referencesStore
-    .searchAvailableReferencesForDocument(props.filePath, normalizedQuery)
+    .searchAvailableReferencesForDocument(documentReferencePath.value, normalizedQuery)
     .slice(0, 12)
 })
+
+function clearReferenceScopeTimer() {
+  if (referenceScopeTimer == null || typeof window === 'undefined') return
+  window.clearTimeout(referenceScopeTimer)
+  referenceScopeTimer = null
+}
+
+async function resolveReferenceScope() {
+  if (!props.filePath) {
+    referenceScopePath.value = ''
+    return
+  }
+  const requestId = ++referenceScopeRequestId
+  const contentOverrides = documentContent.value
+    ? { [props.filePath]: documentContent.value }
+    : {}
+  const resolved = await resolveLatexReferenceScopePath(props.filePath, {
+    filesStore,
+    workspacePath: workspace.path,
+    contentOverrides,
+  }).catch(() => props.filePath)
+  if (requestId !== referenceScopeRequestId) return
+  referenceScopePath.value = resolved || props.filePath
+}
+
+function scheduleReferenceScopeResolve(delay = 160) {
+  clearReferenceScopeTimer()
+  if (typeof window === 'undefined' || delay <= 0) {
+    void resolveReferenceScope()
+    return
+  }
+  referenceScopeTimer = window.setTimeout(() => {
+    referenceScopeTimer = null
+    void resolveReferenceScope()
+  }, delay)
+}
 
 function formatAuthors(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
@@ -174,12 +215,23 @@ function formatAuthors(reference = {}) {
 }
 
 async function addReference(referenceId = '') {
-  await referencesStore.addDocumentReference(workspace.globalConfigDir, props.filePath, referenceId)
+  await referencesStore.addDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
 
 async function removeReference(referenceId = '') {
-  await referencesStore.removeDocumentReference(workspace.globalConfigDir, props.filePath, referenceId)
+  await referencesStore.removeDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
+
+watch(
+  () => [props.filePath, workspace.path, documentContent.value],
+  () => scheduleReferenceScopeResolve(documentContent.value ? 160 : 0),
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  clearReferenceScopeTimer()
+  referenceScopeRequestId += 1
+})
 </script>
 
 <style scoped>
