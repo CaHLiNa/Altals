@@ -73,6 +73,48 @@ export async function buildLatexProjectProblems(sourcePath, options = {}) {
   return normalizeProblems(buildProjectWarnings(sourcePath, project))
 }
 
+export function buildLatexDocumentReferenceProblemsSync(sourcePath, referencesStore = null) {
+  if (!referencesStore || typeof referencesStore.documentReferencesForTex !== 'function') return []
+
+  const project = getCachedLatexProjectGraph(sourcePath)
+  const citations = Array.isArray(project?.citations) ? project.citations : []
+  if (citations.length === 0) return []
+
+  const referenceScopePath = project?.rootPath || sourcePath
+  const selectedKeys = new Set(
+    referencesStore
+      .documentReferencesForTex(referenceScopePath)
+      .flatMap((reference) => [reference.citationKey, reference.id])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  )
+  const seen = new Set()
+
+  return normalizeProblems(
+    citations
+      .map((citation) => {
+        const key = String(citation?.key || '').trim()
+        const filePath = citation?.filePath || sourcePath
+        const signature = `${filePath}:${key}:${citation?.line || 0}:${citation?.offset || 0}`
+        if (!key || selectedKeys.has(key) || seen.has(signature)) return null
+        if (typeof referencesStore.getByKey === 'function' && !referencesStore.getByKey(key)) return null
+        seen.add(signature)
+        return {
+          id: `latex:document-reference:${signature}`,
+          sourcePath: filePath,
+          line: citation?.line ?? null,
+          column: null,
+          severity: 'warning',
+          origin: 'project',
+          actionable: true,
+          message: `Citation key is not in this document's reference list: ${key}`,
+          raw: key,
+        }
+      })
+      .filter(Boolean)
+  )
+}
+
 export function buildLatexLintProblems(sourcePath, diagnostics = []) {
   return normalizeProblems((Array.isArray(diagnostics) ? diagnostics : []).map((problem, index) => ({
     id: `latex:lint:${problem.file || sourcePath}:${problem.line || 0}:${index}`,

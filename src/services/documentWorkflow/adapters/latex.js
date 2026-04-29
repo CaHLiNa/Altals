@@ -1,5 +1,6 @@
 import { isLatex } from '../../../utils/fileTypes.js'
 import {
+  buildLatexDocumentReferenceProblemsSync,
   buildLatexLintProblems,
   buildLatexProjectProblemsSync,
 } from '../../latex/diagnostics.js'
@@ -257,6 +258,7 @@ export const latexDocumentAdapter = {
     return [
       ...latexCompileAdapter.getDiagnostics(filePath, context),
       ...buildLatexProjectProblemsSync(filePath),
+      ...buildLatexDocumentReferenceProblemsSync(filePath, context.referencesStore),
       ...buildLatexLintProblems(filePath, lintDiagnostics),
     ]
   },
