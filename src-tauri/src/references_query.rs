@@ -192,6 +192,17 @@ fn build_count_map(items: Vec<(String, usize)>) -> Value {
     Value::Object(map)
 }
 
+fn record_citation_usage(usage: &mut BTreeMap<String, Vec<String>>, key: &str, path: &str) {
+    let normalized_key = key.trim();
+    if normalized_key.is_empty() || path.trim().is_empty() {
+        return;
+    }
+    let entry = usage.entry(normalized_key.to_string()).or_default();
+    if !entry.iter().any(|existing| existing == path) {
+        entry.push(path.to_string());
+    }
+}
+
 fn build_citation_usage_index(file_contents: &Value) -> Value {
     let Some(file_contents) = file_contents.as_object() else {
         return Value::Object(Map::new());
@@ -200,10 +211,8 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
     let markdown_citation_re =
         regex_lite::Regex::new(r"\[([^\[\]]*@[a-zA-Z][\w.-]*[^\[\]]*)\]").ok();
     let markdown_key_re = regex_lite::Regex::new(r"@([a-zA-Z][\w.-]*)").ok();
-    let latex_citation_re = regex_lite::Regex::new(
-        r"\\(?:cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite)\{([^}]*)\}",
-    )
-    .ok();
+    let markdown_bare_key_re = regex_lite::Regex::new(r"(?:^|[\s(])@([a-zA-Z][\w.-]*)").ok();
+    let latex_command_re = regex_lite::Regex::new(r"\\[A-Za-z]*cite[A-Za-z]*\*?").ok();
     let latex_key_re = regex_lite::Regex::new(r"([a-zA-Z][\w.-]*)").ok();
 
     let mut usage: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -225,32 +234,58 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
                         let Some(key) = key_match.get(1) else {
                             continue;
                         };
-                        let entry = usage.entry(key.as_str().to_string()).or_default();
-                        if !entry.iter().any(|existing| existing == path) {
-                            entry.push(path.to_string());
-                        }
+                        record_citation_usage(&mut usage, key.as_str(), path);
                     }
+                }
+            }
+            if let Some(key_re) = markdown_bare_key_re.as_ref() {
+                for key_match in key_re.captures_iter(content) {
+                    let Some(key) = key_match.get(1) else {
+                        continue;
+                    };
+                    let normalized_key = key
+                        .as_str()
+                        .trim_end_matches(|ch| matches!(ch, '.' | ',' | ';' | ':' | ')'));
+                    record_citation_usage(&mut usage, normalized_key, path);
                 }
             }
             continue;
         }
 
         if path.ends_with(".tex") || path.ends_with(".latex") {
-            if let (Some(citation_re), Some(key_re)) =
-                (latex_citation_re.as_ref(), latex_key_re.as_ref())
+            if let (Some(command_re), Some(key_re)) =
+                (latex_command_re.as_ref(), latex_key_re.as_ref())
             {
-                for citation_match in citation_re.captures_iter(content) {
-                    let Some(group) = citation_match.get(1) else {
+                for command_match in command_re.find_iter(content) {
+                    let mut cursor = command_match.end();
+                    let bytes = content.as_bytes();
+
+                    while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+                        cursor += 1;
+                    }
+
+                    while cursor < bytes.len() && bytes[cursor] == b'[' {
+                        let Some(relative_end) = content[cursor + 1..].find(']') else {
+                            break;
+                        };
+                        cursor += relative_end + 2;
+                        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+                            cursor += 1;
+                        }
+                    }
+
+                    if cursor >= bytes.len() || bytes[cursor] != b'{' {
                         continue;
                     };
-                    for key_match in key_re.captures_iter(group.as_str()) {
+                    let Some(relative_end) = content[cursor + 1..].find('}') else {
+                        continue;
+                    };
+                    let group = &content[cursor + 1..cursor + 1 + relative_end];
+                    for key_match in key_re.captures_iter(group) {
                         let Some(key) = key_match.get(1) else {
                             continue;
                         };
-                        let entry = usage.entry(key.as_str().to_string()).or_default();
-                        if !entry.iter().any(|existing| existing == path) {
-                            entry.push(path.to_string());
-                        }
+                        record_citation_usage(&mut usage, key.as_str(), path);
                     }
                 }
             }
@@ -259,15 +294,19 @@ fn build_citation_usage_index(file_contents: &Value) -> Value {
 
     let mut result = Map::new();
     for (key, paths) in usage {
-        result.insert(key, Value::Array(paths.into_iter().map(Value::String).collect()));
+        result.insert(
+            key,
+            Value::Array(paths.into_iter().map(Value::String).collect()),
+        );
     }
     Value::Object(result)
 }
 
 fn normalize_sort_key(sort_key: &str) -> String {
     match sort_key.trim() {
-        "year-desc" | "year-asc" | "title-asc" | "title-desc" | "author-asc"
-        | "author-desc" => sort_key.trim().to_string(),
+        "year-desc" | "year-asc" | "title-asc" | "title-desc" | "author-asc" | "author-desc" => {
+            sort_key.trim().to_string()
+        }
         _ => "year-desc".to_string(),
     }
 }
@@ -290,13 +329,17 @@ pub async fn references_query_resolve(
         .map(|section| trim_string(section.get("key")))
         .unwrap_or_default();
 
-    let selected_collection_key = resolve_collection(&params.collections, &params.selected_collection_key)
-        .and_then(|collection| Some(trim_string(collection.get("key"))))
-        .unwrap_or_default();
+    let selected_collection_key =
+        resolve_collection(&params.collections, &params.selected_collection_key)
+            .and_then(|collection| Some(trim_string(collection.get("key"))))
+            .unwrap_or_default();
 
     let selected_tag_key = {
         let normalized = normalize_tag_key(&params.selected_tag_key);
-        if params.tags.iter().any(|tag| normalize_tag_key(&trim_string(tag.get("key"))) == normalized)
+        if params
+            .tags
+            .iter()
+            .any(|tag| normalize_tag_key(&trim_string(tag.get("key"))) == normalized)
         {
             normalized
         } else {
@@ -470,10 +513,7 @@ mod tests {
             result["filteredReferences"].as_array().map(|v| v.len()),
             Some(1)
         );
-        assert_eq!(
-            result["filteredReferences"][0]["id"].as_str(),
-            Some("a")
-        );
+        assert_eq!(result["filteredReferences"][0]["id"].as_str(), Some("a"));
         assert_eq!(result["sectionCounts"]["missing-pdf"].as_u64(), Some(1));
         assert_eq!(result["sourceCounts"]["zotero"].as_u64(), Some(1));
         assert_eq!(result["collectionCounts"]["reading"].as_u64(), Some(1));
@@ -486,8 +526,8 @@ mod tests {
         let result = references_query_resolve(ReferencesQueryResolveParams {
             references: vec![],
             file_contents: json!({
-                "/tmp/a.md":"See [@alpha2024; @beta2022].",
-                "/tmp/b.tex":"\\\\cite{alpha2024}"
+                "/tmp/a.md":"See [@alpha2024; @beta2022]. Bare mention @gamma2025.",
+                "/tmp/b.tex":"\\\\cite{alpha2024}\\n\\\\cite[see][p. 2]{gamma2025}\\n\\\\textcite*{delta2026}"
             }),
             ..ReferencesQueryResolveParams::default()
         })
@@ -502,6 +542,18 @@ mod tests {
         );
         assert_eq!(
             result["citationUsageIndex"]["beta2022"]
+                .as_array()
+                .map(|v| v.len()),
+            Some(1)
+        );
+        assert_eq!(
+            result["citationUsageIndex"]["gamma2025"]
+                .as_array()
+                .map(|v| v.len()),
+            Some(2)
+        );
+        assert_eq!(
+            result["citationUsageIndex"]["delta2026"]
                 .as_array()
                 .map(|v| v.len()),
             Some(1)

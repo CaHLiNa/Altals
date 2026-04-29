@@ -109,6 +109,7 @@ First seam:
 - LaTeX `.bib` sync now runs inside `latexStore.compile()`, so manual compile, auto build and runtime-request compile share the same compile-target reference pool instead of only syncing through the document workflow adapter.
 - LaTeX citation hover and autocomplete now keep using the resolved root-file reference scope while editing subfiles, and citation hover renders imported reference metadata as DOM text instead of interpolated HTML.
 - BibLaTeX `\addbibresource{...}` declarations now use the same selected document reference pool and manual-file overwrite guard as BibTeX `\bibliography{...}` declarations.
+- Reference usage indexing now covers Markdown bare `@key` citations and LaTeX starred / optional-argument citation commands, so the "Cited In" panel no longer misses common citation forms.
 
 ### Phase 3: Leaf Rustification
 
