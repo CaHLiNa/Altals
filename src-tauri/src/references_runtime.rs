@@ -1,7 +1,7 @@
 use regex_lite::Regex;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -69,6 +69,13 @@ pub struct ReferenceFromCslParams {
     pub overrides: Value,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceMetadataRefreshParams {
+    #[serde(default)]
+    pub reference: Value,
+}
+
 fn normalize_doi(value: &str) -> String {
     value
         .trim()
@@ -78,6 +85,78 @@ fn normalize_doi(value: &str) -> String {
         .trim_start_matches("http://doi.org/")
         .trim()
         .to_string()
+}
+
+fn looks_like_doi(value: &str) -> bool {
+    Regex::new(r"(?i)^10\.\d{4,9}/")
+        .map(|regex| regex.is_match(value.trim()))
+        .unwrap_or(false)
+}
+
+fn first_reference_author(reference: &Value) -> String {
+    reference
+        .get("authors")
+        .and_then(Value::as_array)
+        .and_then(|authors| authors.first())
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| trim_string(reference.get("authorLine")))
+}
+
+fn reference_year(reference: &Value) -> Option<i64> {
+    reference
+        .get("year")
+        .and_then(Value::as_i64)
+        .or_else(|| trim_string(reference.get("year")).parse::<i64>().ok())
+}
+
+fn reference_metadata_refresh_overrides(reference: &Value) -> Value {
+    let mut overrides = Map::new();
+    for key in [
+        "id",
+        "citationKey",
+        "pdfPath",
+        "fulltextPath",
+        "collections",
+        "tags",
+        "notes",
+        "annotations",
+        "rating",
+        "hasPdf",
+        "hasFullText",
+        "_source",
+        "_zoteroKey",
+        "_zoteroLibrary",
+        "_importMethod",
+        "_pushedByApp",
+        "_appPushPending",
+    ] {
+        if let Some(value) = reference.get(key) {
+            overrides.insert(key.to_string(), value.clone());
+        }
+    }
+    Value::Object(overrides)
+}
+
+fn reference_record_from_csl_with_overrides(csl: &Value, overrides: &Value) -> Value {
+    let mut map = csl_to_reference_record(csl)
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(overrides) = overrides.as_object() {
+        for (key, value) in overrides {
+            map.insert(key.clone(), value.clone());
+        }
+    }
+
+    normalize_reference_record(&Value::Object(map))
+}
+
+fn refreshed_reference_from_csl(reference: &Value, csl: &Value) -> Value {
+    reference_record_from_csl_with_overrides(csl, &reference_metadata_refresh_overrides(reference))
 }
 
 fn crossref_to_csl(work: &Value) -> Value {
@@ -661,25 +740,43 @@ async fn references_write_bib_file_scoped(
 
 #[tauri::command]
 pub async fn references_record_from_csl(params: ReferenceFromCslParams) -> Result<Value, String> {
-    let mut map = csl_to_reference_record(&params.csl)
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
+    Ok(reference_record_from_csl_with_overrides(
+        &params.csl,
+        &params.overrides,
+    ))
+}
 
-    if let Some(overrides) = params.overrides.as_object() {
-        for (key, value) in overrides {
-            map.insert(key.clone(), value.clone());
+#[tauri::command]
+pub async fn references_refresh_metadata(
+    params: ReferenceMetadataRefreshParams,
+) -> Result<Value, String> {
+    let reference = normalize_reference_record(&params.reference);
+    let identifier = normalize_doi(&trim_string(reference.get("identifier")));
+
+    if looks_like_doi(&identifier) {
+        if let Some(csl) = lookup_by_doi_internal(&identifier).await? {
+            return Ok(refreshed_reference_from_csl(&reference, &csl));
         }
     }
 
-    Ok(normalize_reference_record(&Value::Object(map)))
+    let title = trim_string(reference.get("title"));
+    let author = first_reference_author(&reference);
+    let year = reference_year(&reference);
+    if let Some(match_result) = search_by_metadata_internal(&title, &author, year).await? {
+        if let Some(csl) = match_result.get("csl") {
+            return Ok(refreshed_reference_from_csl(&reference, csl));
+        }
+    }
+
+    Ok(Value::Null)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        references_record_from_csl, references_scan_workspace_styles_scoped,
-        references_write_bib_file_scoped, CitationStyleScanParams, ReferenceBibFileParams,
+        reference_metadata_refresh_overrides, references_record_from_csl,
+        references_scan_workspace_styles_scoped, references_write_bib_file_scoped,
+        refreshed_reference_from_csl, CitationStyleScanParams, ReferenceBibFileParams,
         ReferenceFromCslParams,
     };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
@@ -709,6 +806,77 @@ mod tests {
         assert_eq!(record["typeKey"].as_str(), Some("journal-article"));
         assert_eq!(record["citationKey"].as_str(), Some("lovelace2024"));
         assert_eq!(record["tags"].as_array().map(|v| v.len()), Some(1));
+    }
+
+    #[test]
+    fn metadata_refresh_preserves_local_reference_state() {
+        let existing = json!({
+            "id": "ref-local",
+            "citationKey": "local2024",
+            "title": "Old Title",
+            "authors": ["Local Author"],
+            "pdfPath": "/tmp/local.pdf",
+            "fulltextPath": "/tmp/local.txt",
+            "collections": ["inbox"],
+            "tags": ["keep"],
+            "notes": [{ "id": "note-1", "body": "Local note" }],
+            "annotations": [{ "id": "annotation-1" }],
+            "rating": 4,
+            "hasPdf": true,
+            "hasFullText": true,
+            "_source": "zotero",
+            "_zoteroKey": "ABC123",
+            "_zoteroLibrary": "user:1",
+            "_importMethod": "zotero",
+            "_pushedByApp": true,
+            "_appPushPending": false
+        });
+        let refreshed = refreshed_reference_from_csl(
+            &existing,
+            &json!({
+                "type": "article-journal",
+                "title": "New Crossref Title",
+                "author": [{ "given": "Ada", "family": "Lovelace" }],
+                "DOI": "10.1000/new",
+                "issued": { "date-parts": [[2025]] }
+            }),
+        );
+
+        assert_eq!(refreshed["title"].as_str(), Some("New Crossref Title"));
+        assert_eq!(refreshed["id"].as_str(), Some("ref-local"));
+        assert_eq!(refreshed["citationKey"].as_str(), Some("local2024"));
+        assert_eq!(refreshed["pdfPath"].as_str(), Some("/tmp/local.pdf"));
+        assert_eq!(refreshed["fulltextPath"].as_str(), Some("/tmp/local.txt"));
+        assert_eq!(refreshed["collections"].as_array().map(Vec::len), Some(1));
+        assert_eq!(refreshed["tags"].as_array().map(Vec::len), Some(1));
+        assert_eq!(refreshed["notes"].as_array().map(Vec::len), Some(1));
+        assert_eq!(refreshed["annotations"].as_array().map(Vec::len), Some(1));
+        assert_eq!(refreshed["rating"].as_i64(), Some(4));
+        assert_eq!(refreshed["hasPdf"].as_bool(), Some(true));
+        assert_eq!(refreshed["hasFullText"].as_bool(), Some(true));
+        assert_eq!(refreshed["_source"].as_str(), Some("zotero"));
+        assert_eq!(refreshed["_zoteroKey"].as_str(), Some("ABC123"));
+        assert_eq!(refreshed["_zoteroLibrary"].as_str(), Some("user:1"));
+        assert_eq!(refreshed["_importMethod"].as_str(), Some("zotero"));
+        assert_eq!(refreshed["_pushedByApp"].as_bool(), Some(true));
+        assert_eq!(refreshed["_appPushPending"].as_bool(), Some(false));
+    }
+
+    #[test]
+    fn metadata_refresh_override_set_is_local_only() {
+        let overrides = reference_metadata_refresh_overrides(&json!({
+            "id": "ref-local",
+            "title": "Remote-owned field should not be preserved",
+            "citationKey": "local2024",
+            "abstract": "Remote-owned abstract should not be preserved",
+            "tags": ["keep"]
+        }));
+
+        assert!(overrides.get("id").is_some());
+        assert!(overrides.get("citationKey").is_some());
+        assert!(overrides.get("tags").is_some());
+        assert!(overrides.get("title").is_none());
+        assert!(overrides.get("abstract").is_none());
     }
 
     #[tokio::test]

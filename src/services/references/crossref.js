@@ -41,6 +41,15 @@ export async function hydrateReferenceFromCsl(csl = {}, overrides = {}) {
   return result && typeof result === 'object' ? result : null
 }
 
+export async function refreshReferenceMetadata(reference = {}) {
+  const result = await invoke('references_refresh_metadata', {
+    params: {
+      reference: reference && typeof reference === 'object' ? reference : {},
+    },
+  })
+  return result && typeof result === 'object' ? result : null
+}
+
 export function crossrefToCsl(work = {}) {
   const typeMap = {
     'journal-article': 'article-journal',

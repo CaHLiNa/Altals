@@ -488,6 +488,7 @@ pub fn run() {
             references_runtime::references_merge_imported,
             references_runtime::references_import_pdf,
             references_runtime::references_record_from_csl,
+            references_runtime::references_refresh_metadata,
             references_runtime::references_scan_workspace_styles,
             references_runtime::references_write_bib_file,
             references_mutation::references_mutation_apply,

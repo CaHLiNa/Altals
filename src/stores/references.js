@@ -32,6 +32,7 @@ import {
   parseReferenceImportFile,
   parseReferenceImportText,
 } from '../services/references/bibtexImport.js'
+import { refreshReferenceMetadata as refreshReferenceMetadataWithBackend } from '../services/references/crossref.js'
 import {
   applyReferenceMutation,
   resolveReferenceQuery,
@@ -642,6 +643,20 @@ export const useReferencesStore = defineStore('references', {
         }
       )
       return true
+    },
+
+    async refreshReferenceMetadata(projectRoot = '', referenceId = '') {
+      const normalizedReferenceId = String(referenceId || '').trim()
+      const reference = this.references.find((item) => item.id === normalizedReferenceId)
+      if (!reference) return null
+
+      const refreshed = await refreshReferenceMetadataWithBackend(reference)
+      if (!refreshed || typeof refreshed !== 'object') return null
+
+      await this.updateReference(projectRoot, normalizedReferenceId, refreshed, {
+        preferredSelectedReferenceId: normalizedReferenceId,
+      })
+      return refreshed
     },
 
     async removeReference(projectRoot = '', referenceId = '') {

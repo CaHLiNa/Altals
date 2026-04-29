@@ -229,11 +229,6 @@ import {
   writeReferenceJsonExport,
 } from '../../services/references/bibtexExport.js'
 import {
-  hydrateReferenceFromCsl,
-  lookupByDoi,
-  searchByMetadata,
-} from '../../services/references/crossref.js'
-import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
   resolveInlineDockFallbackPageType,
@@ -620,53 +615,16 @@ async function handleRenameReferencePdf(reference = {}) {
 
 async function handleRefreshReferenceMetadata(reference = {}) {
   try {
-    let csl = null
-    const identifier = String(reference.identifier || '').trim()
-
-    if (/^10\.\d{4,9}\//i.test(identifier)) {
-      csl = await lookupByDoi(identifier)
-    }
-
-    if (!csl) {
-      const match = await searchByMetadata(
-        reference.title,
-        Array.isArray(reference.authors) ? reference.authors[0] || '' : '',
-        reference.year
-      )
-      csl = match?.csl || null
-    }
-
-    if (!csl) {
+    const refreshed = await referencesStore.refreshReferenceMetadata(
+      workspace.globalConfigDir,
+      reference.id
+    )
+    if (!refreshed) {
       toastStore.show(t('No metadata match found'), {
         type: 'error',
         duration: 3200,
       })
-      return
     }
-
-    const refreshed = await hydrateReferenceFromCsl(csl, {
-      id: reference.id,
-      citationKey: reference.citationKey,
-      pdfPath: reference.pdfPath,
-      fulltextPath: reference.fulltextPath,
-      collections: reference.collections,
-      tags: reference.tags,
-      notes: reference.notes,
-      annotations: reference.annotations,
-      rating: reference.rating,
-      hasPdf: reference.hasPdf,
-      hasFullText: reference.hasFullText,
-    })
-
-    await referencesStore.updateReference(workspace.globalConfigDir, reference.id, {
-      ...refreshed,
-      _source: reference._source,
-      _zoteroKey: reference._zoteroKey,
-      _zoteroLibrary: reference._zoteroLibrary,
-      _importMethod: reference._importMethod,
-      _pushedByApp: reference._pushedByApp,
-      _appPushPending: reference._appPushPending,
-    })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to refresh metadata'), {
       type: 'error',
