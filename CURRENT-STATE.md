@@ -38,6 +38,8 @@ npm run verify
 It runs:
 
 - `npm run guard:ui-bridges`
+- `npm run guard:pdf-runtime`
+- `npm run guard:textmate-runtime`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -46,6 +48,8 @@ It runs:
 Current baseline on 2026-04-29:
 
 - UI bridge boundary check passed
+- PDF runtime boundary check passed
+- TextMate runtime boundary check passed
 - Vite build passed
 - Bundle budget check passed
 - Rust check passed
@@ -57,7 +61,7 @@ Desktop main-path feel, visual quality, layout behavior and interaction quality 
 
 ### Phase 1: Verification and State Contract
 
-Status: in progress.
+Status: completed.
 
 Goal:
 
@@ -150,7 +154,7 @@ Do not migrate shared workflow, editor shell, session persistence and UI chrome 
 
 ### Phase 4: Bundle Size and Chunk Hygiene
 
-Status: in progress.
+Status: completed.
 
 Goal:
 
@@ -174,6 +178,7 @@ Done:
 - raised Vite's generic chunk warning limit to 750 KiB so the known PDF worker does not hide actionable regressions behind repeated generic warnings
 - removed the redundant dynamic import of CodeMirror autocomplete from `TextEditor.vue`; build output no longer reports the autocomplete static/dynamic import warning
 - replaced Markdown preview's generic `rehype-highlight` dependency with a constrained local highlighter that registers only common writing / coding languages; the preview chunk dropped from about 366 KiB to about 265 KiB while preserving code highlighting for the supported language set
+- continued in Phase 5 with named heavy runtime budgets, PDF / TextMate runtime boundary guards, and deferred generic language-data loading for LaTeX editor paths
 
 ### Phase 5: Heavy Runtime Loading Contract
 
