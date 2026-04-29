@@ -9,6 +9,8 @@ on:
       - package-lock.json
       - src-tauri/Cargo.toml
       - src-tauri/tauri.conf.json
+      - .github/workflows/release-installers.yml
+      - scripts/macos/ScribeFlow Repair.command
   workflow_dispatch:
     inputs:
       allow_existing_release:
@@ -114,3 +116,15 @@ jobs:
           assetNamePattern: ScribeFlow-[version]-[platform]-[arch][setup].[ext]
           retryAttempts: 2
           includeUpdaterJson: false
+
+      - name: Upload macOS repair command
+        if: matrix.platform == 'macos-latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x "scripts/macos/ScribeFlow Repair.command"
+          mkdir -p release-assets
+          cp "scripts/macos/ScribeFlow Repair.command" "release-assets/ScribeFlow Repair.command"
+          chmod +x "release-assets/ScribeFlow Repair.command"
+          (cd release-assets && zip -q "ScribeFlow-${{ needs.preflight.outputs.version }}-macos-repair-command.zip" "ScribeFlow Repair.command")
+          gh release upload "${{ needs.preflight.outputs.tag }}" "release-assets/ScribeFlow-${{ needs.preflight.outputs.version }}-macos-repair-command.zip" --repo "${{ github.repository }}" --clobber
