@@ -120,6 +120,7 @@ Done:
 
 - citation style scan is already backed by Rust runtime command `references_scan_workspace_styles`.
 - document reference panel now reads LaTeX citation keys from the Rust LaTeX project graph instead of using a frontend regex parser.
+- the old frontend-only LaTeX citation key extractor has been removed from the editor citation module.
 
 Current seam:
 
