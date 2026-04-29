@@ -111,7 +111,7 @@ function autoSaveExtension(onSave) {
 function documentChangeExtension(onDocChanged) {
   return EditorView.updateListener.of((update) => {
     if (!update.docChanged) return
-    onDocChanged(update.state.doc.toString())
+    onDocChanged(update)
   })
 }
 
@@ -138,22 +138,39 @@ function cursorPositionExtension(onCursorChange) {
  * Reports word count, char count, and selection stats.
  */
 function editorStatsExtension(onStats) {
+  let timer = null
+  let latestView = null
+
+  function emitStats() {
+    timer = null
+    if (!latestView) return
+
+    const { state } = latestView
+    const text = state.doc.toString()
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0
+    const chars = text.replace(/\s/g, '').length
+
+    const sel = state.selection.main
+    let selWords = 0
+    let selChars = 0
+    if (sel.from !== sel.to) {
+      const selText = state.sliceDoc(sel.from, sel.to)
+      selWords = selText.trim() ? selText.trim().split(/\s+/).length : 0
+      selChars = selText.replace(/\s/g, '').length
+    }
+
+    onStats({ words, chars, selWords, selChars })
+  }
+
+  function scheduleStats(view) {
+    latestView = view
+    clearTimeout(timer)
+    timer = setTimeout(emitStats, 140)
+  }
+
   return EditorView.updateListener.of((update) => {
     if (update.docChanged || update.selectionSet || update.startState === update.state) {
-      const text = update.state.doc.toString()
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0
-      const chars = text.replace(/\s/g, '').length
-
-      const sel = update.state.selection.main
-      let selWords = 0
-      let selChars = 0
-      if (sel.from !== sel.to) {
-        const selText = update.state.sliceDoc(sel.from, sel.to)
-        selWords = selText.trim() ? selText.trim().split(/\s+/).length : 0
-        selChars = selText.replace(/\s/g, '').length
-      }
-
-      onStats({ words, chars, selWords, selChars })
+      scheduleStats(update.view)
     }
   })
 }

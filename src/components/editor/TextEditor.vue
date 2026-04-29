@@ -170,6 +170,7 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let latexReferenceScopeTimer = null
+let inMemoryContentSyncTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
 
@@ -404,16 +405,17 @@ async function refreshLatexReferenceScopePath(content = '') {
   return latexReferenceScopePath.value
 }
 
-function scheduleLatexReferenceScopeRefresh(content = '', delay = 180) {
+function scheduleLatexReferenceScopeRefresh(content = null, delay = 180) {
   if (!supportsLatexRuntime) return
   clearLatexReferenceScopeTimer()
+  const hasContent = typeof content === 'string'
   if (typeof window === 'undefined' || delay <= 0) {
-    void refreshLatexReferenceScopePath(content)
+    void refreshLatexReferenceScopePath(hasContent ? content : view?.state?.doc?.toString() || '')
     return
   }
   latexReferenceScopeTimer = window.setTimeout(() => {
     latexReferenceScopeTimer = null
-    void refreshLatexReferenceScopePath(content)
+    void refreshLatexReferenceScopePath(hasContent ? content : view?.state?.doc?.toString() || '')
   }, delay)
 }
 
@@ -975,13 +977,38 @@ async function persistEditorContent(content, options = {}) {
   return true
 }
 
-function handleDocumentChanged(content) {
-  files.setInMemoryFileContent(props.filePath, content)
-  if (content === lastPersistedContent) {
+function clearInMemoryContentSyncTimer() {
+  if (inMemoryContentSyncTimer == null || typeof window === 'undefined') return
+  window.clearTimeout(inMemoryContentSyncTimer)
+  inMemoryContentSyncTimer = null
+}
+
+function syncInMemoryContent(content = null) {
+  const nextContent =
+    typeof content === 'string' ? content : view?.state?.doc?.toString() || ''
+  files.setInMemoryFileContent(props.filePath, nextContent)
+  if (nextContent === lastPersistedContent) {
     editorStore.clearFileDirty(props.filePath)
     return
   }
   editorStore.markFileDirty(props.filePath)
+}
+
+function scheduleInMemoryContentSync(delay = 90) {
+  clearInMemoryContentSyncTimer()
+  if (typeof window === 'undefined' || delay <= 0) {
+    syncInMemoryContent()
+    return
+  }
+  inMemoryContentSyncTimer = window.setTimeout(() => {
+    inMemoryContentSyncTimer = null
+    syncInMemoryContent()
+  }, delay)
+}
+
+function handleDocumentChanged() {
+  editorStore.markFileDirty(props.filePath)
+  scheduleInMemoryContentSync()
 }
 
 async function loadLanguageExtension() {
@@ -1077,7 +1104,7 @@ onMounted(async () => {
         scheduleMarkdownViewportPreviewSync(update.view)
       }
       if (isLatexEditor && update.docChanged) {
-        scheduleLatexReferenceScopeRefresh(update.state.doc.toString())
+        scheduleLatexReferenceScopeRefresh()
       }
     }),
   ]
@@ -1881,6 +1908,10 @@ watch(
 )
 
 onUnmounted(() => {
+  if (inMemoryContentSyncTimer != null) {
+    syncInMemoryContent()
+    clearInMemoryContentSyncTimer()
+  }
   deactivateEditorRuntime()
   clearLatexWarmupHandle()
   clearLatexReferenceScopeTimer()
