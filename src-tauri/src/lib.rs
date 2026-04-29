@@ -1,4 +1,5 @@
 mod app_dirs;
+mod app_update;
 mod document_outline;
 mod document_workflow;
 mod document_workflow_action;
@@ -436,6 +437,8 @@ pub fn run() {
             fs_watch_runtime::workspace_tree_watch_note_activity,
             fs_watch_runtime::workspace_tree_watch_set_visibility,
             fs_watch_runtime::workspace_tree_watch_stop,
+            app_update::app_update_download_asset,
+            app_update::app_update_reveal_download,
             fs_commands::workspace_render_image_preview,
             fs_commands::workspace_read_file_base64,
             fs_commands::workspace_write_file_base64,
