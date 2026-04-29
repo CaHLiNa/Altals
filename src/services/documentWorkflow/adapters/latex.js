@@ -200,7 +200,22 @@ const latexCompileAdapter = {
 
   async compile(filePath, context, options = {}) {
     if (!context.latexStore) return null
-    if (!(await this.ensureReady(filePath, context, options))) return null
+    context.latexStore.markCompilePending?.(filePath, options)
+    if (!(await this.ensureReady(filePath, context, options))) {
+      context.latexStore.applyCompileStatePatch?.(filePath, {
+        status: 'error',
+        errors: [
+          {
+            line: null,
+            message: context.t?.('No LaTeX compiler found.') || 'No LaTeX compiler found.',
+            severity: 'error',
+          },
+        ],
+        warnings: [],
+        updatedAt: Date.now(),
+      })
+      return null
+    }
 
     await context.latexStore.compile(filePath, options)
     return this.stateForFile(filePath, context)

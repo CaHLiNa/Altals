@@ -488,6 +488,36 @@ export const useLatexStore = defineStore('latex', {
       }
     },
 
+    markCompilePending(texPath, options = {}) {
+      const normalizedPath = String(texPath || '').trim()
+      if (!normalizedPath) return null
+      const now = Date.now()
+      const targetPath = String(
+        options.targetPath ||
+          this.compileState[normalizedPath]?.compileTargetPath ||
+          resolveCachedLatexRootPath(normalizedPath) ||
+          normalizedPath,
+      )
+      const pendingState = {
+        status: 'compiling',
+        errors: [],
+        warnings: [],
+        startedAt: now,
+        updatedAt: now,
+        reason: String(options.reason || 'manual'),
+        compileTargetPath: targetPath,
+        buildExtraArgs: this.currentBuildOptions().buildExtraArgs,
+      }
+      this.applyCompileStatePatch(normalizedPath, pendingState)
+      if (targetPath && targetPath !== normalizedPath) {
+        this.applyCompileStatePatch(targetPath, {
+          ...pendingState,
+          sourcePath: normalizedPath,
+        })
+      }
+      return pendingState
+    },
+
     async resolveCompileRequest(texPath, options = {}) {
       const resolved = await resolveLatexCompileRequestFromRust(
         texPath,
@@ -541,11 +571,16 @@ export const useLatexStore = defineStore('latex', {
       await ensureLatexStreamListener()
       await ensureLatexRuntimeCompileRequestListener()
       this.cancelAutoCompile(texPath)
+      this.markCompilePending(texPath, options)
 
       try {
         const { filesStore, project, compileTargetPath } =
           await this.resolveCompileRequest(texPath, options)
         const targetKey = compileTargetPath || texPath
+        this.markCompilePending(texPath, {
+          ...options,
+          targetPath: targetKey,
+        })
         await useReferencesStore().syncBibFileForTex(targetKey).catch(() => '')
         const sourceContent =
           typeof options.sourceContent === 'string'

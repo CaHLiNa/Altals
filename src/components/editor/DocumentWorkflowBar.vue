@@ -37,6 +37,8 @@
               variant="ghost"
               size="icon-sm"
               icon-only
+              :loading="primaryActionBusy"
+              :disabled="primaryActionBusy"
               :title="primaryLabel"
               :aria-label="primaryLabel"
               @click="$emit('primary-action')"
@@ -129,7 +131,22 @@ const showShellStatus = computed(
 
 const showPrimaryAction = computed(() => !!props.uiState && props.uiState.kind !== 'text')
 
+const primaryActionBusy = computed(() =>
+  props.uiState?.phase === 'running' ||
+  props.uiState?.phase === 'compiling' ||
+  props.uiState?.phase === 'queued' ||
+  props.uiState?.phase === 'rendering'
+)
+
 const primaryLabel = computed(() => {
+  if (primaryActionBusy.value) {
+    if (props.uiState?.phase === 'queued') return t('Queued')
+    if (props.uiState?.primaryAction === 'run') return t('Running...')
+    if (props.uiState?.primaryAction === 'compile' || props.uiState?.kind === 'latex') {
+      return t('Compiling...')
+    }
+    return t('Working...')
+  }
   if (props.uiState?.primaryAction === 'run') {
     return t('Run')
   }
@@ -324,6 +341,8 @@ const pdfActionIconSize = computed(() => 16)
 }
 
 .workflow-status-dot {
+  display: inline-block;
+  flex: 0 0 auto;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -334,6 +353,21 @@ const pdfActionIconSize = computed(() => 16)
 .workflow-status-warning { color: var(--warning); }
 .workflow-status-error { color: var(--error); }
 .workflow-status-running { color: var(--fg-muted); }
+
+.workflow-status-running .workflow-status-dot {
+  animation: workflow-status-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes workflow-status-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
 
 .workflow-primary-btn,
 .workflow-secondary-btn {
