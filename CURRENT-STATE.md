@@ -259,6 +259,7 @@ Done:
 - Step 1 completed: `scripts/check-bundle-budget.mjs` now uses a named asset budget manifest, reports known heavy runtime assets separately from ordinary checked assets, and fails on oversized unknown asset classes instead of silently accepting new large files.
 - Step 2 completed: `scripts/check-pdf-runtime-boundary.mjs` now guards `@embedpdf/*`, `usePdfiumEngine`, and the PDF preview component import chain so PDFium / EmbedPDF stay behind async PDF preview surfaces and `src/services/pdf/*`.
 - Step 3 completed: `scripts/check-textmate-runtime-boundary.mjs` now guards `vscode-textmate`, `vscode-oniguruma`, `onig.wasm`, TextMate grammar/theme imports, and static `latexLanguage` imports so TextMate stays behind the LaTeX editor dynamic import seam.
+- Step 4 completed: `TextEditor.vue` now resolves the LaTeX language path before importing `@codemirror/language-data`, while Markdown still loads language-data for fenced-code support and generic code files still use CodeMirror language-data matching.
 
 Non-goals:
 

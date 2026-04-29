@@ -885,17 +885,25 @@ function handleDocumentChanged(content) {
 }
 
 async function loadLanguageExtension() {
-  const { languages } = await import('@codemirror/language-data')
-  const ext = basenamePath(props.filePath).split('.').pop()?.toLowerCase() || ''
-  if (isMd) {
-    const { markdown, markdownLanguage } = await import('@codemirror/lang-markdown')
-    return markdown({ base: markdownLanguage, codeLanguages: languages })
-  }
   if (isLatexEditor) {
     const { altalsLatexLanguage, ensureLatexTextmateReady } = await import('../../editor/latexLanguage')
     await ensureLatexTextmateReady()
     return altalsLatexLanguage
   }
+
+  if (isMd) {
+    const [
+      { languages },
+      { markdown, markdownLanguage },
+    ] = await Promise.all([
+      import('@codemirror/language-data'),
+      import('@codemirror/lang-markdown'),
+    ])
+    return markdown({ base: markdownLanguage, codeLanguages: languages })
+  }
+
+  const { languages } = await import('@codemirror/language-data')
+  const ext = basenamePath(props.filePath).split('.').pop()?.toLowerCase() || ''
   if (ext === 'm') {
     const octave = languages.find((lang) => lang.name === 'Octave')
     if (octave) {
