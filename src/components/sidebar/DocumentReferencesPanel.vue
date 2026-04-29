@@ -12,32 +12,50 @@
       />
     </div>
 
-    <div v-if="missingCitations.length" class="document-references-panel__missing">
+    <div
+      v-if="hasSearchQuery"
+      class="document-references-panel__section document-references-panel__section--results"
+    >
       <div class="document-references-panel__section-title">
-        <IconAlertTriangle :size="14" :stroke-width="1.9" />
-        <span>{{ t('Missing from this document') }}</span>
+        <IconSearch :size="14" :stroke-width="1.9" />
+        <span>{{ t('Search results') }}</span>
       </div>
-      <div class="document-references-panel__missing-list">
-        <div
-          v-for="entry in missingCitations"
-          :key="entry.key"
-          class="document-references-panel__missing-item"
+
+      <div v-if="availableResults.length" class="document-references-panel__list scrollbar-hidden">
+        <article
+          v-for="reference in availableResults"
+          :key="reference.id"
+          class="document-references-panel__reference"
         >
-          <span class="document-references-panel__key">@{{ entry.key }}</span>
+          <div class="document-references-panel__reference-body">
+            <div class="document-references-panel__reference-title">
+              {{ reference.title || reference.citationKey || reference.id }}
+            </div>
+            <div class="document-references-panel__reference-meta">
+              <span>{{ formatAuthors(reference) }}</span>
+              <span v-if="reference.year">{{ reference.year }}</span>
+            </div>
+            <div class="document-references-panel__key">@{{ reference.citationKey || reference.id }}</div>
+          </div>
           <button
-            v-if="entry.reference"
             type="button"
             class="document-references-panel__mini-action"
-            @click="addReference(entry.reference.id)"
+            @click="addReference(reference.id)"
           >
             {{ t('Add') }}
           </button>
-          <span v-else class="document-references-panel__muted">{{ t('Not in library') }}</span>
-        </div>
+        </article>
+      </div>
+
+      <div v-else class="document-references-panel__empty">
+        {{ t('No matching unselected references.') }}
       </div>
     </div>
 
-    <div class="document-references-panel__section">
+    <div
+      class="document-references-panel__section document-references-panel__section--selected"
+      :class="{ 'is-secondary': hasSearchQuery }"
+    >
       <div class="document-references-panel__section-title">
         <IconBook2 :size="14" :stroke-width="1.9" />
         <span>{{ t('Document References') }}</span>
@@ -77,40 +95,28 @@
       </div>
     </div>
 
-    <div v-if="hasSearchQuery" class="document-references-panel__section">
+    <div v-if="missingCitations.length" class="document-references-panel__missing">
       <div class="document-references-panel__section-title">
-        <IconSearch :size="14" :stroke-width="1.9" />
-        <span>{{ t('Search results') }}</span>
+        <IconAlertTriangle :size="14" :stroke-width="1.9" />
+        <span>{{ t('Missing from this document') }}</span>
       </div>
-
-      <div v-if="availableResults.length" class="document-references-panel__list scrollbar-hidden">
-        <article
-          v-for="reference in availableResults"
-          :key="reference.id"
-          class="document-references-panel__reference"
+      <div class="document-references-panel__missing-list">
+        <div
+          v-for="entry in missingCitations"
+          :key="entry.key"
+          class="document-references-panel__missing-item"
         >
-          <div class="document-references-panel__reference-body">
-            <div class="document-references-panel__reference-title">
-              {{ reference.title || reference.citationKey || reference.id }}
-            </div>
-            <div class="document-references-panel__reference-meta">
-              <span>{{ formatAuthors(reference) }}</span>
-              <span v-if="reference.year">{{ reference.year }}</span>
-            </div>
-            <div class="document-references-panel__key">@{{ reference.citationKey || reference.id }}</div>
-          </div>
+          <span class="document-references-panel__key">@{{ entry.key }}</span>
           <button
+            v-if="entry.reference"
             type="button"
             class="document-references-panel__mini-action"
-            @click="addReference(reference.id)"
+            @click="addReference(entry.reference.id)"
           >
             {{ t('Add') }}
           </button>
-        </article>
-      </div>
-
-      <div v-else class="document-references-panel__empty">
-        {{ t('No matching unselected references.') }}
+          <span v-else class="document-references-panel__muted">{{ t('Not in library') }}</span>
+        </div>
       </div>
     </div>
   </section>
@@ -236,8 +242,13 @@ async function removeReference(referenceId = '') {
   min-height: 0;
 }
 
-.document-references-panel__section:last-child {
+.document-references-panel__section--results,
+.document-references-panel__section--selected {
   flex: 1 1 auto;
+}
+
+.document-references-panel__section.is-secondary {
+  flex: 0 0 auto;
 }
 
 .document-references-panel__section-title {
