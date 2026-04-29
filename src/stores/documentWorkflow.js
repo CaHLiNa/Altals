@@ -3,6 +3,7 @@ import { useEditorStore } from './editor.js'
 import { useLatexStore } from './latex.js'
 import { useFilesStore } from './files.js'
 import { usePythonStore } from './python.js'
+import { useReferencesStore } from './references.js'
 import { useWorkspaceStore } from './workspace.js'
 import {
   getDocumentWorkflowKind,
@@ -95,6 +96,7 @@ export const useDocumentWorkflowStore = defineStore('documentWorkflow', {
           getWorkspaceStore: () => useWorkspaceStore(),
           getLatexStore: () => useLatexStore(),
           getPythonStore: () => usePythonStore(),
+          getReferencesStore: () => useReferencesStore(),
         })
       }
       return this._documentWorkflowBuildRuntime

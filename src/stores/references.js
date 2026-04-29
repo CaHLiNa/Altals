@@ -37,6 +37,7 @@ import {
   applyReferenceMutation,
   resolveReferenceQuery,
   scanWorkspaceCitationStyles,
+  writeReferenceBibFile,
 } from '../services/references/referenceRuntime.js'
 import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
 import {
@@ -345,6 +346,12 @@ export const useReferencesStore = defineStore('references', {
       const normalized = Array.isArray(styles) ? styles : []
       setUserCitationStyles(normalized)
       return normalized
+    },
+
+    async syncBibFileForTex(texPath = '') {
+      const normalizedTexPath = String(texPath || '').trim()
+      if (!normalizedTexPath || this.references.length === 0) return ''
+      return writeReferenceBibFile(normalizedTexPath, this.references)
     },
 
     async importBibTeXContent(projectRoot = '', content = '') {

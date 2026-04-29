@@ -71,7 +71,7 @@ Done:
 
 ### Phase 2: Research-to-Writing Loop
 
-Status: next product phase.
+Status: in progress.
 
 Goal:
 
@@ -93,6 +93,11 @@ Primary areas:
 - `src/services/references/*`
 - `src-tauri/src/references_*`
 - `src-tauri/src/latex_*`
+
+First seam:
+
+- LaTeX compile syncs the current ScribeFlow reference library to `references.bib` beside the resolved compile target.
+- Existing manually maintained `references.bib` files are not overwritten unless they already contain the ScribeFlow auto-generated marker.
 
 ### Phase 3: Leaf Rustification
 
