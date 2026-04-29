@@ -172,6 +172,7 @@ Done:
 - added `npm run check:bundle` as a post-build budget guard for JS, CSS and WASM assets
 - raised Vite's generic chunk warning limit to 750 KiB so the known PDF worker does not hide actionable regressions behind repeated generic warnings
 - removed the redundant dynamic import of CodeMirror autocomplete from `TextEditor.vue`; build output no longer reports the autocomplete static/dynamic import warning
+- replaced Markdown preview's generic `rehype-highlight` dependency with a constrained local highlighter that registers only common writing / coding languages; the preview chunk dropped from about 366 KiB to about 265 KiB while preserving code highlighting for the supported language set
 
 ## Explicit Non-Goals
 
