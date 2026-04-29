@@ -149,6 +149,18 @@ function pushLatexStreamToTerminal({
   )
 }
 
+function cachedFlatFilePaths(filesStore) {
+  const snapshotFiles = Array.isArray(filesStore?.lastWorkspaceSnapshot?.flatFiles)
+    ? filesStore.lastWorkspaceSnapshot.flatFiles
+    : []
+  const source = snapshotFiles.length > 0
+    ? snapshotFiles
+    : Array.isArray(filesStore?.flatFiles)
+      ? filesStore.flatFiles
+      : []
+  return source.map((entry) => String(entry?.path || entry || '')).filter(Boolean)
+}
+
 async function ensureLatexStreamListener() {
   if (latexStreamUnlistenPromise) {
     await latexStreamUnlistenPromise
@@ -207,12 +219,10 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
           [normalizedSourcePath]: options.sourceContent,
         }
 
-  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
   const resolved = await resolveLatexCompileRequest({
     sourcePath: normalizedSourcePath,
-    flatFiles: Array.isArray(flatFiles)
-      ? flatFiles.map((entry) => String(entry?.path || entry || '')).filter(Boolean)
-      : [],
+    workspacePath: workspaceStore.path,
+    flatFiles: cachedFlatFilePaths(filesStore),
     contentOverrides,
   }).catch(() => null)
 
@@ -231,6 +241,7 @@ async function resolveLatexCompileRequestFromRust(sourcePath, options = {}) {
 
 async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
   const filesStore = useFilesStore()
+  const workspaceStore = useWorkspaceStore()
   const normalizedChangedPath = String(changedPath || '').trim()
   if (!normalizedChangedPath) return []
 
@@ -242,12 +253,10 @@ async function resolveLatexCompileTargetsFromRust(changedPath, options = {}) {
           [normalizedChangedPath]: options.sourceContent,
         }
 
-  const flatFiles = await filesStore.ensureFlatFilesReady().catch(() => [])
   const targets = await resolveLatexCompileTargets({
     changedPath: normalizedChangedPath,
-    flatFiles: Array.isArray(flatFiles)
-      ? flatFiles.map((entry) => String(entry?.path || entry || '')).filter(Boolean)
-      : [],
+    workspacePath: workspaceStore.path,
+    flatFiles: cachedFlatFilePaths(filesStore),
     contentOverrides,
   }).catch(() => [])
 

@@ -4,12 +4,18 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::Path;
+use tauri::State;
+
+use crate::fs_tree;
+use crate::security::{self, WorkspaceScopeState};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LatexProjectGraphParams {
     #[serde(default)]
     pub source_path: String,
+    #[serde(default)]
+    pub workspace_path: String,
     #[serde(default)]
     pub flat_files: Vec<String>,
     #[serde(default)]
@@ -21,6 +27,8 @@ pub struct LatexProjectGraphParams {
 pub struct LatexAffectedRootsParams {
     #[serde(default)]
     pub changed_path: String,
+    #[serde(default)]
+    pub workspace_path: String,
     #[serde(default)]
     pub flat_files: Vec<String>,
     #[serde(default)]
@@ -173,6 +181,54 @@ fn is_latex_source_path(path: &str) -> bool {
 
 fn is_bibliography_path(path: &str) -> bool {
     extname_path(path) == ".bib"
+}
+
+fn collect_workspace_latex_paths(
+    workspace_path: &str,
+    scope_state: &WorkspaceScopeState,
+) -> Result<Vec<String>, String> {
+    let normalized_workspace = normalize_fs_path(workspace_path);
+    if normalized_workspace.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let workspace_root =
+        security::ensure_allowed_workspace_path(scope_state, Path::new(&normalized_workspace))?;
+    if !workspace_root.is_dir() {
+        return Err(format!(
+            "Workspace path is not a directory: {}",
+            workspace_root.display()
+        ));
+    }
+
+    let loaded_dirs = HashSet::new();
+    let snapshot = fs_tree::build_workspace_tree_snapshot(&workspace_root, &loaded_dirs, true)?;
+    Ok(snapshot
+        .flat_files
+        .into_iter()
+        .map(|entry| normalize_fs_path(&entry.path))
+        .filter(|path| matches!(extname_path(path).as_str(), ".tex" | ".latex" | ".bib"))
+        .collect())
+}
+
+fn graph_params_with_workspace_files(
+    mut params: LatexProjectGraphParams,
+    scope_state: &WorkspaceScopeState,
+) -> Result<LatexProjectGraphParams, String> {
+    if params.flat_files.is_empty() {
+        params.flat_files = collect_workspace_latex_paths(&params.workspace_path, scope_state)?;
+    }
+    Ok(params)
+}
+
+fn affected_roots_params_with_workspace_files(
+    mut params: LatexAffectedRootsParams,
+    scope_state: &WorkspaceScopeState,
+) -> Result<LatexAffectedRootsParams, String> {
+    if params.flat_files.is_empty() {
+        params.flat_files = collect_workspace_latex_paths(&params.workspace_path, scope_state)?;
+    }
+    Ok(params)
 }
 
 fn candidate_paths_for(base_dir: &str, raw_path: &str, extensions: &[&str]) -> Vec<String> {
@@ -1094,6 +1150,7 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
     for file_path in latex_files {
         let graph = resolve_graph_value(&LatexProjectGraphParams {
             source_path: file_path.clone(),
+            workspace_path: params.workspace_path.clone(),
             flat_files: params.flat_files.clone(),
             content_overrides: params.content_overrides.clone(),
         });
@@ -1140,33 +1197,45 @@ fn resolve_affected_root_targets_internal(params: &LatexAffectedRootsParams) -> 
 }
 
 #[tauri::command]
-pub async fn latex_project_graph_resolve(params: LatexProjectGraphParams) -> Result<Value, String> {
+pub async fn latex_project_graph_resolve(
+    params: LatexProjectGraphParams,
+    scope_state: State<'_, WorkspaceScopeState>,
+) -> Result<Value, String> {
+    let params = graph_params_with_workspace_files(params, scope_state.inner())?;
     Ok(resolve_graph_value(&params).unwrap_or(Value::Null))
+}
+
+fn resolve_compile_request_value(params: &LatexProjectGraphParams) -> Value {
+    let graph = resolve_graph_value(&params).unwrap_or(Value::Null);
+    if graph.is_null() {
+        return json!({
+            "sourcePath": normalize_fs_path(&params.source_path),
+            "rootPath": normalize_fs_path(&params.source_path),
+            "previewPath": build_preview_path(&normalize_fs_path(&params.source_path)),
+        });
+    }
+    json!({
+        "sourcePath": graph.get("sourcePath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
+        "rootPath": graph.get("rootPath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
+        "previewPath": graph.get("previewPath").cloned().unwrap_or(Value::String(build_preview_path(&normalize_fs_path(&params.source_path)))),
+    })
 }
 
 #[tauri::command]
 pub async fn latex_compile_request_resolve(
     params: LatexProjectGraphParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
-    let graph = resolve_graph_value(&params).unwrap_or(Value::Null);
-    if graph.is_null() {
-        return Ok(json!({
-            "sourcePath": normalize_fs_path(&params.source_path),
-            "rootPath": normalize_fs_path(&params.source_path),
-            "previewPath": build_preview_path(&normalize_fs_path(&params.source_path)),
-        }));
-    }
-    Ok(json!({
-        "sourcePath": graph.get("sourcePath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
-        "rootPath": graph.get("rootPath").cloned().unwrap_or(Value::String(normalize_fs_path(&params.source_path))),
-        "previewPath": graph.get("previewPath").cloned().unwrap_or(Value::String(build_preview_path(&normalize_fs_path(&params.source_path)))),
-    }))
+    let params = graph_params_with_workspace_files(params, scope_state.inner())?;
+    Ok(resolve_compile_request_value(&params))
 }
 
 #[tauri::command]
 pub async fn latex_affected_root_targets_resolve(
     params: LatexAffectedRootsParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = affected_roots_params_with_workspace_files(params, scope_state.inner())?;
     Ok(Value::Array(resolve_affected_root_targets_internal(
         &params,
     )))
@@ -1175,19 +1244,21 @@ pub async fn latex_affected_root_targets_resolve(
 #[tauri::command]
 pub async fn latex_compile_targets_resolve(
     params: LatexAffectedRootsParams,
+    scope_state: State<'_, WorkspaceScopeState>,
 ) -> Result<Value, String> {
+    let params = affected_roots_params_with_workspace_files(params, scope_state.inner())?;
     let normalized_changed = normalize_fs_path(&params.changed_path);
     if normalized_changed.is_empty() {
         return Ok(Value::Array(Vec::new()));
     }
 
     if is_latex_source_path(&normalized_changed) {
-        let request = latex_compile_request_resolve(LatexProjectGraphParams {
+        let request = resolve_compile_request_value(&LatexProjectGraphParams {
             source_path: normalized_changed.clone(),
+            workspace_path: params.workspace_path.clone(),
             flat_files: params.flat_files.clone(),
             content_overrides: params.content_overrides.clone(),
-        })
-        .await?;
+        });
         return Ok(Value::Array(vec![request]));
     }
 
@@ -1202,9 +1273,27 @@ pub async fn latex_compile_targets_resolve(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_citations, parse_sections, resolve_graph_value, LatexProjectGraphParams};
+    use super::{
+        graph_params_with_workspace_files, parse_citations, parse_sections, resolve_graph_value,
+        LatexProjectGraphParams,
+    };
+    use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use serde_json::Value;
     use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "scribeflow-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        path
+    }
 
     #[test]
     fn section_offsets_use_utf16_units() {
@@ -1252,6 +1341,7 @@ mod tests {
         let content = "前言\n\\section{方法}\n";
         let graph = resolve_graph_value(&LatexProjectGraphParams {
             source_path: source_path.clone(),
+            workspace_path: String::new(),
             flat_files: vec![source_path.clone()],
             content_overrides: HashMap::from([(source_path.clone(), content.to_string())]),
         })
@@ -1272,5 +1362,67 @@ mod tests {
             outline_items[0].get("line").and_then(Value::as_u64),
             Some(2)
         );
+    }
+
+    #[test]
+    fn workspace_file_discovery_resolves_latex_project_graph() {
+        let root = unique_temp_dir("latex-project-graph");
+        fs::create_dir_all(root.join("sections")).unwrap();
+        fs::create_dir_all(root.join("target")).unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        let sections = root.join("sections");
+
+        let main_path = root.join("main.tex");
+        let child_path = sections.join("chapter.tex");
+        let bib_path = root.join("refs.bib");
+        fs::write(
+            &main_path,
+            "\\documentclass{article}\n\\begin{document}\n\\input{sections/chapter}\n\\bibliography{refs}\n\\end{document}\n",
+        )
+        .unwrap();
+        fs::write(&child_path, "\\section{Intro}\n\\cite{alpha2024}\n").unwrap();
+        fs::write(
+            &bib_path,
+            "@article{alpha2024, title = {Alpha}, author = {Qin, A.}, year = {2024}}\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("target").join("ignored.tex"),
+            "\\section{Ignored}\n",
+        )
+        .unwrap();
+
+        let scope_state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&scope_state, root.to_str().unwrap(), None, None, None).unwrap();
+
+        let params = graph_params_with_workspace_files(
+            LatexProjectGraphParams {
+                source_path: child_path.to_string_lossy().to_string(),
+                workspace_path: root.to_string_lossy().to_string(),
+                flat_files: Vec::new(),
+                content_overrides: HashMap::new(),
+            },
+            &scope_state,
+        )
+        .unwrap();
+        let graph = resolve_graph_value(&params).unwrap();
+
+        assert_eq!(
+            graph.get("rootPath").and_then(Value::as_str),
+            Some(main_path.to_string_lossy().as_ref())
+        );
+        assert!(graph
+            .get("bibKeys")
+            .and_then(Value::as_array)
+            .map(|values| values
+                .iter()
+                .any(|value| value.as_str() == Some("alpha2024")))
+            .unwrap_or(false));
+        assert!(!params
+            .flat_files
+            .iter()
+            .any(|path| path.ends_with("target/ignored.tex")));
+
+        let _ = fs::remove_dir_all(root);
     }
 }

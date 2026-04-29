@@ -53,7 +53,7 @@ Current baseline on 2026-04-29:
 - Vite build passed
 - Bundle budget check passed
 - Rust check passed
-- Rust tests passed: 130 tests
+- Rust tests passed: 131 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -145,6 +145,7 @@ Done:
 - LaTeX SyncTeX target path resolution now goes through Rust command `latex_sync_target_resolve`; the previous frontend moved-path resolver fallback has been removed.
 - LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`; the previous frontend candidate probe fallback has been removed.
 - The unused frontend LaTeX affected-root / compile-target resolver exports were removed; the active compile target path remains the Rust-backed store path.
+- LaTeX project graph, compile request and affected-root target commands can now discover `.tex`, `.latex` and `.bib` files from the registered workspace root in Rust when the frontend has no cached flat file list, so frontend LaTeX services no longer trigger workspace snapshot reads just to feed resolver inputs.
 
 Current seam:
 

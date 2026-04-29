@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { readWorkspaceFlatFiles } from '../workspaceSnapshotIO.js'
-import { listWorkspaceFlatFilePaths } from '../../domains/files/workspaceSnapshotFlatFilesRuntime.js'
 import {
   normalizeFsPath,
   relativePathBetween,
@@ -19,38 +17,22 @@ export function stableContentFingerprint(value = '') {
   return `${text.length}:${(hash >>> 0).toString(16)}`
 }
 
-async function listWorkspaceFiles(options = {}) {
-  const workspacePath = normalizeFsPath(options.workspacePath || '')
+function listCachedWorkspaceFiles(options = {}) {
   const filesStore = options.filesStore
 
   if (Array.isArray(options.flatFiles) && options.flatFiles.length > 0) {
     return options.flatFiles.map((entry) => normalizeFsPath(entry.path || entry)).filter(Boolean)
   }
 
-  const cachedSnapshotPaths = listWorkspaceFlatFilePaths(filesStore?.lastWorkspaceSnapshot)
-    .map((entry) => normalizeFsPath(entry))
+  const cachedSnapshotPaths = (filesStore?.lastWorkspaceSnapshot?.flatFiles || [])
+    .map((entry) => normalizeFsPath(entry?.path || entry))
     .filter(Boolean)
   if (cachedSnapshotPaths.length > 0) return cachedSnapshotPaths
 
   const cachedFlatFiles = Array.isArray(filesStore?.flatFiles) ? filesStore.flatFiles : []
-  const cachedFlatFilePaths = cachedFlatFiles
+  return cachedFlatFiles
     .map((entry) => normalizeFsPath(entry.path || entry))
     .filter(Boolean)
-  if (cachedFlatFilePaths.length > 0) return cachedFlatFilePaths
-
-  if (filesStore?.ensureFlatFilesReady) {
-    const entries = await filesStore.ensureFlatFilesReady().catch(() => [])
-    const normalized = Array.isArray(entries)
-      ? entries.map((entry) => normalizeFsPath(entry.path || entry)).filter(Boolean)
-      : []
-    if (normalized.length > 0) return normalized
-  }
-
-  if (!workspacePath) return [normalizeFsPath(options.sourcePath || '')].filter(Boolean)
-  const entries = await readWorkspaceFlatFiles(workspacePath).catch(() => [])
-  return Array.isArray(entries)
-    ? entries.map((entry) => normalizeFsPath(entry.path || entry)).filter(Boolean)
-    : []
 }
 
 function buildGraphCacheKey(sourcePath, options = {}) {
@@ -67,6 +49,7 @@ function buildGraphCacheKey(sourcePath, options = {}) {
     .sort((left, right) => left.path.localeCompare(right.path))
   return JSON.stringify({
     sourcePath: normalizedSource,
+    workspacePath: normalizeFsPath(options.workspacePath || ''),
     flatFiles,
     overrideEntries,
   })
@@ -89,30 +72,36 @@ export async function resolveLatexProjectGraph(sourcePath, options = {}) {
   const normalizedSource = normalizeFsPath(sourcePath)
   if (!normalizedSource) return null
 
-  const flatFiles = await listWorkspaceFiles({
+  const flatFiles = listCachedWorkspaceFiles({
     ...options,
     sourcePath: normalizedSource,
   })
+  const workspacePath = normalizeFsPath(options.workspacePath || '')
   const cacheKey = buildGraphCacheKey(normalizedSource, {
     ...options,
     flatFiles,
+    workspacePath,
   })
   const cached = SOURCE_GRAPH_CACHE.get(normalizedSource)
-  if (cached?.key === cacheKey) return cached.graph
+  const usesRustWorkspaceDiscovery = flatFiles.length === 0 && workspacePath
+  if (!usesRustWorkspaceDiscovery && cached?.key === cacheKey) return cached.graph
 
   const graph = await invoke('latex_project_graph_resolve', {
     params: {
       sourcePath: normalizedSource,
+      workspacePath,
       flatFiles,
       contentOverrides: options.contentOverrides || {},
     },
   }).catch(() => null)
 
   if (!graph || typeof graph !== 'object') return null
-  SOURCE_GRAPH_CACHE.set(normalizedSource, {
-    key: cacheKey,
-    graph,
-  })
+  if (!usesRustWorkspaceDiscovery) {
+    SOURCE_GRAPH_CACHE.set(normalizedSource, {
+      key: cacheKey,
+      graph,
+    })
+  }
   return graph
 }
 

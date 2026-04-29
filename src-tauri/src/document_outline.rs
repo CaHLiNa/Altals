@@ -193,6 +193,7 @@ fn latex_outline_items(
 
     let graph = resolve_graph_value(&LatexProjectGraphParams {
         source_path: normalized_path.to_string(),
+        workspace_path: String::new(),
         flat_files: params.flat_files.clone(),
         content_overrides,
     })
