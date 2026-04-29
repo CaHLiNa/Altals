@@ -128,6 +128,7 @@ Done:
 - Markdown draft diagnostics now have a staged Rust runtime command `markdown_extract_diagnostics` with parity-focused tests and a thin frontend bridge.
 - Markdown workflow diagnostics now use a reactive Rust diagnostics cache, with the old frontend parser retained only as a synchronous first-render fallback.
 - The Markdown diagnostics first-render fallback no longer imports the old unified / remark AST parser chain; it now uses a lightweight line scanner while the Rust runtime remains the main diagnostics path.
+- The unused frontend Markdown draft AST parser wrapper was removed; `parser.js` now only exposes Rust-backed heading helpers, and the unified / remark stack remains owned by Markdown preview.
 - The document dock Problems page now surfaces draft / project diagnostics instead of only compile-origin diagnostics.
 - LaTeX SyncTeX target path resolution now goes through Rust command `latex_sync_target_resolve`, with the previous frontend resolver kept as fallback.
 - LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`, with the previous frontend candidate probe kept as fallback.
