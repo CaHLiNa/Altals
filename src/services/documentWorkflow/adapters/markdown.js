@@ -1,5 +1,4 @@
 import { isMarkdown } from '../../../utils/fileTypes.js'
-import { buildMarkdownDraftProblems } from '../../markdown/diagnostics.js'
 
 function isMarkdownWorkflowSource(filePath = '') {
   return isMarkdown(filePath)
@@ -18,7 +17,7 @@ function resolveMarkdownDraftProblems(sourcePath, content = '', context = {}) {
   }
   const runtimeProblems = context.workflowStore?.ensureResolvedMarkdownDraftProblems?.(sourcePath, request)
   if (Array.isArray(runtimeProblems)) return runtimeProblems
-  return buildMarkdownDraftProblems(sourcePath, content)
+  return []
 }
 
 export function buildMarkdownWorkflowProblems(sourcePath, state = {}) {
