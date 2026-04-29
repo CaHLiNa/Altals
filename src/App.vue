@@ -436,6 +436,7 @@ useAppTeardown({
 }
 
 .app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region {
+  -webkit-backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
   backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
 }
 
@@ -515,6 +516,18 @@ useAppTeardown({
 :global(body.scribeflow-shell-resizing) .app-shell-sidebar-left,
 :global(body.scribeflow-shell-resizing) .app-shell-sidebar-right {
   transition: none !important;
+}
+
+.app-shell-root.is-shell-resizing .app-shell-main-card {
+  transition: none !important;
+}
+
+.app-shell-root.is-shell-resizing.app-shell-root.is-mac-vibrant
+  .app-shell-region-left.is-workspace-left-region,
+.app-shell-root.is-shell-resizing :deep(.left-shell-sidebar),
+.app-shell-root.is-shell-resizing :deep(.settings-sidebar) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 .app-shell-sidebar {

@@ -1915,7 +1915,31 @@ onUnmounted(() => {
 }
 
 .text-editor-host {
+  position: relative;
   background: var(--shell-editor-surface);
+  contain: layout paint;
+  isolation: isolate;
+}
+
+.text-editor-host::before,
+.text-editor-host::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  height: 24px;
+  pointer-events: none;
+}
+
+.text-editor-host::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--shell-editor-surface), transparent);
+}
+
+.text-editor-host::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--shell-editor-surface), transparent);
 }
 
 .text-editor-load-error {

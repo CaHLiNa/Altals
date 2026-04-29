@@ -248,29 +248,33 @@ function normalizeSidebarWidth(value, fallback) {
   return normalizedValue
 }
 
-function commitLeftSidebarWidth(value) {
+function commitLeftSidebarWidth(value, options = {}) {
   const minWidth = resolveMinimumLeftSidebarWidth()
   const maxWidth = resolveMaximumLeftSidebarWidth()
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_LEFT_SIDEBAR_WIDTH)
   leftSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
-  debounceSidebarWidthSave()
+  if (options.persist !== false) {
+    debounceSidebarWidthSave()
+  }
 }
 
-function scheduleLeftSidebarWidth(value) {
+function scheduleLeftSidebarWidth(value, options = {}) {
   pendingLeftSidebarWidth = value
   scheduleWorkbenchMotionCommit(
     LEFT_SIDEBAR_WIDTH_MOTION_KEY,
     pendingLeftSidebarWidth,
-    commitLeftSidebarWidth,
+    (nextWidth) => commitLeftSidebarWidth(nextWidth, options),
   )
 }
 
-function commitRightSidebarWidth(value) {
+function commitRightSidebarWidth(value, options = {}) {
   const minWidth = resolveMinimumRightSidebarWidth()
   const maxWidth = resolveMaximumRightSidebarWidth()
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_RIGHT_SIDEBAR_WIDTH)
   rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
-  debounceSidebarWidthSave()
+  if (options.persist !== false) {
+    debounceSidebarWidthSave()
+  }
 }
 
 function normalizeDocumentDockResizeOptions(options = {}) {
@@ -310,7 +314,9 @@ function commitDocumentDockWidth(value, containerWidth = window.innerWidth, opti
   const resizeOptions = normalizeDocumentDockResizeOptions(options)
   const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
   documentDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
-  debounceSidebarWidthSave()
+  if (options.persist !== false) {
+    debounceSidebarWidthSave()
+  }
 }
 
 function commitReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
@@ -318,15 +324,17 @@ function commitReferenceDockWidth(value, containerWidth = window.innerWidth, opt
   const resizeOptions = normalizeDocumentDockResizeOptions(options)
   const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
   referenceDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
-  debounceSidebarWidthSave()
+  if (options.persist !== false) {
+    debounceSidebarWidthSave()
+  }
 }
 
-function scheduleRightSidebarWidth(value) {
+function scheduleRightSidebarWidth(value, options = {}) {
   pendingRightSidebarWidth = value
   scheduleWorkbenchMotionCommit(
     RIGHT_SIDEBAR_WIDTH_MOTION_KEY,
     pendingRightSidebarWidth,
-    commitRightSidebarWidth,
+    (nextWidth) => commitRightSidebarWidth(nextWidth, options),
   )
 }
 
@@ -378,7 +386,7 @@ function setBottomPanelHeight(value) {
 }
 
 function onLeftResize(event) {
-  scheduleLeftSidebarWidth(event.x)
+  scheduleLeftSidebarWidth(event.x, { persist: false })
 }
 
 function onBottomResize(event) {
@@ -386,7 +394,7 @@ function onBottomResize(event) {
 }
 
 function onRightResize(event) {
-  scheduleRightSidebarWidth(window.innerWidth - event.x)
+  scheduleRightSidebarWidth(window.innerWidth - event.x, { persist: false })
   rightSidebarPreSnapWidth.value = null
 }
 
@@ -396,12 +404,18 @@ function setRightSidebarWidth(value) {
 }
 
 function setDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  scheduleDocumentDockWidth(value, containerWidth, options)
+  scheduleDocumentDockWidth(value, containerWidth, {
+    ...options,
+    persist: isRightSidebarResizing.value ? false : options.persist,
+  })
   documentDockPreSnapWidth.value = null
 }
 
 function setReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  scheduleReferenceDockWidth(value, containerWidth, options)
+  scheduleReferenceDockWidth(value, containerWidth, {
+    ...options,
+    persist: isRightSidebarResizing.value ? false : options.persist,
+  })
   referenceDockPreSnapWidth.value = null
 }
 
@@ -458,6 +472,7 @@ function startLeftSidebarResize() {
 function endLeftSidebarResize() {
   isLeftSidebarResizing.value = false
   flushScheduledSidebarWidths()
+  debounceSidebarWidthSave()
 }
 
 function startRightSidebarResize() {
@@ -467,6 +482,7 @@ function startRightSidebarResize() {
 function endRightSidebarResize() {
   isRightSidebarResizing.value = false
   flushScheduledSidebarWidths()
+  debounceSidebarWidthSave()
 }
 
 function onWindowResize() {
