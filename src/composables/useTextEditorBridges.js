@@ -85,6 +85,7 @@ export function useTextEditorBridges(options) {
       filePath,
       isMarkdownFile,
       isLatexFile,
+      documentText: view.state.doc.toString(),
     })
     if (!text) return
 
