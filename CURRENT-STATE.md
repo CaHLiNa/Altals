@@ -111,6 +111,7 @@ First seam:
 - BibLaTeX `\addbibresource{...}` declarations now use the same selected document reference pool and manual-file overwrite guard as BibTeX `\bibliography{...}` declarations.
 - Reference usage indexing now covers Markdown bare `@key` citations and LaTeX starred / optional-argument citation commands, so the "Cited In" panel no longer misses common citation forms.
 - LaTeX project citation parsing now treats `\nocite{*}` as an include-all directive instead of a missing citation key.
+- Editor citation decorations, hover cards and click-to-edit now recognize the same Markdown bare citations and LaTeX starred / optional-argument citation forms; editing LaTeX citations preserves optional arguments instead of rewriting them to plain `\cite{...}`.
 
 ### Phase 3: Leaf Rustification
 

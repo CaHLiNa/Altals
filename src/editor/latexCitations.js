@@ -3,8 +3,13 @@ import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view'
 const CITE_CMDS =
   'cite[tp]?|citealp|citealt|citeauthor|citeyear|autocite|textcite|parencite|nocite|footcite|fullcite|supercite|smartcite|Cite[tp]?|Parencite|Textcite|Autocite|Smartcite|Footcite|Fullcite'
 
-const LATEX_CITE_RE = new RegExp(`\\\\(${CITE_CMDS})\\{([^}]*)\\}`, 'g')
+const LATEX_CITE_RE = new RegExp(`\\\\(${CITE_CMDS})\\*?(?:\\[[^\\]]*\\])*\\{([^}]*)\\}`, 'g')
 const KEY_RE = /([a-zA-Z][\w.-]*)/g
+
+function latexCitationHead(citationText = '') {
+  const braceIndex = citationText.lastIndexOf('{')
+  return braceIndex >= 0 ? citationText.slice(0, braceIndex) : citationText
+}
 
 class CiteAnnotation extends WidgetType {
   constructor(text) {
@@ -55,19 +60,24 @@ function latexCitationDecorations(getByKey) {
           const matchTo = matchFrom + match[0].length
           const commandName = match[1]
           const keysString = match[2]
-          const commandEnd = matchFrom + commandName.length + 1
+          const commandEnd =
+            matchFrom +
+            commandName.length +
+            1 +
+            (match[0][commandName.length + 1] === '*' ? 1 : 0)
+          const braceFrom = matchFrom + match[0].lastIndexOf('{')
 
           decorations.push(
             Decoration.mark({ class: 'cm-latex-cite-cmd' }).range(matchFrom, commandEnd)
           )
           decorations.push(
-            Decoration.mark({ class: 'cm-latex-cite-brace' }).range(commandEnd, commandEnd + 1)
+            Decoration.mark({ class: 'cm-latex-cite-brace' }).range(braceFrom, braceFrom + 1)
           )
           decorations.push(
             Decoration.mark({ class: 'cm-latex-cite-brace' }).range(matchTo - 1, matchTo)
           )
 
-          const keysStart = commandEnd + 1
+          const keysStart = braceFrom + 1
           KEY_RE.lastIndex = 0
           let keyMatch
           while ((keyMatch = KEY_RE.exec(keysString)) !== null) {
@@ -84,7 +94,7 @@ function latexCitationDecorations(getByKey) {
           const labels = keysString
             .split(',')
             .map((key) => String(key || '').trim())
-            .filter(Boolean)
+            .filter((key) => key && key !== '*')
             .map((key) => {
               const ref = getByKey(key)
               if (!ref) return key
@@ -111,7 +121,7 @@ function latexCitationDecorations(getByKey) {
 }
 
 function latexCitationTriggerPlugin(callbacks = {}) {
-  const triggerRe = new RegExp(`\\\\(${CITE_CMDS})\\{([^}]*)$`)
+  const triggerRe = new RegExp(`\\\\(${CITE_CMDS})\\*?(?:\\[[^\\]]*\\])*\\{([^}]*)$`)
 
   return ViewPlugin.fromClass(
     class {
@@ -133,7 +143,10 @@ function latexCitationTriggerPlugin(callbacks = {}) {
         const insideBraces = match[2]
         const lastComma = insideBraces.lastIndexOf(',')
         const query = lastComma >= 0 ? insideBraces.substring(lastComma + 1).trim() : insideBraces.trim()
-        const commandStart = line.from + textBefore.lastIndexOf(`\\${commandName}`)
+        const commandStartOffset = textBefore.lastIndexOf(`\\${commandName}`)
+        const commandStart = line.from + commandStartOffset
+        const headEnd = textBefore.length - insideBraces.length - 1
+        const head = textBefore.slice(commandStartOffset, Math.max(commandStartOffset, headEnd))
         const triggerFrom = lastComma >= 0 ? pos - query.length : commandStart
 
         if (!isOpen) {
@@ -151,6 +164,7 @@ function latexCitationTriggerPlugin(callbacks = {}) {
                   triggerTo: pos,
                   insideBrackets: lastComma >= 0,
                   latexCommand: commandName,
+                  latexCitationHead: head || `\\${commandName}`,
                 })
               }
             },
@@ -169,4 +183,4 @@ export function latexCitationsExtension(referencesStore, callbacks) {
   return { extensions }
 }
 
-export { CITE_CMDS, LATEX_CITE_RE }
+export { CITE_CMDS, LATEX_CITE_RE, latexCitationHead }

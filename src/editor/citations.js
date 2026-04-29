@@ -27,6 +27,11 @@ function isInCodeContext(state, from, to) {
 
 const CITATION_GROUP_RE = /\[([^\[\]]*@[a-zA-Z][\w.-]*[^\[\]]*)\]/g
 const CITE_KEY_RE = /@([a-zA-Z][\w.-]*)/g
+const BARE_CITATION_RE = /(?:^|[\s(])@([a-zA-Z](?:[\w.-]*[A-Za-z0-9_-])?)/g
+
+function insideRange(pos, ranges = []) {
+  return ranges.some((range) => pos >= range.from && pos < range.to)
+}
 
 function citationDecorations(getByKey) {
   return ViewPlugin.fromClass(
@@ -47,6 +52,7 @@ function citationDecorations(getByKey) {
         const start = Math.max(0, from - 200)
         const end = Math.min(view.state.doc.length, to + 200)
         const text = view.state.doc.sliceString(start, end)
+        const groupRanges = []
 
         CITATION_GROUP_RE.lastIndex = 0
         let match
@@ -54,6 +60,7 @@ function citationDecorations(getByKey) {
           const matchFrom = start + match.index
           const matchTo = matchFrom + match[0].length
           if (isInCodeContext(view.state, matchFrom, matchTo)) continue
+          groupRanges.push({ from: matchFrom, to: matchTo })
 
           const inner = match[1]
           const innerStart = matchFrom + 1
@@ -74,6 +81,20 @@ function citationDecorations(getByKey) {
             const className = ref ? 'cm-citation-key' : 'cm-citation-key-broken'
             decorations.push(Decoration.mark({ class: className }).range(keyFrom, keyTo))
           }
+        }
+
+        BARE_CITATION_RE.lastIndex = 0
+        while ((match = BARE_CITATION_RE.exec(text)) !== null) {
+          const atOffset = match[0].lastIndexOf('@')
+          const key = match[1]
+          const keyFrom = start + match.index + atOffset
+          const keyTo = keyFrom + key.length + 1
+          if (insideRange(keyFrom, groupRanges)) continue
+          if (isInCodeContext(view.state, keyFrom, keyTo)) continue
+
+          const ref = getByKey(key)
+          const className = ref ? 'cm-citation-key' : 'cm-citation-key-broken'
+          decorations.push(Decoration.mark({ class: className }).range(keyFrom, keyTo))
         }
 
         return Decoration.set(decorations.sort((a, b) => a.from - b.from))
@@ -167,5 +188,4 @@ export function citationsExtension(referencesStore, callbacks) {
   return { extensions }
 }
 
-export { CITE_KEY_RE, CITATION_GROUP_RE }
-
+export { BARE_CITATION_RE, CITE_KEY_RE, CITATION_GROUP_RE, isInCodeContext }

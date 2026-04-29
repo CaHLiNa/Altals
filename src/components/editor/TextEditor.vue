@@ -87,8 +87,17 @@ import {
   resolveContextMenuSelection,
 } from '../../editor/contextMenuPolicy'
 import { wikiLinksExtension } from '../../editor/wikiLinks'
-import { citationsExtension, CITATION_GROUP_RE } from '../../editor/citations'
-import { latexCitationsExtension, LATEX_CITE_RE } from '../../editor/latexCitations'
+import {
+  citationsExtension,
+  BARE_CITATION_RE,
+  CITATION_GROUP_RE,
+  isInCodeContext,
+} from '../../editor/citations'
+import {
+  latexCitationsExtension,
+  LATEX_CITE_RE,
+  latexCitationHead,
+} from '../../editor/latexCitations'
 import { createMarkdownDraftSnippetSource } from '../../editor/markdownSnippets'
 import {
   formatCurrentMarkdownTable,
@@ -192,6 +201,8 @@ const citPalette = reactive({
   query: '',
   cites:[],
   latexCommand: null,
+  latexCitationHead: null,
+  markdownCitationSyntax: 'bracketed',
   triggerFrom: 0,
   triggerTo: 0,
   insideBrackets: false,
@@ -669,7 +680,8 @@ function buildMarkdownCitationInsertText(key) {
 
 function buildLatexCitationInsertText(key, latexCommand = null) {
   const command = latexCommand || workspace.latexCitationCommand || 'cite'
-  return citPalette.insideBrackets ? key : `\\${command}{${key}}`
+  const head = citPalette.latexCitationHead || `\\${command}`
+  return citPalette.insideBrackets ? key : `${head}{${key}}`
 }
 
 function resolveCitationReference(key = '') {
@@ -711,6 +723,34 @@ function createCitationHoverItem(key = '') {
   return item
 }
 
+function createCitationHoverTooltip(start, end, keys = []) {
+  const cleanKeys = keys.map((key) => String(key || '').trim()).filter((key) => key && key !== '*')
+  if (cleanKeys.length === 0) return null
+
+  return {
+    pos: start,
+    end,
+    above: true,
+    create(_view) {
+      const dom = document.createElement('div')
+      dom.className = 'cm-citation-hover-card'
+      cleanKeys.forEach((key, index) => {
+        if (index > 0) {
+          const separator = document.createElement('div')
+          separator.className = 'cit-hover-separator'
+          dom.append(separator)
+        }
+        dom.append(createCitationHoverItem(key))
+      })
+      return { dom }
+    },
+  }
+}
+
+function citationKeysFromLatexKeys(keysString = '') {
+  return keysString.split(',').map((key) => key.trim())
+}
+
 function openCitationPaletteAtCursor() {
   if (!view) return
 
@@ -731,6 +771,8 @@ function openCitationPaletteAtCursor() {
   citPalette.triggerTo = to
   citPalette.insideBrackets = false
   citPalette.latexCommand = isLatexEditor ? workspace.latexCitationCommand : null
+  citPalette.latexCitationHead = null
+  citPalette.markdownCitationSyntax = 'bracketed'
 }
 
 function handleInsertCitation() {
@@ -780,7 +822,8 @@ function onCitUpdate({ cites =[] }) {
   if (isLatexEditor) {
     const keys = cites.map((cite) => cite.key)
     const command = citPalette.latexCommand || workspace.latexCitationCommand || 'cite'
-    const text = `\\${command}{${keys.join(', ')}}`
+    const head = citPalette.latexCitationHead || `\\${command}`
+    const text = `${head}{${keys.join(', ')}}`
     view.dispatch({
       changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
     })
@@ -796,6 +839,11 @@ function onCitUpdate({ cites =[] }) {
     return
   }
 
+  const canKeepBare =
+    citPalette.markdownCitationSyntax === 'bare' &&
+    cites.length === 1 &&
+    !String(cites[0]?.prefix || '').trim() &&
+    !String(cites[0]?.locator || '').trim()
   const parts = cites.map((cite) => {
     let part = ''
     if (cite.prefix) part += `${cite.prefix} `
@@ -803,7 +851,7 @@ function onCitUpdate({ cites =[] }) {
     if (cite.locator) part += `, ${cite.locator}`
     return part
   })
-  const text = `[${parts.join('; ')}]`
+  const text = canKeepBare ? parts[0] : `[${parts.join('; ')}]`
   view.dispatch({
     changes: { from: citPalette.groupFrom, to: citPalette.groupTo, insert: text },
   })
@@ -1034,40 +1082,47 @@ onMounted(async () => {
     }),
   ]
 
-  // ===============================================
-  // 学术魔法：加入自动识别文献的 Hover Tooltip 悬浮卡片
-  // ===============================================
   extraExtensions.push(
     hoverTooltip((view, pos, _side) => {
       const { from, text } = view.state.doc.lineAt(pos)
-      // 匹配 Markdown [@Smith2024] 或者 LaTeX \cite{Smith2024} 等
-      const re = /\[@([^\]]+)\]|\\[a-zA-Z]*cite[a-zA-Z]*\*?(?:\[[^\]]*\])*\{([^}]+)\}/g
+
+      if (isMd) {
+        CITATION_GROUP_RE.lastIndex = 0
+        let markdownMatch
+        while ((markdownMatch = CITATION_GROUP_RE.exec(text)) !== null) {
+          const start = from + markdownMatch.index
+          const end = start + markdownMatch[0].length
+          if (pos < start || pos > end) continue
+          if (isInCodeContext(view.state, start, end)) continue
+          return createCitationHoverTooltip(
+            start,
+            end,
+            parseCitationGroup(markdownMatch[0]).map((cite) => cite.key)
+          )
+        }
+
+        BARE_CITATION_RE.lastIndex = 0
+        while ((markdownMatch = BARE_CITATION_RE.exec(text)) !== null) {
+          const atOffset = markdownMatch[0].lastIndexOf('@')
+          const start = from + markdownMatch.index + atOffset
+          const end = start + markdownMatch[1].length + 1
+          if (pos < start || pos > end) continue
+          if (isInCodeContext(view.state, start, end)) continue
+          return createCitationHoverTooltip(start, end, [markdownMatch[1]])
+        }
+
+        return null
+      }
+
+      if (!isLatexEditor) return null
+
+      LATEX_CITE_RE.lastIndex = 0
       let match
-      while ((match = re.exec(text)) !== null) {
+      while ((match = LATEX_CITE_RE.exec(text)) !== null) {
         const start = from + match.index
         const end = start + match[0].length
         if (pos >= start && pos <= end) {
-          const rawKeys = match[1] || match[2]
-          const keys = rawKeys.split(',').map(k => k.trim())
-
-          return {
-            pos: start,
-            end,
-            above: true,
-            create(_view) {
-              const dom = document.createElement('div')
-              dom.className = 'cm-citation-hover-card'
-              keys.forEach((key, index) => {
-                if (index > 0) {
-                  const separator = document.createElement('div')
-                  separator.className = 'cit-hover-separator'
-                  dom.append(separator)
-                }
-                dom.append(createCitationHoverItem(key))
-              })
-              return { dom }
-            }
-          }
+          return createCitationHoverTooltip(start, end, citationKeysFromLatexKeys(match[2]))
         }
       }
       return null
@@ -1108,6 +1163,8 @@ onMounted(async () => {
           citPalette.triggerTo = triggerTo
           citPalette.insideBrackets = insideBrackets
           citPalette.latexCommand = null
+          citPalette.latexCitationHead = null
+          citPalette.markdownCitationSyntax = 'bracketed'
         },
         onQueryChange: (query, triggerTo) => {
           citPalette.query = query
@@ -1147,7 +1204,16 @@ onMounted(async () => {
         getByKey: (key) => referencesStore.getDocumentReferenceByKey(currentLatexReferenceScopePath(), key),
       }, {
         isOpen: () => citPalette.show,
-        onOpen: ({ x, y, query, triggerFrom, triggerTo, insideBrackets, latexCommand }) => {
+        onOpen: ({
+          x,
+          y,
+          query,
+          triggerFrom,
+          triggerTo,
+          insideBrackets,
+          latexCommand,
+          latexCitationHead,
+        }) => {
           citPalette.show = true
           citPalette.mode = 'insert'
           citPalette.x = x
@@ -1158,6 +1224,8 @@ onMounted(async () => {
           citPalette.triggerTo = triggerTo
           citPalette.insideBrackets = insideBrackets
           citPalette.latexCommand = latexCommand
+          citPalette.latexCitationHead = latexCitationHead || null
+          citPalette.markdownCitationSyntax = 'bracketed'
         },
         onQueryChange: (query, triggerTo, triggerFrom) => {
           citPalette.query = query
@@ -1534,7 +1602,35 @@ function handleCitationClick(event) {
     citPalette.cites = parseCitationGroup(match[0])
     citPalette.query = ''
     citPalette.latexCommand = null
+    citPalette.latexCitationHead = null
     citPalette.insideBrackets = true
+    citPalette.markdownCitationSyntax = 'bracketed'
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  BARE_CITATION_RE.lastIndex = 0
+  while ((match = BARE_CITATION_RE.exec(line.text)) !== null) {
+    const atOffset = match[0].lastIndexOf('@')
+    const matchFrom = line.from + match.index + atOffset
+    const matchTo = matchFrom + match[1].length + 1
+    if (pos < matchFrom || pos >= matchTo) continue
+    if (isInCodeContext(view.state, matchFrom, matchTo)) continue
+
+    const coords = view.coordsAtPos(matchFrom)
+    citPalette.show = true
+    citPalette.mode = 'edit'
+    citPalette.x = event.clientX
+    citPalette.y = (coords?.bottom ?? event.clientY) + 2
+    citPalette.groupFrom = matchFrom
+    citPalette.groupTo = matchTo
+    citPalette.cites = [{ key: match[1], locator: '', prefix: '' }]
+    citPalette.query = ''
+    citPalette.latexCommand = null
+    citPalette.latexCitationHead = null
+    citPalette.insideBrackets = false
+    citPalette.markdownCitationSyntax = 'bare'
     event.preventDefault()
     event.stopPropagation()
     return
@@ -1569,7 +1665,9 @@ function handleLatexCitationClick(event) {
       .map((key) => ({ key, locator: '', prefix: '' }))
     citPalette.query = ''
     citPalette.latexCommand = match[1]
+    citPalette.latexCitationHead = latexCitationHead(match[0])
     citPalette.insideBrackets = true
+    citPalette.markdownCitationSyntax = 'bracketed'
     event.preventDefault()
     event.stopPropagation()
     return
