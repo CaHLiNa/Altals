@@ -4,6 +4,9 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   clearScreen: false,
+  build: {
+    chunkSizeWarningLimit: 750,
+  },
   server: {
     host: '0.0.0.0',
     port: 1420,

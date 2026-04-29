@@ -39,6 +39,7 @@ It runs:
 
 - `npm run guard:ui-bridges`
 - `npm run build`
+- `npm run check:bundle`
 - `npm run check:rust`
 - `npm run test:rust`
 
@@ -46,6 +47,7 @@ Current baseline on 2026-04-29:
 
 - UI bridge boundary check passed
 - Vite build passed
+- Bundle budget check passed
 - Rust check passed
 - Rust tests passed: 127 tests
 
@@ -142,7 +144,7 @@ Do not migrate shared workflow, editor shell, session persistence and UI chrome 
 
 ### Phase 4: Bundle Size and Chunk Hygiene
 
-Status: accepted engineering debt.
+Status: in progress.
 
 Goal:
 
@@ -150,7 +152,8 @@ Reduce oversized frontend chunks without changing product behavior.
 
 Known signal:
 
-- `npm run build` passes but warns about chunks over 500 kB
+- the PDFium worker chunk is an upstream EmbedPDF worker bundle and is explicitly budgeted at 750 KiB
+- ordinary JS chunks keep the stricter 500 KiB budget through `npm run check:bundle`
 - likely pressure points include PDF, CodeMirror language support, KaTeX and TextMate assets
 
 Preferred approach:
@@ -158,6 +161,11 @@ Preferred approach:
 - inspect build output first
 - split heavy optional viewers and language assets only where the user path benefits
 - do not add broad build complexity for cosmetic chunk reshuffling
+
+Done:
+
+- added `npm run check:bundle` as a post-build budget guard for JS, CSS and WASM assets
+- raised Vite's generic chunk warning limit to 750 KiB so the known PDF worker does not hide actionable regressions behind repeated generic warnings
 
 ## Explicit Non-Goals
 
