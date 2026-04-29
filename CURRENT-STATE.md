@@ -175,6 +175,93 @@ Done:
 - removed the redundant dynamic import of CodeMirror autocomplete from `TextEditor.vue`; build output no longer reports the autocomplete static/dynamic import warning
 - replaced Markdown preview's generic `rehype-highlight` dependency with a constrained local highlighter that registers only common writing / coding languages; the preview chunk dropped from about 366 KiB to about 265 KiB while preserving code highlighting for the supported language set
 
+### Phase 5: Heavy Runtime Loading Contract
+
+Status: planned.
+
+Goal:
+
+Make the remaining heavy runtime assets explicit, lazy and budgeted without weakening the desktop writing path:
+
+- PDFium / EmbedPDF stays loaded only for PDF preview surfaces
+- TextMate / Oniguruma stays loaded only for LaTeX editing surfaces
+- CodeMirror language-data stays loaded only for editor language resolution
+- heavyweight assets keep named budgets and cannot drift silently
+- product behavior stays the same for Markdown, LaTeX, Python, PDF preview and citation workflows
+
+Why this is a separate phase:
+
+- the remaining large assets are real runtime capabilities, not leftover dead code
+- moving them changes load timing and error boundaries, so it needs a contract before implementation
+- the user-owned desktop / visual / interaction checks stay manual and are not part of this phase automation
+
+Current baseline:
+
+- `pdfium-*.wasm`: about 4518 KiB / 5120 KiB budget
+- `worker-engine-*.js`: about 683 KiB / 750 KiB budget
+- `onig-*.wasm`: about 462 KiB / 512 KiB budget
+- largest ordinary app JS chunk: about 330 KiB / 500 KiB budget
+- `preview-*.js`: about 265 KiB after the constrained Markdown highlighter change
+
+Primary areas:
+
+- `scripts/check-bundle-budget.mjs`
+- `vite.config.js`
+- `src/components/editor/PdfArtifactPreview.vue`
+- `src/components/editor/PdfEmbedSurface.vue`
+- `src/components/editor/PdfEmbedDocumentSurface.vue`
+- `src/services/pdf/embedPdfAdapter.js`
+- `src/components/editor/TextEditor.vue`
+- `src/editor/latexLanguage.js`
+
+Phase steps:
+
+1. Budget Manifest and Drift Reporting
+   - Move hard-coded asset budget rules into a small named manifest inside `scripts/check-bundle-budget.mjs` or an adjacent JSON module.
+   - Keep current budgets for known heavy assets instead of raising limits.
+   - Add output that distinguishes ordinary chunks, upstream PDF worker, PDFium WASM and Oniguruma WASM.
+   - Do not fail on hash changes; fail on size and unknown oversized asset classes.
+
+2. PDF Runtime Boundary Audit
+   - Confirm `@embedpdf/*` and `pdfium-*.wasm` enter only through PDF preview components and `src/services/pdf/*`.
+   - If any PDF dependency leaks into app shell, editor shell or non-PDF surfaces, move it behind existing async component / service boundaries.
+   - Keep PDF search, thumbnails, selection, export, SyncTeX forward/backward sync and view-state restore in scope.
+   - Do not replace EmbedPDF or remove PDF features in this phase.
+
+3. TextMate Runtime Boundary Audit
+   - Confirm `vscode-textmate`, `vscode-oniguruma`, TextMate grammars and theme JSON files enter only through `src/editor/latexLanguage.js`.
+   - Preserve current LaTeX highlighting and citation/autocomplete behavior.
+   - If possible, split theme parsing or runtime creation so non-LaTeX editors do not pay additional initialization cost.
+   - Do not migrate LaTeX highlighting to a different engine in this phase.
+
+4. CodeMirror Language Resolution Review
+   - Review `TextEditor.vue` language loading so Markdown, LaTeX and generic code paths do not load broader language-data earlier than needed.
+   - Preserve Markdown fenced-code support and generic file highlighting.
+   - Any change must keep editor setup contract stable and avoid touching shared editor shell behavior beyond the language-loading seam.
+
+5. Verification and Documentation
+   - Run `npm run verify`.
+   - Record before/after top bundle assets in this file.
+   - Commit as one or more small commits by seam: budget manifest, PDF boundary, TextMate boundary, language resolution.
+
+Acceptance criteria:
+
+- `npm run verify` passes.
+- `npm run check:bundle` reports the same named heavy asset classes and no ordinary JS chunk above 500 KiB.
+- Markdown files still use Markdown language support.
+- LaTeX files still load TextMate highlighting and LaTeX autocomplete.
+- Python / generic code files still receive language support where CodeMirror can resolve it.
+- PDF preview still opens through the existing PDF surface and keeps search / selection / thumbnails / SyncTeX paths in code.
+- No desktop, visual, layout or interaction automation is added.
+
+Non-goals:
+
+- no replacement of EmbedPDF / PDFium
+- no removal of PDF search, thumbnails, selection or SyncTeX
+- no replacement of TextMate highlighting
+- no broad editor shell rewrite
+- no broad Vite manual chunk map unless a measured leak requires it
+
 ## Explicit Non-Goals
 
 - no automated desktop main-path smoke phase
