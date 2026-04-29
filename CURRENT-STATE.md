@@ -77,7 +77,7 @@ Done:
 
 ### Phase 2: Research-to-Writing Loop
 
-Status: in progress.
+Status: completed.
 
 Goal:
 
@@ -113,6 +113,7 @@ First seam:
 - LaTeX project citation parsing now treats `\nocite{*}` as an include-all directive instead of a missing citation key.
 - Editor citation decorations, hover cards and click-to-edit now recognize the same Markdown bare citations and LaTeX starred / optional-argument citation forms; editing LaTeX citations preserves optional arguments instead of rewriting them to plain `\cite{...}`.
 - Reference "Cited In" now shows citation line numbers and source snippets for Markdown / LaTeX usages, while keeping the old file-level usage index for compatibility; clicking a usage opens the source file and highlights the cited line when an editor view is available.
+- LaTeX citation palette now searches beyond the current document reference pool into the global library when needed, auto-adds selected library references to the current `.tex` document before insertion, and labels whether a result is already in Document References or will be added.
 
 ### Phase 3: Leaf Rustification
 
