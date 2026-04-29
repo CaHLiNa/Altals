@@ -72,6 +72,14 @@ async function shouldMarkReferenceForZoteroPush() {
   }
 }
 
+async function resolveReferenceStorageRoot(projectRoot = '') {
+  const normalizedRoot = String(projectRoot || '').trim()
+  if (normalizedRoot) return normalizedRoot
+
+  const workspace = useWorkspaceStore()
+  return String(await workspace.ensureGlobalConfigDir() || '').trim()
+}
+
 function buildDefaultResolvedQueryState(state = {}) {
   return {
     query: {
@@ -186,9 +194,16 @@ export const useReferencesStore = defineStore('references', {
 
     async commitLibrarySnapshot(projectRoot = '', snapshot = {}, options = {}) {
       const { persist = true, preferredSelectedReferenceId = null } = options
-      const nextSnapshot = persist
-        ? await writeReferenceLibrarySnapshot(projectRoot, snapshot)
-        : await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
+      let nextSnapshot = null
+      if (persist) {
+        const storageRoot = await resolveReferenceStorageRoot(projectRoot)
+        if (!storageRoot) {
+          throw new Error(t('Reference library storage is not ready'))
+        }
+        nextSnapshot = await writeReferenceLibrarySnapshot(storageRoot, snapshot)
+      } else {
+        nextSnapshot = await normalizeReferenceLibrarySnapshotWithBackend(snapshot)
+      }
       await this.applyLibrarySnapshot(nextSnapshot, { preferredSelectedReferenceId })
       return nextSnapshot
     },
@@ -298,7 +313,8 @@ export const useReferencesStore = defineStore('references', {
       this.loadError = ''
 
       try {
-        const snapshot = await readOrCreateReferenceLibrarySnapshot(projectRoot, options)
+        const storageRoot = await resolveReferenceStorageRoot(projectRoot)
+        const snapshot = await readOrCreateReferenceLibrarySnapshot(storageRoot, options)
         await this.applyLibrarySnapshot(snapshot)
         await this.loadWorkspaceCitationStyles()
       } catch (error) {

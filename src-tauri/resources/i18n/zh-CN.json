@@ -956,6 +956,7 @@
   "Failed to refresh metadata": "刷新元数据失败",
   "Failed to export reference details": "详细导出失败",
   "Failed to load reference library": "加载文献库失败",
+  "Reference library storage is not ready": "文献库保存位置尚未就绪",
   "Attach PDF": "绑定 PDF",
   "Rename PDF": "重命名 PDF",
   "Refresh Metadata": "刷新元数据",

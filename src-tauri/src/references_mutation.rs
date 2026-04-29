@@ -845,6 +845,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_reference_preserves_content_fields() {
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            action: ReferencesMutationAction::UpdateReference {
+                reference_id: "ref-1".to_string(),
+                updates: json!({
+                    "abstract": "Updated abstract body",
+                    "notes": ["Updated note body"]
+                }),
+            },
+        })
+        .await
+        .expect("update reference content");
+
+        let reference = &result["snapshot"]["references"][0];
+        assert_eq!(
+            reference["abstract"].as_str(),
+            Some("Updated abstract body")
+        );
+        assert_eq!(reference["notes"][0].as_str(), Some("Updated note body"));
+    }
+
+    #[tokio::test]
     async fn remove_reference_drops_entry() {
         let result = references_mutation_apply(ReferencesMutationApplyParams {
             snapshot: sample_snapshot(),

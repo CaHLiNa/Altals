@@ -579,9 +579,10 @@ pub async fn references_record_normalize(
 mod tests {
     use super::{
         normalize_reference_record, normalize_snapshot, rename_reference_asset,
-        store_reference_asset, ReferenceAssetRenameParams, ReferenceAssetStoreParams,
+        store_reference_asset, write_library_snapshot, ReferenceAssetRenameParams,
+        ReferenceAssetStoreParams,
     };
-    use serde_json::json;
+    use serde_json::{json, Value};
     use std::fs;
 
     #[test]
@@ -630,6 +631,46 @@ mod tests {
         assert_eq!(normalized["typeKey"].as_str(), Some("journal-article"));
         assert_eq!(normalized["hasPdf"].as_bool(), Some(true));
         assert_eq!(normalized["tags"].as_array().map(|v| v.len()), Some(2));
+    }
+
+    #[test]
+    fn library_write_persists_reference_content_fields() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "scribeflow-reference-library-content-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global_config_dir = temp_dir.join("config");
+        let snapshot = json!({
+            "version": 2,
+            "citationStyle": "apa",
+            "collections": [],
+            "tags": [],
+            "references": [{
+                "id": "ref-content",
+                "title": "A Title",
+                "abstract": "Updated abstract body",
+                "notes": ["Updated note body"]
+            }]
+        });
+
+        write_library_snapshot(&global_config_dir.to_string_lossy(), &snapshot)
+            .expect("write library snapshot");
+
+        let library_file = global_config_dir.join("references").join("library.json");
+        let parsed: Value = serde_json::from_str(
+            &fs::read_to_string(&library_file).expect("read library snapshot"),
+        )
+        .expect("parse library snapshot");
+        assert_eq!(
+            parsed["references"][0]["abstract"].as_str(),
+            Some("Updated abstract body")
+        );
+        assert_eq!(
+            parsed["references"][0]["notes"][0].as_str(),
+            Some("Updated note body")
+        );
+
+        fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
