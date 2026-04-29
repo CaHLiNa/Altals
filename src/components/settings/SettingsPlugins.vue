@@ -36,6 +36,43 @@
             <div v-else-if="plugin.warnings.length" class="plugin-message">
               {{ plugin.warnings.join('; ') }}
             </div>
+            <div v-if="settingEntries(plugin).length" class="plugin-settings-grid">
+              <div
+                v-for="[key, setting] in settingEntries(plugin)"
+                :key="`${plugin.id}:${key}`"
+                class="plugin-setting-row"
+              >
+                <div class="plugin-setting-copy">
+                  <div class="plugin-setting-label">{{ setting.label || key }}</div>
+                  <div v-if="setting.description" class="plugin-setting-hint">
+                    {{ setting.description }}
+                  </div>
+                </div>
+                <div class="plugin-setting-control">
+                  <UiSwitch
+                    v-if="setting.type === 'boolean'"
+                    :model-value="Boolean(settingValue(plugin, key))"
+                    size="sm"
+                    :title="setting.label || key"
+                    @update:model-value="(value) => updateSetting(plugin.id, key, value)"
+                  />
+                  <UiSelect
+                    v-else-if="settingOptions(setting).length"
+                    :model-value="settingValue(plugin, key)"
+                    :options="settingOptions(setting)"
+                    :placeholder="setting.label || key"
+                    @update:model-value="(value) => updateSetting(plugin.id, key, value)"
+                  />
+                  <UiInput
+                    v-else
+                    :model-value="settingValue(plugin, key)"
+                    :type="setting.type === 'number' || setting.type === 'integer' ? 'number' : 'text'"
+                    size="sm"
+                    @update:model-value="(value) => updateSetting(plugin.id, key, coerceSettingValue(setting, value))"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
           <div class="plugin-controls">
             <UiSwitch
@@ -83,6 +120,7 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from '../../i18n'
 import { usePluginsStore } from '../../stores/plugins'
+import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import PluginJobPanel from '../plugins/PluginJobPanel.vue'
@@ -105,7 +143,7 @@ function isEnabled(pluginId = '') {
 }
 
 function displayStatus(plugin = {}) {
-  if (plugin.status === 'invalid' || plugin.status === 'blocked') return plugin.status
+  if (plugin.status !== 'available') return plugin.status
   return isEnabled(plugin.id) ? plugin.status : 'disabled'
 }
 
@@ -127,6 +165,39 @@ function providerOptions(capability = '') {
     value: plugin.id,
     label: plugin.name || plugin.id,
   }))
+}
+
+function settingEntries(plugin = {}) {
+  return Object.entries(plugin.settingsSchema || {}).sort(([left], [right]) => left.localeCompare(right))
+}
+
+function settingValue(plugin = {}, key = '') {
+  return pluginsStore.configForPlugin(plugin)?.[key]
+}
+
+function settingOptions(setting = {}) {
+  return Array.isArray(setting.options)
+    ? setting.options.map((option) => ({
+        value: option?.value,
+        label: option?.label || String(option?.value ?? ''),
+      }))
+    : []
+}
+
+function coerceSettingValue(setting = {}, value = '') {
+  if (setting.type === 'integer') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isNaN(parsed) ? value : parsed
+  }
+  if (setting.type === 'number') {
+    const parsed = Number.parseFloat(value)
+    return Number.isNaN(parsed) ? value : parsed
+  }
+  return value
+}
+
+function updateSetting(pluginId = '', key = '', value = '') {
+  void pluginsStore.setPluginConfigValue(pluginId, key, value)
 }
 
 onMounted(async () => {
@@ -231,5 +302,52 @@ onMounted(async () => {
 
 .plugin-controls {
   flex: 0 0 auto;
+}
+
+.plugin-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 280px);
+  gap: 10px 14px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
+}
+
+.plugin-setting-row {
+  display: contents;
+}
+
+.plugin-setting-copy {
+  min-width: 0;
+}
+
+.plugin-setting-label {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.plugin-setting-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.plugin-setting-control {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .plugin-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-setting-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 </style>

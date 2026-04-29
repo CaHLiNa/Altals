@@ -4,7 +4,6 @@ use crate::plugin_manifest::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -37,6 +36,12 @@ pub struct PluginRegistryEntry {
     pub manifest: Option<PluginManifest>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PluginCommandTarget {
+    pub executable: PathBuf,
+    pub working_dir: PathBuf,
+}
+
 fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
 }
@@ -61,38 +66,79 @@ pub fn workspace_plugins_root(workspace_root: &str) -> Option<PathBuf> {
     Some(Path::new(&normalized).join(".scribeflow").join("plugins"))
 }
 
-pub fn command_exists(command: &str) -> bool {
-    let command = command.trim();
-    if command.is_empty() {
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
         return false;
     }
 
-    for candidate_dir in app_dirs::candidate_bin_dirs() {
-        if candidate_dir.join(command).is_file() {
-            return true;
-        }
-        #[cfg(windows)]
-        if candidate_dir.join(format!("{command}.exe")).is_file() {
-            return true;
-        }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return fs::metadata(path)
+            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false);
     }
 
-    let Some(path_var) = env::var_os("PATH") else {
-        return false;
-    };
-    for dir in env::split_paths(&path_var) {
-        if dir.join(command).is_file() {
-            return true;
-        }
-        #[cfg(windows)]
-        if dir.join(format!("{command}.exe")).is_file() {
-            return true;
-        }
+    #[cfg(not(unix))]
+    {
+        true
     }
-    false
 }
 
-fn status_for_manifest(manifest: &PluginManifest, errors: &[String]) -> String {
+fn plugin_dir_for_manifest_path(manifest_path: &Path) -> Result<PathBuf, String> {
+    manifest_path
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "Plugin manifest has no parent directory".to_string())
+}
+
+fn is_within_root(path: &Path, root: &Path) -> bool {
+    path == root || path.starts_with(root)
+}
+
+pub fn resolve_plugin_command_target(
+    manifest_path: &str,
+    command: &str,
+) -> Result<PluginCommandTarget, String> {
+    if !crate::plugin_manifest::is_safe_cli_command_name(command) {
+        return Err("Unsafe plugin runtime command".to_string());
+    }
+
+    let plugin_dir = plugin_dir_for_manifest_path(Path::new(manifest_path))?;
+    let canonical_plugin_dir = fs::canonicalize(&plugin_dir).map_err(|error| error.to_string())?;
+    let command_path = canonical_plugin_dir.join(command);
+    let canonical_command_path = fs::canonicalize(&command_path).map_err(|error| {
+        format!(
+            "Plugin runtime command not found in plugin directory: {} ({error})",
+            command_path.display()
+        )
+    })?;
+
+    if !is_within_root(&canonical_command_path, &canonical_plugin_dir) {
+        return Err("Plugin runtime command must stay inside the plugin directory".to_string());
+    }
+    if !is_executable_file(&canonical_command_path) {
+        return Err(format!(
+            "Plugin runtime command is not executable: {}",
+            canonical_command_path.display()
+        ));
+    }
+
+    Ok(PluginCommandTarget {
+        executable: canonical_command_path,
+        working_dir: canonical_plugin_dir,
+    })
+}
+
+pub fn command_exists(manifest_path: &str, command: &str) -> bool {
+    resolve_plugin_command_target(manifest_path, command).is_ok()
+}
+
+fn status_for_manifest(
+    manifest_path: &Path,
+    manifest: &PluginManifest,
+    errors: &[String],
+) -> String {
     if !errors.is_empty() {
         if errors.iter().any(|error| {
             error.contains("Unsupported runtime")
@@ -104,7 +150,9 @@ fn status_for_manifest(manifest: &PluginManifest, errors: &[String]) -> String {
         return "invalid".to_string();
     }
 
-    if manifest.runtime.runtime_type == "cli" && !command_exists(&manifest.runtime.command) {
+    if manifest.runtime.runtime_type == "cli"
+        && !command_exists(&manifest_path.to_string_lossy(), &manifest.runtime.command)
+    {
         return "missingRuntime".to_string();
     }
 
@@ -170,7 +218,7 @@ fn load_entry(scope: &str, plugin_dir: &Path) -> Option<PluginRegistryEntry> {
     };
 
     let validation = validate_plugin_manifest(&manifest);
-    let status = status_for_manifest(&manifest, &validation.errors);
+    let status = status_for_manifest(&manifest_path, &manifest, &validation.errors);
     let id = if manifest.id.trim().is_empty() {
         normalize_plugin_id(id_hint)
     } else {
@@ -285,6 +333,19 @@ mod tests {
         .expect("write manifest");
     }
 
+    fn write_runner(dir: &std::path::Path, command: &str) {
+        let runner = dir.join(command);
+        fs::create_dir_all(runner.parent().expect("runner parent")).expect("runner parent");
+        fs::write(&runner, "#!/usr/bin/env sh\nexit 0\n").expect("runner");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&runner).expect("metadata").permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&runner, permissions).expect("chmod");
+        }
+    }
+
     #[test]
     fn registry_discovers_global_and_workspace_plugins() {
         let root = std::env::temp_dir().join(format!(
@@ -293,19 +354,15 @@ mod tests {
         ));
         let global = root.join("global");
         let workspace = root.join("workspace");
-        write_manifest(
-            &global.join("plugins").join("global-plugin"),
-            "global-plugin",
-            "missing-command",
-        );
-        write_manifest(
-            &workspace
-                .join(".scribeflow")
-                .join("plugins")
-                .join("workspace-plugin"),
-            "workspace-plugin",
-            "missing-command",
-        );
+        let global_plugin = global.join("plugins").join("global-plugin");
+        let workspace_plugin = workspace
+            .join(".scribeflow")
+            .join("plugins")
+            .join("workspace-plugin");
+        write_manifest(&global_plugin, "global-plugin", "bin/runner");
+        write_manifest(&workspace_plugin, "workspace-plugin", "bin/runner");
+        write_runner(&global_plugin, "bin/runner");
+        write_runner(&workspace_plugin, "bin/runner");
 
         let entries = list_plugin_registry(&PluginRegistryListParams {
             global_config_dir: global.to_string_lossy().to_string(),
@@ -314,8 +371,12 @@ mod tests {
         .expect("list registry");
 
         assert_eq!(entries.len(), 2);
-        assert!(entries.iter().any(|entry| entry.scope == "global"));
-        assert!(entries.iter().any(|entry| entry.scope == "workspace"));
+        assert!(entries
+            .iter()
+            .any(|entry| entry.scope == "global" && entry.status == "available"));
+        assert!(entries
+            .iter()
+            .any(|entry| entry.scope == "workspace" && entry.status == "available"));
         fs::remove_dir_all(root).ok();
     }
 
@@ -327,19 +388,15 @@ mod tests {
         ));
         let global = root.join("global");
         let workspace = root.join("workspace");
-        write_manifest(
-            &global.join("plugins").join("pdfmathtranslate"),
-            "pdfmathtranslate",
-            "missing-command",
-        );
-        write_manifest(
-            &workspace
-                .join(".scribeflow")
-                .join("plugins")
-                .join("pdfmathtranslate"),
-            "pdfmathtranslate",
-            "missing-command",
-        );
+        let global_plugin = global.join("plugins").join("pdfmathtranslate");
+        let workspace_plugin = workspace
+            .join(".scribeflow")
+            .join("plugins")
+            .join("pdfmathtranslate");
+        write_manifest(&global_plugin, "pdfmathtranslate", "bin/runner");
+        write_manifest(&workspace_plugin, "pdfmathtranslate", "bin/runner");
+        write_runner(&global_plugin, "bin/runner");
+        write_runner(&workspace_plugin, "bin/runner");
 
         let entries = list_plugin_registry(&PluginRegistryListParams {
             global_config_dir: global.to_string_lossy().to_string(),
@@ -351,6 +408,26 @@ mod tests {
         assert!(entries[0]
             .warnings
             .contains(&"Workspace plugin overrides a global plugin with the same id".to_string()));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn plugin_runner_must_live_inside_plugin_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-plugin-registry-runner-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global = root.join("global");
+        let plugin = global.join("plugins").join("local-plugin");
+        write_manifest(&plugin, "local-plugin", "bin/missing-runner");
+
+        let entries = list_plugin_registry(&PluginRegistryListParams {
+            global_config_dir: global.to_string_lossy().to_string(),
+            workspace_root: String::new(),
+        })
+        .expect("list registry");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status, "missingRuntime");
         fs::remove_dir_all(root).ok();
     }
 }

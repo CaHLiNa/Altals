@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -13,6 +14,8 @@ pub struct PluginSettings {
     pub enabled_plugin_ids: Vec<String>,
     #[serde(default)]
     pub default_providers: BTreeMap<String, String>,
+    #[serde(default)]
+    pub plugin_config: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -68,9 +71,23 @@ fn normalize_settings(settings: PluginSettings) -> PluginSettings {
         })
         .collect();
 
+    let plugin_config = settings
+        .plugin_config
+        .into_iter()
+        .filter_map(|(plugin_id, config)| {
+            let plugin_id = plugin_id.trim().to_ascii_lowercase();
+            if plugin_id.is_empty() {
+                None
+            } else {
+                Some((plugin_id, config))
+            }
+        })
+        .collect();
+
     PluginSettings {
         enabled_plugin_ids,
         default_providers,
+        plugin_config,
     }
 }
 
@@ -132,6 +149,11 @@ mod tests {
             "pdf.translate".to_string(),
             " PDFMathTranslate ".to_string(),
         );
+        let mut plugin_config = BTreeMap::new();
+        plugin_config.insert(
+            " PDFMathTranslate ".to_string(),
+            serde_json::json!({"model": "gpt-4.1-mini"}),
+        );
         let saved = save_plugin_settings(
             &root.to_string_lossy(),
             PluginSettings {
@@ -140,12 +162,17 @@ mod tests {
                     "pdfmathtranslate".to_string(),
                 ],
                 default_providers,
+                plugin_config,
             },
         )
         .expect("save");
         assert_eq!(
             saved.enabled_plugin_ids,
             vec!["pdfmathtranslate".to_string()]
+        );
+        assert_eq!(
+            saved.plugin_config.get("pdfmathtranslate"),
+            Some(&serde_json::json!({"model": "gpt-4.1-mini"}))
         );
         assert_eq!(
             load_plugin_settings(&root.to_string_lossy()).expect("load"),

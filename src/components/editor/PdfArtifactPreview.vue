@@ -118,8 +118,6 @@ const pdfTranslateTarget = computed(() => ({
   path: props.artifactPath,
 }))
 const pdfTranslateSettings = computed(() => ({
-  targetLanguage: 'zh',
-  bilingual: true,
 }))
 
 function refreshThemeTokens() {

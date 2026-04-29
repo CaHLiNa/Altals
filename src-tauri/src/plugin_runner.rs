@@ -4,7 +4,7 @@ use crate::plugin_jobs::{
     PluginJobRuntimeState, PluginJobTarget,
 };
 use crate::plugin_permissions::{validate_manifest_permissions, validate_plugin_input_file_path};
-use crate::plugin_registry::{command_exists, find_plugin_entry};
+use crate::plugin_registry::{find_plugin_entry, resolve_plugin_command_target};
 use crate::process_utils::background_tokio_command;
 use crate::security::WorkspaceScopeState;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,7 @@ pub struct PluginRuntimeDetectResult {
     pub plugin_id: String,
     pub runtime_type: String,
     pub command: String,
+    pub resolved_path: String,
     pub available: bool,
     pub message: String,
 }
@@ -51,27 +52,21 @@ pub struct PluginJobStartParams {
     pub settings: Value,
 }
 
-fn setting_string(settings: &Value, key: &str, fallback: &str) -> String {
-    settings
-        .get(key)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(fallback)
-        .to_string()
-}
-
 fn build_pdf_translate_args(
+    capability: &str,
     input_pdf: &str,
-    target_language: &str,
     output_dir: &Path,
+    settings: &Value,
 ) -> Vec<String> {
     vec![
+        "--capability".to_string(),
+        capability.to_string(),
+        "--input-pdf".to_string(),
         input_pdf.to_string(),
-        "-lo".to_string(),
-        target_language.to_string(),
-        "-o".to_string(),
+        "--output-dir".to_string(),
         output_dir.to_string_lossy().to_string(),
+        "--settings-json".to_string(),
+        settings.to_string(),
     ]
 }
 
@@ -87,17 +82,25 @@ pub async fn plugin_runtime_detect(
     let Some(manifest) = entry.manifest else {
         return Err(format!("Plugin manifest is invalid: {}", params.plugin_id));
     };
-    let available =
-        manifest.runtime.runtime_type == "cli" && command_exists(&manifest.runtime.command);
+    let command_target = if manifest.runtime.runtime_type == "cli" {
+        resolve_plugin_command_target(&entry.path, &manifest.runtime.command).ok()
+    } else {
+        None
+    };
+    let available = command_target.is_some();
     Ok(PluginRuntimeDetectResult {
         plugin_id: entry.id,
         runtime_type: manifest.runtime.runtime_type.clone(),
         command: manifest.runtime.command.clone(),
+        resolved_path: command_target
+            .as_ref()
+            .map(|target| target.executable.to_string_lossy().to_string())
+            .unwrap_or_default(),
         available,
         message: if available {
             "Runtime available".to_string()
         } else {
-            "Runtime command not found".to_string()
+            "Runtime command not found in plugin directory".to_string()
         },
     })
 }
@@ -136,12 +139,8 @@ pub async fn plugin_job_start(
             params.plugin_id, params.capability
         ));
     }
-    if !command_exists(&manifest.runtime.command) {
-        return Err(format!(
-            "Runtime command not found: {}",
-            manifest.runtime.command
-        ));
-    }
+    let command_target = resolve_plugin_command_target(&entry.path, &manifest.runtime.command)
+        .map_err(|error| format!("Runtime command not available: {error}"))?;
     if params.capability != "pdf.translate" {
         return Err(format!(
             "Unsupported capability invocation: {}",
@@ -164,19 +163,23 @@ pub async fn plugin_job_start(
         &entry.id,
         &job.id,
     )?;
-    let target_language = setting_string(&params.settings, "targetLanguage", "zh");
-    let args =
-        build_pdf_translate_args(&input_path.to_string_lossy(), &target_language, &output_dir);
+    let args = build_pdf_translate_args(
+        &params.capability,
+        &input_path.to_string_lossy(),
+        &output_dir,
+        &params.settings,
+    );
     let log_path = job.log_path.clone();
     let job_id = job.id.clone();
     let plugin_id = entry.id.clone();
     let capability = params.capability.clone();
     let source_path = input_path.to_string_lossy().to_string();
-    let command = manifest.runtime.command.clone();
+    let command = command_target.executable.to_string_lossy().to_string();
 
     mark_job_running(&job.id)?;
     let mut command_handle = background_tokio_command(&command);
     command_handle.args(&args);
+    command_handle.current_dir(&command_target.working_dir);
     command_handle.stdout(Stdio::piped());
     command_handle.stderr(Stdio::piped());
     let child = match command_handle.spawn() {
@@ -252,16 +255,24 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn builds_pdf_translate_args_without_shell() {
-        let args = build_pdf_translate_args("/tmp/a.pdf", "zh", Path::new("/tmp/out"));
+    fn builds_plugin_runner_args_without_shell() {
+        let args = build_pdf_translate_args(
+            "pdf.translate",
+            "/tmp/a.pdf",
+            Path::new("/tmp/out"),
+            &serde_json::json!({"targetLanguage": "zh"}),
+        );
         assert_eq!(
             args,
             vec![
+                "--capability".to_string(),
+                "pdf.translate".to_string(),
+                "--input-pdf".to_string(),
                 "/tmp/a.pdf".to_string(),
-                "-lo".to_string(),
-                "zh".to_string(),
-                "-o".to_string(),
-                "/tmp/out".to_string()
+                "--output-dir".to_string(),
+                "/tmp/out".to_string(),
+                "--settings-json".to_string(),
+                "{\"targetLanguage\":\"zh\"}".to_string()
             ]
         );
     }

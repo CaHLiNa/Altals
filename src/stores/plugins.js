@@ -37,6 +37,9 @@ function normalizePlugin(plugin = {}) {
     capabilities: Array.isArray(plugin.capabilities) ? plugin.capabilities.map(normalizeCapability).filter(Boolean) : [],
     warnings: Array.isArray(plugin.warnings) ? plugin.warnings : [],
     errors: Array.isArray(plugin.errors) ? plugin.errors : [],
+    settingsSchema: plugin?.manifest?.settingsSchema && typeof plugin.manifest.settingsSchema === 'object'
+      ? plugin.manifest.settingsSchema
+      : {},
   }
 }
 
@@ -58,6 +61,7 @@ export const usePluginsStore = defineStore('plugins', {
     jobs: [],
     enabledPluginIds: [],
     defaultProviders: {},
+    pluginConfig: {},
     loadingRegistry: false,
     loadingJobs: false,
     settingsHydrated: false,
@@ -94,6 +98,30 @@ export const usePluginsStore = defineStore('plugins', {
     recentJobs(state) {
       return [...state.jobs].slice(0, 8)
     },
+    defaultConfigForPlugin: () => (plugin = {}) => {
+      const defaults = {}
+      const schema = plugin.settingsSchema || {}
+      for (const [key, definition] of Object.entries(schema)) {
+        if (definition && Object.prototype.hasOwnProperty.call(definition, 'default')) {
+          defaults[key] = definition.default
+        }
+      }
+      return defaults
+    },
+    configForPlugin: (state) => (plugin = {}) => {
+      const defaults = {}
+      const schema = plugin.settingsSchema || {}
+      for (const [key, definition] of Object.entries(schema)) {
+        if (definition && Object.prototype.hasOwnProperty.call(definition, 'default')) {
+          defaults[key] = definition.default
+        }
+      }
+      const saved = state.pluginConfig?.[normalizePluginId(plugin.id)]
+      return {
+        ...defaults,
+        ...(saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}),
+      }
+    },
   },
 
   actions: {
@@ -101,6 +129,7 @@ export const usePluginsStore = defineStore('plugins', {
       return {
         enabledPluginIds: [...this.enabledPluginIds],
         defaultProviders: { ...this.defaultProviders },
+        pluginConfig: { ...this.pluginConfig },
       }
     },
 
@@ -114,6 +143,9 @@ export const usePluginsStore = defineStore('plugins', {
         : []
       this.defaultProviders = settings?.defaultProviders && typeof settings.defaultProviders === 'object'
         ? { ...settings.defaultProviders }
+        : {}
+      this.pluginConfig = settings?.pluginConfig && typeof settings.pluginConfig === 'object'
+        ? { ...settings.pluginConfig }
         : {}
       this.settingsHydrated = true
       return this.snapshotSettings()
@@ -132,6 +164,9 @@ export const usePluginsStore = defineStore('plugins', {
         : []
       this.defaultProviders = saved?.defaultProviders && typeof saved.defaultProviders === 'object'
         ? { ...saved.defaultProviders }
+        : {}
+      this.pluginConfig = saved?.pluginConfig && typeof saved.pluginConfig === 'object'
+        ? { ...saved.pluginConfig }
         : {}
       this.settingsHydrated = true
       return this.snapshotSettings()
@@ -194,6 +229,23 @@ export const usePluginsStore = defineStore('plugins', {
       return this.persistSettings({ defaultProviders: next })
     },
 
+    async setPluginConfigValue(pluginId = '', key = '', value = '') {
+      const id = normalizePluginId(pluginId)
+      const configKey = String(key || '').trim()
+      if (!id || !configKey) return this.snapshotSettings()
+      const current = this.pluginConfig?.[id] && typeof this.pluginConfig[id] === 'object'
+        ? this.pluginConfig[id]
+        : {}
+      const nextPluginConfig = {
+        ...this.pluginConfig,
+        [id]: {
+          ...current,
+          [configKey]: value,
+        },
+      }
+      return this.persistSettings({ pluginConfig: nextPluginConfig })
+    },
+
     async detectRuntime(pluginId = '') {
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
@@ -207,13 +259,17 @@ export const usePluginsStore = defineStore('plugins', {
         throw new Error(`No available plugin provider for ${capability}`)
       }
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      const providerSettings = this.configForPlugin(provider)
       const job = normalizeJob(await startPluginJob({
         globalConfigDir,
         workspaceRoot: workspace.path || '',
         pluginId: provider.id,
         capability,
         target,
-        settings,
+        settings: {
+          ...providerSettings,
+          ...(settings && typeof settings === 'object' ? settings : {}),
+        },
       }))
       await this.refreshJobs().catch(() => {})
       return job

@@ -329,8 +329,6 @@ const pdfTranslateTarget = computed(() => ({
   path: selectedReferencePdfPath.value,
 }))
 const pdfTranslateSettings = computed(() => ({
-  targetLanguage: 'zh',
-  bilingual: true,
 }))
 const heroMetaItems = computed(() =>
   [

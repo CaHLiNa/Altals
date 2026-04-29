@@ -107,6 +107,19 @@ pub struct PluginSettingDefinition {
     pub default: Value,
     #[serde(default)]
     pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub options: Vec<PluginSettingOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingOption {
+    #[serde(default)]
+    pub value: Value,
+    #[serde(default)]
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -181,9 +194,7 @@ pub fn is_safe_cli_command_name(value: &str) -> bool {
     if trimmed.is_empty() || trimmed != value {
         return false;
     }
-    if trimmed.contains('/')
-        || trimmed.contains('\\')
-        || trimmed.contains("&&")
+    if trimmed.contains("&&")
         || trimmed.contains('|')
         || trimmed.contains(';')
         || trimmed.contains('\n')
@@ -192,7 +203,21 @@ pub fn is_safe_cli_command_name(value: &str) -> bool {
     {
         return false;
     }
-    true
+    if std::path::Path::new(trimmed).is_absolute() {
+        return false;
+    }
+
+    trimmed.split(['/', '\\']).all(|component| {
+        !component.is_empty()
+            && component != "."
+            && component != ".."
+            && component.chars().all(|ch| {
+                ch.is_ascii_lowercase()
+                    || ch.is_ascii_uppercase()
+                    || ch.is_ascii_digit()
+                    || matches!(ch, '.' | '_' | '-')
+            })
+    })
 }
 
 fn capability_produces_artifacts(capability: &str) -> bool {
@@ -326,7 +351,7 @@ mod tests {
             "capabilities": ["pdf.translate"],
             "runtime": {
                 "type": "cli",
-                "command": "pdf2zh"
+                "command": "bin/scribeflow-pdf-translator"
             },
             "permissions": {
                 "readWorkspaceFiles": true,
@@ -402,6 +427,25 @@ mod tests {
     fn rejects_unsafe_cli_command_name() {
         let mut manifest = valid_manifest();
         manifest.runtime.command = "pdf2zh && rm".to_string();
+        let result = validate_plugin_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .contains(&"cli.command must be a safe executable name".to_string()));
+    }
+
+    #[test]
+    fn accepts_relative_plugin_runner_path() {
+        let mut manifest = valid_manifest();
+        manifest.runtime.command = "bin/scribeflow-pdf-translator".to_string();
+        let result = validate_plugin_manifest(&manifest);
+        assert!(result.ok, "{:?}", result.errors);
+    }
+
+    #[test]
+    fn rejects_parent_dir_plugin_runner_path() {
+        let mut manifest = valid_manifest();
+        manifest.runtime.command = "../runner".to_string();
         let result = validate_plugin_manifest(&manifest);
         assert!(!result.ok);
         assert!(result

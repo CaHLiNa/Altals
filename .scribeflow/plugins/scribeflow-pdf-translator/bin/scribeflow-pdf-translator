@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+echo "ScribeFlow PDF Translator plugin runner placeholder."
+echo "Replace this file with the real plugin runner from the plugin repository."
+exit 2
