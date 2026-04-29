@@ -21,8 +21,8 @@ const dragging = ref(false)
 
 function startDrag(e) {
   dragging.value = true
-  setShellResizeActive(true, { source: 'layout-handle', direction: props.direction })
   emit('resize-start')
+  setShellResizeActive(true, { source: 'layout-handle', direction: props.direction })
   const startX = e.clientX
   const startY = e.clientY
 
@@ -45,8 +45,8 @@ function startDrag(e) {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.getElementById('resize-drag-iframe-block')?.remove()
-    emit('resize-end')
     setShellResizeActive(false, { source: 'layout-handle', direction: props.direction })
+    emit('resize-end')
   }
 
   document.addEventListener('mousemove', onMouseMove)
@@ -130,6 +130,5 @@ function startDrag(e) {
 .resize-handle.dragging::before {
   opacity: 1;
   background: color-mix(in srgb, var(--accent) 24%, transparent);
-  transition: none;
 }
 </style>

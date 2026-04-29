@@ -524,12 +524,12 @@ export function createLatexTextmateHighlightExtension() {
         this.view = view
         this.themeMode = getResolvedLatexThemeMode(view)
         this.decorations = buildLatexTextmateDecorations(view.state, this.themeMode)
-        this.rebuildHandle = null
         this.handleWorkspaceThemeUpdated = () => {
           const nextThemeMode = getResolvedLatexThemeMode(this.view)
           if (nextThemeMode === this.themeMode) return
           this.themeMode = nextThemeMode
-          this.scheduleRebuild(0)
+          this.decorations = buildLatexTextmateDecorations(this.view.state, this.themeMode)
+          this.view.dispatch({})
         }
 
         if (typeof window !== 'undefined') {
@@ -537,52 +537,15 @@ export function createLatexTextmateHighlightExtension() {
         }
       }
 
-      clearRebuildHandle() {
-        if (this.rebuildHandle == null || typeof window === 'undefined') return
-        if (typeof window.cancelIdleCallback === 'function') {
-          window.cancelIdleCallback(this.rebuildHandle)
-        } else {
-          window.clearTimeout(this.rebuildHandle)
-        }
-        this.rebuildHandle = null
-      }
-
-      scheduleRebuild(timeout = 420) {
-        this.clearRebuildHandle()
-
-        const rebuild = () => {
-          this.rebuildHandle = null
-          this.decorations = buildLatexTextmateDecorations(this.view.state, this.themeMode)
-          this.view.dispatch({})
-        }
-
-        if (typeof window === 'undefined') {
-          rebuild()
-          return
-        }
-
-        if (typeof window.requestIdleCallback === 'function') {
-          this.rebuildHandle = window.requestIdleCallback(rebuild, { timeout })
-          return
-        }
-
-        this.rebuildHandle = window.setTimeout(rebuild, timeout)
-      }
-
       update(update) {
         const nextThemeMode = getResolvedLatexThemeMode(update.view)
-        if (update.docChanged) {
-          this.decorations = this.decorations.map(update.changes)
-          this.scheduleRebuild()
-        }
-        if (nextThemeMode !== this.themeMode) {
+        if (update.docChanged || nextThemeMode !== this.themeMode) {
           this.themeMode = nextThemeMode
-          this.scheduleRebuild(0)
+          this.decorations = buildLatexTextmateDecorations(update.state, this.themeMode)
         }
       }
 
       destroy() {
-        this.clearRebuildHandle()
         if (typeof window !== 'undefined') {
           window.removeEventListener('workspace-theme-updated', this.handleWorkspaceThemeUpdated)
         }

@@ -70,28 +70,18 @@ export function createFoldGutterExtension() {
     class {
       constructor(view) {
         this.markers = this.buildMarkers(view)
-        this.activeLineNumbers = collectActiveLineNumbers(view.state)
       }
 
       update(update) {
-        const nextActiveLineNumbers = collectActiveLineNumbers(update.state)
-        const activeLinesChanged =
-          nextActiveLineNumbers.size !== this.activeLineNumbers.size ||
-          [...nextActiveLineNumbers].some((lineNumber) => !this.activeLineNumbers.has(lineNumber))
-
         if (
+          update.docChanged ||
           update.viewportChanged ||
-          activeLinesChanged ||
+          update.selectionSet ||
           update.startState.facet(language) !== update.state.facet(language) ||
+          syntaxTree(update.startState) !== syntaxTree(update.state) ||
           update.startState.field(foldState, false) !== update.state.field(foldState, false)
         ) {
-          this.activeLineNumbers = nextActiveLineNumbers
           this.markers = this.buildMarkers(update.view)
-          return
-        }
-
-        if (update.docChanged) {
-          this.markers = this.markers.map(update.changes)
         }
       }
 

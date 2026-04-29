@@ -170,7 +170,6 @@ let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
 let latexReferenceScopeTimer = null
-let inMemoryContentSyncTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
 
@@ -405,17 +404,16 @@ async function refreshLatexReferenceScopePath(content = '') {
   return latexReferenceScopePath.value
 }
 
-function scheduleLatexReferenceScopeRefresh(content = null, delay = 180) {
+function scheduleLatexReferenceScopeRefresh(content = '', delay = 180) {
   if (!supportsLatexRuntime) return
   clearLatexReferenceScopeTimer()
-  const hasContent = typeof content === 'string'
   if (typeof window === 'undefined' || delay <= 0) {
-    void refreshLatexReferenceScopePath(hasContent ? content : view?.state?.doc?.toString() || '')
+    void refreshLatexReferenceScopePath(content)
     return
   }
   latexReferenceScopeTimer = window.setTimeout(() => {
     latexReferenceScopeTimer = null
-    void refreshLatexReferenceScopePath(hasContent ? content : view?.state?.doc?.toString() || '')
+    void refreshLatexReferenceScopePath(content)
   }, delay)
 }
 
@@ -977,38 +975,13 @@ async function persistEditorContent(content, options = {}) {
   return true
 }
 
-function clearInMemoryContentSyncTimer() {
-  if (inMemoryContentSyncTimer == null || typeof window === 'undefined') return
-  window.clearTimeout(inMemoryContentSyncTimer)
-  inMemoryContentSyncTimer = null
-}
-
-function syncInMemoryContent(content = null) {
-  const nextContent =
-    typeof content === 'string' ? content : view?.state?.doc?.toString() || ''
-  files.setInMemoryFileContent(props.filePath, nextContent)
-  if (nextContent === lastPersistedContent) {
+function handleDocumentChanged(content) {
+  files.setInMemoryFileContent(props.filePath, content)
+  if (content === lastPersistedContent) {
     editorStore.clearFileDirty(props.filePath)
     return
   }
   editorStore.markFileDirty(props.filePath)
-}
-
-function scheduleInMemoryContentSync(delay = 90) {
-  clearInMemoryContentSyncTimer()
-  if (typeof window === 'undefined' || delay <= 0) {
-    syncInMemoryContent()
-    return
-  }
-  inMemoryContentSyncTimer = window.setTimeout(() => {
-    inMemoryContentSyncTimer = null
-    syncInMemoryContent()
-  }, delay)
-}
-
-function handleDocumentChanged() {
-  editorStore.markFileDirty(props.filePath)
-  scheduleInMemoryContentSync()
 }
 
 async function loadLanguageExtension() {
@@ -1104,7 +1077,7 @@ onMounted(async () => {
         scheduleMarkdownViewportPreviewSync(update.view)
       }
       if (isLatexEditor && update.docChanged) {
-        scheduleLatexReferenceScopeRefresh()
+        scheduleLatexReferenceScopeRefresh(update.state.doc.toString())
       }
     }),
   ]
@@ -1908,10 +1881,6 @@ watch(
 )
 
 onUnmounted(() => {
-  if (inMemoryContentSyncTimer != null) {
-    syncInMemoryContent()
-    clearInMemoryContentSyncTimer()
-  }
   deactivateEditorRuntime()
   clearLatexWarmupHandle()
   clearLatexReferenceScopeTimer()
@@ -1946,31 +1915,7 @@ onUnmounted(() => {
 }
 
 .text-editor-host {
-  position: relative;
   background: var(--shell-editor-surface);
-  contain: layout paint;
-  isolation: isolate;
-}
-
-.text-editor-host::before,
-.text-editor-host::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  left: 0;
-  z-index: 3;
-  height: 24px;
-  pointer-events: none;
-}
-
-.text-editor-host::before {
-  top: 0;
-  background: linear-gradient(to bottom, var(--shell-editor-surface), transparent);
-}
-
-.text-editor-host::after {
-  bottom: 0;
-  background: linear-gradient(to top, var(--shell-editor-surface), transparent);
 }
 
 .text-editor-load-error {

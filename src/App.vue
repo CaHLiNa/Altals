@@ -436,7 +436,6 @@ useAppTeardown({
 }
 
 .app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region {
-  -webkit-backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
   backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
 }
 
@@ -505,16 +504,13 @@ useAppTeardown({
   will-change: width;
 }
 
-:global(body.altals-shell-resizing) .app-shell-region-left,
-:global(body.altals-shell-resizing) .app-shell-region-right,
-:global(body.altals-shell-resizing) .app-shell-sidebar,
-:global(body.altals-shell-resizing) .app-shell-sidebar-left,
-:global(body.altals-shell-resizing) .app-shell-sidebar-right,
-:global(body.scribeflow-shell-resizing) .app-shell-region-left,
-:global(body.scribeflow-shell-resizing) .app-shell-region-right,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar-left,
-:global(body.scribeflow-shell-resizing) .app-shell-sidebar-right {
+.app-shell-root.is-shell-resizing .app-shell-region-left,
+.app-shell-root.is-shell-resizing .app-shell-region-right,
+.app-shell-root.is-shell-resizing .app-shell-sidebar,
+.app-shell-root.is-shell-resizing .app-shell-sidebar-left,
+.app-shell-root.is-shell-resizing .app-shell-sidebar-right,
+.app-shell-root.is-shell-resizing .app-shell-resize-slot,
+.app-shell-root.is-shell-resizing .app-shell-resize-handle {
   transition: none !important;
 }
 
@@ -522,12 +518,11 @@ useAppTeardown({
   transition: none !important;
 }
 
-.app-shell-root.is-shell-resizing.app-shell-root.is-mac-vibrant
-  .app-shell-region-left.is-workspace-left-region,
-.app-shell-root.is-shell-resizing :deep(.left-shell-sidebar),
-.app-shell-root.is-shell-resizing :deep(.settings-sidebar) {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
+.app-shell-root.is-shell-resizing .app-shell-main-card.has-left-sidebar {
+  margin-left: 0;
+  padding-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .app-shell-sidebar {
@@ -663,7 +658,7 @@ useAppTeardown({
 }
 
 .app-shell-resize-handle-left {
-  left: -10px;
+  left: -4px;
 }
 
 .app-shell-resize-handle-right {
