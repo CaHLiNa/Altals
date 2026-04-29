@@ -1,5 +1,14 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
+    <div class="pdf-plugin-actions">
+      <PluginCapabilityButton
+        capability="pdf.translate"
+        :target="pdfTranslateTarget"
+        :settings="pdfTranslateSettings"
+        :disabled="!artifactPath"
+        :label="t('Translate')"
+      />
+    </div>
     <component
       :is="PdfEmbedSurface"
       :sourcePath="sourcePath"
@@ -28,9 +37,12 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useLatexStore } from '../../stores/latex.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
+import { usePluginsStore } from '../../stores/plugins.js'
+import { useI18n } from '../../i18n'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
+import PluginCapabilityButton from '../plugins/PluginCapabilityButton.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--surface-base',
@@ -61,6 +73,8 @@ defineEmits(['open-external'])
 const workspace = useWorkspaceStore()
 const latexStore = useLatexStore()
 const workflowStore = useDocumentWorkflowStore()
+const pluginsStore = usePluginsStore()
+const { t } = useI18n()
 const previewHostRef = ref(null)
 const resolvedTheme = ref(readResolvedTheme())
 const themeTokens = ref(capturePdfPreviewThemeTokens())
@@ -98,6 +112,15 @@ const effectivePdfViewerSpreadMode = computed(() =>
 const effectivePdfViewerLastScale = computed(() =>
   props.compactToolbar ? '' : workspace.pdfViewerLastScale
 )
+const pdfTranslateTarget = computed(() => ({
+  kind: props.kind === 'latex' ? 'documentPdf' : 'pdf',
+  referenceId: '',
+  path: props.artifactPath,
+}))
+const pdfTranslateSettings = computed(() => ({
+  targetLanguage: 'zh',
+  bilingual: true,
+}))
 
 function refreshThemeTokens() {
   themeTokens.value = capturePdfPreviewThemeTokens()
@@ -170,6 +193,8 @@ function handleWorkspaceThemeUpdated() {
 }
 
 onMounted(() => {
+  void pluginsStore.refreshRegistry().catch(() => {})
+  void pluginsStore.refreshJobs().catch(() => {})
   window.addEventListener('workspace-theme-updated', handleWorkspaceThemeUpdated)
   void scheduleThemeSnapshot()
 })
@@ -185,8 +210,18 @@ onUnmounted(() => {
 
 <style scoped>
 .pdf-artifact-preview-host {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.pdf-plugin-actions {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
 }
 </style>

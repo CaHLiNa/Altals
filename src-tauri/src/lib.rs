@@ -26,6 +26,13 @@ mod latex_runtime;
 mod latex_sync_target;
 mod latex_tools;
 mod markdown_runtime;
+mod plugin_artifacts;
+mod plugin_jobs;
+mod plugin_manifest;
+mod plugin_permissions;
+mod plugin_registry;
+mod plugin_runner;
+mod plugin_settings;
 mod process_utils;
 mod python_preferences;
 mod python_runtime;
@@ -405,6 +412,8 @@ pub fn run() {
     #[cfg(unix)]
     enrich_path();
 
+    let _ = plugin_jobs::recover_interrupted_jobs_on_startup();
+
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
             handle_workspace_protocol(ctx.app_handle(), request)
@@ -416,7 +425,8 @@ pub fn run() {
         .manage(latex_runtime::LatexRuntimeState::default())
         .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
-        .manage(workspace_access::WorkspaceAccessState::default());
+        .manage(workspace_access::WorkspaceAccessState::default())
+        .manage(plugin_jobs::PluginJobRuntimeState::default());
 
     #[cfg(target_os = "macos")]
     let builder = builder
@@ -461,6 +471,17 @@ pub fn run() {
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
             i18n_runtime::i18n_runtime_load,
+            plugin_registry::plugin_registry_list,
+            plugin_manifest::plugin_registry_validate_manifest,
+            plugin_runner::plugin_runtime_detect,
+            plugin_runner::plugin_job_start,
+            plugin_jobs::plugin_job_list,
+            plugin_jobs::plugin_job_get,
+            plugin_jobs::plugin_job_cancel,
+            plugin_artifacts::plugin_artifact_open,
+            plugin_artifacts::plugin_artifact_reveal,
+            plugin_settings::plugin_settings_load,
+            plugin_settings::plugin_settings_save,
             references_backend::references_library_read_or_create,
             references_backend::references_library_load_workspace,
             references_backend::references_library_write,

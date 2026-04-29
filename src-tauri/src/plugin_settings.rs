@@ -1,0 +1,156 @@
+use crate::app_dirs;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+
+const PLUGIN_SETTINGS_FILENAME: &str = "plugin-settings.json";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettings {
+    #[serde(default)]
+    pub enabled_plugin_ids: Vec<String>,
+    #[serde(default)]
+    pub default_providers: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingsLoadParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingsSaveParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub settings: PluginSettings,
+}
+
+fn normalize_root(path: &str) -> String {
+    path.trim().trim_end_matches('/').to_string()
+}
+
+fn settings_file(global_config_dir: &str) -> Result<std::path::PathBuf, String> {
+    let root = normalize_root(global_config_dir);
+    if root.is_empty() {
+        Ok(app_dirs::data_root_dir()?.join(PLUGIN_SETTINGS_FILENAME))
+    } else {
+        Ok(Path::new(&root).join(PLUGIN_SETTINGS_FILENAME))
+    }
+}
+
+fn normalize_settings(settings: PluginSettings) -> PluginSettings {
+    let mut enabled_plugin_ids = settings
+        .enabled_plugin_ids
+        .into_iter()
+        .map(|id| id.trim().to_ascii_lowercase())
+        .filter(|id| !id.is_empty())
+        .collect::<Vec<_>>();
+    enabled_plugin_ids.sort();
+    enabled_plugin_ids.dedup();
+
+    let default_providers = settings
+        .default_providers
+        .into_iter()
+        .filter_map(|(capability, plugin_id)| {
+            let capability = capability.trim().to_string();
+            let plugin_id = plugin_id.trim().to_ascii_lowercase();
+            if capability.is_empty() || plugin_id.is_empty() {
+                None
+            } else {
+                Some((capability, plugin_id))
+            }
+        })
+        .collect();
+
+    PluginSettings {
+        enabled_plugin_ids,
+        default_providers,
+    }
+}
+
+pub fn load_plugin_settings(global_config_dir: &str) -> Result<PluginSettings, String> {
+    let path = settings_file(global_config_dir)?;
+    if !path.exists() {
+        return Ok(PluginSettings::default());
+    }
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let parsed = serde_json::from_str::<PluginSettings>(&content)
+        .map_err(|error| format!("Failed to parse plugin settings: {error}"))?;
+    Ok(normalize_settings(parsed))
+}
+
+pub fn save_plugin_settings(
+    global_config_dir: &str,
+    settings: PluginSettings,
+) -> Result<PluginSettings, String> {
+    let normalized = normalize_settings(settings);
+    let path = settings_file(global_config_dir)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let serialized = serde_json::to_string_pretty(&normalized)
+        .map_err(|error| format!("Failed to serialize plugin settings: {error}"))?;
+    fs::write(path, serialized).map_err(|error| error.to_string())?;
+    Ok(normalized)
+}
+
+#[tauri::command]
+pub async fn plugin_settings_load(
+    params: PluginSettingsLoadParams,
+) -> Result<PluginSettings, String> {
+    load_plugin_settings(&params.global_config_dir)
+}
+
+#[tauri::command]
+pub async fn plugin_settings_save(
+    params: PluginSettingsSaveParams,
+) -> Result<PluginSettings, String> {
+    save_plugin_settings(&params.global_config_dir, params.settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{load_plugin_settings, save_plugin_settings, PluginSettings};
+    use std::collections::BTreeMap;
+    use std::fs;
+
+    #[test]
+    fn saves_normalized_plugin_settings() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-plugin-settings-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        let mut default_providers = BTreeMap::new();
+        default_providers.insert(
+            "pdf.translate".to_string(),
+            " PDFMathTranslate ".to_string(),
+        );
+        let saved = save_plugin_settings(
+            &root.to_string_lossy(),
+            PluginSettings {
+                enabled_plugin_ids: vec![
+                    " PDFMathTranslate ".to_string(),
+                    "pdfmathtranslate".to_string(),
+                ],
+                default_providers,
+            },
+        )
+        .expect("save");
+        assert_eq!(
+            saved.enabled_plugin_ids,
+            vec!["pdfmathtranslate".to_string()]
+        );
+        assert_eq!(
+            load_plugin_settings(&root.to_string_lossy()).expect("load"),
+            saved
+        );
+        fs::remove_dir_all(root).ok();
+    }
+}

@@ -766,7 +766,7 @@ pub async fn workspace_path_status(
     workspace_path_status_internal(scope_state.inner(), Path::new(&path))
 }
 
-fn reveal_in_file_manager_blocking(target: &Path) -> Result<(), String> {
+pub(crate) fn reveal_in_file_manager_blocking(target: &Path) -> Result<(), String> {
     if !target.exists() {
         return Err("Path does not exist".to_string());
     }

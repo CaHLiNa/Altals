@@ -3,6 +3,7 @@ import {
   IconBooks,
   IconCpu,
   IconEdit,
+  IconPuzzle,
   IconRefresh,
 } from '@tabler/icons-vue'
 
@@ -30,6 +31,12 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     labelKey: 'Environment',
     descriptionKey: 'LaTeX compilers, engines, downloads, and diagnostics.',
     icon: IconCpu,
+  },
+  {
+    id: 'plugins',
+    labelKey: 'Plugins',
+    descriptionKey: 'External capabilities, local tools, and plugin jobs.',
+    icon: IconPuzzle,
   },
   {
     id: 'updates',

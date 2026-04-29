@@ -25,6 +25,30 @@ pub fn bin_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+pub fn plugins_dir() -> Result<PathBuf, String> {
+    let dir = data_root_dir()?.join("plugins");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
+pub fn plugin_jobs_dir() -> Result<PathBuf, String> {
+    let dir = data_root_dir()?.join("plugin-jobs");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
+pub fn plugin_artifacts_dir() -> Result<PathBuf, String> {
+    let dir = data_root_dir()?.join("artifacts").join("plugins");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
 pub fn candidate_bin_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
