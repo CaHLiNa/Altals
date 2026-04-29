@@ -160,6 +160,7 @@ let contextMenuRestoreTimeout = null
 let latexNormalizedSaveContent = null
 let latexFormatOnSaveInFlight = false
 let latexWarmupHandle = null
+let latexReferenceScopeTimer = null
 let lastPersistedContent = ''
 let suppressMarkdownPreviewScrollSyncUntil = 0
 
@@ -367,6 +368,12 @@ function currentLatexReferenceScopePath() {
   return latexReferenceScopePath.value || props.filePath
 }
 
+function clearLatexReferenceScopeTimer() {
+  if (latexReferenceScopeTimer == null || typeof window === 'undefined') return
+  window.clearTimeout(latexReferenceScopeTimer)
+  latexReferenceScopeTimer = null
+}
+
 async function refreshLatexReferenceScopePath(content = '') {
   if (!isLatexEditor || !props.filePath) {
     latexReferenceScopePath.value = props.filePath
@@ -384,6 +391,19 @@ async function refreshLatexReferenceScopePath(content = '') {
 
   latexReferenceScopePath.value = resolved || props.filePath
   return latexReferenceScopePath.value
+}
+
+function scheduleLatexReferenceScopeRefresh(content = '', delay = 180) {
+  if (!supportsLatexRuntime) return
+  clearLatexReferenceScopeTimer()
+  if (typeof window === 'undefined' || delay <= 0) {
+    void refreshLatexReferenceScopePath(content)
+    return
+  }
+  latexReferenceScopeTimer = window.setTimeout(() => {
+    latexReferenceScopeTimer = null
+    void refreshLatexReferenceScopePath(content)
+  }, delay)
 }
 
 const DISPLAY_MATH_ENVIRONMENT_NAMES = new Set([
@@ -657,6 +677,38 @@ function resolveCitationReference(key = '') {
     return referencesStore.getDocumentReferenceByKey(currentLatexReferenceScopePath(), key)
   }
   return referencesStore.getByKey(key)
+}
+
+function createCitationHoverItem(key = '') {
+  const item = document.createElement('div')
+  item.className = 'cit-hover-item'
+
+  const ref = resolveCitationReference(key)
+  if (ref) {
+    const title = document.createElement('div')
+    title.className = 'cit-hover-title'
+    title.textContent = ref.title || key
+
+    const author = Array.isArray(ref.authors) && ref.authors.length > 0
+      ? `${ref.authors[0]}${ref.authors.length > 1 ? ' et al.' : ''}`
+      : t('Unknown')
+    const metaParts = [author, ref.year].filter(Boolean)
+    const meta = document.createElement('div')
+    meta.className = 'cit-hover-meta'
+    meta.textContent = metaParts.join(' · ')
+
+    item.append(title, meta)
+    return item
+  }
+
+  const message = isLatexEditor
+    ? t('Not selected for this document: {key}', { key })
+    : t('Unknown reference: {key}', { key })
+  const meta = document.createElement('div')
+  meta.className = 'cit-hover-meta'
+  meta.textContent = message
+  item.append(meta)
+  return item
 }
 
 function openCitationPaletteAtCursor() {
@@ -976,6 +1028,9 @@ onMounted(async () => {
       if (isMd && update.viewportChanged) {
         scheduleMarkdownViewportPreviewSync(update.view)
       }
+      if (isLatexEditor && update.docChanged) {
+        scheduleLatexReferenceScopeRefresh(update.state.doc.toString())
+      }
     }),
   ]
 
@@ -1000,29 +1055,16 @@ onMounted(async () => {
             end,
             above: true,
             create(_view) {
-              const dom = document.createElement("div")
-              dom.className = "cm-citation-hover-card"
-
-              const refsHtml = keys.map(k => {
-                const ref = resolveCitationReference(k)
-                if (ref) {
-                  const author = Array.isArray(ref.authors) && ref.authors.length > 0 
-                    ? (ref.authors[0] + (ref.authors.length > 1 ? ' et al.' : '')) 
-                    : 'Unknown'
-                  return `
-                    <div class="cit-hover-item">
-                      <div class="cit-hover-title">${ref.title || k}</div>
-                      <div class="cit-hover-meta">${author} · ${ref.year || ''}</div>
-                    </div>
-                  `
+              const dom = document.createElement('div')
+              dom.className = 'cm-citation-hover-card'
+              keys.forEach((key, index) => {
+                if (index > 0) {
+                  const separator = document.createElement('div')
+                  separator.className = 'cit-hover-separator'
+                  dom.append(separator)
                 }
-                const message = isLatexEditor
-                  ? t('Not selected for this document: {key}', { key: k })
-                  : t('Unknown reference: {key}', { key: k })
-                return `<div class="cit-hover-item"><div class="cit-hover-meta">${message}</div></div>`
-              }).join('<div class="cit-hover-separator"></div>')
-
-              dom.innerHTML = refsHtml
+                dom.append(createCitationHoverItem(key))
+              })
               return { dom }
             }
           }
@@ -1743,6 +1785,7 @@ watch(
 onUnmounted(() => {
   deactivateEditorRuntime()
   clearLatexWarmupHandle()
+  clearLatexReferenceScopeTimer()
   if (markdownPreviewSyncTimer != null) {
     window.clearTimeout(markdownPreviewSyncTimer)
     markdownPreviewSyncTimer = null
