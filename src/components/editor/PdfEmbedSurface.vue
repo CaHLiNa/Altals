@@ -72,6 +72,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { EmbedPDF } from '@embedpdf/core/vue'
 import { usePdfiumEngine } from '@embedpdf/engines/vue'
+import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
 import { useI18n } from '../../i18n'
@@ -119,7 +120,9 @@ const props = defineProps({
 const emit = defineEmits(['open-external', 'backward-sync'])
 
 const { t } = useI18n()
-const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine()
+const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine({
+  wasmUrl: pdfiumWasmUrl,
+})
 
 const documentBuffer = ref(null)
 const documentName = ref('')
