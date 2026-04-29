@@ -5,7 +5,6 @@ import {
   normalizeFsPath,
   relativePathBetween,
   stripExtension,
-  uniqueBy,
 } from '../documentIntelligence/workspaceGraph.js'
 
 const SOURCE_GRAPH_CACHE = new Map()
@@ -143,76 +142,4 @@ export async function resolveLatexOutlineItems(sourcePath, options = {}) {
 export function buildRelativeLatexInputPath(fromFilePath, targetPath) {
   const relative = relativePathBetween(fromFilePath, targetPath)
   return stripExtension(relative)
-}
-
-export async function resolveLatexAffectedRootTargets(changedPath, options = {}) {
-  const normalizedChangedPath = normalizeFsPath(changedPath)
-  if (!normalizedChangedPath) return []
-
-  const flatFiles = await listWorkspaceFiles({
-    ...options,
-    sourcePath: normalizedChangedPath,
-  })
-  const latexFiles = flatFiles.filter((path) => {
-    const normalized = path.toLowerCase()
-    return normalized.endsWith('.tex') || normalized.endsWith('.latex')
-  })
-  const affectedRoots = new Map()
-
-  for (const filePath of latexFiles) {
-    const graph = await resolveLatexProjectGraph(filePath, {
-      ...options,
-      flatFiles,
-    }).catch(() => null)
-    if (!graph?.rootPath) continue
-
-    const touchesSource = Array.isArray(graph.projectPaths) && graph.projectPaths.includes(normalizedChangedPath)
-    const touchesBibliography = Array.isArray(graph.bibliographyFiles) && graph.bibliographyFiles.includes(normalizedChangedPath)
-    if (!touchesSource && !touchesBibliography) continue
-
-    if (!affectedRoots.has(graph.rootPath)) {
-      affectedRoots.set(graph.rootPath, {
-        sourcePath: graph.rootPath,
-        rootPath: graph.rootPath,
-        previewPath: graph.previewPath || `${stripExtension(graph.rootPath)}.pdf`,
-      })
-    }
-  }
-
-  return uniqueBy([...affectedRoots.values()], (entry) => entry.rootPath)
-}
-
-export async function resolveLatexCompileTargetsForChange(changedPath, options = {}) {
-  const normalizedChangedPath = normalizeFsPath(changedPath)
-  if (!normalizedChangedPath) return []
-
-  const flatFiles = await listWorkspaceFiles({
-    ...options,
-    sourcePath: normalizedChangedPath,
-  })
-
-  const targets = await invoke('latex_compile_targets_resolve', {
-    params: {
-      changedPath: normalizedChangedPath,
-      flatFiles,
-      contentOverrides: options.contentOverrides || {},
-    },
-  }).catch(() => [])
-
-  return Array.isArray(targets)
-    ? uniqueBy(
-        targets
-          .filter((entry) => entry && typeof entry === 'object')
-          .map((entry) => ({
-            sourcePath: normalizeFsPath(entry.sourcePath || normalizedChangedPath),
-            rootPath: normalizeFsPath(entry.rootPath || entry.sourcePath || normalizedChangedPath),
-            previewPath: normalizeFsPath(
-              entry.previewPath
-              || `${stripExtension(entry.rootPath || entry.sourcePath || normalizedChangedPath)}.pdf`,
-            ),
-          }))
-          .filter((entry) => entry.rootPath),
-        (entry) => entry.rootPath,
-      )
-    : []
 }

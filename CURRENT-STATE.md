@@ -142,6 +142,7 @@ Done:
 - The document dock Problems page now surfaces draft / project diagnostics instead of only compile-origin diagnostics.
 - LaTeX SyncTeX target path resolution now goes through Rust command `latex_sync_target_resolve`; the previous frontend moved-path resolver fallback has been removed.
 - LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`; the previous frontend candidate probe fallback has been removed.
+- The unused frontend LaTeX affected-root / compile-target resolver exports were removed; the active compile target path remains the Rust-backed store path.
 
 Current seam:
 
