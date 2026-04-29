@@ -101,7 +101,7 @@ First seam:
 
 ### Phase 3: Leaf Rustification
 
-Status: accepted direction, not started.
+Status: in progress.
 
 Goal:
 
@@ -115,6 +115,15 @@ Allowed first candidates:
 - preview target resolution
 - file metadata / path status
 - citation style scan
+
+Done:
+
+- citation style scan is already backed by Rust runtime command `references_scan_workspace_styles`.
+- document reference panel now reads LaTeX citation keys from the Rust LaTeX project graph instead of using a frontend regex parser.
+
+Current seam:
+
+- read-only LaTeX citation extraction for document reference workflows.
 
 Frozen by default:
 

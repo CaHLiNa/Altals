@@ -1202,7 +1202,7 @@ pub async fn latex_compile_targets_resolve(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_sections, resolve_graph_value, LatexProjectGraphParams};
+    use super::{parse_citations, parse_sections, resolve_graph_value, LatexProjectGraphParams};
     use serde_json::Value;
     use std::collections::HashMap;
 
@@ -1214,6 +1214,24 @@ mod tests {
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].get("offset").and_then(Value::as_u64), Some(3));
         assert_eq!(sections[0].get("line").and_then(Value::as_u64), Some(2));
+    }
+
+    #[test]
+    fn citations_keep_utf16_offsets_and_multiple_keys() {
+        let content = "前言\n\\citep[see][12]{alpha2024, beta-2}\n";
+        let citations = parse_citations(content, "/tmp/main.tex");
+
+        assert_eq!(citations.len(), 2);
+        assert_eq!(
+            citations[0].get("key").and_then(Value::as_str),
+            Some("alpha2024")
+        );
+        assert_eq!(
+            citations[1].get("key").and_then(Value::as_str),
+            Some("beta-2")
+        );
+        assert_eq!(citations[0].get("offset").and_then(Value::as_u64), Some(3));
+        assert_eq!(citations[0].get("line").and_then(Value::as_u64), Some(2));
     }
 
     #[test]

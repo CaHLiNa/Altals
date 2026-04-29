@@ -123,12 +123,11 @@ import {
   IconSearch,
   IconX,
 } from '@tabler/icons-vue'
-import { extractLatexCitationKeys } from '../../editor/latexCitations.js'
 import { useI18n } from '../../i18n'
 import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { resolveLatexReferenceScopePath } from '../../services/latex/root.js'
+import { resolveLatexReferenceContext } from '../../services/latex/root.js'
 
 const props = defineProps({
   filePath: { type: String, required: true },
@@ -141,6 +140,7 @@ const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const query = ref('')
 const referenceScopePath = ref(props.filePath)
+const citedKeys = ref([])
 let referenceScopeRequestId = 0
 let referenceScopeTimer = null
 const hasSearchQuery = computed(() => query.value.trim().length > 0)
@@ -156,7 +156,7 @@ const selectedCitationKeys = computed(
   () => new Set(selectedReferences.value.map((reference) => reference.citationKey || reference.id))
 )
 const missingCitations = computed(() =>
-  extractLatexCitationKeys(documentContent.value)
+  citedKeys.value
     .filter((key) => !selectedCitationKeys.value.has(key))
     .map((key) => ({
       key,
@@ -186,13 +186,17 @@ async function resolveReferenceScope() {
   const contentOverrides = documentContent.value
     ? { [props.filePath]: documentContent.value }
     : {}
-  const resolved = await resolveLatexReferenceScopePath(props.filePath, {
+  const resolved = await resolveLatexReferenceContext(props.filePath, {
     filesStore,
     workspacePath: workspace.path,
     contentOverrides,
-  }).catch(() => props.filePath)
+  }).catch(() => ({
+    referenceScopePath: props.filePath,
+    citedKeys: [],
+  }))
   if (requestId !== referenceScopeRequestId) return
-  referenceScopePath.value = resolved || props.filePath
+  referenceScopePath.value = resolved.referenceScopePath || props.filePath
+  citedKeys.value = Array.isArray(resolved.citedKeys) ? resolved.citedKeys : []
 }
 
 function scheduleReferenceScopeResolve(delay = 160) {
