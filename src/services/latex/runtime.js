@@ -47,6 +47,14 @@ export function resolveLatexSyncTarget(params = {}) {
   })
 }
 
+export function resolveLatexExistingSynctex(params = {}) {
+  return invoke('latex_existing_synctex_resolve', {
+    params: {
+      pdfPath: String(params.pdfPath || ''),
+    },
+  })
+}
+
 export function scheduleLatexRuntime(params = {}) {
   return invoke('latex_runtime_schedule', {
     params: {

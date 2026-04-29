@@ -24,6 +24,13 @@ pub struct LatexSyncTargetResolveResult {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexExistingSynctexResolveParams {
+    #[serde(default)]
+    pub pdf_path: String,
+}
+
 fn normalize_fs_path(value: &str) -> String {
     let normalized = value.trim().replace('\\', "/");
     if normalized.is_empty() {
@@ -182,6 +189,18 @@ fn is_tex_path(value: &str) -> bool {
     normalized.ends_with(".tex") || normalized.ends_with(".latex")
 }
 
+fn build_latex_synctex_candidates(pdf_path: &str) -> Vec<String> {
+    let normalized_pdf_path = normalize_fs_path(pdf_path);
+    if !normalized_pdf_path.to_ascii_lowercase().ends_with(".pdf") {
+        return Vec::new();
+    }
+    let base_path = &normalized_pdf_path[..normalized_pdf_path.len() - 4];
+    vec![
+        format!("{base_path}.synctex.gz"),
+        format!("{base_path}.synctex"),
+    ]
+}
+
 fn score_moved_path_candidate(candidate_path: &str, reported_path: &str) -> i32 {
     let normalized_candidate = collapse_fs_path_segments(candidate_path);
     let normalized_reported = collapse_fs_path_segments(reported_path);
@@ -336,9 +355,24 @@ pub async fn latex_sync_target_resolve(
     })
 }
 
+#[tauri::command]
+pub async fn latex_existing_synctex_resolve(
+    params: LatexExistingSynctexResolveParams,
+    scope_state: tauri::State<'_, WorkspaceScopeState>,
+) -> Result<LatexSyncTargetResolveResult, String> {
+    let path = build_latex_synctex_candidates(&params.pdf_path)
+        .into_iter()
+        .find(|candidate| workspace_path_exists_for_sync(scope_state.inner(), candidate))
+        .unwrap_or_default();
+    Ok(LatexSyncTargetResolveResult { path })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{resolve_latex_sync_target_path, LatexSyncTargetResolveParams};
+    use super::{
+        build_latex_synctex_candidates, resolve_latex_sync_target_path,
+        workspace_path_exists_for_sync, LatexSyncTargetResolveParams,
+    };
     use crate::security::{set_allowed_roots_internal, WorkspaceScopeState};
     use std::fs;
 
@@ -394,6 +428,39 @@ mod tests {
             resolve_latex_sync_target_path(&scope_state, &params),
             main_path.to_string_lossy().to_string()
         );
+
+        fs::remove_dir_all(temp_root).ok();
+    }
+
+    #[test]
+    fn builds_latex_synctex_candidates_for_pdf_paths() {
+        assert_eq!(
+            build_latex_synctex_candidates("/tmp/main.pdf"),
+            vec!["/tmp/main.synctex.gz", "/tmp/main.synctex"]
+        );
+        assert!(build_latex_synctex_candidates("/tmp/main.tex").is_empty());
+    }
+
+    #[test]
+    fn workspace_path_exists_for_sync_respects_workspace_scope() {
+        let temp_root =
+            std::env::temp_dir().join(format!("scribeflow-synctex-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_root).expect("create workspace");
+        let synctex_path = temp_root.join("main.synctex.gz");
+        fs::write(&synctex_path, "content").expect("write synctex");
+
+        let scope_state = WorkspaceScopeState::default();
+        set_allowed_roots_internal(&scope_state, &temp_root.to_string_lossy(), None, None, None)
+            .expect("register workspace");
+
+        assert!(workspace_path_exists_for_sync(
+            &scope_state,
+            &synctex_path.to_string_lossy()
+        ));
+        assert!(!workspace_path_exists_for_sync(
+            &scope_state,
+            "/outside/main.synctex.gz"
+        ));
 
         fs::remove_dir_all(temp_root).ok();
     }

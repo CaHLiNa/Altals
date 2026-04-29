@@ -47,7 +47,7 @@ Current baseline on 2026-04-29:
 - UI bridge boundary check passed
 - Vite build passed
 - Rust check passed
-- Rust tests passed: 125 tests
+- Rust tests passed: 127 tests
 
 Desktop main-path feel, visual quality, layout behavior and interaction quality are intentionally user-owned manual checks. Do not propose automating them again.
 
@@ -124,10 +124,11 @@ Done:
 - an unused exported Markdown citation-group parser was removed from drag/drop text insertion helpers.
 - Markdown draft diagnostics now have a staged Rust runtime command `markdown_extract_diagnostics` with parity-focused tests and a thin frontend bridge.
 - LaTeX SyncTeX target path resolution now goes through Rust command `latex_sync_target_resolve`, with the previous frontend resolver kept as fallback.
+- LaTeX SyncTeX artifact discovery now goes through Rust command `latex_existing_synctex_resolve`, with the previous frontend candidate probe kept as fallback.
 
 Current seam:
 
-- preview target resolution for LaTeX SyncTeX and staged read-only Markdown diagnostics runtime extraction.
+- preview target resolution for LaTeX SyncTeX artifacts and staged read-only Markdown diagnostics runtime extraction.
 
 Frozen by default:
 

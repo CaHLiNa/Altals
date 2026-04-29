@@ -565,6 +565,7 @@ pub fn run() {
             latex::check_latex_tools,
             latex::download_tectonic,
             latex::format_latex_document,
+            latex_sync_target::latex_existing_synctex_resolve,
             latex_sync_target::latex_sync_target_resolve,
             latex::workspace_synctex_forward,
             latex::workspace_synctex_backward,
