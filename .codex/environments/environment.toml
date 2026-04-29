@@ -9,3 +9,8 @@ script = ""
 name = "运行"
 icon = "run"
 command = "npm run tauri dev"
+
+[[actions]]
+name = "版本"
+icon = "tool"
+command = "npm run version:bump"

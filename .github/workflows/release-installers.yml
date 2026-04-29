@@ -1,0 +1,116 @@
+name: Release Desktop Installers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - package-lock.json
+      - src-tauri/Cargo.toml
+      - src-tauri/tauri.conf.json
+  workflow_dispatch:
+    inputs:
+      allow_existing_release:
+        description: Allow uploading installers to an existing version release.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-installers-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
+      reason: ${{ steps.version.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check version consistency
+        id: version
+        run: npm run release:check-version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_ALLOW_EXISTING_RELEASE: ${{ inputs.allow_existing_release || 'false' }}
+
+      - name: Skip reason
+        if: steps.version.outputs.publish != 'true'
+        run: echo "${{ steps.version.outputs.reason }}"
+
+  build-installers:
+    name: Build ${{ matrix.label }}
+    needs: preflight
+    if: needs.preflight.outputs.publish == 'true'
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64 installer
+            platform: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            tauri_args: --target x86_64-pc-windows-msvc --bundles nsis
+          - label: macOS Apple Silicon installer
+            platform: macos-latest
+            rust_target: aarch64-apple-darwin
+            tauri_args: --target aarch64-apple-darwin --bundles dmg
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and upload installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tagName: ${{ needs.preflight.outputs.tag }}
+          releaseName: ScribeFlow ${{ needs.preflight.outputs.version }}
+          releaseBody: |
+            ScribeFlow desktop installers for version ${{ needs.preflight.outputs.version }}.
+
+            Assets:
+            - Windows x64 installer
+            - macOS Apple Silicon installer
+          releaseDraft: false
+          prerelease: false
+          generateReleaseNotes: true
+          tauriScript: npm run tauri
+          args: ${{ matrix.tauri_args }}
+          assetNamePattern: ScribeFlow-[version]-[platform]-[arch][setup].[ext]
+          retryAttempts: 2
+          includeUpdaterJson: false
