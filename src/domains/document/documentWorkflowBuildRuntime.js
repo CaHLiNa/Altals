@@ -129,13 +129,19 @@ function resolvePreviewState(filePath, adapter, context, options = {}) {
 
 function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, previewState = null) {
   if (!adapter) return null
+  const markdownPreviewState = adapter.kind === 'markdown'
+    ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
+    : null
 
   return {
     filePath,
     artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
     previewState,
     markdownState: adapter.kind === 'markdown'
-      ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
+      ? {
+          ...markdownPreviewState,
+          problems: adapter.getProblems?.(filePath, context) || [],
+        }
       : null,
     latexState: adapter.kind === 'latex'
       ? context.latexStore?.stateForFile?.(filePath) || {}

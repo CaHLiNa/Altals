@@ -11,6 +11,16 @@ function summarizeProblems(problems = []) {
   return { errorCount, warningCount }
 }
 
+function resolveMarkdownDraftProblems(sourcePath, content = '', context = {}) {
+  const request = {
+    sourcePath,
+    content,
+  }
+  const runtimeProblems = context.workflowStore?.ensureResolvedMarkdownDraftProblems?.(sourcePath, request)
+  if (Array.isArray(runtimeProblems)) return runtimeProblems
+  return buildMarkdownDraftProblems(sourcePath, content)
+}
+
 export function buildMarkdownWorkflowProblems(sourcePath, state = {}) {
   return Array.isArray(state?.problems)
     ? state.problems.map((problem, index) => ({
@@ -112,9 +122,10 @@ export const markdownDocumentAdapter = {
   compile: null,
 
   getProblems(filePath, context = {}) {
-    const draftProblems = buildMarkdownDraftProblems(
+    const draftProblems = resolveMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
+      context,
     )
     return [
       ...draftProblems,
@@ -123,9 +134,10 @@ export const markdownDocumentAdapter = {
   },
 
   getUiState(filePath, context = {}) {
-    const draftProblems = buildMarkdownDraftProblems(
+    const draftProblems = resolveMarkdownDraftProblems(
       filePath,
       context.filesStore?.fileContents?.[filePath] || '',
+      context,
     )
     return buildMarkdownWorkflowUiState({
       previewAvailable: !!context.previewAvailable,

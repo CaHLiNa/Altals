@@ -1,7 +1,87 @@
 import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../../services/documentWorkflow/workflowUiStateBridge.js'
 import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../../services/documentWorkflow/workspacePreviewStateBridge.js'
+import { extractMarkdownDraftProblems } from '../../services/markdown/runtimeBridge.js'
+
+function stableContentFingerprint(value = '') {
+  const text = String(value || '')
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${text.length}:${(hash >>> 0).toString(16)}`
+}
 
 export const documentWorkflowResolvedStateActions = {
+  buildResolvedMarkdownDraftProblemsKey(request = {}) {
+    return JSON.stringify({
+      sourcePath: String(request.sourcePath || ''),
+      fingerprint: stableContentFingerprint(request.content),
+    })
+  },
+
+  getResolvedMarkdownDraftProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const entry = this.resolvedMarkdownDraftProblems?.[normalizedPath] || null
+    if (!entry) return null
+    const key = this.buildResolvedMarkdownDraftProblemsKey(request)
+    return entry.key === key ? entry.problems : null
+  },
+
+  setResolvedMarkdownDraftProblems(filePath, request = {}, problems = []) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return
+    this.resolvedMarkdownDraftProblems = {
+      ...this.resolvedMarkdownDraftProblems,
+      [normalizedPath]: {
+        key: this.buildResolvedMarkdownDraftProblemsKey(request),
+        problems: Array.isArray(problems) ? problems : [],
+      },
+    }
+  },
+
+  async refreshResolvedMarkdownDraftProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+
+    if (!this._resolvedMarkdownDraftProblemsInflight) {
+      this._resolvedMarkdownDraftProblemsInflight = new Map()
+    }
+
+    const key = this.buildResolvedMarkdownDraftProblemsKey(request)
+    const inflightKey = `${normalizedPath}::${key}`
+    if (this._resolvedMarkdownDraftProblemsInflight.has(inflightKey)) {
+      return this._resolvedMarkdownDraftProblemsInflight.get(inflightKey)
+    }
+
+    const task = extractMarkdownDraftProblems(
+      String(request.content || ''),
+      String(request.sourcePath || normalizedPath),
+    )
+      .then((problems) => {
+        const normalized = Array.isArray(problems) ? problems : []
+        this.setResolvedMarkdownDraftProblems(normalizedPath, request, normalized)
+        return normalized
+      })
+      .catch(() => null)
+      .finally(() => {
+        this._resolvedMarkdownDraftProblemsInflight.delete(inflightKey)
+      })
+
+    this._resolvedMarkdownDraftProblemsInflight.set(inflightKey, task)
+    return task
+  },
+
+  ensureResolvedMarkdownDraftProblems(filePath, request = {}) {
+    const normalizedPath = String(filePath || '')
+    if (!normalizedPath) return null
+    const cached = this.getResolvedMarkdownDraftProblems(normalizedPath, request)
+    if (cached) return cached
+    void this.refreshResolvedMarkdownDraftProblems(normalizedPath, request)
+    return null
+  },
+
   buildResolvedWorkspacePreviewStateKey(request = {}) {
     return JSON.stringify({
       path: String(request.path || ''),
