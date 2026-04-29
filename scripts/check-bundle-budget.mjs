@@ -5,11 +5,53 @@ import { fileURLToPath } from 'node:url'
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = resolve(rootDir, 'dist/assets')
 
-const DEFAULT_JS_LIMIT = 500 * 1024
-const PDF_WORKER_JS_LIMIT = 750 * 1024
-const DEFAULT_CSS_LIMIT = 128 * 1024
-const PDFIUM_WASM_LIMIT = 5 * 1024 * 1024
-const ONIG_WASM_LIMIT = 512 * 1024
+const KiB = 1024
+const MiB = 1024 * KiB
+
+const ASSET_BUDGETS = [
+  {
+    id: 'pdfium-wasm',
+    label: 'PDFium WASM engine',
+    pattern: /^pdfium-[\w-]+\.wasm$/,
+    limit: 5 * MiB,
+    reason: 'PDFium WASM engine budget.',
+    heavy: true,
+  },
+  {
+    id: 'embedpdf-worker',
+    label: 'EmbedPDF PDFium worker',
+    pattern: /^worker-engine-[\w-]+\.js$/,
+    limit: 750 * KiB,
+    reason: 'EmbedPDF PDFium worker is an upstream worker bundle.',
+    heavy: true,
+  },
+  {
+    id: 'oniguruma-wasm',
+    label: 'TextMate Oniguruma WASM',
+    pattern: /^onig-[\w-]+\.wasm$/,
+    limit: 512 * KiB,
+    reason: 'TextMate Oniguruma WASM budget.',
+    heavy: true,
+  },
+  {
+    id: 'ordinary-js',
+    label: 'Ordinary JS chunk',
+    pattern: /\.js$/,
+    limit: 500 * KiB,
+    reason: 'Default JS chunk budget.',
+    heavy: false,
+  },
+  {
+    id: 'ordinary-css',
+    label: 'Ordinary CSS asset',
+    pattern: /\.css$/,
+    limit: 128 * KiB,
+    reason: 'Default CSS asset budget.',
+    heavy: false,
+  },
+]
+
+const UNKNOWN_ASSET_LIMIT = 500 * KiB
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return '0 B'
@@ -26,42 +68,7 @@ function walk(dir) {
 }
 
 function budgetForAsset(fileName) {
-  if (/^worker-engine-[\w-]+\.js$/.test(fileName)) {
-    return {
-      limit: PDF_WORKER_JS_LIMIT,
-      reason: 'EmbedPDF PDFium worker is an upstream worker bundle.',
-    }
-  }
-
-  if (fileName.endsWith('.js')) {
-    return {
-      limit: DEFAULT_JS_LIMIT,
-      reason: 'Default JS chunk budget.',
-    }
-  }
-
-  if (/^pdfium-[\w-]+\.wasm$/.test(fileName)) {
-    return {
-      limit: PDFIUM_WASM_LIMIT,
-      reason: 'PDFium WASM engine budget.',
-    }
-  }
-
-  if (/^onig-[\w-]+\.wasm$/.test(fileName)) {
-    return {
-      limit: ONIG_WASM_LIMIT,
-      reason: 'TextMate Oniguruma WASM budget.',
-    }
-  }
-
-  if (fileName.endsWith('.css')) {
-    return {
-      limit: DEFAULT_CSS_LIMIT,
-      reason: 'Default CSS asset budget.',
-    }
-  }
-
-  return null
+  return ASSET_BUDGETS.find((budget) => budget.pattern.test(fileName)) || null
 }
 
 let assets = []
@@ -74,13 +81,24 @@ try {
 
 const checked = []
 const violations = []
+const unknownOversizedAssets = []
 
 for (const assetPath of assets) {
   const fileName = basename(assetPath)
   const budget = budgetForAsset(fileName)
-  if (!budget) continue
-
   const size = statSync(assetPath).size
+
+  if (!budget) {
+    if (size > UNKNOWN_ASSET_LIMIT) {
+      unknownOversizedAssets.push({
+        path: relative(rootDir, assetPath),
+        size,
+        limit: UNKNOWN_ASSET_LIMIT,
+      })
+    }
+    continue
+  }
+
   const entry = {
     path: relative(rootDir, assetPath),
     size,
@@ -90,18 +108,41 @@ for (const assetPath of assets) {
   if (size > budget.limit) violations.push(entry)
 }
 
-if (violations.length > 0) {
+if (violations.length > 0 || unknownOversizedAssets.length > 0) {
   console.error('Bundle budget exceeded:')
   for (const violation of violations.sort((left, right) => right.size - left.size)) {
     console.error(
-      `- ${violation.path}: ${formatBytes(violation.size)} > ${formatBytes(violation.limit)} (${violation.reason})`,
+      `- ${violation.path}: ${formatBytes(violation.size)} > ${formatBytes(violation.limit)} (${violation.label}; ${violation.reason})`,
+    )
+  }
+  for (const asset of unknownOversizedAssets.sort((left, right) => right.size - left.size)) {
+    console.error(
+      `- ${asset.path}: ${formatBytes(asset.size)} > ${formatBytes(asset.limit)} (unknown asset class; add an explicit budget before accepting this asset)`,
     )
   }
   process.exit(1)
 }
 
-const largest = [...checked].sort((left, right) => right.size - left.size).slice(0, 5)
 console.log('Bundle budget check passed.')
-for (const asset of largest) {
-  console.log(`- ${asset.path}: ${formatBytes(asset.size)} / ${formatBytes(asset.limit)}`)
+
+const heavyAssets = checked
+  .filter((asset) => asset.heavy)
+  .sort((left, right) => right.size - left.size)
+const ordinaryAssets = checked
+  .filter((asset) => !asset.heavy)
+  .sort((left, right) => right.size - left.size)
+  .slice(0, 5)
+
+if (heavyAssets.length > 0) {
+  console.log('Known heavy runtime assets:')
+  for (const asset of heavyAssets) {
+    console.log(`- ${asset.label}: ${asset.path}: ${formatBytes(asset.size)} / ${formatBytes(asset.limit)}`)
+  }
+}
+
+if (ordinaryAssets.length > 0) {
+  console.log('Largest ordinary checked assets:')
+  for (const asset of ordinaryAssets) {
+    console.log(`- ${asset.label}: ${asset.path}: ${formatBytes(asset.size)} / ${formatBytes(asset.limit)}`)
+  }
 }

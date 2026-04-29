@@ -254,6 +254,10 @@ Acceptance criteria:
 - PDF preview still opens through the existing PDF surface and keeps search / selection / thumbnails / SyncTeX paths in code.
 - No desktop, visual, layout or interaction automation is added.
 
+Done:
+
+- Step 1 completed: `scripts/check-bundle-budget.mjs` now uses a named asset budget manifest, reports known heavy runtime assets separately from ordinary checked assets, and fails on oversized unknown asset classes instead of silently accepting new large files.
+
 Non-goals:
 
 - no replacement of EmbedPDF / PDFium
