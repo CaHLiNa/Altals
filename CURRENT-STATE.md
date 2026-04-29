@@ -257,6 +257,7 @@ Acceptance criteria:
 Done:
 
 - Step 1 completed: `scripts/check-bundle-budget.mjs` now uses a named asset budget manifest, reports known heavy runtime assets separately from ordinary checked assets, and fails on oversized unknown asset classes instead of silently accepting new large files.
+- Step 2 completed: `scripts/check-pdf-runtime-boundary.mjs` now guards `@embedpdf/*`, `usePdfiumEngine`, and the PDF preview component import chain so PDFium / EmbedPDF stay behind async PDF preview surfaces and `src/services/pdf/*`.
 
 Non-goals:
 
