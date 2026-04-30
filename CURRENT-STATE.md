@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 ## Product
 
@@ -18,8 +18,8 @@ Current desktop paths:
 - sync selected document references into LaTeX bibliography files
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
-- discover local extension packages, enable or disable them, configure contributed settings and run contributed commands from menus, command palette and manifest keybindings
-- render extension-contributed sidebar containers in the workspace mode menu, resolve tree roots and child nodes from the extension host through a VS Code-like tree provider contract, surface title/item actions from extension menu contributions, and auto-refresh changed views through a host-driven extension view event bridge
+- discover local plugin packages, enable or disable them, configure host-managed plugin settings and run plugin commands through the host
+- render plugin sidebar containers in the workspace mode menu, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 
 ## Architecture
 
@@ -36,9 +36,16 @@ Boundary rules:
 - Vue components, stores, domains and composables do not import Tauri APIs directly.
 - Tauri `invoke`, Tauri plugin calls and event bridges belong in `src/services`.
 - Rust owns filesystem authority, persisted app state, reference normalization, compile/runtime execution and workspace-scoped security checks.
-- Rust owns extension discovery, manifest validation, extension host startup, command execution, task state and artifact access.
-- Vue owns extension command palette, contributed menu rendering, contributed keybinding dispatch, extension sidebar container rendering, extension view item rendering and shared extension `when` context evaluation through the `src/services` bridge.
+- Rust owns plugin discovery, manifest validation, plugin host startup, command execution, task state and artifact access.
+- Vue owns plugin prompt rendering, plugin sidebar rendering, command palette integration and runtime event presentation through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
+
+Plugin architecture direction:
+
+- runtime registration first
+- manifest as bootstrap metadata
+- Obsidian-style plugin model with Rust authority retained
+- current VS Code-like contribution machinery is transitional, not the end-state architecture
 
 ## Verification
 
@@ -66,7 +73,7 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 147 tests
+- Rust tests pass: 150 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 

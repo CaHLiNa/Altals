@@ -46,15 +46,15 @@
                   <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
                 </div>
                 <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Commands') }}</span>
+                  <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
                   <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Keybindings') }}</span>
+                  <span class="extension-meta-label">{{ t('Bootstrap Keybindings') }}</span>
                   <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Views') }}</span>
+                  <span class="extension-meta-label">{{ t('Bootstrap Views') }}</span>
                   <span class="extension-meta-value">{{ viewSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
@@ -65,6 +65,12 @@
               <div v-if="extension.activationEvents?.length" class="extension-meta-list">
                 <span class="extension-meta-label">{{ t('Activation Events') }}</span>
                 <span class="extension-meta-value">{{ extension.activationEvents.join(' · ') }}</span>
+              </div>
+              <div class="extension-meta-list">
+                <span class="extension-meta-label">{{ t('Plugin Model') }}</span>
+                <span class="extension-meta-value">
+                  {{ t('Runtime registration first. Manifest metadata is only bootstrap information.') }}
+                </span>
               </div>
               <div class="extension-chip-row">
                 <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
@@ -196,7 +202,7 @@ function permissionSummary(extension = {}) {
 
 function commandSummary(extension = {}) {
   const commands = Array.isArray(extension.contributedCommands) ? extension.contributedCommands : []
-  if (!commands.length) return t('Not configured')
+  if (!commands.length) return t('No bootstrap commands')
   return commands.map((command) => command.commandId).join(' · ')
 }
 
@@ -204,7 +210,7 @@ function keybindingSummary(extension = {}) {
   const keybindings = Array.isArray(extension.contributedKeybindings)
     ? extension.contributedKeybindings
     : []
-  if (!keybindings.length) return t('Not configured')
+  if (!keybindings.length) return t('No bootstrap keybindings')
   return keybindings
     .map((keybinding) => keybinding.mac || keybinding.key || keybinding.win || keybinding.linux)
     .filter(Boolean)
@@ -218,7 +224,7 @@ function viewSummary(extension = {}) {
   const views = Array.isArray(extension.contributedViews)
     ? extension.contributedViews
     : []
-  if (!containers.length && !views.length) return t('Not configured')
+  if (!containers.length && !views.length) return t('No bootstrap views')
   return [
     ...containers.map((container) => container.title || container.id),
     ...views.map((view) => view.title || view.id),
@@ -234,14 +240,14 @@ const settingGroupDefinitions = [
   {
     id: 'basic',
     titleKey: 'Basic',
-    hintKey: 'Core extension choices.',
+    hintKey: 'Host-managed plugin defaults.',
     keys: ['engine', 'service', 'sourceLang', 'targetLang'],
     match: (key) => ['engine', 'service', 'sourceLang', 'targetLang', 'targetLanguage'].includes(shortSettingKey(key)),
   },
   {
     id: 'model',
     titleKey: 'Model Access',
-    hintKey: 'Extension endpoint, credentials, and model selection.',
+    hintKey: 'Host-managed model, endpoint, and credential values.',
     keys: ['apiKey', 'apiUrl', 'model'],
     match: (key) => {
       const normalized = shortSettingKey(key).toLowerCase()
@@ -262,7 +268,7 @@ const settingGroupDefinitions = [
   {
     id: 'runtime',
     titleKey: 'Runtime',
-    hintKey: 'Local Python server and dependency environment.',
+    hintKey: 'Plugin runtime environment and local execution options.',
     keys: ['serverPort', 'pythonPath', 'enableVenv', 'envTool', 'enableMirror', 'skipInstall'],
     match: (key) => {
       const normalized = shortSettingKey(key).toLowerCase()
@@ -278,7 +284,7 @@ const settingGroupDefinitions = [
   {
     id: 'performance',
     titleKey: 'Performance',
-    hintKey: 'Concurrency and throughput controls.',
+    hintKey: 'Plugin execution throughput controls.',
     keys: ['qps', 'poolSize', 'threadNum'],
     match: (key) => ['qps', 'poolSize', 'threadNum', 'chunkSize'].includes(shortSettingKey(key)),
   },
@@ -324,7 +330,7 @@ function settingGroups(extension = {}) {
     groups.push({
       id: 'advanced',
       titleKey: 'Advanced',
-      hintKey: 'Less common extension-specific options.',
+      hintKey: 'Less common plugin-specific options.',
       entries: sortSettingEntries([...remaining.entries()]),
     })
   }

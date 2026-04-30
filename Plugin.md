@@ -1,38 +1,36 @@
-# ScribeFlow Extension Platform
+# ScribeFlow Plugin Platform
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
-## 1. Contract
+This document describes the current plugin platform implementation.
 
-ScribeFlow now treats external capability packages as extensions, not legacy plugins.
+For the final architecture direction, read:
 
-The platform model follows the VS Code direction:
+- [PLUGIN-ARCHITECTURE.md](/Users/math173sr/Documents/GitHub/ScribeFlow/PLUGIN-ARCHITECTURE.md)
 
-- extension packages live under extension roots
-- `package.json` is the canonical manifest
-- `main` points to extension code
-- extension code exports `activate(context)`
-- activation is driven by `activationEvents`
-- extensions register commands and capability providers through the host API
-- command palette, contributed menus and contributed keybindings all execute extension commands
-- product UI calls contributed actions/providers, not package-specific runtime code
+## 1. Current Position
 
-Contributed commands and capabilities are also valid activation triggers, matching the modern VS Code behavior where command contributions do not need duplicate `onCommand:*` entries just to become runnable.
+ScribeFlow already has a working plugin runtime:
 
-The old direct runner model is not a supported compatibility layer. If a future PDF translator, OCR tool, LLM workflow, or reference enrichment package is added, it must be shaped as a ScribeFlow extension package and run through the extension host boundary.
+- local plugin folder discovery
+- canonical `package.json` manifest
+- `activate(context)`
+- persistent Node plugin host
+- Rust authority for secure system capabilities
+- Vue-rendered plugin UI surfaces
 
-## 2. Directory Model
+The platform currently still contains some VS Code-style contribution concepts, but those are now transitional bootstrap mechanisms, not the long-term architectural center.
 
-Extension roots:
+## 2. Current Folder Model
+
+Plugin roots:
 
 ```text
 ~/.scribeflow/extensions/
 <workspace>/.scribeflow/extensions/
 ```
 
-Workspace extensions are project-local. Global extensions are user-local. If the same extension id exists in both places, workspace scope should win for that workspace and the registry should surface the active source clearly.
-
-Example package:
+Example:
 
 ```text
 .scribeflow/extensions/example-pdf-extension/
@@ -40,280 +38,76 @@ Example package:
   dist/extension.js
 ```
 
-## 3. Canonical Manifest
+## 3. Current Runtime Capabilities
 
-Manifest filename:
+Plugins can already use:
 
-```text
-package.json
-```
+- `commands.registerCommand(...)`
+- `commands.executeCommand(...)`
+- `views.registerTreeDataProvider(...)`
+- `views.createTreeView(viewId)`
+- `views.reveal(...)`
+- `views.updateView(...)`
+- `window.showInformationMessage(...)`
+- `window.showWarningMessage(...)`
+- `window.showErrorMessage(...)`
+- `window.showQuickPick(...)`
+- `window.showInputBox(...)`
+- `workspaceState`
 
-Minimum shape:
+Tree view support already includes:
 
-```json
-{
-  "name": "example-pdf-extension",
-  "displayName": "Example PDF Extension",
-  "version": "0.1.0",
-  "main": "dist/extension.js",
-  "activationEvents": ["onCapability:pdf.translate"],
-  "contributes": {
-    "commands": [
-      {
-        "command": "scribeflow.pdf.translate",
-        "title": "Translate"
-      }
-    ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "examplePdfExtension.tools",
-          "title": "PDF Tools"
-        }
-      ]
-    },
-    "views": {
-      "examplePdfExtension.tools": [
-        {
-          "id": "examplePdfExtension.translateView",
-          "name": "Translate PDF",
-          "when": "resourceExtname == .pdf || resource.kind == pdf"
-        }
-      ]
-    },
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "scribeflow.pdf.translate",
-          "when": "resourceExtname == .pdf || resource.kind == pdf"
-        }
-      ],
-      "pdf.preview.actions": [
-        {
-          "command": "scribeflow.pdf.translate",
-          "when": "resource.kind == pdf"
-        }
-      ]
-    },
-    "keybindings": [
-      {
-        "command": "scribeflow.pdf.translate",
-        "key": "mod+alt+t",
-        "when": "resource.kind == pdf"
-      }
-    ],
-    "capabilities": [
-      {
-        "id": "pdf.translate"
-      }
-    ],
-    "configuration": {
-      "properties": {}
-    }
-  },
-  "permissions": {
-    "readWorkspaceFiles": true,
-    "writeArtifacts": true,
-    "spawnProcess": false,
-    "network": "none"
-  }
-}
-```
+- host-resolved root and child items
+- reveal / expand / select
+- selection change events
 
-## 4. Runtime Boundary
+## 4. Current Manifest Use
 
-Rust remains the runtime authority:
+`package.json` is still used for:
 
-- discovers extension packages
-- validates manifest shape and permissions
-- owns workspace security
-- owns task state
-- owns artifact directories
-- starts and talks to the extension host process
-- exposes Tauri commands to the frontend
+- discovery
+- versioning
+- entrypoint
+- permissions
+- settings schema
+- basic command / view bootstrap metadata
 
-The extension host owns extension execution:
+But the intended direction is runtime-registration-first.
 
-- loads extension modules
-- calls `activate(context)`
-- keeps activated extensions in memory
-- provides command and capability registration APIs
-- invokes registered providers
+That means:
 
-Vue remains the UI layer:
+- manifest should stay small
+- plugin behavior should live mainly in runtime code
+- future features should prefer host APIs over more static contribution schema growth
 
-- renders extension registry state
-- renders contributed actions
-- starts extension tasks through `src/services`
-- shows task progress, logs, and artifacts
-- never imports Tauri APIs outside `src/services`
+## 5. Current UI Surfaces
 
-## 5. Context Keys
+Plugins can currently appear in:
 
-Menus, command palette entries and keybindings share one `when` context model.
+- command palette
+- action buttons
+- sidebar view containers
+- tree item context actions
+- plugin settings page
+- host-rendered quick input surfaces
 
-Supported context keys include:
+## 6. Current Gap
 
-- `resource.kind` and `resourceKind`
-- `resource.path` and `resourcePath`
-- `resource.extname` and `resourceExtname`
-- `resource.filename` and `resourceFilename`
-- `resource.langId` and `resourceLangId`
-- `resource.scheme` and `resourceScheme`
-- `resource.referenceId`
-- `resourceIsPdf`, `resourceIsMarkdown`, `resourceIsLatex`, `resourceIsPython`
-- `activeView`
-- `workbench.surface`
-- `workbench.panel`
-- `workspaceFolder`
+The platform is functional, but it is not yet the final Obsidian-style shape.
 
-Supported boolean syntax currently includes `&&`, `||`, `!key`, `key == value` and `key != value`.
+Remaining cleanup direction:
 
-## 6. View Containers
+- reduce contribution-schema-first assumptions
+- move more behavior to runtime registration APIs
+- make settings and registered runtime capabilities clearer in the UI
+- avoid growing the workbench model just for parity with VS Code
 
-Extensions can now contribute left-sidebar containers through:
+## 7. Working Rule
 
-- `contributes.viewsContainers.activitybar`
-- `contributes.views`
+When adding new plugin features:
 
-Current behavior:
-
-- each contributed container becomes a workspace sidebar target with panel id `extension:<containerId>`
-- the workspace mode menu surfaces those containers beside `Document Area` and `Reference Library`
-- each contributed view is filtered by the shared `when` context
-- extensions can now register tree providers through `activate(context)` using `context.views.registerTreeDataProvider(viewId, provider)`
-- the sidebar resolves root items and child items from the extension host instead of rendering only static manifest metadata
-- tree providers now follow a VS Code-like contract built around `getChildren(element)` and `getTreeItem(element)`
-- view items can carry `handle`, `commandId`, `commandArguments`, `description`, `tooltip`, `contextValue`, `icon`, and `collapsibleState`
-- tree views can now push host-owned view state such as `title`, `description`, `message`, and badge metadata through `context.views.updateView(viewId, patch)`
-- extensions can now call `commands.executeCommand(...)` against commands already registered in the host process
-- extensions can now call `window.showInformationMessage(...)`, `window.showWarningMessage(...)`, and `window.showErrorMessage(...)`, which currently surface as app toasts
-- extensions can now call `window.showQuickPick(...)` and `window.showInputBox(...)` through a host-requested frontend modal bridge
-- extensions can now call `views.reveal(viewId, itemHandleOrTreeElement, options)` to request host-driven tree reveal, expansion, and selection inside contributed sidebar views
-- extensions can now call `views.createTreeView(viewId)` and subscribe to `onDidChangeSelection(...)` for contributed tree views
-- `contributes.menus["view/title"]` can add title-bar actions for the active extension view
-- `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
-- sidebar view data now refreshes automatically through a host-driven `extension-view-changed` event bridge, scoped to the specific views the extension host marks as changed, in addition to explicit refresh actions
-
-This is now a real extension-owned tree surface with host-resolved children, host-driven reveal/selection requests, selection change events, and frontend-backed input surfaces for extension interactions, but it is still not a full VS Code `TreeView`/custom webview API.
-
-## 7. Rust Modules
-
-Current extension platform modules:
-
-- `extension_manifest.rs`: canonical manifest parsing and validation
-- `extension_registry.rs`: global/workspace extension discovery and registry entries
-- `extension_permissions.rs`: permission validation
-- `extension_host.rs`: persistent extension host process, activation, request/response protocol, and test-only in-process dispatcher
-- `extension_commands.rs`: command-first execution adapter into the extension host
-- `extension_tasks.rs`: host-owned long-running task state
-- `extension_artifacts.rs`: host-owned artifact opening and revealing
-- `extension_settings.rs`: persisted extension enablement and configuration
-
-No ScribeFlow-owned `plugin_*` Rust modules should exist.
-
-## 8. Frontend Modules
-
-Current frontend extension modules:
-
-- `src/services/extensions/extensionRegistry.js`
-- `src/services/extensions/extensionCommands.js`
-- `src/services/extensions/extensionTasks.js`
-- `src/services/extensions/extensionArtifacts.js`
-- `src/stores/extensions.js`
-- `src/domains/extensions/extensionContext.js`
-- `src/domains/extensions/extensionContributionRegistry.js`
-- `src/domains/extensions/extensionKeybindings.js`
-- `src/components/extensions/ExtensionActionButtons.vue`
-- `src/components/extensions/ExtensionCommandButton.vue`
-- `src/components/extensions/ExtensionCommandPalette.vue`
-- `src/components/extensions/ExtensionSidebarPanel.vue`
-- `src/components/extensions/ExtensionTaskPanel.vue`
-- `src/components/settings/SettingsExtensions.vue`
-- `src/services/extensions/extensionViews.js`
-
-No ScribeFlow-owned `src/services/plugins`, `src/stores/plugins.js`, or `src/components/plugins` path should exist.
-
-## 9. Host Protocol
-
-Rust sends camelCase request payloads to the Node host:
-
-- `extensionId`
-- `activationEvent`
-- `extensionPath`
-- `manifestPath`
-- `mainEntry`
-- `envelope`
-
-The Node host returns typed responses:
-
-- `Activate`
-- `InvokeCapability`
-- `ExecuteCommand`
-- `ResolveView`
-- `ViewChanged`
-- `Error`
-
-`ResolveView` now accepts per-parent child resolution through `parentItemId`, which allows the frontend to fetch root nodes and expanded child nodes separately.
-
-The field name must remain `extensionId` end to end. Do not reintroduce `pluginId` aliases in the host protocol.
-
-## 10. Test Structure
-
-`extension_host.rs` keeps test and non-test runtime paths separated:
-
-- non-test builds own the child process state, Node host script path, stdio process startup, and real host invocation
-- test builds use the in-process dispatcher and do not compile unused child process fields
-- `ExtensionHostState::default()` is hand-written so test builds do not carry dead process members
-
-This split is intentional. It keeps the production extension host real while keeping unit tests deterministic and warning-free.
-
-## 11. Product Language
-
-Product-facing language is extension-first:
-
-- Settings label: Extensions
-- Registry action: Refresh Extension Registry
-- Runtime operation: extension task
-- Package concept: extension
-- Command launcher: extension command palette
-- Shortcut contribution: extension keybinding
-- Sidebar contribution: extension view container
-- View runtime: extension view provider
-
-Avoid user-facing text such as plugin jobs, installed plugins, plugin action, plugin virtual environment, or plugin-local server for ScribeFlow-owned extension features.
-
-Third-party package names and framework APIs can still contain the word `plugin`, for example:
-
-- Tauri plugin APIs
-- Vite plugin APIs
-- CodeMirror `ViewPlugin`
-- EmbedPDF plugin package names
-
-Those are external API names and should not be mechanically renamed.
-
-## 12. Verification
-
-Primary gate:
-
-```sh
-npm run verify
-```
-
-Expected coverage:
-
-- UI bridge boundary guard
-- PDF runtime boundary guard
-- TextMate runtime boundary guard
-- Vite build
-- bundle budget check
-- Rust check
-- Rust tests
-
-Before claiming the extension platform cleanup is finished, also check:
-
-```sh
-rg -n "plugin_manifest|plugin_registry|plugin_permissions|plugin_jobs|plugin_artifacts|plugin_runner|plugin_settings|pluginId|src/services/plugins|src/components/plugins|\\.scribeflow/plugins" src src-tauri/src src-tauri/resources .scribeflow
-```
-
-Only external framework/package API names should remain when searching for the generic word `plugin`.
+- prefer runtime API design first
+- keep manifest minimal
+- keep Rust as system authority
+- keep plugin business logic inside plugin code
+- do not add plugin-specific core-app wiring unless absolutely necessary

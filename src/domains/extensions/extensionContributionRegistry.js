@@ -1,5 +1,9 @@
 import { buildExtensionContext } from './extensionContext.js'
 
+// Transitional layer:
+// static manifest contributions are still normalized here for bootstrap UI wiring,
+// but the platform direction is runtime-registration-first rather than contribution-first.
+
 function normalizeId(value = '') {
   return String(value || '').trim()
 }
