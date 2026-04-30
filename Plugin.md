@@ -181,14 +181,15 @@ Current behavior:
 - each contributed container becomes a workspace sidebar target with panel id `extension:<containerId>`
 - the workspace mode menu surfaces those containers beside `Document Area` and `Reference Library`
 - each contributed view is filtered by the shared `when` context
-- extensions can now register view providers through `activate(context)` using `context.views.registerViewProvider(viewId, provider)`
-- the sidebar resolves real view items from the extension host instead of rendering only static manifest metadata
-- view items can carry `commandId`, `description`, `collapsibleState`, and nested `children`
+- extensions can now register tree providers through `activate(context)` using `context.views.registerTreeDataProvider(viewId, provider)`
+- the sidebar resolves root items and child items from the extension host instead of rendering only static manifest metadata
+- tree providers now follow a VS Code-like contract built around `getChildren(element)` and `getTreeItem(element)`
+- view items can carry `handle`, `commandId`, `description`, and `collapsibleState`
 - `contributes.menus["view/title"]` can add title-bar actions for the active extension view
 - `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
 - sidebar view data now refreshes automatically through a host-driven `extension-view-changed` event bridge, scoped to the specific views the extension host marks as changed, in addition to explicit refresh actions
 
-This is now a real extension-owned navigation surface with extension-provided view data, but it is still not a full VS Code `TreeView`/custom webview API.
+This is now a real extension-owned tree surface with host-resolved children and UI-local expansion, but it is still not a full VS Code `TreeView`/custom webview API.
 
 ## 7. Rust Modules
 
@@ -243,7 +244,11 @@ The Node host returns typed responses:
 - `Activate`
 - `InvokeCapability`
 - `ExecuteCommand`
+- `ResolveView`
+- `ViewChanged`
 - `Error`
+
+`ResolveView` now accepts per-parent child resolution through `parentItemId`, which allows the frontend to fetch root nodes and expanded child nodes separately.
 
 The field name must remain `extensionId` end to end. Do not reintroduce `pluginId` aliases in the host protocol.
 

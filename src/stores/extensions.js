@@ -80,6 +80,41 @@ function normalizeTask(task = {}) {
   }
 }
 
+function normalizeResolvedViewItem(item = {}) {
+  const id = String(item?.id || '').trim()
+  const handle = String(item?.handle || id).trim()
+  return {
+    ...item,
+    id,
+    handle,
+    label: String(item?.label || item?.title || id || handle || ''),
+    description: String(item?.description || ''),
+    commandId: String(item?.commandId || item?.command || ''),
+    collapsibleState: String(item?.collapsibleState || ''),
+    children: Array.isArray(item?.children) ? item.children.map(normalizeResolvedViewItem) : [],
+  }
+}
+
+function mergeResolvedViewState(current = {}, resolved = {}, parentItemId = '') {
+  const normalizedParentItemId = String(parentItemId || '').trim()
+  const items = Array.isArray(resolved?.items)
+    ? resolved.items.map(normalizeResolvedViewItem)
+    : []
+  const currentParentItems = current?.parentItems && typeof current.parentItems === 'object'
+    ? current.parentItems
+    : {}
+  return {
+    ...(current && typeof current === 'object' ? current : {}),
+    viewId: String(resolved?.viewId || current?.viewId || ''),
+    title: String(resolved?.title || current?.title || ''),
+    parentItems: {
+      ...currentParentItems,
+      [normalizedParentItemId]: items,
+    },
+    items,
+  }
+}
+
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
     registry: [],
@@ -227,6 +262,14 @@ export const useExtensionsStore = defineStore('extensions', {
         )
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
+    resolvedViewChildrenFor: (state) => (viewKey = '', parentItemId = '') => {
+      const record = state.resolvedViews[String(viewKey || '').trim()]
+      const parentItems = record?.parentItems && typeof record.parentItems === 'object'
+        ? record.parentItems
+        : {}
+      const items = parentItems[String(parentItemId || '').trim()]
+      return Array.isArray(items) ? items : []
+    },
     viewRefreshTickFor: (state) => (viewKey = '') => state.changedViewTicks[String(viewKey || '').trim()] || 0,
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
@@ -394,7 +437,7 @@ export const useExtensionsStore = defineStore('extensions', {
       await this.refreshTasks().catch(() => {})
       return task
     },
-    async resolveView(view = {}, target = {}, settings = {}) {
+    async resolveView(view = {}, target = {}, settings = {}, parentItemId = '') {
       const extensionId = normalizeExtensionId(view.extensionId)
       const viewId = String(view.id || '').trim()
       if (!extensionId || !viewId) {
@@ -409,6 +452,7 @@ export const useExtensionsStore = defineStore('extensions', {
         workspaceRoot: workspace.path || '',
         extensionId,
         viewId,
+        parentItemId: String(parentItemId || ''),
         commandId: String(view.commandId || ''),
         targetKind: String(target?.kind || ''),
         targetPath: String(target?.path || ''),
@@ -417,7 +461,12 @@ export const useExtensionsStore = defineStore('extensions', {
           ...(settings && typeof settings === 'object' ? settings : {}),
         },
       })
-      this.resolvedViews[`${extensionId}:${viewId}`] = resolved
+      const viewKey = `${extensionId}:${viewId}`
+      this.resolvedViews[viewKey] = mergeResolvedViewState(
+        this.resolvedViews[viewKey],
+        resolved,
+        parentItemId,
+      )
       return resolved
     },
     markViewsChanged(changedViews = [], defaultExtensionId = '') {

@@ -15,42 +15,55 @@ export async function activate(context) {
     })
   })
 
-  context.views.registerViewProvider("examplePdfExtension.translateView", async (payload) => {
-    const targetPath = String(payload?.targetPath || "")
-    const label = targetPath ? targetPath.split(/[\\/]/).pop() : "Current PDF"
-    const expanded = Boolean(context.workspaceState.get("examplePdfExtension.translateView.expanded"))
-    return {
-      title: "Translate PDF",
-      items: [
-        {
+  context.views.registerTreeDataProvider("examplePdfExtension.translateView", {
+    getTitle() {
+      return "Translate PDF"
+    },
+    async getChildren(element, payload) {
+      const targetPath = String(payload?.targetPath || "")
+      if (!element) {
+        return [
+          {
+            id: "translate-group",
+            handle: "translate-group",
+            kind: "group",
+            targetPath,
+          },
+        ]
+      }
+      if (String(element?.handle || element?.id || "") === "translate-group") {
+        return [
+          {
+            id: "translate-current-pdf",
+            handle: targetPath ? `translate-current-pdf:${targetPath}` : "translate-current-pdf",
+            kind: "translate-target",
+            targetPath,
+          },
+        ]
+      }
+      return []
+    },
+    async getTreeItem(element) {
+      if (String(element?.kind || "") === "group") {
+        return {
           id: "translate-group",
+          handle: "translate-group",
           label: "Translation Actions",
-          description: expanded ? "Expanded" : "Collapsed",
-          commandId: "examplePdfExtension.toggleTranslateGroup",
-          collapsibleState: expanded ? "expanded" : "collapsed",
-          children: expanded
-            ? [
-                {
-                  id: "translate-current-pdf",
-                  label,
-                  description: "Run the PDF translation command for the current target.",
-                  commandId: "scribeflow.pdf.translate",
-                },
-              ]
-            : [],
-        },
-      ],
-    }
-  })
-
-  context.commands.registerCommand("examplePdfExtension.toggleTranslateGroup", async () => {
-    const expanded = Boolean(context.workspaceState.get("examplePdfExtension.translateView.expanded"))
-    context.workspaceState.update("examplePdfExtension.translateView.expanded", !expanded)
-    context.views.refresh("examplePdfExtension.translateView")
-    return {
-      message: "example-pdf-extension toggled sidebar group",
-      progressLabel: "Example view state updated",
-    }
+          description: "Commands for the current PDF target.",
+          collapsibleState: "collapsed",
+        }
+      }
+      const targetPath = String(element?.targetPath || "")
+      const label = targetPath ? targetPath.split(/[\\/]/).pop() : "Current PDF"
+      return {
+        id: "translate-current-pdf",
+        handle: String(element?.handle || "translate-current-pdf"),
+        label,
+        description: "Run the PDF translation command for the current target.",
+        commandId: "scribeflow.pdf.translate",
+        collapsibleState: "none",
+      }
+    },
   })
 
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {

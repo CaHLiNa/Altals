@@ -43,49 +43,19 @@
         </div>
 
         <div class="extension-sidebar-panel__tree">
-          <template v-for="item in resolvedItems(view)" :key="`${view.extensionId}:${view.id}:${item.id}`">
-            <button
-              type="button"
-              class="extension-sidebar-panel__view"
-              :class="{ 'is-parent': hasChildren(item) }"
-              @click="runItemCommand(view, item)"
-            >
-              <div class="extension-sidebar-panel__view-row">
-                <span v-if="hasChildren(item)" class="extension-sidebar-panel__chevron">
-                  {{ item.collapsibleState === 'expanded' ? '▾' : '▸' }}
-                </span>
-                <div class="extension-sidebar-panel__view-title">{{ item.label }}</div>
-              </div>
-              <div v-if="item.description" class="extension-sidebar-panel__view-meta">{{ item.description }}</div>
-              <div v-if="viewItemActions(view, item).length > 0" class="extension-sidebar-panel__item-actions">
-                <button
-                  v-for="action in viewItemActions(view, item)"
-                  :key="`${action.extensionId}:${action.commandId}:${item.id}`"
-                  type="button"
-                  class="extension-sidebar-panel__item-action"
-                  @click.stop="runHeaderAction(action)"
-                >
-                  {{ t(action.title || action.commandId) }}
-                </button>
-              </div>
-            </button>
-
-            <div
-              v-if="hasChildren(item) && item.collapsibleState === 'expanded'"
-              class="extension-sidebar-panel__children"
-            >
-              <button
-                v-for="child in item.children"
-                :key="`${view.extensionId}:${view.id}:${item.id}:${child.id}`"
-                type="button"
-                class="extension-sidebar-panel__view is-child"
-                @click="runItemCommand(view, child)"
-              >
-                <div class="extension-sidebar-panel__view-title">{{ child.label }}</div>
-                <div v-if="child.description" class="extension-sidebar-panel__view-meta">{{ child.description }}</div>
-              </button>
-            </div>
-          </template>
+          <ExtensionSidebarTreeNode
+            v-for="item in resolvedItems(view)"
+            :key="`${view.extensionId}:${view.id}:${item.handle || item.id}`"
+            :view="view"
+            :item="item"
+            :context="props.context"
+            :depth="0"
+            :expanded-item-keys="expandedItemKeys"
+            :child-items-resolver="(entry) => resolvedChildItems(view, entry)"
+            @run-command="(item) => runItemCommand(view, item)"
+            @toggle-expand="(item) => toggleItemExpansion(view, item)"
+            @run-item-action="runHeaderAction"
+          />
         </div>
       </section>
     </div>
@@ -93,10 +63,11 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
+import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 
 const props = defineProps({
   container: { type: Object, required: true },
@@ -111,6 +82,7 @@ const toastStore = useToastStore()
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
+const expandedItemKeys = ref({})
 const viewTitleActions = computed(() => {
   const firstView = views.value[0] || {}
   return extensionsStore.viewTitleActionsForView(firstView, props.context)
@@ -126,7 +98,7 @@ watch(
   views,
   (nextViews) => {
     for (const view of nextViews) {
-      void extensionsStore.resolveView(view, props.target).catch(() => {})
+      void refreshSingleView(view).catch(() => {})
     }
   },
   { immediate: true }
@@ -140,7 +112,7 @@ watch(resolvedViewRefreshTokens, (next, previous = []) => {
     .filter(Boolean)
 
   for (const view of changedViews) {
-    void extensionsStore.resolveView(view, props.target).catch(() => {})
+    void refreshSingleView(view).catch(() => {})
   }
 })
 
@@ -153,15 +125,42 @@ function resolvedViewTitle(view = {}) {
 }
 
 function resolvedItems(view = {}) {
-  return Array.isArray(resolvedViewRecord(view)?.items) ? resolvedViewRecord(view).items : []
+  return extensionsStore.resolvedViewChildrenFor(`${view.extensionId}:${view.id}`, '')
 }
 
-function hasChildren(item = {}) {
-  return Array.isArray(item.children) && item.children.length > 0
+function resolvedChildItems(view = {}, item = {}) {
+  return extensionsStore.resolvedViewChildrenFor(
+    `${view.extensionId}:${view.id}`,
+    item.handle || item.id,
+  )
 }
 
-function viewItemActions(view = {}, item = {}) {
-  return extensionsStore.viewItemActionsForItem(view, item, props.context)
+function isExpandable(item = {}) {
+  const state = String(item?.collapsibleState || '')
+  return state && state !== 'none'
+}
+
+function itemExpansionKey(view = {}, item = {}) {
+  return `${view.extensionId}:${view.id}:${item.handle || item.id}`
+}
+
+function isItemExpanded(view = {}, item = {}) {
+  const key = itemExpansionKey(view, item)
+  if (expandedItemKeys.value[key] != null) {
+    return Boolean(expandedItemKeys.value[key])
+  }
+  return String(item?.collapsibleState || '') === 'expanded'
+}
+
+async function loadExpandedChildren(view = {}, items = []) {
+  for (const item of items) {
+    if (!isExpandable(item) || !isItemExpanded(view, item)) continue
+    await extensionsStore.resolveView(view, props.target, {}, item.handle || item.id).catch(() => {})
+    const children = resolvedChildItems(view, item)
+    if (children.length > 0) {
+      await loadExpandedChildren(view, children)
+    }
+  }
 }
 
 function fallbackCommandForView(view = {}, item = {}) {
@@ -175,6 +174,10 @@ function fallbackCommandForView(view = {}, item = {}) {
 }
 
 async function runItemCommand(view = {}, item = {}) {
+  if (isExpandable(item) && !item.commandId) {
+    await toggleItemExpansion(view, item)
+    return
+  }
   const command = fallbackCommandForView(view, item)
   if (!command) {
     toastStore.show(t('No extension commands found'), { type: 'error', duration: 3200 })
@@ -214,8 +217,25 @@ async function runHeaderAction(action = {}) {
 
 async function refreshViews() {
   for (const view of views.value) {
-    await extensionsStore.resolveView(view, props.target).catch(() => {})
+    await refreshSingleView(view).catch(() => {})
   }
+}
+
+async function refreshSingleView(view = {}) {
+  await extensionsStore.resolveView(view, props.target).catch(() => {})
+  await loadExpandedChildren(view, resolvedItems(view))
+}
+
+async function toggleItemExpansion(view = {}, item = {}) {
+  if (!isExpandable(item)) return
+  const key = itemExpansionKey(view, item)
+  const nextExpanded = !isItemExpanded(view, item)
+  expandedItemKeys.value = {
+    ...expandedItemKeys.value,
+    [key]: nextExpanded,
+  }
+  if (!nextExpanded) return
+  await extensionsStore.resolveView(view, props.target, {}, item.handle || item.id).catch(() => {})
 }
 </script>
 
@@ -293,66 +313,6 @@ async function refreshViews() {
   padding: 0 4px;
 }
 
-.extension-sidebar-panel__view {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-base) 78%, transparent);
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.extension-sidebar-panel__view.is-parent {
-  padding-bottom: 8px;
-}
-
-.extension-sidebar-panel__view.is-child {
-  margin-left: 18px;
-}
-
-.extension-sidebar-panel__view:hover {
-  background: var(--surface-hover);
-}
-
-.extension-sidebar-panel__view-row {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-}
-
-.extension-sidebar-panel__chevron {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.extension-sidebar-panel__view-title {
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.extension-sidebar-panel__children {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.extension-sidebar-panel__item-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-
 .extension-sidebar-panel__empty {
   padding: 0 10px;
 }
@@ -366,11 +326,4 @@ async function refreshViews() {
   cursor: pointer;
 }
 
-.extension-sidebar-panel__item-action {
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 10px;
-  cursor: pointer;
-}
 </style>

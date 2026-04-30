@@ -7,6 +7,7 @@ export async function resolveExtensionView(payload = {}) {
       workspaceRoot: String(payload.workspaceRoot || ''),
       extensionId: String(payload.extensionId || ''),
       viewId: String(payload.viewId || ''),
+      parentItemId: String(payload.parentItemId || ''),
       commandId: String(payload.commandId || ''),
       targetKind: String(payload.targetKind || ''),
       targetPath: String(payload.targetPath || ''),

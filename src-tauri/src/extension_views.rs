@@ -20,6 +20,8 @@ pub struct ExtensionViewResolveParams {
     #[serde(default)]
     pub view_id: String,
     #[serde(default)]
+    pub parent_item_id: String,
+    #[serde(default)]
     pub command_id: String,
     #[serde(default)]
     pub target_kind: String,
@@ -92,6 +94,7 @@ pub async fn extension_view_resolve(
             manifest_path: entry.path.clone(),
             main_entry: manifest.main.clone(),
             view_id,
+            parent_item_id: params.parent_item_id.trim().to_string(),
             envelope,
         },
     )? {

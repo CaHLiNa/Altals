@@ -131,6 +131,8 @@ pub enum ExtensionHostRequest {
         manifest_path: String,
         main_entry: String,
         view_id: String,
+        #[serde(default)]
+        parent_item_id: String,
         envelope: ExtensionHostInvocationEnvelope,
     },
 }
@@ -151,6 +153,8 @@ pub struct ExtensionHostViewItem {
     pub id: String,
     pub label: String,
     #[serde(default)]
+    pub handle: String,
+    #[serde(default)]
     pub description: String,
     #[serde(default)]
     pub command_id: String,
@@ -164,6 +168,8 @@ pub struct ExtensionHostViewItem {
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostViewResolveResult {
     pub view_id: String,
+    #[serde(default)]
+    pub parent_item_id: String,
     #[serde(default)]
     pub title: String,
     #[serde(default)]
@@ -520,9 +526,13 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             changed_views: Vec::new(),
         }),
         ExtensionHostRequest::ResolveView {
-            view_id, envelope, ..
+            view_id,
+            parent_item_id,
+            envelope,
+            ..
         } => ExtensionHostResponse::ResolveView(ExtensionHostViewResolveResult {
             view_id,
+            parent_item_id,
             title: envelope.extension_id.clone(),
             items: Vec::new(),
         }),
@@ -739,6 +749,7 @@ mod tests {
             manifest_path: "/tmp/ext/package.json".to_string(),
             main_entry: "./dist/extension.js".to_string(),
             view_id: "examplePdfExtension.translateView".to_string(),
+            parent_item_id: "".to_string(),
             envelope: build_extension_invocation_envelope(
                 "",
                 "extension-1",

@@ -47,11 +47,26 @@ function createExtensionApi(registry) {
       registerViewProvider(viewId, provider) {
         const id = String(viewId || "").trim();
         if (id && typeof provider === "function") {
-          registry.views.set(id, provider);
+          registry.viewProviders.set(id, provider);
         }
         return {
           dispose() {
-            registry.views.delete(id);
+            registry.viewProviders.delete(id);
+          },
+        };
+      },
+      registerTreeDataProvider(viewId, provider) {
+        const id = String(viewId || "").trim();
+        if (id && provider && typeof provider === "object") {
+          registry.treeViews.set(id, provider);
+          if (!registry.treeItems.has(id)) {
+            registry.treeItems.set(id, new Map());
+          }
+        }
+        return {
+          dispose() {
+            registry.treeViews.delete(id);
+            registry.treeItems.delete(id);
           },
         };
       },
@@ -130,7 +145,9 @@ async function ensureActivated(request) {
     resolvedMain,
     commands: new Map(),
     capabilities: new Map(),
-    views: new Map(),
+    viewProviders: new Map(),
+    treeViews: new Map(),
+    treeItems: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
     workspaceState: new Map(),
@@ -230,15 +247,21 @@ async function handleResolveView(params = {}) {
   const record = await ensureActivated(params);
   record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
   const viewId = String(params.viewId || "").trim();
-  const provider = record.views.get(viewId);
-  if (!provider) {
+  const provider = record.viewProviders.get(viewId);
+  const treeProvider = record.treeViews.get(viewId);
+  if (!provider && !treeProvider) {
     throw new Error(`View provider not registered: ${viewId}`);
+  }
+  const parentItemId = String(params.parentItemId || "").trim();
+  if (treeProvider) {
+    return await handleResolveTreeView(record, treeProvider, viewId, parentItemId, params.envelope || {});
   }
   const result = await provider(params.envelope || {});
   return {
     kind: "ResolveView",
     payload: {
       viewId,
+      parentItemId,
       title:
         typeof result?.title === "string" && result.title.trim()
           ? result.title.trim()
@@ -250,17 +273,98 @@ async function handleResolveView(params = {}) {
   };
 }
 
+async function handleResolveTreeView(record, provider, viewId, parentItemId, envelope) {
+  const treeItems = record.treeItems.get(viewId) || new Map();
+  record.treeItems.set(viewId, treeItems);
+  if (!parentItemId) {
+    treeItems.clear();
+  }
+  const parentElement = parentItemId ? treeItems.get(parentItemId) : undefined;
+  const children = await resolveTreeChildren(provider, parentElement, envelope);
+  const items = [];
+  for (const [index, element] of children.entries()) {
+    const treeItem = await resolveTreeItem(provider, element, envelope);
+    const normalized = normalizeTreeViewItem(treeItem, element, viewId, index);
+    treeItems.set(normalized.handle, element);
+    items.push(normalized);
+  }
+  return {
+    kind: "ResolveView",
+    payload: {
+      viewId,
+      parentItemId,
+      title: resolveTreeViewTitle(provider, viewId, envelope),
+      items,
+    },
+  };
+}
+
+async function resolveTreeChildren(provider, element, envelope) {
+  if (typeof provider?.getChildren !== "function") return [];
+  const result = await provider.getChildren(element, envelope);
+  return Array.isArray(result) ? result : [];
+}
+
+async function resolveTreeItem(provider, element, envelope) {
+  if (typeof provider?.getTreeItem === "function") {
+    return await provider.getTreeItem(element, envelope);
+  }
+  return element;
+}
+
+function resolveTreeViewTitle(provider, viewId, envelope) {
+  if (typeof provider?.getTitle === "function") {
+    const title = provider.getTitle(envelope);
+    if (typeof title === "string" && title.trim()) return title.trim();
+  }
+  return viewId;
+}
+
+function normalizeTreeViewItem(treeItem = {}, element = {}, viewId = "", index = 0) {
+  const handle = String(
+    treeItem?.handle || treeItem?.id || element?.handle || element?.id || `${viewId}:${index}`
+  ).trim();
+  const id = String(treeItem?.id || element?.id || handle).trim();
+  const nestedChildren = Array.isArray(treeItem?.children)
+    ? normalizeViewItems(treeItem.children, `${viewId}:${index}`)
+    : [];
+  return {
+    id,
+    handle,
+    label: String(treeItem?.label || treeItem?.title || element?.label || element?.title || id || `Item ${index + 1}`),
+    description: String(treeItem?.description || element?.description || ""),
+    commandId: String(treeItem?.commandId || treeItem?.command || element?.commandId || element?.command || ""),
+    collapsibleState: normalizeCollapsibleState(
+      treeItem?.collapsibleState || element?.collapsibleState,
+      nestedChildren.length > 0,
+    ),
+    children: nestedChildren,
+  };
+}
+
 function normalizeViewItems(items = [], viewId = "") {
   return items.map((item, index) => ({
     id: String(item?.id || `${viewId}:${index}`),
+    handle: String(item?.handle || item?.id || `${viewId}:${index}`),
     label: String(item?.label || item?.title || item?.id || `Item ${index + 1}`),
     description: String(item?.description || ""),
     commandId: String(item?.commandId || item?.command || ""),
-    collapsibleState: String(item?.collapsibleState || item?.collapsible_state || ""),
+    collapsibleState: normalizeCollapsibleState(
+      item?.collapsibleState || item?.collapsible_state,
+      Array.isArray(item?.children) && item.children.length > 0,
+    ),
     children: Array.isArray(item?.children)
       ? normalizeViewItems(item.children, `${viewId}:${index}`)
       : [],
   }))
+}
+
+function normalizeCollapsibleState(value, hasChildren = false) {
+  const normalized = String(value || "").trim();
+  if (normalized === "expanded" || normalized === "collapsed" || normalized === "none") {
+    return normalized;
+  }
+  return hasChildren ? "collapsed" : "none";
 }
 
 function collectChangedViews(record, rawChangedViews) {

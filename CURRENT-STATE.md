@@ -19,7 +19,7 @@ Current desktop paths:
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - discover local extension packages, enable or disable them, configure contributed settings and run contributed commands from menus, command palette and manifest keybindings
-- render extension-contributed sidebar containers in the workspace mode menu, resolve hierarchical sidebar view items from the extension host, surface title/item actions from extension menu contributions, and auto-refresh changed views through a host-driven extension view event bridge
+- render extension-contributed sidebar containers in the workspace mode menu, resolve tree roots and child nodes from the extension host through a VS Code-like tree provider contract, surface title/item actions from extension menu contributions, and auto-refresh changed views through a host-driven extension view event bridge
 
 ## Architecture
 
