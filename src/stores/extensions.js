@@ -84,7 +84,7 @@ export const useExtensionsStore = defineStore('extensions', {
     enabledExtensionIds: [],
     extensionConfig: {},
     resolvedViews: {},
-    viewRefreshTick: 0,
+    changedViewTicks: {},
     loadingRegistry: false,
     loadingTasks: false,
     settingsHydrated: false,
@@ -224,7 +224,7 @@ export const useExtensionsStore = defineStore('extensions', {
         )
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
-    currentViewRefreshTick: (state) => state.viewRefreshTick,
+    viewRefreshTickFor: (state) => (viewKey = '') => state.changedViewTicks[String(viewKey || '').trim()] || 0,
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
     },
@@ -376,7 +376,7 @@ export const useExtensionsStore = defineStore('extensions', {
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)
-      const task = normalizeTask(await executeExtensionCommand({
+      const result = await executeExtensionCommand({
         globalConfigDir,
         workspaceRoot: workspace.path || '',
         extensionId,
@@ -386,8 +386,9 @@ export const useExtensionsStore = defineStore('extensions', {
           ...extensionSettings,
           ...(settings && typeof settings === 'object' ? settings : {}),
         },
-      }))
-      this.viewRefreshTick += 1
+      })
+      const task = normalizeTask(result?.task || {})
+      this.markViewsChanged(result?.changedViews, extensionId)
       await this.refreshTasks().catch(() => {})
       return task
     },
@@ -417,8 +418,22 @@ export const useExtensionsStore = defineStore('extensions', {
       this.resolvedViews[`${extensionId}:${viewId}`] = resolved
       return resolved
     },
-    requestViewRefresh() {
-      this.viewRefreshTick += 1
+    markViewsChanged(changedViews = [], defaultExtensionId = '') {
+      const extensionId = normalizeExtensionId(defaultExtensionId)
+      if (!Array.isArray(changedViews) || changedViews.length === 0) return
+      for (const rawViewId of changedViews) {
+        const viewId = String(rawViewId || '').trim()
+        if (!viewId) continue
+        const key = viewId.includes(':')
+          ? viewId
+          : `${extensionId}:${viewId}`
+        const normalizedKey = String(key || '').trim()
+        if (!normalizedKey) continue
+        this.changedViewTicks[normalizedKey] = (this.changedViewTicks[normalizedKey] || 0) + 1
+      }
+    },
+    requestViewRefresh(viewKeys = []) {
+      this.markViewsChanged(viewKeys)
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))

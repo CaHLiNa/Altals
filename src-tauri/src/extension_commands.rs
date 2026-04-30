@@ -10,6 +10,7 @@ use crate::extension_tasks::{
 };
 use crate::security::WorkspaceScopeState;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -31,6 +32,14 @@ pub struct ExtensionCommandExecuteParams {
     pub settings: Value,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionCommandExecutionResult {
+    pub task: ExtensionTask,
+    #[serde(default)]
+    pub changed_views: Vec<String>,
+}
+
 fn extension_dir_from_manifest_path(path: &str) -> String {
     Path::new(path)
         .parent()
@@ -47,7 +56,7 @@ pub async fn extension_command_execute(
     params: ExtensionCommandExecuteParams,
     _scope_state: tauri::State<'_, WorkspaceScopeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
-) -> Result<ExtensionTask, String> {
+) -> Result<ExtensionCommandExecutionResult, String> {
     let command_id = params.command_id.trim().to_string();
     if command_id.is_empty() {
         return Err("Extension command id is required".to_string());
@@ -134,7 +143,11 @@ pub async fn extension_command_execute(
             let completed = mark_task_succeeded(&task.id, Vec::new())
                 .map_err(|error| format!("Failed to record extension result: {error}"))?;
             write_task_log(&completed, &result.message);
-            get_task(&task.id)
+            let task = get_task(&task.id)?;
+            Ok(ExtensionCommandExecutionResult {
+                task,
+                changed_views: result.changed_views,
+            })
         }
         Ok(ExtensionHostResponse::Error { message }) => {
             let failed = mark_task_failed(&task.id, &message)?;

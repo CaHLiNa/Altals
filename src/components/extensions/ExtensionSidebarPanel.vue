@@ -111,11 +111,16 @@ const toastStore = useToastStore()
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
-const refreshTick = computed(() => extensionsStore.currentViewRefreshTick)
 const viewTitleActions = computed(() => {
   const firstView = views.value[0] || {}
   return extensionsStore.viewTitleActionsForView(firstView, props.context)
 })
+const resolvedViewRefreshTokens = computed(() =>
+  views.value.map((view) => ({
+    key: `${view.extensionId}:${view.id}`,
+    token: extensionsStore.viewRefreshTickFor(`${view.extensionId}:${view.id}`),
+  }))
+)
 
 watch(
   views,
@@ -127,8 +132,16 @@ watch(
   { immediate: true }
 )
 
-watch(refreshTick, () => {
-  void refreshViews()
+watch(resolvedViewRefreshTokens, (next, previous = []) => {
+  const previousTokens = new Map(previous.map((entry) => [entry.key, entry.token]))
+  const changedViews = next
+    .filter((entry) => previousTokens.has(entry.key) && previousTokens.get(entry.key) !== entry.token)
+    .map((entry) => views.value.find((view) => `${view.extensionId}:${view.id}` === entry.key))
+    .filter(Boolean)
+
+  for (const view of changedViews) {
+    void extensionsStore.resolveView(view, props.target).catch(() => {})
+  }
 })
 
 function resolvedViewRecord(view = {}) {

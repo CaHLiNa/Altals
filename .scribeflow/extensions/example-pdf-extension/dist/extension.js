@@ -46,6 +46,7 @@ export async function activate(context) {
   context.commands.registerCommand("examplePdfExtension.toggleTranslateGroup", async () => {
     const expanded = Boolean(context.workspaceState.get("examplePdfExtension.translateView.expanded"))
     context.workspaceState.update("examplePdfExtension.translateView.expanded", !expanded)
+    context.views.refresh("examplePdfExtension.translateView")
     return {
       message: "example-pdf-extension toggled sidebar group",
       progressLabel: "Example view state updated",
@@ -53,6 +54,7 @@ export async function activate(context) {
   })
 
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
+    context.views.refresh("examplePdfExtension.translateView")
     return {
       message: "example-pdf-extension refreshed sidebar view",
       progressLabel: "Example view refreshed",

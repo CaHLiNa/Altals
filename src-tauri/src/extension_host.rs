@@ -131,6 +131,8 @@ pub struct ExtensionHostCapabilityResult {
     pub accepted: bool,
     pub message: String,
     pub progress_label: String,
+    #[serde(default)]
+    pub changed_views: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -443,6 +445,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                     envelope.capability, envelope.extension_id
                 ),
                 progress_label: "Accepted by extension host".to_string(),
+                changed_views: Vec::new(),
             })
         }
         ExtensionHostRequest::ExecuteCommand {
@@ -456,6 +459,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 command_id, envelope.extension_id
             ),
             progress_label: "Accepted by extension host".to_string(),
+            changed_views: Vec::new(),
         }),
         ExtensionHostRequest::ResolveView {
             view_id, envelope, ..

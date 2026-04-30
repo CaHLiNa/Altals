@@ -51,6 +51,12 @@ function createExtensionApi(registry) {
           },
         };
       },
+      refresh(viewId) {
+        const id = String(viewId || "").trim();
+        if (id) {
+          registry.changedViews.add(id);
+        }
+      },
     },
     workspaceState: {
       get(key) {
@@ -113,6 +119,7 @@ async function ensureActivated(request) {
     commands: new Map(),
     capabilities: new Map(),
     views: new Map(),
+    changedViews: new Set(),
     workspaceState: new Map(),
     subscriptions: [],
   };
@@ -184,7 +191,9 @@ async function handleExecuteCommand(params = {}) {
     throw new Error(`Command not registered: ${commandId}`);
   }
 
+  record.changedViews.clear();
   const result = await handler(params.envelope || {});
+  const changedViews = collectChangedViews(record, result?.changedViews);
   return {
     kind: "ExecuteCommand",
     payload: {
@@ -197,6 +206,7 @@ async function handleExecuteCommand(params = {}) {
         typeof result?.progressLabel === "string" && result.progressLabel.trim()
           ? result.progressLabel.trim()
           : "Handled by extension command",
+      changedViews,
     },
   };
 }
@@ -235,6 +245,22 @@ function normalizeViewItems(items = [], viewId = "") {
       ? normalizeViewItems(item.children, `${viewId}:${index}`)
       : [],
   }))
+}
+
+function collectChangedViews(record, rawChangedViews) {
+  const changedViews = new Set();
+  if (Array.isArray(rawChangedViews)) {
+    for (const entry of rawChangedViews) {
+      const id = String(entry || "").trim();
+      if (id) changedViews.add(id);
+    }
+  }
+  for (const entry of record.changedViews) {
+    const id = String(entry || "").trim();
+    if (id) changedViews.add(id);
+  }
+  record.changedViews.clear();
+  return [...changedViews];
 }
 
 async function dispatchRequest(request) {
