@@ -19,6 +19,7 @@ import {
 } from '../services/extensions/extensionArtifacts'
 import {
   resolveExtensionView,
+  notifyExtensionViewSelection,
 } from '../services/extensions/extensionViews'
 import {
   listenExtensionViewChanged,
@@ -489,6 +490,20 @@ export const useExtensionsStore = defineStore('extensions', {
         badgeTooltip: String(resolved?.badgeTooltip || ''),
       }
       return resolved
+    },
+    async notifyViewSelection(view = {}, itemHandle = '') {
+      const extensionId = normalizeExtensionId(view.extensionId)
+      const viewId = String(view.id || '').trim()
+      if (!extensionId || !viewId) return null
+      const workspace = useWorkspaceStore()
+      const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      return notifyExtensionViewSelection({
+        globalConfigDir,
+        workspaceRoot: workspace.path || '',
+        extensionId,
+        viewId,
+        itemHandle: String(itemHandle || ''),
+      })
     },
     setViewControllerState(viewKey = '', patch = {}) {
       const key = String(viewKey || '').trim()

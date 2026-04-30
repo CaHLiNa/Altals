@@ -93,6 +93,28 @@ function collectTreeParentHandles(registry, viewId = "", itemHandle = "") {
   return parents;
 }
 
+function createEmitter() {
+  const listeners = new Set();
+  return {
+    event(listener) {
+      if (typeof listener !== "function") {
+        return { dispose() {} };
+      }
+      listeners.add(listener);
+      return {
+        dispose() {
+          listeners.delete(listener);
+        },
+      };
+    },
+    fire(payload) {
+      for (const listener of [...listeners]) {
+        listener(payload);
+      }
+    },
+  };
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
@@ -155,6 +177,9 @@ function createExtensionApi(registry) {
         const id = String(viewId || "").trim();
         if (id && provider && typeof provider === "object") {
           registry.treeViews.set(id, provider);
+          if (!registry.treeViewControllers.has(id)) {
+            registry.treeViewControllers.set(id, createTreeViewController(registry, id));
+          }
           if (!registry.treeItems.has(id)) {
             registry.treeItems.set(id, new Map());
           }
@@ -173,6 +198,18 @@ function createExtensionApi(registry) {
             registry.viewState.delete(id);
           },
         };
+      },
+      createTreeView(viewId) {
+        const id = String(viewId || "").trim();
+        if (!id) {
+          throw new Error("View id is required");
+        }
+        let controller = registry.treeViewControllers.get(id);
+        if (!controller) {
+          controller = createTreeViewController(registry, id);
+          registry.treeViewControllers.set(id, controller);
+        }
+        return controller.api;
       },
       updateView(viewId, patch = {}) {
         const id = String(viewId || "").trim();
@@ -333,6 +370,7 @@ async function ensureActivated(request) {
     capabilities: new Map(),
     viewProviders: new Map(),
     treeViews: new Map(),
+    treeViewControllers: new Map(),
     treeItems: new Map(),
     treeParents: new Map(),
     viewState: new Map(),
@@ -630,6 +668,9 @@ async function dispatchRequest(request) {
   if (request.method === "RespondUiRequest") {
     return handleRespondUiRequest(request.params || {});
   }
+  if (request.method === "NotifyViewSelection") {
+    return handleNotifyViewSelection(request.params || {});
+  }
   if (request.method === "Activate") {
     return await handleActivate(request.params || {});
   }
@@ -664,6 +705,74 @@ function handleRespondUiRequest(params = {}) {
     kind: "AcknowledgeUiRequest",
     payload: {
       requestId,
+      accepted: true,
+    },
+  };
+}
+
+function createTreeViewController(registry, viewId = "") {
+  const selectionEmitter = createEmitter();
+  const controller = {
+    api: {
+      onDidChangeSelection(listener) {
+        return selectionEmitter.event(listener);
+      },
+      reveal(itemOrHandle, options = {}) {
+        const itemHandle = resolveTreeItemHandle(registry, viewId, itemOrHandle);
+        if (!itemHandle) return;
+        writeMessage({
+          kind: "ViewRevealRequested",
+          payload: {
+            extensionId: registry.id,
+            workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+            viewId,
+            itemHandle,
+            parentHandles: collectTreeParentHandles(registry, viewId, itemHandle),
+            focus: Boolean(options?.focus),
+            select: options?.select !== false,
+            expand: options?.expand !== false,
+          },
+        });
+      },
+    },
+    selectionEmitter,
+  };
+  return controller;
+}
+
+function handleNotifyViewSelection(params = {}) {
+  const extensionId = String(params.extensionId || "").trim();
+  const viewId = String(params.viewId || "").trim();
+  const itemHandle = String(params.itemHandle || "").trim();
+  if (!extensionId || !viewId) {
+    throw new Error("Extension id and view id are required");
+  }
+  const registry = extensions.get(extensionId);
+  if (!registry) {
+    throw new Error(`Extension not activated: ${extensionId}`);
+  }
+  const controller = registry.treeViewControllers.get(viewId);
+  if (!controller) {
+    return {
+      kind: "AcknowledgeViewSelection",
+      payload: {
+        extensionId,
+        viewId,
+        accepted: false,
+      },
+    };
+  }
+  const treeItems = registry.treeItems.get(viewId) || new Map();
+  const element = itemHandle ? treeItems.get(itemHandle) : undefined;
+  controller.selectionEmitter.fire({
+    selection: element != null ? [element] : [],
+    handles: itemHandle ? [itemHandle] : [],
+  });
+  return {
+    kind: "AcknowledgeViewSelection",
+    payload: {
+      extensionId,
+      viewId,
       accepted: true,
     },
   };

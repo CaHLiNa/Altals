@@ -251,6 +251,7 @@ function fallbackCommandForView(view = {}, item = {}) {
 }
 
 async function runItemCommand(view = {}, item = {}) {
+  await extensionsStore.notifyViewSelection(view, item?.handle || item?.id || '').catch(() => {})
   extensionsStore.setViewControllerState(`${view.extensionId}:${view.id}`, {
     selectedHandle: String(item?.handle || item?.id || ''),
     focusedHandle: String(item?.handle || item?.id || ''),

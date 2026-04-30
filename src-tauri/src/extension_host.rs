@@ -163,6 +163,12 @@ pub enum ExtensionHostRequest {
         #[serde(default)]
         result: Value,
     },
+    NotifyViewSelection {
+        extension_id: String,
+        view_id: String,
+        #[serde(default)]
+        item_handle: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -331,6 +337,25 @@ pub struct ExtensionHostRespondUiRequestResult {
     pub accepted: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostNotifyViewSelectionParams {
+    #[serde(default)]
+    pub extension_id: String,
+    #[serde(default)]
+    pub view_id: String,
+    #[serde(default)]
+    pub item_handle: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewSelectionAcknowledgement {
+    pub extension_id: String,
+    pub view_id: String,
+    pub accepted: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostWindowMessageEvent {
@@ -353,6 +378,7 @@ pub enum ExtensionHostResponse {
     ViewRevealRequested(ExtensionHostViewRevealRequestedEvent),
     WindowInputRequested(ExtensionHostWindowInputRequestedEvent),
     AcknowledgeUiRequest(ExtensionHostUiRequestAcknowledgement),
+    AcknowledgeViewSelection(ExtensionHostViewSelectionAcknowledgement),
     WindowMessage(ExtensionHostWindowMessageEvent),
     Error { message: String },
 }
@@ -872,6 +898,17 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 accepted: true,
             })
         }
+        ExtensionHostRequest::NotifyViewSelection {
+            extension_id,
+            view_id,
+            ..
+        } => ExtensionHostResponse::AcknowledgeViewSelection(
+            ExtensionHostViewSelectionAcknowledgement {
+                extension_id,
+                view_id,
+                accepted: true,
+            },
+        ),
     }
 }
 
@@ -913,6 +950,29 @@ pub async fn extension_host_respond_ui_request(
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostRespondUiRequestResult, String> {
     respond_extension_host_ui_request(state.inner(), params)
+}
+
+#[tauri::command]
+pub async fn extension_host_notify_view_selection(
+    params: ExtensionHostNotifyViewSelectionParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostViewSelectionAcknowledgement, String> {
+    let extension_id = params.extension_id.trim().to_string();
+    let view_id = params.view_id.trim().to_string();
+    if extension_id.is_empty() || view_id.is_empty() {
+        return Err("Extension id and view id are required".to_string());
+    }
+    match invoke_extension_host(
+        state.inner(),
+        ExtensionHostRequest::NotifyViewSelection {
+            extension_id: extension_id.clone(),
+            view_id: view_id.clone(),
+            item_handle: params.item_handle.trim().to_string(),
+        },
+    )? {
+        ExtensionHostResponse::AcknowledgeViewSelection(result) => Ok(result),
+        _ => Err("Unexpected extension host response for view selection".to_string()),
+    }
 }
 
 #[cfg(test)]

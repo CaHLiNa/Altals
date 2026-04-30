@@ -15,3 +15,15 @@ export async function resolveExtensionView(payload = {}) {
     },
   })
 }
+
+export async function notifyExtensionViewSelection(payload = {}) {
+  return invoke('extension_host_notify_view_selection', {
+    params: {
+      globalConfigDir: String(payload.globalConfigDir || ''),
+      workspaceRoot: String(payload.workspaceRoot || ''),
+      extensionId: String(payload.extensionId || ''),
+      viewId: String(payload.viewId || ''),
+      itemHandle: String(payload.itemHandle || ''),
+    },
+  })
+}

@@ -1,4 +1,6 @@
 export async function activate(context) {
+  const translateTreeView = context.views.createTreeView("examplePdfExtension.translateView")
+
   context.capabilities.registerProvider("pdf.translate", async (request) => {
     const payload = JSON.parse(String(request?.settingsJson || request?.settings_json || "{}") || "{}")
     const targetLang = String(payload?.["examplePdfExtension.targetLang"] || payload?.targetLang || "zh-CN")
@@ -120,10 +122,20 @@ export async function activate(context) {
     badgeTooltip: "One quick action is available for the active PDF.",
   })
 
+  translateTreeView.onDidChangeSelection((event) => {
+    const selected = Array.isArray(event?.selection) ? event.selection[0] : null
+    const label = String(selected?.targetPath || selected?.label || selected?.handle || "")
+    context.views.updateView("examplePdfExtension.translateView", {
+      message: label
+        ? `Selected translation target: ${label}`
+        : "Select a PDF target to start translation.",
+    })
+  })
+
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
     await context.commands.executeCommand("examplePdfExtension.announceRefresh")
     context.views.refresh("examplePdfExtension.translateView")
-    context.views.reveal("examplePdfExtension.translateView", "translate-group", {
+    translateTreeView.reveal("translate-group", {
       focus: true,
       select: true,
       expand: true,

@@ -500,6 +500,7 @@ pub fn run() {
             extension_host::extension_host_status,
             extension_host::extension_host_activate,
             extension_host::extension_host_respond_ui_request,
+            extension_host::extension_host_notify_view_selection,
             extension_commands::extension_command_execute,
             extension_views::extension_view_resolve,
             extension_tasks::extension_task_list,
