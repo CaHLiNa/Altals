@@ -93,6 +93,32 @@ pub struct ExtensionHostActivationResult {
     pub registered_commands: Vec<String>,
     pub registered_capabilities: Vec<String>,
     pub registered_views: Vec<String>,
+    #[serde(default)]
+    pub registered_command_details: Vec<ExtensionHostRegisteredCommand>,
+    #[serde(default)]
+    pub registered_view_details: Vec<ExtensionHostRegisteredView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRegisteredCommand {
+    pub command_id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub when: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRegisteredView {
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub when: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -934,6 +960,8 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             registered_commands: Vec::new(),
             registered_capabilities: Vec::new(),
             registered_views: Vec::new(),
+            registered_command_details: Vec::new(),
+            registered_view_details: Vec::new(),
         }),
         ExtensionHostRequest::InvokeCapability { envelope, .. } => {
             ExtensionHostResponse::InvokeCapability(ExtensionHostCapabilityResult {

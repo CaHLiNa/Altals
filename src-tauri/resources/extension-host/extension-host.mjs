@@ -127,17 +127,43 @@ function createEmitter() {
   };
 }
 
+function normalizeCommandMetadata(command = "", metadata = {}) {
+  const commandId = String(command || "").trim();
+  if (!commandId) return null;
+  return {
+    commandId,
+    title: String(metadata?.title || commandId).trim(),
+    category: String(metadata?.category || "").trim(),
+    when: String(metadata?.when || "").trim(),
+  };
+}
+
+function normalizeViewMetadata(viewId = "", metadata = {}) {
+  const id = String(viewId || "").trim();
+  if (!id) return null;
+  return {
+    id,
+    title: String(metadata?.title || id).trim(),
+    when: String(metadata?.when || "").trim(),
+  };
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
-      registerCommand(command, handler) {
+      registerCommand(command, handler, metadata = {}) {
         const id = String(command || "").trim();
         if (id && typeof handler === "function") {
           registry.commands.set(id, handler);
+          const normalizedMetadata = normalizeCommandMetadata(id, metadata);
+          if (normalizedMetadata) {
+            registry.commandMetadata.set(id, normalizedMetadata);
+          }
         }
         return {
           dispose() {
             registry.commands.delete(id);
+            registry.commandMetadata.delete(id);
           },
         };
       },
@@ -185,10 +211,14 @@ function createExtensionApi(registry) {
           },
         };
       },
-      registerTreeDataProvider(viewId, provider) {
+      registerTreeDataProvider(viewId, provider, metadata = {}) {
         const id = String(viewId || "").trim();
         if (id && provider && typeof provider === "object") {
           registry.treeViews.set(id, provider);
+          const normalizedMetadata = normalizeViewMetadata(id, metadata);
+          if (normalizedMetadata) {
+            registry.viewMetadata.set(id, normalizedMetadata);
+          }
           if (!registry.treeViewControllers.has(id)) {
             registry.treeViewControllers.set(id, createTreeViewController(registry, id));
           }
@@ -205,6 +235,7 @@ function createExtensionApi(registry) {
         return {
           dispose() {
             registry.treeViews.delete(id);
+            registry.viewMetadata.delete(id);
             registry.treeItems.delete(id);
             registry.treeParents.delete(id);
             registry.viewState.delete(id);
@@ -398,10 +429,12 @@ async function ensureActivated(request) {
     mainEntry,
     resolvedMain,
     commands: new Map(),
+    commandMetadata: new Map(),
     capabilities: new Map(),
     viewProviders: new Map(),
     treeViews: new Map(),
     treeViewControllers: new Map(),
+    viewMetadata: new Map(),
     treeItems: new Map(),
     treeParents: new Map(),
     viewState: new Map(),
@@ -463,6 +496,7 @@ async function handleActivate(params = {}) {
         : "Activated by host",
       registeredCommands: [...record.commands.keys()],
       registeredCapabilities: [...record.capabilities.keys()],
+      registeredCommandDetails: [...record.commandMetadata.values()],
       registeredViews: [
         ...new Set([
           ...record.viewProviders.keys(),
@@ -470,6 +504,7 @@ async function handleActivate(params = {}) {
           ...record.treeViewControllers.keys(),
         ]),
       ],
+      registeredViewDetails: [...record.viewMetadata.values()],
     },
   };
 }

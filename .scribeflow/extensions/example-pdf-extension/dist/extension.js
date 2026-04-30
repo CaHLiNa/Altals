@@ -40,6 +40,10 @@ export async function activate(context) {
     })
     await context.window.showInformationMessage(`PDF translation queued for ${String(payload?.targetPath || "current target")}`)
     return result
+  }, {
+    title: "Translate",
+    category: "PDF",
+    when: "resourceExtname == .pdf || resource.kind == pdf",
   })
 
   context.commands.registerCommand("examplePdfExtension.announceRefresh", async () => {
@@ -54,6 +58,9 @@ export async function activate(context) {
       message: "example-pdf-extension announced refresh",
       progressLabel: "Refresh notification sent",
     }
+  }, {
+    title: "Announce Refresh",
+    category: "PDF",
   })
 
   context.views.registerTreeDataProvider("examplePdfExtension.translateView", {
@@ -117,6 +124,9 @@ export async function activate(context) {
         collapsibleState: "none",
       }
     },
+  }, {
+    title: "Translate PDF",
+    when: "resourceExtname == .pdf || resource.kind == pdf",
   })
 
   context.views.updateView("examplePdfExtension.translateView", {
@@ -151,6 +161,9 @@ export async function activate(context) {
       message: "example-pdf-extension refreshed sidebar view",
       progressLabel: "Example view refreshed",
     }
+  }, {
+    title: "Refresh Translate View",
+    category: "PDF",
   })
 }
 

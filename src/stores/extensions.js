@@ -138,6 +138,21 @@ function normalizeRuntimeEntry(entry = {}) {
     registeredViews: Array.isArray(entry?.registeredViews)
       ? entry.registeredViews.map((value) => String(value || '').trim()).filter(Boolean)
       : [],
+    registeredCommandDetails: Array.isArray(entry?.registeredCommandDetails)
+      ? entry.registeredCommandDetails.map((item) => ({
+        commandId: String(item?.commandId || '').trim(),
+        title: String(item?.title || '').trim(),
+        category: String(item?.category || '').trim(),
+        when: String(item?.when || '').trim(),
+      })).filter((item) => item.commandId)
+      : [],
+    registeredViewDetails: Array.isArray(entry?.registeredViewDetails)
+      ? entry.registeredViewDetails.map((item) => ({
+        id: String(item?.id || '').trim(),
+        title: String(item?.title || '').trim(),
+        when: String(item?.when || '').trim(),
+      })).filter((item) => item.id)
+      : [],
   }
 }
 
@@ -206,10 +221,23 @@ export const useExtensionsStore = defineStore('extensions', {
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
         .flatMap((extension) => {
           const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
+          const runtimeCommandDetails = runtimeEntry.registeredCommandDetails
           const runtimeCommands = new Set(runtimeEntry.registeredCommands)
           const paletteMenus = (extension.contributedMenus || [])
             .filter((menu) => menu.surface === 'commandPalette')
-          return (extension.contributedCommands || [])
+          const sourceCommands = runtimeCommandDetails.length > 0
+            ? runtimeCommandDetails.map((command) => ({
+                ...command,
+                id: command.commandId,
+                extensionId: extension.id,
+                extensionName: extension.name,
+              }))
+            : (extension.contributedCommands || []).map((command) => ({
+                ...command,
+                extensionId: extension.id,
+                extensionName: extension.name,
+              }))
+          return sourceCommands
             .filter((command) => {
               if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
                 return false
@@ -219,11 +247,6 @@ export const useExtensionsStore = defineStore('extensions', {
               if (commandMenus.length === 0) return true
               return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
             })
-            .map((command) => ({
-              ...command,
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
         })
     },
     sidebarViewContainers(state) {
@@ -245,7 +268,20 @@ export const useExtensionsStore = defineStore('extensions', {
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
         .flatMap((extension) =>
-          (extension.contributedViews || [])
+          {
+            const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
+            const runtimeViewDetails = runtimeEntry.registeredViewDetails
+            const sourceViews = runtimeViewDetails.length > 0
+              ? runtimeViewDetails.map((view) => ({
+                  id: view.id,
+                  title: view.title || view.id,
+                  contextualTitle: '',
+                  when: view.when,
+                  containerId: normalizedContainerId,
+                  panelId: `extension:${normalizedContainerId}`,
+                }))
+              : (extension.contributedViews || [])
+            return sourceViews
             .filter((view) =>
               view.containerId === normalizedContainerId &&
               matchesWhenClause(view.when, context) &&
@@ -259,6 +295,7 @@ export const useExtensionsStore = defineStore('extensions', {
               extensionId: extension.id,
               extensionName: extension.name,
             }))
+          }
         )
     },
     viewTitleActionsForView: (state) => (view = {}, context = {}) => {
