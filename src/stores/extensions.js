@@ -21,6 +21,9 @@ import {
   resolveExtensionView,
 } from '../services/extensions/extensionViews'
 import {
+  listenExtensionViewChanged,
+} from '../services/extensions/extensionHostEvents'
+import {
   matchesWhenClause,
   normalizeExtensionContributions,
 } from '../domains/extensions/extensionContributionRegistry'
@@ -388,7 +391,6 @@ export const useExtensionsStore = defineStore('extensions', {
         },
       })
       const task = normalizeTask(result?.task || {})
-      this.markViewsChanged(result?.changedViews, extensionId)
       await this.refreshTasks().catch(() => {})
       return task
     },
@@ -434,6 +436,20 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     requestViewRefresh(viewKeys = []) {
       this.markViewsChanged(viewKeys)
+    },
+    async startHostEventBridge() {
+      if (this._extensionHostUnlisten) return
+      this._extensionHostUnlisten = await listenExtensionViewChanged((event) => {
+        const payload = event?.payload || {}
+        const activeWorkspaceRoot = String(useWorkspaceStore().path || '')
+        const workspaceRoot = String(payload.workspaceRoot || '')
+        if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
+        this.markViewsChanged(payload.viewIds, payload.extensionId)
+      }).catch(() => null)
+    },
+    stopHostEventBridge() {
+      this._extensionHostUnlisten?.()
+      this._extensionHostUnlisten = null
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))

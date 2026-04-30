@@ -402,6 +402,7 @@ onMounted(() => {
   window.addEventListener('editor-typing', handleEditorTyping)
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
   window.addEventListener('keydown', handleGlobalKeydown, true)
+  void extensionsStore.startHostEventBridge().catch(() => {})
   void extensionsStore.refreshRegistry().catch(() => {})
 })
 
@@ -409,6 +410,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('editor-typing', handleEditorTyping)
   window.removeEventListener('mousemove', handleMouseMoveBreakZen)
   window.removeEventListener('keydown', handleGlobalKeydown, true)
+  extensionsStore.stopHostEventBridge()
 })
 
 const {

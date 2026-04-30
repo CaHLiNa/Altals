@@ -77,6 +77,7 @@ pub async fn extension_view_resolve(
     let envelope = build_extension_invocation_envelope(
         "",
         &entry.id,
+        &params.workspace_root,
         &params.command_id,
         "",
         &params.target_kind,

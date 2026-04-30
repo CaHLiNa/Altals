@@ -4,6 +4,10 @@ import { pathToFileURL } from "node:url";
 
 const extensions = new Map();
 
+function writeMessage(message) {
+  process.stdout.write(JSON.stringify(message) + "\n");
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
@@ -55,6 +59,14 @@ function createExtensionApi(registry) {
         const id = String(viewId || "").trim();
         if (id) {
           registry.changedViews.add(id);
+          writeMessage({
+            kind: "ViewChanged",
+            payload: {
+              extensionId: registry.id,
+              workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+              viewIds: [id],
+            },
+          });
         }
       },
     },
@@ -120,6 +132,7 @@ async function ensureActivated(request) {
     capabilities: new Map(),
     views: new Map(),
     changedViews: new Set(),
+    currentWorkspaceRoot: "",
     workspaceState: new Map(),
     subscriptions: [],
   };
@@ -160,6 +173,7 @@ async function handleActivate(params = {}) {
 
 async function handleInvokeCapability(params = {}) {
   const record = await ensureActivated(params);
+  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
   const capabilityId = String(params.envelope?.capability || "").trim();
   const provider = record.capabilities.get(capabilityId);
   if (!provider) {
@@ -185,6 +199,7 @@ async function handleInvokeCapability(params = {}) {
 
 async function handleExecuteCommand(params = {}) {
   const record = await ensureActivated(params);
+  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
   const commandId = String(params.commandId || "").trim();
   const handler = record.commands.get(commandId);
   if (!handler) {
@@ -213,6 +228,7 @@ async function handleExecuteCommand(params = {}) {
 
 async function handleResolveView(params = {}) {
   const record = await ensureActivated(params);
+  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
   const viewId = String(params.viewId || "").trim();
   const provider = record.views.get(viewId);
   if (!provider) {
@@ -282,10 +298,6 @@ async function dispatchRequest(request) {
   throw new Error(`Unknown extension host method: ${String(request.method || "")}`);
 }
 
-function writeResponse(response) {
-  process.stdout.write(JSON.stringify(response) + "\n");
-}
-
 const rl = readline.createInterface({
   input: process.stdin,
   crlfDelay: Infinity,
@@ -294,9 +306,9 @@ const rl = readline.createInterface({
 rl.on("line", async (line) => {
   try {
     const request = JSON.parse(line);
-    writeResponse(await dispatchRequest(request));
+    writeMessage(await dispatchRequest(request));
   } catch (error) {
-    writeResponse({
+    writeMessage({
       kind: "Error",
       payload: {
         message: error?.message || String(error || "Unknown extension host error"),

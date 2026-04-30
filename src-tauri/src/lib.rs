@@ -440,11 +440,26 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder
         .setup(|app| {
+            let extension_host_state = app.state::<extension_host::ExtensionHostState>();
+            extension_host::bind_extension_host_app_handle(
+                extension_host_state.inner(),
+                app.handle().clone(),
+            );
             apply_macos_window_vibrancy(app.handle());
             Ok(())
         })
         .menu(|app| build_app_menu(app))
         .on_menu_event(handle_menu_event);
+
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.setup(|app| {
+        let extension_host_state = app.state::<extension_host::ExtensionHostState>();
+        extension_host::bind_extension_host_app_handle(
+            extension_host_state.inner(),
+            app.handle().clone(),
+        );
+        Ok(())
+    });
 
     builder
         .invoke_handler(tauri::generate_handler![

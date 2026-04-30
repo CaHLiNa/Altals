@@ -120,6 +120,7 @@ pub async fn extension_command_execute(
     let envelope = build_extension_invocation_envelope(
         &task.id,
         &entry.id,
+        &params.workspace_root,
         &command_id,
         "",
         &params.target.kind,

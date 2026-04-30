@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 #[cfg(not(test))]
 use std::process::{Child, ChildStdin, ChildStdout};
 use std::sync::{Arc, Mutex};
+#[cfg(not(test))]
+use tauri::Emitter;
 
 #[cfg(not(test))]
 use crate::app_dirs;
@@ -17,6 +19,8 @@ use crate::process_utils::background_command;
 use std::process::Stdio;
 
 const EXTENSION_HOST_ARG: &str = "--extension-host";
+#[cfg(not(test))]
+pub const EXTENSION_VIEW_CHANGED_EVENT: &str = "extension-view-changed";
 #[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
     "src-tauri/resources/extension-host/extension-host.mjs";
@@ -34,6 +38,8 @@ pub struct ExtensionHostState {
     activated_extensions: Arc<Mutex<HashSet<String>>>,
     #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
+    #[cfg(not(test))]
+    app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
 impl Default for ExtensionHostState {
@@ -42,6 +48,8 @@ impl Default for ExtensionHostState {
             activated_extensions: Arc::new(Mutex::new(HashSet::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
+            #[cfg(not(test))]
+            app_handle: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -82,6 +90,8 @@ pub struct ExtensionHostActivateParams {
 pub struct ExtensionHostInvocationEnvelope {
     pub task_id: String,
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
     #[serde(default)]
     pub command_id: String,
     pub capability: String,
@@ -161,12 +171,23 @@ pub struct ExtensionHostViewResolveResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewChangedEvent {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    #[serde(default)]
+    pub view_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
     InvokeCapability(ExtensionHostCapabilityResult),
     ExecuteCommand(ExtensionHostCapabilityResult),
     ResolveView(ExtensionHostViewResolveResult),
+    ViewChanged(ExtensionHostViewChangedEvent),
     Error { message: String },
 }
 
@@ -283,6 +304,7 @@ pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event:
 pub fn build_extension_invocation_envelope(
     task_id: &str,
     extension_id: &str,
+    workspace_root: &str,
     command_id: &str,
     capability: &str,
     target_kind: &str,
@@ -292,6 +314,7 @@ pub fn build_extension_invocation_envelope(
     ExtensionHostInvocationEnvelope {
         task_id: task_id.to_string(),
         extension_id: extension_id.to_string(),
+        workspace_root: workspace_root.to_string(),
         command_id: command_id.to_string(),
         capability: capability.to_string(),
         target_kind: target_kind.to_string(),
@@ -336,6 +359,32 @@ fn ensure_extension_host_process(
     Ok(process)
 }
 
+#[cfg(not(test))]
+pub fn bind_extension_host_app_handle(state: &ExtensionHostState, app: tauri::AppHandle) {
+    if let Ok(mut handle) = state.app_handle.lock() {
+        *handle = Some(app);
+    }
+}
+
+#[cfg(test)]
+pub fn bind_extension_host_app_handle(_state: &ExtensionHostState, _app: tauri::AppHandle) {}
+
+#[cfg(not(test))]
+fn emit_extension_host_view_changed(
+    state: &ExtensionHostState,
+    event: &ExtensionHostViewChangedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit(EXTENSION_VIEW_CHANGED_EVENT, event.clone())
+            .map_err(|error| format!("Failed to emit extension view change event: {error}"))?;
+    }
+    Ok(())
+}
+
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
     request: ExtensionHostRequest,
@@ -376,16 +425,25 @@ pub fn invoke_extension_host(
             .stdout
             .as_mut()
             .ok_or_else(|| "Extension host stdout is unavailable".to_string())?;
-        let mut response_line = String::new();
-        stdout
-            .read_line(&mut response_line)
-            .map_err(|error| format!("Failed to read extension host response: {error}"))?;
+        loop {
+            let mut response_line = String::new();
+            stdout
+                .read_line(&mut response_line)
+                .map_err(|error| format!("Failed to read extension host response: {error}"))?;
+            if response_line.trim().is_empty() {
+                continue;
+            }
 
-        let response = serde_json::from_str::<ExtensionHostResponse>(response_line.trim())
-            .map_err(|error| format!("Failed to parse extension host response: {error}"))?;
-        match &response {
-            ExtensionHostResponse::Error { message } => Err(message.clone()),
-            _ => Ok(response),
+            let response = serde_json::from_str::<ExtensionHostResponse>(response_line.trim())
+                .map_err(|error| format!("Failed to parse extension host response: {error}"))?;
+            match &response {
+                ExtensionHostResponse::ViewChanged(event) => {
+                    emit_extension_host_view_changed(state, event)?;
+                    continue;
+                }
+                ExtensionHostResponse::Error { message } => return Err(message.clone()),
+                _ => return Ok(response),
+            }
         }
     }
 }
@@ -605,6 +663,7 @@ mod tests {
         let envelope = build_extension_invocation_envelope(
             "task-1",
             "extension-1",
+            "/tmp/workspace",
             "scribeflow.pdf.translate",
             "pdf.translate",
             "referencePdf",
@@ -613,6 +672,7 @@ mod tests {
         );
         assert_eq!(envelope.task_id, "task-1");
         assert_eq!(envelope.extension_id, "extension-1");
+        assert_eq!(envelope.workspace_root, "/tmp/workspace");
         assert!(envelope.settings_json.contains("targetLang"));
     }
 
@@ -626,6 +686,7 @@ mod tests {
             envelope: build_extension_invocation_envelope(
                 "task-1",
                 "extension-1",
+                "/tmp/workspace",
                 "scribeflow.pdf.translate",
                 "pdf.translate",
                 "referencePdf",
@@ -653,6 +714,7 @@ mod tests {
             envelope: build_extension_invocation_envelope(
                 "task-1",
                 "extension-1",
+                "/tmp/workspace",
                 "scribeflow.pdf.translate",
                 "",
                 "referencePdf",
@@ -680,6 +742,7 @@ mod tests {
             envelope: build_extension_invocation_envelope(
                 "",
                 "extension-1",
+                "/tmp/workspace",
                 "",
                 "",
                 "referencePdf",
