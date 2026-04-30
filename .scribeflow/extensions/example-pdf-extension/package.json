@@ -57,6 +57,12 @@
           "when": "activeView == extension:examplePdfExtension.tools"
         }
       ],
+      "view/item/context": [
+        {
+          "command": "examplePdfExtension.refreshTranslateView",
+          "when": "viewItem.contextValue == translation-group"
+        }
+      ],
       "pdf.preview.actions": [
         {
           "command": "scribeflow.pdf.translate",

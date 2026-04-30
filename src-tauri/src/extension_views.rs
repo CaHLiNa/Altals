@@ -82,6 +82,8 @@ pub async fn extension_view_resolve(
         &params.workspace_root,
         &params.command_id,
         "",
+        "",
+        "",
         &params.target_kind,
         &params.target_path,
         &params.settings,

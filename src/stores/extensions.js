@@ -89,7 +89,11 @@ function normalizeResolvedViewItem(item = {}) {
     handle,
     label: String(item?.label || item?.title || id || handle || ''),
     description: String(item?.description || ''),
+    tooltip: String(item?.tooltip || ''),
+    contextValue: String(item?.contextValue || item?.context_value || ''),
+    icon: String(item?.icon || ''),
     commandId: String(item?.commandId || item?.command || ''),
+    commandArguments: Array.isArray(item?.commandArguments) ? item.commandArguments : [],
     collapsibleState: String(item?.collapsibleState || ''),
     children: Array.isArray(item?.children) ? item.children.map(normalizeResolvedViewItem) : [],
   }
@@ -245,8 +249,10 @@ export const useExtensionsStore = defineStore('extensions', {
         ...context,
         viewItem: {
           id: String(item?.id || ''),
+          handle: String(item?.handle || ''),
           label: String(item?.label || ''),
           commandId: String(item?.commandId || ''),
+          contextValue: String(item?.contextValue || ''),
         },
       }
       return state.registry
@@ -427,6 +433,8 @@ export const useExtensionsStore = defineStore('extensions', {
         workspaceRoot: workspace.path || '',
         extensionId,
         commandId,
+        itemId: String(action.itemId || ''),
+        itemHandle: String(action.itemHandle || ''),
         target,
         settings: {
           ...extensionSettings,

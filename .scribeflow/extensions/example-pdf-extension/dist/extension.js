@@ -50,6 +50,9 @@ export async function activate(context) {
           handle: "translate-group",
           label: "Translation Actions",
           description: "Commands for the current PDF target.",
+          tooltip: "Expand to inspect the available translation actions.",
+          contextValue: "translation-group",
+          icon: "folder",
           collapsibleState: "collapsed",
         }
       }
@@ -60,7 +63,16 @@ export async function activate(context) {
         handle: String(element?.handle || "translate-current-pdf"),
         label,
         description: "Run the PDF translation command for the current target.",
+        tooltip: targetPath || "Translate the current PDF target.",
+        contextValue: "translation-target",
+        icon: "file",
         commandId: "scribeflow.pdf.translate",
+        commandArguments: [
+          {
+            source: "treeItem",
+            targetPath,
+          },
+        ],
         collapsibleState: "none",
       }
     },

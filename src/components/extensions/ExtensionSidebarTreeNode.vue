@@ -14,8 +14,10 @@
       <button
         type="button"
         class="extension-tree-node__primary"
+        :title="item.tooltip || item.description || ''"
         @click="$emit('run-command', item)"
       >
+        <span v-if="item.icon" class="extension-tree-node__icon">{{ item.icon }}</span>
         <span class="extension-tree-node__label">{{ item.label }}</span>
         <span v-if="item.description" class="extension-tree-node__meta">{{ item.description }}</span>
       </button>
@@ -133,6 +135,11 @@ const itemActions = computed(() => extensionsStore.viewItemActionsForItem(props.
   background: color-mix(in srgb, var(--surface-base) 78%, transparent);
   padding: 10px;
   text-align: left;
+}
+
+.extension-tree-node__icon {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .extension-tree-node__primary:hover,

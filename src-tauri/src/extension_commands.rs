@@ -30,6 +30,10 @@ pub struct ExtensionCommandExecuteParams {
     pub target: ExtensionTaskTarget,
     #[serde(default)]
     pub settings: Value,
+    #[serde(default)]
+    pub item_id: String,
+    #[serde(default)]
+    pub item_handle: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -122,6 +126,8 @@ pub async fn extension_command_execute(
         &entry.id,
         &params.workspace_root,
         &command_id,
+        &params.item_id,
+        &params.item_handle,
         "",
         &params.target.kind,
         &params.target.path,

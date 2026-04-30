@@ -7,6 +7,8 @@ export async function executeExtensionCommand(payload = {}) {
       workspaceRoot: String(payload.workspaceRoot || ''),
       extensionId: String(payload.extensionId || ''),
       commandId: String(payload.commandId || ''),
+      itemId: String(payload.itemId || ''),
+      itemHandle: String(payload.itemHandle || ''),
       target: payload.target || {},
       settings: payload.settings || {},
     },

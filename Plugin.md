@@ -184,7 +184,7 @@ Current behavior:
 - extensions can now register tree providers through `activate(context)` using `context.views.registerTreeDataProvider(viewId, provider)`
 - the sidebar resolves root items and child items from the extension host instead of rendering only static manifest metadata
 - tree providers now follow a VS Code-like contract built around `getChildren(element)` and `getTreeItem(element)`
-- view items can carry `handle`, `commandId`, `description`, and `collapsibleState`
+- view items can carry `handle`, `commandId`, `commandArguments`, `description`, `tooltip`, `contextValue`, `icon`, and `collapsibleState`
 - `contributes.menus["view/title"]` can add title-bar actions for the active extension view
 - `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
 - sidebar view data now refreshes automatically through a host-driven `extension-view-changed` event bridge, scoped to the specific views the extension host marks as changed, in addition to explicit refresh actions

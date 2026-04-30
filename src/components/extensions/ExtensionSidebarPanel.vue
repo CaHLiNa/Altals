@@ -187,6 +187,8 @@ async function runItemCommand(view = {}, item = {}) {
     await extensionsStore.executeCommand({
       ...command,
       extensionId: view.extensionId,
+      itemId: String(item?.id || ''),
+      itemHandle: String(item?.handle || ''),
     }, props.target)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {

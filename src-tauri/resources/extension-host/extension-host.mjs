@@ -333,7 +333,15 @@ function normalizeTreeViewItem(treeItem = {}, element = {}, viewId = "", index =
     handle,
     label: String(treeItem?.label || treeItem?.title || element?.label || element?.title || id || `Item ${index + 1}`),
     description: String(treeItem?.description || element?.description || ""),
+    tooltip: String(treeItem?.tooltip || element?.tooltip || ""),
+    contextValue: String(treeItem?.contextValue || treeItem?.context_value || element?.contextValue || element?.context_value || ""),
+    icon: String(treeItem?.icon || element?.icon || ""),
     commandId: String(treeItem?.commandId || treeItem?.command || element?.commandId || element?.command || ""),
+    commandArguments: Array.isArray(treeItem?.commandArguments)
+      ? treeItem.commandArguments
+      : Array.isArray(element?.commandArguments)
+        ? element.commandArguments
+        : [],
     collapsibleState: normalizeCollapsibleState(
       treeItem?.collapsibleState || element?.collapsibleState,
       nestedChildren.length > 0,
@@ -348,7 +356,11 @@ function normalizeViewItems(items = [], viewId = "") {
     handle: String(item?.handle || item?.id || `${viewId}:${index}`),
     label: String(item?.label || item?.title || item?.id || `Item ${index + 1}`),
     description: String(item?.description || ""),
+    tooltip: String(item?.tooltip || ""),
+    contextValue: String(item?.contextValue || item?.context_value || ""),
+    icon: String(item?.icon || ""),
     commandId: String(item?.commandId || item?.command || ""),
+    commandArguments: Array.isArray(item?.commandArguments) ? item.commandArguments : [],
     collapsibleState: normalizeCollapsibleState(
       item?.collapsibleState || item?.collapsible_state,
       Array.isArray(item?.children) && item.children.length > 0,

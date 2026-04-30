@@ -94,6 +94,10 @@ pub struct ExtensionHostInvocationEnvelope {
     pub workspace_root: String,
     #[serde(default)]
     pub command_id: String,
+    #[serde(default)]
+    pub item_id: String,
+    #[serde(default)]
+    pub item_handle: String,
     pub capability: String,
     pub target_kind: String,
     pub target_path: String,
@@ -157,7 +161,15 @@ pub struct ExtensionHostViewItem {
     #[serde(default)]
     pub description: String,
     #[serde(default)]
+    pub tooltip: String,
+    #[serde(default)]
+    pub context_value: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
     pub command_id: String,
+    #[serde(default)]
+    pub command_arguments: Vec<Value>,
     #[serde(default)]
     pub collapsible_state: String,
     #[serde(default)]
@@ -312,6 +324,8 @@ pub fn build_extension_invocation_envelope(
     extension_id: &str,
     workspace_root: &str,
     command_id: &str,
+    item_id: &str,
+    item_handle: &str,
     capability: &str,
     target_kind: &str,
     target_path: &str,
@@ -322,6 +336,8 @@ pub fn build_extension_invocation_envelope(
         extension_id: extension_id.to_string(),
         workspace_root: workspace_root.to_string(),
         command_id: command_id.to_string(),
+        item_id: item_id.to_string(),
+        item_handle: item_handle.to_string(),
         capability: capability.to_string(),
         target_kind: target_kind.to_string(),
         target_path: target_path.to_string(),
@@ -675,6 +691,8 @@ mod tests {
             "extension-1",
             "/tmp/workspace",
             "scribeflow.pdf.translate",
+            "",
+            "",
             "pdf.translate",
             "referencePdf",
             "/tmp/paper.pdf",
@@ -698,6 +716,8 @@ mod tests {
                 "extension-1",
                 "/tmp/workspace",
                 "scribeflow.pdf.translate",
+                "",
+                "",
                 "pdf.translate",
                 "referencePdf",
                 "/tmp/paper.pdf",
@@ -727,6 +747,8 @@ mod tests {
                 "/tmp/workspace",
                 "scribeflow.pdf.translate",
                 "",
+                "",
+                "",
                 "referencePdf",
                 "/tmp/paper.pdf",
                 &serde_json::json!({"targetLang": "zh-CN"}),
@@ -754,6 +776,8 @@ mod tests {
                 "",
                 "extension-1",
                 "/tmp/workspace",
+                "",
+                "",
                 "",
                 "",
                 "referencePdf",
