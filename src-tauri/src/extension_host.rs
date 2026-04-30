@@ -22,6 +22,8 @@ const EXTENSION_HOST_ARG: &str = "--extension-host";
 #[cfg(not(test))]
 pub const EXTENSION_VIEW_CHANGED_EVENT: &str = "extension-view-changed";
 #[cfg(not(test))]
+pub const EXTENSION_VIEW_STATE_CHANGED_EVENT: &str = "extension-view-state-changed";
+#[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
     "src-tauri/resources/extension-host/extension-host.mjs";
 
@@ -185,6 +187,14 @@ pub struct ExtensionHostViewResolveResult {
     #[serde(default)]
     pub title: String,
     #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub badge_value: Option<u32>,
+    #[serde(default)]
+    pub badge_tooltip: String,
+    #[serde(default)]
     pub items: Vec<ExtensionHostViewItem>,
 }
 
@@ -199,6 +209,25 @@ pub struct ExtensionHostViewChangedEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewStateChangedEvent {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    pub view_id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub badge_value: Option<u32>,
+    #[serde(default)]
+    pub badge_tooltip: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
@@ -206,6 +235,7 @@ pub enum ExtensionHostResponse {
     ExecuteCommand(ExtensionHostCapabilityResult),
     ResolveView(ExtensionHostViewResolveResult),
     ViewChanged(ExtensionHostViewChangedEvent),
+    ViewStateChanged(ExtensionHostViewStateChangedEvent),
     Error { message: String },
 }
 
@@ -407,6 +437,22 @@ fn emit_extension_host_view_changed(
     Ok(())
 }
 
+#[cfg(not(test))]
+fn emit_extension_host_view_state_changed(
+    state: &ExtensionHostState,
+    event: &ExtensionHostViewStateChangedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit(EXTENSION_VIEW_STATE_CHANGED_EVENT, event.clone())
+            .map_err(|error| format!("Failed to emit extension view state change event: {error}"))?;
+    }
+    Ok(())
+}
+
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
     request: ExtensionHostRequest,
@@ -461,6 +507,10 @@ pub fn invoke_extension_host(
             match &response {
                 ExtensionHostResponse::ViewChanged(event) => {
                     emit_extension_host_view_changed(state, event)?;
+                    continue;
+                }
+                ExtensionHostResponse::ViewStateChanged(event) => {
+                    emit_extension_host_view_state_changed(state, event)?;
                     continue;
                 }
                 ExtensionHostResponse::Error { message } => return Err(message.clone()),
@@ -550,6 +600,10 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             view_id,
             parent_item_id,
             title: envelope.extension_id.clone(),
+            description: String::new(),
+            message: String::new(),
+            badge_value: None,
+            badge_tooltip: String::new(),
             items: Vec::new(),
         }),
     }

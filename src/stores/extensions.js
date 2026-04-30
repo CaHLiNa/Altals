@@ -22,6 +22,7 @@ import {
 } from '../services/extensions/extensionViews'
 import {
   listenExtensionViewChanged,
+  listenExtensionViewStateChanged,
 } from '../services/extensions/extensionHostEvents'
 import {
   matchesWhenClause,
@@ -126,6 +127,7 @@ export const useExtensionsStore = defineStore('extensions', {
     enabledExtensionIds: [],
     extensionConfig: {},
     resolvedViews: {},
+    viewState: {},
     changedViewTicks: {},
     loadingRegistry: false,
     loadingTasks: false,
@@ -268,6 +270,7 @@ export const useExtensionsStore = defineStore('extensions', {
         )
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
+    viewStateFor: (state) => (viewKey = '') => state.viewState[String(viewKey || '').trim()] || null,
     resolvedViewChildrenFor: (state) => (viewKey = '', parentItemId = '') => {
       const record = state.resolvedViews[String(viewKey || '').trim()]
       const parentItems = record?.parentItems && typeof record.parentItems === 'object'
@@ -475,6 +478,13 @@ export const useExtensionsStore = defineStore('extensions', {
         resolved,
         parentItemId,
       )
+      this.viewState[viewKey] = {
+        title: String(resolved?.title || ''),
+        description: String(resolved?.description || ''),
+        message: String(resolved?.message || ''),
+        badgeValue: Number.isInteger(resolved?.badgeValue) ? resolved.badgeValue : null,
+        badgeTooltip: String(resolved?.badgeTooltip || ''),
+      }
       return resolved
     },
     markViewsChanged(changedViews = [], defaultExtensionId = '') {
@@ -503,10 +513,26 @@ export const useExtensionsStore = defineStore('extensions', {
         if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
         this.markViewsChanged(payload.viewIds, payload.extensionId)
       }).catch(() => null)
+      this._extensionHostViewStateUnlisten = await listenExtensionViewStateChanged((event) => {
+        const payload = event?.payload || {}
+        const activeWorkspaceRoot = String(useWorkspaceStore().path || '')
+        const workspaceRoot = String(payload.workspaceRoot || '')
+        if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
+        const viewKey = `${normalizeExtensionId(payload.extensionId)}:${String(payload.viewId || '').trim()}`
+        this.viewState[viewKey] = {
+          title: String(payload.title || ''),
+          description: String(payload.description || ''),
+          message: String(payload.message || ''),
+          badgeValue: Number.isInteger(payload.badgeValue) ? payload.badgeValue : null,
+          badgeTooltip: String(payload.badgeTooltip || ''),
+        }
+      }).catch(() => null)
     },
     stopHostEventBridge() {
       this._extensionHostUnlisten?.()
       this._extensionHostUnlisten = null
+      this._extensionHostViewStateUnlisten?.()
+      this._extensionHostViewStateUnlisten = null
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))

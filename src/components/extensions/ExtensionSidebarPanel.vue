@@ -35,7 +35,21 @@
           <div class="extension-sidebar-panel__view-title">
             {{ t(resolvedViewTitle(view)) }}
           </div>
-          <div class="extension-sidebar-panel__view-meta">{{ view.id }}</div>
+          <div class="extension-sidebar-panel__view-meta">
+            <span v-if="resolvedViewDescription(view)">{{ resolvedViewDescription(view) }}</span>
+            <span v-else>{{ view.id }}</span>
+          </div>
+          <div
+            v-if="resolvedViewBadge(view) != null"
+            class="extension-sidebar-panel__view-badge"
+            :title="resolvedViewBadgeTooltip(view)"
+          >
+            {{ resolvedViewBadge(view) }}
+          </div>
+        </div>
+
+        <div v-if="resolvedViewMessage(view)" class="extension-sidebar-panel__view-message">
+          {{ resolvedViewMessage(view) }}
         </div>
 
         <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">
@@ -121,7 +135,27 @@ function resolvedViewRecord(view = {}) {
 }
 
 function resolvedViewTitle(view = {}) {
-  return resolvedViewRecord(view)?.title || view.contextualTitle || view.title || view.id
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.title
+    || resolvedViewRecord(view)?.title
+    || view.contextualTitle
+    || view.title
+    || view.id
+}
+
+function resolvedViewDescription(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.description || ''
+}
+
+function resolvedViewMessage(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.message || ''
+}
+
+function resolvedViewBadge(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeValue
+}
+
+function resolvedViewBadgeTooltip(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeTooltip || ''
 }
 
 function resolvedItems(view = {}) {
@@ -313,6 +347,25 @@ async function toggleItemExpansion(view = {}, item = {}) {
   flex-direction: column;
   gap: 2px;
   padding: 0 4px;
+}
+
+.extension-sidebar-panel__view-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.extension-sidebar-panel__view-message {
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .extension-sidebar-panel__empty {

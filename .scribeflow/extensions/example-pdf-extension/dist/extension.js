@@ -78,6 +78,14 @@ export async function activate(context) {
     },
   })
 
+  context.views.updateView("examplePdfExtension.translateView", {
+    title: "Translate PDF",
+    description: "Workspace PDF tools",
+    message: "Select a PDF target to start translation.",
+    badgeValue: 1,
+    badgeTooltip: "One quick action is available for the active PDF.",
+  })
+
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
     context.views.refresh("examplePdfExtension.translateView")
     return {

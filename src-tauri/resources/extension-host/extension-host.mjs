@@ -62,13 +62,44 @@ function createExtensionApi(registry) {
           if (!registry.treeItems.has(id)) {
             registry.treeItems.set(id, new Map());
           }
+          if (!registry.viewState.has(id)) {
+            registry.viewState.set(id, createEmptyViewState(id));
+          }
         }
         return {
           dispose() {
             registry.treeViews.delete(id);
             registry.treeItems.delete(id);
+            registry.viewState.delete(id);
           },
         };
+      },
+      updateView(viewId, patch = {}) {
+        const id = String(viewId || "").trim();
+        if (!id) return;
+        const current = registry.viewState.get(id) || createEmptyViewState(id);
+        const next = {
+          ...current,
+          title: typeof patch?.title === "string" && patch.title.trim() ? patch.title.trim() : current.title,
+          description: typeof patch?.description === "string" ? patch.description : current.description,
+          message: typeof patch?.message === "string" ? patch.message : current.message,
+          badgeValue: Number.isInteger(patch?.badgeValue) ? patch.badgeValue : current.badgeValue,
+          badgeTooltip: typeof patch?.badgeTooltip === "string" ? patch.badgeTooltip : current.badgeTooltip,
+        };
+        registry.viewState.set(id, next);
+        writeMessage({
+          kind: "ViewStateChanged",
+          payload: {
+            extensionId: registry.id,
+            workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+            viewId: id,
+            title: next.title,
+            description: next.description,
+            message: next.message,
+            badgeValue: next.badgeValue,
+            badgeTooltip: next.badgeTooltip,
+          },
+        });
       },
       refresh(viewId) {
         const id = String(viewId || "").trim();
@@ -148,6 +179,7 @@ async function ensureActivated(request) {
     viewProviders: new Map(),
     treeViews: new Map(),
     treeItems: new Map(),
+    viewState: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
     workspaceState: new Map(),
@@ -347,6 +379,16 @@ function normalizeTreeViewItem(treeItem = {}, element = {}, viewId = "", index =
       nestedChildren.length > 0,
     ),
     children: nestedChildren,
+  };
+}
+
+function createEmptyViewState(viewId = "") {
+  return {
+    title: String(viewId || "").trim(),
+    description: "",
+    message: "",
+    badgeValue: null,
+    badgeTooltip: "",
   };
 }
 
