@@ -87,6 +87,7 @@ pub struct ExtensionHostActivationResult {
     pub reason: String,
     pub registered_commands: Vec<String>,
     pub registered_capabilities: Vec<String>,
+    pub registered_views: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -852,6 +853,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             },
             registered_commands: Vec::new(),
             registered_capabilities: Vec::new(),
+            registered_views: Vec::new(),
         }),
         ExtensionHostRequest::InvokeCapability { envelope, .. } => {
             ExtensionHostResponse::InvokeCapability(ExtensionHostCapabilityResult {

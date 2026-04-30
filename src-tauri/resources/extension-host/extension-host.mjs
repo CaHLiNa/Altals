@@ -410,6 +410,13 @@ async function handleActivate(params = {}) {
         : "Activated by host",
       registeredCommands: [...record.commands.keys()],
       registeredCapabilities: [...record.capabilities.keys()],
+      registeredViews: [
+        ...new Set([
+          ...record.viewProviders.keys(),
+          ...record.treeViews.keys(),
+          ...record.treeViewControllers.keys(),
+        ]),
+      ],
     },
   };
 }

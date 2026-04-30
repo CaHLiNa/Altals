@@ -22,6 +22,9 @@ import {
   notifyExtensionViewSelection,
 } from '../services/extensions/extensionViews'
 import {
+  activateExtensionHost,
+} from '../services/extensions/extensionHost'
+import {
   listenExtensionViewChanged,
   listenExtensionViewRevealRequested,
   listenExtensionViewStateChanged,
@@ -122,6 +125,22 @@ function mergeResolvedViewState(current = {}, resolved = {}, parentItemId = '') 
   }
 }
 
+function normalizeRuntimeEntry(entry = {}) {
+  return {
+    activated: Boolean(entry?.activated),
+    reason: String(entry?.reason || ''),
+    registeredCommands: Array.isArray(entry?.registeredCommands)
+      ? entry.registeredCommands.map((value) => String(value || '').trim()).filter(Boolean)
+      : [],
+    registeredCapabilities: Array.isArray(entry?.registeredCapabilities)
+      ? entry.registeredCapabilities.map((value) => String(value || '').trim()).filter(Boolean)
+      : [],
+    registeredViews: Array.isArray(entry?.registeredViews)
+      ? entry.registeredViews.map((value) => String(value || '').trim()).filter(Boolean)
+      : [],
+  }
+}
+
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
     registry: [],
@@ -131,6 +150,7 @@ export const useExtensionsStore = defineStore('extensions', {
     resolvedViews: {},
     viewState: {},
     viewControllerState: {},
+    runtimeRegistry: {},
     changedViewTicks: {},
     loadingRegistry: false,
     loadingTasks: false,
@@ -185,10 +205,15 @@ export const useExtensionsStore = defineStore('extensions', {
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
         .flatMap((extension) => {
+          const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
+          const runtimeCommands = new Set(runtimeEntry.registeredCommands)
           const paletteMenus = (extension.contributedMenus || [])
             .filter((menu) => menu.surface === 'commandPalette')
           return (extension.contributedCommands || [])
             .filter((command) => {
+              if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
+                return false
+              }
               const commandMenus = paletteMenus
                 .filter((menu) => menu.commandId === command.commandId)
               if (commandMenus.length === 0) return true
@@ -223,7 +248,11 @@ export const useExtensionsStore = defineStore('extensions', {
           (extension.contributedViews || [])
             .filter((view) =>
               view.containerId === normalizedContainerId &&
-              matchesWhenClause(view.when, context)
+              matchesWhenClause(view.when, context) &&
+              (
+                normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredViews.length === 0 ||
+                normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredViews.includes(view.id)
+              )
             )
             .map((view) => ({
               ...view,
@@ -311,6 +340,8 @@ export const useExtensionsStore = defineStore('extensions', {
         ...(saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}),
       }
     },
+    runtimeEntryFor: (state) => (extensionId = '') =>
+      normalizeRuntimeEntry(state.runtimeRegistry?.[normalizeExtensionId(extensionId)]),
   },
 
   actions: {
@@ -375,6 +406,7 @@ export const useExtensionsStore = defineStore('extensions', {
             await this.persistSettings({ enabledExtensionIds: availableIds })
           }
         }
+        await this.activateEnabledExtensions().catch(() => {})
         return this.registry
       } catch (error) {
         this.lastError = error?.message || String(error || '')
@@ -422,6 +454,29 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       return this.persistSettings({ extensionConfig: nextExtensionConfig })
     },
+    async activateExtension(extensionId = '', activationEvent = '*') {
+      const id = normalizeExtensionId(extensionId)
+      if (!id) return null
+      const extension = this.registry.find((entry) => entry.id === id)
+      if (!extension || extension.status !== 'available') return null
+      const workspace = useWorkspaceStore()
+      const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      const result = await activateExtensionHost({
+        globalConfigDir,
+        workspaceRoot: workspace.path || '',
+        extensionId: id,
+        activationEvent,
+      })
+      this.runtimeRegistry[id] = normalizeRuntimeEntry(result)
+      return this.runtimeRegistry[id]
+    },
+    async activateEnabledExtensions() {
+      const enabled = new Set(this.enabledExtensionIds.map(normalizeExtensionId))
+      for (const extension of this.registry) {
+        if (!enabled.has(extension.id) || extension.status !== 'available') continue
+        await this.activateExtension(extension.id, '*').catch(() => {})
+      }
+    },
     async executeCommand(action = {}, target = {}, settings = {}) {
       const extensionId = normalizeExtensionId(action.extensionId)
       const commandId = String(action.commandId || action.command || action.id || '').trim()
@@ -432,6 +487,7 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!(extension.contributedCommands || []).some((command) => command.commandId === commandId)) {
         throw new Error(`Extension ${extensionId} does not contribute command ${commandId}`)
       }
+      await this.activateExtension(extensionId, `onCommand:${commandId}`).catch(() => {})
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)
@@ -461,6 +517,7 @@ export const useExtensionsStore = defineStore('extensions', {
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extension = this.registry.find((entry) => entry.id === extensionId)
+      await this.activateExtension(extensionId, `onView:${viewId}`).catch(() => {})
       const extensionSettings = extension ? this.configForExtension(extension) : {}
       const resolved = await resolveExtensionView({
         globalConfigDir,

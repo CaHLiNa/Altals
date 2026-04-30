@@ -46,6 +46,10 @@
                   <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
                 </div>
                 <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Runtime Status') }}</span>
+                  <span class="extension-meta-value">{{ runtimeStatus(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
                   <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
@@ -61,6 +65,10 @@
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
                   <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
                 </div>
+              </div>
+              <div v-if="runtimeReason(extension)" class="extension-meta-list">
+                <span class="extension-meta-label">{{ t('Runtime Activation') }}</span>
+                <span class="extension-meta-value">{{ runtimeReason(extension) }}</span>
               </div>
               <div v-if="extension.activationEvents?.length" class="extension-meta-list">
                 <span class="extension-meta-label">{{ t('Activation Events') }}</span>
@@ -182,9 +190,22 @@ function isEnabled(extensionId = '') {
   return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
 }
 
+function runtimeEntry(extension = {}) {
+  return extensionsStore.runtimeEntryFor(extension.id)
+}
+
 function displayStatus(extension = {}) {
   if (extension.status !== 'available') return extension.status
   return isEnabled(extension.id) ? extension.status : 'disabled'
+}
+
+function runtimeStatus(extension = {}) {
+  const entry = runtimeEntry(extension)
+  return entry.activated ? t('activated') : t('idle')
+}
+
+function runtimeReason(extension = {}) {
+  return runtimeEntry(extension).reason || ''
 }
 
 function permissionSummary(extension = {}) {
