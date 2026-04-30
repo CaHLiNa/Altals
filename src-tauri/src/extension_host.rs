@@ -1,5 +1,8 @@
 use crate::extension_manifest::ExtensionManifest;
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
+use crate::extension_settings::load_extension_runtime_state_snapshot;
+use crate::extension_settings::load_extension_settings;
+use crate::extension_settings::save_extension_runtime_state_snapshot;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -45,6 +48,7 @@ struct ExtensionHostProcess {
 pub struct ExtensionHostState {
     activated_extensions: Arc<Mutex<HashSet<String>>>,
     ui_requests: Arc<Mutex<HashMap<String, ExtensionHostUiRequestStatus>>>,
+    activation_context: Arc<Mutex<HashMap<String, (String, String)>>>,
     #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
     #[cfg(not(test))]
@@ -56,6 +60,7 @@ impl Default for ExtensionHostState {
         Self {
             activated_extensions: Arc::new(Mutex::new(HashSet::new())),
             ui_requests: Arc::new(Mutex::new(HashMap::new())),
+            activation_context: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
             #[cfg(not(test))]
@@ -103,6 +108,17 @@ pub struct ExtensionHostActivateParams {
     pub activation_event: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostActivationState {
+    #[serde(default)]
+    pub settings: Value,
+    #[serde(default)]
+    pub global_state: Value,
+    #[serde(default)]
+    pub workspace_state: Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostInvocationEnvelope {
@@ -122,7 +138,7 @@ pub struct ExtensionHostInvocationEnvelope {
     pub settings_json: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", tag = "method", content = "params")]
 pub enum ExtensionHostRequest {
     Activate {
@@ -131,6 +147,8 @@ pub enum ExtensionHostRequest {
         extension_path: String,
         manifest_path: String,
         main_entry: String,
+        #[serde(default)]
+        activation_state: ExtensionHostActivationState,
     },
     InvokeCapability {
         activation_event: String,
@@ -368,6 +386,18 @@ pub struct ExtensionHostWindowMessageEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostStateChangedEvent {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    #[serde(default)]
+    pub global_state: Value,
+    #[serde(default)]
+    pub workspace_state: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
@@ -380,6 +410,7 @@ pub enum ExtensionHostResponse {
     WindowInputRequested(ExtensionHostWindowInputRequestedEvent),
     AcknowledgeUiRequest(ExtensionHostUiRequestAcknowledgement),
     AcknowledgeViewSelection(ExtensionHostViewSelectionAcknowledgement),
+    StateChanged(ExtensionHostStateChangedEvent),
     WindowMessage(ExtensionHostWindowMessageEvent),
     Error { message: String },
 }
@@ -428,6 +459,8 @@ pub fn extension_host_summary(state: &ExtensionHostState) -> Result<ExtensionHos
 
 pub fn activate_extension(
     state: &ExtensionHostState,
+    global_config_dir: &str,
+    workspace_root: &str,
     entry: &ExtensionRegistryEntry,
     activation_event: &str,
 ) -> Result<ExtensionHostActivationResult, String> {
@@ -442,12 +475,24 @@ pub fn activate_extension(
     }
 
     let extension_path = resolve_extension_path(entry)?;
+    let extension_settings = load_extension_settings(global_config_dir)?
+        .extension_config
+        .get(&entry.id)
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    let runtime_state =
+        load_extension_runtime_state_snapshot(global_config_dir, workspace_root, &entry.id)?;
     let request = ExtensionHostRequest::Activate {
         extension_id: entry.id.clone(),
         activation_event: activation_event.trim().to_string(),
         extension_path: extension_path.to_string_lossy().to_string(),
         manifest_path: entry.path.clone(),
         main_entry: manifest.main.clone(),
+        activation_state: ExtensionHostActivationState {
+            settings: extension_settings,
+            global_state: runtime_state.global_state,
+            workspace_state: runtime_state.workspace_state,
+        },
     };
     let response = invoke_extension_host(state, request)?;
     let ExtensionHostResponse::Activate(result) = response else {
@@ -460,6 +505,12 @@ pub fn activate_extension(
         .map_err(|_| "Failed to access extension host state".to_string())?;
     if result.activated {
         activated.insert(entry.id.clone());
+    }
+    if let Ok(mut contexts) = state.activation_context.lock() {
+        contexts.insert(
+            entry.id.clone(),
+            (global_config_dir.to_string(), workspace_root.to_string()),
+        );
     }
 
     Ok(result)
@@ -717,6 +768,31 @@ pub fn respond_extension_host_ui_request(
     })
 }
 
+#[cfg_attr(test, allow(dead_code))]
+fn persist_extension_host_state_changed_event(
+    state: &ExtensionHostState,
+    event: &ExtensionHostStateChangedEvent,
+) -> Result<(), String> {
+    let global_config_dir = state
+        .activation_context
+        .lock()
+        .map_err(|_| "Failed to access extension host activation context".to_string())?
+        .get(&event.extension_id)
+        .map(|(global_config_dir, _)| global_config_dir.clone())
+        .unwrap_or_default();
+    let snapshot = crate::extension_settings::ExtensionRuntimeStateSnapshot {
+        global_state: event.global_state.clone(),
+        workspace_state: event.workspace_state.clone(),
+    };
+    save_extension_runtime_state_snapshot(
+        &global_config_dir,
+        &event.workspace_root,
+        &event.extension_id,
+        snapshot,
+    )?;
+    Ok(())
+}
+
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
     request: ExtensionHostRequest,
@@ -795,6 +871,10 @@ pub fn invoke_extension_host(
                             result: response.result,
                         },
                     );
+                }
+                ExtensionHostResponse::StateChanged(event) => {
+                    persist_extension_host_state_changed_event(state, event)?;
+                    continue;
                 }
                 ExtensionHostResponse::WindowMessage(event) => {
                     emit_extension_host_window_message(state, event)?;
@@ -943,7 +1023,13 @@ pub async fn extension_host_activate(
             entry.id, params.activation_event
         ));
     }
-    activate_extension(state.inner(), &entry, &params.activation_event)
+    activate_extension(
+        state.inner(),
+        &params.global_config_dir,
+        &params.workspace_root,
+        &entry,
+        &params.activation_event,
+    )
 }
 
 #[tauri::command]
@@ -1045,8 +1131,14 @@ mod tests {
     fn activates_extension_host_entry() {
         let state = ExtensionHostState::default();
         let entry = canonical_entry();
-        let activated = activate_extension(&state, &entry, "onCommand:scribeflow.pdf.translate")
-            .expect("activate");
+        let activated = activate_extension(
+            &state,
+            "",
+            "",
+            &entry,
+            "onCommand:scribeflow.pdf.translate",
+        )
+        .expect("activate");
         assert!(activated.activated);
         assert_eq!(activated.extension_id, entry.id);
     }

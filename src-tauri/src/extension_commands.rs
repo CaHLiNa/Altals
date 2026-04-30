@@ -114,7 +114,13 @@ pub async fn extension_command_execute(
         params.settings.clone(),
     )?;
     let _running = mark_task_running(&task.id)?;
-    let activated = activate_extension(extension_host_state.inner(), &entry, &activation_event);
+    let activated = activate_extension(
+        extension_host_state.inner(),
+        &params.global_config_dir,
+        &params.workspace_root,
+        &entry,
+        &activation_event,
+    );
     if let Err(error) = activated {
         let failed = mark_task_failed(&task.id, &error)?;
         write_task_log(&failed, &error);

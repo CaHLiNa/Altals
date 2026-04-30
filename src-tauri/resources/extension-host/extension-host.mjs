@@ -57,6 +57,18 @@ function requestUiInput(registry, kind = "", payload = {}) {
   });
 }
 
+function emitStateChanged(registry) {
+  writeMessage({
+    kind: "StateChanged",
+    payload: {
+      extensionId: registry.id,
+      workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+      globalState: Object.fromEntries(registry.globalState.entries()),
+      workspaceState: Object.fromEntries(registry.workspaceState.entries()),
+    },
+  });
+}
+
 function resolveTreeItemHandle(registry, viewId = "", itemOrHandle) {
   const id = String(viewId || "").trim();
   if (!id) return "";
@@ -277,6 +289,23 @@ function createExtensionApi(registry) {
       },
       update(key, value) {
         registry.workspaceState.set(String(key || "").trim(), value);
+        emitStateChanged(registry);
+      },
+    },
+    globalState: {
+      get(key) {
+        return registry.globalState.get(String(key || "").trim());
+      },
+      update(key, value) {
+        registry.globalState.set(String(key || "").trim(), value);
+        emitStateChanged(registry);
+      },
+    },
+    settings: {
+      get(key, fallback = undefined) {
+        const id = String(key || "").trim();
+        if (!id) return fallback;
+        return registry.settings.has(id) ? registry.settings.get(id) : fallback;
       },
     },
     window: {
@@ -331,6 +360,8 @@ function createActivationContext(api, payload = {}) {
     commands: api.commands,
     capabilities: api.capabilities,
     views: api.views,
+    settings: api.settings,
+    globalState: api.globalState,
     workspaceState: api.workspaceState,
     window: api.window,
   };
@@ -376,9 +407,26 @@ async function ensureActivated(request) {
     viewState: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
+    settings: new Map(),
+    globalState: new Map(),
     workspaceState: new Map(),
     subscriptions: [],
   };
+  const activationSettings =
+    paramsToObject(request.activationState?.settings) || {};
+  const activationGlobalState =
+    paramsToObject(request.activationState?.globalState) || {};
+  const activationWorkspaceState =
+    paramsToObject(request.activationState?.workspaceState) || {};
+  for (const [key, value] of Object.entries(activationSettings)) {
+    registry.settings.set(String(key || "").trim(), value);
+  }
+  for (const [key, value] of Object.entries(activationGlobalState)) {
+    registry.globalState.set(String(key || "").trim(), value);
+  }
+  for (const [key, value] of Object.entries(activationWorkspaceState)) {
+    registry.workspaceState.set(String(key || "").trim(), value);
+  }
   const api = createExtensionApi(record);
   const module = await loadExtensionModule(resolvedMain);
   const activate = typeof module.activate === "function" ? module.activate : null;
@@ -396,6 +444,11 @@ async function ensureActivated(request) {
   record.subscriptions = context.subscriptions;
   extensions.set(extensionId, record);
   return record;
+}
+
+function paramsToObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
 }
 
 async function handleActivate(params = {}) {

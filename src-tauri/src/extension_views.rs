@@ -74,7 +74,13 @@ pub async fn extension_view_resolve(
     }
 
     let activation_event = format!("onView:{view_id}");
-    crate::extension_host::activate_extension(state.inner(), &entry, &activation_event)?;
+    crate::extension_host::activate_extension(
+        state.inner(),
+        &params.global_config_dir,
+        &params.workspace_root,
+        &entry,
+        &activation_event,
+    )?;
 
     let envelope = build_extension_invocation_envelope(
         "",

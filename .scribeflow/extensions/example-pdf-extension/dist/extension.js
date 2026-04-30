@@ -1,9 +1,14 @@
 export async function activate(context) {
   const translateTreeView = context.views.createTreeView("examplePdfExtension.translateView")
+  const launchCount = Number(context.globalState.get("launchCount") || 0) + 1
+  context.globalState.update("launchCount", launchCount)
 
   context.capabilities.registerProvider("pdf.translate", async (request) => {
     const payload = JSON.parse(String(request?.settingsJson || request?.settings_json || "{}") || "{}")
-    const targetLang = String(payload?.["examplePdfExtension.targetLang"] || payload?.targetLang || "zh-CN")
+    const configuredTargetLang = String(
+      context.settings.get("examplePdfExtension.targetLang", "zh-CN") || "zh-CN",
+    )
+    const targetLang = String(payload?.["examplePdfExtension.targetLang"] || payload?.targetLang || configuredTargetLang)
     return {
       message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}`,
       progressLabel: "Example extension provider executed",
@@ -125,10 +130,12 @@ export async function activate(context) {
   translateTreeView.onDidChangeSelection((event) => {
     const selected = Array.isArray(event?.selection) ? event.selection[0] : null
     const label = String(selected?.targetPath || selected?.label || selected?.handle || "")
+    context.workspaceState.update("lastSelectedLabel", label)
     context.views.updateView("examplePdfExtension.translateView", {
       message: label
         ? `Selected translation target: ${label}`
         : "Select a PDF target to start translation.",
+      description: `Workspace PDF tools · launched ${launchCount} times`,
     })
   })
 
