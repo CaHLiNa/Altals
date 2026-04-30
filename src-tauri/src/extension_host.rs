@@ -2,12 +2,14 @@ use crate::extension_manifest::ExtensionManifest;
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 #[cfg(not(test))]
 use std::process::{Child, ChildStdin, ChildStdout};
 use std::sync::{Arc, Mutex};
+#[cfg(not(test))]
+use std::time::{Duration, Instant};
 #[cfg(not(test))]
 use tauri::Emitter;
 
@@ -42,6 +44,7 @@ struct ExtensionHostProcess {
 #[derive(Clone)]
 pub struct ExtensionHostState {
     activated_extensions: Arc<Mutex<HashSet<String>>>,
+    ui_requests: Arc<Mutex<HashMap<String, ExtensionHostUiRequestStatus>>>,
     #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
     #[cfg(not(test))]
@@ -52,12 +55,20 @@ impl Default for ExtensionHostState {
     fn default() -> Self {
         Self {
             activated_extensions: Arc::new(Mutex::new(HashSet::new())),
+            ui_requests: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
             #[cfg(not(test))]
             app_handle: Arc::new(Mutex::new(None)),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ExtensionHostUiRequestStatus {
+    #[cfg_attr(test, allow(dead_code))]
+    Pending,
+    Completed { cancelled: bool, result: Value },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -144,6 +155,13 @@ pub enum ExtensionHostRequest {
         #[serde(default)]
         parent_item_id: String,
         envelope: ExtensionHostInvocationEnvelope,
+    },
+    RespondUiRequest {
+        request_id: String,
+        #[serde(default)]
+        cancelled: bool,
+        #[serde(default)]
+        result: Value,
     },
 }
 
@@ -249,6 +267,70 @@ pub struct ExtensionHostViewRevealRequestedEvent {
     pub expand: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostQuickPickItem {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub detail: String,
+    #[serde(default)]
+    pub picked: bool,
+    #[serde(default)]
+    pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostWindowInputRequestedEvent {
+    pub request_id: String,
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    pub kind: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub prompt: String,
+    #[serde(default)]
+    pub placeholder: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub password: bool,
+    #[serde(default)]
+    pub can_pick_many: bool,
+    #[serde(default)]
+    pub items: Vec<ExtensionHostQuickPickItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostUiRequestAcknowledgement {
+    pub request_id: String,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRespondUiRequestParams {
+    #[serde(default)]
+    pub request_id: String,
+    #[serde(default)]
+    pub cancelled: bool,
+    #[serde(default)]
+    pub result: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRespondUiRequestResult {
+    pub request_id: String,
+    pub accepted: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostWindowMessageEvent {
@@ -259,7 +341,7 @@ pub struct ExtensionHostWindowMessageEvent {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
@@ -269,6 +351,8 @@ pub enum ExtensionHostResponse {
     ViewChanged(ExtensionHostViewChangedEvent),
     ViewStateChanged(ExtensionHostViewStateChangedEvent),
     ViewRevealRequested(ExtensionHostViewRevealRequestedEvent),
+    WindowInputRequested(ExtensionHostWindowInputRequestedEvent),
+    AcknowledgeUiRequest(ExtensionHostUiRequestAcknowledgement),
     WindowMessage(ExtensionHostWindowMessageEvent),
     Error { message: String },
 }
@@ -504,6 +588,22 @@ fn emit_extension_host_view_reveal_requested(
 }
 
 #[cfg(not(test))]
+fn emit_extension_host_window_input_requested(
+    state: &ExtensionHostState,
+    event: &ExtensionHostWindowInputRequestedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit("extension-window-input-requested", event.clone())
+            .map_err(|error| format!("Failed to emit extension window input request event: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
 fn emit_extension_host_window_message(
     state: &ExtensionHostState,
     event: &ExtensionHostWindowMessageEvent,
@@ -517,6 +617,77 @@ fn emit_extension_host_window_message(
             .map_err(|error| format!("Failed to emit extension window message event: {error}"))?;
     }
     Ok(())
+}
+
+#[cfg(not(test))]
+fn mark_ui_request_pending(state: &ExtensionHostState, request_id: &str) -> Result<(), String> {
+    let mut ui_requests = state
+        .ui_requests
+        .lock()
+        .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+    ui_requests.insert(request_id.to_string(), ExtensionHostUiRequestStatus::Pending);
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn wait_for_ui_request_completion(
+    state: &ExtensionHostState,
+    request_id: &str,
+) -> Result<ExtensionHostRespondUiRequestParams, String> {
+    let started = Instant::now();
+    let timeout = Duration::from_secs(300);
+    loop {
+        {
+            let mut ui_requests = state
+                .ui_requests
+                .lock()
+                .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+            if let Some(ExtensionHostUiRequestStatus::Completed { cancelled, result }) =
+                ui_requests.get(request_id).cloned()
+            {
+                ui_requests.remove(request_id);
+                return Ok(ExtensionHostRespondUiRequestParams {
+                    request_id: request_id.to_string(),
+                    cancelled,
+                    result,
+                });
+            }
+        }
+        if started.elapsed() >= timeout {
+            let mut ui_requests = state
+                .ui_requests
+                .lock()
+                .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+            ui_requests.remove(request_id);
+            return Err(format!("Extension UI request timed out: {request_id}"));
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+}
+
+pub fn respond_extension_host_ui_request(
+    state: &ExtensionHostState,
+    params: ExtensionHostRespondUiRequestParams,
+) -> Result<ExtensionHostRespondUiRequestResult, String> {
+    let request_id = params.request_id.trim().to_string();
+    if request_id.is_empty() {
+        return Err("Extension UI request id is required".to_string());
+    }
+    let mut ui_requests = state
+        .ui_requests
+        .lock()
+        .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+    let Some(status) = ui_requests.get_mut(&request_id) else {
+        return Err(format!("Pending extension UI request not found: {request_id}"));
+    };
+    *status = ExtensionHostUiRequestStatus::Completed {
+        cancelled: params.cancelled,
+        result: params.result,
+    };
+    Ok(ExtensionHostRespondUiRequestResult {
+        request_id,
+        accepted: true,
+    })
 }
 
 pub fn invoke_extension_host(
@@ -582,6 +753,21 @@ pub fn invoke_extension_host(
                 ExtensionHostResponse::ViewRevealRequested(event) => {
                     emit_extension_host_view_reveal_requested(state, event)?;
                     continue;
+                }
+                ExtensionHostResponse::WindowInputRequested(event) => {
+                    mark_ui_request_pending(state, &event.request_id)?;
+                    emit_extension_host_window_input_requested(state, event)?;
+                    let request_id = event.request_id.clone();
+                    drop(process);
+                    let response = wait_for_ui_request_completion(state, &request_id)?;
+                    return invoke_extension_host(
+                        state,
+                        ExtensionHostRequest::RespondUiRequest {
+                            request_id: response.request_id,
+                            cancelled: response.cancelled,
+                            result: response.result,
+                        },
+                    );
                 }
                 ExtensionHostResponse::WindowMessage(event) => {
                     emit_extension_host_window_message(state, event)?;
@@ -680,6 +866,12 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             badge_tooltip: String::new(),
             items: Vec::new(),
         }),
+        ExtensionHostRequest::RespondUiRequest { request_id, .. } => {
+            ExtensionHostResponse::AcknowledgeUiRequest(ExtensionHostUiRequestAcknowledgement {
+                request_id,
+                accepted: true,
+            })
+        }
     }
 }
 
@@ -713,6 +905,14 @@ pub async fn extension_host_activate(
         ));
     }
     activate_extension(state.inner(), &entry, &params.activation_event)
+}
+
+#[tauri::command]
+pub async fn extension_host_respond_ui_request(
+    params: ExtensionHostRespondUiRequestParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostRespondUiRequestResult, String> {
+    respond_extension_host_ui_request(state.inner(), params)
 }
 
 #[cfg(test)]

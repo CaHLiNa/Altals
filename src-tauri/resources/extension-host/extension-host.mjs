@@ -3,6 +3,7 @@ import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 
 const extensions = new Map();
+const pendingUiRequests = new Map();
 
 function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
@@ -29,6 +30,30 @@ function emitWindowMessage(registry, severity = "info", message = "") {
       severity: String(severity || "info"),
       message: normalizedMessage,
     },
+  });
+}
+
+let uiRequestCounter = 0;
+
+function nextUiRequestId(registry) {
+  uiRequestCounter += 1;
+  return `${registry.id}:ui:${uiRequestCounter}`;
+}
+
+function requestUiInput(registry, kind = "", payload = {}) {
+  const requestId = nextUiRequestId(registry);
+  writeMessage({
+    kind: "WindowInputRequested",
+    payload: {
+      requestId,
+      extensionId: registry.id,
+      workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+      kind: String(kind || "").trim(),
+      ...payload,
+    },
+  });
+  return new Promise((resolve, reject) => {
+    pendingUiRequests.set(requestId, { resolve, reject });
   });
 }
 
@@ -229,6 +254,28 @@ function createExtensionApi(registry) {
       async showErrorMessage(message) {
         emitWindowMessage(registry, "error", message);
         return undefined;
+      },
+      async showQuickPick(items = [], options = {}) {
+        const normalizedItems = Array.isArray(items)
+          ? items
+              .map((entry, index) => normalizeQuickPickItem(entry, index))
+              .filter((entry) => entry != null)
+          : [];
+        return await requestUiInput(registry, "quickPick", {
+          title: String(options?.title || ""),
+          placeholder: String(options?.placeHolder || options?.placeholder || ""),
+          canPickMany: Boolean(options?.canPickMany),
+          items: normalizedItems,
+        });
+      },
+      async showInputBox(options = {}) {
+        return await requestUiInput(registry, "inputBox", {
+          title: String(options?.title || ""),
+          prompt: String(options?.prompt || ""),
+          placeholder: String(options?.placeHolder || options?.placeholder || ""),
+          value: String(options?.value || ""),
+          password: Boolean(options?.password),
+        });
       },
     },
   };
@@ -526,6 +573,32 @@ function normalizeViewItems(items = [], viewId = "") {
   }))
 }
 
+function normalizeQuickPickItem(entry, index = 0) {
+  if (typeof entry === "string") {
+    const label = entry.trim();
+    if (!label) return null;
+    return {
+      id: `${index}`,
+      label,
+      description: "",
+      detail: "",
+      picked: false,
+      value: label,
+    };
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const label = String(entry.label || entry.value || "").trim();
+  if (!label) return null;
+  return {
+    id: String(entry.id || `${index}`),
+    label,
+    description: String(entry.description || ""),
+    detail: String(entry.detail || ""),
+    picked: Boolean(entry.picked),
+    value: Object.prototype.hasOwnProperty.call(entry, "value") ? entry.value : label,
+  };
+}
+
 function normalizeCollapsibleState(value, hasChildren = false) {
   const normalized = String(value || "").trim();
   if (normalized === "expanded" || normalized === "collapsed" || normalized === "none") {
@@ -554,6 +627,9 @@ async function dispatchRequest(request) {
   if (!request || typeof request !== "object") {
     throw new Error("Invalid extension host request");
   }
+  if (request.method === "RespondUiRequest") {
+    return handleRespondUiRequest(request.params || {});
+  }
   if (request.method === "Activate") {
     return await handleActivate(request.params || {});
   }
@@ -567,6 +643,30 @@ async function dispatchRequest(request) {
     return await handleResolveView(request.params || {});
   }
   throw new Error(`Unknown extension host method: ${String(request.method || "")}`);
+}
+
+function handleRespondUiRequest(params = {}) {
+  const requestId = String(params.requestId || "").trim();
+  if (!requestId) {
+    throw new Error("UI request id is required");
+  }
+  const pending = pendingUiRequests.get(requestId);
+  if (!pending) {
+    throw new Error(`Pending UI request not found: ${requestId}`);
+  }
+  pendingUiRequests.delete(requestId);
+  if (params.cancelled) {
+    pending.resolve(undefined);
+  } else {
+    pending.resolve(params.result);
+  }
+  return {
+    kind: "AcknowledgeUiRequest",
+    payload: {
+      requestId,
+      accepted: true,
+    },
+  };
 }
 
 const rl = readline.createInterface({

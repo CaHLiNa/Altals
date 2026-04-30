@@ -9,16 +9,40 @@ export async function activate(context) {
   })
 
   context.commands.registerCommand("scribeflow.pdf.translate", async (payload) => {
+    const targetLang = await context.window.showQuickPick(
+      [
+        { label: "Chinese (Simplified)", description: "zh-CN", value: "zh-CN" },
+        { label: "English", description: "en", value: "en" },
+      ],
+      {
+        title: "Translation target language",
+        placeHolder: "Choose translation language",
+      },
+    )
+    if (!targetLang) {
+      await context.window.showWarningMessage("Translation cancelled")
+      return {
+        message: "example-pdf-extension cancelled translation",
+        progressLabel: "Translation cancelled",
+      }
+    }
     const result = await context.capabilities.invoke("pdf.translate", {
       ...payload,
       capability: "pdf.translate",
+      targetLang,
     })
     await context.window.showInformationMessage(`PDF translation queued for ${String(payload?.targetPath || "current target")}`)
     return result
   })
 
   context.commands.registerCommand("examplePdfExtension.announceRefresh", async () => {
-    await context.window.showInformationMessage("Translate view refreshed")
+    const note = await context.window.showInputBox({
+      title: "Refresh note",
+      prompt: "Annotate this refresh action",
+      placeHolder: "Optional note",
+      value: "Translate view refreshed",
+    })
+    await context.window.showInformationMessage(String(note || "Translate view refreshed"))
     return {
       message: "example-pdf-extension announced refresh",
       progressLabel: "Refresh notification sent",

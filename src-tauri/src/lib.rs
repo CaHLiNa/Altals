@@ -499,6 +499,7 @@ pub fn run() {
             extension_manifest::extension_registry_validate_manifest,
             extension_host::extension_host_status,
             extension_host::extension_host_activate,
+            extension_host::extension_host_respond_ui_request,
             extension_commands::extension_command_execute,
             extension_views::extension_view_resolve,
             extension_tasks::extension_task_list,

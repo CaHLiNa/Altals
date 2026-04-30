@@ -188,12 +188,13 @@ Current behavior:
 - tree views can now push host-owned view state such as `title`, `description`, `message`, and badge metadata through `context.views.updateView(viewId, patch)`
 - extensions can now call `commands.executeCommand(...)` against commands already registered in the host process
 - extensions can now call `window.showInformationMessage(...)`, `window.showWarningMessage(...)`, and `window.showErrorMessage(...)`, which currently surface as app toasts
+- extensions can now call `window.showQuickPick(...)` and `window.showInputBox(...)` through a host-requested frontend modal bridge
 - extensions can now call `views.reveal(viewId, itemHandleOrTreeElement, options)` to request host-driven tree reveal, expansion, and selection inside contributed sidebar views
 - `contributes.menus["view/title"]` can add title-bar actions for the active extension view
 - `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
 - sidebar view data now refreshes automatically through a host-driven `extension-view-changed` event bridge, scoped to the specific views the extension host marks as changed, in addition to explicit refresh actions
 
-This is now a real extension-owned tree surface with host-resolved children, host-driven reveal/selection requests, and UI-side expansion state, but it is still not a full VS Code `TreeView`/custom webview API.
+This is now a real extension-owned tree surface with host-resolved children, host-driven reveal/selection requests, and frontend-backed input surfaces for extension interactions, but it is still not a full VS Code `TreeView`/custom webview API.
 
 ## 7. Rust Modules
 

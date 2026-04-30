@@ -12,6 +12,10 @@ export function listenExtensionViewRevealRequested(handler) {
   return listen('extension-view-reveal-requested', handler)
 }
 
+export function listenExtensionWindowInputRequested(handler) {
+  return listen('extension-window-input-requested', handler)
+}
+
 export function listenExtensionWindowMessage(handler) {
   return listen('extension-window-message', handler)
 }

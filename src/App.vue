@@ -126,6 +126,14 @@
       @close="commandPaletteVisible = false"
     />
 
+    <ExtensionWindowPrompt
+      :visible="extensionWindowUi.visible"
+      :busy="extensionWindowUi.busy"
+      :request="extensionWindowUi.pendingRequest"
+      @cancel="void extensionWindowUi.cancel()"
+      @submit="(value) => void extensionWindowUi.resolve(value)"
+    />
+
     <!-- Toasts -->
     <ToastContainer />
   </div>
@@ -141,13 +149,18 @@ import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useExtensionsStore } from './stores/extensions'
+import { useExtensionWindowUiStore } from './stores/extensionWindowUi'
 import { useToastStore } from './stores/toast'
-import { listenExtensionWindowMessage } from './services/extensions/extensionHostEvents'
+import {
+  listenExtensionWindowInputRequested,
+  listenExtensionWindowMessage,
+} from './services/extensions/extensionHostEvents'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
 import ExtensionCommandPalette from './components/extensions/ExtensionCommandPalette.vue'
+import ExtensionWindowPrompt from './components/extensions/ExtensionWindowPrompt.vue'
 import { useI18n } from './i18n'
 import {
   getReferenceSectionLabelKey,
@@ -188,6 +201,7 @@ const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
 const extensionsStore = useExtensionsStore()
+const extensionWindowUi = useExtensionWindowUiStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
 const isMacDesktop = isMac && isTauriDesktopRuntime
@@ -197,6 +211,7 @@ void applyAppWindowConstraints()
 const isZenMode = ref(false)
 const commandPaletteVisible = ref(false)
 let stopExtensionWindowMessageListener = null
+let stopExtensionWindowInputListener = null
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -420,6 +435,11 @@ onMounted(() => {
   }).then((unlisten) => {
     stopExtensionWindowMessageListener = unlisten
   }).catch(() => {})
+  void listenExtensionWindowInputRequested((event) => {
+    extensionWindowUi.presentRequest(event?.payload || {})
+  }).then((unlisten) => {
+    stopExtensionWindowInputListener = unlisten
+  }).catch(() => {})
   void extensionsStore.refreshRegistry().catch(() => {})
 })
 
@@ -430,6 +450,8 @@ onBeforeUnmount(() => {
   extensionsStore.stopHostEventBridge()
   stopExtensionWindowMessageListener?.()
   stopExtensionWindowMessageListener = null
+  stopExtensionWindowInputListener?.()
+  stopExtensionWindowInputListener = null
 })
 
 const {

@@ -251,6 +251,10 @@ function fallbackCommandForView(view = {}, item = {}) {
 }
 
 async function runItemCommand(view = {}, item = {}) {
+  extensionsStore.setViewControllerState(`${view.extensionId}:${view.id}`, {
+    selectedHandle: String(item?.handle || item?.id || ''),
+    focusedHandle: String(item?.handle || item?.id || ''),
+  })
   if (isExpandable(item) && !item.commandId) {
     await toggleItemExpansion(view, item)
     return
