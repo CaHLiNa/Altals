@@ -17,7 +17,8 @@ It combines a Vue frontend with a Rust runtime for workspace files, editor state
 - Insert citations into Markdown and LaTeX
 - Sync selected document references into LaTeX bibliography files
 - Inspect where references are cited in the workspace
-- Configure editor, workspace, PDF, citation, environment, Zotero and update settings
+- Configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
+- Discover local extension packages, configure them and run contributed commands
 
 ## Requirements
 
@@ -89,7 +90,7 @@ npm run test:rust
 - `src/stores`: Pinia coordination state
 - `src-tauri/src`: Rust runtime authority
 
-Frontend layers should not import Tauri APIs directly. Tauri `invoke`, plugin access and native event bridges belong in `src/services`.
+Frontend layers should not import Tauri APIs directly. Tauri `invoke`, Tauri plugin access and native event bridges belong in `src/services`.
 
 ## Release
 

@@ -17,7 +17,8 @@ Current desktop paths:
 - insert Markdown and LaTeX citations
 - sync selected document references into LaTeX bibliography files
 - inspect where references are cited in the workspace
-- configure editor, workspace, PDF, citation, environment, Zotero and update settings
+- configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
+- discover local extension packages, enable or disable them, configure contributed settings and run contributed commands
 
 ## Architecture
 
@@ -27,13 +28,14 @@ Current desktop paths:
 - `src/domains`: frontend pure rules and state transitions
 - `src/services`: Tauri bridge and side-effect boundary
 - `src/stores`: Pinia coordination state
-- `src-tauri/src`: Rust runtime authority for filesystem, workspace access, sessions, preferences, references, LaTeX, Python and updates
+- `src-tauri/src`: Rust runtime authority for filesystem, workspace access, sessions, preferences, references, LaTeX, Python, extensions and updates
 
 Boundary rules:
 
 - Vue components, stores, domains and composables do not import Tauri APIs directly.
 - Tauri `invoke`, plugin calls and event bridges belong in `src/services`.
 - Rust owns filesystem authority, persisted app state, reference normalization, compile/runtime execution and workspace-scoped security checks.
+- Rust owns extension discovery, manifest validation, extension host startup, command execution, task state and artifact access.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
 
 ## Verification

@@ -119,6 +119,12 @@
     <!-- Setup Wizard (first-time) -->
     <SetupWizard :visible="setupWizardVisible" @close="setupWizardVisible = false" />
 
+    <ExtensionCommandPalette
+      :visible="commandPaletteVisible"
+      :target="commandPaletteTarget"
+      @close="commandPaletteVisible = false"
+    />
+
     <!-- Toasts -->
     <ToastContainer />
   </div>
@@ -133,10 +139,12 @@ import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
+import { useExtensionsStore } from './stores/extensions'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
+import ExtensionCommandPalette from './components/extensions/ExtensionCommandPalette.vue'
 import { useI18n } from './i18n'
 import {
   getReferenceSectionLabelKey,
@@ -169,12 +177,14 @@ const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
+const extensionsStore = useExtensionsStore()
 const { t } = useI18n()
 const isMacDesktop = isMac && isTauriDesktopRuntime
 
 void applyAppWindowConstraints()
 
 const isZenMode = ref(false)
+const commandPaletteVisible = ref(false)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -264,6 +274,24 @@ const currentDocumentLabel = computed(() => {
   }
   return basenamePath(activePath) || activePath
 })
+const commandPaletteTarget = computed(() => {
+  if (workspace.leftSidebarPanel === 'references' && referencesStore.selectedReference?.pdfPath) {
+    return {
+      kind: 'referencePdf',
+      referenceId: String(referencesStore.selectedReference.id || ''),
+      path: String(referencesStore.selectedReference.pdfPath || ''),
+    }
+  }
+
+  const activePath = editorStore.activeTab || ''
+  const sourcePath = isPreviewPath(activePath) ? previewSourcePathFromPath(activePath) : activePath
+  const normalizedPath = String(sourcePath || '').trim()
+  return {
+    kind: normalizedPath.toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
+    referenceId: '',
+    path: normalizedPath,
+  }
+})
 
 async function selectWorkbenchPanel(panel) {
   await workspace.openWorkspaceSurface()
@@ -315,14 +343,28 @@ function handleMouseMoveBreakZen() {
   }
 }
 
+function isCommandPaletteShortcut(event) {
+  return (event.metaKey || event.ctrlKey) && event.shiftKey && event.key?.toLowerCase() === 'p'
+}
+
+function handleGlobalKeydown(event) {
+  if (!isCommandPaletteShortcut(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  commandPaletteVisible.value = true
+}
+
 onMounted(() => {
   window.addEventListener('editor-typing', handleEditorTyping)
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
+  window.addEventListener('keydown', handleGlobalKeydown, true)
+  void extensionsStore.refreshRegistry().catch(() => {})
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('editor-typing', handleEditorTyping)
   window.removeEventListener('mousemove', handleMouseMoveBreakZen)
+  window.removeEventListener('keydown', handleGlobalKeydown, true)
 })
 
 const {

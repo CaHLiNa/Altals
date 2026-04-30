@@ -141,6 +141,7 @@ Current frontend extension modules:
 - `src/stores/extensions.js`
 - `src/components/extensions/ExtensionActionButtons.vue`
 - `src/components/extensions/ExtensionCommandButton.vue`
+- `src/components/extensions/ExtensionCommandPalette.vue`
 - `src/components/extensions/ExtensionTaskPanel.vue`
 - `src/components/settings/SettingsExtensions.vue`
 
@@ -161,6 +162,7 @@ The Node host returns typed responses:
 
 - `Activate`
 - `InvokeCapability`
+- `ExecuteCommand`
 - `Error`
 
 The field name must remain `extensionId` end to end. Do not reintroduce `pluginId` aliases in the host protocol.
