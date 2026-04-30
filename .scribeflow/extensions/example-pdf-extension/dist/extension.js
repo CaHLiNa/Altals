@@ -51,6 +51,13 @@ export async function activate(context) {
       progressLabel: "Example view state updated",
     }
   })
+
+  context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
+    return {
+      message: "example-pdf-extension refreshed sidebar view",
+      progressLabel: "Example view refreshed",
+    }
+  })
 }
 
 export async function deactivate() {}

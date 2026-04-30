@@ -25,6 +25,11 @@
         "command": "examplePdfExtension.toggleTranslateGroup",
         "title": "Toggle Translate Group",
         "category": "PDF"
+      },
+      {
+        "command": "examplePdfExtension.refreshTranslateView",
+        "title": "Refresh Translate View",
+        "category": "PDF"
       }
     ],
     "viewsContainers": {
@@ -49,6 +54,18 @@
         {
           "command": "scribeflow.pdf.translate",
           "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "examplePdfExtension.refreshTranslateView",
+          "when": "activeView == extension:examplePdfExtension.tools"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "examplePdfExtension.toggleTranslateGroup",
+          "when": "viewItem.id == translate-group"
         }
       ],
       "pdf.preview.actions": [

@@ -55,6 +55,8 @@ function normalizeExtension(extension = {}) {
     contributedKeybindings: contributions.keybindings,
     contributedViewContainers: contributions.viewContainers,
     contributedViews: contributions.views,
+    contributedViewTitleMenus: contributions.viewTitleMenus,
+    contributedViewItemMenus: contributions.viewItemMenus,
     contributedCapabilities: contributions.capabilities,
     warnings: Array.isArray(extension.warnings) ? extension.warnings : [],
     errors: Array.isArray(extension.errors) ? extension.errors : [],
@@ -177,6 +179,44 @@ export const useExtensionsStore = defineStore('extensions', {
             )
             .map((view) => ({
               ...view,
+              extensionId: extension.id,
+              extensionName: extension.name,
+            }))
+        )
+    },
+    viewTitleActionsForView: (state) => (view = {}, context = {}) => {
+      const extensionId = normalizeExtensionId(view.extensionId)
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
+        .flatMap((extension) =>
+          (extension.contributedViewTitleMenus || [])
+            .filter((action) => matchesWhenClause(action.when, context))
+            .map((action) => ({
+              ...action,
+              extensionId: extension.id,
+              extensionName: extension.name,
+            }))
+        )
+    },
+    viewItemActionsForItem: (state) => (view = {}, item = {}, context = {}) => {
+      const extensionId = normalizeExtensionId(view.extensionId)
+      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
+      const mergedContext = {
+        ...context,
+        viewItem: {
+          id: String(item?.id || ''),
+          label: String(item?.label || ''),
+          commandId: String(item?.commandId || ''),
+        },
+      }
+      return state.registry
+        .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
+        .flatMap((extension) =>
+          (extension.contributedViewItemMenus || [])
+            .filter((action) => matchesWhenClause(action.when, mergedContext))
+            .map((action) => ({
+              ...action,
               extensionId: extension.id,
               extensionName: extension.name,
             }))

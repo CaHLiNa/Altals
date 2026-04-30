@@ -5,9 +5,20 @@
         <div class="extension-sidebar-panel__title">{{ title }}</div>
         <div class="extension-sidebar-panel__meta">{{ extensionName }}</div>
       </div>
-      <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
-        {{ t('Refresh') }}
-      </button>
+      <div class="extension-sidebar-panel__header-actions">
+        <button
+          v-for="action in viewTitleActions"
+          :key="`${action.extensionId}:${action.commandId}`"
+          type="button"
+          class="extension-sidebar-panel__refresh"
+          @click="runHeaderAction(action)"
+        >
+          {{ t(action.title || action.commandId) }}
+        </button>
+        <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
+          {{ t('Refresh') }}
+        </button>
+      </div>
     </div>
 
     <div v-if="views.length === 0" class="extension-sidebar-panel__empty">
@@ -46,6 +57,17 @@
                 <div class="extension-sidebar-panel__view-title">{{ item.label }}</div>
               </div>
               <div v-if="item.description" class="extension-sidebar-panel__view-meta">{{ item.description }}</div>
+              <div v-if="viewItemActions(view, item).length > 0" class="extension-sidebar-panel__item-actions">
+                <button
+                  v-for="action in viewItemActions(view, item)"
+                  :key="`${action.extensionId}:${action.commandId}:${item.id}`"
+                  type="button"
+                  class="extension-sidebar-panel__item-action"
+                  @click.stop="runHeaderAction(action)"
+                >
+                  {{ t(action.title || action.commandId) }}
+                </button>
+              </div>
             </button>
 
             <div
@@ -89,6 +111,10 @@ const toastStore = useToastStore()
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
+const viewTitleActions = computed(() => {
+  const firstView = views.value[0] || {}
+  return extensionsStore.viewTitleActionsForView(firstView, props.context)
+})
 
 watch(
   views,
@@ -116,6 +142,10 @@ function hasChildren(item = {}) {
   return Array.isArray(item.children) && item.children.length > 0
 }
 
+function viewItemActions(view = {}, item = {}) {
+  return extensionsStore.viewItemActionsForItem(view, item, props.context)
+}
+
 function fallbackCommandForView(view = {}, item = {}) {
   const itemCommandId = String(item?.commandId || '').trim()
   const extension = extensionsStore.registry.find((entry) => entry.id === view.extensionId)
@@ -136,6 +166,24 @@ async function runItemCommand(view = {}, item = {}) {
     await extensionsStore.executeCommand({
       ...command,
       extensionId: view.extensionId,
+    }, props.target)
+    toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
+      type: 'error',
+      duration: 4200,
+    })
+  }
+}
+
+async function runHeaderAction(action = {}) {
+  const command = fallbackCommandForView({ extensionId: action.extensionId }, action)
+  if (!command) return
+  try {
+    await extensionsStore.executeCommand({
+      ...command,
+      extensionId: action.extensionId,
+      commandId: action.commandId || command.commandId,
     }, props.target)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
@@ -169,6 +217,12 @@ async function refreshViews() {
   justify-content: space-between;
   gap: 8px;
   padding: 0 8px;
+}
+
+.extension-sidebar-panel__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .extension-sidebar-panel__header-main {
@@ -274,6 +328,13 @@ async function refreshViews() {
   gap: 6px;
 }
 
+.extension-sidebar-panel__item-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .extension-sidebar-panel__empty {
   padding: 0 10px;
 }
@@ -284,6 +345,14 @@ async function refreshViews() {
   background: transparent;
   color: var(--text-muted);
   font-size: 11px;
+  cursor: pointer;
+}
+
+.extension-sidebar-panel__item-action {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
   cursor: pointer;
 }
 </style>

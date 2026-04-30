@@ -141,6 +141,48 @@ function normalizeViews(extensionId = '', manifest = {}, viewContainerById = new
     .filter((view) => view.id && view.containerId && view.panelId && viewContainerById.has(view.containerId))
 }
 
+function normalizeViewTitleMenus(extensionId = '', manifest = {}, commandById = new Map()) {
+  const entries = Array.isArray(manifest?.contributes?.menus?.['view/title'])
+    ? manifest.contributes.menus['view/title']
+    : []
+  return entries
+    .map((entry) => {
+      const commandId = normalizeId(entry?.command)
+      const command = commandById.get(commandId)
+      return {
+        id: `${extensionId}:view/title:${commandId}`,
+        extensionId,
+        surface: 'view/title',
+        commandId,
+        title: command?.title || commandId,
+        category: command?.category || '',
+        when: normalizeId(entry?.when),
+      }
+    })
+    .filter((entry) => entry.commandId && commandById.has(entry.commandId))
+}
+
+function normalizeViewItemMenus(extensionId = '', manifest = {}, commandById = new Map()) {
+  const entries = Array.isArray(manifest?.contributes?.menus?.['view/item/context'])
+    ? manifest.contributes.menus['view/item/context']
+    : []
+  return entries
+    .map((entry) => {
+      const commandId = normalizeId(entry?.command)
+      const command = commandById.get(commandId)
+      return {
+        id: `${extensionId}:view/item/context:${commandId}`,
+        extensionId,
+        surface: 'view/item/context',
+        commandId,
+        title: command?.title || commandId,
+        category: command?.category || '',
+        when: normalizeId(entry?.when),
+      }
+    })
+    .filter((entry) => entry.commandId && commandById.has(entry.commandId))
+}
+
 function normalizeConfiguration(manifest = {}) {
   const properties = manifest?.contributes?.configuration?.properties &&
     typeof manifest.contributes.configuration.properties === 'object'
@@ -176,6 +218,8 @@ export function normalizeExtensionContributions(extension = {}) {
   const viewContainers = normalizeViewContainers(extensionId, manifest)
   const viewContainerById = new Map(viewContainers.map((container) => [container.id, container]))
   const views = normalizeViews(extensionId, manifest, viewContainerById)
+  const viewTitleMenus = normalizeViewTitleMenus(extensionId, manifest, commandById)
+  const viewItemMenus = normalizeViewItemMenus(extensionId, manifest, commandById)
   return {
     commands,
     commandById,
@@ -183,6 +227,8 @@ export function normalizeExtensionContributions(extension = {}) {
     keybindings,
     viewContainers,
     views,
+    viewTitleMenus,
+    viewItemMenus,
     configuration: normalizeConfiguration(manifest),
     capabilities: normalizeCapabilities(manifest),
   }
