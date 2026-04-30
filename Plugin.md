@@ -123,7 +123,7 @@ Current extension platform modules:
 - `extension_registry.rs`: global/workspace extension discovery and registry entries
 - `extension_permissions.rs`: permission validation
 - `extension_host.rs`: persistent extension host process, activation, request/response protocol, and test-only in-process dispatcher
-- `extension_runner.rs`: thin task invocation adapter into the extension host
+- `extension_commands.rs`: command-first execution adapter into the extension host
 - `extension_tasks.rs`: host-owned long-running task state
 - `extension_artifacts.rs`: host-owned artifact opening and revealing
 - `extension_settings.rs`: persisted extension enablement and configuration
@@ -135,11 +135,12 @@ No ScribeFlow-owned `plugin_*` Rust modules should exist.
 Current frontend extension modules:
 
 - `src/services/extensions/extensionRegistry.js`
+- `src/services/extensions/extensionCommands.js`
 - `src/services/extensions/extensionTasks.js`
 - `src/services/extensions/extensionArtifacts.js`
 - `src/stores/extensions.js`
 - `src/components/extensions/ExtensionActionButtons.vue`
-- `src/components/extensions/ExtensionCapabilityButton.vue`
+- `src/components/extensions/ExtensionCommandButton.vue`
 - `src/components/extensions/ExtensionTaskPanel.vue`
 - `src/components/settings/SettingsExtensions.vue`
 

@@ -82,6 +82,8 @@ pub struct ExtensionHostActivateParams {
 pub struct ExtensionHostInvocationEnvelope {
     pub task_id: String,
     pub extension_id: String,
+    #[serde(default)]
+    pub command_id: String,
     pub capability: String,
     pub target_kind: String,
     pub target_path: String,
@@ -105,6 +107,14 @@ pub enum ExtensionHostRequest {
         main_entry: String,
         envelope: ExtensionHostInvocationEnvelope,
     },
+    ExecuteCommand {
+        activation_event: String,
+        extension_path: String,
+        manifest_path: String,
+        main_entry: String,
+        command_id: String,
+        envelope: ExtensionHostInvocationEnvelope,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -120,6 +130,7 @@ pub struct ExtensionHostCapabilityResult {
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
     InvokeCapability(ExtensionHostCapabilityResult),
+    ExecuteCommand(ExtensionHostCapabilityResult),
     Error { message: String },
 }
 
@@ -218,6 +229,7 @@ pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event:
 pub fn build_extension_invocation_envelope(
     task_id: &str,
     extension_id: &str,
+    command_id: &str,
     capability: &str,
     target_kind: &str,
     target_path: &str,
@@ -226,6 +238,7 @@ pub fn build_extension_invocation_envelope(
     ExtensionHostInvocationEnvelope {
         task_id: task_id.to_string(),
         extension_id: extension_id.to_string(),
+        command_id: command_id.to_string(),
         capability: capability.to_string(),
         target_kind: target_kind.to_string(),
         target_path: target_path.to_string(),
@@ -380,6 +393,18 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 progress_label: "Accepted by extension host".to_string(),
             })
         }
+        ExtensionHostRequest::ExecuteCommand {
+            command_id,
+            envelope,
+            ..
+        } => ExtensionHostResponse::ExecuteCommand(ExtensionHostCapabilityResult {
+            accepted: true,
+            message: format!(
+                "Extension host executed {} for {}",
+                command_id, envelope.extension_id
+            ),
+            progress_label: "Accepted by extension host".to_string(),
+        }),
     }
 }
 
@@ -508,6 +533,7 @@ mod tests {
         let envelope = build_extension_invocation_envelope(
             "task-1",
             "extension-1",
+            "scribeflow.pdf.translate",
             "pdf.translate",
             "referencePdf",
             "/tmp/paper.pdf",
@@ -528,6 +554,7 @@ mod tests {
             envelope: build_extension_invocation_envelope(
                 "task-1",
                 "extension-1",
+                "scribeflow.pdf.translate",
                 "pdf.translate",
                 "referencePdf",
                 "/tmp/paper.pdf",
@@ -538,6 +565,33 @@ mod tests {
             ExtensionHostResponse::InvokeCapability(result) => {
                 assert!(result.accepted);
                 assert!(result.message.contains("pdf.translate"));
+            }
+            _ => panic!("unexpected response"),
+        }
+    }
+
+    #[test]
+    fn sidecar_request_handler_accepts_command_execution() {
+        let response = handle_extension_host_request(ExtensionHostRequest::ExecuteCommand {
+            activation_event: "onCommand:scribeflow.pdf.translate".to_string(),
+            extension_path: "/tmp/ext".to_string(),
+            manifest_path: "/tmp/ext/package.json".to_string(),
+            main_entry: "./dist/extension.js".to_string(),
+            command_id: "scribeflow.pdf.translate".to_string(),
+            envelope: build_extension_invocation_envelope(
+                "task-1",
+                "extension-1",
+                "scribeflow.pdf.translate",
+                "",
+                "referencePdf",
+                "/tmp/paper.pdf",
+                &serde_json::json!({"targetLang": "zh-CN"}),
+            ),
+        });
+        match response {
+            ExtensionHostResponse::ExecuteCommand(result) => {
+                assert!(result.accepted);
+                assert!(result.message.contains("scribeflow.pdf.translate"));
             }
             _ => panic!("unexpected response"),
         }

@@ -22,7 +22,6 @@ import { useToastStore } from '../../stores/toast'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
-  capability: { type: String, default: '' },
   action: { type: Object, default: null },
   target: { type: Object, required: true },
   settings: { type: Object, default: () => ({}) },
@@ -37,7 +36,7 @@ const toastStore = useToastStore()
 const busy = ref(false)
 
 const action = computed(() => props.action || null)
-const capability = computed(() => String(action.value?.capability || props.capability || '').trim())
+const commandId = computed(() => String(action.value?.commandId || '').trim())
 const enabledExtensionIds = computed(() => new Set(extensionsStore.enabledExtensionIds))
 const extension = computed(() =>
   action.value?.extensionId
@@ -48,15 +47,15 @@ const extension = computed(() =>
       )
     : null
 )
-const label = computed(() => props.label || t(action.value?.label || 'Run extension action'))
-const disabled = computed(() => props.disabled || !extension.value || !capability.value || !action.value?.extensionId)
+const label = computed(() => props.label || t(action.value?.title || 'Run extension action'))
+const disabled = computed(() => props.disabled || !extension.value || !commandId.value || !action.value?.extensionId)
 
 async function start() {
   if (disabled.value || busy.value) return
   busy.value = true
   try {
-    const job = await extensionsStore.startExtensionAction(action.value, props.target, props.settings)
-    emit('started', job)
+    const task = await extensionsStore.executeCommand(action.value, props.target, props.settings)
+    emit('started', task)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
     toastStore.show(error?.message || String(error || t('Failed to start extension task')), {

@@ -16,16 +16,6 @@ export async function validateExtensionManifest(manifest = {}) {
   })
 }
 
-export async function detectExtensionRuntime(globalConfigDir = '', workspaceRoot = '', extensionId = '') {
-  return invoke('extension_runtime_detect', {
-    params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      workspaceRoot: String(workspaceRoot || ''),
-      extensionId: String(extensionId || ''),
-    },
-  })
-}
-
 export async function loadExtensionSettings(globalConfigDir = '') {
   return invoke('extension_settings_load', {
     params: {

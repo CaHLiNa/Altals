@@ -1,8 +1,8 @@
 <template>
   <div v-if="actions.length > 0" class="extension-action-buttons">
-    <ExtensionCapabilityButton
+    <ExtensionCommandButton
       v-for="action in actions"
-      :key="`${action.extensionId}:${action.id}`"
+      :key="`${action.extensionId}:${action.commandId}`"
       :action="action"
       :target="target"
       :settings="settings"
@@ -15,19 +15,22 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
-import ExtensionCapabilityButton from './ExtensionCapabilityButton.vue'
+import { buildSurfaceContext } from '../../domains/extensions/extensionContributionRegistry'
+import ExtensionCommandButton from './ExtensionCommandButton.vue'
 
 const props = defineProps({
   surface: { type: String, required: true },
   target: { type: Object, required: true },
   settings: { type: Object, default: () => ({}) },
+  context: { type: Object, default: () => ({}) },
   disabled: { type: Boolean, default: false },
 })
 
 defineEmits(['started'])
 
 const extensionsStore = useExtensionsStore()
-const actions = computed(() => extensionsStore.actionsForSurface(props.surface))
+const surfaceContext = computed(() => buildSurfaceContext(props.target, props.context))
+const actions = computed(() => extensionsStore.menuActionsForSurface(props.surface, surfaceContext.value))
 
 onMounted(() => {
   void extensionsStore.refreshRegistry().catch(() => {})

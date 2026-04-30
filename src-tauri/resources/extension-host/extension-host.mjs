@@ -151,6 +151,31 @@ async function handleInvokeCapability(params = {}) {
   };
 }
 
+async function handleExecuteCommand(params = {}) {
+  const record = await ensureActivated(params);
+  const commandId = String(params.commandId || "").trim();
+  const handler = record.commands.get(commandId);
+  if (!handler) {
+    throw new Error(`Command not registered: ${commandId}`);
+  }
+
+  const result = await handler(params.envelope || {});
+  return {
+    kind: "ExecuteCommand",
+    payload: {
+      accepted: true,
+      message:
+        typeof result?.message === "string" && result.message.trim()
+          ? result.message.trim()
+          : `Extension host executed ${commandId}`,
+      progressLabel:
+        typeof result?.progressLabel === "string" && result.progressLabel.trim()
+          ? result.progressLabel.trim()
+          : "Handled by extension command",
+    },
+  };
+}
+
 async function dispatchRequest(request) {
   if (!request || typeof request !== "object") {
     throw new Error("Invalid extension host request");
@@ -160,6 +185,9 @@ async function dispatchRequest(request) {
   }
   if (request.method === "InvokeCapability") {
     return await handleInvokeCapability(request.params || {});
+  }
+  if (request.method === "ExecuteCommand") {
+    return await handleExecuteCommand(request.params || {});
   }
   throw new Error(`Unknown extension host method: ${String(request.method || "")}`);
 }

@@ -6,15 +6,21 @@ import {
   saveExtensionSettings,
 } from '../services/extensions/extensionRegistry'
 import {
+  executeExtensionCommand,
+} from '../services/extensions/extensionCommands'
+import {
   cancelExtensionTask as cancelExtensionTaskWithBackend,
   getExtensionTask,
   listExtensionTasks,
-  startExtensionTask,
 } from '../services/extensions/extensionTasks'
 import {
   openExtensionArtifact as openExtensionArtifactWithBackend,
   revealExtensionArtifact as revealExtensionArtifactWithBackend,
 } from '../services/extensions/extensionArtifacts'
+import {
+  matchesWhenClause,
+  normalizeExtensionContributions,
+} from '../domains/extensions/extensionContributionRegistry'
 
 function normalizeExtensionId(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -26,41 +32,7 @@ function normalizeCapability(value = '') {
 
 function normalizeExtension(extension = {}) {
   const manifest = extension?.manifest && typeof extension.manifest === 'object' ? extension.manifest : {}
-  const canonicalMenus = manifest?.contributes?.menus && typeof manifest.contributes.menus === 'object'
-    ? manifest.contributes.menus
-    : {}
-  const canonicalCommands = Array.isArray(manifest?.contributes?.commands) ? manifest.contributes.commands : []
-  const canonicalCapabilities = Array.isArray(manifest?.contributes?.capabilities) ? manifest.contributes.capabilities : []
-  const capabilityByCommand = new Map()
-  for (const command of canonicalCommands) {
-    const commandId = String(command?.command || '').trim()
-    if (!commandId) continue
-    const matchedCapability = canonicalCapabilities.find((capability) => {
-      const capabilityId = normalizeCapability(capability?.id)
-      return capabilityId && (
-        commandId === capabilityId ||
-        commandId.endsWith(`.${capabilityId}`) ||
-        commandId.includes(capabilityId.replace(/\./g, ''))
-      )
-    })
-    if (matchedCapability) {
-      capabilityByCommand.set(commandId, normalizeCapability(matchedCapability.id))
-    }
-  }
-  const contributedActions = Object.entries(canonicalMenus)
-    .flatMap(([surface, entries]) =>
-      (Array.isArray(entries) ? entries : []).map((entry) => ({
-        id: String(entry?.command || '').trim(),
-        extensionId: normalizeExtensionId(extension.id),
-        surface: String(surface || '').trim(),
-        capability: capabilityByCommand.get(String(entry?.command || '').trim()) || '',
-        label: String(entry?.title || entry?.command || '').trim(),
-        icon: '',
-        command: String(entry?.command || '').trim(),
-        when: String(entry?.when || '').trim(),
-      }))
-    )
-    .filter((action) => action.id && action.surface && action.capability)
+  const contributions = normalizeExtensionContributions(extension)
 
   return {
     ...extension,
@@ -75,31 +47,12 @@ function normalizeExtension(extension = {}) {
     activationEvents: Array.isArray(manifest?.activationEvents) ? manifest.activationEvents : [],
     extensionKind: Array.isArray(manifest?.extensionKind) ? manifest.extensionKind : [],
     capabilities: Array.isArray(extension.capabilities) ? extension.capabilities.map(normalizeCapability).filter(Boolean) : [],
+    contributedCommands: contributions.commands,
+    contributedMenus: contributions.menus,
+    contributedCapabilities: contributions.capabilities,
     warnings: Array.isArray(extension.warnings) ? extension.warnings : [],
     errors: Array.isArray(extension.errors) ? extension.errors : [],
-    settingsSchema:
-      manifest?.contributes?.configuration?.properties && typeof manifest.contributes.configuration.properties === 'object'
-        ? Object.fromEntries(
-            Object.entries(manifest.contributes.configuration.properties).map(([key, definition]) => [
-              key.split('.').pop() || key,
-              {
-                type: String(definition?.type || ''),
-                default: Object.prototype.hasOwnProperty.call(definition || {}, 'default')
-                  ? definition.default
-                  : '',
-                label: key.split('.').pop() || key,
-                description: String(definition?.description || ''),
-                options: Array.isArray(definition?.enum)
-                  ? definition.enum.map((value, index) => ({
-                      value,
-                      label: Array.isArray(definition?.enumItemLabels) ? String(definition.enumItemLabels[index] || value) : String(value),
-                    }))
-                  : [],
-              },
-            ])
-          )
-        : {},
-    uiActions: contributedActions,
+    settingsSchema: contributions.configuration,
   }
 }
 
@@ -109,6 +62,7 @@ function normalizeTask(task = {}) {
     id: String(task.id || ''),
     extensionId: normalizeExtensionId(task.extensionId),
     capability: normalizeCapability(task.capability),
+    commandId: String(task.commandId || ''),
     state: String(task.state || ''),
     artifacts: Array.isArray(task.artifacts) ? task.artifacts : [],
     error: String(task.error || ''),
@@ -133,15 +87,21 @@ export const useExtensionsStore = defineStore('extensions', {
       const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
       return state.registry.filter((extension) => enabled.has(extension.id))
     },
-    actionsForSurface: (state) => (surface = '') => {
+    actionsForSurface() {
+      return (surface = '', context = {}) => this.menuActionsForSurface(surface, context)
+    },
+    menuActionsForSurface: (state) => (surface = '', context = {}) => {
       const normalizedSurface = String(surface || '').trim()
       if (!normalizedSurface) return []
       const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
         .flatMap((extension) =>
-          (extension.uiActions || [])
-            .filter((action) => action.surface === normalizedSurface)
+          (extension.contributedMenus || [])
+            .filter((action) =>
+              action.surface === normalizedSurface &&
+              matchesWhenClause(action.when, context)
+            )
             .map((action) => ({
               ...action,
               extensionId: extension.id,
@@ -287,24 +247,24 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       return this.persistSettings({ extensionConfig: nextExtensionConfig })
     },
-    async startExtensionAction(action = {}, target = {}, settings = {}) {
+    async executeCommand(action = {}, target = {}, settings = {}) {
       const extensionId = normalizeExtensionId(action.extensionId)
-      const capability = normalizeCapability(action.capability)
+      const commandId = String(action.commandId || action.command || action.id || '').trim()
       const extension = this.registry.find((extension) => extension.id === extensionId)
       if (!extension || extension.status !== 'available') {
-        throw new Error(`Extension action is not available: ${extensionId || capability}`)
+        throw new Error(`Extension command is not available: ${extensionId || commandId}`)
       }
-      if (!extension.capabilities.includes(capability)) {
-        throw new Error(`Extension ${extensionId} does not provide ${capability}`)
+      if (!(extension.contributedCommands || []).some((command) => command.commandId === commandId)) {
+        throw new Error(`Extension ${extensionId} does not contribute command ${commandId}`)
       }
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)
-      const task = normalizeTask(await startExtensionTask({
+      const task = normalizeTask(await executeExtensionCommand({
         globalConfigDir,
         workspaceRoot: workspace.path || '',
         extensionId,
-        capability,
+        commandId,
         target,
         settings: {
           ...extensionSettings,
@@ -314,7 +274,6 @@ export const useExtensionsStore = defineStore('extensions', {
       await this.refreshTasks().catch(() => {})
       return task
     },
-
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))
       await this.refreshTasks().catch(() => {})

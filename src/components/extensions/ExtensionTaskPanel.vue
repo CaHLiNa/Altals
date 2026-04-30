@@ -4,7 +4,7 @@
     <div v-for="task in tasks" :key="task.id" class="extension-task-row">
       <div class="extension-task-main">
         <div class="extension-task-title">
-          <span>{{ task.capability }}</span>
+          <span>{{ task.commandId || task.capability }}</span>
           <span class="extension-task-state" :class="`is-${task.state}`">{{ task.state }}</span>
         </div>
         <div class="extension-task-meta">

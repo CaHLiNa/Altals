@@ -11,11 +11,11 @@ mod document_workspace_preview;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
+mod extension_commands;
 mod extension_host;
 mod extension_manifest;
 mod extension_permissions;
 mod extension_registry;
-mod extension_runner;
 mod extension_settings;
 mod extension_tasks;
 mod fs_commands;
@@ -483,8 +483,7 @@ pub fn run() {
             extension_manifest::extension_registry_validate_manifest,
             extension_host::extension_host_status,
             extension_host::extension_host_activate,
-            extension_runner::extension_runtime_detect,
-            extension_runner::extension_task_start,
+            extension_commands::extension_command_execute,
             extension_tasks::extension_task_list,
             extension_tasks::extension_task_get,
             extension_tasks::extension_task_cancel,

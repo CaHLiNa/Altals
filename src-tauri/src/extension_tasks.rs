@@ -52,6 +52,8 @@ pub struct ExtensionTask {
     pub id: String,
     pub extension_id: String,
     pub capability: String,
+    #[serde(default)]
+    pub command_id: String,
     pub state: String,
     pub created_at: String,
     pub started_at: String,
@@ -164,19 +166,27 @@ pub fn get_task(task_id: &str) -> Result<ExtensionTask, String> {
         .ok_or_else(|| format!("Extension task not found: {task_id}"))
 }
 
-pub fn create_task(
+pub fn create_command_task(
     extension_id: &str,
-    capability: &str,
+    command_id: &str,
     target: ExtensionTaskTarget,
     settings: Value,
 ) -> Result<ExtensionTask, String> {
-    create_task_in_dir(&tasks_dir()?, extension_id, capability, target, settings)
+    create_task_in_dir(
+        &tasks_dir()?,
+        extension_id,
+        command_id,
+        command_id,
+        target,
+        settings,
+    )
 }
 
 fn create_task_in_dir(
     tasks_root: &Path,
     extension_id: &str,
     capability: &str,
+    command_id: &str,
     target: ExtensionTaskTarget,
     settings: Value,
 ) -> Result<ExtensionTask, String> {
@@ -190,6 +200,7 @@ fn create_task_in_dir(
         id: id.clone(),
         extension_id: extension_id.to_string(),
         capability: capability.to_string(),
+        command_id: command_id.to_string(),
         state: "queued".to_string(),
         created_at: now,
         started_at: String::new(),
@@ -263,6 +274,15 @@ pub fn mark_task_succeeded(
         };
         task.artifacts = artifacts;
         task.error.clear();
+    })
+}
+
+pub fn mark_task_failed(task_id: &str, error: &str) -> Result<ExtensionTask, String> {
+    update_task(task_id, |task| {
+        task.state = "failed".to_string();
+        task.finished_at = now_string();
+        task.progress.label = "Failed".to_string();
+        task.error = error.to_string();
     })
 }
 
@@ -357,6 +377,7 @@ mod tests {
             &root,
             "pdfmathtranslate",
             "pdf.translate",
+            "scribeflow.pdf.translate",
             ExtensionTaskTarget {
                 kind: "referencePdf".to_string(),
                 reference_id: "ref-1".to_string(),
@@ -386,6 +407,7 @@ mod tests {
             &root,
             "pdfmathtranslate",
             "pdf.translate",
+            "scribeflow.pdf.translate",
             ExtensionTaskTarget {
                 kind: "referencePdf".to_string(),
                 reference_id: "ref-2".to_string(),

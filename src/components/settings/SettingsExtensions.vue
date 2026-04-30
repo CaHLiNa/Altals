@@ -42,8 +42,12 @@
                   </span>
                 </div>
                 <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Command') }}</span>
+                  <span class="extension-meta-label">{{ t('Runtime') }}</span>
                   <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Commands') }}</span>
+                  <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
@@ -182,13 +186,24 @@ function permissionSummary(extension = {}) {
   return labels.join(' · ')
 }
 
+function commandSummary(extension = {}) {
+  const commands = Array.isArray(extension.contributedCommands) ? extension.contributedCommands : []
+  if (!commands.length) return t('Not configured')
+  return commands.map((command) => command.commandId).join(' · ')
+}
+
+function shortSettingKey(key = '') {
+  const normalized = String(key || '').trim()
+  return normalized.split('.').pop() || normalized
+}
+
 const settingGroupDefinitions = [
   {
     id: 'basic',
     titleKey: 'Basic',
-    hintKey: 'Core translation choices.',
+    hintKey: 'Core extension choices.',
     keys: ['engine', 'service', 'sourceLang', 'targetLang'],
-    match: (key) => ['engine', 'service', 'sourceLang', 'targetLang', 'targetLanguage'].includes(key),
+    match: (key) => ['engine', 'service', 'sourceLang', 'targetLang', 'targetLanguage'].includes(shortSettingKey(key)),
   },
   {
     id: 'model',
@@ -196,7 +211,7 @@ const settingGroupDefinitions = [
     hintKey: 'Extension endpoint, credentials, and model selection.',
     keys: ['apiKey', 'apiUrl', 'model'],
     match: (key) => {
-      const normalized = key.toLowerCase()
+      const normalized = shortSettingKey(key).toLowerCase()
       return normalized.includes('api') ||
         normalized.includes('model') ||
         normalized.includes('extension') ||
@@ -209,7 +224,7 @@ const settingGroupDefinitions = [
     titleKey: 'Output',
     hintKey: 'Generated PDF type and layout behavior.',
     keys: ['outputMode', 'translationMode', 'dualMode', 'noWatermark', 'ocr', 'autoOcr'],
-    match: (key) => ['outputMode', 'translationMode', 'dualMode', 'noWatermark', 'ocr', 'autoOcr'].includes(key),
+    match: (key) => ['outputMode', 'translationMode', 'dualMode', 'noWatermark', 'ocr', 'autoOcr'].includes(shortSettingKey(key)),
   },
   {
     id: 'runtime',
@@ -217,7 +232,7 @@ const settingGroupDefinitions = [
     hintKey: 'Local Python server and dependency environment.',
     keys: ['serverPort', 'pythonPath', 'enableVenv', 'envTool', 'enableMirror', 'skipInstall'],
     match: (key) => {
-      const normalized = key.toLowerCase()
+      const normalized = shortSettingKey(key).toLowerCase()
       return normalized.includes('server') ||
         normalized.includes('python') ||
         normalized.includes('venv') ||
@@ -232,7 +247,7 @@ const settingGroupDefinitions = [
     titleKey: 'Performance',
     hintKey: 'Concurrency and throughput controls.',
     keys: ['qps', 'poolSize', 'threadNum'],
-    match: (key) => ['qps', 'poolSize', 'threadNum', 'chunkSize'].includes(key),
+    match: (key) => ['qps', 'poolSize', 'threadNum', 'chunkSize'].includes(shortSettingKey(key)),
   },
 ]
 
@@ -244,8 +259,12 @@ function sortSettingEntries(entries = [], orderedKeys = []) {
   const order = new Map(orderedKeys.map((key, index) => [key, index]))
   return [...entries].sort(([left], [right]) => {
     const leftOrder = order.has(left) ? order.get(left) : Number.MAX_SAFE_INTEGER
+    const leftShort = shortSettingKey(left)
+    const rightShort = shortSettingKey(right)
+    const normalizedLeftOrder = order.has(leftShort) ? order.get(leftShort) : leftOrder
     const rightOrder = order.has(right) ? order.get(right) : Number.MAX_SAFE_INTEGER
-    if (leftOrder !== rightOrder) return leftOrder - rightOrder
+    const normalizedRightOrder = order.has(rightShort) ? order.get(rightShort) : rightOrder
+    if (normalizedLeftOrder !== normalizedRightOrder) return normalizedLeftOrder - normalizedRightOrder
     return left.localeCompare(right)
   })
 }
@@ -305,7 +324,7 @@ function coerceSettingValue(setting = {}, value = '') {
 }
 
 function inputTypeForSetting(key = '', setting = {}) {
-  const normalized = key.toLowerCase()
+  const normalized = shortSettingKey(key).toLowerCase()
   if (normalized.includes('key') ||
     normalized.includes('token') ||
     normalized.includes('secret') ||
@@ -317,14 +336,14 @@ function inputTypeForSetting(key = '', setting = {}) {
 }
 
 function isLongTextSetting(key = '', setting = {}) {
-  const normalized = key.toLowerCase()
+  const normalized = shortSettingKey(key).toLowerCase()
   return normalized.includes('json') ||
     normalized.includes('extradata') ||
     String(setting.default ?? '').length > 80
 }
 
 function isTechnicalSetting(key = '') {
-  const normalized = key.toLowerCase()
+  const normalized = shortSettingKey(key).toLowerCase()
   return normalized.includes('url') ||
     normalized.includes('path') ||
     normalized.includes('json') ||
@@ -332,7 +351,9 @@ function isTechnicalSetting(key = '') {
 }
 
 function humanizeSettingKey(key = '') {
-  return String(key || '')
+  return (String(key || '')
+    .split('.')
+    .pop() || '')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (match) => match.toUpperCase())
