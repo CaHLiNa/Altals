@@ -173,7 +173,7 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
     resolve(context = {}) {
       if (context.hasPluginViews !== true) return null
 
-      const label = context.t?.('Plugins') || 'Plugins'
+      const label = context.t?.('Assistant Tools') || 'Assistant Tools'
       return {
         key: DOCUMENT_DOCK_PLUGINS_PAGE,
         type: DOCUMENT_DOCK_PLUGINS_PAGE,

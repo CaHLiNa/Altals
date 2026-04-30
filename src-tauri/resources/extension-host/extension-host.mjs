@@ -148,6 +148,71 @@ function normalizeViewMetadata(viewId = "", metadata = {}) {
   };
 }
 
+function buildResourceContext(envelope = {}) {
+  const targetPath = String(envelope?.targetPath || "").trim();
+  const targetKind = String(envelope?.targetKind || "").trim();
+  const extension = path.extname(targetPath).toLowerCase();
+  const basename = targetPath ? path.basename(targetPath) : "";
+  const dirname = targetPath ? path.dirname(targetPath) : "";
+  let languageId = "";
+  if (extension === ".pdf") languageId = "pdf";
+  else if (extension === ".md" || extension === ".markdown") languageId = "markdown";
+  else if (extension === ".tex" || extension === ".latex") languageId = "latex";
+  else if (extension === ".py") languageId = "python";
+  else if (extension === ".bib") languageId = "bibtex";
+  else if (extension === ".json") languageId = "json";
+  else if (extension === ".csv") languageId = "csv";
+  else if (extension === ".txt") languageId = "plaintext";
+  else if (extension) languageId = extension.slice(1);
+
+  let resourceKind = targetKind;
+  if (!resourceKind) {
+    if (extension === ".pdf") resourceKind = "pdf";
+    else if (languageId) resourceKind = languageId;
+    else if (targetPath) resourceKind = "file";
+  }
+
+  return {
+    kind: resourceKind,
+    targetKind,
+    path: targetPath,
+    extname: extension,
+    filename: basename,
+    dirname: dirname && dirname !== "." ? dirname : "",
+    langId: languageId,
+    isPdf: resourceKind === "pdf",
+    isMarkdown: languageId === "markdown",
+    isLatex: languageId === "latex",
+    isPython: languageId === "python",
+  };
+}
+
+function createInvocationContext(registry, envelope = {}) {
+  const workspaceRoot = String(envelope?.workspaceRoot || registry.currentWorkspaceRoot || "").trim();
+  const resource = buildResourceContext(envelope);
+  const target = {
+    kind: String(envelope?.targetKind || "").trim(),
+    path: String(envelope?.targetPath || "").trim(),
+  };
+  return {
+    extensionId: registry.id,
+    workspaceRoot,
+    taskId: String(envelope?.taskId || "").trim(),
+    commandId: String(envelope?.commandId || "").trim(),
+    capability: String(envelope?.capability || "").trim(),
+    itemId: String(envelope?.itemId || "").trim(),
+    itemHandle: String(envelope?.itemHandle || "").trim(),
+    target,
+    resource,
+    settingsJson: String(envelope?.settingsJson || "{}"),
+  };
+}
+
+function setInvocationContext(registry, envelope = {}) {
+  registry.currentWorkspaceRoot = String(envelope?.workspaceRoot || "").trim();
+  registry.lastInvocation = createInvocationContext(registry, envelope);
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
@@ -339,6 +404,44 @@ function createExtensionApi(registry) {
         return registry.settings.has(id) ? registry.settings.get(id) : fallback;
       },
     },
+    workspace: {
+      get rootPath() {
+        return String(registry.lastInvocation?.workspaceRoot || registry.currentWorkspaceRoot || "");
+      },
+      get hasWorkspace() {
+        return Boolean(String(registry.lastInvocation?.workspaceRoot || registry.currentWorkspaceRoot || "").trim());
+      },
+      get current() {
+        const rootPath = String(registry.lastInvocation?.workspaceRoot || registry.currentWorkspaceRoot || "");
+        return {
+          rootPath,
+          hasWorkspace: Boolean(rootPath.trim()),
+        };
+      },
+    },
+    documents: {
+      get active() {
+        return {
+          resource: { ...(registry.lastInvocation?.resource || buildResourceContext()) },
+          target: { ...(registry.lastInvocation?.target || { kind: "", path: "" }) },
+        };
+      },
+      get resource() {
+        return { ...(registry.lastInvocation?.resource || buildResourceContext()) };
+      },
+      get target() {
+        return { ...(registry.lastInvocation?.target || { kind: "", path: "" }) };
+      },
+    },
+    invocation: {
+      get current() {
+        return {
+          ...(registry.lastInvocation || createInvocationContext(registry)),
+          resource: { ...(registry.lastInvocation?.resource || buildResourceContext()) },
+          target: { ...(registry.lastInvocation?.target || { kind: "", path: "" }) },
+        };
+      },
+    },
     window: {
       async showInformationMessage(message) {
         emitWindowMessage(registry, "info", message);
@@ -392,6 +495,9 @@ function createActivationContext(api, payload = {}) {
     capabilities: api.capabilities,
     views: api.views,
     settings: api.settings,
+    workspace: api.workspace,
+    documents: api.documents,
+    invocation: api.invocation,
     globalState: api.globalState,
     workspaceState: api.workspaceState,
     window: api.window,
@@ -443,6 +549,7 @@ async function ensureActivated(request) {
     settings: new Map(),
     globalState: new Map(),
     workspaceState: new Map(),
+    lastInvocation: createInvocationContext({ id: extensionId, currentWorkspaceRoot: "" }),
     subscriptions: [],
   };
   const activationSettings =
@@ -452,13 +559,13 @@ async function ensureActivated(request) {
   const activationWorkspaceState =
     paramsToObject(request.activationState?.workspaceState) || {};
   for (const [key, value] of Object.entries(activationSettings)) {
-    registry.settings.set(String(key || "").trim(), value);
+    record.settings.set(String(key || "").trim(), value);
   }
   for (const [key, value] of Object.entries(activationGlobalState)) {
-    registry.globalState.set(String(key || "").trim(), value);
+    record.globalState.set(String(key || "").trim(), value);
   }
   for (const [key, value] of Object.entries(activationWorkspaceState)) {
-    registry.workspaceState.set(String(key || "").trim(), value);
+    record.workspaceState.set(String(key || "").trim(), value);
   }
   const api = createExtensionApi(record);
   const module = await loadExtensionModule(resolvedMain);
@@ -511,7 +618,7 @@ async function handleActivate(params = {}) {
 
 async function handleInvokeCapability(params = {}) {
   const record = await ensureActivated(params);
-  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
+  setInvocationContext(record, params.envelope || {});
   const capabilityId = String(params.envelope?.capability || "").trim();
   const provider = record.capabilities.get(capabilityId);
   if (!provider) {
@@ -537,7 +644,7 @@ async function handleInvokeCapability(params = {}) {
 
 async function handleExecuteCommand(params = {}) {
   const record = await ensureActivated(params);
-  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
+  setInvocationContext(record, params.envelope || {});
   const commandId = String(params.commandId || "").trim();
   const handler = record.commands.get(commandId);
   if (!handler) {
@@ -566,7 +673,7 @@ async function handleExecuteCommand(params = {}) {
 
 async function handleResolveView(params = {}) {
   const record = await ensureActivated(params);
-  record.currentWorkspaceRoot = String(params.envelope?.workspaceRoot || "");
+  setInvocationContext(record, params.envelope || {});
   const viewId = String(params.viewId || "").trim();
   const provider = record.viewProviders.get(viewId);
   const treeProvider = record.treeViews.get(viewId);

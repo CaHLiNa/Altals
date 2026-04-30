@@ -3,14 +3,24 @@ export async function activate(context) {
   const launchCount = Number(context.globalState.get("launchCount") || 0) + 1
   context.globalState.update("launchCount", launchCount)
 
+  function currentDocumentTarget() {
+    return context.documents?.target || { kind: "", path: "" }
+  }
+
+  function currentResource() {
+    return context.documents?.resource || { kind: "", path: "", filename: "" }
+  }
+
   context.capabilities.registerProvider("pdf.translate", async (request) => {
     const payload = JSON.parse(String(request?.settingsJson || request?.settings_json || "{}") || "{}")
     const configuredTargetLang = String(
       context.settings.get("examplePdfExtension.targetLang", "zh-CN") || "zh-CN",
     )
     const targetLang = String(payload?.["examplePdfExtension.targetLang"] || payload?.targetLang || configuredTargetLang)
+    const workspaceRoot = String(context.workspace?.rootPath || "")
+    const resource = currentResource()
     return {
-      message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}`,
+      message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
       progressLabel: "Example extension provider executed",
     }
   })
@@ -33,12 +43,15 @@ export async function activate(context) {
         progressLabel: "Translation cancelled",
       }
     }
+    const activeTarget = currentDocumentTarget()
+    const targetPath = String(payload?.targetPath || activeTarget.path || "")
     const result = await context.capabilities.invoke("pdf.translate", {
       ...payload,
       capability: "pdf.translate",
       targetLang,
+      targetPath,
     })
-    await context.window.showInformationMessage(`PDF translation queued for ${String(payload?.targetPath || "current target")}`)
+    await context.window.showInformationMessage(`PDF translation queued for ${targetPath || "current target"}`)
     return result
   }, {
     title: "Translate",
@@ -68,7 +81,7 @@ export async function activate(context) {
       return "Translate PDF"
     },
     async getChildren(element, payload) {
-      const targetPath = String(payload?.targetPath || "")
+      const targetPath = String(payload?.targetPath || currentDocumentTarget().path || "")
       if (!element) {
         return [
           {
@@ -131,8 +144,10 @@ export async function activate(context) {
 
   context.views.updateView("examplePdfExtension.translateView", {
     title: "Translate PDF",
-    description: "Workspace PDF tools",
-    message: "Select a PDF target to start translation.",
+    description: context.workspace?.hasWorkspace ? "Workspace PDF tools" : "PDF tools",
+    message: currentResource().path
+      ? `Select a PDF target to start translation.`
+      : "Open a PDF document to start translation.",
     badgeValue: 1,
     badgeTooltip: "One quick action is available for the active PDF.",
   })
@@ -151,7 +166,16 @@ export async function activate(context) {
 
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
     await context.commands.executeCommand("examplePdfExtension.announceRefresh")
+    const resource = currentResource()
     context.views.refresh("examplePdfExtension.translateView")
+    context.views.updateView("examplePdfExtension.translateView", {
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: resource.path
+        ? `Ready for ${resource.filename || resource.path}`
+        : "Open a PDF document to start translation.",
+    })
     translateTreeView.reveal("translate-group", {
       focus: true,
       select: true,

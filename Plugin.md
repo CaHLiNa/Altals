@@ -53,6 +53,11 @@ Plugins can already use:
 - `window.showErrorMessage(...)`
 - `window.showQuickPick(...)`
 - `window.showInputBox(...)`
+- `workspace.rootPath`
+- `workspace.hasWorkspace`
+- `documents.resource`
+- `documents.target`
+- `invocation.current`
 - `workspaceState`
 
 Tree view support already includes:
@@ -99,6 +104,7 @@ Remaining cleanup direction:
 
 - reduce contribution-schema-first assumptions
 - move more behavior to runtime registration APIs
+- keep expanding thick host APIs beyond `workspace` and `documents`
 - make settings and registered runtime capabilities clearer in the UI
 - avoid growing the workbench model just for parity with VS Code
 

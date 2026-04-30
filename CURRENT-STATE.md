@@ -19,7 +19,8 @@ Current desktop paths:
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - discover local plugin packages, enable or disable them, configure host-managed plugin settings and run plugin commands through the host
-- render plugin sidebar containers in the workspace mode menu, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
+- render plugin surfaces in the document right sidebar, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
+- expose initial thick runtime APIs for plugins through `context.workspace`, `context.documents` and `context.invocation`
 
 ## Architecture
 
@@ -73,7 +74,7 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 150 tests
+- Rust tests pass: 151 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 
