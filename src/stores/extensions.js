@@ -22,6 +22,7 @@ import {
 } from '../services/extensions/extensionViews'
 import {
   listenExtensionViewChanged,
+  listenExtensionViewRevealRequested,
   listenExtensionViewStateChanged,
 } from '../services/extensions/extensionHostEvents'
 import {
@@ -128,6 +129,7 @@ export const useExtensionsStore = defineStore('extensions', {
     extensionConfig: {},
     resolvedViews: {},
     viewState: {},
+    viewControllerState: {},
     changedViewTicks: {},
     loadingRegistry: false,
     loadingTasks: false,
@@ -271,6 +273,7 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
     viewStateFor: (state) => (viewKey = '') => state.viewState[String(viewKey || '').trim()] || null,
+    viewControllerStateFor: (state) => (viewKey = '') => state.viewControllerState[String(viewKey || '').trim()] || null,
     resolvedViewChildrenFor: (state) => (viewKey = '', parentItemId = '') => {
       const record = state.resolvedViews[String(viewKey || '').trim()]
       const parentItems = record?.parentItems && typeof record.parentItems === 'object'
@@ -487,6 +490,36 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       return resolved
     },
+    setViewControllerState(viewKey = '', patch = {}) {
+      const key = String(viewKey || '').trim()
+      if (!key) return
+      const current = this.viewControllerState[key] && typeof this.viewControllerState[key] === 'object'
+        ? this.viewControllerState[key]
+        : {
+            selectedHandle: '',
+            focusedHandle: '',
+            revealedPathHandles: [],
+          }
+      this.viewControllerState[key] = {
+        ...current,
+        ...(patch && typeof patch === 'object' ? patch : {}),
+      }
+    },
+    requestViewReveal(payload = {}) {
+      const extensionId = normalizeExtensionId(payload.extensionId)
+      const viewId = String(payload.viewId || '').trim()
+      const itemHandle = String(payload.itemHandle || '').trim()
+      if (!extensionId || !viewId || !itemHandle) return
+      const viewKey = `${extensionId}:${viewId}`
+      const parentHandles = Array.isArray(payload.parentHandles)
+        ? payload.parentHandles.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : []
+      this.setViewControllerState(viewKey, {
+        selectedHandle: payload.select === false ? '' : itemHandle,
+        focusedHandle: payload.focus ? itemHandle : '',
+        revealedPathHandles: payload.expand === false ? [] : parentHandles,
+      })
+    },
     markViewsChanged(changedViews = [], defaultExtensionId = '') {
       const extensionId = normalizeExtensionId(defaultExtensionId)
       if (!Array.isArray(changedViews) || changedViews.length === 0) return
@@ -527,12 +560,21 @@ export const useExtensionsStore = defineStore('extensions', {
           badgeTooltip: String(payload.badgeTooltip || ''),
         }
       }).catch(() => null)
+      this._extensionHostViewRevealUnlisten = await listenExtensionViewRevealRequested((event) => {
+        const payload = event?.payload || {}
+        const activeWorkspaceRoot = String(useWorkspaceStore().path || '')
+        const workspaceRoot = String(payload.workspaceRoot || '')
+        if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
+        this.requestViewReveal(payload)
+      }).catch(() => null)
     },
     stopHostEventBridge() {
       this._extensionHostUnlisten?.()
       this._extensionHostUnlisten = null
       this._extensionHostViewStateUnlisten?.()
       this._extensionHostViewStateUnlisten = null
+      this._extensionHostViewRevealUnlisten?.()
+      this._extensionHostViewRevealUnlisten = null
     },
     async cancelTask(taskId = '') {
       const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))

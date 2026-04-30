@@ -32,6 +32,42 @@ function emitWindowMessage(registry, severity = "info", message = "") {
   });
 }
 
+function resolveTreeItemHandle(registry, viewId = "", itemOrHandle) {
+  const id = String(viewId || "").trim();
+  if (!id) return "";
+  if (typeof itemOrHandle === "string") {
+    return itemOrHandle.trim();
+  }
+  if (itemOrHandle && typeof itemOrHandle === "object") {
+    const directHandle = String(itemOrHandle.handle || itemOrHandle.id || "").trim();
+    if (directHandle) return directHandle;
+  }
+  const treeItems = registry.treeItems.get(id);
+  if (!treeItems) return "";
+  for (const [handle, element] of treeItems.entries()) {
+    if (element === itemOrHandle) {
+      return String(handle || "").trim();
+    }
+  }
+  return "";
+}
+
+function collectTreeParentHandles(registry, viewId = "", itemHandle = "") {
+  const parents = [];
+  const treeParents = registry.treeParents.get(String(viewId || "").trim());
+  if (!treeParents) return parents;
+  let current = String(itemHandle || "").trim();
+  const seen = new Set();
+  while (current) {
+    const parentHandle = String(treeParents.get(current) || "").trim();
+    if (!parentHandle || seen.has(parentHandle)) break;
+    parents.unshift(parentHandle);
+    seen.add(parentHandle);
+    current = parentHandle;
+  }
+  return parents;
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
@@ -97,6 +133,9 @@ function createExtensionApi(registry) {
           if (!registry.treeItems.has(id)) {
             registry.treeItems.set(id, new Map());
           }
+          if (!registry.treeParents.has(id)) {
+            registry.treeParents.set(id, new Map());
+          }
           if (!registry.viewState.has(id)) {
             registry.viewState.set(id, createEmptyViewState(id));
           }
@@ -105,6 +144,7 @@ function createExtensionApi(registry) {
           dispose() {
             registry.treeViews.delete(id);
             registry.treeItems.delete(id);
+            registry.treeParents.delete(id);
             registry.viewState.delete(id);
           },
         };
@@ -149,6 +189,24 @@ function createExtensionApi(registry) {
             },
           });
         }
+      },
+      reveal(viewId, itemOrHandle, options = {}) {
+        const id = String(viewId || "").trim();
+        const itemHandle = resolveTreeItemHandle(registry, id, itemOrHandle);
+        if (!id || !itemHandle) return;
+        writeMessage({
+          kind: "ViewRevealRequested",
+          payload: {
+            extensionId: registry.id,
+            workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+            viewId: id,
+            itemHandle,
+            parentHandles: collectTreeParentHandles(registry, id, itemHandle),
+            focus: Boolean(options?.focus),
+            select: options?.select !== false,
+            expand: options?.expand !== false,
+          },
+        });
       },
     },
     workspaceState: {
@@ -229,6 +287,7 @@ async function ensureActivated(request) {
     viewProviders: new Map(),
     treeViews: new Map(),
     treeItems: new Map(),
+    treeParents: new Map(),
     viewState: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
@@ -358,8 +417,11 @@ async function handleResolveView(params = {}) {
 async function handleResolveTreeView(record, provider, viewId, parentItemId, envelope) {
   const treeItems = record.treeItems.get(viewId) || new Map();
   record.treeItems.set(viewId, treeItems);
+  const treeParents = record.treeParents.get(viewId) || new Map();
+  record.treeParents.set(viewId, treeParents);
   if (!parentItemId) {
     treeItems.clear();
+    treeParents.clear();
   }
   const parentElement = parentItemId ? treeItems.get(parentItemId) : undefined;
   const children = await resolveTreeChildren(provider, parentElement, envelope);
@@ -368,6 +430,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
     const treeItem = await resolveTreeItem(provider, element, envelope);
     const normalized = normalizeTreeViewItem(treeItem, element, viewId, index);
     treeItems.set(normalized.handle, element);
+    treeParents.set(normalized.handle, parentItemId);
     items.push(normalized);
   }
   return {

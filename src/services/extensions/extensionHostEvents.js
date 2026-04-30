@@ -8,6 +8,10 @@ export function listenExtensionViewStateChanged(handler) {
   return listen('extension-view-state-changed', handler)
 }
 
+export function listenExtensionViewRevealRequested(handler) {
+  return listen('extension-view-reveal-requested', handler)
+}
+
 export function listenExtensionWindowMessage(handler) {
   return listen('extension-window-message', handler)
 }

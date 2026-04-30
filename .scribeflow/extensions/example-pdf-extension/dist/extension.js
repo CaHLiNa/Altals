@@ -99,6 +99,11 @@ export async function activate(context) {
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
     await context.commands.executeCommand("examplePdfExtension.announceRefresh")
     context.views.refresh("examplePdfExtension.translateView")
+    context.views.reveal("examplePdfExtension.translateView", "translate-group", {
+      focus: true,
+      select: true,
+      expand: true,
+    })
     return {
       message: "example-pdf-extension refreshed sidebar view",
       progressLabel: "Example view refreshed",

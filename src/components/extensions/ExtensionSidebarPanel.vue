@@ -107,6 +107,20 @@ const resolvedViewRefreshTokens = computed(() =>
     token: extensionsStore.viewRefreshTickFor(`${view.extensionId}:${view.id}`),
   }))
 )
+const viewControllerTokens = computed(() =>
+  views.value.map((view) => {
+    const key = `${view.extensionId}:${view.id}`
+    const controller = extensionsStore.viewControllerStateFor(key) || {}
+    return {
+      key,
+      selectedHandle: String(controller.selectedHandle || ''),
+      focusedHandle: String(controller.focusedHandle || ''),
+      revealedPathHandles: Array.isArray(controller.revealedPathHandles)
+        ? controller.revealedPathHandles.join('|')
+        : '',
+    }
+  })
+)
 
 watch(
   views,
@@ -129,6 +143,24 @@ watch(resolvedViewRefreshTokens, (next, previous = []) => {
     void refreshSingleView(view).catch(() => {})
   }
 })
+
+watch(viewControllerTokens, (next, previous = []) => {
+  const previousTokens = new Map(previous.map((entry) => [entry.key, entry]))
+  const changedViews = next
+    .filter((entry) => {
+      const previousEntry = previousTokens.get(entry.key)
+      if (!previousEntry) return true
+      return previousEntry.selectedHandle !== entry.selectedHandle
+        || previousEntry.focusedHandle !== entry.focusedHandle
+        || previousEntry.revealedPathHandles !== entry.revealedPathHandles
+    })
+    .map((entry) => views.value.find((view) => `${view.extensionId}:${view.id}` === entry.key))
+    .filter(Boolean)
+
+  for (const view of changedViews) {
+    void applyViewControllerState(view).catch(() => {})
+  }
+}, { immediate: true })
 
 function resolvedViewRecord(view = {}) {
   return extensionsStore.resolvedViewFor(`${view.extensionId}:${view.id}`)
@@ -169,6 +201,10 @@ function resolvedChildItems(view = {}, item = {}) {
   )
 }
 
+function viewControllerState(view = {}) {
+  return extensionsStore.viewControllerStateFor(`${view.extensionId}:${view.id}`) || {}
+}
+
 function isExpandable(item = {}) {
   const state = String(item?.collapsibleState || '')
   return state && state !== 'none'
@@ -182,6 +218,13 @@ function isItemExpanded(view = {}, item = {}) {
   const key = itemExpansionKey(view, item)
   if (expandedItemKeys.value[key] != null) {
     return Boolean(expandedItemKeys.value[key])
+  }
+  const controller = viewControllerState(view)
+  if (Array.isArray(controller.revealedPathHandles)) {
+    const handle = String(item?.handle || item?.id || '')
+    if (handle && controller.revealedPathHandles.includes(handle)) {
+      return true
+    }
   }
   return String(item?.collapsibleState || '') === 'expanded'
 }
@@ -260,6 +303,7 @@ async function refreshViews() {
 async function refreshSingleView(view = {}) {
   await extensionsStore.resolveView(view, props.target).catch(() => {})
   await loadExpandedChildren(view, resolvedItems(view))
+  await applyViewControllerState(view)
 }
 
 async function toggleItemExpansion(view = {}, item = {}) {
@@ -272,6 +316,45 @@ async function toggleItemExpansion(view = {}, item = {}) {
   }
   if (!nextExpanded) return
   await extensionsStore.resolveView(view, props.target, {}, item.handle || item.id).catch(() => {})
+}
+
+function markExpandedForHandle(view = {}, handle = '', expanded = true) {
+  const normalizedHandle = String(handle || '').trim()
+  if (!normalizedHandle) return
+  const key = `${view.extensionId}:${view.id}:${normalizedHandle}`
+  expandedItemKeys.value = {
+    ...expandedItemKeys.value,
+    [key]: Boolean(expanded),
+  }
+}
+
+async function ensureItemChainLoaded(view = {}, handles = []) {
+  let parentHandle = ''
+  for (const handle of handles) {
+    const normalized = String(handle || '').trim()
+    if (!normalized) continue
+    const existingChildren = extensionsStore.resolvedViewChildrenFor(
+      `${view.extensionId}:${view.id}`,
+      parentHandle,
+    )
+    const exists = existingChildren.some((item) => String(item?.handle || item?.id || '') === normalized)
+    if (!exists) {
+      await extensionsStore.resolveView(view, props.target, {}, parentHandle).catch(() => {})
+    }
+    markExpandedForHandle(view, normalized, true)
+    parentHandle = normalized
+  }
+}
+
+async function applyViewControllerState(view = {}) {
+  const controller = viewControllerState(view)
+  const revealedPathHandles = Array.isArray(controller.revealedPathHandles)
+    ? controller.revealedPathHandles.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : []
+  if (revealedPathHandles.length > 0) {
+    await ensureItemChainLoaded(view, revealedPathHandles)
+    await loadExpandedChildren(view, resolvedItems(view))
+  }
 }
 </script>
 

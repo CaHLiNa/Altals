@@ -14,6 +14,10 @@
       <button
         type="button"
         class="extension-tree-node__primary"
+        :class="{
+          'extension-tree-node__primary--selected': isSelected,
+          'extension-tree-node__primary--focused': isFocused,
+        }"
         :title="item.tooltip || item.description || ''"
         @click="$emit('run-command', item)"
       >
@@ -80,13 +84,17 @@ const isExpandable = computed(() => {
   return state && state !== 'none'
 })
 const expanded = computed(() => {
-  if (props.expandedItemKeys?.value?.[itemKey.value] != null) {
-    return Boolean(props.expandedItemKeys.value[itemKey.value])
+  if (props.expandedItemKeys?.[itemKey.value] != null) {
+    return Boolean(props.expandedItemKeys[itemKey.value])
   }
   return String(props.item?.collapsibleState || '') === 'expanded'
 })
 const childItems = computed(() => props.childItemsResolver(props.item))
 const itemActions = computed(() => extensionsStore.viewItemActionsForItem(props.view, props.item, props.context))
+const controllerState = computed(() => extensionsStore.viewControllerStateFor(`${props.view.extensionId}:${props.view.id}`) || {})
+const currentHandle = computed(() => String(props.item?.handle || props.item?.id || ''))
+const isSelected = computed(() => currentHandle.value && currentHandle.value === String(controllerState.value.selectedHandle || ''))
+const isFocused = computed(() => currentHandle.value && currentHandle.value === String(controllerState.value.focusedHandle || ''))
 </script>
 
 <style scoped>
@@ -146,6 +154,15 @@ const itemActions = computed(() => extensionsStore.viewItemActionsForItem(props.
 .extension-tree-node__chevron:hover:not(.extension-tree-node__chevron--empty),
 .extension-tree-node__action:hover {
   background: var(--surface-hover);
+}
+
+.extension-tree-node__primary--selected {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-base));
+}
+
+.extension-tree-node__primary--focused {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .extension-tree-node__label {

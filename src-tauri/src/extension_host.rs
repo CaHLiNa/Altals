@@ -24,6 +24,8 @@ pub const EXTENSION_VIEW_CHANGED_EVENT: &str = "extension-view-changed";
 #[cfg(not(test))]
 pub const EXTENSION_VIEW_STATE_CHANGED_EVENT: &str = "extension-view-state-changed";
 #[cfg(not(test))]
+pub const EXTENSION_VIEW_REVEAL_REQUESTED_EVENT: &str = "extension-view-reveal-requested";
+#[cfg(not(test))]
 pub const EXTENSION_WINDOW_MESSAGE_EVENT: &str = "extension-window-message";
 #[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
@@ -231,6 +233,24 @@ pub struct ExtensionHostViewStateChangedEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewRevealRequestedEvent {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    pub view_id: String,
+    pub item_handle: String,
+    #[serde(default)]
+    pub parent_handles: Vec<String>,
+    #[serde(default)]
+    pub focus: bool,
+    #[serde(default)]
+    pub select: bool,
+    #[serde(default)]
+    pub expand: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionHostWindowMessageEvent {
     pub extension_id: String,
     #[serde(default)]
@@ -248,6 +268,7 @@ pub enum ExtensionHostResponse {
     ResolveView(ExtensionHostViewResolveResult),
     ViewChanged(ExtensionHostViewChangedEvent),
     ViewStateChanged(ExtensionHostViewStateChangedEvent),
+    ViewRevealRequested(ExtensionHostViewRevealRequestedEvent),
     WindowMessage(ExtensionHostWindowMessageEvent),
     Error { message: String },
 }
@@ -467,6 +488,22 @@ fn emit_extension_host_view_state_changed(
 }
 
 #[cfg(not(test))]
+fn emit_extension_host_view_reveal_requested(
+    state: &ExtensionHostState,
+    event: &ExtensionHostViewRevealRequestedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit(EXTENSION_VIEW_REVEAL_REQUESTED_EVENT, event.clone())
+            .map_err(|error| format!("Failed to emit extension view reveal request event: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
 fn emit_extension_host_window_message(
     state: &ExtensionHostState,
     event: &ExtensionHostWindowMessageEvent,
@@ -540,6 +577,10 @@ pub fn invoke_extension_host(
                 }
                 ExtensionHostResponse::ViewStateChanged(event) => {
                     emit_extension_host_view_state_changed(state, event)?;
+                    continue;
+                }
+                ExtensionHostResponse::ViewRevealRequested(event) => {
+                    emit_extension_host_view_reveal_requested(state, event)?;
                     continue;
                 }
                 ExtensionHostResponse::WindowMessage(event) => {
