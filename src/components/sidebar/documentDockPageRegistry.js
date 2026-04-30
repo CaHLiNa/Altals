@@ -18,6 +18,7 @@ import {
   IconFileTypePdf,
   IconMath,
   IconNotebook,
+  IconPlug,
   IconPhoto,
   IconSparkles,
   IconTable,
@@ -27,6 +28,7 @@ import {
   DOCUMENT_DOCK_FILE_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
+  DOCUMENT_DOCK_PLUGINS_PAGE,
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
@@ -39,6 +41,7 @@ const DocumentPreviewDock = defineAsyncComponent(() => import('./DocumentPreview
 const DocumentDockFileSurface = defineAsyncComponent(() => import('./DocumentDockFileSurface.vue'))
 const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
 const DocumentReferencesPanel = defineAsyncComponent(() => import('./DocumentReferencesPanel.vue'))
+const DocumentPluginsPanel = defineAsyncComponent(() => import('./DocumentPluginsPanel.vue'))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -161,6 +164,29 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
         componentProps: {
           filePath: context.filePath,
           paneId: context.paneId,
+        },
+      }
+    },
+  },
+  {
+    id: DOCUMENT_DOCK_PLUGINS_PAGE,
+    resolve(context = {}) {
+      if (context.hasPluginViews !== true) return null
+
+      const label = context.t?.('Plugins') || 'Plugins'
+      return {
+        key: DOCUMENT_DOCK_PLUGINS_PAGE,
+        type: DOCUMENT_DOCK_PLUGINS_PAGE,
+        icon: IconPlug,
+        title: label,
+        ariaLabel: label,
+        tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
+        labelClass: 'document-dock__preview-label',
+        iconClass: 'document-dock__preview-icon',
+        closeable: false,
+        component: DocumentPluginsPanel,
+        componentProps: {
+          filePath: context.filePath,
         },
       }
     },

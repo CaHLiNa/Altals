@@ -28,6 +28,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
+  DOCUMENT_DOCK_PLUGINS_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
   DOCUMENT_DOCK_REFERENCES_PAGE,
@@ -40,10 +41,12 @@ import {
 } from '../../domains/workbench/inlineDockPageRegistry.js'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
+import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
 import { basenamePath } from '../../utils/path'
+import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import { documentDockPageRegistry } from './documentDockPageRegistry.js'
 
@@ -60,6 +63,7 @@ const emit = defineEmits(['close'])
 
 const workflowStore = useDocumentWorkflowStore()
 const editorStore = useEditorStore()
+const extensionsStore = useExtensionsStore()
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
 const dismissedProblemsRevealToken = ref(0)
@@ -81,6 +85,27 @@ const hasProblemsPage = computed(
 )
 const previewMode = computed(() => props.previewState?.previewMode || null)
 const documentLabel = computed(() => basenamePath(props.filePath) || props.filePath)
+const pluginTarget = computed(() => ({
+  kind: String(props.filePath || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
+  referenceId: '',
+  path: String(props.filePath || ''),
+}))
+const pluginContext = computed(() =>
+  buildExtensionContext(pluginTarget.value, {
+    workbench: {
+      surface: 'workspace',
+      panel: 'documentDock',
+      activeView: 'documentDock.plugins',
+      hasWorkspace: workspace.isOpen,
+      workspaceFolder: workspace.path || '',
+    },
+  })
+)
+const hasPluginViews = computed(() =>
+  extensionsStore.sidebarViewContainers.some(
+    (container) => extensionsStore.viewsForContainer(container.id, pluginContext.value).length > 0
+  )
+)
 const dockPages = computed(() =>
   documentDockPageRegistry.resolvePages({
     allowedPageIds: workspace.documentDockPageIds,
@@ -91,6 +116,7 @@ const dockPages = computed(() =>
     hasPreview: hasPreview.value,
     pageDefinitions: workspace.documentDockPageDefinitions,
     paneId: props.paneId,
+    hasPluginViews: hasPluginViews.value,
     problemCount: hasProblemsPage.value ? problemCount.value : 0,
     previewMode: previewMode.value,
     previewState: props.previewState,
@@ -100,8 +126,8 @@ const dockPages = computed(() =>
 const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
   return resolveInlineDockActivePageKey(dockPages.value, workspace.documentDockActivePage, {
-    defaultType: workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
-    fallbackTypes: [DOCUMENT_DOCK_REFERENCES_PAGE, DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
+    defaultType: hasPluginViews.value ? DOCUMENT_DOCK_PLUGINS_PAGE : (workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE),
+    fallbackTypes: [DOCUMENT_DOCK_REFERENCES_PAGE, DOCUMENT_DOCK_PLUGINS_PAGE, DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
     preferredKeysByType: documentDockPreferredKeysByType(),
   })
 })
@@ -182,6 +208,11 @@ function activateDockPage(page = {}) {
 
   if (page.type === DOCUMENT_DOCK_REFERENCES_PAGE) {
     void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_REFERENCES_PAGE)
+    return
+  }
+
+  if (page.type === DOCUMENT_DOCK_PLUGINS_PAGE) {
+    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PLUGINS_PAGE)
   }
 }
 
