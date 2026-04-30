@@ -8,6 +8,30 @@ function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
 }
 
+function findRegisteredCommand(commandId = "") {
+  const normalized = String(commandId || "").trim();
+  if (!normalized) return null;
+  for (const extension of extensions.values()) {
+    const handler = extension.commands.get(normalized);
+    if (handler) return handler;
+  }
+  return null;
+}
+
+function emitWindowMessage(registry, severity = "info", message = "") {
+  const normalizedMessage = String(message || "").trim();
+  if (!normalizedMessage) return;
+  writeMessage({
+    kind: "WindowMessage",
+    payload: {
+      extensionId: registry.id,
+      workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+      severity: String(severity || "info"),
+      message: normalizedMessage,
+    },
+  });
+}
+
 function createExtensionApi(registry) {
   return {
     commands: {
@@ -21,6 +45,17 @@ function createExtensionApi(registry) {
             registry.commands.delete(id);
           },
         };
+      },
+      async executeCommand(command, ...args) {
+        const id = String(command || "").trim();
+        if (!id) {
+          throw new Error("Command id is required");
+        }
+        const handler = findRegisteredCommand(id);
+        if (!handler) {
+          throw new Error(`Command not registered: ${id}`);
+        }
+        return await handler(...args);
       },
     },
     capabilities: {
@@ -124,6 +159,20 @@ function createExtensionApi(registry) {
         registry.workspaceState.set(String(key || "").trim(), value);
       },
     },
+    window: {
+      async showInformationMessage(message) {
+        emitWindowMessage(registry, "info", message);
+        return undefined;
+      },
+      async showWarningMessage(message) {
+        emitWindowMessage(registry, "warning", message);
+        return undefined;
+      },
+      async showErrorMessage(message) {
+        emitWindowMessage(registry, "error", message);
+        return undefined;
+      },
+    },
   };
 }
 
@@ -141,6 +190,7 @@ function createActivationContext(api, payload = {}) {
     capabilities: api.capabilities,
     views: api.views,
     workspaceState: api.workspaceState,
+    window: api.window,
   };
 }
 

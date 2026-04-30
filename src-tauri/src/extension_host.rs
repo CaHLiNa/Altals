@@ -24,6 +24,8 @@ pub const EXTENSION_VIEW_CHANGED_EVENT: &str = "extension-view-changed";
 #[cfg(not(test))]
 pub const EXTENSION_VIEW_STATE_CHANGED_EVENT: &str = "extension-view-state-changed";
 #[cfg(not(test))]
+pub const EXTENSION_WINDOW_MESSAGE_EVENT: &str = "extension-window-message";
+#[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
     "src-tauri/resources/extension-host/extension-host.mjs";
 
@@ -228,6 +230,16 @@ pub struct ExtensionHostViewStateChangedEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostWindowMessageEvent {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    pub severity: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
@@ -236,6 +248,7 @@ pub enum ExtensionHostResponse {
     ResolveView(ExtensionHostViewResolveResult),
     ViewChanged(ExtensionHostViewChangedEvent),
     ViewStateChanged(ExtensionHostViewStateChangedEvent),
+    WindowMessage(ExtensionHostWindowMessageEvent),
     Error { message: String },
 }
 
@@ -453,6 +466,22 @@ fn emit_extension_host_view_state_changed(
     Ok(())
 }
 
+#[cfg(not(test))]
+fn emit_extension_host_window_message(
+    state: &ExtensionHostState,
+    event: &ExtensionHostWindowMessageEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit(EXTENSION_WINDOW_MESSAGE_EVENT, event.clone())
+            .map_err(|error| format!("Failed to emit extension window message event: {error}"))?;
+    }
+    Ok(())
+}
+
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
     request: ExtensionHostRequest,
@@ -511,6 +540,10 @@ pub fn invoke_extension_host(
                 }
                 ExtensionHostResponse::ViewStateChanged(event) => {
                     emit_extension_host_view_state_changed(state, event)?;
+                    continue;
+                }
+                ExtensionHostResponse::WindowMessage(event) => {
+                    emit_extension_host_window_message(state, event)?;
                     continue;
                 }
                 ExtensionHostResponse::Error { message } => return Err(message.clone()),

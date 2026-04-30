@@ -186,6 +186,8 @@ Current behavior:
 - tree providers now follow a VS Code-like contract built around `getChildren(element)` and `getTreeItem(element)`
 - view items can carry `handle`, `commandId`, `commandArguments`, `description`, `tooltip`, `contextValue`, `icon`, and `collapsibleState`
 - tree views can now push host-owned view state such as `title`, `description`, `message`, and badge metadata through `context.views.updateView(viewId, patch)`
+- extensions can now call `commands.executeCommand(...)` against commands already registered in the host process
+- extensions can now call `window.showInformationMessage(...)`, `window.showWarningMessage(...)`, and `window.showErrorMessage(...)`, which currently surface as app toasts
 - `contributes.menus["view/title"]` can add title-bar actions for the active extension view
 - `contributes.menus["view/item/context"]` can add item-level actions for resolved tree items
 - sidebar view data now refreshes automatically through a host-driven `extension-view-changed` event bridge, scoped to the specific views the extension host marks as changed, in addition to explicit refresh actions

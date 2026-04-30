@@ -9,10 +9,20 @@ export async function activate(context) {
   })
 
   context.commands.registerCommand("scribeflow.pdf.translate", async (payload) => {
-    return await context.capabilities.invoke("pdf.translate", {
+    const result = await context.capabilities.invoke("pdf.translate", {
       ...payload,
       capability: "pdf.translate",
     })
+    await context.window.showInformationMessage(`PDF translation queued for ${String(payload?.targetPath || "current target")}`)
+    return result
+  })
+
+  context.commands.registerCommand("examplePdfExtension.announceRefresh", async () => {
+    await context.window.showInformationMessage("Translate view refreshed")
+    return {
+      message: "example-pdf-extension announced refresh",
+      progressLabel: "Refresh notification sent",
+    }
   })
 
   context.views.registerTreeDataProvider("examplePdfExtension.translateView", {
@@ -87,6 +97,7 @@ export async function activate(context) {
   })
 
   context.commands.registerCommand("examplePdfExtension.refreshTranslateView", async () => {
+    await context.commands.executeCommand("examplePdfExtension.announceRefresh")
     context.views.refresh("examplePdfExtension.translateView")
     return {
       message: "example-pdf-extension refreshed sidebar view",

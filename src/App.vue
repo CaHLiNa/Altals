@@ -142,6 +142,7 @@ import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
 import { useExtensionsStore } from './stores/extensions'
 import { useToastStore } from './stores/toast'
+import { listenExtensionWindowMessage } from './services/extensions/extensionHostEvents'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -195,6 +196,7 @@ void applyAppWindowConstraints()
 
 const isZenMode = ref(false)
 const commandPaletteVisible = ref(false)
+let stopExtensionWindowMessageListener = null
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -403,6 +405,21 @@ onMounted(() => {
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
   window.addEventListener('keydown', handleGlobalKeydown, true)
   void extensionsStore.startHostEventBridge().catch(() => {})
+  void listenExtensionWindowMessage((event) => {
+    const payload = event?.payload || {}
+    const severity = String(payload.severity || 'info')
+    const type = severity === 'error'
+      ? 'error'
+      : severity === 'warning'
+        ? 'warning'
+        : 'info'
+    toastStore.show(String(payload.message || ''), {
+      type,
+      duration: 3600,
+    })
+  }).then((unlisten) => {
+    stopExtensionWindowMessageListener = unlisten
+  }).catch(() => {})
   void extensionsStore.refreshRegistry().catch(() => {})
 })
 
@@ -411,6 +428,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleMouseMoveBreakZen)
   window.removeEventListener('keydown', handleGlobalKeydown, true)
   extensionsStore.stopHostEventBridge()
+  stopExtensionWindowMessageListener?.()
+  stopExtensionWindowMessageListener = null
 })
 
 const {

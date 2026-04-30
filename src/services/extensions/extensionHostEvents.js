@@ -7,3 +7,7 @@ export function listenExtensionViewChanged(handler) {
 export function listenExtensionViewStateChanged(handler) {
   return listen('extension-view-state-changed', handler)
 }
+
+export function listenExtensionWindowMessage(handler) {
+  return listen('extension-window-message', handler)
+}
