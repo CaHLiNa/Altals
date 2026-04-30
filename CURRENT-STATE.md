@@ -21,6 +21,7 @@ Current desktop paths:
 - discover local plugin packages, enable or disable them, configure host-managed plugin settings and run plugin commands through the host
 - render plugin surfaces in the document right sidebar, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - expose initial thick runtime APIs for plugins through `context.workspace`, `context.documents` and `context.invocation`
+- prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
 
 ## Architecture
 

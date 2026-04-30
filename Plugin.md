@@ -44,6 +44,7 @@ Plugins can already use:
 
 - `commands.registerCommand(...)`
 - `commands.executeCommand(...)`
+- `menus.registerAction(...)`
 - `views.registerTreeDataProvider(...)`
 - `views.createTreeView(viewId)`
 - `views.reveal(...)`
@@ -65,6 +66,13 @@ Tree view support already includes:
 - host-resolved root and child items
 - reveal / expand / select
 - selection change events
+
+Runtime action registration already covers:
+
+- `commandPalette`
+- `pdf.preview.actions`
+- `view/title`
+- `view/item/context`
 
 ## 4. Current Manifest Use
 

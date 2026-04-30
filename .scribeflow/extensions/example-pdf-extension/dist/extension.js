@@ -3,6 +3,31 @@ export async function activate(context) {
   const launchCount = Number(context.globalState.get("launchCount") || 0) + 1
   context.globalState.update("launchCount", launchCount)
 
+  context.menus.registerAction("scribeflow.pdf.translate", {
+    surface: "commandPalette",
+    title: "Translate",
+    category: "PDF",
+    when: "resourceExtname == .pdf || resource.kind == pdf",
+  })
+  context.menus.registerAction("scribeflow.pdf.translate", {
+    surface: "pdf.preview.actions",
+    title: "Translate",
+    category: "PDF",
+    when: "resource.kind == pdf",
+  })
+  context.menus.registerAction("examplePdfExtension.refreshTranslateView", {
+    surface: "view/title",
+    title: "Refresh Translate View",
+    category: "PDF",
+    when: "activeView == extension:examplePdfExtension.tools",
+  })
+  context.menus.registerAction("examplePdfExtension.refreshTranslateView", {
+    surface: "view/item/context",
+    title: "Refresh Translate View",
+    category: "PDF",
+    when: "viewItem.contextValue == translation-group",
+  })
+
   function currentDocumentTarget() {
     return context.documents?.target || { kind: "", path: "" }
   }

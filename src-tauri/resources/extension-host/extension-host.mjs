@@ -148,6 +148,20 @@ function normalizeViewMetadata(viewId = "", metadata = {}) {
   };
 }
 
+function normalizeMenuActionMetadata(command = "", metadata = {}) {
+  const commandId = String(command || "").trim();
+  const surface = String(metadata?.surface || "").trim();
+  if (!commandId || !surface) return null;
+  return {
+    commandId,
+    surface,
+    title: String(metadata?.title || commandId).trim(),
+    category: String(metadata?.category || "").trim(),
+    when: String(metadata?.when || "").trim(),
+    group: String(metadata?.group || "").trim(),
+  };
+}
+
 function buildResourceContext(envelope = {}) {
   const targetPath = String(envelope?.targetPath || "").trim();
   const targetKind = String(envelope?.targetKind || "").trim();
@@ -242,6 +256,24 @@ function createExtensionApi(registry) {
           throw new Error(`Command not registered: ${id}`);
         }
         return await handler(...args);
+      },
+    },
+    menus: {
+      registerAction(command, metadata = {}) {
+        const commandId = String(command || "").trim();
+        const normalizedMetadata = normalizeMenuActionMetadata(commandId, metadata);
+        if (normalizedMetadata) {
+          registry.menuActionMetadata.set(
+            `${normalizedMetadata.surface}:${commandId}`,
+            normalizedMetadata,
+          );
+        }
+        return {
+          dispose() {
+            if (!normalizedMetadata) return;
+            registry.menuActionMetadata.delete(`${normalizedMetadata.surface}:${commandId}`);
+          },
+        };
       },
     },
     capabilities: {
@@ -492,6 +524,7 @@ function createActivationContext(api, payload = {}) {
       extensionPath: String(payload.extensionPath || ""),
     },
     commands: api.commands,
+    menus: api.menus,
     capabilities: api.capabilities,
     views: api.views,
     settings: api.settings,
@@ -536,6 +569,7 @@ async function ensureActivated(request) {
     resolvedMain,
     commands: new Map(),
     commandMetadata: new Map(),
+    menuActionMetadata: new Map(),
     capabilities: new Map(),
     viewProviders: new Map(),
     treeViews: new Map(),
@@ -604,6 +638,7 @@ async function handleActivate(params = {}) {
       registeredCommands: [...record.commands.keys()],
       registeredCapabilities: [...record.capabilities.keys()],
       registeredCommandDetails: [...record.commandMetadata.values()],
+      registeredMenuActions: [...record.menuActionMetadata.values()],
       registeredViews: [
         ...new Set([
           ...record.viewProviders.keys(),

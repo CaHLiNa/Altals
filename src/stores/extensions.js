@@ -146,6 +146,16 @@ function normalizeRuntimeEntry(entry = {}) {
         when: String(item?.when || '').trim(),
       })).filter((item) => item.commandId)
       : [],
+    registeredMenuActions: Array.isArray(entry?.registeredMenuActions)
+      ? entry.registeredMenuActions.map((item) => ({
+        commandId: String(item?.commandId || '').trim(),
+        surface: String(item?.surface || '').trim(),
+        title: String(item?.title || '').trim(),
+        category: String(item?.category || '').trim(),
+        when: String(item?.when || '').trim(),
+        group: String(item?.group || '').trim(),
+      })).filter((item) => item.commandId && item.surface)
+      : [],
     registeredViewDetails: Array.isArray(entry?.registeredViewDetails)
       ? entry.registeredViewDetails.map((item) => ({
         id: String(item?.id || '').trim(),
@@ -188,18 +198,21 @@ export const useExtensionsStore = defineStore('extensions', {
       const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) =>
-          (extension.contributedMenus || [])
-            .filter((action) =>
-              action.surface === normalizedSurface &&
-              matchesWhenClause(action.when, context)
-            )
+        .flatMap((extension) => {
+          const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
+          const runtimeActions = runtimeEntry.registeredMenuActions
+            .filter((action) => action.surface === normalizedSurface)
+          const sourceActions = runtimeActions.length > 0
+            ? runtimeActions
+            : (extension.contributedMenus || []).filter((action) => action.surface === normalizedSurface)
+          return sourceActions
+            .filter((action) => matchesWhenClause(action.when, context))
             .map((action) => ({
               ...action,
               extensionId: extension.id,
               extensionName: extension.name,
             }))
-        )
+        })
     },
     keybindingsForContext: (state) => (context = {}) => {
       const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
@@ -223,7 +236,9 @@ export const useExtensionsStore = defineStore('extensions', {
           const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
           const runtimeCommandDetails = runtimeEntry.registeredCommandDetails
           const runtimeCommands = new Set(runtimeEntry.registeredCommands)
-          const paletteMenus = (extension.contributedMenus || [])
+          const paletteMenus = runtimeEntry.registeredMenuActions
+            .filter((menu) => menu.surface === 'commandPalette')
+          const fallbackPaletteMenus = (extension.contributedMenus || [])
             .filter((menu) => menu.surface === 'commandPalette')
           const sourceCommands = runtimeCommandDetails.length > 0
             ? runtimeCommandDetails.map((command) => ({
@@ -242,7 +257,7 @@ export const useExtensionsStore = defineStore('extensions', {
               if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
                 return false
               }
-              const commandMenus = paletteMenus
+              const commandMenus = (paletteMenus.length > 0 ? paletteMenus : fallbackPaletteMenus)
                 .filter((menu) => menu.commandId === command.commandId)
               if (commandMenus.length === 0) return true
               return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
@@ -303,15 +318,18 @@ export const useExtensionsStore = defineStore('extensions', {
       const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
-        .flatMap((extension) =>
-          (extension.contributedViewTitleMenus || [])
+        .flatMap((extension) => {
+          const runtimeActions = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredMenuActions
+            .filter((action) => action.surface === 'view/title')
+          const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewTitleMenus || [])
+          return sourceActions
             .filter((action) => matchesWhenClause(action.when, context))
             .map((action) => ({
               ...action,
               extensionId: extension.id,
               extensionName: extension.name,
             }))
-        )
+        })
     },
     viewItemActionsForItem: (state) => (view = {}, item = {}, context = {}) => {
       const extensionId = normalizeExtensionId(view.extensionId)
@@ -328,15 +346,18 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       return state.registry
         .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
-        .flatMap((extension) =>
-          (extension.contributedViewItemMenus || [])
+        .flatMap((extension) => {
+          const runtimeActions = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredMenuActions
+            .filter((action) => action.surface === 'view/item/context')
+          const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewItemMenus || [])
+          return sourceActions
             .filter((action) => matchesWhenClause(action.when, mergedContext))
             .map((action) => ({
               ...action,
               extensionId: extension.id,
               extensionName: extension.name,
             }))
-        )
+        })
     },
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
     viewStateFor: (state) => (viewKey = '') => state.viewState[String(viewKey || '').trim()] || null,
