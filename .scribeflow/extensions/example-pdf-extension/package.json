@@ -1,0 +1,67 @@
+{
+  "name": "example-pdf-extension",
+  "displayName": "Example PDF Extension",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Minimal real extension package for ScribeFlow extension host validation.",
+  "engines": {
+    "scribeflow": "^1.1.0"
+  },
+  "main": "./dist/extension.js",
+  "extensionKind": ["workspace"],
+  "activationEvents": [
+    "onCapability:pdf.translate",
+    "onCommand:scribeflow.pdf.translate"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "scribeflow.pdf.translate",
+        "title": "Translate",
+        "category": "PDF"
+      }
+    ],
+    "menus": {
+      "pdf.preview.actions": [
+        {
+          "command": "scribeflow.pdf.translate",
+          "when": "resource.kind == pdf"
+        }
+      ]
+    },
+    "capabilities": [
+      {
+        "id": "pdf.translate",
+        "inputs": {
+          "pdfPath": {
+            "type": "file",
+            "required": true,
+            "extensions": ["pdf"]
+          }
+        },
+        "outputs": {
+          "translatedPdf": {
+            "type": "artifact",
+            "mediaType": "application/pdf"
+          }
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Example PDF Extension",
+      "properties": {
+        "examplePdfExtension.targetLang": {
+          "type": "string",
+          "default": "zh-CN",
+          "description": "Target language for the example provider."
+        }
+      }
+    }
+  },
+  "permissions": {
+    "readWorkspaceFiles": true,
+    "writeArtifacts": true,
+    "spawnProcess": false,
+    "network": "none"
+  }
+}

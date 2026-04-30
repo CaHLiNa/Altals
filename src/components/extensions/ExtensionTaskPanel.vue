@@ -1,42 +1,42 @@
 <template>
-  <div class="plugin-job-panel">
-    <div v-if="jobs.length === 0" class="plugin-job-empty">{{ t('No plugin jobs yet') }}</div>
-    <div v-for="job in jobs" :key="job.id" class="plugin-job-row">
-      <div class="plugin-job-main">
-        <div class="plugin-job-title">
-          <span>{{ job.capability }}</span>
-          <span class="plugin-job-state" :class="`is-${job.state}`">{{ job.state }}</span>
+  <div class="extension-task-panel">
+    <div v-if="tasks.length === 0" class="extension-task-empty">{{ t('No extension tasks yet') }}</div>
+    <div v-for="task in tasks" :key="task.id" class="extension-task-row">
+      <div class="extension-task-main">
+        <div class="extension-task-title">
+          <span>{{ task.capability }}</span>
+          <span class="extension-task-state" :class="`is-${task.state}`">{{ task.state }}</span>
         </div>
-        <div class="plugin-job-meta">
-          {{ job.pluginId || t('Unknown plugin') }}
-          <span v-if="job.error"> · {{ job.error }}</span>
+        <div class="extension-task-meta">
+          {{ task.extensionId || t('Unknown extension') }}
+          <span v-if="task.error"> · {{ task.error }}</span>
         </div>
-        <div v-if="job.artifacts?.length" class="plugin-artifacts">
+        <div v-if="task.artifacts?.length" class="extension-artifacts">
           <button
-            v-for="artifact in job.artifacts"
+            v-for="artifact in task.artifacts"
             :key="artifact.id || artifact.path"
             type="button"
-            class="plugin-artifact-link"
+            class="extension-artifact-link"
             @click="openArtifact(artifact)"
           >
             {{ artifact.kind || t('Artifact') }}
           </button>
         </div>
       </div>
-      <div class="plugin-job-actions">
+      <div class="extension-task-actions">
         <UiButton
-          v-if="job.state === 'running' || job.state === 'queued'"
+          v-if="task.state === 'running' || task.state === 'queued'"
           variant="secondary"
           size="sm"
-          @click="pluginsStore.cancelJob(job.id)"
+          @click="extensionsStore.cancelTask(task.id)"
         >
           {{ t('Cancel') }}
         </UiButton>
         <UiButton
-          v-if="job.logPath"
+          v-if="task.logPath"
           variant="ghost"
           size="sm"
-          @click="pluginsStore.revealArtifact({ path: job.logPath })"
+          @click="extensionsStore.revealArtifact({ path: task.logPath })"
         >
           {{ t('Log') }}
         </UiButton>
@@ -49,13 +49,13 @@
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
-import { usePluginsStore } from '../../stores/plugins'
+import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
-const pluginsStore = usePluginsStore()
-const jobs = computed(() => pluginsStore.recentJobs)
+const extensionsStore = useExtensionsStore()
+const tasks = computed(() => extensionsStore.recentTasks)
 
 function openArtifact(artifact = {}) {
   const path = String(artifact?.path || '')
@@ -64,24 +64,24 @@ function openArtifact(artifact = {}) {
     editorStore.openFile(path)
     return
   }
-  void pluginsStore.openArtifact(artifact)
+  void extensionsStore.openArtifact(artifact)
 }
 </script>
 
 <style scoped>
-.plugin-job-panel {
+.extension-task-panel {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-.plugin-job-empty {
+.extension-task-empty {
   padding: 14px 16px;
   color: var(--text-muted);
   font-size: 12px;
 }
 
-.plugin-job-row {
+.extension-task-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -90,18 +90,18 @@ function openArtifact(artifact = {}) {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-.plugin-job-row:last-child {
+.extension-task-row:last-child {
   border-bottom: none;
 }
 
-.plugin-job-main {
+.extension-task-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.plugin-job-title {
+.extension-task-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -109,32 +109,32 @@ function openArtifact(artifact = {}) {
   color: var(--text-primary);
 }
 
-.plugin-job-state {
+.extension-task-state {
   font-size: 11px;
   color: var(--text-muted);
 }
 
-.plugin-job-state.is-succeeded {
+.extension-task-state.is-succeeded {
   color: var(--success);
 }
 
-.plugin-job-state.is-failed {
+.extension-task-state.is-failed {
   color: var(--error);
 }
 
-.plugin-job-meta {
+.extension-task-meta {
   font-size: 12px;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 
-.plugin-artifacts {
+.extension-artifacts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.plugin-artifact-link {
+.extension-artifact-link {
   border: none;
   padding: 0;
   background: transparent;
@@ -143,7 +143,7 @@ function openArtifact(artifact = {}) {
   cursor: pointer;
 }
 
-.plugin-job-actions {
+.extension-task-actions {
   display: flex;
   align-items: center;
   gap: 6px;

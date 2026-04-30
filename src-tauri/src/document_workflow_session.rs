@@ -422,9 +422,8 @@ pub async fn document_workflow_session_load(
         return Ok(normalize_document_workflow_persistent_state(current));
     }
 
-    let normalized = normalize_document_workflow_persistent_state(
-        DocumentWorkflowPersistentState::default(),
-    );
+    let normalized =
+        normalize_document_workflow_persistent_state(DocumentWorkflowPersistentState::default());
     write_document_workflow_session_state(&params.workspace_data_dir, &normalized)?;
     Ok(normalized)
 }

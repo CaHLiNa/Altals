@@ -247,9 +247,7 @@ fn normalize_tabs_for_save(tabs: &[Value]) -> Vec<String> {
     tabs.iter()
         .filter_map(Value::as_str)
         .filter(|tab| {
-            !is_virtual_draft_tab(tab)
-                && !is_removed_virtual_tab_path(tab)
-                && !is_preview_path(tab)
+            !is_virtual_draft_tab(tab) && !is_removed_virtual_tab_path(tab) && !is_preview_path(tab)
         })
         .map(|tab| tab.to_string())
         .collect()

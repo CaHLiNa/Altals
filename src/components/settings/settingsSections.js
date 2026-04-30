@@ -33,9 +33,9 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     icon: IconCpu,
   },
   {
-    id: 'plugins',
-    labelKey: 'Plugins',
-    descriptionKey: 'External capabilities, local tools, and plugin jobs.',
+    id: 'extensions',
+    labelKey: 'Extensions',
+    descriptionKey: 'External capabilities, local tools, and extension tasks.',
     icon: IconPuzzle,
   },
   {

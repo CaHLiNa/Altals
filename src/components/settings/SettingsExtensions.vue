@@ -1,110 +1,134 @@
 <template>
-  <div class="settings-page plugins-page">
-    <h3 class="settings-section-title">{{ t('Plugins') }}</h3>
+  <div class="settings-page extensions-page">
+    <div class="extensions-page-header">
+      <h3 class="settings-section-title">{{ t('Extensions') }}</h3>
+      <UiButton
+        variant="secondary"
+        size="sm"
+        :disabled="extensionsStore.loadingRegistry"
+        @click="refreshExtensionRegistry"
+      >
+        {{ t('Refresh Extension Registry') }}
+      </UiButton>
+    </div>
 
     <section class="settings-group">
-      <div class="settings-group-title">{{ t('Installed Plugins') }}</div>
+      <div class="settings-group-title">{{ t('Installed Extensions') }}</div>
       <div class="settings-group-body">
-        <div v-if="pluginsStore.loadingRegistry" class="plugin-empty-row">
-          {{ t('Loading plugins...') }}
+        <div v-if="extensionsStore.loadingRegistry" class="extension-empty-row">
+          {{ t('Loading extensions...') }}
         </div>
-        <div v-else-if="plugins.length === 0" class="plugin-empty-row">
-          {{ t('No plugins found') }}
+        <div v-else-if="extensions.length === 0" class="extension-empty-row">
+          {{ t('No extensions found') }}
         </div>
-        <div v-for="plugin in plugins" v-else :key="plugin.id" class="plugin-card">
-          <div class="plugin-header">
-            <div class="plugin-copy">
-              <div class="plugin-title-line">
-                <span class="plugin-name">{{ t(plugin.name || plugin.id) }}</span>
-                <span class="plugin-status" :class="`is-${displayStatus(plugin)}`">{{ t(displayStatus(plugin)) }}</span>
-                <span class="plugin-scope">{{ t(plugin.scope) }}</span>
+        <div v-for="extension in extensions" v-else :key="extension.id" class="extension-card">
+          <div class="extension-header">
+            <div class="extension-copy">
+              <div class="extension-title-line">
+                <span class="extension-name">{{ t(extension.name || extension.id) }}</span>
+                <span class="extension-status" :class="`is-${displayStatus(extension)}`">{{ t(displayStatus(extension)) }}</span>
+                <span class="extension-scope">{{ t(extension.scope) }}</span>
               </div>
-              <div class="plugin-description">{{ t(plugin.description || plugin.id) }}</div>
-              <div class="plugin-meta-grid">
-                <div class="plugin-meta-item">
-                  <span class="plugin-meta-label">{{ t('Command') }}</span>
-                  <span class="plugin-meta-value">{{ plugin.runtime?.command || t('Not configured') }}</span>
+              <div class="extension-description">{{ t(extension.description || extension.id) }}</div>
+              <div class="extension-meta-grid">
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Manifest') }}</span>
+                  <span class="extension-meta-value">{{ extension.manifestFormat || t('Not configured') }}</span>
                 </div>
-                <div class="plugin-meta-item">
-                  <span class="plugin-meta-label">{{ t('Permissions') }}</span>
-                  <span class="plugin-meta-value">{{ permissionSummary(plugin) }}</span>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Entrypoint') }}</span>
+                  <span class="extension-meta-value">
+                    {{ extension.main || extension.runtime?.command || t('Not configured') }}
+                  </span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Command') }}</span>
+                  <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Permissions') }}</span>
+                  <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
                 </div>
               </div>
-              <div class="plugin-chip-row">
-                <span v-for="capability in plugin.capabilities" :key="capability" class="plugin-chip">
+              <div v-if="extension.activationEvents?.length" class="extension-meta-list">
+                <span class="extension-meta-label">{{ t('Activation Events') }}</span>
+                <span class="extension-meta-value">{{ extension.activationEvents.join(' · ') }}</span>
+              </div>
+              <div class="extension-chip-row">
+                <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
                   {{ capability }}
                 </span>
               </div>
-              <div v-if="plugin.errors.length" class="plugin-message is-error">
-                {{ plugin.errors.map((message) => t(message)).join('; ') }}
+              <div v-if="extension.errors.length" class="extension-message is-error">
+                {{ extension.errors.map((message) => t(message)).join('; ') }}
               </div>
-              <div v-else-if="plugin.warnings.length" class="plugin-message">
-                {{ plugin.warnings.map((message) => t(message)).join('; ') }}
+              <div v-else-if="extension.warnings.length" class="extension-message">
+                {{ extension.warnings.map((message) => t(message)).join('; ') }}
               </div>
             </div>
-            <div class="plugin-controls">
-              <span class="plugin-enable-label">{{ t('Enabled') }}</span>
+            <div class="extension-controls">
+              <span class="extension-enable-label">{{ t('Enabled') }}</span>
               <UiSwitch
-                :model-value="isEnabled(plugin.id)"
-                :disabled="plugin.status === 'invalid' || plugin.status === 'blocked'"
-                :title="t('Enable plugin')"
-                @update:model-value="(value) => pluginsStore.setPluginEnabled(plugin.id, value)"
+                :model-value="isEnabled(extension.id)"
+                :disabled="extension.status === 'invalid' || extension.status === 'blocked'"
+                :title="t('Enable extension')"
+                @update:model-value="(value) => extensionsStore.setExtensionEnabled(extension.id, value)"
               />
             </div>
           </div>
 
-          <div v-if="settingGroups(plugin).length" class="plugin-settings-panel">
+          <div v-if="settingGroups(extension).length" class="extension-settings-panel">
             <section
-              v-for="group in settingGroups(plugin)"
-              :key="`${plugin.id}:${group.id}`"
-              class="plugin-setting-group"
+              v-for="group in settingGroups(extension)"
+              :key="`${extension.id}:${group.id}`"
+              class="extension-setting-group"
             >
-              <div class="plugin-setting-group-heading">
-                <div class="plugin-setting-group-title">{{ t(group.titleKey) }}</div>
-                <div class="plugin-setting-group-hint">{{ t(group.hintKey) }}</div>
+              <div class="extension-setting-group-heading">
+                <div class="extension-setting-group-title">{{ t(group.titleKey) }}</div>
+                <div class="extension-setting-group-hint">{{ t(group.hintKey) }}</div>
               </div>
-              <div class="plugin-setting-list">
+              <div class="extension-setting-list">
                 <div
                   v-for="[key, setting] in group.entries"
-                  :key="`${plugin.id}:${key}`"
-                  class="plugin-setting-row"
+                  :key="`${extension.id}:${key}`"
+                  class="extension-setting-row"
                 >
-                  <div class="plugin-setting-copy">
-                    <div class="plugin-setting-label">{{ t(setting.label || humanizeSettingKey(key)) }}</div>
-                    <div v-if="setting.description" class="plugin-setting-hint">
+                  <div class="extension-setting-copy">
+                    <div class="extension-setting-label">{{ t(setting.label || humanizeSettingKey(key)) }}</div>
+                    <div v-if="setting.description" class="extension-setting-hint">
                       {{ t(setting.description) }}
                     </div>
                   </div>
-                  <div class="plugin-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
+                  <div class="extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
                     <UiSwitch
                       v-if="setting.type === 'boolean'"
-                      :model-value="Boolean(settingValue(plugin, key))"
+                      :model-value="Boolean(settingValue(extension, key))"
                       size="sm"
                       :title="t(setting.label || humanizeSettingKey(key))"
-                      @update:model-value="(value) => updateSetting(plugin.id, key, value)"
+                      @update:model-value="(value) => updateSetting(extension.id, key, value)"
                     />
                     <UiSelect
                       v-else-if="settingOptions(setting).length"
-                      :model-value="settingValue(plugin, key)"
+                      :model-value="settingValue(extension, key)"
                       :options="settingOptions(setting)"
                       :placeholder="t(setting.label || humanizeSettingKey(key))"
-                      @update:model-value="(value) => updateSetting(plugin.id, key, value)"
+                      @update:model-value="(value) => updateSetting(extension.id, key, value)"
                     />
                     <textarea
                       v-else-if="isLongTextSetting(key, setting)"
-                      class="plugin-setting-textarea"
-                      :value="settingValue(plugin, key)"
+                      class="extension-setting-textarea"
+                      :value="settingValue(extension, key)"
                       spellcheck="false"
                       rows="4"
-                      @input="(event) => updateSetting(plugin.id, key, event.target.value)"
+                      @input="(event) => updateSetting(extension.id, key, event.target.value)"
                     ></textarea>
                     <UiInput
                       v-else
-                      :model-value="settingValue(plugin, key)"
+                      :model-value="settingValue(extension, key)"
                       :type="inputTypeForSetting(key, setting)"
                       :monospace="isTechnicalSetting(key)"
                       size="sm"
-                      @update:model-value="(value) => updateSetting(plugin.id, key, coerceSettingValue(setting, value))"
+                      @update:model-value="(value) => updateSetting(extension.id, key, coerceSettingValue(setting, value))"
                     />
                   </div>
                 </div>
@@ -115,31 +139,10 @@
       </div>
     </section>
 
-    <section class="settings-group">
-      <div class="settings-group-title">{{ t('Default Providers') }}</div>
+    <section v-if="extensionsStore.recentTasks.length > 0" class="settings-group">
+      <div class="settings-group-title">{{ t('Recent Extension Tasks') }}</div>
       <div class="settings-group-body">
-        <div v-for="capability in visibleCapabilities" :key="capability" class="settings-row">
-          <div class="settings-row-copy">
-            <div class="settings-row-title">{{ capability }}</div>
-            <div class="settings-row-hint">{{ t('Choose the plugin used by this capability.') }}</div>
-          </div>
-          <div class="settings-row-control">
-            <UiSelect
-              :model-value="pluginsStore.defaultProviderForCapability(capability)?.id || ''"
-              :options="providerOptions(capability)"
-              :disabled="providerOptions(capability).length === 0"
-              :placeholder="t('No provider')"
-              @update:model-value="(value) => pluginsStore.setDefaultProvider(capability, value)"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="settings-group">
-      <div class="settings-group-title">{{ t('Recent Plugin Jobs') }}</div>
-      <div class="settings-group-body">
-        <PluginJobPanel />
+        <ExtensionTaskPanel />
       </div>
     </section>
   </div>
@@ -148,36 +151,26 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useI18n } from '../../i18n'
-import { usePluginsStore } from '../../stores/plugins'
+import { useExtensionsStore } from '../../stores/extensions'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
-import PluginJobPanel from '../plugins/PluginJobPanel.vue'
+import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
 
 const { t } = useI18n()
-const pluginsStore = usePluginsStore()
-const plugins = computed(() => pluginsStore.registry)
-const visibleCapabilities = computed(() => {
-  const capabilities = new Set()
-  for (const plugin of plugins.value) {
-    for (const capability of plugin.capabilities || []) {
-      capabilities.add(capability)
-    }
-  }
-  return [...capabilities].sort()
-})
-
-function isEnabled(pluginId = '') {
-  return pluginsStore.enabledPluginIds.includes(String(pluginId || '').trim().toLowerCase())
+const extensionsStore = useExtensionsStore()
+const extensions = computed(() => extensionsStore.registry)
+function isEnabled(extensionId = '') {
+  return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
 }
 
-function displayStatus(plugin = {}) {
-  if (plugin.status !== 'available') return plugin.status
-  return isEnabled(plugin.id) ? plugin.status : 'disabled'
+function displayStatus(extension = {}) {
+  if (extension.status !== 'available') return extension.status
+  return isEnabled(extension.id) ? extension.status : 'disabled'
 }
 
-function permissionSummary(plugin = {}) {
-  const permissions = plugin.permissions || {}
+function permissionSummary(extension = {}) {
+  const permissions = extension.permissions || {}
   const labels = []
   if (permissions.readWorkspaceFiles) labels.push(t('workspace files'))
   if (permissions.readReferenceLibrary) labels.push(t('reference library'))
@@ -187,13 +180,6 @@ function permissionSummary(plugin = {}) {
   const network = String(permissions.network || 'none')
   labels.push(network === 'none' ? t('no network') : t('{value} network', { value: t(network) }))
   return labels.join(' · ')
-}
-
-function providerOptions(capability = '') {
-  return pluginsStore.providersForCapability(capability).map((plugin) => ({
-    value: plugin.id,
-    label: t(plugin.name || plugin.id),
-  }))
 }
 
 const settingGroupDefinitions = [
@@ -207,13 +193,13 @@ const settingGroupDefinitions = [
   {
     id: 'model',
     titleKey: 'Model Access',
-    hintKey: 'Provider endpoint, credentials, and model selection.',
+    hintKey: 'Extension endpoint, credentials, and model selection.',
     keys: ['apiKey', 'apiUrl', 'model'],
     match: (key) => {
       const normalized = key.toLowerCase()
       return normalized.includes('api') ||
         normalized.includes('model') ||
-        normalized.includes('provider') ||
+        normalized.includes('extension') ||
         normalized.includes('token') ||
         normalized.includes('secret')
     },
@@ -250,8 +236,8 @@ const settingGroupDefinitions = [
   },
 ]
 
-function settingEntries(plugin = {}) {
-  return Object.entries(plugin.settingsSchema || {})
+function settingEntries(extension = {}) {
+  return Object.entries(extension.settingsSchema || {})
 }
 
 function sortSettingEntries(entries = [], orderedKeys = []) {
@@ -264,8 +250,8 @@ function sortSettingEntries(entries = [], orderedKeys = []) {
   })
 }
 
-function settingGroups(plugin = {}) {
-  const remaining = new Map(settingEntries(plugin))
+function settingGroups(extension = {}) {
+  const remaining = new Map(settingEntries(extension))
   const groups = []
   for (const definition of settingGroupDefinitions) {
     const entries = []
@@ -286,15 +272,15 @@ function settingGroups(plugin = {}) {
     groups.push({
       id: 'advanced',
       titleKey: 'Advanced',
-      hintKey: 'Less common plugin-specific options.',
+      hintKey: 'Less common extension-specific options.',
       entries: sortSettingEntries([...remaining.entries()]),
     })
   }
   return groups
 }
 
-function settingValue(plugin = {}, key = '') {
-  return pluginsStore.configForPlugin(plugin)?.[key]
+function settingValue(extension = {}, key = '') {
+  return extensionsStore.configForExtension(extension)?.[key]
 }
 
 function settingOptions(setting = {}) {
@@ -352,39 +338,50 @@ function humanizeSettingKey(key = '') {
     .replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
-function updateSetting(pluginId = '', key = '', value = '') {
-  void pluginsStore.setPluginConfigValue(pluginId, key, value)
+function updateSetting(extensionId = '', key = '', value = '') {
+  void extensionsStore.setExtensionConfigValue(extensionId, key, value)
+}
+
+async function refreshExtensionRegistry() {
+  await extensionsStore.refreshRegistry().catch(() => {})
+  await extensionsStore.refreshTasks().catch(() => {})
 }
 
 onMounted(async () => {
-  await pluginsStore.refreshRegistry().catch(() => {})
-  await pluginsStore.refreshJobs().catch(() => {})
+  await refreshExtensionRegistry()
 })
 </script>
 
 <style scoped>
-.plugins-page {
+.extensions-page {
   gap: 32px;
 }
 
-.plugin-empty-row {
+.extensions-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.extension-empty-row {
   padding: 16px;
   color: var(--text-muted);
   font-size: 12px;
 }
 
-.plugin-card {
+.extension-card {
   display: flex;
   flex-direction: column;
   gap: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-.plugin-card:last-child {
+.extension-card:last-child {
   border-bottom: none;
 }
 
-.plugin-header {
+.extension-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -392,7 +389,7 @@ onMounted(async () => {
   padding: 16px 18px;
 }
 
-.plugin-copy {
+.extension-copy {
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
@@ -400,22 +397,22 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.plugin-title-line {
+.extension-title-line {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.plugin-name {
+.extension-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.plugin-status,
-.plugin-scope,
-.plugin-chip {
+.extension-status,
+.extension-scope,
+.extension-chip {
   display: inline-flex;
   align-items: center;
   min-height: 20px;
@@ -427,48 +424,48 @@ onMounted(async () => {
   line-height: 1;
 }
 
-.plugin-status.is-available {
+.extension-status.is-available {
   color: var(--success);
 }
 
-.plugin-status.is-invalid,
-.plugin-status.is-blocked {
+.extension-status.is-invalid,
+.extension-status.is-blocked {
   color: var(--error);
 }
 
-.plugin-status.is-missingRuntime {
+.extension-status.is-missingRuntime {
   color: var(--warning, #a56a00);
 }
 
-.plugin-status.is-disabled {
+.extension-status.is-disabled {
   color: var(--text-muted);
 }
 
-.plugin-description,
-.plugin-message {
+.extension-description,
+.extension-message {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
-.plugin-message.is-error {
+.extension-message.is-error {
   color: var(--error);
 }
 
-.plugin-chip-row {
+.extension-chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.plugin-meta-grid {
+.extension-meta-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 2px;
 }
 
-.plugin-meta-item {
+.extension-meta-item {
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 8px;
@@ -476,17 +473,17 @@ onMounted(async () => {
   line-height: 1.35;
 }
 
-.plugin-meta-label {
+.extension-meta-label {
   color: var(--text-muted);
 }
 
-.plugin-meta-value {
+.extension-meta-value {
   min-width: 0;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 
-.plugin-controls {
+.extension-controls {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -494,30 +491,30 @@ onMounted(async () => {
   padding-top: 2px;
 }
 
-.plugin-enable-label {
+.extension-enable-label {
   font-size: 11px;
   color: var(--text-muted);
 }
 
-.plugin-settings-panel {
+.extension-settings-panel {
   display: flex;
   flex-direction: column;
   border-top: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
   background: transparent;
 }
 
-.plugin-setting-group {
+.extension-setting-group {
   display: flex;
   flex-direction: column;
   padding: 8px 0 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
 }
 
-.plugin-setting-group:last-child {
+.extension-setting-group:last-child {
   border-bottom: none;
 }
 
-.plugin-setting-group-heading {
+.extension-setting-group-heading {
   min-width: 0;
   display: flex;
   align-items: baseline;
@@ -525,7 +522,7 @@ onMounted(async () => {
   padding: 6px 18px 8px;
 }
 
-.plugin-setting-group-title {
+.extension-setting-group-title {
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 600;
@@ -534,7 +531,7 @@ onMounted(async () => {
   letter-spacing: 0.03em;
 }
 
-.plugin-setting-group-hint {
+.extension-setting-group-hint {
   margin-top: 0;
   font-size: 11px;
   line-height: 1.45;
@@ -544,14 +541,14 @@ onMounted(async () => {
   text-overflow: ellipsis;
 }
 
-.plugin-setting-list {
+.extension-setting-list {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-.plugin-setting-row {
+.extension-setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -562,28 +559,28 @@ onMounted(async () => {
   transition: background-color 0.15s ease;
 }
 
-.plugin-setting-row:hover {
+.extension-setting-row:hover {
   background: color-mix(in srgb, var(--sidebar-item-hover) 18%, transparent);
 }
 
-.plugin-setting-copy {
+.extension-setting-copy {
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.plugin-setting-label {
+.extension-setting-label {
   font-size: 12px;
   color: var(--text-primary);
 }
 
-.plugin-setting-hint {
+.extension-setting-hint {
   margin-top: 2px;
   font-size: 11px;
   line-height: 1.35;
   color: var(--text-muted);
 }
 
-.plugin-setting-control {
+.extension-setting-control {
   flex: 0 0 auto;
   width: min(100%, var(--settings-select-width, 280px));
   min-width: 0;
@@ -592,12 +589,12 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
-.plugin-setting-control.is-wide {
+.extension-setting-control.is-wide {
   width: min(100%, 360px);
   justify-content: stretch;
 }
 
-.plugin-setting-textarea {
+.extension-setting-textarea {
   width: 100%;
   min-height: 86px;
   resize: vertical;
@@ -611,7 +608,7 @@ onMounted(async () => {
   outline: none;
 }
 
-.plugin-setting-textarea:focus {
+.extension-setting-textarea:focus {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent),
@@ -619,28 +616,28 @@ onMounted(async () => {
 }
 
 @media (max-width: 720px) {
-  .plugin-header {
+  .extension-header {
     flex-direction: column;
   }
 
-  .plugin-setting-group-heading {
+  .extension-setting-group-heading {
     align-items: flex-start;
     flex-direction: column;
     gap: 2px;
   }
 
-  .plugin-setting-row {
+  .extension-setting-row {
     align-items: stretch;
     flex-direction: column;
     gap: 6px;
   }
 
-  .plugin-setting-control {
+  .extension-setting-control {
     width: 100%;
     justify-content: stretch;
   }
 
-  .plugin-controls {
+  .extension-controls {
     width: 100%;
     justify-content: space-between;
   }

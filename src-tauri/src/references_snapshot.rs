@@ -289,12 +289,7 @@ pub(crate) fn normalize_snapshot(raw: &Value) -> Value {
     let references: Vec<Value> = raw
         .get("references")
         .and_then(Value::as_array)
-        .map(|references| {
-            references
-                .iter()
-                .map(normalize_reference_record)
-                .collect()
-        })
+        .map(|references| references.iter().map(normalize_reference_record).collect())
         .unwrap_or_default();
     let tags = build_tag_registry(&clone_array(raw.get("tags")), &references);
     let document_reference_selections = normalize_document_reference_selections(

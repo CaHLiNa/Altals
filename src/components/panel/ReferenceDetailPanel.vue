@@ -199,10 +199,10 @@
               <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
                 <template #leading><IconFolder :size="14"/></template> Finder
               </UiButton>
-              <PluginActionButtons
+              <ExtensionActionButtons
                 v-if="canOpenPdf"
                 surface="reference.pdf.actions"
-                :target="pdfPluginActionTarget"
+                :target="pdfExtensionActionTarget"
               />
               <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
                 <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
@@ -279,7 +279,7 @@ import { openNativeDialog } from '../../services/nativeDialog.js'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiTextarea from '../shared/ui/UiTextarea.vue'
-import PluginActionButtons from '../plugins/PluginActionButtons.vue'
+import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
@@ -319,7 +319,7 @@ const selectedReferenceTypeLabel = computed(() =>
 )
 const selectedReferencePdfPath = computed(() => String(selectedReference.value?.pdfPath || '').trim())
 const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
-const pdfPluginActionTarget = computed(() => ({
+const pdfExtensionActionTarget = computed(() => ({
   kind: 'referencePdf',
   referenceId: String(selectedReference.value?.id || ''),
   path: selectedReferencePdfPath.value,

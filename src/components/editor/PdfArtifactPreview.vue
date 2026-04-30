@@ -1,9 +1,9 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
-    <PluginActionButtons
-      class="pdf-plugin-actions"
+    <ExtensionActionButtons
+      class="pdf-extension-actions"
       surface="pdf.preview.actions"
-      :target="pdfPluginActionTarget"
+      :target="pdfExtensionActionTarget"
       :disabled="!artifactPath"
     />
     <component
@@ -37,7 +37,7 @@ import { useWorkspaceStore } from '../../stores/workspace.js'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
-import PluginActionButtons from '../plugins/PluginActionButtons.vue'
+import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--surface-base',
@@ -105,7 +105,7 @@ const effectivePdfViewerSpreadMode = computed(() =>
 const effectivePdfViewerLastScale = computed(() =>
   props.compactToolbar ? '' : workspace.pdfViewerLastScale
 )
-const pdfPluginActionTarget = computed(() => ({
+const pdfExtensionActionTarget = computed(() => ({
   kind: props.kind === 'latex' ? 'documentPdf' : 'pdf',
   referenceId: '',
   path: props.artifactPath,
@@ -203,7 +203,7 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.pdf-plugin-actions {
+.pdf-extension-actions {
   position: absolute;
   top: 10px;
   right: 12px;

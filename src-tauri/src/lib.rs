@@ -10,6 +10,14 @@ mod document_workflow_ui_state;
 mod document_workspace_preview;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
+mod extension_artifacts;
+mod extension_host;
+mod extension_manifest;
+mod extension_permissions;
+mod extension_registry;
+mod extension_runner;
+mod extension_settings;
+mod extension_tasks;
 mod fs_commands;
 mod fs_io;
 mod fs_tree;
@@ -26,13 +34,6 @@ mod latex_runtime;
 mod latex_sync_target;
 mod latex_tools;
 mod markdown_runtime;
-mod plugin_artifacts;
-mod plugin_jobs;
-mod plugin_manifest;
-mod plugin_permissions;
-mod plugin_registry;
-mod plugin_runner;
-mod plugin_settings;
 mod process_utils;
 mod python_preferences;
 mod python_runtime;
@@ -409,10 +410,16 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::MenuEve
 }
 
 pub fn run() {
+    if extension_host::is_extension_host_mode() {
+        extension_host::run_extension_host_stdio_loop()
+            .expect("error while running extension host sidecar");
+        return;
+    }
+
     #[cfg(unix)]
     enrich_path();
 
-    let _ = plugin_jobs::recover_interrupted_jobs_on_startup();
+    let _ = extension_tasks::recover_interrupted_tasks_on_startup();
 
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
@@ -426,7 +433,8 @@ pub fn run() {
         .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
         .manage(workspace_access::WorkspaceAccessState::default())
-        .manage(plugin_jobs::PluginJobRuntimeState::default());
+        .manage(extension_tasks::ExtensionTaskRuntimeState::default())
+        .manage(extension_host::ExtensionHostState::default());
 
     #[cfg(target_os = "macos")]
     let builder = builder
@@ -471,17 +479,19 @@ pub fn run() {
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
             i18n_runtime::i18n_runtime_load,
-            plugin_registry::plugin_registry_list,
-            plugin_manifest::plugin_registry_validate_manifest,
-            plugin_runner::plugin_runtime_detect,
-            plugin_runner::plugin_job_start,
-            plugin_jobs::plugin_job_list,
-            plugin_jobs::plugin_job_get,
-            plugin_jobs::plugin_job_cancel,
-            plugin_artifacts::plugin_artifact_open,
-            plugin_artifacts::plugin_artifact_reveal,
-            plugin_settings::plugin_settings_load,
-            plugin_settings::plugin_settings_save,
+            extension_registry::extension_registry_list,
+            extension_manifest::extension_registry_validate_manifest,
+            extension_host::extension_host_status,
+            extension_host::extension_host_activate,
+            extension_runner::extension_runtime_detect,
+            extension_runner::extension_task_start,
+            extension_tasks::extension_task_list,
+            extension_tasks::extension_task_get,
+            extension_tasks::extension_task_cancel,
+            extension_artifacts::extension_artifact_open,
+            extension_artifacts::extension_artifact_reveal,
+            extension_settings::extension_settings_load,
+            extension_settings::extension_settings_save,
             references_backend::references_library_read_or_create,
             references_backend::references_library_load_workspace,
             references_backend::references_library_write,

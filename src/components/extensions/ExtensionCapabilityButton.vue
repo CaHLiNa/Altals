@@ -17,7 +17,7 @@
 import { computed, ref } from 'vue'
 import { IconBolt } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
-import { usePluginsStore } from '../../stores/plugins'
+import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import UiButton from '../shared/ui/UiButton.vue'
 
@@ -32,36 +32,34 @@ const props = defineProps({
 
 const emit = defineEmits(['started'])
 const { t } = useI18n()
-const pluginsStore = usePluginsStore()
+const extensionsStore = useExtensionsStore()
 const toastStore = useToastStore()
 const busy = ref(false)
 
 const action = computed(() => props.action || null)
 const capability = computed(() => String(action.value?.capability || props.capability || '').trim())
-const enabledPluginIds = computed(() => new Set(pluginsStore.enabledPluginIds))
-const provider = computed(() =>
-  action.value?.pluginId
-    ? pluginsStore.registry.find((plugin) =>
-        plugin.id === action.value.pluginId &&
-        plugin.status === 'available' &&
-        enabledPluginIds.value.has(plugin.id)
+const enabledExtensionIds = computed(() => new Set(extensionsStore.enabledExtensionIds))
+const extension = computed(() =>
+  action.value?.extensionId
+    ? extensionsStore.registry.find((extension) =>
+        extension.id === action.value.extensionId &&
+        extension.status === 'available' &&
+        enabledExtensionIds.value.has(extension.id)
       )
-    : pluginsStore.defaultProviderForCapability(capability.value)
+    : null
 )
-const label = computed(() => props.label || t(action.value?.label || 'Run plugin action'))
-const disabled = computed(() => props.disabled || !provider.value || !capability.value)
+const label = computed(() => props.label || t(action.value?.label || 'Run extension action'))
+const disabled = computed(() => props.disabled || !extension.value || !capability.value || !action.value?.extensionId)
 
 async function start() {
   if (disabled.value || busy.value) return
   busy.value = true
   try {
-    const job = action.value?.pluginId
-      ? await pluginsStore.startPluginAction(action.value, props.target, props.settings)
-      : await pluginsStore.startCapabilityJob(capability.value, props.target, props.settings)
+    const job = await extensionsStore.startExtensionAction(action.value, props.target, props.settings)
     emit('started', job)
-    toastStore.show(t('Plugin job started'), { type: 'success', duration: 2400 })
+    toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to start plugin job')), {
+    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
       type: 'error',
       duration: 4200,
     })

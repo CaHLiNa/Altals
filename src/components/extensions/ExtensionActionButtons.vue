@@ -1,8 +1,8 @@
 <template>
-  <div v-if="actions.length > 0" class="plugin-action-buttons">
-    <PluginCapabilityButton
+  <div v-if="actions.length > 0" class="extension-action-buttons">
+    <ExtensionCapabilityButton
       v-for="action in actions"
-      :key="`${action.pluginId}:${action.id}`"
+      :key="`${action.extensionId}:${action.id}`"
       :action="action"
       :target="target"
       :settings="settings"
@@ -14,8 +14,8 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
-import { usePluginsStore } from '../../stores/plugins'
-import PluginCapabilityButton from './PluginCapabilityButton.vue'
+import { useExtensionsStore } from '../../stores/extensions'
+import ExtensionCapabilityButton from './ExtensionCapabilityButton.vue'
 
 const props = defineProps({
   surface: { type: String, required: true },
@@ -26,17 +26,17 @@ const props = defineProps({
 
 defineEmits(['started'])
 
-const pluginsStore = usePluginsStore()
-const actions = computed(() => pluginsStore.actionsForSurface(props.surface))
+const extensionsStore = useExtensionsStore()
+const actions = computed(() => extensionsStore.actionsForSurface(props.surface))
 
 onMounted(() => {
-  void pluginsStore.refreshRegistry().catch(() => {})
-  void pluginsStore.refreshJobs().catch(() => {})
+  void extensionsStore.refreshRegistry().catch(() => {})
+  void extensionsStore.refreshTasks().catch(() => {})
 })
 </script>
 
 <style scoped>
-.plugin-action-buttons {
+.extension-action-buttons {
   display: inline-flex;
   align-items: center;
   gap: 6px;
