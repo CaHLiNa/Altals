@@ -26,6 +26,8 @@ pub struct ExtensionViewResolveParams {
     #[serde(default)]
     pub target_kind: String,
     #[serde(default)]
+    pub reference_id: String,
+    #[serde(default)]
     pub target_path: String,
     #[serde(default)]
     pub settings: Value,
@@ -89,6 +91,7 @@ pub async fn extension_view_resolve(
         &params.command_id,
         "",
         "",
+        &params.reference_id,
         "",
         &params.target_kind,
         &params.target_path,

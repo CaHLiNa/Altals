@@ -22,6 +22,7 @@ Current desktop paths:
 - render plugin surfaces in the document right sidebar, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - expose initial thick runtime APIs for plugins through `context.workspace`, `context.documents` and `context.invocation`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
+- expose reference-aware and PDF-aware runtime context through `context.references` and `context.pdf`
 
 ## Architecture
 

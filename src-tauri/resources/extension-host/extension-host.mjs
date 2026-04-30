@@ -206,6 +206,7 @@ function createInvocationContext(registry, envelope = {}) {
   const resource = buildResourceContext(envelope);
   const target = {
     kind: String(envelope?.targetKind || "").trim(),
+    referenceId: String(envelope?.referenceId || "").trim(),
     path: String(envelope?.targetPath || "").trim(),
   };
   return {
@@ -216,6 +217,7 @@ function createInvocationContext(registry, envelope = {}) {
     capability: String(envelope?.capability || "").trim(),
     itemId: String(envelope?.itemId || "").trim(),
     itemHandle: String(envelope?.itemHandle || "").trim(),
+    referenceId: String(envelope?.referenceId || "").trim(),
     target,
     resource,
     settingsJson: String(envelope?.settingsJson || "{}"),
@@ -455,14 +457,39 @@ function createExtensionApi(registry) {
       get active() {
         return {
           resource: { ...(registry.lastInvocation?.resource || buildResourceContext()) },
-          target: { ...(registry.lastInvocation?.target || { kind: "", path: "" }) },
+          target: { ...(registry.lastInvocation?.target || { kind: "", referenceId: "", path: "" }) },
         };
       },
       get resource() {
         return { ...(registry.lastInvocation?.resource || buildResourceContext()) };
       },
       get target() {
-        return { ...(registry.lastInvocation?.target || { kind: "", path: "" }) };
+        return { ...(registry.lastInvocation?.target || { kind: "", referenceId: "", path: "" }) };
+      },
+    },
+    references: {
+      get current() {
+        const target = registry.lastInvocation?.target || { kind: "", referenceId: "", path: "" };
+        const resource = registry.lastInvocation?.resource || buildResourceContext();
+        return {
+          id: String(registry.lastInvocation?.referenceId || target.referenceId || "").trim(),
+          hasReference: Boolean(String(registry.lastInvocation?.referenceId || target.referenceId || "").trim()),
+          pdfPath: resource.isPdf ? String(resource.path || "") : "",
+          target: { ...target },
+        };
+      },
+    },
+    pdf: {
+      get current() {
+        const resource = registry.lastInvocation?.resource || buildResourceContext();
+        const target = registry.lastInvocation?.target || { kind: "", referenceId: "", path: "" };
+        return {
+          path: resource.isPdf ? String(resource.path || "") : "",
+          isPdf: Boolean(resource.isPdf),
+          filename: String(resource.filename || ""),
+          referenceId: String(registry.lastInvocation?.referenceId || target.referenceId || "").trim(),
+          target: { ...target },
+        };
       },
     },
     invocation: {
@@ -470,7 +497,7 @@ function createExtensionApi(registry) {
         return {
           ...(registry.lastInvocation || createInvocationContext(registry)),
           resource: { ...(registry.lastInvocation?.resource || buildResourceContext()) },
-          target: { ...(registry.lastInvocation?.target || { kind: "", path: "" }) },
+          target: { ...(registry.lastInvocation?.target || { kind: "", referenceId: "", path: "" }) },
         };
       },
     },
@@ -530,6 +557,8 @@ function createActivationContext(api, payload = {}) {
     settings: api.settings,
     workspace: api.workspace,
     documents: api.documents,
+    references: api.references,
+    pdf: api.pdf,
     invocation: api.invocation,
     globalState: api.globalState,
     workspaceState: api.workspaceState,

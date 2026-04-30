@@ -585,6 +585,7 @@ export const useExtensionsStore = defineStore('extensions', {
         parentItemId: String(parentItemId || ''),
         commandId: String(view.commandId || ''),
         targetKind: String(target?.kind || ''),
+        referenceId: String(target?.referenceId || ''),
         targetPath: String(target?.path || ''),
         settings: {
           ...extensionSettings,

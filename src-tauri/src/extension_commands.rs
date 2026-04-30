@@ -134,6 +134,7 @@ pub async fn extension_command_execute(
         &command_id,
         &params.item_id,
         &params.item_handle,
+        &params.target.reference_id,
         "",
         &params.target.kind,
         &params.target.path,

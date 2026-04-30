@@ -36,6 +36,14 @@ export async function activate(context) {
     return context.documents?.resource || { kind: "", path: "", filename: "" }
   }
 
+  function currentReference() {
+    return context.references?.current || { id: "", hasReference: false, pdfPath: "" }
+  }
+
+  function currentPdf() {
+    return context.pdf?.current || { path: "", isPdf: false, filename: "", referenceId: "" }
+  }
+
   context.capabilities.registerProvider("pdf.translate", async (request) => {
     const payload = JSON.parse(String(request?.settingsJson || request?.settings_json || "{}") || "{}")
     const configuredTargetLang = String(
@@ -44,8 +52,9 @@ export async function activate(context) {
     const targetLang = String(payload?.["examplePdfExtension.targetLang"] || payload?.targetLang || configuredTargetLang)
     const workspaceRoot = String(context.workspace?.rootPath || "")
     const resource = currentResource()
+    const reference = currentReference()
     return {
-      message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
+      message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${reference.id ? ` · ref:${reference.id}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
       progressLabel: "Example extension provider executed",
     }
   })
@@ -98,6 +107,26 @@ export async function activate(context) {
     }
   }, {
     title: "Announce Refresh",
+    category: "PDF",
+  })
+
+  context.commands.registerCommand("examplePdfExtension.captureContext", async () => {
+    const resource = currentResource()
+    const reference = currentReference()
+    const pdf = currentPdf()
+    context.views.updateView("examplePdfExtension.translateView", {
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: `Context: ${pdf.path || resource.path || "none"}${reference.id ? ` · ref:${reference.id}` : ""}`,
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: `captured context${reference.id ? ` for ${reference.id}` : ""}`,
+      progressLabel: "Context captured",
+    }
+  }, {
+    title: "Capture Context",
     category: "PDF",
   })
 
@@ -170,8 +199,8 @@ export async function activate(context) {
   context.views.updateView("examplePdfExtension.translateView", {
     title: "Translate PDF",
     description: context.workspace?.hasWorkspace ? "Workspace PDF tools" : "PDF tools",
-    message: currentResource().path
-      ? `Select a PDF target to start translation.`
+    message: currentPdf().path
+      ? `Select a PDF target to start translation.${currentReference().id ? ` Reference: ${currentReference().id}` : ""}`
       : "Open a PDF document to start translation.",
     badgeValue: 1,
     badgeTooltip: "One quick action is available for the active PDF.",
@@ -198,7 +227,7 @@ export async function activate(context) {
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: resource.path
-        ? `Ready for ${resource.filename || resource.path}`
+        ? `Ready for ${resource.filename || resource.path}${currentReference().id ? ` · ref:${currentReference().id}` : ""}`
         : "Open a PDF document to start translation.",
     })
     translateTreeView.reveal("translate-group", {

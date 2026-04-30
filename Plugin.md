@@ -58,6 +58,8 @@ Plugins can already use:
 - `workspace.hasWorkspace`
 - `documents.resource`
 - `documents.target`
+- `references.current`
+- `pdf.current`
 - `invocation.current`
 - `workspaceState`
 

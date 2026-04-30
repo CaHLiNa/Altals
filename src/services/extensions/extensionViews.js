@@ -10,6 +10,7 @@ export async function resolveExtensionView(payload = {}) {
       parentItemId: String(payload.parentItemId || ''),
       commandId: String(payload.commandId || ''),
       targetKind: String(payload.targetKind || ''),
+      referenceId: String(payload.referenceId || ''),
       targetPath: String(payload.targetPath || ''),
       settings: payload.settings || {},
     },
