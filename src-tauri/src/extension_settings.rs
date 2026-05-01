@@ -188,6 +188,41 @@ fn hydrate_secret_settings_from_keychain(
     Ok(())
 }
 
+fn migrate_plaintext_secrets_to_keychain(
+    global_config_dir: &str,
+    workspace_root: &str,
+    settings: &mut ExtensionSettings,
+) -> Result<bool, String> {
+    let mut changed = false;
+    for (extension_id, config) in &mut settings.extension_config {
+        let Some(config_map) = config.as_object_mut() else {
+            continue;
+        };
+        let secret_keys =
+            secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
+        for key in secret_keys {
+            let Some(value) = config_map.get(&key).cloned() else {
+                continue;
+            };
+            let normalized_value = match value {
+                Value::String(text) => text.trim().to_string(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            };
+            if normalized_value.is_empty() {
+                continue;
+            }
+            let storage_key = extension_secret_storage_key(extension_id, &key);
+            if keychain::keychain_get_entry(&storage_key)?.is_none() {
+                keychain::keychain_set_entry(&storage_key, &normalized_value)?;
+            }
+            config_map.insert(key, Value::String(String::new()));
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
 fn settings_file(global_config_dir: &str) -> Result<std::path::PathBuf, String> {
     let root = normalize_root(global_config_dir);
     if root.is_empty() {
@@ -286,6 +321,12 @@ pub fn load_extension_settings(
     let parsed = serde_json::from_str::<ExtensionSettings>(&content)
         .map_err(|error| format!("Failed to parse extension settings: {error}"))?;
     let mut normalized = normalize_settings(parsed);
+    if migrate_plaintext_secrets_to_keychain(global_config_dir, workspace_root, &mut normalized)? {
+        let path = settings_file(global_config_dir)?;
+        let serialized = serde_json::to_string_pretty(&normalized)
+            .map_err(|error| format!("Failed to serialize migrated extension settings: {error}"))?;
+        fs::write(path, serialized).map_err(|error| error.to_string())?;
+    }
     hydrate_secret_settings_from_keychain(global_config_dir, workspace_root, &mut normalized)?;
     Ok(normalized)
 }
@@ -731,5 +772,58 @@ mod tests {
 
         fs::remove_dir_all(global_root).ok();
         fs::remove_dir_all(workspace_root).ok();
+    }
+
+    #[test]
+    fn loading_plaintext_secrets_migrates_them_into_keychain() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-migrate-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        let extension_id = "example-pdf-extension-migrate";
+        write_test_extension_manifest(&root, extension_id, "opaqueCredential");
+
+        let legacy = serde_json::json!({
+            "enabledExtensionIds": [extension_id],
+            "extensionConfig": {
+                extension_id: {
+                    "apiKey": "legacy-secret",
+                    "opaqueCredential": "opaque-legacy",
+                    "targetLang": "zh-CN"
+                }
+            }
+        });
+        fs::write(
+            root.join("extension-settings.json"),
+            serde_json::to_string_pretty(&legacy).expect("legacy json"),
+        )
+        .expect("write legacy file");
+
+        let loaded = load_extension_settings(&root.to_string_lossy(), "").expect("load migrated");
+        assert_eq!(
+            loaded.extension_config.get(extension_id),
+            Some(&serde_json::json!({
+                "apiKey": "legacy-secret",
+                "opaqueCredential": "opaque-legacy",
+                "targetLang": "zh-CN"
+            }))
+        );
+
+        let migrated_file = fs::read_to_string(root.join("extension-settings.json")).expect("migrated file");
+        assert!(!migrated_file.contains("legacy-secret"));
+        assert!(!migrated_file.contains("opaque-legacy"));
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:example-pdf-extension-migrate:apiKey")
+                .expect("migrated api key"),
+            Some("legacy-secret".to_string())
+        );
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:example-pdf-extension-migrate:opaqueCredential")
+                .expect("migrated opaque credential"),
+            Some("opaque-legacy".to_string())
+        );
+
+        fs::remove_dir_all(root).ok();
     }
 }
