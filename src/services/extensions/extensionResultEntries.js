@@ -117,9 +117,11 @@ export function mergeDefaultResultEntries({
   const generated = buildDefaultResultEntries({ artifacts, outputs })
   if (!generated.length) return preserved
 
-  const generatedIds = new Set(generated.map((entry) => entry.id))
-  const filteredPreserved = preserved.filter((entry) => !generatedIds.has(normalizeText(entry?.id)))
-  return [...filteredPreserved, ...generated]
+  const preservedIds = new Set(
+    preserved.map((entry) => normalizeText(entry?.id)).filter(Boolean),
+  )
+  const generatedMissing = generated.filter((entry) => !preservedIds.has(normalizeText(entry?.id)))
+  return [...preserved, ...generatedMissing]
 }
 
 export {

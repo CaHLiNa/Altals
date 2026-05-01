@@ -226,16 +226,16 @@ async function main() {
     })),
     [
       {
+        id: 'artifact-pdf',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Old PDF Label',
+      },
+      {
         id: 'run-again',
         action: 'execute-command',
         previewMode: undefined,
         previewTitle: undefined,
-      },
-      {
-        id: 'artifact-pdf',
-        action: 'open',
-        previewMode: 'pdf',
-        previewTitle: 'Translated Pdf',
       },
       {
         id: 'inline-summary',
@@ -246,12 +246,52 @@ async function main() {
     ],
   )
 
+  const explicitOutputWins = mergeDefaultResultEntries({
+    existingEntries: [
+      {
+        id: 'inline-summary',
+        label: 'Pinned Summary',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Pinned Summary',
+        payload: {
+          text: 'pinned summary text',
+        },
+      },
+    ],
+    outputs: [
+      {
+        id: 'inline-summary',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Inline Summary',
+        text: 'generated summary text',
+      },
+    ],
+  })
+
+  assert.deepEqual(
+    explicitOutputWins.map((entry) => ({
+      id: entry.id,
+      previewTitle: entry.previewTitle,
+      text: entry.payload?.text,
+    })),
+    [
+      {
+        id: 'inline-summary',
+        previewTitle: 'Pinned Summary',
+        text: 'pinned summary text',
+      },
+    ],
+  )
+
   console.log(JSON.stringify({
     ok: true,
     entries,
     taskEntries,
     defaultEntries,
     mergedEntries,
+    explicitOutputWins,
   }, null, 2))
 }
 

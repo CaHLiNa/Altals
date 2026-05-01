@@ -56,6 +56,18 @@ const resolvedViewPayload = {
       path: '/tmp/workspace/notes/draft.md',
       action: 'open',
     },
+    {
+      id: 'summary',
+      label: 'Pinned Summary',
+      description: 'Explicit summary entry should win over generated output entry',
+      action: 'open',
+      previewMode: 'text',
+      previewTitle: 'Pinned Summary',
+      mediaType: 'text/plain',
+      payload: {
+        text: 'Pinned summary text',
+      },
+    },
   ],
   outputs: [
     {
@@ -201,20 +213,20 @@ try {
       text: '',
     },
     {
+      id: 'summary',
+      label: 'Pinned Summary',
+      previewMode: 'text',
+      previewTitle: 'Pinned Summary',
+      mediaType: 'text/plain',
+      text: 'Pinned summary text',
+    },
+    {
       id: 'summary-asset',
       label: 'Translated Text',
       previewMode: 'text',
       previewTitle: 'Translated Text',
       mediaType: 'text/plain',
       text: '',
-    },
-    {
-      id: 'summary',
-      label: 'Note Summary',
-      previewMode: 'text',
-      previewTitle: 'Note Summary',
-      mediaType: 'text/plain',
-      text: 'Summary from resolveView',
     },
   ])
 
@@ -246,6 +258,18 @@ try {
         description: '/tmp/workspace/notes/draft.md',
         path: '/tmp/workspace/notes/draft.md',
         action: 'open',
+      },
+      {
+        id: 'summary',
+        label: 'Pinned Summary',
+        description: 'Explicit summary entry should win over generated output entry',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Pinned Summary',
+        mediaType: 'text/plain',
+        payload: {
+          text: 'Pinned summary text from event',
+        },
       },
     ],
     artifacts: [
@@ -280,20 +304,20 @@ try {
       text: '',
     },
     {
+      id: 'summary',
+      label: 'Pinned Summary',
+      previewMode: 'text',
+      previewTitle: 'Pinned Summary',
+      mediaType: 'text/plain',
+      text: 'Pinned summary text from event',
+    },
+    {
       id: 'summary-asset',
       label: 'Translated Text',
       previewMode: 'text',
       previewTitle: 'Translated Text',
       mediaType: 'text/plain',
       text: '',
-    },
-    {
-      id: 'summary',
-      label: 'Note Summary',
-      previewMode: 'text',
-      previewTitle: 'Note Summary',
-      mediaType: 'text/plain',
-      text: 'Summary from event bridge',
     },
   ])
 
