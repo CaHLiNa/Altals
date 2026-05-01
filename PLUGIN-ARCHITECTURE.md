@@ -115,6 +115,7 @@ Quick input contract note:
 
 - `context.window.showQuickPick(...)` must preserve both single-select and `canPickMany: true` multi-select result shapes
 - picked defaults belong to the runtime request contract, not ad hoc frontend-only behavior
+- request fields such as `title`, `placeholder`, and default picked items must survive host serialization, and cancel must stay distinct from a concrete selection result
 - `context.window.showInformationMessage(...)`, `showWarningMessage(...)`, and `showErrorMessage(...)` must preserve severity semantics through the host event bridge
 - `context.window.showInputBox(...)` must preserve request fields (`title`, `prompt`, `placeholder`, `value`, `password`) and keep cancel distinct from confirmed text entry
 
@@ -250,7 +251,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule
