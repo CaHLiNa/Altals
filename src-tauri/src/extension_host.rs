@@ -724,6 +724,13 @@ pub fn activate_extension(
             entry.id
         ));
     }
+    if !should_activate_for_event(manifest, activation_event) {
+        return Err(format!(
+            "Extension {} does not declare activation event {}",
+            entry.id,
+            activation_event.trim()
+        ));
+    }
 
     let extension_path = resolve_extension_path(entry)?;
     let extension_settings = load_extension_settings(global_config_dir, workspace_root)?
@@ -768,7 +775,6 @@ pub fn activate_extension(
     Ok(result)
 }
 
-#[cfg(test)]
 pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event: &str) -> bool {
     let target = activation_event.trim();
     if target.is_empty() {
@@ -2042,6 +2048,42 @@ mod tests {
             &manifest,
             "onCapability:pdf.translate"
         ));
+    }
+
+    #[test]
+    fn activation_runtime_rejects_undeclared_events() {
+        let state = ExtensionHostState::default();
+        let entry = canonical_entry();
+
+        let denied_command = activate_extension(
+            &state,
+            "",
+            "",
+            &entry,
+            "onCommand:examplePdfExtension.captureContext",
+        )
+        .expect_err("undeclared command activation must fail");
+        assert!(denied_command.contains("does not declare activation event"));
+
+        let denied_view = activate_extension(
+            &state,
+            "",
+            "",
+            &entry,
+            "onView:examplePdfExtension.hiddenView",
+        )
+        .expect_err("undeclared view activation must fail");
+        assert!(denied_view.contains("does not declare activation event"));
+
+        let allowed = activate_extension(
+            &state,
+            "",
+            "",
+            &entry,
+            "onCommand:scribeflow.pdf.translate",
+        )
+        .expect("declared activation should pass");
+        assert!(allowed.activated);
     }
 
     #[test]
