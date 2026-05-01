@@ -145,6 +145,10 @@ fn normalize_task_state(value: &str) -> Option<&'static str> {
     }
 }
 
+fn is_terminal_task_state(value: &str) -> bool {
+    matches!(value.trim(), "succeeded" | "failed" | "cancelled")
+}
+
 pub fn tasks_dir() -> Result<PathBuf, String> {
     app_dirs::extension_tasks_dir()
 }
@@ -464,6 +468,7 @@ fn apply_task_update_in_dir(
             extension_id, task_id
         ));
     }
+    let terminal_task = is_terminal_task_state(&task.state);
     let next_state = normalize_task_state(&patch.state);
     let next_artifacts = if patch.artifacts.is_empty() {
         None
@@ -477,6 +482,10 @@ fn apply_task_update_in_dir(
         )
     };
     update_task_in_dir(tasks_root, task_id, |task| {
+        if terminal_task {
+            return;
+        }
+
         if let Some(state) = next_state {
             match state {
                 "queued" => {
@@ -605,6 +614,13 @@ impl ExtensionTaskRuntimeState {
             .lock()
             .map_err(|_| "Extension task runtime state is unavailable".to_string())?;
         Ok(guard.remove(task_id))
+    }
+
+    pub fn clear_pid_if_terminal(&self, task: &ExtensionTask) -> Result<(), String> {
+        if is_terminal_task_state(&task.state) {
+            let _ = self.unregister_pid(&task.id)?;
+        }
+        Ok(())
     }
 }
 
@@ -848,6 +864,55 @@ mod tests {
         assert_eq!(result.progress.total, 3);
         assert_eq!(result.artifacts.len(), 1);
         assert_eq!(result.artifacts[0].path, "/tmp/output.log");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn apply_task_update_does_not_reopen_terminal_task() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-terminal-guard");
+        let task = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-5".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let cancelled = super::update_task_in_dir(&root, &task.id, |task| {
+            task.state = "cancelled".to_string();
+            task.finished_at = "2026-05-01T01:00:00Z".to_string();
+            task.progress.label = "Cancelled".to_string();
+        })
+        .expect("cancelled");
+        assert_eq!(cancelled.state, "cancelled");
+
+        let updated = apply_task_update_in_dir(
+            &root,
+            "example-pdf-extension",
+            &task.id,
+            ExtensionTaskUpdatePatch {
+                task_id: task.id.clone(),
+                state: "running".to_string(),
+                progress_label: "Late update".to_string(),
+                progress_current: Some(2),
+                progress_total: Some(3),
+                error: String::new(),
+                artifacts: Vec::new(),
+            },
+        )
+        .expect("late update ignored");
+
+        assert_eq!(updated.state, "cancelled");
+        assert_eq!(updated.progress.label, "Cancelled");
+        assert_eq!(updated.progress.current, 0);
+        assert_eq!(updated.progress.total, 0);
+        assert_eq!(updated.finished_at, "2026-05-01T01:00:00Z");
         fs::remove_dir_all(root).ok();
     }
 }

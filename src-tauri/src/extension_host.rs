@@ -1350,6 +1350,7 @@ fn handle_extension_host_task_call(
     .map_err(|error| format!("Invalid task update payload: {error}"))?;
     let task = crate::extension_tasks::apply_task_update(&event.extension_id, &task_id, patch)?;
     if let Some(runtime_state) = task_runtime_state {
+        let _ = runtime_state.clear_pid_if_terminal(&task);
         runtime_state.emit_task_changed(&task);
     }
     Ok(ExtensionHostResolveHostCallParams {
