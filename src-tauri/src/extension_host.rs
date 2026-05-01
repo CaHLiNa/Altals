@@ -53,6 +53,22 @@ struct ExtensionHostProcess {
     stdout: Option<BufReader<ChildStdout>>,
 }
 
+#[cfg(not(test))]
+fn reset_extension_host_process(process: &mut ExtensionHostProcess) {
+    process.stdin = None;
+    process.stdout = None;
+
+    if let Some(mut child) = process.child.take() {
+        match child.try_wait() {
+            Ok(Some(_)) => {}
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ExtensionHostState {
     activated_extensions: Arc<Mutex<HashSet<String>>>,
@@ -210,7 +226,12 @@ pub struct ExtensionHostInvocationEnvelope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", tag = "method", content = "params")]
+#[serde(
+    rename_all = "PascalCase",
+    rename_all_fields = "camelCase",
+    tag = "method",
+    content = "params"
+)]
 pub enum ExtensionHostRequest {
     Activate {
         extension_id: String,
@@ -639,7 +660,7 @@ pub struct ExtensionHostStateChangedEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
+#[serde(rename_all = "PascalCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
     AcknowledgeDeactivation(ExtensionHostDeactivationAcknowledgement),
@@ -959,6 +980,19 @@ fn ensure_extension_host_process(
         .lock()
         .map_err(|_| "Failed to access extension host process state".to_string())?;
 
+    if let Some(child) = process.child.as_mut() {
+        let child_exited = child
+            .try_wait()
+            .map_err(|error| format!("Failed to inspect extension host process state: {error}"))?;
+        if child_exited.is_some() {
+            process.stdin = None;
+            process.stdout = None;
+            process.child = None;
+        } else if process.stdin.is_none() || process.stdout.is_none() {
+            reset_extension_host_process(&mut process);
+        }
+    }
+
     if process.child.is_none() {
         let node_host_script = resolve_builtin_node_host_script()?;
         let mut command = background_command("node");
@@ -984,6 +1018,75 @@ fn ensure_extension_host_process(
     }
 
     Ok(process)
+}
+
+#[cfg(not(test))]
+fn reset_extension_host_process_state(state: &ExtensionHostState) -> Result<(), String> {
+    let mut process = state
+        .process
+        .lock()
+        .map_err(|_| "Failed to access extension host process state".to_string())?;
+    reset_extension_host_process(&mut process);
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn send_extension_host_request(
+    state: &ExtensionHostState,
+    serialized_request: &str,
+) -> Result<(), String> {
+    let result = (|| {
+        let mut process = ensure_extension_host_process(state)?;
+        let stdin = process
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "Extension host stdin is unavailable".to_string())?;
+        stdin
+            .write_all(serialized_request.as_bytes())
+            .map_err(|error| format!("Failed to write extension host request: {error}"))?;
+        stdin
+            .write_all(b"\n")
+            .map_err(|error| format!("Failed to finalize extension host request: {error}"))?;
+        stdin
+            .flush()
+            .map_err(|error| format!("Failed to flush extension host request: {error}"))?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = reset_extension_host_process_state(state);
+    }
+
+    result
+}
+
+#[cfg(not(test))]
+fn read_extension_host_response_line(state: &ExtensionHostState) -> Result<String, String> {
+    let result = (|| {
+        let mut response_line = String::new();
+        let bytes_read = {
+            let mut process = ensure_extension_host_process(state)?;
+            let stdout = process
+                .stdout
+                .as_mut()
+                .ok_or_else(|| "Extension host stdout is unavailable".to_string())?;
+            stdout
+                .read_line(&mut response_line)
+                .map_err(|error| format!("Failed to read extension host response: {error}"))?
+        };
+
+        if bytes_read == 0 {
+            return Err("Extension host closed its response stream".to_string());
+        }
+
+        Ok(response_line)
+    })();
+
+    if result.is_err() {
+        let _ = reset_extension_host_process_state(state);
+    }
+
+    result
 }
 
 #[cfg(not(test))]
@@ -1590,36 +1693,10 @@ pub fn invoke_extension_host(
     {
         let serialized_request = serde_json::to_string(&request)
             .map_err(|error| format!("Failed to serialize extension host request: {error}"))?;
-
-        {
-            let mut process = ensure_extension_host_process(state)?;
-            let stdin = process
-                .stdin
-                .as_mut()
-                .ok_or_else(|| "Extension host stdin is unavailable".to_string())?;
-            stdin
-                .write_all(serialized_request.as_bytes())
-                .map_err(|error| format!("Failed to write extension host request: {error}"))?;
-            stdin
-                .write_all(b"\n")
-                .map_err(|error| format!("Failed to finalize extension host request: {error}"))?;
-            stdin
-                .flush()
-                .map_err(|error| format!("Failed to flush extension host request: {error}"))?;
-        }
+        send_extension_host_request(state, &serialized_request)?;
 
         loop {
-            let mut response_line = String::new();
-            {
-                let mut process = ensure_extension_host_process(state)?;
-                let stdout = process
-                    .stdout
-                    .as_mut()
-                    .ok_or_else(|| "Extension host stdout is unavailable".to_string())?;
-                stdout
-                    .read_line(&mut response_line)
-                    .map_err(|error| format!("Failed to read extension host response: {error}"))?;
-            }
+            let response_line = read_extension_host_response_line(state)?;
             if response_line.trim().is_empty() {
                 continue;
             }
@@ -1729,6 +1806,13 @@ pub fn invoke_extension_host(
             }
         }
     }
+}
+
+pub fn invoke_extension_host_for_probe(
+    state: &ExtensionHostState,
+    request: ExtensionHostRequest,
+) -> Result<ExtensionHostResponse, String> {
+    invoke_extension_host(state, None, request)
 }
 
 pub fn run_extension_host_stdio_loop() -> Result<(), String> {

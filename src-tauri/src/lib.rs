@@ -58,6 +58,15 @@ mod workspace_access;
 mod workspace_lifecycle;
 mod workspace_preferences;
 
+pub use extension_host::{
+    activate_extension as extension_host_activate_entry,
+    invoke_extension_host_for_probe as extension_host_invoke_probe_request,
+    invoke_extension_host as extension_host_invoke_request,
+    ExtensionHostRequest,
+    ExtensionHostResponse,
+    ExtensionHostState,
+};
+
 use percent_encoding::percent_decode_str;
 use std::fs;
 use std::path::Path;

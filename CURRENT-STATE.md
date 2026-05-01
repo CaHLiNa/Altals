@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 ## Product
 
@@ -21,6 +21,7 @@ Current desktop paths:
 - discover local plugin packages, enable or disable them, and configure host-managed plugin settings in Settings
 - activate enabled plugins immediately so runtime-only commands, menus, and views become available without waiting for a later user action
 - deactivate disabled plugins through the host runtime so plugin-local `deactivate()` logic can release resources instead of relying only on frontend state cleanup
+- restart the persistent extension host automatically after a host-process crash so the next activation or command request can recover without restarting the desktop app
 - render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
@@ -73,6 +74,7 @@ Current plugin lifecycle contract:
 - disabling an activated extension requests host-side runtime deactivation and then clears frontend runtime/view/controller state
 - enabling an extension immediately re-activates its runtime registration so runtime-only commands and menus are visible again
 - direct host deactivation is now probe-backed: `Activate -> Deactivate -> Reactivate` succeeds and plugin `deactivate()` state can be observed
+- host-process crash recovery is now probe-backed: a crashing command tears down the dead process handle, and the next host request respawns the persistent runtime and succeeds
 
 ## Verification
 
@@ -104,6 +106,7 @@ It runs:
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
 - `npm run probe:extension-task-timeline`
+- `npm run probe:extension-host-recovery`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -131,6 +134,7 @@ Current baseline:
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes
 - extension task timeline probe passes
+- extension host recovery probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
