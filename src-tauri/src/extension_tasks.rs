@@ -670,12 +670,6 @@ impl ExtensionTaskRuntimeState {
         Ok(guard.remove(task_id))
     }
 
-    pub fn clear_pid_if_terminal(&self, task: &ExtensionTask) -> Result<(), String> {
-        if is_terminal_task_state(&task.state) {
-            let _ = self.unregister_pid(&task.id)?;
-        }
-        Ok(())
-    }
 }
 
 fn kill_pid(pid: u32) -> Result<(), String> {
@@ -722,9 +716,15 @@ pub async fn extension_task_get(params: ExtensionTaskGetParams) -> Result<Extens
 pub async fn extension_task_cancel(
     params: ExtensionTaskGetParams,
     runtime_state: tauri::State<'_, ExtensionTaskRuntimeState>,
+    extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionTask, String> {
     if let Some(pid) = runtime_state.unregister_pid(&params.task_id)? {
         let _ = kill_pid(pid);
+        let _ = crate::extension_host::reap_spawned_process(
+            extension_host_state.inner(),
+            pid,
+            true,
+        );
     }
     let task = mark_task_cancelled(&params.task_id)?;
     runtime_state.emit_task_changed(&task);

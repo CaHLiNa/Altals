@@ -884,6 +884,33 @@ fn wait_for_spawned_process(
 }
 
 #[cfg(not(test))]
+pub fn reap_spawned_process(
+    state: &ExtensionHostState,
+    pid: u32,
+    terminate: bool,
+) -> Result<(), String> {
+    let Some(mut child) = take_spawned_process(state, pid)? else {
+        return Ok(());
+    };
+    std::thread::spawn(move || {
+        if terminate {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+pub fn reap_spawned_process(
+    _state: &ExtensionHostState,
+    _pid: u32,
+    _terminate: bool,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(test))]
 fn ensure_extension_host_process(
     state: &ExtensionHostState,
 ) -> Result<std::sync::MutexGuard<'_, ExtensionHostProcess>, String> {
@@ -1422,7 +1449,7 @@ fn handle_extension_host_reference_call(
 
 #[cfg(not(test))]
 fn handle_extension_host_task_call(
-    _state: &ExtensionHostState,
+    state: &ExtensionHostState,
     task_runtime_state: Option<&crate::extension_tasks::ExtensionTaskRuntimeState>,
     event: &ExtensionHostCallRequestedEvent,
 ) -> Result<ExtensionHostResolveHostCallParams, String> {
@@ -1436,7 +1463,9 @@ fn handle_extension_host_task_call(
     .map_err(|error| format!("Invalid task update payload: {error}"))?;
     let task = crate::extension_tasks::apply_task_update(&event.extension_id, &task_id, patch)?;
     if let Some(runtime_state) = task_runtime_state {
-        let _ = runtime_state.clear_pid_if_terminal(&task);
+        if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
+            let _ = reap_spawned_process(state, pid, false);
+        }
         runtime_state.emit_task_changed(&task);
     }
     Ok(ExtensionHostResolveHostCallParams {

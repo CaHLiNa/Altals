@@ -236,7 +236,13 @@ pub async fn extension_command_execute(
                 _ => mark_task_succeeded(&task.id, artifacts, &result.progress_label),
             }
             .map_err(|error| format!("Failed to record extension result: {error}"))?;
-            let _ = task_runtime_state.clear_pid_if_terminal(&recorded);
+            if let Some(pid) = task_runtime_state.unregister_pid(&recorded.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
             task_runtime_state.emit_task_changed(&recorded);
             write_task_log(&recorded, &result.message);
             let task = get_task(&task.id)?;
@@ -247,7 +253,13 @@ pub async fn extension_command_execute(
         }
         Ok(ExtensionHostResponse::Error { message }) => {
             let failed = mark_task_failed(&task.id, &message)?;
-            let _ = task_runtime_state.clear_pid_if_terminal(&failed);
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
             task_runtime_state.emit_task_changed(&failed);
             write_task_log(&failed, &message);
             Err(message)
@@ -255,14 +267,26 @@ pub async fn extension_command_execute(
         Ok(_) => {
             let message = "Unexpected extension host response for command execution".to_string();
             let failed = mark_task_failed(&task.id, &message)?;
-            let _ = task_runtime_state.clear_pid_if_terminal(&failed);
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
             task_runtime_state.emit_task_changed(&failed);
             write_task_log(&failed, &message);
             Err(message)
         }
         Err(error) => {
             let failed = mark_task_failed(&task.id, &error)?;
-            let _ = task_runtime_state.clear_pid_if_terminal(&failed);
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
             task_runtime_state.emit_task_changed(&failed);
             write_task_log(&failed, &error);
             Err(format!("Extension host command execution failed: {error}"))
