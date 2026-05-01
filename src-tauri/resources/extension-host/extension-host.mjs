@@ -554,6 +554,8 @@ function createExtensionApi(registry) {
         return {
           dispose() {
             registry.viewProviders.delete(id);
+            registry.viewState.delete(id);
+            registry.viewStatePatches.delete(id);
           },
         };
       },
@@ -577,6 +579,9 @@ function createExtensionApi(registry) {
           if (!registry.viewState.has(id)) {
             registry.viewState.set(id, createEmptyViewState(id));
           }
+          if (!registry.viewStatePatches.has(id)) {
+            registry.viewStatePatches.set(id, {});
+          }
         }
         return {
           dispose() {
@@ -585,6 +590,7 @@ function createExtensionApi(registry) {
             registry.treeItems.delete(id);
             registry.treeParents.delete(id);
             registry.viewState.delete(id);
+            registry.viewStatePatches.delete(id);
           },
         };
       },
@@ -604,27 +610,10 @@ function createExtensionApi(registry) {
         const id = String(viewId || "").trim();
         if (!id) return;
         const current = registry.viewState.get(id) || createEmptyViewState(id);
-        const next = {
-          ...current,
-          title: typeof patch?.title === "string" && patch.title.trim() ? patch.title.trim() : current.title,
-          description: typeof patch?.description === "string" ? patch.description : current.description,
-          message: typeof patch?.message === "string" ? patch.message : current.message,
-          badgeValue: Number.isInteger(patch?.badgeValue) ? patch.badgeValue : current.badgeValue,
-          badgeTooltip: typeof patch?.badgeTooltip === "string" ? patch.badgeTooltip : current.badgeTooltip,
-          statusLabel: typeof patch?.statusLabel === "string" ? patch.statusLabel : current.statusLabel,
-          statusTone: typeof patch?.statusTone === "string" ? patch.statusTone : current.statusTone,
-          actionLabel: typeof patch?.actionLabel === "string" ? patch.actionLabel : current.actionLabel,
-          sections: Array.isArray(patch?.sections) ? normalizeSidebarSections(patch.sections) : current.sections,
-          resultEntries: Array.isArray(patch?.resultEntries)
-            ? normalizeResultEntries(patch.resultEntries, registry.id)
-            : current.resultEntries,
-          artifacts: Array.isArray(patch?.artifacts)
-            ? normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {}, {
-                preferExplicitMetadata: true,
-              })
-            : current.artifacts,
-          outputs: Array.isArray(patch?.outputs) ? normalizeOutputEntries(patch.outputs) : current.outputs,
-        };
+        const currentPatch = registry.viewStatePatches.get(id) || {};
+        const nextPatch = extractViewStatePatch(currentPatch, patch, registry);
+        registry.viewStatePatches.set(id, nextPatch);
+        const next = mergeViewStatePatch(current, patch, registry);
         registry.viewState.set(id, next);
         writeMessage({
           kind: "ViewStateChanged",
@@ -1003,6 +992,7 @@ async function ensureActivated(request) {
     treeItems: new Map(),
     treeParents: new Map(),
     viewState: new Map(),
+    viewStatePatches: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
     permissions: {
@@ -1198,28 +1188,27 @@ async function handleResolveView(params = {}) {
     return await handleResolveTreeView(record, treeProvider, viewId, parentItemId, params.envelope || {});
   }
   const result = await provider(params.envelope || {});
+  const baselineState = resolveViewStateFromResult(viewId, result, record.id, params.envelope || {});
+  const pushedState = record.viewStatePatches.get(viewId);
+  const mergedState = mergeResolvedViewStateWithPushedState(baselineState, pushedState);
+  record.viewState.set(viewId, mergedState);
   return {
     kind: "ResolveView",
     payload: {
       viewId,
       parentItemId,
-      title:
-        typeof result?.title === "string" && result.title.trim()
-          ? result.title.trim()
-          : viewId,
-      description: typeof result?.description === "string" ? result.description : "",
-      message: typeof result?.message === "string" ? result.message : "",
-      badgeValue: Number.isInteger(result?.badgeValue) ? result.badgeValue : null,
-      badgeTooltip: typeof result?.badgeTooltip === "string" ? result.badgeTooltip : "",
-      statusLabel: typeof result?.statusLabel === "string" ? result.statusLabel : "",
-      statusTone: typeof result?.statusTone === "string" ? result.statusTone : "",
-      actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
-      sections: normalizeSidebarSections(result?.sections),
-      resultEntries: normalizeResultEntries(result?.resultEntries, record.id),
-      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}, {
-        preferExplicitMetadata: true,
-      }),
-      outputs: normalizeOutputEntries(result?.outputs),
+      title: mergedState.title,
+      description: mergedState.description,
+      message: mergedState.message,
+      badgeValue: mergedState.badgeValue,
+      badgeTooltip: mergedState.badgeTooltip,
+      statusLabel: mergedState.statusLabel,
+      statusTone: mergedState.statusTone,
+      actionLabel: mergedState.actionLabel,
+      sections: mergedState.sections,
+      resultEntries: mergedState.resultEntries,
+      artifacts: cloneArtifactEntries(mergedState.artifacts),
+      outputs: normalizeOutputEntries(mergedState.outputs),
       items: Array.isArray(result?.items)
         ? normalizeViewItems(result.items, viewId)
         : [],
@@ -1333,6 +1322,97 @@ function createEmptyViewState(viewId = "") {
     resultEntries: [],
     artifacts: [],
     outputs: [],
+  };
+}
+
+function resolveViewStateFromResult(viewId = "", result = {}, extensionId = "", envelope = {}) {
+  return {
+    title:
+      typeof result?.title === "string" && result.title.trim()
+        ? result.title.trim()
+        : String(viewId || "").trim(),
+    description: typeof result?.description === "string" ? result.description : "",
+    message: typeof result?.message === "string" ? result.message : "",
+    badgeValue: Number.isInteger(result?.badgeValue) ? result.badgeValue : null,
+    badgeTooltip: typeof result?.badgeTooltip === "string" ? result.badgeTooltip : "",
+    statusLabel: typeof result?.statusLabel === "string" ? result.statusLabel : "",
+    statusTone: typeof result?.statusTone === "string" ? result.statusTone : "",
+    actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
+    sections: normalizeSidebarSections(result?.sections),
+    resultEntries: normalizeResultEntries(result?.resultEntries, extensionId),
+    artifacts: normalizeArtifactEntries(result?.artifacts, envelope, {
+      preferExplicitMetadata: true,
+    }),
+    outputs: normalizeOutputEntries(result?.outputs),
+  };
+}
+
+function mergeViewStatePatch(current = {}, patch = {}, registry) {
+  return {
+    ...current,
+    title: typeof patch?.title === "string" && patch.title.trim() ? patch.title.trim() : current.title,
+    description: typeof patch?.description === "string" ? patch.description : current.description,
+    message: typeof patch?.message === "string" ? patch.message : current.message,
+    badgeValue: Number.isInteger(patch?.badgeValue) ? patch.badgeValue : current.badgeValue,
+    badgeTooltip: typeof patch?.badgeTooltip === "string" ? patch.badgeTooltip : current.badgeTooltip,
+    statusLabel: typeof patch?.statusLabel === "string" ? patch.statusLabel : current.statusLabel,
+    statusTone: typeof patch?.statusTone === "string" ? patch.statusTone : current.statusTone,
+    actionLabel: typeof patch?.actionLabel === "string" ? patch.actionLabel : current.actionLabel,
+    sections: Array.isArray(patch?.sections) ? normalizeSidebarSections(patch.sections) : current.sections,
+    resultEntries: Array.isArray(patch?.resultEntries)
+      ? normalizeResultEntries(patch.resultEntries, registry.id)
+      : current.resultEntries,
+    artifacts: Array.isArray(patch?.artifacts)
+      ? normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {}, {
+          preferExplicitMetadata: true,
+        })
+      : current.artifacts,
+    outputs: Array.isArray(patch?.outputs) ? normalizeOutputEntries(patch.outputs) : current.outputs,
+  };
+}
+
+function extractViewStatePatch(current = {}, patch = {}, registry) {
+  const next = {};
+  if (typeof patch?.title === "string" && patch.title.trim()) next.title = patch.title.trim();
+  if (typeof patch?.description === "string") next.description = patch.description;
+  if (typeof patch?.message === "string") next.message = patch.message;
+  if (Number.isInteger(patch?.badgeValue)) next.badgeValue = patch.badgeValue;
+  if (typeof patch?.badgeTooltip === "string") next.badgeTooltip = patch.badgeTooltip;
+  if (typeof patch?.statusLabel === "string") next.statusLabel = patch.statusLabel;
+  if (typeof patch?.statusTone === "string") next.statusTone = patch.statusTone;
+  if (typeof patch?.actionLabel === "string") next.actionLabel = patch.actionLabel;
+  if (Array.isArray(patch?.sections)) next.sections = normalizeSidebarSections(patch.sections);
+  if (Array.isArray(patch?.resultEntries)) next.resultEntries = normalizeResultEntries(patch.resultEntries, registry.id);
+  if (Array.isArray(patch?.artifacts)) {
+    next.artifacts = normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {}, {
+      preferExplicitMetadata: true,
+    });
+  }
+  if (Array.isArray(patch?.outputs)) next.outputs = normalizeOutputEntries(patch.outputs);
+  return {
+    ...(current && typeof current === "object" ? current : {}),
+    ...next,
+  };
+}
+
+function mergeResolvedViewStateWithPushedState(baseline = {}, pushed = {}) {
+  if (!pushed || typeof pushed !== "object") {
+    return baseline;
+  }
+  return {
+    ...baseline,
+    title: typeof pushed.title === "string" && pushed.title.trim() ? pushed.title.trim() : baseline.title,
+    description: typeof pushed.description === "string" ? pushed.description : baseline.description,
+    message: typeof pushed.message === "string" ? pushed.message : baseline.message,
+    badgeValue: Number.isInteger(pushed.badgeValue) ? pushed.badgeValue : baseline.badgeValue,
+    badgeTooltip: typeof pushed.badgeTooltip === "string" ? pushed.badgeTooltip : baseline.badgeTooltip,
+    statusLabel: typeof pushed.statusLabel === "string" ? pushed.statusLabel : baseline.statusLabel,
+    statusTone: typeof pushed.statusTone === "string" ? pushed.statusTone : baseline.statusTone,
+    actionLabel: typeof pushed.actionLabel === "string" ? pushed.actionLabel : baseline.actionLabel,
+    sections: Array.isArray(pushed.sections) ? pushed.sections : baseline.sections,
+    resultEntries: Array.isArray(pushed.resultEntries) ? pushed.resultEntries : baseline.resultEntries,
+    artifacts: Array.isArray(pushed.artifacts) ? pushed.artifacts : baseline.artifacts,
+    outputs: Array.isArray(pushed.outputs) ? pushed.outputs : baseline.outputs,
   };
 }
 

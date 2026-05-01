@@ -112,6 +112,12 @@ Task progress delivery also has a probe-backed runtime contract:
 - terminal task updates remain responsible for cleaning up spawned worker ownership in the Rust runtime
 - task `artifacts` and `outputs` are replace-on-present snapshots, so plugin code can either keep existing values by omitting a field or replace the persisted value by sending a new array, including an explicit empty array
 
+View-state delivery also has a probe-backed runtime contract:
+
+- `views.updateView(...)` on a normal view provider persists as a pushed overlay across later host refreshes
+- pushed fields such as `message`, `statusLabel`, `resultEntries`, `artifacts`, and `outputs` stay authoritative until replaced by another pushed patch
+- untouched fields such as baseline descriptions, badges, and sections still refresh from the provider on later `ResolveView` calls
+
 ## 4. Current Manifest Use
 
 `package.json` is still used for:

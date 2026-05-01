@@ -168,6 +168,13 @@ Task update contract note:
 - `artifacts` and `outputs` on task updates should follow replace-on-present semantics: omitted fields keep the current value, while provided arrays replace the persisted snapshot, including explicit empty arrays
 - intermediate and final task updates should preserve structured `outputs` through the Rust bridge instead of dropping them at the task patch boundary
 
+View state contract note:
+
+- `context.views.updateView(...)` for normal view providers should remain authoritative across a later `ResolveView` refresh instead of reverting immediately to the provider baseline
+- pushed view-state fields should overlay only the fields the plugin actually patched; untouched fields should continue to refresh from the latest provider baseline on subsequent `ResolveView` calls
+- pushed `resultEntries`, `artifacts`, and `outputs` should survive later refreshes until the plugin replaces them with another pushed snapshot
+- tree-view refresh should keep consuming the stored host view state, while normal view providers should merge the latest provider baseline with the stored pushed patch
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:
