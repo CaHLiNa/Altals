@@ -888,6 +888,7 @@
   "Done": "完成",
   "No LaTeX compiler configured. Choose one in Settings > System.": "没有可用的 LaTeX 编译器，请到 设置 > 系统 中选择。",
   "Unverified": "未验证",
+  "Cancelled": "已取消",
   "Failed": "失败",
   "PDF Settings": "PDF 设置",
   "Template": "模板",

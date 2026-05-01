@@ -105,11 +105,35 @@ function normalizeTask(task = {}) {
           total: Number.isFinite(Number(task.progress.total)) ? Number(task.progress.total) : 0,
         }
       : { label: '', current: 0, total: 0 },
+    createdAt: String(task.createdAt || task.created_at || ''),
+    startedAt: String(task.startedAt || task.started_at || ''),
+    finishedAt: String(task.finishedAt || task.finished_at || ''),
     target: normalizeTarget(task?.target || {}),
     artifacts: Array.isArray(task.artifacts) ? task.artifacts : [],
     error: String(task.error || ''),
     logPath: String(task.logPath || task.log_path || ''),
   }
+}
+
+function recentTasksForExtensionList(tasks = [], extensionId = '') {
+  const normalizedExtensionId = normalizeExtensionId(extensionId)
+  const filtered = normalizedExtensionId
+    ? tasks.filter((task) => task.extensionId === normalizedExtensionId)
+    : tasks
+  return [...filtered].slice(0, 8)
+}
+
+function buildTaskTimeline(tasks = []) {
+  const running = []
+  const recent = []
+  for (const task of tasks) {
+    if (task.state === 'running' || task.state === 'queued') {
+      running.push(task)
+    } else {
+      recent.push(task)
+    }
+  }
+  return { running, recent }
 }
 
 function normalizeResolvedViewItem(item = {}) {
@@ -485,11 +509,12 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     recentTasksForExtension(state) {
       return (extensionId = '') => {
-        const normalizedExtensionId = normalizeExtensionId(extensionId)
-        const tasks = normalizedExtensionId
-          ? state.tasks.filter((task) => task.extensionId === normalizedExtensionId)
-          : state.tasks
-        return [...tasks].slice(0, 8)
+        return recentTasksForExtensionList(state.tasks, extensionId)
+      }
+    },
+    taskTimelineForExtension(state) {
+      return (extensionId = '') => {
+        return buildTaskTimeline(recentTasksForExtensionList(state.tasks, extensionId))
       }
     },
     defaultConfigForExtension: () => (extension = {}) => {

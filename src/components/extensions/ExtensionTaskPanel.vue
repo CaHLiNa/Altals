@@ -1,84 +1,161 @@
 <template>
   <div class="extension-task-panel">
-    <div v-if="tasks.length === 0" class="extension-task-empty">{{ t('No extension tasks yet') }}</div>
-    <div v-for="task in tasks" :key="task.id" class="extension-task-row">
-      <div class="extension-task-main">
-        <div class="extension-task-title">
-          <span>{{ taskTitle(task) }}</span>
-          <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
-        </div>
-        <div class="extension-task-meta">
-          {{ taskMeta(task) }}
-          <span v-if="task.error"> · {{ task.error }}</span>
-        </div>
-        <div v-if="taskProgressSummary(task)" class="extension-task-progress">
-          {{ taskProgressSummary(task) }}
-        </div>
-        <div v-if="task.artifacts?.length" class="extension-artifacts">
-          <button
-            v-for="artifact in task.artifacts"
-            :key="artifact.id || artifact.path"
-            type="button"
-            class="extension-artifact-link"
-            @click="openArtifact(artifact)"
-          >
-            {{ artifact.kind || t('Artifact') }}
-          </button>
-        </div>
-        <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
-          <div class="extension-task-results__title">{{ t('Results') }}</div>
-          <button
-            v-for="entry in taskResultEntries(task)"
-            :key="entry.id"
-            type="button"
-            class="extension-task-results__entry"
-            :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
-            @click="selectArtifactEntry(task, entry)"
-          >
-            <span class="extension-task-results__entry-label">{{ entry.label }}</span>
-            <span v-if="entry.description" class="extension-task-results__entry-description">
-              {{ entry.description }}
-            </span>
-          </button>
-        </div>
-        <ExtensionResultPreview
-          v-if="activeArtifactEntry(task)"
-          :entry="activeArtifactEntry(task)"
-          :busy-action-key="artifactActionBusyKey"
-          @run-action="openArtifactEntry"
-        />
-      </div>
-      <div class="extension-task-actions">
-        <UiButton
-          v-if="task.state === 'running' || task.state === 'queued'"
-          variant="secondary"
-          size="sm"
-          @click="extensionsStore.cancelTask(task.id)"
-        >
-          {{ t('Cancel') }}
-        </UiButton>
-        <UiButton
-          v-if="task.logPath"
-          variant="ghost"
-          size="sm"
-          @click="extensionsStore.revealArtifact({ path: task.logPath })"
-        >
-          {{ t('Log') }}
-        </UiButton>
-      </div>
+    <div v-if="timeline.running.length === 0 && timeline.recent.length === 0" class="extension-task-empty">
+      {{ t('No extension tasks yet') }}
     </div>
+
+    <section v-if="timeline.running.length > 0" class="extension-task-group">
+      <div class="extension-task-group__title">{{ t('Running') }}</div>
+      <div v-for="task in timeline.running" :key="task.id" class="extension-task-row">
+        <div class="extension-task-main">
+          <div class="extension-task-title">
+            <span>{{ taskTitle(task) }}</span>
+            <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
+          </div>
+          <div class="extension-task-meta">
+            {{ taskMeta(task) }}
+            <span v-if="task.error"> · {{ task.error }}</span>
+          </div>
+          <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
+          <div v-if="taskProgressSummary(task)" class="extension-task-progress">
+            {{ taskProgressSummary(task) }}
+          </div>
+          <div v-if="task.artifacts?.length" class="extension-artifacts">
+            <button
+              v-for="artifact in task.artifacts"
+              :key="artifact.id || artifact.path"
+              type="button"
+              class="extension-artifact-link"
+              @click="openArtifact(artifact)"
+            >
+              {{ artifact.kind || t('Artifact') }}
+            </button>
+          </div>
+          <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
+            <div class="extension-task-results__title">{{ t('Results') }}</div>
+            <button
+              v-for="entry in taskResultEntries(task)"
+              :key="entry.id"
+              type="button"
+              class="extension-task-results__entry"
+              :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
+              @click="selectArtifactEntry(task, entry)"
+            >
+              <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
+              <span v-if="entry.description" class="extension-task-results__entry-description">
+                {{ t(entry.description) }}
+              </span>
+            </button>
+          </div>
+          <ExtensionResultPreview
+            v-if="activeArtifactEntry(task)"
+            :entry="activeArtifactEntry(task)"
+            :busy-action-key="artifactActionBusyKey"
+            @run-action="openArtifactEntry"
+          />
+        </div>
+        <div class="extension-task-actions">
+          <UiButton
+            v-if="task.state === 'running' || task.state === 'queued'"
+            variant="secondary"
+            size="sm"
+            @click="extensionsStore.cancelTask(task.id)"
+          >
+            {{ t('Cancel') }}
+          </UiButton>
+          <UiButton
+            v-if="task.logPath"
+            variant="ghost"
+            size="sm"
+            @click="extensionsStore.revealArtifact({ path: task.logPath })"
+          >
+            {{ t('Log') }}
+          </UiButton>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="timeline.recent.length > 0" class="extension-task-group">
+      <div class="extension-task-group__title">{{ t('Recent Extension Tasks') }}</div>
+      <div v-for="task in timeline.recent" :key="task.id" class="extension-task-row">
+        <div class="extension-task-main">
+          <div class="extension-task-title">
+            <span>{{ taskTitle(task) }}</span>
+            <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
+          </div>
+          <div class="extension-task-meta">
+            {{ taskMeta(task) }}
+            <span v-if="task.error"> · {{ task.error }}</span>
+          </div>
+          <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
+          <div v-if="taskProgressSummary(task)" class="extension-task-progress">
+            {{ taskProgressSummary(task) }}
+          </div>
+          <div v-if="task.artifacts?.length" class="extension-artifacts">
+            <button
+              v-for="artifact in task.artifacts"
+              :key="artifact.id || artifact.path"
+              type="button"
+              class="extension-artifact-link"
+              @click="openArtifact(artifact)"
+            >
+              {{ artifact.kind || t('Artifact') }}
+            </button>
+          </div>
+          <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
+            <div class="extension-task-results__title">{{ t('Results') }}</div>
+            <button
+              v-for="entry in taskResultEntries(task)"
+              :key="entry.id"
+              type="button"
+              class="extension-task-results__entry"
+              :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
+              @click="selectArtifactEntry(task, entry)"
+            >
+              <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
+              <span v-if="entry.description" class="extension-task-results__entry-description">
+                {{ t(entry.description) }}
+              </span>
+            </button>
+          </div>
+          <ExtensionResultPreview
+            v-if="activeArtifactEntry(task)"
+            :entry="activeArtifactEntry(task)"
+            :busy-action-key="artifactActionBusyKey"
+            @run-action="openArtifactEntry"
+          />
+        </div>
+        <div class="extension-task-actions">
+          <UiButton
+            v-if="task.state === 'running' || task.state === 'queued'"
+            variant="secondary"
+            size="sm"
+            @click="extensionsStore.cancelTask(task.id)"
+          >
+            {{ t('Cancel') }}
+          </UiButton>
+          <UiButton
+            v-if="task.logPath"
+            variant="ghost"
+            size="sm"
+            @click="extensionsStore.revealArtifact({ path: task.logPath })"
+          >
+            {{ t('Log') }}
+          </UiButton>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useI18n } from '../../i18n'
+import { useI18n, formatRelativeFromNow } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 import {
-  buildExtensionArtifactPreviewEntries,
   buildExtensionTaskResultEntries,
   titleCaseKey,
 } from '../../services/extensions/extensionArtifactPreviewEntries'
@@ -91,7 +168,7 @@ const activeArtifactEntryIds = ref({})
 const props = defineProps({
   extensionId: { type: String, default: '' },
 })
-const tasks = computed(() => extensionsStore.recentTasksForExtension(props.extensionId))
+const timeline = computed(() => extensionsStore.taskTimelineForExtension(props.extensionId))
 
 function openArtifact(artifact = {}) {
   const path = String(artifact?.path || '')
@@ -154,8 +231,34 @@ function taskTitle(task = {}) {
   return t(normalized)
 }
 
+function canonicalTaskStatusKey(value = '') {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'queued':
+      return 'Queued'
+    case 'running':
+      return 'Running'
+    case 'succeeded':
+    case 'completed':
+      return 'Completed'
+    case 'failed':
+      return 'Failed'
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled'
+    default:
+      return ''
+  }
+}
+
+function renderTaskStatusLabel(value = '') {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const canonical = canonicalTaskStatusKey(raw)
+  return canonical ? t(canonical) : t(raw)
+}
+
 function taskStateLabel(task = {}) {
-  return String(task?.progress?.label || task?.state || '').trim() || t('Completed')
+  return renderTaskStatusLabel(task?.progress?.label || task?.state) || t('Completed')
 }
 
 function taskTargetLabel(task = {}) {
@@ -174,7 +277,7 @@ function taskMeta(task = {}) {
 }
 
 function taskProgressSummary(task = {}) {
-  const label = String(task?.progress?.label || '').trim()
+  const label = renderTaskStatusLabel(task?.progress?.label)
   const current = Number(task?.progress?.current || 0)
   const total = Number(task?.progress?.total || 0)
   if (total > 0) {
@@ -182,13 +285,50 @@ function taskProgressSummary(task = {}) {
   }
   return label && label !== taskStateLabel(task) ? label : ''
 }
+
+function taskTimeSummary(task = {}) {
+  const state = String(task?.state || '').trim().toLowerCase()
+  if (state === 'running' || state === 'queued') {
+    const startedAt = String(task.startedAt || task.createdAt || '').trim()
+    const activeLabel = state === 'queued' ? t('Queued') : t('Running')
+    return startedAt ? `${activeLabel} · ${formatRelativeFromNow(startedAt)}` : activeLabel
+  }
+  const finishedAt = String(task.finishedAt || task.startedAt || task.createdAt || '').trim()
+  if (!finishedAt) return ''
+  const terminalLabel = (() => {
+    switch (state) {
+      case 'failed':
+        return t('Failed')
+      case 'cancelled':
+      case 'canceled':
+        return t('Cancelled')
+      default:
+        return t('Completed')
+    }
+  })()
+  return `${terminalLabel} · ${formatRelativeFromNow(finishedAt)}`
+}
 </script>
 
 <style scoped>
 .extension-task-panel {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 14px;
+}
+
+.extension-task-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.extension-task-group__title {
+  padding: 0 16px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .extension-task-empty {
@@ -245,6 +385,11 @@ function taskProgressSummary(task = {}) {
 }
 
 .extension-task-progress {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.extension-task-time {
   font-size: 11px;
   color: var(--text-muted);
 }
