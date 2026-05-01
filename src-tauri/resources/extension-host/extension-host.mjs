@@ -589,6 +589,9 @@ function createExtensionApi(registry) {
           resultEntries: Array.isArray(patch?.resultEntries)
             ? normalizeResultEntries(patch.resultEntries, registry.id)
             : current.resultEntries,
+          artifacts: Array.isArray(patch?.artifacts)
+            ? normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {})
+            : current.artifacts,
           outputs: Array.isArray(patch?.outputs) ? normalizeOutputEntries(patch.outputs) : current.outputs,
         };
         registry.viewState.set(id, next);
@@ -608,6 +611,7 @@ function createExtensionApi(registry) {
             actionLabel: next.actionLabel,
             sections: next.sections,
             resultEntries: next.resultEntries,
+            artifacts: next.artifacts,
             outputs: next.outputs,
           },
         });
@@ -1182,6 +1186,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
       sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
       resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || [], record.id),
+      artifacts: normalizeArtifactEntries(record.viewState.get(viewId)?.artifacts || [], record.lastInvocation || {}),
       outputs: normalizeOutputEntries(record.viewState.get(viewId)?.outputs || []),
       items,
     },
@@ -1251,6 +1256,7 @@ function createEmptyViewState(viewId = "") {
     actionLabel: "",
     sections: [],
     resultEntries: [],
+    artifacts: [],
     outputs: [],
   };
 }

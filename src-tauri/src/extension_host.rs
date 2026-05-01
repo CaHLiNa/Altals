@@ -394,6 +394,8 @@ pub struct ExtensionHostViewResolveResult {
     #[serde(default)]
     pub result_entries: Vec<ExtensionHostResultEntry>,
     #[serde(default)]
+    pub artifacts: Vec<ExtensionArtifact>,
+    #[serde(default)]
     pub outputs: Vec<ExtensionCapabilityOutput>,
     #[serde(default)]
     pub items: Vec<ExtensionHostViewItem>,
@@ -436,6 +438,8 @@ pub struct ExtensionHostViewStateChangedEvent {
     pub sections: Vec<ExtensionHostSidebarSection>,
     #[serde(default)]
     pub result_entries: Vec<ExtensionHostResultEntry>,
+    #[serde(default)]
+    pub artifacts: Vec<ExtensionArtifact>,
     #[serde(default)]
     pub outputs: Vec<ExtensionCapabilityOutput>,
 }
@@ -1808,6 +1812,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             action_label: String::new(),
             sections: Vec::new(),
             result_entries: Vec::new(),
+            artifacts: Vec::new(),
             outputs: Vec::new(),
             items: Vec::new(),
         }),

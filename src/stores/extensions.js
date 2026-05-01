@@ -168,6 +168,21 @@ function normalizeResolvedViewItem(item = {}) {
   }
 }
 
+function normalizeArtifactEntry(entry = {}) {
+  return {
+    id: String(entry?.id || '').trim(),
+    extensionId: normalizeExtensionId(entry?.extensionId || entry?.extension_id || ''),
+    taskId: String(entry?.taskId || entry?.task_id || '').trim(),
+    capability: normalizeCapability(entry?.capability),
+    kind: String(entry?.kind || '').trim(),
+    mediaType: String(entry?.mediaType || entry?.media_type || '').trim(),
+    path: String(entry?.path || '').trim(),
+    sourcePath: String(entry?.sourcePath || entry?.source_path || '').trim(),
+    sourceHash: String(entry?.sourceHash || entry?.source_hash || '').trim(),
+    createdAt: String(entry?.createdAt || entry?.created_at || '').trim(),
+  }
+}
+
 function normalizeSidebarSection(entry = {}, index = 0) {
   return {
     id: String(entry?.id || `section:${index}`).trim(),
@@ -941,6 +956,9 @@ export const useExtensionsStore = defineStore('extensions', {
           existingEntries: Array.isArray(resolved?.resultEntries)
             ? resolved.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
             : [],
+          artifacts: Array.isArray(resolved?.artifacts)
+            ? resolved.artifacts.map((entry) => normalizeArtifactEntry(entry))
+            : [],
           outputs: resolved?.outputs,
         }),
       }
@@ -1055,6 +1073,9 @@ export const useExtensionsStore = defineStore('extensions', {
           resultEntries: mergeDefaultResultEntries({
             existingEntries: Array.isArray(payload.resultEntries)
               ? payload.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+              : [],
+            artifacts: Array.isArray(payload.artifacts)
+              ? payload.artifacts.map((entry) => normalizeArtifactEntry(entry))
               : [],
             outputs: payload.outputs,
           }),

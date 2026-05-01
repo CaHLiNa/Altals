@@ -67,6 +67,15 @@ const resolvedViewPayload = {
       text: 'Summary from resolveView',
     },
   ],
+  artifacts: [
+    {
+      id: 'summary-asset',
+      kind: 'translated-text',
+      mediaType: 'text/plain',
+      path: '/tmp/workspace/notes/summary.txt',
+      sourcePath: '/tmp/workspace/notes/draft.md',
+    },
+  ],
   items: [],
 }
 
@@ -192,6 +201,14 @@ try {
       text: '',
     },
     {
+      id: 'summary-asset',
+      label: 'Translated Text',
+      previewMode: 'text',
+      previewTitle: 'Translated Text',
+      mediaType: 'text/plain',
+      text: '',
+    },
+    {
       id: 'summary',
       label: 'Note Summary',
       previewMode: 'text',
@@ -231,6 +248,15 @@ try {
         action: 'open',
       },
     ],
+    artifacts: [
+      {
+        id: 'summary-asset',
+        kind: 'translated-text',
+        mediaType: 'text/plain',
+        path: '/tmp/workspace/notes/summary.updated.txt',
+        sourcePath: '/tmp/workspace/notes/draft.md',
+      },
+    ],
     outputs: [
       {
         id: 'summary',
@@ -251,6 +277,14 @@ try {
       previewMode: '',
       previewTitle: '',
       mediaType: '',
+      text: '',
+    },
+    {
+      id: 'summary-asset',
+      label: 'Translated Text',
+      previewMode: 'text',
+      previewTitle: 'Translated Text',
+      mediaType: 'text/plain',
       text: '',
     },
     {

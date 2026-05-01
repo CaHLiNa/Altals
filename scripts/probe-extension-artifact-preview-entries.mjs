@@ -3,6 +3,7 @@ import {
   buildExtensionArtifactPreviewEntries,
   buildExtensionTaskResultEntries,
 } from '../src/services/extensions/extensionArtifactPreviewEntries.js'
+import { buildDefaultResultEntries, mergeDefaultResultEntries } from '../src/services/extensions/extensionResultEntries.js'
 
 async function main() {
   const entries = buildExtensionArtifactPreviewEntries([
@@ -142,10 +143,115 @@ async function main() {
     ],
   )
 
+  const defaultEntries = buildDefaultResultEntries({
+    artifacts: [
+      {
+        id: 'artifact-pdf',
+        kind: 'translated-pdf',
+        mediaType: 'application/pdf',
+        path: '/tmp/paper.pdf',
+      },
+    ],
+    outputs: [
+      {
+        id: 'inline-summary',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Inline Summary',
+        text: 'inline summary text',
+      },
+    ],
+  })
+
+  assert.deepEqual(
+    defaultEntries.map((entry) => ({
+      id: entry.id,
+      previewMode: entry.previewMode,
+      previewTitle: entry.previewTitle,
+    })),
+    [
+      {
+        id: 'artifact-pdf',
+        previewMode: 'pdf',
+        previewTitle: 'Translated Pdf',
+      },
+      {
+        id: 'inline-summary',
+        previewMode: 'text',
+        previewTitle: 'Inline Summary',
+      },
+    ],
+  )
+
+  const mergedEntries = mergeDefaultResultEntries({
+    existingEntries: [
+      {
+        id: 'artifact-pdf',
+        label: 'Old PDF Label',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Old PDF Label',
+      },
+      {
+        id: 'run-again',
+        label: 'Run Again',
+        action: 'execute-command',
+      },
+    ],
+    artifacts: [
+      {
+        id: 'artifact-pdf',
+        kind: 'translated-pdf',
+        mediaType: 'application/pdf',
+        path: '/tmp/paper.pdf',
+      },
+    ],
+    outputs: [
+      {
+        id: 'inline-summary',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Inline Summary',
+        text: 'inline summary text',
+      },
+    ],
+  })
+
+  assert.deepEqual(
+    mergedEntries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      previewMode: entry.previewMode,
+      previewTitle: entry.previewTitle,
+    })),
+    [
+      {
+        id: 'run-again',
+        action: 'execute-command',
+        previewMode: undefined,
+        previewTitle: undefined,
+      },
+      {
+        id: 'artifact-pdf',
+        action: 'open',
+        previewMode: 'pdf',
+        previewTitle: 'Translated Pdf',
+      },
+      {
+        id: 'inline-summary',
+        action: 'open',
+        previewMode: 'text',
+        previewTitle: 'Inline Summary',
+      },
+    ],
+  )
+
   console.log(JSON.stringify({
     ok: true,
     entries,
     taskEntries,
+    defaultEntries,
+    mergedEntries,
   }, null, 2))
 }
 

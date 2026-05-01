@@ -407,13 +407,16 @@ async function main() {
   const taskUpdateObserved = hostCallKinds.includes("tasks.update");
   const runtimeCommands = activate?.payload?.registeredCommands || [];
   const runtimeActions = activate?.payload?.registeredMenuActions || [];
-  const resultActionKinds = (
-    observed.find(
+  const translationSidebarState = [...observed]
+    .reverse()
+    .find(
       (entry) =>
         entry.kind === "ViewStateChanged" &&
-        Array.isArray(entry.payload?.resultEntries) &&
-        entry.payload.resultEntries.length > 0,
-    )?.payload?.resultEntries || []
+        String(entry.payload?.message || "").includes("Translated /tmp/paper.pdf") &&
+        Array.isArray(entry.payload?.resultEntries),
+    ) || null;
+  const resultActionKinds = (
+    translationSidebarState?.payload?.resultEntries || []
   ).map((entry) => ({
     id: entry.id,
     action: entry.action,
@@ -425,13 +428,27 @@ async function main() {
     previewTitle: entry.previewTitle || "",
     payloadKeys: entry.payload ? Object.keys(entry.payload) : [],
   }));
-  const richSidebarState = observed.find(
-    (entry) =>
-      entry.kind === "ViewStateChanged" &&
-      Array.isArray(entry.payload?.sections) &&
-      entry.payload.sections.length > 0 &&
-      Array.isArray(entry.payload?.resultEntries),
-  ) || null;
+  const translationArtifacts = (
+    Array.isArray(translationSidebarState?.payload?.artifacts)
+      ? translationSidebarState.payload.artifacts
+      : []
+  ).map((entry) => ({
+    id: entry.id || "",
+    kind: entry.kind || "",
+    mediaType: entry.mediaType || "",
+    path: entry.path || "",
+    sourcePath: entry.sourcePath || "",
+  }));
+  const translationOutputs = (
+    Array.isArray(translationSidebarState?.payload?.outputs)
+      ? translationSidebarState.payload.outputs
+      : []
+  ).map((entry) => ({
+    id: entry.id || "",
+    type: entry.type || "",
+    mediaType: entry.mediaType || "",
+    title: entry.title || "",
+  }));
   const summary = {
     runtimeCommands,
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
@@ -452,9 +469,11 @@ async function main() {
     translateProcessWaitObserved,
     translateTaskUpdateObserved,
     resultActionKinds,
+    translationArtifacts,
+    translationOutputs,
     settingsChangedMessage: String(settingsChanged?.payload?.message || ""),
-    richSidebarSectionCount: Array.isArray(richSidebarState?.payload?.sections)
-      ? richSidebarState.payload.sections.length
+    richSidebarSectionCount: Array.isArray(translationSidebarState?.payload?.sections)
+      ? translationSidebarState.payload.sections.length
       : 0,
   };
 
@@ -492,6 +511,7 @@ async function main() {
   ensure(translateProcessSpawnObserved, "translation command did not spawn a local worker", summary);
   ensure(translateProcessWaitObserved, "translation command did not wait for the local worker", summary);
   ensure(translateTaskUpdateObserved, "translation command did not emit task updates", summary);
+  ensure(translationSidebarState, "translation sidebar state was not emitted", summary);
   ensure(
     String(settingsChanged?.payload?.message || "").includes("Settings updated: examplePdfExtension.targetLang"),
     "settings change event did not propagate into plugin runtime",
@@ -502,19 +522,46 @@ async function main() {
   ensure(resultActionKinds.some((entry) => entry.action === "reveal"), "reveal result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "execute-command"), "execute-command result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "open-reference"), "open-reference result entry missing", summary);
-  ensure(resultActionKinds.some((entry) => entry.previewMode === "html"), "html preview result entry missing", summary);
-  ensure(resultActionKinds.some((entry) => entry.previewMode === "text"), "text preview result entry missing", summary);
   ensure(
-    resultActionKinds.some(
+    translationOutputs.some(
+      (entry) =>
+        entry.id === "translation-html-preview" &&
+        String(entry.type).toLowerCase() === "inlinehtml" &&
+        entry.mediaType === "text/html",
+    ),
+    "html preview output missing",
+    summary,
+  );
+  ensure(
+    translationOutputs.some(
+      (entry) =>
+        entry.id === "translation-summary-preview" &&
+        String(entry.type).toLowerCase() === "inlinetext" &&
+        entry.mediaType === "text/plain",
+    ),
+    "text summary output missing",
+    summary,
+  );
+  ensure(
+    translationArtifacts.some(
+      (entry) =>
+        entry.id === "translated-pdf-artifact" &&
+        entry.mediaType === "application/pdf" &&
+        entry.path === "/tmp/paper.pdf",
+    ),
+    "pdf artifact result entry missing",
+    summary,
+  );
+  ensure(
+    translationArtifacts.some(
       (entry) =>
         entry.id === "translation-text-output" &&
-        entry.previewMode === "text" &&
-        entry.previewPath.endsWith(".translation.txt"),
+        entry.mediaType === "text/plain" &&
+        entry.path.endsWith(".translation.txt"),
     ),
     "text artifact result entry missing",
     summary,
   );
-  ensure(resultActionKinds.some((entry) => entry.previewTitle === "Translated Text Output"), "translation output preview missing", summary);
   ensure(summary.richSidebarSectionCount > 0, "rich sidebar sections were not emitted", summary);
 
   console.log(JSON.stringify({ ok: true, summary }, null, 2));

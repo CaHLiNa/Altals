@@ -86,16 +86,6 @@ export async function activate(context) {
 
   function buildResultEntries(overrides = {}) {
     const targetPath = String(overrides.targetPath || lastResultPath || currentPdf().path || currentResource().path || "")
-    const translationArtifactPath = String(
-      overrides.translationArtifactPath ||
-      (targetPath
-        ? `${targetPath}.${String(
-            overrides.targetLang ||
-            context.settings.get("examplePdfExtension.targetLang", "zh-CN") ||
-            "zh-CN",
-          )}.translation.txt`
-        : ""),
-    )
     if (!targetPath) return []
     const targetLang = String(
       overrides.targetLang ||
@@ -145,33 +135,6 @@ export async function activate(context) {
         },
       },
       {
-        id: "translation-text-output",
-        label: "Open Translation Output",
-        description: translationArtifactPath || "Translation output is not ready yet",
-        path: translationArtifactPath,
-        action: "open",
-        previewMode: "text",
-        previewPath: translationArtifactPath,
-        previewTitle: "Translated Text Output",
-        mediaType: "text/plain",
-      },
-      {
-        id: "translation-summary-preview",
-        label: "Preview Translation Summary",
-        description: "Inline text preview of the current translation context",
-        action: "open",
-        previewMode: "text",
-        previewTitle: "Translation Summary",
-        payload: {
-          text: [
-            `Target: ${targetPath || "No active PDF"}`,
-            `Reference: ${currentReference().id || "None"}`,
-            `Language: ${targetLang}`,
-            `Provider: example-pdf-extension`,
-          ].join("\n"),
-        },
-      },
-      {
         id: "rerun-translation-command",
         label: "Run Translation Again",
         description: "Execute the translation command for the current target again",
@@ -194,28 +157,6 @@ export async function activate(context) {
             referenceId: currentReference().id,
           }]
         : []),
-      {
-        id: "translation-html-preview",
-        label: "Preview HTML Result Card",
-        description: "Open the structured HTML result saved with this task",
-        action: "open",
-        previewMode: "html",
-        previewTitle: "Translation HTML Preview",
-        payload: {
-          html: `
-            <html>
-              <body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; margin: 0; padding: 20px; background: #fffdf8; color: #181512;">
-                <h2 style="margin: 0 0 8px; font-size: 18px;">Example Translation Result</h2>
-                <p style="margin: 0 0 14px; color: #5b5349;">This is a mock preview surface for future translated output.</p>
-                <div style="padding: 12px 14px; border: 1px solid #e6ded2; border-radius: 10px; background: #ffffff;">
-                  <div style="font-size: 12px; color: #6e6256; text-transform: uppercase; letter-spacing: .04em;">Target</div>
-                  <div style="margin-top: 4px; font-size: 14px;">${targetPath || "No active PDF"}</div>
-                </div>
-              </body>
-            </html>
-          `,
-        },
-      },
     ]
   }
 
@@ -232,6 +173,8 @@ export async function activate(context) {
       actionLabel: overrides.actionLabel ?? "Use Translate or Refresh to continue",
       sections: overrides.sections ?? buildSidebarSections(overrides),
       resultEntries: overrides.resultEntries ?? buildResultEntries(overrides),
+      artifacts: Array.isArray(overrides.artifacts) ? overrides.artifacts : [],
+      outputs: Array.isArray(overrides.outputs) ? overrides.outputs : [],
     })
   }
 
@@ -278,7 +221,6 @@ export async function activate(context) {
     updateSidebarView({
       targetLang,
       targetPath: lastResultPath,
-      translationArtifactPath,
       providerStatus: waited?.ok ? "Completed through local worker" : "Local worker failed",
       statusLabel: waited?.ok ? "Completed" : "Failed",
       statusTone: waited?.ok ? "success" : "warning",
@@ -286,6 +228,62 @@ export async function activate(context) {
       message: waited?.ok
         ? `Translated ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`
         : `Translation failed for ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`,
+      artifacts: waited?.ok && translationArtifactPath
+        ? [
+            {
+              id: "translation-text-output",
+              kind: "translated-text",
+              mediaType: "text/plain",
+              path: translationArtifactPath,
+              sourcePath: resource.path || lastResultPath,
+            },
+            ...(lastResultPath
+              ? [{
+                  id: "translated-pdf-artifact",
+                  kind: "translated-pdf",
+                  mediaType: "application/pdf",
+                  path: lastResultPath,
+                  sourcePath: resource.path || lastResultPath,
+                }]
+              : []),
+          ]
+        : [],
+      outputs: waited?.ok
+        ? [
+            {
+              id: "translation-summary-preview",
+              type: "inlineText",
+              mediaType: "text/plain",
+              title: "Translation Summary",
+              description: lastResultPath || "Translation summary",
+              text: [
+                `Target: ${lastResultPath || "No active PDF"}`,
+                `Reference: ${currentReference().id || "None"}`,
+                `Language: ${targetLang}`,
+                `Provider: example-pdf-extension`,
+              ].join("\n"),
+            },
+            {
+              id: "translation-html-preview",
+              type: "inlineHtml",
+              mediaType: "text/html",
+              title: "Translation HTML Preview",
+              description: lastResultPath || "Translation result card",
+              html: `
+                <html>
+                  <body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; margin: 0; padding: 20px; background: #fffdf8; color: #181512;">
+                    <h2 style="margin: 0 0 8px; font-size: 18px;">Example Translation Result</h2>
+                    <p style="margin: 0 0 14px; color: #5b5349;">This is a mock preview surface for future translated output.</p>
+                    <div style="padding: 12px 14px; border: 1px solid #e6ded2; border-radius: 10px; background: #ffffff;">
+                      <div style="font-size: 12px; color: #6e6256; text-transform: uppercase; letter-spacing: .04em;">Target</div>
+                      <div style="margin-top: 4px; font-size: 14px;">${lastResultPath || "No active PDF"}</div>
+                    </div>
+                  </body>
+                </html>
+              `,
+            },
+          ]
+        : [],
     })
     return {
       message: waited?.ok
