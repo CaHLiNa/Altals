@@ -41,7 +41,14 @@ function send(method, params) {
 }
 
 function isTerminal(message) {
-  return ["Activate", "InvokeCapability", "ExecuteCommand", "ResolveView", "Error"].includes(message.kind);
+  return [
+    "Activate",
+    "InvokeCapability",
+    "ExecuteCommand",
+    "ResolveView",
+    "AcknowledgeViewSelection",
+    "Error",
+  ].includes(message.kind);
 }
 
 function call(method, params) {
@@ -373,6 +380,62 @@ async function main() {
     },
   });
 
+  const rootTreeView = await call("ResolveView", {
+    activationEvent: "onView:examplePdfExtension.translateView",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    viewId: "examplePdfExtension.translateView",
+    parentItemId: "",
+    envelope: {
+      ...baseEnvelope,
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
+  const groupTreeView = await call("ResolveView", {
+    activationEvent: "onView:examplePdfExtension.translateView",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    viewId: "examplePdfExtension.translateView",
+    parentItemId: "translate-group",
+    envelope: {
+      ...baseEnvelope,
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
+  const selectionAck = await call("NotifyViewSelection", {
+    extensionId: "example-pdf-extension",
+    viewId: "examplePdfExtension.translateView",
+    itemHandle: "translate-current-pdf:/tmp/paper.pdf",
+  });
+  const selectionChanged = await waitForObserved(
+    (message) =>
+      message.kind === "ViewStateChanged" &&
+      String(message.payload?.message || "").includes("Selected translation target: /tmp/paper.pdf"),
+  );
+
+  const refreshView = await call("ExecuteCommand", {
+    activationEvent: "onCommand:examplePdfExtension.refreshTranslateView",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "examplePdfExtension.refreshTranslateView",
+    envelope: {
+      ...baseEnvelope,
+      commandId: "examplePdfExtension.refreshTranslateView",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+  const revealRequested = await waitForObserved(
+    (message) =>
+      message.kind === "ViewRevealRequested" &&
+      String(message.payload?.viewId || "") === "examplePdfExtension.translateView" &&
+      String(message.payload?.itemHandle || "") === "translate-group",
+  );
+
   const translate = await call("ExecuteCommand", {
     activationEvent: "onCommand:scribeflow.pdf.translate",
     extensionPath,
@@ -489,6 +552,16 @@ async function main() {
     type: entry.type || "",
     mediaType: entry.mediaType || "",
   }));
+  const rootTreeItemHandles = (
+    Array.isArray(rootTreeView?.payload?.items)
+      ? rootTreeView.payload.items
+      : []
+  ).map((entry) => String(entry?.handle || ""));
+  const childTreeItemHandles = (
+    Array.isArray(groupTreeView?.payload?.items)
+      ? groupTreeView.payload.items
+      : []
+  ).map((entry) => String(entry?.handle || ""));
   const summary = {
     runtimeCommands,
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
@@ -514,6 +587,15 @@ async function main() {
     resolvedViewResultEntries,
     resolvedViewArtifacts,
     resolvedViewOutputs,
+    rootTreeItemHandles,
+    childTreeItemHandles,
+    selectionAccepted: Boolean(selectionAck?.payload?.accepted),
+    selectionChangedMessage: String(selectionChanged?.payload?.message || ""),
+    refreshViewAccepted: Boolean(refreshView?.payload?.accepted),
+    revealRequestedHandle: String(revealRequested?.payload?.itemHandle || ""),
+    revealRequestedParents: Array.isArray(revealRequested?.payload?.parentHandles)
+      ? revealRequested.payload.parentHandles
+      : [],
     settingsChangedMessage: String(settingsChanged?.payload?.message || ""),
     richSidebarSectionCount: Array.isArray(translationSidebarState?.payload?.sections)
       ? translationSidebarState.payload.sections.length
@@ -555,6 +637,19 @@ async function main() {
   ensure(translateProcessWaitObserved, "translation command did not wait for the local worker", summary);
   ensure(translateTaskUpdateObserved, "translation command did not emit task updates", summary);
   ensure(translationSidebarState, "translation sidebar state was not emitted", summary);
+  ensure(rootTreeItemHandles.includes("translate-group"), "tree root did not return translate group", summary);
+  ensure(
+    childTreeItemHandles.includes("translate-current-pdf:/tmp/paper.pdf"),
+    "tree child did not return current pdf translation item",
+    summary,
+  );
+  ensure(selectionAck?.payload?.accepted === true, "tree selection was not accepted", summary);
+  ensure(
+    String(selectionChanged?.payload?.message || "").includes("Selected translation target: /tmp/paper.pdf"),
+    "tree selection did not propagate into plugin view state",
+    summary,
+  );
+  ensure(refreshView?.payload?.accepted === true, "refresh translate view command was not accepted", summary);
   ensure(Array.isArray(resolvedView?.payload?.resultEntries), "resolve view did not return result entries", summary);
   ensure(Array.isArray(resolvedView?.payload?.artifacts), "resolve view did not return artifacts", summary);
   ensure(Array.isArray(resolvedView?.payload?.outputs), "resolve view did not return outputs", summary);
@@ -573,6 +668,17 @@ async function main() {
   ensure(resultActionKinds.some((entry) => entry.action === "reveal"), "reveal result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "execute-command"), "execute-command result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "open-reference"), "open-reference result entry missing", summary);
+  ensure(
+    String(revealRequested?.payload?.itemHandle || "") === "translate-group",
+    "tree reveal request did not target translate group",
+    summary,
+  );
+  ensure(
+    Array.isArray(revealRequested?.payload?.parentHandles) &&
+      revealRequested.payload.parentHandles.length === 0,
+    "tree reveal request parent handles drifted",
+    summary,
+  );
   ensure(
     translationOutputs.some(
       (entry) =>
