@@ -27,6 +27,7 @@ import {
   updateExtensionHostSettings,
 } from '../services/extensions/extensionHost'
 import {
+  listenExtensionTaskChanged,
   listenExtensionViewChanged,
   listenExtensionViewRevealRequested,
   listenExtensionViewStateChanged,
@@ -962,6 +963,16 @@ export const useExtensionsStore = defineStore('extensions', {
             : [],
         }
       }).catch(() => null)
+      this._extensionTaskChangedUnlisten = await listenExtensionTaskChanged((event) => {
+        const task = normalizeTask(event?.payload || {})
+        if (!task.id) return
+        const index = this.tasks.findIndex((item) => item.id === task.id)
+        if (index >= 0) {
+          this.tasks.splice(index, 1, task)
+        } else {
+          this.tasks.unshift(task)
+        }
+      }).catch(() => null)
       this._extensionHostViewRevealUnlisten = await listenExtensionViewRevealRequested((event) => {
         const payload = event?.payload || {}
         const activeWorkspaceRoot = String(useWorkspaceStore().path || '')
@@ -975,6 +986,8 @@ export const useExtensionsStore = defineStore('extensions', {
       this._extensionHostUnlisten = null
       this._extensionHostViewStateUnlisten?.()
       this._extensionHostViewStateUnlisten = null
+      this._extensionTaskChangedUnlisten?.()
+      this._extensionTaskChangedUnlisten = null
       this._extensionHostViewRevealUnlisten?.()
       this._extensionHostViewRevealUnlisten = null
     },

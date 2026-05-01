@@ -441,10 +441,12 @@ pub fn run() {
     let builder = builder
         .setup(|app| {
             let extension_host_state = app.state::<extension_host::ExtensionHostState>();
+            let extension_task_state = app.state::<extension_tasks::ExtensionTaskRuntimeState>();
             extension_host::bind_extension_host_app_handle(
                 extension_host_state.inner(),
                 app.handle().clone(),
             );
+            extension_task_state.inner().bind_app_handle(app.handle().clone());
             apply_macos_window_vibrancy(app.handle());
             Ok(())
         })
@@ -454,10 +456,12 @@ pub fn run() {
     #[cfg(not(target_os = "macos"))]
     let builder = builder.setup(|app| {
         let extension_host_state = app.state::<extension_host::ExtensionHostState>();
+        let extension_task_state = app.state::<extension_tasks::ExtensionTaskRuntimeState>();
         extension_host::bind_extension_host_app_handle(
             extension_host_state.inner(),
             app.handle().clone(),
         );
+        extension_task_state.inner().bind_app_handle(app.handle().clone());
         Ok(())
     });
 

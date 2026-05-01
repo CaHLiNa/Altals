@@ -1,5 +1,7 @@
 use crate::app_dirs;
 use crate::extension_artifacts::ExtensionArtifact;
+#[cfg(not(test))]
+use tauri::Emitter;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -8,10 +10,14 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 const TASKS_FILENAME: &str = "tasks.json";
+#[cfg(not(test))]
+pub const EXTENSION_TASK_CHANGED_EVENT: &str = "extension-task-changed";
 
 #[derive(Clone, Default)]
 pub struct ExtensionTaskRuntimeState {
     running_pids: Arc<Mutex<HashMap<String, u32>>>,
+    #[cfg(not(test))]
+    app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -126,6 +132,16 @@ fn write_tasks_file_to(tasks_root: &Path, file: &ExtensionTasksFile) -> Result<(
     let serialized = serde_json::to_string_pretty(file)
         .map_err(|error| format!("Failed to serialize extension tasks: {error}"))?;
     fs::write(path, serialized).map_err(|error| error.to_string())
+}
+
+#[cfg(not(test))]
+fn emit_task_changed(task: &ExtensionTask, app_handle: &Arc<Mutex<Option<tauri::AppHandle>>>) {
+    let Ok(handle) = app_handle.lock() else {
+        return;
+    };
+    if let Some(app) = handle.as_ref() {
+        let _ = app.emit(EXTENSION_TASK_CHANGED_EVENT, task.clone());
+    }
 }
 
 fn recover_interrupted_tasks(mut file: ExtensionTasksFile) -> ExtensionTasksFile {
@@ -351,6 +367,24 @@ pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
 }
 
 impl ExtensionTaskRuntimeState {
+    #[cfg(not(test))]
+    pub fn bind_app_handle(&self, app: tauri::AppHandle) {
+        if let Ok(mut handle) = self.app_handle.lock() {
+            *handle = Some(app);
+        }
+    }
+
+    #[cfg(test)]
+    pub fn bind_app_handle(&self, _app: tauri::AppHandle) {}
+
+    #[cfg(not(test))]
+    pub fn emit_task_changed(&self, task: &ExtensionTask) {
+        emit_task_changed(task, &self.app_handle);
+    }
+
+    #[cfg(test)]
+    pub fn emit_task_changed(&self, _task: &ExtensionTask) {}
+
     #[cfg_attr(test, allow(dead_code))]
     pub fn register_pid(&self, task_id: &str, pid: u32) -> Result<(), String> {
         let normalized_task_id = task_id.trim();
@@ -422,7 +456,9 @@ pub async fn extension_task_cancel(
     if let Some(pid) = runtime_state.unregister_pid(&params.task_id)? {
         let _ = kill_pid(pid);
     }
-    mark_task_cancelled(&params.task_id)
+    let task = mark_task_cancelled(&params.task_id)?;
+    runtime_state.emit_task_changed(&task);
+    Ok(task)
 }
 
 #[cfg(test)]

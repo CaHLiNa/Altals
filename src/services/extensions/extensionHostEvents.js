@@ -23,3 +23,7 @@ export function listenExtensionWindowMessage(handler) {
 export function listenExtensionHostCallRequested(handler) {
   return listen('extension-host-call-requested', handler)
 }
+
+export function listenExtensionTaskChanged(handler) {
+  return listen('extension-task-changed', handler)
+}
