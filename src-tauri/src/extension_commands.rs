@@ -123,6 +123,7 @@ fn normalize_task_state(value: &str) -> &str {
 pub async fn extension_command_execute(
     params: ExtensionCommandExecuteParams,
     _scope_state: tauri::State<'_, WorkspaceScopeState>,
+    task_runtime_state: tauri::State<'_, crate::extension_tasks::ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionCommandExecutionResult, String> {
     let command_id = params.command_id.trim().to_string();
@@ -199,6 +200,7 @@ pub async fn extension_command_execute(
     );
     let response = invoke_extension_host(
         extension_host_state.inner(),
+        Some(task_runtime_state.inner()),
         ExtensionHostRequest::ExecuteCommand {
             activation_event,
             extension_path: extension_dir_from_manifest_path(&entry.path),

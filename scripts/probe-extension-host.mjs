@@ -86,15 +86,13 @@ function handleNonTerminal(message) {
       });
       return;
     }
-    if (message.payload.kind === "process.exec") {
+    if (message.payload.kind === "process.spawn") {
       send("ResolveHostCall", {
         requestId: message.payload.requestId,
         accepted: true,
         result: {
           ok: true,
-          code: 0,
-          stdout: "process-ok",
-          stderr: "",
+          pid: 4242,
         },
       });
       return;

@@ -352,19 +352,19 @@ export async function activate(context) {
   })
 
   context.commands.registerCommand("examplePdfExtension.inspectProcessApi", async () => {
-    const result = await context.process.exec("node", {
-      args: ["-e", "process.stdout.write('process-ok')"],
+    const result = await context.process.spawn("node", {
+      args: ["-e", "setTimeout(() => {}, 5000)"],
       cwd: context.workspace?.rootPath || "",
     })
     updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
-      message: `Process API: ${String(result?.stdout || "").trim() || "empty"}`,
+      message: `Process API: pid ${String(result?.pid || "").trim() || "empty"}`,
       statusLabel: "Process Ready",
       statusTone: "success",
       actionLabel: "Sidecar/process execution is available",
-      providerStatus: "Local process bridge ok",
+      providerStatus: "Local process spawn ok",
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {

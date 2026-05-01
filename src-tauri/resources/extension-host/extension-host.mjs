@@ -66,6 +66,7 @@ function nextHostCallRequestId(registry) {
 
 function requestHostCall(registry, kind = "", payload = {}) {
   const requestId = nextHostCallRequestId(registry);
+  const invocation = registry.lastInvocation || createInvocationContext(registry);
   writeMessage({
     kind: "HostCallRequested",
     payload: {
@@ -73,7 +74,10 @@ function requestHostCall(registry, kind = "", payload = {}) {
       extensionId: registry.id,
       workspaceRoot: String(registry.currentWorkspaceRoot || ""),
       kind: String(kind || "").trim(),
-      payload,
+      payload: {
+        taskId: String(invocation?.taskId || "").trim(),
+        ...payload,
+      },
     },
   });
   return new Promise((resolve, reject) => {

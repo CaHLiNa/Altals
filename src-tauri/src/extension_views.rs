@@ -99,6 +99,7 @@ pub async fn extension_view_resolve(
     );
     match invoke_extension_host(
         state.inner(),
+        None,
         ExtensionHostRequest::ResolveView {
             activation_event,
             extension_path: extension_dir_from_manifest_path(&entry.path),

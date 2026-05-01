@@ -351,6 +351,20 @@ pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
 }
 
 impl ExtensionTaskRuntimeState {
+    #[cfg_attr(test, allow(dead_code))]
+    pub fn register_pid(&self, task_id: &str, pid: u32) -> Result<(), String> {
+        let normalized_task_id = task_id.trim();
+        if normalized_task_id.is_empty() || pid == 0 {
+            return Ok(());
+        }
+        let mut guard = self
+            .running_pids
+            .lock()
+            .map_err(|_| "Extension task runtime state is unavailable".to_string())?;
+        guard.insert(normalized_task_id.to_string(), pid);
+        Ok(())
+    }
+
     pub fn unregister_pid(&self, task_id: &str) -> Result<Option<u32>, String> {
         let mut guard = self
             .running_pids
@@ -415,7 +429,7 @@ pub async fn extension_task_cancel(
 mod tests {
     use super::{
         create_task_in_dir, list_tasks_from_dir, recover_interrupted_tasks_in_dir,
-        update_task_in_dir, ExtensionTaskTarget,
+        update_task_in_dir, ExtensionTaskRuntimeState, ExtensionTaskTarget,
     };
     use std::fs;
 
@@ -525,5 +539,21 @@ mod tests {
         assert!(queued.finished_at.is_empty());
         assert_eq!(queued.progress.label, "Translation queued");
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn runtime_state_registers_and_unregisters_spawned_pid() {
+        let runtime = ExtensionTaskRuntimeState::default();
+        runtime
+            .register_pid("task-1", 4242)
+            .expect("register pid");
+
+        let first = runtime.unregister_pid("task-1").expect("unregister pid");
+        assert_eq!(first, Some(4242));
+
+        let second = runtime
+            .unregister_pid("task-1")
+            .expect("unregister missing pid");
+        assert_eq!(second, None);
     }
 }

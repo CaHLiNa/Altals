@@ -1,5 +1,7 @@
 use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_manifest::{ExtensionManifest, ExtensionPermissions};
+#[cfg(not(test))]
+use crate::extension_tasks::ExtensionTaskRuntimeState;
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use crate::extension_settings::load_extension_runtime_state_snapshot;
 use crate::extension_settings::load_extension_settings;
@@ -740,7 +742,7 @@ pub fn activate_extension(
             workspace_state: runtime_state.workspace_state,
         },
     };
-    let response = invoke_extension_host(state, request)?;
+    let response = invoke_extension_host(state, None, request)?;
     let ExtensionHostResponse::Activate(result) = response else {
         return Err("Unexpected extension host activation response".to_string());
     };
@@ -818,6 +820,16 @@ pub fn build_extension_invocation_envelope(
         target_path: target_path.to_string(),
         settings_json: settings.to_string(),
     }
+}
+
+#[cfg(not(test))]
+fn task_id_for_host_call_event(event: &ExtensionHostCallRequestedEvent) -> String {
+    event.payload
+        .get("taskId")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 #[cfg(not(test))]
@@ -1182,6 +1194,7 @@ fn resolve_process_call_working_dir(
 #[cfg(not(test))]
 fn handle_extension_host_process_call(
     state: &ExtensionHostState,
+    task_runtime_state: Option<&ExtensionTaskRuntimeState>,
     event: &ExtensionHostCallRequestedEvent,
 ) -> Result<ExtensionHostResolveHostCallParams, String> {
     let (global_config_dir, workspace_root) =
@@ -1267,6 +1280,9 @@ fn handle_extension_host_process_call(
             let child = command
                 .spawn()
                 .map_err(|error| format!("Failed to spawn process: {error}"))?;
+            if let Some(runtime_state) = task_runtime_state {
+                runtime_state.register_pid(&task_id_for_host_call_event(event), child.id())?;
+            }
             json!({
                 "ok": true,
                 "pid": child.id(),
@@ -1372,10 +1388,11 @@ fn handle_extension_host_pdf_call(
 
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
+    task_runtime_state: Option<&crate::extension_tasks::ExtensionTaskRuntimeState>,
     request: ExtensionHostRequest,
 ) -> Result<ExtensionHostResponse, String> {
     #[cfg(test)]
-    let _ = state;
+    let _ = (state, task_runtime_state);
 
     #[cfg(test)]
     {
@@ -1446,6 +1463,7 @@ pub fn invoke_extension_host(
                     let completed = wait_for_ui_request_completion(state, &request_id)?;
                     let response = invoke_extension_host(
                         state,
+                        task_runtime_state,
                         ExtensionHostRequest::RespondUiRequest {
                             request_id: completed.request_id,
                             cancelled: completed.cancelled,
@@ -1461,7 +1479,11 @@ pub fn invoke_extension_host(
                 ExtensionHostResponse::HostCallRequested(event) => {
                     let completed = match event.kind.as_str() {
                         "process.exec" | "process.spawn" => {
-                            Some(handle_extension_host_process_call(state, event)?)
+                            Some(handle_extension_host_process_call(
+                                state,
+                                task_runtime_state,
+                                event,
+                            )?)
                         }
                         "references.readCurrentLibrary" => {
                             Some(handle_extension_host_reference_call(state, event)?)
@@ -1474,6 +1496,7 @@ pub fn invoke_extension_host(
                     if let Some(completed) = completed {
                         let response = invoke_extension_host(
                             state,
+                            task_runtime_state,
                             ExtensionHostRequest::ResolveHostCall {
                                 request_id: completed.request_id,
                                 accepted: completed.accepted,
@@ -1493,6 +1516,7 @@ pub fn invoke_extension_host(
                     let completed = wait_for_host_call_completion(state, &request_id)?;
                     let response = invoke_extension_host(
                         state,
+                        task_runtime_state,
                         ExtensionHostRequest::ResolveHostCall {
                             request_id: completed.request_id,
                             accepted: completed.accepted,
@@ -1727,6 +1751,7 @@ pub async fn extension_host_update_settings(
         .unwrap_or_default();
     match invoke_extension_host(
         state.inner(),
+        None,
         ExtensionHostRequest::UpdateSettings {
             extension_id: extension_id.clone(),
             settings: normalized_settings,
@@ -1761,6 +1786,7 @@ pub async fn extension_host_notify_view_selection(
     }
     match invoke_extension_host(
         state.inner(),
+        None,
         ExtensionHostRequest::NotifyViewSelection {
             extension_id: extension_id.clone(),
             view_id: view_id.clone(),
