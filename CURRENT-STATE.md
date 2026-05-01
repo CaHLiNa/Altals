@@ -19,6 +19,8 @@ Current desktop paths:
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - discover local plugin packages, enable or disable them, and configure host-managed plugin settings in Settings
+- activate enabled plugins immediately so runtime-only commands, menus, and views become available without waiting for a later user action
+- deactivate disabled plugins through the host runtime so plugin-local `deactivate()` logic can release resources instead of relying only on frontend state cleanup
 - render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
@@ -64,6 +66,14 @@ Current plugin result contract:
 - task-owned artifact metadata is anchored to the host invocation envelope
 - direct view and pushed view-state artifacts may preserve explicit plugin metadata when they represent view-owned state instead of task-owned execution state
 
+Current plugin lifecycle contract:
+
+- disabling an extension is a real authority boundary, not only a UI toggle
+- disabled extensions cannot execute commands, invoke capabilities, resolve views, or receive view-selection callbacks
+- disabling an activated extension requests host-side runtime deactivation and then clears frontend runtime/view/controller state
+- enabling an extension immediately re-activates its runtime registration so runtime-only commands and menus are visible again
+- direct host deactivation is now probe-backed: `Activate -> Deactivate -> Reactivate` succeeds and plugin `deactivate()` state can be observed
+
 ## Verification
 
 Use one local engineering gate:
@@ -86,6 +96,10 @@ It runs:
 - `npm run probe:extension-capability-schema`
 - `npm run probe:extension-activation-guards`
 - `npm run probe:extension-permission-guards`
+- `npm run probe:extension-disable-guards`
+- `npm run probe:extension-enable-activation`
+- `npm run probe:extension-deactivation-host`
+- `npm run probe:extension-secure-settings-bridge`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
@@ -109,6 +123,10 @@ Current baseline:
 - extension capability schema probe passes
 - extension activation guard probe passes
 - extension permission guard probe passes
+- extension disable guard probe passes
+- extension enable activation probe passes
+- extension deactivation host probe passes
+- extension secure settings bridge probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes
