@@ -290,13 +290,6 @@ fn create_task_in_dir(
     Ok(task)
 }
 
-pub fn update_task<F>(task_id: &str, update: F) -> Result<ExtensionTask, String>
-where
-    F: FnOnce(&mut ExtensionTask),
-{
-    update_task_in_dir(&tasks_dir()?, task_id, update)
-}
-
 fn update_task_in_dir<F>(
     tasks_root: &Path,
     task_id: &str,
@@ -315,8 +308,11 @@ where
     Ok(updated)
 }
 
-pub fn mark_task_running(task_id: &str) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+fn mark_task_running_in_dir(tasks_root: &Path, task_id: &str) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "running".to_string();
         task.started_at = now_string();
         task.finished_at.clear();
@@ -329,12 +325,20 @@ pub fn mark_task_running(task_id: &str) -> Result<ExtensionTask, String> {
     })
 }
 
-pub fn mark_task_queued(
+pub fn mark_task_running(task_id: &str) -> Result<ExtensionTask, String> {
+    mark_task_running_in_dir(&tasks_dir()?, task_id)
+}
+
+fn mark_task_queued_in_dir(
+    tasks_root: &Path,
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
 ) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "queued".to_string();
         task.started_at.clear();
         task.finished_at.clear();
@@ -352,12 +356,24 @@ pub fn mark_task_queued(
     })
 }
 
-pub fn mark_task_running_with_progress(
+pub fn mark_task_queued(
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
 ) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+    mark_task_queued_in_dir(&tasks_dir()?, task_id, progress_label, artifacts)
+}
+
+fn mark_task_running_with_progress_in_dir(
+    tasks_root: &Path,
+    task_id: &str,
+    progress_label: &str,
+    artifacts: Vec<ExtensionArtifact>,
+) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "running".to_string();
         if task.started_at.trim().is_empty() {
             task.started_at = now_string();
@@ -377,12 +393,24 @@ pub fn mark_task_running_with_progress(
     })
 }
 
-pub fn mark_task_succeeded(
+pub fn mark_task_running_with_progress(
+    task_id: &str,
+    progress_label: &str,
+    artifacts: Vec<ExtensionArtifact>,
+) -> Result<ExtensionTask, String> {
+    mark_task_running_with_progress_in_dir(&tasks_dir()?, task_id, progress_label, artifacts)
+}
+
+fn mark_task_succeeded_in_dir(
+    tasks_root: &Path,
     task_id: &str,
     artifacts: Vec<ExtensionArtifact>,
     progress_label: &str,
 ) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "succeeded".to_string();
         task.finished_at = now_string();
         task.progress = ExtensionTaskProgress {
@@ -399,8 +427,23 @@ pub fn mark_task_succeeded(
     })
 }
 
-pub fn mark_task_failed(task_id: &str, error: &str) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+pub fn mark_task_succeeded(
+    task_id: &str,
+    artifacts: Vec<ExtensionArtifact>,
+    progress_label: &str,
+) -> Result<ExtensionTask, String> {
+    mark_task_succeeded_in_dir(&tasks_dir()?, task_id, artifacts, progress_label)
+}
+
+fn mark_task_failed_in_dir(
+    tasks_root: &Path,
+    task_id: &str,
+    error: &str,
+) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "failed".to_string();
         task.finished_at = now_string();
         task.progress.label = "Failed".to_string();
@@ -408,13 +451,24 @@ pub fn mark_task_failed(task_id: &str, error: &str) -> Result<ExtensionTask, Str
     })
 }
 
-pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
-    update_task(task_id, |task| {
+pub fn mark_task_failed(task_id: &str, error: &str) -> Result<ExtensionTask, String> {
+    mark_task_failed_in_dir(&tasks_dir()?, task_id, error)
+}
+
+fn mark_task_cancelled_in_dir(tasks_root: &Path, task_id: &str) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
         task.state = "cancelled".to_string();
         task.finished_at = now_string();
         task.progress.label = "Cancelled".to_string();
         task.error.clear();
     })
+}
+
+pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
+    mark_task_cancelled_in_dir(&tasks_dir()?, task_id)
 }
 
 fn normalize_task_artifact(
@@ -913,6 +967,49 @@ mod tests {
         assert_eq!(updated.progress.current, 0);
         assert_eq!(updated.progress.total, 0);
         assert_eq!(updated.finished_at, "2026-05-01T01:00:00Z");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn terminal_task_ignores_late_state_transition_helpers() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-terminal-helpers");
+        let task = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-6".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let cancelled = super::update_task_in_dir(&root, &task.id, |task| {
+            task.state = "cancelled".to_string();
+            task.finished_at = "2026-05-01T02:00:00Z".to_string();
+            task.progress.label = "Cancelled".to_string();
+        })
+        .expect("cancelled");
+        assert_eq!(cancelled.state, "cancelled");
+
+        let running = super::mark_task_running_with_progress_in_dir(
+            &root,
+            &task.id,
+            "Late running",
+            Vec::new(),
+        )
+        .expect("late running ignored");
+        assert_eq!(running.state, "cancelled");
+        assert_eq!(running.progress.label, "Cancelled");
+
+        let succeeded = super::mark_task_succeeded_in_dir(&root, &task.id, Vec::new(), "Late success")
+            .expect("late success ignored");
+        assert_eq!(succeeded.state, "cancelled");
+        assert_eq!(succeeded.progress.label, "Cancelled");
+        assert_eq!(succeeded.finished_at, "2026-05-01T02:00:00Z");
         fs::remove_dir_all(root).ok();
     }
 }
