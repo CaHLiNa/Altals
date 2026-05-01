@@ -8,6 +8,51 @@ const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extensi
 
 const extensionSource = `
 export async function activate(context) {
+  context.commands.registerCommand('exampleDirectViewExtension.emitArtifact', async () => ({
+    message: 'direct command artifact emitted',
+    progressLabel: 'Direct command completed',
+    taskState: 'succeeded',
+    artifacts: [
+      {
+        id: 'command-artifact',
+        extensionId: 'spoofed-extension',
+        taskId: 'spoofed-task',
+        capability: 'spoofed.capability',
+        kind: 'translated-text',
+        mediaType: 'text/plain',
+        path: '/tmp/command-output.txt',
+        sourcePath: '/tmp/direct-source.md',
+      },
+    ],
+  }))
+
+  context.capabilities.registerProvider('document.transform', async () => ({
+    message: 'direct capability artifact emitted',
+    progressLabel: 'Direct capability completed',
+    taskState: 'succeeded',
+    artifacts: [
+      {
+        id: 'capability-artifact',
+        extensionId: 'spoofed-extension',
+        taskId: 'spoofed-task',
+        capability: 'spoofed.capability',
+        kind: 'translated-text',
+        mediaType: 'text/plain',
+        path: '/tmp/capability-output.txt',
+        sourcePath: '/tmp/direct-source.md',
+      },
+    ],
+    outputs: [
+      {
+        id: 'capability-summary',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Capability Summary',
+        text: 'capability summary',
+      },
+    ],
+  }))
+
   context.views.registerViewProvider('exampleDirectViewExtension.resultView', async () => ({
     title: 'Direct Result View',
     description: 'Direct host view provider contract',
@@ -88,14 +133,29 @@ async function main() {
 
   await import('node:fs/promises').then(({ mkdir }) => mkdir(distDir, { recursive: true }))
   await writeFile(entryPath, extensionSource, 'utf8')
-  await writeFile(manifestPath, JSON.stringify({
+  const manifest = {
     name: 'example-direct-view-extension',
     displayName: 'Example Direct View Extension',
     version: '0.1.0',
     type: 'module',
     main: './dist/extension.js',
-    activationEvents: ['onView:exampleDirectViewExtension.resultView'],
+    activationEvents: [
+      'onView:exampleDirectViewExtension.resultView',
+      'onCommand:exampleDirectViewExtension.emitArtifact',
+      'onCapability:document.transform',
+    ],
     contributes: {
+      commands: [
+        {
+          command: 'exampleDirectViewExtension.emitArtifact',
+          title: 'Emit Direct Artifact',
+        },
+      ],
+      capabilities: [
+        {
+          id: 'document.transform',
+        },
+      ],
       viewsContainers: {
         activitybar: [
           {
@@ -116,7 +176,8 @@ async function main() {
     permissions: {
       readWorkspaceFiles: true,
     },
-  }, null, 2), 'utf8')
+  }
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8')
 
   const child = spawn('node', [hostPath], {
     cwd: repoRoot,
@@ -151,7 +212,7 @@ async function main() {
       if (line) {
         const message = JSON.parse(line)
         observed.push(message)
-        if (['Activate', 'ResolveView', 'Error'].includes(message.kind)) {
+        if (['Activate', 'ResolveView', 'ExecuteCommand', 'InvokeCapability', 'Error'].includes(message.kind)) {
           if (!currentResolve) {
             throw new Error(`unexpected terminal message without waiter: ${message.kind}`)
           }
@@ -191,7 +252,7 @@ async function main() {
       manifestPath,
       mainEntry: './dist/extension.js',
       permissions: { readWorkspaceFiles: true },
-      capabilities: [],
+      capabilities: manifest.contributes.capabilities,
       activationState: {
         settings: {},
         globalState: {},
@@ -220,7 +281,49 @@ async function main() {
       },
     })
 
+    const executed = await call('ExecuteCommand', {
+      activationEvent: 'onCommand:exampleDirectViewExtension.emitArtifact',
+      extensionPath,
+      manifestPath,
+      mainEntry: './dist/extension.js',
+      commandId: 'exampleDirectViewExtension.emitArtifact',
+      envelope: {
+        taskId: 'command-task',
+        extensionId: 'example-direct-view-extension',
+        workspaceRoot: '/tmp/workspace',
+        itemId: '',
+        itemHandle: '',
+        referenceId: '',
+        capability: '',
+        commandId: 'exampleDirectViewExtension.emitArtifact',
+        targetKind: 'workspace',
+        targetPath: '/tmp/direct-source.md',
+        settingsJson: '{}',
+      },
+    })
+
+    const invoked = await call('InvokeCapability', {
+      activationEvent: 'onCapability:document.transform',
+      extensionPath,
+      manifestPath,
+      mainEntry: './dist/extension.js',
+      envelope: {
+        taskId: 'capability-task',
+        extensionId: 'example-direct-view-extension',
+        workspaceRoot: '/tmp/workspace',
+        itemId: '',
+        itemHandle: '',
+        referenceId: '',
+        capability: 'document.transform',
+        targetKind: 'workspace',
+        targetPath: '/tmp/direct-source.md',
+        settingsJson: '{}',
+      },
+    })
+
     ensure(activate?.payload?.registeredViews?.includes('exampleDirectViewExtension.resultView'), 'direct view was not registered', activate?.payload || {})
+    ensure(activate?.payload?.registeredCommands?.includes('exampleDirectViewExtension.emitArtifact'), 'direct command was not registered', activate?.payload || {})
+    ensure(activate?.payload?.registeredCapabilities?.includes('document.transform'), 'direct capability was not registered', activate?.payload || {})
     ensure(Array.isArray(resolved?.payload?.resultEntries) && resolved.payload.resultEntries.length === 1, 'direct view did not return baseline result entries', resolved?.payload || {})
     ensure(Array.isArray(resolved?.payload?.artifacts) && resolved.payload.artifacts.length === 1, 'direct view did not return artifacts', resolved?.payload || {})
     ensure(Array.isArray(resolved?.payload?.outputs) && resolved.payload.outputs.length === 2, 'direct view did not return outputs', resolved?.payload || {})
@@ -229,16 +332,31 @@ async function main() {
     ensure(String(resolved?.payload?.artifacts?.[0]?.capability || '') === 'document.transform', 'direct view artifact capability drifted', resolved?.payload || {})
     ensure(String(resolved?.payload?.outputs?.[0]?.type || '').toLowerCase() === 'inlinetext', 'direct view text output drifted', resolved?.payload || {})
     ensure(String(resolved?.payload?.outputs?.[1]?.type || '').toLowerCase() === 'inlinehtml', 'direct view html output drifted', resolved?.payload || {})
+    ensure(Array.isArray(executed?.payload?.artifacts) && executed.payload.artifacts.length === 1, 'direct command did not return artifacts', executed?.payload || {})
+    ensure(String(executed?.payload?.artifacts?.[0]?.taskId || '') === 'command-task', 'direct command artifact task id was not anchored to envelope', executed?.payload || {})
+    ensure(String(executed?.payload?.artifacts?.[0]?.capability || '') === 'exampleDirectViewExtension.emitArtifact', 'direct command artifact capability was not anchored to envelope', executed?.payload || {})
+    ensure(String(executed?.payload?.artifacts?.[0]?.extensionId || '') === 'example-direct-view-extension', 'direct command artifact extension id was not anchored to envelope', executed?.payload || {})
+    ensure(Array.isArray(invoked?.payload?.artifacts) && invoked.payload.artifacts.length === 1, 'direct capability did not return artifacts', invoked?.payload || {})
+    ensure(Array.isArray(invoked?.payload?.outputs) && invoked.payload.outputs.length === 1, 'direct capability did not return outputs', invoked?.payload || {})
+    ensure(String(invoked?.payload?.artifacts?.[0]?.taskId || '') === 'capability-task', 'direct capability artifact task id was not anchored to envelope', invoked?.payload || {})
+    ensure(String(invoked?.payload?.artifacts?.[0]?.capability || '') === 'document.transform', 'direct capability artifact capability was not anchored to envelope', invoked?.payload || {})
+    ensure(String(invoked?.payload?.artifacts?.[0]?.extensionId || '') === 'example-direct-view-extension', 'direct capability artifact extension id was not anchored to envelope', invoked?.payload || {})
 
     console.log(JSON.stringify({
       ok: true,
       summary: {
         registeredViews: activate?.payload?.registeredViews || [],
+        registeredCommands: activate?.payload?.registeredCommands || [],
+        registeredCapabilities: activate?.payload?.registeredCapabilities || [],
         resultEntryIds: resolved.payload.resultEntries.map((entry) => entry.id),
         artifactIds: resolved.payload.artifacts.map((entry) => entry.id),
         artifactTaskIds: resolved.payload.artifacts.map((entry) => entry.taskId),
         artifactCapabilities: resolved.payload.artifacts.map((entry) => entry.capability),
         outputIds: resolved.payload.outputs.map((entry) => entry.id),
+        commandArtifactTaskIds: executed.payload.artifacts.map((entry) => entry.taskId),
+        commandArtifactCapabilities: executed.payload.artifacts.map((entry) => entry.capability),
+        capabilityArtifactTaskIds: invoked.payload.artifacts.map((entry) => entry.taskId),
+        capabilityArtifactCapabilities: invoked.payload.artifacts.map((entry) => entry.capability),
       },
     }, null, 2))
   } finally {

@@ -213,12 +213,13 @@ function canReadPdfContent(registry) {
   );
 }
 
-function normalizeArtifactEntries(entries = [], envelope = {}) {
+function normalizeArtifactEntries(entries = [], envelope = {}, options = {}) {
   const fallbackTaskId = String(envelope?.taskId || "").trim();
   const fallbackExtensionId = String(envelope?.extensionId || "").trim();
   const fallbackCapability = String(envelope?.capability || envelope?.commandId || "").trim();
   const fallbackSourcePath = String(envelope?.targetPath || "").trim();
   const createdAt = new Date().toISOString();
+  const preferExplicitMetadata = options?.preferExplicitMetadata === true;
   if (!Array.isArray(entries)) return [];
   return entries
     .map((entry, index) => {
@@ -227,9 +228,15 @@ function normalizeArtifactEntries(entries = [], envelope = {}) {
       if (!artifactPath) return null;
       return {
         id: String(entry.id || `artifact:${index + 1}`).trim(),
-        extensionId: String(entry.extensionId || entry.extension_id || fallbackExtensionId).trim(),
-        taskId: String(entry.taskId || entry.task_id || fallbackTaskId).trim(),
-        capability: String(entry.capability || fallbackCapability).trim(),
+        extensionId: preferExplicitMetadata
+          ? String(entry.extensionId || entry.extension_id || fallbackExtensionId).trim()
+          : String(fallbackExtensionId || entry.extensionId || entry.extension_id || "").trim(),
+        taskId: preferExplicitMetadata
+          ? String(entry.taskId || entry.task_id || fallbackTaskId).trim()
+          : String(fallbackTaskId || entry.taskId || entry.task_id || "").trim(),
+        capability: preferExplicitMetadata
+          ? String(entry.capability || fallbackCapability).trim()
+          : String(fallbackCapability || entry.capability || "").trim(),
         kind: String(entry.kind || "").trim(),
         mediaType: String(entry.mediaType || entry.media_type || "").trim(),
         path: artifactPath,
@@ -1168,7 +1175,9 @@ async function handleResolveView(params = {}) {
       actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
       sections: normalizeSidebarSections(result?.sections),
       resultEntries: normalizeResultEntries(result?.resultEntries, record.id),
-      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
+      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}, {
+        preferExplicitMetadata: true,
+      }),
       outputs: normalizeOutputEntries(result?.outputs),
       items: Array.isArray(result?.items)
         ? normalizeViewItems(result.items, viewId)
