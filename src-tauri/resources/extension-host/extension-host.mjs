@@ -1168,6 +1168,8 @@ async function handleResolveView(params = {}) {
       actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
       sections: normalizeSidebarSections(result?.sections),
       resultEntries: normalizeResultEntries(result?.resultEntries, record.id),
+      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
+      outputs: normalizeOutputEntries(result?.outputs),
       items: Array.isArray(result?.items)
         ? normalizeViewItems(result.items, viewId)
         : [],
