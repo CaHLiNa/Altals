@@ -30,6 +30,7 @@ Current desktop paths:
 - support `context.window.showQuickPick(..., { canPickMany: true })` end-to-end so plugin quick-pick flows can return multi-select arrays instead of only single values
 - persist plugin `globalState` and `workspaceState` through the Rust runtime and restore both scopes on later activation
 - surface `context.window.showInformationMessage`, `showWarningMessage`, and `showErrorMessage` through host window-message events with stable severity payloads
+- support `context.window.showInputBox(...)` end-to-end with stable title/prompt/placeholder/value/password request fields plus explicit confirm and cancel result semantics
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
 - store schema-declared secure plugin settings in secure host-managed keychain storage instead of plain `extension-settings.json`, while legacy secret-like keys still use a compatibility fallback until plugin manifests declare `secureStorage`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
@@ -82,6 +83,7 @@ Current plugin lifecycle contract:
 - quick-pick multi-select is now probe-backed: picked defaults hydrate into the prompt, UI selection can accumulate multiple items, and the host roundtrip preserves an array result payload
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
+- input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
 
 ## Verification
 
@@ -121,6 +123,7 @@ It runs:
 - `npm run probe:extension-quickpick-host-multiselect`
 - `npm run probe:extension-host-state-persistence`
 - `npm run probe:extension-window-message-severity`
+- `npm run probe:extension-inputbox-contract`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -156,6 +159,7 @@ Current baseline:
 - extension quick-pick host multiselect probe passes
 - extension host state persistence probe passes
 - extension window message severity probe passes
+- extension input box contract probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
