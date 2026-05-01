@@ -799,6 +799,7 @@ export const useExtensionsStore = defineStore('extensions', {
         },
       })
       const task = normalizeTask(result?.task || {})
+      this.markViewsChanged(result?.changedViews, extensionId)
       await this.refreshTasks().catch(() => {})
       return task
     },
