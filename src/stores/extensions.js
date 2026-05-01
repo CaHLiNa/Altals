@@ -835,7 +835,9 @@ export const useExtensionsStore = defineStore('extensions', {
         ids.delete(id)
       }
       const snapshot = await this.persistSettings({ enabledExtensionIds: [...ids] })
-      if (!enabled) {
+      if (enabled) {
+        await this.activateExtension(id, '').catch(() => {})
+      } else {
         if (this.runtimeRegistry[id]?.activated) {
           await deactivateExtensionHost({ extensionId: id }).catch(() => {})
         }
