@@ -241,6 +241,29 @@ function normalizeArtifactEntries(entries = [], envelope = {}) {
     .filter(Boolean);
 }
 
+function cloneArtifactEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const artifactPath = String(entry.path || entry.filePath || "").trim();
+      if (!artifactPath) return null;
+      return {
+        id: String(entry.id || `artifact:${index + 1}`).trim(),
+        extensionId: String(entry.extensionId || entry.extension_id || "").trim(),
+        taskId: String(entry.taskId || entry.task_id || "").trim(),
+        capability: String(entry.capability || "").trim(),
+        kind: String(entry.kind || "").trim(),
+        mediaType: String(entry.mediaType || entry.media_type || "").trim(),
+        path: artifactPath,
+        sourcePath: String(entry.sourcePath || entry.source_path || "").trim(),
+        sourceHash: String(entry.sourceHash || entry.source_hash || "").trim(),
+        createdAt: String(entry.createdAt || entry.created_at || "").trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeOutputEntries(entries = []) {
   if (!Array.isArray(entries)) return [];
   return entries
@@ -1186,7 +1209,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
       sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
       resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || [], record.id),
-      artifacts: normalizeArtifactEntries(record.viewState.get(viewId)?.artifacts || [], record.lastInvocation || {}),
+      artifacts: cloneArtifactEntries(record.viewState.get(viewId)?.artifacts || []),
       outputs: normalizeOutputEntries(record.viewState.get(viewId)?.outputs || []),
       items,
     },

@@ -41,7 +41,7 @@ function send(method, params) {
 }
 
 function isTerminal(message) {
-  return ["Activate", "InvokeCapability", "ExecuteCommand", "Error"].includes(message.kind);
+  return ["Activate", "InvokeCapability", "ExecuteCommand", "ResolveView", "Error"].includes(message.kind);
 }
 
 function call(method, params) {
@@ -385,6 +385,18 @@ async function main() {
       settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
     },
   });
+  const resolvedView = await call("ResolveView", {
+    activationEvent: "onView:examplePdfExtension.translateView",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    viewId: "examplePdfExtension.translateView",
+    parentItemId: "",
+    envelope: {
+      ...baseEnvelope,
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
 
   const translateHostCallKinds = observed
     .filter(
@@ -449,6 +461,32 @@ async function main() {
     mediaType: entry.mediaType || "",
     title: entry.title || "",
   }));
+  const resolvedViewResultEntries = (
+    Array.isArray(resolvedView?.payload?.resultEntries)
+      ? resolvedView.payload.resultEntries
+      : []
+  ).map((entry) => ({
+    id: entry.id || "",
+    action: entry.action || "",
+  }));
+  const resolvedViewArtifacts = (
+    Array.isArray(resolvedView?.payload?.artifacts)
+      ? resolvedView.payload.artifacts
+      : []
+  ).map((entry) => ({
+    id: entry.id || "",
+    mediaType: entry.mediaType || "",
+    path: entry.path || "",
+  }));
+  const resolvedViewOutputs = (
+    Array.isArray(resolvedView?.payload?.outputs)
+      ? resolvedView.payload.outputs
+      : []
+  ).map((entry) => ({
+    id: entry.id || "",
+    type: entry.type || "",
+    mediaType: entry.mediaType || "",
+  }));
   const summary = {
     runtimeCommands,
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
@@ -471,6 +509,9 @@ async function main() {
     resultActionKinds,
     translationArtifacts,
     translationOutputs,
+    resolvedViewResultEntries,
+    resolvedViewArtifacts,
+    resolvedViewOutputs,
     settingsChangedMessage: String(settingsChanged?.payload?.message || ""),
     richSidebarSectionCount: Array.isArray(translationSidebarState?.payload?.sections)
       ? translationSidebarState.payload.sections.length
@@ -512,12 +553,20 @@ async function main() {
   ensure(translateProcessWaitObserved, "translation command did not wait for the local worker", summary);
   ensure(translateTaskUpdateObserved, "translation command did not emit task updates", summary);
   ensure(translationSidebarState, "translation sidebar state was not emitted", summary);
+  ensure(Array.isArray(resolvedView?.payload?.resultEntries), "resolve view did not return result entries", summary);
+  ensure(Array.isArray(resolvedView?.payload?.artifacts), "resolve view did not return artifacts", summary);
+  ensure(Array.isArray(resolvedView?.payload?.outputs), "resolve view did not return outputs", summary);
   ensure(
     String(settingsChanged?.payload?.message || "").includes("Settings updated: examplePdfExtension.targetLang"),
     "settings change event did not propagate into plugin runtime",
     summary,
   );
   ensure(translate?.payload?.taskState === "succeeded", "translation command did not finish successfully", summary);
+  ensure(
+    resolvedViewResultEntries.some((entry) => entry.id === "source-pdf" && entry.action === "open"),
+    "resolve view lost baseline source pdf entry",
+    summary,
+  );
   ensure(resultActionKinds.some((entry) => entry.action === "open-tab"), "open-tab result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "reveal"), "reveal result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "execute-command"), "execute-command result entry missing", summary);
@@ -533,6 +582,16 @@ async function main() {
     summary,
   );
   ensure(
+    resolvedViewOutputs.some(
+      (entry) =>
+        entry.id === "translation-html-preview" &&
+        String(entry.type).toLowerCase() === "inlinehtml" &&
+        entry.mediaType === "text/html",
+    ),
+    "resolve view html output missing",
+    summary,
+  );
+  ensure(
     translationOutputs.some(
       (entry) =>
         entry.id === "translation-summary-preview" &&
@@ -540,6 +599,16 @@ async function main() {
         entry.mediaType === "text/plain",
     ),
     "text summary output missing",
+    summary,
+  );
+  ensure(
+    resolvedViewOutputs.some(
+      (entry) =>
+        entry.id === "translation-summary-preview" &&
+        String(entry.type).toLowerCase() === "inlinetext" &&
+        entry.mediaType === "text/plain",
+    ),
+    "resolve view text summary output missing",
     summary,
   );
   ensure(
@@ -553,6 +622,16 @@ async function main() {
     summary,
   );
   ensure(
+    resolvedViewArtifacts.some(
+      (entry) =>
+        entry.id === "translated-pdf-artifact" &&
+        entry.mediaType === "application/pdf" &&
+        entry.path === "/tmp/paper.pdf",
+    ),
+    "resolve view pdf artifact missing",
+    summary,
+  );
+  ensure(
     translationArtifacts.some(
       (entry) =>
         entry.id === "translation-text-output" &&
@@ -560,6 +639,16 @@ async function main() {
         entry.path.endsWith(".translation.txt"),
     ),
     "text artifact result entry missing",
+    summary,
+  );
+  ensure(
+    resolvedViewArtifacts.some(
+      (entry) =>
+        entry.id === "translation-text-output" &&
+        entry.mediaType === "text/plain" &&
+        entry.path.endsWith(".translation.txt"),
+    ),
+    "resolve view text artifact missing",
     summary,
   );
   ensure(summary.richSidebarSectionCount > 0, "rich sidebar sections were not emitted", summary);
