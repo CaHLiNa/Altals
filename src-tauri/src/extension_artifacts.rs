@@ -1,4 +1,5 @@
 use crate::fs_commands;
+use crate::fs_io::read_text_file_with_limit;
 use crate::process_utils::background_command;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -23,6 +24,14 @@ pub struct ExtensionArtifact {
 pub struct ExtensionArtifactActionParams {
     #[serde(default)]
     pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionArtifactReadTextParams {
+    #[serde(default)]
+    pub path: String,
+    pub max_bytes: Option<u64>,
 }
 
 fn open_path(path: &Path) -> Result<(), String> {
@@ -62,4 +71,18 @@ pub async fn extension_artifact_reveal(
     params: ExtensionArtifactActionParams,
 ) -> Result<(), String> {
     fs_commands::reveal_in_file_manager_blocking(Path::new(&params.path))
+}
+
+#[tauri::command]
+pub async fn extension_artifact_read_text(
+    params: ExtensionArtifactReadTextParams,
+) -> Result<String, String> {
+    let path = Path::new(&params.path);
+    if params.path.trim().is_empty() {
+        return Err("Artifact path is required".to_string());
+    }
+    if !path.exists() {
+        return Err(format!("Artifact path does not exist: {}", path.display()));
+    }
+    read_text_file_with_limit(path, params.max_bytes)
 }

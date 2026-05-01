@@ -15,3 +15,12 @@ export async function revealExtensionArtifact(artifact = {}) {
     },
   })
 }
+
+export async function readExtensionArtifactText(artifact = {}, maxBytes = 4000) {
+  return invoke('extension_artifact_read_text', {
+    params: {
+      path: String(artifact?.path || ''),
+      maxBytes,
+    },
+  })
+}

@@ -515,6 +515,7 @@ pub fn run() {
             extension_tasks::extension_task_cancel,
             extension_artifacts::extension_artifact_open,
             extension_artifacts::extension_artifact_reveal,
+            extension_artifacts::extension_artifact_read_text,
             extension_settings::extension_settings_load,
             extension_settings::extension_settings_save,
             references_backend::references_library_read_or_create,
