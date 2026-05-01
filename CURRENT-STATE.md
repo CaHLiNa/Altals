@@ -71,6 +71,7 @@ It runs:
 - `npm run guard:pdf-runtime`
 - `npm run guard:textmate-runtime`
 - `npm run probe:extension-host`
+- `npm run probe:extension-sidebar-routing`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -82,10 +83,11 @@ Current baseline:
 - PDF runtime boundary guard passes
 - TextMate runtime boundary guard passes
 - extension host runtime probe passes
+- extension sidebar routing probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 167 tests
+- Rust tests pass: 168 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 

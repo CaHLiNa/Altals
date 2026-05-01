@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict'
 import { createPinia } from 'pinia'
-import { createServer } from 'vite'
+import { createLogger, createServer } from 'vite'
 
 const vite = await createServer({
-  server: { middlewareMode: true, hmr: false },
+  server: { middlewareMode: true, hmr: false, ws: false },
   appType: 'custom',
+  logLevel: 'error',
+  customLogger: createLogger('error', {
+    customConsole: {
+      ...console,
+      error(message, ...rest) {
+        const rendered = String(message || '')
+        if (rendered.includes('WebSocket server error:')) {
+          return
+        }
+        console.error(message, ...rest)
+      },
+    },
+  }),
 })
 
 try {
