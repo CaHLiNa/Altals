@@ -89,6 +89,21 @@ Runtime action registration already covers:
 - `view/title`
 - `view/item/context`
 
+Runtime result delivery follows one canonical shape:
+
+- `resultEntries`: explicit user-facing actions or previews declared by plugin runtime code
+- `artifacts`: file-backed outputs that the host can open, reveal, route, and derive default preview entries from
+- `outputs`: structured inline payloads such as `inlineText` and `inlineHtml` that the host can also derive default preview entries from
+
+Current precedence and ownership contract:
+
+- explicit `resultEntries` always win when ids collide
+- host-generated default entries from `artifacts` and `outputs` only fill missing gaps
+- task result artifacts are host-owned metadata and are anchored to the runtime invocation envelope
+- view-owned artifacts returned from `ResolveView` or pushed through `views.updateView(...)` may preserve explicit plugin metadata such as `taskId` and `capability`
+
+This contract is probe-backed, not just descriptive prose.
+
 ## 4. Current Manifest Use
 
 `package.json` is still used for:

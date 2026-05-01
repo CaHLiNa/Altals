@@ -139,6 +139,15 @@ Vue remains presentation layer for:
 
 Plugins should not need to understand Rust/Tauri internals to build normal features.
 
+Result contract rule:
+
+- task execution, capability execution, direct views, and pushed view state all flow through the same `resultEntries + artifacts + outputs` model
+- `resultEntries` are the explicit plugin-authored UI contract
+- `artifacts` and `outputs` are the canonical machine-facing result channels the host may turn into default preview entries
+- explicit `resultEntries` win over host-generated defaults with the same id
+- task artifacts are envelope-authoritative and cannot spoof `taskId`, `capability`, or `extensionId`
+- direct view artifacts and pushed view-state artifacts may intentionally preserve explicit metadata because they describe view-owned state rather than task-owned execution records
+
 ## 7. API Philosophy
 
 ScribeFlow should expose a thick host API instead of a large static contribution schema.
@@ -221,6 +230,12 @@ Translation-oriented boundary:
 - runtime task execution, progress, result summary and artifact links belong in the document right sidebar
 - external OCR / LLM work should fit either a sidecar process or another local worker behind `context.process`
 - password-like plugin settings declared with `secureStorage: true` already use secure host-managed storage, legacy plaintext values are migrated on load, and undeclared secret-like keys remain a compatibility fallback rather than the preferred contract
+
+Verification-oriented note:
+
+- plugin contracts should be treated as real only when covered by `npm run verify`
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, bundle budget, Rust check, and Rust tests
+- probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule
 

@@ -57,6 +57,13 @@ Plugin architecture direction:
 - Obsidian-style plugin model with Rust authority retained
 - current platform contract is runtime-first for local owner-authored plugins; remaining work is additive host API growth rather than a direction reset
 
+Current plugin result contract:
+
+- plugin runtime can return `resultEntries`, `artifacts`, and `outputs` from task, capability, and view flows
+- frontend merges host-generated default preview entries from `artifacts` and `outputs` only when explicit `resultEntries` leave gaps
+- task-owned artifact metadata is anchored to the host invocation envelope
+- direct view and pushed view-state artifacts may preserve explicit plugin metadata when they represent view-owned state instead of task-owned execution state
+
 ## Verification
 
 Use one local engineering gate:
@@ -71,9 +78,18 @@ It runs:
 - `npm run guard:pdf-runtime`
 - `npm run guard:textmate-runtime`
 - `npm run probe:extension-host`
+- `npm run probe:extension-markdown-host`
+- `npm run probe:extension-view-result-entries`
+- `npm run probe:extension-pdf-view-result-entries`
+- `npm run probe:extension-direct-view-host`
+- `npm run probe:extension-capability-execution`
+- `npm run probe:extension-capability-schema`
+- `npm run probe:extension-activation-guards`
+- `npm run probe:extension-permission-guards`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
+- `npm run probe:extension-task-timeline`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -85,13 +101,22 @@ Current baseline:
 - PDF runtime boundary guard passes
 - TextMate runtime boundary guard passes
 - extension host runtime probe passes
+- extension markdown host probe passes
+- extension view result-entry merge probe passes
+- extension PDF view result-entry merge probe passes
+- extension direct-view host probe passes
+- extension capability execution probe passes
+- extension capability schema probe passes
+- extension activation guard probe passes
+- extension permission guard probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes
+- extension task timeline probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 170 tests
+- Rust tests pass: 182 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 
