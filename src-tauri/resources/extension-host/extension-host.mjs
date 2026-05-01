@@ -179,6 +179,39 @@ function normalizeViewMetadata(viewId = "", metadata = {}) {
   };
 }
 
+function normalizeSidebarSections(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      return {
+        id: String(entry.id || `section:${index}`).trim(),
+        kind: String(entry.kind || "").trim(),
+        title: String(entry.title || "").trim(),
+        value: String(entry.value || "").trim(),
+        tone: String(entry.tone || "").trim(),
+      };
+    })
+    .filter((entry) => entry && (entry.title || entry.value));
+}
+
+function normalizeResultEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      return {
+        id: String(entry.id || `result:${index}`).trim(),
+        label: String(entry.label || entry.title || "").trim(),
+        description: String(entry.description || "").trim(),
+        path: String(entry.path || "").trim(),
+        action: String(entry.action || "").trim(),
+        mediaType: String(entry.mediaType || entry.media_type || "").trim(),
+      };
+    })
+    .filter((entry) => entry && entry.label);
+}
+
 function normalizeMenuActionMetadata(command = "", metadata = {}) {
   const commandId = String(command || "").trim();
   const surface = String(metadata?.surface || "").trim();
@@ -405,6 +438,11 @@ function createExtensionApi(registry) {
           message: typeof patch?.message === "string" ? patch.message : current.message,
           badgeValue: Number.isInteger(patch?.badgeValue) ? patch.badgeValue : current.badgeValue,
           badgeTooltip: typeof patch?.badgeTooltip === "string" ? patch.badgeTooltip : current.badgeTooltip,
+          statusLabel: typeof patch?.statusLabel === "string" ? patch.statusLabel : current.statusLabel,
+          statusTone: typeof patch?.statusTone === "string" ? patch.statusTone : current.statusTone,
+          actionLabel: typeof patch?.actionLabel === "string" ? patch.actionLabel : current.actionLabel,
+          sections: Array.isArray(patch?.sections) ? normalizeSidebarSections(patch.sections) : current.sections,
+          resultEntries: Array.isArray(patch?.resultEntries) ? normalizeResultEntries(patch.resultEntries) : current.resultEntries,
         };
         registry.viewState.set(id, next);
         writeMessage({
@@ -418,6 +456,11 @@ function createExtensionApi(registry) {
             message: next.message,
             badgeValue: next.badgeValue,
             badgeTooltip: next.badgeTooltip,
+            statusLabel: next.statusLabel,
+            statusTone: next.statusTone,
+            actionLabel: next.actionLabel,
+            sections: next.sections,
+            resultEntries: next.resultEntries,
           },
         });
       },
@@ -870,6 +913,15 @@ async function handleResolveView(params = {}) {
         typeof result?.title === "string" && result.title.trim()
           ? result.title.trim()
           : viewId,
+      description: typeof result?.description === "string" ? result.description : "",
+      message: typeof result?.message === "string" ? result.message : "",
+      badgeValue: Number.isInteger(result?.badgeValue) ? result.badgeValue : null,
+      badgeTooltip: typeof result?.badgeTooltip === "string" ? result.badgeTooltip : "",
+      statusLabel: typeof result?.statusLabel === "string" ? result.statusLabel : "",
+      statusTone: typeof result?.statusTone === "string" ? result.statusTone : "",
+      actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
+      sections: normalizeSidebarSections(result?.sections),
+      resultEntries: normalizeResultEntries(result?.resultEntries),
       items: Array.isArray(result?.items)
         ? normalizeViewItems(result.items, viewId)
         : [],
@@ -902,6 +954,15 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       viewId,
       parentItemId,
       title: resolveTreeViewTitle(provider, viewId, envelope),
+      description: String(record.viewState.get(viewId)?.description || ""),
+      message: String(record.viewState.get(viewId)?.message || ""),
+      badgeValue: record.viewState.get(viewId)?.badgeValue ?? null,
+      badgeTooltip: String(record.viewState.get(viewId)?.badgeTooltip || ""),
+      statusLabel: String(record.viewState.get(viewId)?.statusLabel || ""),
+      statusTone: String(record.viewState.get(viewId)?.statusTone || ""),
+      actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
+      sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
+      resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || []),
       items,
     },
   };
@@ -965,6 +1026,11 @@ function createEmptyViewState(viewId = "") {
     message: "",
     badgeValue: null,
     badgeTooltip: "",
+    statusLabel: "",
+    statusTone: "",
+    actionLabel: "",
+    sections: [],
+    resultEntries: [],
   };
 }
 

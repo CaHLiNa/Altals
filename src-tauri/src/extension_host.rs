@@ -303,6 +303,38 @@ pub struct ExtensionHostViewItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ExtensionHostSidebarSection {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub tone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostResultEntry {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub action: String,
+    #[serde(default)]
+    pub media_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionHostViewResolveResult {
     pub view_id: String,
     #[serde(default)]
@@ -317,6 +349,16 @@ pub struct ExtensionHostViewResolveResult {
     pub badge_value: Option<u32>,
     #[serde(default)]
     pub badge_tooltip: String,
+    #[serde(default)]
+    pub status_label: String,
+    #[serde(default)]
+    pub status_tone: String,
+    #[serde(default)]
+    pub action_label: String,
+    #[serde(default)]
+    pub sections: Vec<ExtensionHostSidebarSection>,
+    #[serde(default)]
+    pub result_entries: Vec<ExtensionHostResultEntry>,
     #[serde(default)]
     pub items: Vec<ExtensionHostViewItem>,
 }
@@ -348,6 +390,16 @@ pub struct ExtensionHostViewStateChangedEvent {
     pub badge_value: Option<u32>,
     #[serde(default)]
     pub badge_tooltip: String,
+    #[serde(default)]
+    pub status_label: String,
+    #[serde(default)]
+    pub status_tone: String,
+    #[serde(default)]
+    pub action_label: String,
+    #[serde(default)]
+    pub sections: Vec<ExtensionHostSidebarSection>,
+    #[serde(default)]
+    pub result_entries: Vec<ExtensionHostResultEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1536,6 +1588,11 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             message: String::new(),
             badge_value: None,
             badge_tooltip: String::new(),
+            status_label: String::new(),
+            status_tone: String::new(),
+            action_label: String::new(),
+            sections: Vec::new(),
+            result_entries: Vec::new(),
             items: Vec::new(),
         }),
         ExtensionHostRequest::RespondUiRequest { request_id, .. } => {

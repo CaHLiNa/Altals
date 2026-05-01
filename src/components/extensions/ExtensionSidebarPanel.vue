@@ -52,6 +52,46 @@
           {{ resolvedViewMessage(view) }}
         </div>
 
+        <div v-if="resolvedViewStatusLabel(view)" class="extension-sidebar-panel__status">
+          <span
+            class="extension-sidebar-panel__status-pill"
+            :class="statusToneClass(resolvedViewStatusTone(view))"
+          >
+            {{ resolvedViewStatusLabel(view) }}
+          </span>
+          <span v-if="resolvedViewActionLabel(view)" class="extension-sidebar-panel__status-action">
+            {{ resolvedViewActionLabel(view) }}
+          </span>
+        </div>
+
+        <div v-if="resolvedViewSections(view).length > 0" class="extension-sidebar-panel__summary">
+          <div
+            v-for="section in resolvedViewSections(view)"
+            :key="section.id"
+            class="extension-sidebar-panel__summary-card"
+            :class="summaryToneClass(section.tone)"
+          >
+            <div class="extension-sidebar-panel__summary-title">{{ section.title }}</div>
+            <div class="extension-sidebar-panel__summary-value">{{ section.value }}</div>
+          </div>
+        </div>
+
+        <div v-if="resolvedViewResults(view).length > 0" class="extension-sidebar-panel__results">
+          <div class="extension-sidebar-panel__results-title">{{ t('Results') }}</div>
+          <button
+            v-for="entry in resolvedViewResults(view)"
+            :key="entry.id"
+            type="button"
+            class="extension-sidebar-panel__result-entry"
+            @click="openResultEntry(entry)"
+          >
+            <span class="extension-sidebar-panel__result-label">{{ entry.label }}</span>
+            <span v-if="entry.description" class="extension-sidebar-panel__result-description">
+              {{ entry.description }}
+            </span>
+          </button>
+        </div>
+
         <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">
           {{ t('No extension view items found') }}
         </div>
@@ -182,12 +222,34 @@ function resolvedViewMessage(view = {}) {
   return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.message || ''
 }
 
+function resolvedViewStatusLabel(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.statusLabel || ''
+}
+
+function resolvedViewStatusTone(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.statusTone || ''
+}
+
+function resolvedViewActionLabel(view = {}) {
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.actionLabel || ''
+}
+
 function resolvedViewBadge(view = {}) {
   return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeValue
 }
 
 function resolvedViewBadgeTooltip(view = {}) {
   return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.badgeTooltip || ''
+}
+
+function resolvedViewSections(view = {}) {
+  const sections = extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.sections
+  return Array.isArray(sections) ? sections : []
+}
+
+function resolvedViewResults(view = {}) {
+  const entries = extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.resultEntries
+  return Array.isArray(entries) ? entries : []
 }
 
 function resolvedItems(view = {}) {
@@ -361,6 +423,34 @@ async function applyViewControllerState(view = {}) {
     await loadExpandedChildren(view, resolvedItems(view))
   }
 }
+
+function statusToneClass(tone = '') {
+  const normalized = String(tone || '').trim().toLowerCase()
+  return normalized ? `is-${normalized}` : ''
+}
+
+function summaryToneClass(tone = '') {
+  const normalized = String(tone || '').trim().toLowerCase()
+  return normalized ? `is-${normalized}` : ''
+}
+
+function openResultEntry(entry = {}) {
+  const path = String(entry?.path || '')
+  if (!path) return
+  const mediaType = String(entry?.mediaType || '').toLowerCase()
+  if (mediaType === 'application/pdf' || path.toLowerCase().endsWith('.pdf')) {
+    void extensionsStore.openArtifact({
+      path,
+      mediaType: mediaType || 'application/pdf',
+    })
+    return
+  }
+  if (String(entry?.action || '').trim().toLowerCase() === 'reveal') {
+    void extensionsStore.revealArtifact({ path })
+    return
+  }
+  void extensionsStore.openArtifact({ path, mediaType })
+}
 </script>
 
 <style scoped>
@@ -454,6 +544,130 @@ async function applyViewControllerState(view = {}) {
   padding: 0 4px;
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.extension-sidebar-panel__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.extension-sidebar-panel__status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--surface-hover) 82%, transparent);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.extension-sidebar-panel__status-pill.is-success {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.extension-sidebar-panel__status-pill.is-warning {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.extension-sidebar-panel__status-pill.is-danger,
+.extension-sidebar-panel__status-pill.is-error {
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+}
+
+.extension-sidebar-panel__status-action {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.extension-sidebar-panel__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.extension-sidebar-panel__summary-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 76%, transparent);
+  padding: 10px;
+}
+
+.extension-sidebar-panel__summary-card.is-success {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+}
+
+.extension-sidebar-panel__summary-card.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
+}
+
+.extension-sidebar-panel__summary-card.is-danger,
+.extension-sidebar-panel__summary-card.is-error {
+  border-color: color-mix(in srgb, var(--error) 34%, var(--border));
+}
+
+.extension-sidebar-panel__summary-title {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.extension-sidebar-panel__summary-value {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.extension-sidebar-panel__results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.extension-sidebar-panel__results-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.extension-sidebar-panel__result-entry {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.extension-sidebar-panel__result-entry:hover {
+  background: var(--surface-hover);
+}
+
+.extension-sidebar-panel__result-label {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extension-sidebar-panel__result-description {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .extension-sidebar-panel__empty {

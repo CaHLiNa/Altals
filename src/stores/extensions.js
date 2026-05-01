@@ -120,6 +120,27 @@ function normalizeResolvedViewItem(item = {}) {
   }
 }
 
+function normalizeSidebarSection(entry = {}, index = 0) {
+  return {
+    id: String(entry?.id || `section:${index}`).trim(),
+    kind: String(entry?.kind || '').trim(),
+    title: String(entry?.title || '').trim(),
+    value: String(entry?.value || '').trim(),
+    tone: String(entry?.tone || '').trim(),
+  }
+}
+
+function normalizeResultEntry(entry = {}, index = 0) {
+  return {
+    id: String(entry?.id || `result:${index}`).trim(),
+    label: String(entry?.label || entry?.title || '').trim(),
+    description: String(entry?.description || '').trim(),
+    path: String(entry?.path || '').trim(),
+    action: String(entry?.action || '').trim(),
+    mediaType: String(entry?.mediaType || entry?.media_type || '').trim(),
+  }
+}
+
 function mergeResolvedViewState(current = {}, resolved = {}, parentItemId = '') {
   const normalizedParentItemId = String(parentItemId || '').trim()
   const items = Array.isArray(resolved?.items)
@@ -807,6 +828,15 @@ export const useExtensionsStore = defineStore('extensions', {
         message: String(resolved?.message || ''),
         badgeValue: Number.isInteger(resolved?.badgeValue) ? resolved.badgeValue : null,
         badgeTooltip: String(resolved?.badgeTooltip || ''),
+        statusLabel: String(resolved?.statusLabel || ''),
+        statusTone: String(resolved?.statusTone || ''),
+        actionLabel: String(resolved?.actionLabel || ''),
+        sections: Array.isArray(resolved?.sections)
+          ? resolved.sections.map((entry, index) => normalizeSidebarSection(entry, index))
+          : [],
+        resultEntries: Array.isArray(resolved?.resultEntries)
+          ? resolved.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+          : [],
       }
       return resolved
     },
@@ -899,6 +929,15 @@ export const useExtensionsStore = defineStore('extensions', {
           message: String(payload.message || ''),
           badgeValue: Number.isInteger(payload.badgeValue) ? payload.badgeValue : null,
           badgeTooltip: String(payload.badgeTooltip || ''),
+          statusLabel: String(payload.statusLabel || ''),
+          statusTone: String(payload.statusTone || ''),
+          actionLabel: String(payload.actionLabel || ''),
+          sections: Array.isArray(payload.sections)
+            ? payload.sections.map((entry, index) => normalizeSidebarSection(entry, index))
+            : [],
+          resultEntries: Array.isArray(payload.resultEntries)
+            ? payload.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+            : [],
         }
       }).catch(() => null)
       this._extensionHostViewRevealUnlisten = await listenExtensionViewRevealRequested((event) => {

@@ -266,6 +266,13 @@ async function main() {
         processApis,
         settingsChanged,
         capture,
+        richSidebarState: observed.find(
+          (entry) =>
+            entry.kind === "ViewStateChanged" &&
+            Array.isArray(entry.payload?.sections) &&
+            entry.payload.sections.length > 0 &&
+            Array.isArray(entry.payload?.resultEntries),
+        ) || null,
         observed: observed.filter((entry) =>
           ["ViewStateChanged", "HostCallRequested"].includes(entry.kind),
         ),

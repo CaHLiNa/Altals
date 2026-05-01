@@ -3,6 +3,7 @@ export async function activate(context) {
   const launchCount = Number(context.globalState.get("launchCount") || 0) + 1
   context.globalState.update("launchCount", launchCount)
   let lastSettingsChange = ""
+  let lastResultPath = ""
 
   context.menus.registerAction("scribeflow.pdf.translate", {
     surface: "commandPalette",
@@ -45,6 +46,83 @@ export async function activate(context) {
     return context.pdf?.current || { path: "", isPdf: false, filename: "", referenceId: "" }
   }
 
+  function buildSidebarSections(overrides = {}) {
+    const resource = currentResource()
+    const reference = currentReference()
+    const pdf = currentPdf()
+    const targetPath = String(overrides.targetPath || pdf.path || resource.path || "")
+    const targetLang = String(
+      overrides.targetLang ||
+      context.settings.get("examplePdfExtension.targetLang", "zh-CN") ||
+      "zh-CN",
+    )
+    return [
+      {
+        id: "target",
+        kind: "context",
+        title: "Target",
+        value: targetPath || "No active PDF",
+      },
+      {
+        id: "reference",
+        kind: "context",
+        title: "Reference",
+        value: reference.id || "No linked reference",
+      },
+      {
+        id: "language",
+        kind: "config",
+        title: "Target Language",
+        value: targetLang,
+      },
+      {
+        id: "provider",
+        kind: "status",
+        title: "Provider",
+        value: String(overrides.providerStatus || "Example runtime provider"),
+      },
+    ]
+  }
+
+  function buildResultEntries(overrides = {}) {
+    const targetPath = String(overrides.targetPath || lastResultPath || currentPdf().path || currentResource().path || "")
+    if (!targetPath) return []
+    return [
+      {
+        id: "source-pdf",
+        label: "Open Source PDF",
+        description: targetPath,
+        path: targetPath,
+        action: "open",
+        mediaType: "application/pdf",
+      },
+      {
+        id: "reveal-source-pdf",
+        label: "Reveal Source PDF",
+        description: "Reveal the current translation input in Finder",
+        path: targetPath,
+        action: "reveal",
+        mediaType: "application/pdf",
+      },
+    ]
+  }
+
+  function updateSidebarView(overrides = {}) {
+    const hasWorkspace = context.workspace?.hasWorkspace
+    context.views.updateView("examplePdfExtension.translateView", {
+      title: "Translate PDF",
+      description: overrides.description ?? (hasWorkspace ? "Workspace PDF tools" : "PDF tools"),
+      message: overrides.message ?? "",
+      badgeValue: overrides.badgeValue ?? 1,
+      badgeTooltip: overrides.badgeTooltip ?? "One quick action is available for the active PDF.",
+      statusLabel: overrides.statusLabel ?? "Ready",
+      statusTone: overrides.statusTone ?? "success",
+      actionLabel: overrides.actionLabel ?? "Use Translate or Refresh to continue",
+      sections: overrides.sections ?? buildSidebarSections(overrides),
+      resultEntries: overrides.resultEntries ?? buildResultEntries(overrides),
+    })
+  }
+
   context.capabilities.registerProvider("pdf.translate", async (request) => {
     const payload = JSON.parse(String(request?.settingsJson || request?.settings_json || "{}") || "{}")
     const configuredTargetLang = String(
@@ -54,6 +132,16 @@ export async function activate(context) {
     const workspaceRoot = String(context.workspace?.rootPath || "")
     const resource = currentResource()
     const reference = currentReference()
+    lastResultPath = String(request?.targetPath || resource.path || "")
+    updateSidebarView({
+      targetLang,
+      targetPath: lastResultPath,
+      providerStatus: "Queued through example provider",
+      statusLabel: "Queued",
+      statusTone: "warning",
+      actionLabel: "Review context or rerun with another language",
+      message: `Queued translation for ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`,
+    })
     return {
       message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${reference.id ? ` · ref:${reference.id}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
       progressLabel: "Example extension provider executed",
@@ -80,6 +168,7 @@ export async function activate(context) {
     }
     const activeTarget = currentDocumentTarget()
     const targetPath = String(payload?.targetPath || activeTarget.path || "")
+    lastResultPath = targetPath
     const result = await context.capabilities.invoke("pdf.translate", {
       ...payload,
       capability: "pdf.translate",
@@ -115,11 +204,16 @@ export async function activate(context) {
     const resource = currentResource()
     const reference = currentReference()
     const pdf = currentPdf()
-    context.views.updateView("examplePdfExtension.translateView", {
+    updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: `Context: ${pdf.path || resource.path || "none"}${reference.id ? ` · ref:${reference.id}` : ""}${lastSettingsChange ? ` · settings:${lastSettingsChange}` : ""}`,
+      statusLabel: pdf.path || resource.path ? "Context Ready" : "Waiting",
+      statusTone: pdf.path || resource.path ? "success" : "warning",
+      actionLabel: "Inspect the active document context",
+      targetPath: pdf.path || resource.path || "",
+      providerStatus: "Context probe",
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {
@@ -135,11 +229,16 @@ export async function activate(context) {
     const pdf = currentPdf()
     const library = await context.references.readCurrentLibrary()
     const metadata = pdf.path ? await context.pdf.extractMetadata(pdf.path) : {}
-    context.views.updateView("examplePdfExtension.translateView", {
+    updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: `Runtime APIs: refs:${Array.isArray(library?.references) ? library.references.length : 0}${metadata?.metadata?.title ? ` · title:${metadata.metadata.title}` : ""}`,
+      statusLabel: "Runtime Ready",
+      statusTone: "success",
+      actionLabel: "Host APIs are available to this plugin",
+      targetPath: pdf.path || "",
+      providerStatus: metadata?.metadata?.title ? "Metadata resolved" : "Metadata unavailable",
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {
@@ -156,11 +255,15 @@ export async function activate(context) {
       args: ["-e", "process.stdout.write('process-ok')"],
       cwd: context.workspace?.rootPath || "",
     })
-    context.views.updateView("examplePdfExtension.translateView", {
+    updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: `Process API: ${String(result?.stdout || "").trim() || "empty"}`,
+      statusLabel: "Process Ready",
+      statusTone: "success",
+      actionLabel: "Sidecar/process execution is available",
+      providerStatus: "Local process bridge ok",
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {
@@ -238,25 +341,29 @@ export async function activate(context) {
     when: "resourceExtname == .pdf || resource.kind == pdf",
   })
 
-  context.views.updateView("examplePdfExtension.translateView", {
-    title: "Translate PDF",
-    description: context.workspace?.hasWorkspace ? "Workspace PDF tools" : "PDF tools",
+  updateSidebarView({
     message: currentPdf().path
       ? `Select a PDF target to start translation.${currentReference().id ? ` Reference: ${currentReference().id}` : ""}`
       : "Open a PDF document to start translation.",
-    badgeValue: 1,
-    badgeTooltip: "One quick action is available for the active PDF.",
+    statusLabel: currentPdf().path ? "Ready" : "Waiting",
+    statusTone: currentPdf().path ? "success" : "warning",
+    actionLabel: currentPdf().path ? "Choose a translation target" : "Open a PDF document first",
+    targetPath: currentPdf().path || "",
   })
 
   context.settings.onDidChange((event) => {
     const keys = Array.isArray(event?.keys) ? event.keys.filter(Boolean) : []
     if (keys.length === 0) return
     lastSettingsChange = keys.join(", ")
-    context.views.updateView("examplePdfExtension.translateView", {
+    updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: `Settings updated: ${lastSettingsChange}`,
+      statusLabel: "Settings Updated",
+      statusTone: "warning",
+      actionLabel: "Review the new provider defaults",
+      providerStatus: `Settings changed: ${lastSettingsChange}`,
     })
   })
 
@@ -264,11 +371,16 @@ export async function activate(context) {
     const selected = Array.isArray(event?.selection) ? event.selection[0] : null
     const label = String(selected?.targetPath || selected?.label || selected?.handle || "")
     context.workspaceState.update("lastSelectedLabel", label)
-    context.views.updateView("examplePdfExtension.translateView", {
+    lastResultPath = label || lastResultPath
+    updateSidebarView({
       message: label
         ? `Selected translation target: ${label}`
         : "Select a PDF target to start translation.",
       description: `Workspace PDF tools · launched ${launchCount} times`,
+      statusLabel: label ? "Target Selected" : "Ready",
+      statusTone: label ? "success" : "warning",
+      actionLabel: label ? "Run Translate to queue work" : "Select a translation target",
+      targetPath: label || currentPdf().path || "",
     })
   })
 
@@ -276,13 +388,18 @@ export async function activate(context) {
     await context.commands.executeCommand("examplePdfExtension.announceRefresh")
     const resource = currentResource()
     context.views.refresh("examplePdfExtension.translateView")
-    context.views.updateView("examplePdfExtension.translateView", {
+    updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
       message: resource.path
         ? `Ready for ${resource.filename || resource.path}${currentReference().id ? ` · ref:${currentReference().id}` : ""}`
         : "Open a PDF document to start translation.",
+      statusLabel: resource.path ? "Ready" : "Waiting",
+      statusTone: resource.path ? "success" : "warning",
+      actionLabel: resource.path ? "Inspect the target or queue translation" : "Open a PDF document first",
+      targetPath: resource.path || "",
+      providerStatus: "Refreshed from runtime",
     })
     translateTreeView.reveal("translate-group", {
       focus: true,
