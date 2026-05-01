@@ -141,6 +141,21 @@ Remaining cleanup direction:
 - make settings and registered runtime capabilities clearer in the UI
 - avoid growing the workbench model just for parity with VS Code
 
+## 7. Translation Plugin Boundary
+
+For a future PDF translation plugin such as `retain-pdf`, the current platform boundary should be:
+
+- Settings stores provider defaults and non-secret configuration
+- the document right sidebar hosts task state, source context, result summary, and artifact entry points
+- plugin runtime may orchestrate work through `context.process` when a sidecar or local worker is needed
+- secrets should not be normalized into ordinary plugin settings values for production use
+
+Current production-oriented guidance:
+
+- prefer env-based or sidecar-managed credentials until a secure host-managed secret store is added
+- keep OCR / LLM execution outside the core UI layer
+- keep translated PDFs and related outputs flowing back as normal plugin tasks and artifacts
+
 ## 7. Working Rule
 
 When adding new plugin features:
