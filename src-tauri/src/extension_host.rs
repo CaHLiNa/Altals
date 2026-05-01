@@ -1,5 +1,7 @@
 use crate::extension_artifacts::ExtensionArtifact;
-use crate::extension_manifest::{ExtensionManifest, ExtensionPermissions};
+use crate::extension_manifest::{
+    ExtensionCapabilityContribution, ExtensionManifest, ExtensionPermissions,
+};
 use crate::extension_outputs::ExtensionCapabilityOutput;
 #[cfg(not(test))]
 use crate::extension_tasks::ExtensionTaskRuntimeState;
@@ -217,6 +219,8 @@ pub enum ExtensionHostRequest {
         manifest_path: String,
         main_entry: String,
         permissions: ExtensionPermissions,
+        #[serde(default)]
+        capabilities: Vec<ExtensionCapabilityContribution>,
         #[serde(default)]
         activation_state: ExtensionHostActivationState,
     },
@@ -750,6 +754,7 @@ pub fn activate_extension(
         manifest_path: entry.path.clone(),
         main_entry: manifest.main.clone(),
         permissions: manifest.permissions.clone(),
+        capabilities: manifest.contributes.capabilities.clone(),
         activation_state: ExtensionHostActivationState {
             settings: extension_settings,
             global_state: runtime_state.global_state,

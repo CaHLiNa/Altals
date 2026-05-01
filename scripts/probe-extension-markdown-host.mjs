@@ -7,11 +7,17 @@ const hostPath = path.join(repoRoot, "src-tauri/resources/extension-host/extensi
 const extensionPath = path.join(repoRoot, ".scribeflow/extensions/example-markdown-extension");
 const manifestPath = path.join(extensionPath, "package.json");
 
-async function readManifestPermissions() {
+async function readManifestMetadata() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  return manifest && typeof manifest.permissions === "object" && !Array.isArray(manifest.permissions)
-    ? manifest.permissions
-    : {};
+  return {
+    permissions:
+      manifest && typeof manifest.permissions === "object" && !Array.isArray(manifest.permissions)
+        ? manifest.permissions
+        : {},
+    capabilities: Array.isArray(manifest?.contributes?.capabilities)
+      ? manifest.contributes.capabilities
+      : [],
+  };
 }
 
 const child = spawn("node", [hostPath], {
@@ -91,7 +97,7 @@ setTimeout(() => {
 }, 8000);
 
 async function main() {
-  const permissions = await readManifestPermissions();
+  const { permissions, capabilities } = await readManifestMetadata();
   const activationState = {
     settings: { "exampleMarkdownExtension.summaryStyle": "bullet" },
     globalState: {},
@@ -116,6 +122,7 @@ async function main() {
     manifestPath,
     mainEntry: "./dist/extension.js",
     permissions,
+    capabilities,
     activationState,
   });
 

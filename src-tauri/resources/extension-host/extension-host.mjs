@@ -1,5 +1,4 @@
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 
@@ -984,6 +983,14 @@ async function ensureActivated(request) {
   for (const [key, value] of Object.entries(activationWorkspaceState)) {
     record.workspaceState.set(String(key || "").trim(), value);
   }
+  const activationCapabilities = Array.isArray(request.capabilities)
+    ? request.capabilities
+    : [];
+  for (const capability of activationCapabilities) {
+    const id = String(capability?.id || "").trim();
+    if (!id) continue;
+    record.capabilityContracts.set(id, capability);
+  }
   const api = createExtensionApi(record);
   const module = await loadExtensionModule(resolvedMain);
   const activate = typeof module.activate === "function" ? module.activate : null;
@@ -999,20 +1006,6 @@ async function ensureActivated(request) {
   });
   await activate(context);
   record.subscriptions = context.subscriptions;
-  try {
-    const manifestContent = await readFile(manifestPath, "utf8");
-    const manifestJson = JSON.parse(manifestContent);
-    const capabilities = Array.isArray(manifestJson?.contributes?.capabilities)
-      ? manifestJson.contributes.capabilities
-      : [];
-    for (const capability of capabilities) {
-      const id = String(capability?.id || "").trim();
-      if (!id) continue;
-      record.capabilityContracts.set(id, capability);
-    }
-  } catch {
-    // Rust remains the source of truth. Host-level validation is a local mirror.
-  }
   extensions.set(extensionId, record);
   return record;
 }

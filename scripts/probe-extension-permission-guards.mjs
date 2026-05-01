@@ -8,11 +8,17 @@ const hostPath = path.join(repoRoot, "src-tauri/resources/extension-host/extensi
 const extensionPath = path.join(repoRoot, ".scribeflow/extensions/example-pdf-extension");
 const manifestPath = path.join(extensionPath, "package.json");
 
-async function readManifestPermissions() {
+async function readManifestMetadata() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  return manifest && typeof manifest.permissions === "object" && !Array.isArray(manifest.permissions)
-    ? manifest.permissions
-    : {};
+  return {
+    permissions:
+      manifest && typeof manifest.permissions === "object" && !Array.isArray(manifest.permissions)
+        ? manifest.permissions
+        : {},
+    capabilities: Array.isArray(manifest?.contributes?.capabilities)
+      ? manifest.contributes.capabilities
+      : [],
+  };
 }
 
 function createProbeChild() {
@@ -89,6 +95,7 @@ async function runDeniedScenario({
   activationEvent,
   commandId,
   permissions,
+  capabilities,
   expectedError,
   forbiddenHostCalls = [],
 }) {
@@ -120,6 +127,7 @@ async function runDeniedScenario({
       manifestPath,
       mainEntry: "./dist/extension.js",
       permissions,
+      capabilities,
       activationState,
     });
     assert.equal(activate.kind, "Activate");
@@ -156,7 +164,7 @@ async function runDeniedScenario({
 }
 
 async function main() {
-  const manifestPermissions = await readManifestPermissions();
+  const { permissions: manifestPermissions, capabilities: manifestCapabilities } = await readManifestMetadata();
 
   const scenarios = await Promise.all([
     runDeniedScenario({
@@ -167,6 +175,7 @@ async function main() {
         ...manifestPermissions,
         spawnProcess: false,
       },
+      capabilities: manifestCapabilities,
       expectedError: /not allowed to spawn local processes/i,
       forbiddenHostCalls: ["process.spawn", "process.wait"],
     }),
@@ -178,6 +187,7 @@ async function main() {
         ...manifestPermissions,
         readReferenceLibrary: false,
       },
+      capabilities: manifestCapabilities,
       expectedError: /not allowed to read the reference library/i,
       forbiddenHostCalls: ["references.readCurrentLibrary", "pdf.extractMetadata"],
     }),
@@ -190,6 +200,7 @@ async function main() {
         readWorkspaceFiles: false,
         readReferenceLibrary: false,
       },
+      capabilities: manifestCapabilities,
       expectedError: /not allowed to inspect PDF content/i,
       forbiddenHostCalls: ["pdf.extractMetadata"],
     }),
