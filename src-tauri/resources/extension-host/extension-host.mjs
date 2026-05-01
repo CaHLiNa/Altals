@@ -1509,17 +1509,25 @@ function handleUpdateSettings(params = {}) {
     };
   }
   const nextSettings = normalizeSettingsObject(params.settings);
+  const previousSettings = new Map(registry.settings.entries());
   const changedKeys = [];
+  registry.settings.clear();
   for (const [key, value] of Object.entries(nextSettings)) {
     const normalizedKey = String(key || "").trim();
     if (!normalizedKey) continue;
-    const previous = registry.settings.get(normalizedKey);
     registry.settings.set(normalizedKey, value);
-    if (previous !== value) {
+    if (!previousSettings.has(normalizedKey) || previousSettings.get(normalizedKey) !== value) {
       changedKeys.push(normalizedKey);
     }
   }
-  emitSettingsChanged(registry, changedKeys);
+  for (const key of previousSettings.keys()) {
+    if (!registry.settings.has(key)) {
+      changedKeys.push(key);
+    }
+  }
+  if (changedKeys.length > 0) {
+    emitSettingsChanged(registry, changedKeys);
+  }
   return {
     kind: "AcknowledgeSettingsUpdate",
     payload: {
