@@ -136,6 +136,29 @@ function recentTasksForExtensionList(tasks = [], extensionId = '') {
   return [...filtered].slice(0, 8)
 }
 
+function viewKeyMatchesExtension(viewKey = '', extensionId = '') {
+  const normalizedViewKey = String(viewKey || '').trim()
+  const normalizedExtensionId = normalizeExtensionId(extensionId)
+  return Boolean(
+    normalizedViewKey &&
+    normalizedExtensionId &&
+    normalizedViewKey.startsWith(`${normalizedExtensionId}:`),
+  )
+}
+
+function panelIdMatchesExtension(registry = [], panelId = '', extensionId = '') {
+  const normalizedPanelId = String(panelId || '').trim()
+  const normalizedExtensionId = normalizeExtensionId(extensionId)
+  if (!normalizedPanelId || !normalizedExtensionId) return false
+  const extension = Array.isArray(registry)
+    ? registry.find((entry) => normalizeExtensionId(entry?.id) === normalizedExtensionId)
+    : null
+  if (!extension) return false
+  return (extension.contributedViewContainers || []).some(
+    (container) => String(container?.panelId || '').trim() === normalizedPanelId,
+  )
+}
+
 function buildTaskTimeline(tasks = []) {
   const running = []
   const recent = []
@@ -588,6 +611,46 @@ export const useExtensionsStore = defineStore('extensions', {
   },
 
   actions: {
+    isExtensionEnabled(extensionId = '') {
+      const id = normalizeExtensionId(extensionId)
+      if (!id) return false
+      return this.enabledExtensionIds.map(normalizeExtensionId).includes(id)
+    },
+
+    pruneExtensionRuntimeState(extensionId = '') {
+      const id = normalizeExtensionId(extensionId)
+      if (!id) return
+      delete this.runtimeRegistry[id]
+
+      for (const viewKey of Object.keys(this.resolvedViews)) {
+        if (viewKeyMatchesExtension(viewKey, id)) {
+          delete this.resolvedViews[viewKey]
+        }
+      }
+      for (const viewKey of Object.keys(this.viewState)) {
+        if (viewKeyMatchesExtension(viewKey, id)) {
+          delete this.viewState[viewKey]
+        }
+      }
+      for (const viewKey of Object.keys(this.viewControllerState)) {
+        if (viewKeyMatchesExtension(viewKey, id)) {
+          delete this.viewControllerState[viewKey]
+        }
+      }
+      for (const viewKey of Object.keys(this.changedViewTicks)) {
+        if (viewKeyMatchesExtension(viewKey, id)) {
+          delete this.changedViewTicks[viewKey]
+        }
+      }
+      for (const [panelId, target] of Object.entries(this.sidebarTargets)) {
+        if (panelIdMatchesExtension(this.registry, panelId, id)) {
+          delete this.sidebarTargets[panelId]
+        } else if (String(target?.extensionId || '').trim().toLowerCase() === id) {
+          delete this.sidebarTargets[panelId]
+        }
+      }
+    },
+
     snapshotSettings() {
       return {
         enabledExtensionIds: [...this.enabledExtensionIds],
@@ -770,7 +833,11 @@ export const useExtensionsStore = defineStore('extensions', {
       } else {
         ids.delete(id)
       }
-      return this.persistSettings({ enabledExtensionIds: [...ids] })
+      const snapshot = await this.persistSettings({ enabledExtensionIds: [...ids] })
+      if (!enabled) {
+        this.pruneExtensionRuntimeState(id)
+      }
+      return snapshot
     },
 
     async setExtensionConfigValue(extensionId = '', key = '', value = '') {
@@ -804,6 +871,7 @@ export const useExtensionsStore = defineStore('extensions', {
     async activateExtension(extensionId = '', activationEvent = '*') {
       const id = normalizeExtensionId(extensionId)
       if (!id) return null
+      if (!this.isExtensionEnabled(id)) return null
       const extension = this.registry.find((entry) => entry.id === id)
       if (!extension || extension.status !== 'available') return null
       const workspace = useWorkspaceStore()
@@ -827,6 +895,9 @@ export const useExtensionsStore = defineStore('extensions', {
     async executeCommand(action = {}, target = {}, settings = {}) {
       const extensionId = normalizeExtensionId(action.extensionId)
       const commandId = String(action.commandId || action.command || action.id || '').trim()
+      if (!this.isExtensionEnabled(extensionId)) {
+        throw new Error(`Extension command is disabled: ${extensionId || commandId}`)
+      }
       const extension = this.registry.find((extension) => extension.id === extensionId)
       if (!extension || extension.status !== 'available') {
         throw new Error(`Extension command is not available: ${extensionId || commandId}`)
@@ -867,6 +938,9 @@ export const useExtensionsStore = defineStore('extensions', {
     async invokeCapability(action = {}, target = {}, settings = {}) {
       const extensionId = normalizeExtensionId(action.extensionId)
       const capabilityId = normalizeCapability(action.capabilityId || action.capability || action.id || '')
+      if (!this.isExtensionEnabled(extensionId)) {
+        throw new Error(`Extension capability is disabled: ${extensionId || capabilityId}`)
+      }
       const extension = this.registry.find((entry) => entry.id === extensionId)
       if (!extension || extension.status !== 'available') {
         throw new Error(`Extension capability is not available: ${extensionId || capabilityId}`)
@@ -913,6 +987,9 @@ export const useExtensionsStore = defineStore('extensions', {
       const viewId = String(view.id || '').trim()
       if (!extensionId || !viewId) {
         throw new Error('Extension view is incomplete')
+      }
+      if (!this.isExtensionEnabled(extensionId)) {
+        throw new Error(`Extension view is disabled: ${extensionId || viewId}`)
       }
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
@@ -968,6 +1045,9 @@ export const useExtensionsStore = defineStore('extensions', {
       const extensionId = normalizeExtensionId(view.extensionId)
       const viewId = String(view.id || '').trim()
       if (!extensionId || !viewId) return null
+      if (!this.isExtensionEnabled(extensionId)) {
+        throw new Error(`Extension view is disabled: ${extensionId || viewId}`)
+      }
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       return notifyExtensionViewSelection({
