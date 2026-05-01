@@ -101,6 +101,27 @@ function handleNonTerminal(message) {
       });
       return;
     }
+    if (message.payload.kind === "pdf.extractText") {
+      send("ResolveHostCall", {
+        requestId: message.payload.requestId,
+        accepted: true,
+        result: "Runtime Test PDF Text",
+      });
+      return;
+    }
+    if (message.payload.kind === "process.exec") {
+      send("ResolveHostCall", {
+        requestId: message.payload.requestId,
+        accepted: true,
+        result: {
+          ok: true,
+          code: 0,
+          stdout: "exec-ok",
+          stderr: "",
+        },
+      });
+      return;
+    }
     if (message.payload.kind === "process.spawn") {
       send("ResolveHostCall", {
         requestId: message.payload.requestId,
@@ -265,6 +286,32 @@ async function main() {
     },
   });
 
+  const processExecApis = await call("ExecuteCommand", {
+    activationEvent: "onCommand:examplePdfExtension.inspectProcessExecApi",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "examplePdfExtension.inspectProcessExecApi",
+    envelope: {
+      ...baseEnvelope,
+      commandId: "examplePdfExtension.inspectProcessExecApi",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
+  const pdfTextApis = await call("ExecuteCommand", {
+    activationEvent: "onCommand:examplePdfExtension.inspectPdfTextApi",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "examplePdfExtension.inspectPdfTextApi",
+    envelope: {
+      ...baseEnvelope,
+      commandId: "examplePdfExtension.inspectPdfTextApi",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
   send("UpdateSettings", {
     extensionId: "example-pdf-extension",
     settings: { "examplePdfExtension.targetLang": "en" },
@@ -315,8 +362,10 @@ async function main() {
   const hostCallKinds = observed
     .filter((entry) => entry.kind === "HostCallRequested")
     .map((entry) => String(entry.payload?.kind || ""));
+  const processExecObserved = hostCallKinds.includes("process.exec");
   const processWaitObserved = hostCallKinds.includes("process.wait");
   const processSpawnObserved = hostCallKinds.includes("process.spawn");
+  const pdfExtractTextObserved = hostCallKinds.includes("pdf.extractText");
   const taskUpdateObserved = hostCallKinds.includes("tasks.update");
   const runtimeCommands = activate?.payload?.registeredCommands || [];
   const runtimeActions = activate?.payload?.registeredMenuActions || [];
@@ -351,9 +400,13 @@ async function main() {
     manifestPermissions: permissions,
     runtimeOnlyTaskState: runtimeOnly?.payload?.taskState || "",
     processTaskState: processApis?.payload?.taskState || "",
+    processExecTaskState: processExecApis?.payload?.taskState || "",
+    pdfTextTaskState: pdfTextApis?.payload?.taskState || "",
     translateTaskState: translate?.payload?.taskState || "",
+    processExecObserved,
     processSpawnObserved,
     processWaitObserved,
+    pdfExtractTextObserved,
     taskUpdateObserved,
     translateProcessSpawnObserved,
     translateProcessWaitObserved,
@@ -367,7 +420,9 @@ async function main() {
 
   ensure(runtimeCommands.includes("examplePdfExtension.captureContext"), "runtime-only command was not registered", summary);
   ensure(runtimeCommands.includes("examplePdfExtension.inspectPdfApi"), "pdf inspection command was not registered", summary);
+  ensure(runtimeCommands.includes("examplePdfExtension.inspectPdfTextApi"), "pdf text inspection command was not registered", summary);
   ensure(runtimeCommands.includes("examplePdfExtension.inspectProcessApi"), "process inspection command was not registered", summary);
+  ensure(runtimeCommands.includes("examplePdfExtension.inspectProcessExecApi"), "process exec inspection command was not registered", summary);
   ensure(permissions.readWorkspaceFiles === true, "manifest no longer grants workspace PDF access", summary);
   ensure(permissions.readReferenceLibrary === true, "manifest no longer grants reference library access", summary);
   ensure(permissions.spawnProcess === true, "manifest no longer grants process access", summary);
@@ -375,8 +430,14 @@ async function main() {
   ensure(runtimeOnly?.payload?.taskState === "succeeded", "runtime-only command did not succeed", summary);
   ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);
   ensure(processApis?.payload?.taskState === "succeeded", "process command did not succeed", summary);
+  ensure(processExecApis?.payload?.accepted === true, "process exec command was not accepted", summary);
+  ensure(processExecApis?.payload?.taskState === "succeeded", "process exec command did not succeed", summary);
+  ensure(pdfTextApis?.payload?.accepted === true, "pdf text command was not accepted", summary);
+  ensure(pdfTextApis?.payload?.taskState === "succeeded", "pdf text command did not succeed", summary);
+  ensure(processExecObserved, "process.exec was not observed through host call bridge", summary);
   ensure(processSpawnObserved, "process.spawn was not observed through host call bridge", summary);
   ensure(processWaitObserved, "process.wait was not observed through host call bridge", summary);
+  ensure(pdfExtractTextObserved, "pdf.extractText was not observed through host call bridge", summary);
   ensure(taskUpdateObserved, "tasks.update was not observed through host call bridge", summary);
   ensure(translateProcessSpawnObserved, "translation command did not spawn a local worker", summary);
   ensure(translateProcessWaitObserved, "translation command did not wait for the local worker", summary);

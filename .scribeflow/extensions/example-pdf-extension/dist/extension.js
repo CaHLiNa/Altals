@@ -450,6 +450,38 @@ export async function activate(context) {
     category: "PDF",
   })
 
+  context.commands.registerCommand("examplePdfExtension.inspectPdfTextApi", async () => {
+    const pdf = currentPdf()
+    const candidatePdfPath = String(
+      pdf.path ||
+      currentDocumentTarget().path ||
+      currentResource().path ||
+      "",
+    )
+    const extractedText = candidatePdfPath ? await context.pdf.extractText(candidatePdfPath) : ""
+    updateSidebarView({
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: extractedText
+        ? `PDF Text API: ${String(extractedText).slice(0, 48)}`
+        : "PDF Text API: no text extracted",
+      statusLabel: "PDF Text Ready",
+      statusTone: "success",
+      actionLabel: "PDF text extraction is available to this plugin",
+      targetPath: candidatePdfPath,
+      providerStatus: extractedText ? "Text extracted" : "No text extracted",
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: "example-pdf-extension inspected pdf text api",
+      progressLabel: "PDF text API inspected",
+    }
+  }, {
+    title: "Inspect PDF Text API",
+    category: "PDF",
+  })
+
   context.commands.registerCommand("examplePdfExtension.inspectProcessApi", async () => {
     const result = await context.process.spawn("node", {
       args: ["-e", "setTimeout(() => process.exit(0), 25)"],
@@ -485,6 +517,32 @@ export async function activate(context) {
     }
   }, {
     title: "Inspect Process API",
+    category: "PDF",
+  })
+
+  context.commands.registerCommand("examplePdfExtension.inspectProcessExecApi", async () => {
+    const result = await context.process.exec("node", {
+      args: ["-e", "process.stdout.write('exec-ok')"],
+      cwd: context.workspace?.rootPath || "",
+    })
+    updateSidebarView({
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: `Process Exec API: ${String(result?.stdout || "").trim() || "no stdout"}`,
+      statusLabel: result?.ok ? "Process Exec Complete" : "Process Exec Failed",
+      statusTone: result?.ok ? "success" : "warning",
+      actionLabel: result?.ok ? "Local process exec completed" : "Local process exec failed",
+      providerStatus: result?.ok ? "Local process exec ok" : "Local process exec returned non-zero exit",
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: "example-pdf-extension inspected process exec api",
+      progressLabel: result?.ok ? "Process exec API inspected" : "Process exec API failed",
+      taskState: result?.ok ? "succeeded" : "failed",
+    }
+  }, {
+    title: "Inspect Process Exec API",
     category: "PDF",
   })
 
