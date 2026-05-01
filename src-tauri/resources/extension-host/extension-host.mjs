@@ -186,6 +186,14 @@ function normalizeArtifactEntries(entries = [], envelope = {}) {
     .filter(Boolean);
 }
 
+function normalizeTaskState(value = "", fallback = "succeeded") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["queued", "running", "succeeded", "failed", "cancelled"].includes(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
 function normalizeCommandMetadata(command = "", metadata = {}) {
   const commandId = String(command || "").trim();
   if (!commandId) return null;
@@ -901,6 +909,7 @@ async function handleInvokeCapability(params = {}) {
         typeof result?.progressLabel === "string" && result.progressLabel.trim()
           ? result.progressLabel.trim()
           : "Handled by extension host",
+      taskState: normalizeTaskState(result?.taskState, "succeeded"),
       artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
     },
   };
@@ -930,6 +939,7 @@ async function handleExecuteCommand(params = {}) {
         typeof result?.progressLabel === "string" && result.progressLabel.trim()
           ? result.progressLabel.trim()
           : "Handled by extension command",
+      taskState: normalizeTaskState(result?.taskState, "succeeded"),
       changedViews,
       artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
     },

@@ -280,6 +280,7 @@ async function main() {
         settingsChanged,
         capture,
         translate,
+        translateTaskState: translate?.payload?.taskState || "",
         resultActionKinds: (
           observed.find(
             (entry) =>

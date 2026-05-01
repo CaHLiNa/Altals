@@ -109,6 +109,16 @@ fn normalize_artifacts(artifacts: Vec<ExtensionArtifact>) -> Vec<ExtensionArtifa
         .collect()
 }
 
+fn normalize_task_state(value: &str) -> &str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "queued" => "queued",
+        "running" => "running",
+        "cancelled" => "cancelled",
+        "failed" => "failed",
+        _ => "succeeded",
+    }
+}
+
 #[tauri::command]
 pub async fn extension_command_execute(
     params: ExtensionCommandExecuteParams,
@@ -202,9 +212,41 @@ pub async fn extension_command_execute(
     match response {
         Ok(ExtensionHostResponse::ExecuteCommand(result)) => {
             let artifacts = normalize_artifacts(result.artifacts);
-            let completed = mark_task_succeeded(&task.id, artifacts, &result.progress_label)
-                .map_err(|error| format!("Failed to record extension result: {error}"))?;
-            write_task_log(&completed, &result.message);
+            let normalized_state = normalize_task_state(&result.task_state);
+            let recorded = match normalized_state {
+                "queued" => crate::extension_tasks::update_task(&task.id, |task| {
+                    task.state = "queued".to_string();
+                    task.progress.label = if result.progress_label.trim().is_empty() {
+                        "Queued".to_string()
+                    } else {
+                        result.progress_label.trim().to_string()
+                    };
+                    task.artifacts = artifacts.clone();
+                    task.error.clear();
+                }),
+                "running" => crate::extension_tasks::update_task(&task.id, |task| {
+                    task.state = "running".to_string();
+                    task.progress.label = if result.progress_label.trim().is_empty() {
+                        "Running".to_string()
+                    } else {
+                        result.progress_label.trim().to_string()
+                    };
+                    task.artifacts = artifacts.clone();
+                    task.error.clear();
+                }),
+                "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
+                "failed" => crate::extension_tasks::mark_task_failed(
+                    &task.id,
+                    if result.message.trim().is_empty() {
+                        "Extension command failed"
+                    } else {
+                        &result.message
+                    },
+                ),
+                _ => mark_task_succeeded(&task.id, artifacts, &result.progress_label),
+            }
+            .map_err(|error| format!("Failed to record extension result: {error}"))?;
+            write_task_log(&recorded, &result.message);
             let task = get_task(&task.id)?;
             Ok(ExtensionCommandExecutionResult {
                 task,
