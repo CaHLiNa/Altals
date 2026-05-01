@@ -20,17 +20,6 @@
           <div v-if="taskProgressSummary(task)" class="extension-task-progress">
             {{ taskProgressSummary(task) }}
           </div>
-          <div v-if="task.artifacts?.length" class="extension-artifacts">
-            <button
-              v-for="artifact in task.artifacts"
-              :key="artifact.id || artifact.path"
-              type="button"
-              class="extension-artifact-link"
-              @click="openArtifact(artifact)"
-            >
-              {{ artifact.kind || t('Artifact') }}
-            </button>
-          </div>
           <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
             <div class="extension-task-results__title">{{ t('Results') }}</div>
             <button
@@ -38,8 +27,8 @@
               :key="entry.id"
               type="button"
               class="extension-task-results__entry"
-              :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
-              @click="selectArtifactEntry(task, entry)"
+              :class="{ 'is-active': activeResultEntry(task)?.id === entry.id }"
+              @click="selectResultEntry(task, entry)"
             >
               <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
               <span v-if="entry.description" class="extension-task-results__entry-description">
@@ -48,10 +37,10 @@
             </button>
           </div>
           <ExtensionResultPreview
-            v-if="activeArtifactEntry(task)"
-            :entry="activeArtifactEntry(task)"
-            :busy-action-key="artifactActionBusyKey"
-            @run-action="openArtifactEntry"
+            v-if="activeResultEntry(task)"
+            :entry="activeResultEntry(task)"
+            :busy-action-key="resultActionBusyKey"
+            @run-action="openResultEntry"
           />
         </div>
         <div class="extension-task-actions">
@@ -91,17 +80,6 @@
           <div v-if="taskProgressSummary(task)" class="extension-task-progress">
             {{ taskProgressSummary(task) }}
           </div>
-          <div v-if="task.artifacts?.length" class="extension-artifacts">
-            <button
-              v-for="artifact in task.artifacts"
-              :key="artifact.id || artifact.path"
-              type="button"
-              class="extension-artifact-link"
-              @click="openArtifact(artifact)"
-            >
-              {{ artifact.kind || t('Artifact') }}
-            </button>
-          </div>
           <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
             <div class="extension-task-results__title">{{ t('Results') }}</div>
             <button
@@ -109,8 +87,8 @@
               :key="entry.id"
               type="button"
               class="extension-task-results__entry"
-              :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
-              @click="selectArtifactEntry(task, entry)"
+              :class="{ 'is-active': activeResultEntry(task)?.id === entry.id }"
+              @click="selectResultEntry(task, entry)"
             >
               <span class="extension-task-results__entry-label">{{ t(entry.label) }}</span>
               <span v-if="entry.description" class="extension-task-results__entry-description">
@@ -119,10 +97,10 @@
             </button>
           </div>
           <ExtensionResultPreview
-            v-if="activeArtifactEntry(task)"
-            :entry="activeArtifactEntry(task)"
-            :busy-action-key="artifactActionBusyKey"
-            @run-action="openArtifactEntry"
+            v-if="activeResultEntry(task)"
+            :entry="activeResultEntry(task)"
+            :busy-action-key="resultActionBusyKey"
+            @run-action="openResultEntry"
           />
         </div>
         <div class="extension-task-actions">
@@ -151,7 +129,6 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n, formatRelativeFromNow } from '../../i18n'
-import { useEditorStore } from '../../stores/editor'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
@@ -161,50 +138,39 @@ import {
 } from '../../services/extensions/extensionArtifactPreviewEntries'
 
 const { t } = useI18n()
-const editorStore = useEditorStore()
 const extensionsStore = useExtensionsStore()
-const artifactActionBusyKey = ref('')
-const activeArtifactEntryIds = ref({})
+const resultActionBusyKey = ref('')
+const activeResultEntryIds = ref({})
 const props = defineProps({
   extensionId: { type: String, default: '' },
 })
 const timeline = computed(() => extensionsStore.taskTimelineForExtension(props.extensionId))
 
-function openArtifact(artifact = {}) {
-  const path = String(artifact?.path || '')
-  const isPdf = artifact?.mediaType === 'application/pdf' || path.toLowerCase().endsWith('.pdf')
-  if (isPdf && path) {
-    editorStore.openFile(path)
-    return
-  }
-  void extensionsStore.openArtifact(artifact)
-}
-
-function artifactEntries(task = {}) {
+function taskEntries(task = {}) {
   return buildExtensionTaskResultEntries(task)
 }
 
-function activeArtifactEntry(task = {}) {
-  const entries = artifactEntries(task)
+function activeResultEntry(task = {}) {
+  const entries = taskEntries(task)
   if (entries.length === 0) return null
-  const selectedId = activeArtifactEntryIds.value[String(task.id || '')]
+  const selectedId = activeResultEntryIds.value[String(task.id || '')]
   return entries.find((entry) => entry.id === selectedId) || entries[0] || null
 }
 
 function taskResultEntries(task = {}) {
-  return artifactEntries(task)
+  return taskEntries(task)
 }
 
-function selectArtifactEntry(task = {}, entry = {}) {
+function selectResultEntry(task = {}, entry = {}) {
   const taskId = String(task.id || '')
   if (!taskId) return
-  activeArtifactEntryIds.value = {
-    ...activeArtifactEntryIds.value,
+  activeResultEntryIds.value = {
+    ...activeResultEntryIds.value,
     [taskId]: String(entry?.id || ''),
   }
 }
 
-function artifactActionKey(entry = {}) {
+function resultActionKey(entry = {}) {
   return [
     String(entry?.id || '').trim(),
     String(entry?.action || '').trim().toLowerCase(),
@@ -212,14 +178,14 @@ function artifactActionKey(entry = {}) {
   ].join('::')
 }
 
-async function openArtifactEntry(entry = {}) {
-  const busyKey = artifactActionKey(entry)
-  artifactActionBusyKey.value = busyKey
+async function openResultEntry(entry = {}) {
+  const busyKey = resultActionKey(entry)
+  resultActionBusyKey.value = busyKey
   try {
     await extensionsStore.runResultEntryAction(entry, {})
   } finally {
-    if (artifactActionBusyKey.value === busyKey) {
-      artifactActionBusyKey.value = ''
+    if (resultActionBusyKey.value === busyKey) {
+      resultActionBusyKey.value = ''
     }
   }
 }
@@ -394,12 +360,6 @@ function taskTimeSummary(task = {}) {
   color: var(--text-muted);
 }
 
-.extension-artifacts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 .extension-task-results {
   display: flex;
   flex-direction: column;
@@ -442,15 +402,6 @@ function taskTimeSummary(task = {}) {
   color: var(--text-secondary);
   font-size: 11px;
   overflow-wrap: anywhere;
-}
-
-.extension-artifact-link {
-  border: none;
-  padding: 0;
-  background: transparent;
-  color: var(--accent);
-  font-size: 12px;
-  cursor: pointer;
 }
 
 .extension-task-actions {
