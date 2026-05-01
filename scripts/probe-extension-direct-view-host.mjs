@@ -40,6 +40,9 @@ export async function activate(context) {
     artifacts: [
       {
         id: 'direct-artifact',
+        extensionId: 'example-direct-view-extension',
+        taskId: 'external-task',
+        capability: 'document.transform',
         kind: 'translated-text',
         mediaType: 'text/plain',
         path: '/tmp/direct-output.txt',
@@ -222,6 +225,8 @@ async function main() {
     ensure(Array.isArray(resolved?.payload?.artifacts) && resolved.payload.artifacts.length === 1, 'direct view did not return artifacts', resolved?.payload || {})
     ensure(Array.isArray(resolved?.payload?.outputs) && resolved.payload.outputs.length === 2, 'direct view did not return outputs', resolved?.payload || {})
     ensure(String(resolved?.payload?.artifacts?.[0]?.path || '') === '/tmp/direct-output.txt', 'direct view artifact path drifted', resolved?.payload || {})
+    ensure(String(resolved?.payload?.artifacts?.[0]?.taskId || '') === 'external-task', 'direct view artifact task id drifted', resolved?.payload || {})
+    ensure(String(resolved?.payload?.artifacts?.[0]?.capability || '') === 'document.transform', 'direct view artifact capability drifted', resolved?.payload || {})
     ensure(String(resolved?.payload?.outputs?.[0]?.type || '').toLowerCase() === 'inlinetext', 'direct view text output drifted', resolved?.payload || {})
     ensure(String(resolved?.payload?.outputs?.[1]?.type || '').toLowerCase() === 'inlinehtml', 'direct view html output drifted', resolved?.payload || {})
 
@@ -231,6 +236,8 @@ async function main() {
         registeredViews: activate?.payload?.registeredViews || [],
         resultEntryIds: resolved.payload.resultEntries.map((entry) => entry.id),
         artifactIds: resolved.payload.artifacts.map((entry) => entry.id),
+        artifactTaskIds: resolved.payload.artifacts.map((entry) => entry.taskId),
+        artifactCapabilities: resolved.payload.artifacts.map((entry) => entry.capability),
         outputIds: resolved.payload.outputs.map((entry) => entry.id),
       },
     }, null, 2))

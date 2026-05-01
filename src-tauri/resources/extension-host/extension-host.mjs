@@ -214,10 +214,10 @@ function canReadPdfContent(registry) {
 }
 
 function normalizeArtifactEntries(entries = [], envelope = {}) {
-  const taskId = String(envelope?.taskId || "").trim();
-  const extensionId = String(envelope?.extensionId || "").trim();
-  const capability = String(envelope?.capability || envelope?.commandId || "").trim();
-  const sourcePath = String(envelope?.targetPath || "").trim();
+  const fallbackTaskId = String(envelope?.taskId || "").trim();
+  const fallbackExtensionId = String(envelope?.extensionId || "").trim();
+  const fallbackCapability = String(envelope?.capability || envelope?.commandId || "").trim();
+  const fallbackSourcePath = String(envelope?.targetPath || "").trim();
   const createdAt = new Date().toISOString();
   if (!Array.isArray(entries)) return [];
   return entries
@@ -227,13 +227,13 @@ function normalizeArtifactEntries(entries = [], envelope = {}) {
       if (!artifactPath) return null;
       return {
         id: String(entry.id || `artifact:${index + 1}`).trim(),
-        extensionId,
-        taskId,
-        capability,
+        extensionId: String(entry.extensionId || entry.extension_id || fallbackExtensionId).trim(),
+        taskId: String(entry.taskId || entry.task_id || fallbackTaskId).trim(),
+        capability: String(entry.capability || fallbackCapability).trim(),
         kind: String(entry.kind || "").trim(),
         mediaType: String(entry.mediaType || entry.media_type || "").trim(),
         path: artifactPath,
-        sourcePath: String(entry.sourcePath || entry.source_path || sourcePath).trim(),
+        sourcePath: String(entry.sourcePath || entry.source_path || fallbackSourcePath).trim(),
         sourceHash: String(entry.sourceHash || entry.source_hash || "").trim(),
         createdAt: String(entry.createdAt || entry.created_at || createdAt).trim(),
       };

@@ -475,6 +475,8 @@ async function main() {
       : []
   ).map((entry) => ({
     id: entry.id || "",
+    taskId: entry.taskId || "",
+    capability: entry.capability || "",
     mediaType: entry.mediaType || "",
     path: entry.path || "",
   }));
@@ -625,6 +627,8 @@ async function main() {
     resolvedViewArtifacts.some(
       (entry) =>
         entry.id === "translated-pdf-artifact" &&
+        entry.taskId === "task" &&
+        entry.capability === "scribeflow.pdf.translate" &&
         entry.mediaType === "application/pdf" &&
         entry.path === "/tmp/paper.pdf",
     ),
@@ -645,6 +649,8 @@ async function main() {
     resolvedViewArtifacts.some(
       (entry) =>
         entry.id === "translation-text-output" &&
+        entry.taskId === "task" &&
+        entry.capability === "scribeflow.pdf.translate" &&
         entry.mediaType === "text/plain" &&
         entry.path.endsWith(".translation.txt"),
     ),
