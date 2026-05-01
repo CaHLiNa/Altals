@@ -163,6 +163,12 @@ Commands and menus contract note:
 - disposed runtime menu actions should disappear from subsequent activation snapshots rather than leaking stale action metadata
 - runtime-registered command palette actions should stay authoritative over manifest fallbacks once runtime menu data exists
 
+Capability invoke contract note:
+
+- nested `context.capabilities.invoke(...)` should preserve the callee result payload instead of collapsing into a host-local side effect
+- nested `context.capabilities.invoke(...)` should surface runtime capability failures and missing-provider errors as catchable exceptions inside plugin code
+- nested `context.capabilities.invoke(...)` should preserve the callee's `changedViews` union, including both explicit `changedViews` entries and host-tracked `views.refresh(...)` requests, so capability orchestration stays symmetric with nested commands
+
 Task update contract note:
 
 - `context.tasks.update(...)` should preserve non-terminal task ownership so a spawned worker can still complete `spawn(...).wait()` after intermediate `running` progress updates

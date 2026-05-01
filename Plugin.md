@@ -131,6 +131,12 @@ Lifecycle-state delivery also has a probe-backed runtime contract:
 - `workspaceState` survives the same lifecycle only within its originating workspace root and stays isolated from other workspaces
 - plugin-local in-memory counters may reset after a host crash; only persisted settings and runtime state channels are guaranteed to recover
 
+Nested capability delivery also has a probe-backed runtime contract:
+
+- `capabilities.invoke(...)` can synchronously call another runtime-registered capability and preserve that callee's returned payload
+- nested capability failures and missing-provider cases remain catchable inside plugin code as normal exceptions
+- nested capability-triggered view refresh signals still surface through `changedViews`, including both explicit ids and host-tracked `views.refresh(...)` requests
+
 ## 4. Current Manifest Use
 
 `package.json` is still used for:

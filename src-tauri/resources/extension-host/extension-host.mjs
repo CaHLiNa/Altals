@@ -560,7 +560,25 @@ function createExtensionApi(registry) {
         if (contract) {
           validateCapabilityInputs(contract, mergedTarget);
         }
-        return await provider(payload);
+        const beforeChangedViews = new Set(registry.changedViews);
+        const result = await provider(payload);
+        const nestedChangedViews = collectChangedViews(registry, result?.changedViews);
+        for (const entry of beforeChangedViews) {
+          const normalized = String(entry || "").trim();
+          if (normalized) {
+            registry.changedViews.add(normalized);
+          }
+        }
+        for (const entry of nestedChangedViews) {
+          const normalized = String(entry || "").trim();
+          if (normalized) {
+            registry.changedViews.add(normalized);
+          }
+        }
+        return {
+          ...(result && typeof result === "object" ? result : {}),
+          changedViews: nestedChangedViews,
+        };
       },
     },
     views: {
