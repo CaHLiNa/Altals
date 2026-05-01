@@ -295,6 +295,10 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
+import {
+  secureSettingInputType,
+  shortExtensionSettingKey,
+} from '../../domains/extensions/extensionSettingPresentation'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -515,8 +519,7 @@ async function runCapability(extension = {}, capability = {}) {
 }
 
 function shortSettingKey(key = '') {
-  const normalized = String(key || '').trim()
-  return normalized.split('.').pop() || normalized
+  return shortExtensionSettingKey(key)
 }
 
 const settingGroupDefinitions = [
@@ -646,18 +649,7 @@ function coerceSettingValue(setting = {}, value = '') {
 }
 
 function inputTypeForSetting(key = '', setting = {}) {
-  if (setting?.secureStorage === true) {
-    return 'password'
-  }
-  const normalized = shortSettingKey(key).toLowerCase()
-  if (normalized.includes('key') ||
-    normalized.includes('token') ||
-    normalized.includes('secret') ||
-    normalized.includes('password')) {
-    return 'password'
-  }
-  if (setting.type === 'number' || setting.type === 'integer') return 'number'
-  return 'text'
+  return secureSettingInputType(key, setting)
 }
 
 function isLongTextSetting(key = '', setting = {}) {
