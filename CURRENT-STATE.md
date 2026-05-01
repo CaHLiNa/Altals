@@ -87,6 +87,7 @@ Current plugin lifecycle contract:
 - settings change contract is now probe-backed: host updates replace the runtime settings snapshot instead of merging stale keys, `changedKeys` includes updates plus removals, `event.values` reflects the post-update snapshot, and no-op snapshots do not emit extra runtime changes
 - process bridge contract is now probe-backed: `context.process.exec(...)` inherits the workspace root as default cwd, `spawn(...).wait()` preserves pid and exit result shape, env vars cross the Rust bridge, failing execs keep stderr plus non-zero codes, and cwd requests outside the active workspace are rejected
 - references/pdf bridge contract is now probe-backed: `context.references.current` and `context.pdf.current` preserve invocation `referenceId` and active PDF path, `readCurrentLibrary()` returns the normalized snapshot through the Rust bridge, `extractMetadata()`/`extractText()` resolve the active PDF, and out-of-scope PDF paths reject with a surfaced runtime error
+- workspace/documents/invocation contract is now probe-backed: `context.workspace`, `context.documents`, and `context.invocation` preserve the active workspace root, derived resource metadata, target payload, and empty-state defaults without requiring plugins to reconstruct the envelope manually
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -120,6 +121,7 @@ It runs:
 - `npm run probe:extension-settings-change-contract`
 - `npm run probe:extension-process-contract`
 - `npm run probe:extension-reference-pdf-contract`
+- `npm run probe:extension-invocation-contract`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
@@ -161,6 +163,7 @@ Current baseline:
 - extension settings change contract probe passes
 - extension process bridge contract probe passes
 - extension references/pdf bridge contract probe passes
+- extension workspace/documents/invocation contract probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes
