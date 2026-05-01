@@ -2,6 +2,7 @@ export async function activate(context) {
   const translateTreeView = context.views.createTreeView("examplePdfExtension.translateView")
   const launchCount = Number(context.globalState.get("launchCount") || 0) + 1
   context.globalState.update("launchCount", launchCount)
+  let lastSettingsChange = ""
 
   context.menus.registerAction("scribeflow.pdf.translate", {
     surface: "commandPalette",
@@ -118,7 +119,7 @@ export async function activate(context) {
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
-      message: `Context: ${pdf.path || resource.path || "none"}${reference.id ? ` · ref:${reference.id}` : ""}`,
+      message: `Context: ${pdf.path || resource.path || "none"}${reference.id ? ` · ref:${reference.id}` : ""}${lastSettingsChange ? ` · settings:${lastSettingsChange}` : ""}`,
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {
@@ -127,6 +128,47 @@ export async function activate(context) {
     }
   }, {
     title: "Capture Context",
+    category: "PDF",
+  })
+
+  context.commands.registerCommand("examplePdfExtension.inspectRuntimeApis", async () => {
+    const pdf = currentPdf()
+    const library = await context.references.readCurrentLibrary()
+    const metadata = pdf.path ? await context.pdf.extractMetadata(pdf.path) : {}
+    context.views.updateView("examplePdfExtension.translateView", {
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: `Runtime APIs: refs:${Array.isArray(library?.references) ? library.references.length : 0}${metadata?.metadata?.title ? ` · title:${metadata.metadata.title}` : ""}`,
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: "example-pdf-extension inspected runtime apis",
+      progressLabel: "Runtime APIs inspected",
+    }
+  }, {
+    title: "Inspect Runtime APIs",
+    category: "PDF",
+  })
+
+  context.commands.registerCommand("examplePdfExtension.inspectProcessApi", async () => {
+    const result = await context.process.exec("node", {
+      args: ["-e", "process.stdout.write('process-ok')"],
+      cwd: context.workspace?.rootPath || "",
+    })
+    context.views.updateView("examplePdfExtension.translateView", {
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: `Process API: ${String(result?.stdout || "").trim() || "empty"}`,
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: "example-pdf-extension inspected process api",
+      progressLabel: "Process API inspected",
+    }
+  }, {
+    title: "Inspect Process API",
     category: "PDF",
   })
 
@@ -204,6 +246,18 @@ export async function activate(context) {
       : "Open a PDF document to start translation.",
     badgeValue: 1,
     badgeTooltip: "One quick action is available for the active PDF.",
+  })
+
+  context.settings.onDidChange((event) => {
+    const keys = Array.isArray(event?.keys) ? event.keys.filter(Boolean) : []
+    if (keys.length === 0) return
+    lastSettingsChange = keys.join(", ")
+    context.views.updateView("examplePdfExtension.translateView", {
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: `Settings updated: ${lastSettingsChange}`,
+    })
   })
 
   translateTreeView.onDidChangeSelection((event) => {

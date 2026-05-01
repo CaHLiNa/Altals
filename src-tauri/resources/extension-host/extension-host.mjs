@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const extensions = new Map();
 const pendingUiRequests = new Map();
+const pendingHostCalls = new Map();
 
 function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
@@ -34,6 +35,7 @@ function emitWindowMessage(registry, severity = "info", message = "") {
 }
 
 let uiRequestCounter = 0;
+let hostCallCounter = 0;
 
 function nextUiRequestId(registry) {
   uiRequestCounter += 1;
@@ -54,6 +56,28 @@ function requestUiInput(registry, kind = "", payload = {}) {
   });
   return new Promise((resolve, reject) => {
     pendingUiRequests.set(requestId, { resolve, reject });
+  });
+}
+
+function nextHostCallRequestId(registry) {
+  hostCallCounter += 1;
+  return `${registry.id}:host:${hostCallCounter}`;
+}
+
+function requestHostCall(registry, kind = "", payload = {}) {
+  const requestId = nextHostCallRequestId(registry);
+  writeMessage({
+    kind: "HostCallRequested",
+    payload: {
+      requestId,
+      extensionId: registry.id,
+      workspaceRoot: String(registry.currentWorkspaceRoot || ""),
+      kind: String(kind || "").trim(),
+      payload,
+    },
+  });
+  return new Promise((resolve, reject) => {
+    pendingHostCalls.set(requestId, { resolve, reject });
   });
 }
 
@@ -125,6 +149,13 @@ function createEmitter() {
       }
     },
   };
+}
+
+function normalizeSettingsObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return value;
 }
 
 function normalizeCommandMetadata(command = "", metadata = {}) {
@@ -227,6 +258,16 @@ function createInvocationContext(registry, envelope = {}) {
 function setInvocationContext(registry, envelope = {}) {
   registry.currentWorkspaceRoot = String(envelope?.workspaceRoot || "").trim();
   registry.lastInvocation = createInvocationContext(registry, envelope);
+}
+
+function emitSettingsChanged(registry, changedKeys = []) {
+  const normalizedKeys = Array.isArray(changedKeys)
+    ? changedKeys.map((key) => String(key || "").trim()).filter(Boolean)
+    : [];
+  registry.settingsEmitter.fire({
+    keys: normalizedKeys,
+    values: Object.fromEntries(registry.settings.entries()),
+  });
 }
 
 function createExtensionApi(registry) {
@@ -437,6 +478,47 @@ function createExtensionApi(registry) {
         if (!id) return fallback;
         return registry.settings.has(id) ? registry.settings.get(id) : fallback;
       },
+      onDidChange(listener) {
+        return registry.settingsEmitter.event(listener);
+      },
+    },
+    process: {
+      async exec(command = "", options = {}) {
+        if (!registry.permissions?.spawnProcess) {
+          throw new Error(`Extension ${registry.id} is not allowed to spawn local processes`);
+        }
+        const normalizedCommand = String(command || "").trim();
+        if (!normalizedCommand) {
+          throw new Error("Process command is required");
+        }
+        const result = await requestHostCall(registry, "process.exec", {
+          command: normalizedCommand,
+          args: Array.isArray(options?.args)
+            ? options.args.map((value) => String(value ?? ""))
+            : [],
+          cwd: String(options?.cwd || registry.currentWorkspaceRoot || ""),
+          env: normalizeSettingsObject(options?.env),
+        });
+        return result && typeof result === "object" ? result : {};
+      },
+      async spawn(command = "", options = {}) {
+        if (!registry.permissions?.spawnProcess) {
+          throw new Error(`Extension ${registry.id} is not allowed to spawn local processes`);
+        }
+        const normalizedCommand = String(command || "").trim();
+        if (!normalizedCommand) {
+          throw new Error("Process command is required");
+        }
+        const result = await requestHostCall(registry, "process.spawn", {
+          command: normalizedCommand,
+          args: Array.isArray(options?.args)
+            ? options.args.map((value) => String(value ?? ""))
+            : [],
+          cwd: String(options?.cwd || registry.currentWorkspaceRoot || ""),
+          env: normalizeSettingsObject(options?.env),
+        });
+        return result && typeof result === "object" ? result : {};
+      },
     },
     workspace: {
       get rootPath() {
@@ -478,6 +560,10 @@ function createExtensionApi(registry) {
           target: { ...target },
         };
       },
+      async readCurrentLibrary() {
+        const result = await requestHostCall(registry, "references.readCurrentLibrary", {});
+        return result && typeof result === "object" ? result : {};
+      },
     },
     pdf: {
       get current() {
@@ -490,6 +576,25 @@ function createExtensionApi(registry) {
           referenceId: String(registry.lastInvocation?.referenceId || target.referenceId || "").trim(),
           target: { ...target },
         };
+      },
+      async extractText(filePath = "") {
+        const normalizedPath = String(filePath || registry.lastInvocation?.resource?.path || "").trim();
+        if (!normalizedPath) {
+          throw new Error("PDF file path is required");
+        }
+        return await requestHostCall(registry, "pdf.extractText", {
+          filePath: normalizedPath,
+        });
+      },
+      async extractMetadata(filePath = "") {
+        const normalizedPath = String(filePath || registry.lastInvocation?.resource?.path || "").trim();
+        if (!normalizedPath) {
+          throw new Error("PDF file path is required");
+        }
+        const result = await requestHostCall(registry, "pdf.extractMetadata", {
+          filePath: normalizedPath,
+        });
+        return result && typeof result === "object" ? result : {};
       },
     },
     invocation: {
@@ -559,6 +664,7 @@ function createActivationContext(api, payload = {}) {
     documents: api.documents,
     references: api.references,
     pdf: api.pdf,
+    process: api.process,
     invocation: api.invocation,
     globalState: api.globalState,
     workspaceState: api.workspaceState,
@@ -575,7 +681,9 @@ async function loadExtensionModule(mainPath) {
 }
 
 async function ensureActivated(request) {
-  const extensionId = String(request.extensionId || "").trim();
+  const extensionId = String(
+    request.extensionId || request.envelope?.extensionId || "",
+  ).trim();
   if (!extensionId) {
     throw new Error("Extension id is required");
   }
@@ -609,7 +717,11 @@ async function ensureActivated(request) {
     viewState: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: "",
+    permissions: {
+      spawnProcess: Boolean(request.permissions?.spawnProcess),
+    },
     settings: new Map(),
+    settingsEmitter: createEmitter(),
     globalState: new Map(),
     workspaceState: new Map(),
     lastInvocation: createInvocationContext({ id: extensionId, currentWorkspaceRoot: "" }),
@@ -934,6 +1046,12 @@ async function dispatchRequest(request) {
   if (request.method === "RespondUiRequest") {
     return handleRespondUiRequest(request.params || {});
   }
+  if (request.method === "ResolveHostCall") {
+    return handleResolveHostCall(request.params || {});
+  }
+  if (request.method === "UpdateSettings") {
+    return handleUpdateSettings(request.params || {});
+  }
   if (request.method === "NotifyViewSelection") {
     return handleNotifyViewSelection(request.params || {});
   }
@@ -972,6 +1090,70 @@ function handleRespondUiRequest(params = {}) {
     payload: {
       requestId,
       accepted: true,
+    },
+  };
+}
+
+function handleResolveHostCall(params = {}) {
+  const requestId = String(params.requestId || "").trim();
+  if (!requestId) {
+    throw new Error("Host call request id is required");
+  }
+  const pending = pendingHostCalls.get(requestId);
+  if (!pending) {
+    throw new Error(`Pending host call not found: ${requestId}`);
+  }
+  pendingHostCalls.delete(requestId);
+  if (params.accepted === false) {
+    pending.reject(new Error(String(params.error || "Host call rejected")));
+  } else if (String(params.error || "").trim()) {
+    pending.reject(new Error(String(params.error || "")));
+  } else {
+    pending.resolve(params.result);
+  }
+  return {
+    kind: "AcknowledgeHostCall",
+    payload: {
+      requestId,
+      accepted: true,
+    },
+  };
+}
+
+function handleUpdateSettings(params = {}) {
+  const extensionId = String(params.extensionId || "").trim();
+  if (!extensionId) {
+    throw new Error("Extension id is required");
+  }
+  const registry = extensions.get(extensionId);
+  if (!registry) {
+    return {
+      kind: "AcknowledgeSettingsUpdate",
+      payload: {
+        extensionId,
+        accepted: false,
+        changedKeys: [],
+      },
+    };
+  }
+  const nextSettings = normalizeSettingsObject(params.settings);
+  const changedKeys = [];
+  for (const [key, value] of Object.entries(nextSettings)) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const previous = registry.settings.get(normalizedKey);
+    registry.settings.set(normalizedKey, value);
+    if (previous !== value) {
+      changedKeys.push(normalizedKey);
+    }
+  }
+  emitSettingsChanged(registry, changedKeys);
+  return {
+    kind: "AcknowledgeSettingsUpdate",
+    payload: {
+      extensionId,
+      accepted: true,
+      changedKeys,
     },
   };
 }

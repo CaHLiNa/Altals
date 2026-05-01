@@ -50,6 +50,22 @@
                   <span class="extension-meta-value">{{ runtimeStatus(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Runtime Commands') }}</span>
+                  <span class="extension-meta-value">{{ runtimeCommandSummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Runtime Views') }}</span>
+                  <span class="extension-meta-value">{{ runtimeViewSummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Runtime Actions') }}</span>
+                  <span class="extension-meta-value">{{ runtimeActionSummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Runtime Capabilities') }}</span>
+                  <span class="extension-meta-value">{{ runtimeCapabilitySummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
                   <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
@@ -206,6 +222,46 @@ function runtimeStatus(extension = {}) {
 
 function runtimeReason(extension = {}) {
   return runtimeEntry(extension).reason || ''
+}
+
+function runtimeCommandSummary(extension = {}) {
+  const entry = runtimeEntry(extension)
+  if (Array.isArray(entry.registeredCommandDetails) && entry.registeredCommandDetails.length > 0) {
+    return entry.registeredCommandDetails.map((command) => command.commandId).join(' · ')
+  }
+  if (Array.isArray(entry.registeredCommands) && entry.registeredCommands.length > 0) {
+    return entry.registeredCommands.join(' · ')
+  }
+  return t('No runtime commands')
+}
+
+function runtimeViewSummary(extension = {}) {
+  const entry = runtimeEntry(extension)
+  if (Array.isArray(entry.registeredViewDetails) && entry.registeredViewDetails.length > 0) {
+    return entry.registeredViewDetails.map((view) => view.id).join(' · ')
+  }
+  if (Array.isArray(entry.registeredViews) && entry.registeredViews.length > 0) {
+    return entry.registeredViews.join(' · ')
+  }
+  return t('No runtime views')
+}
+
+function runtimeActionSummary(extension = {}) {
+  const entry = runtimeEntry(extension)
+  if (!Array.isArray(entry.registeredMenuActions) || entry.registeredMenuActions.length === 0) {
+    return t('No runtime actions')
+  }
+  return entry.registeredMenuActions
+    .map((action) => `${action.surface}:${action.commandId}`)
+    .join(' · ')
+}
+
+function runtimeCapabilitySummary(extension = {}) {
+  const entry = runtimeEntry(extension)
+  if (!Array.isArray(entry.registeredCapabilities) || entry.registeredCapabilities.length === 0) {
+    return t('No runtime capabilities')
+  }
+  return entry.registeredCapabilities.join(' · ')
 }
 
 function permissionSummary(extension = {}) {

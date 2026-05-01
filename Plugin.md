@@ -59,8 +59,14 @@ Plugins can already use:
 - `documents.resource`
 - `documents.target`
 - `references.current`
+- `references.readCurrentLibrary()`
 - `pdf.current`
+- `pdf.extractText(filePath?)`
+- `pdf.extractMetadata(filePath?)`
+- `process.exec(command, options?)`
+- `process.spawn(command, options?)`
 - `invocation.current`
+- `settings.onDidChange(...)`
 - `workspaceState`
 
 Tree view support already includes:

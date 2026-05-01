@@ -23,6 +23,7 @@ import {
 } from '../services/extensions/extensionViews'
 import {
   activateExtensionHost,
+  updateExtensionHostSettings,
 } from '../services/extensions/extensionHost'
 import {
   listenExtensionViewChanged,
@@ -510,7 +511,19 @@ export const useExtensionsStore = defineStore('extensions', {
           [configKey]: value,
         },
       }
-      return this.persistSettings({ extensionConfig: nextExtensionConfig })
+      const snapshot = await this.persistSettings({ extensionConfig: nextExtensionConfig })
+      const extension = this.registry.find((entry) => entry.id === id)
+      if (extension && this.runtimeRegistry[id]?.activated) {
+        const workspace = useWorkspaceStore()
+        const globalConfigDir = await workspace.ensureGlobalConfigDir()
+        await updateExtensionHostSettings({
+          globalConfigDir,
+          workspaceRoot: workspace.path || '',
+          extensionId: id,
+          settings: this.configForExtension(extension),
+        }).catch(() => {})
+      }
+      return snapshot
     },
     async activateExtension(extensionId = '', activationEvent = '*') {
       const id = normalizeExtensionId(extensionId)

@@ -25,6 +25,16 @@
         "command": "examplePdfExtension.refreshTranslateView",
         "title": "Refresh Translate View",
         "category": "PDF"
+      },
+      {
+        "command": "examplePdfExtension.inspectRuntimeApis",
+        "title": "Inspect Runtime APIs",
+        "category": "PDF"
+      },
+      {
+        "command": "examplePdfExtension.inspectProcessApi",
+        "title": "Inspect Process API",
+        "category": "PDF"
       }
     ],
     "viewsContainers": {
@@ -109,7 +119,7 @@
   "permissions": {
     "readWorkspaceFiles": true,
     "writeArtifacts": true,
-    "spawnProcess": false,
+    "spawnProcess": true,
     "network": "none"
   }
 }

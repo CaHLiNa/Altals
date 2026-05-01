@@ -19,3 +19,7 @@ export function listenExtensionWindowInputRequested(handler) {
 export function listenExtensionWindowMessage(handler) {
   return listen('extension-window-message', handler)
 }
+
+export function listenExtensionHostCallRequested(handler) {
+  return listen('extension-host-call-requested', handler)
+}

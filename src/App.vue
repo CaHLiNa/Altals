@@ -153,8 +153,10 @@ import { useExtensionWindowUiStore } from './stores/extensionWindowUi'
 import { useToastStore } from './stores/toast'
 import {
   listenExtensionWindowInputRequested,
+  listenExtensionHostCallRequested,
   listenExtensionWindowMessage,
 } from './services/extensions/extensionHostEvents'
+import { resolveExtensionHostCall } from './services/extensions/extensionHost'
 
 import ResizeHandle from './components/layout/ResizeHandle.vue'
 import WorkbenchRail from './components/layout/WorkbenchRail.vue'
@@ -212,6 +214,7 @@ const isZenMode = ref(false)
 const commandPaletteVisible = ref(false)
 let stopExtensionWindowMessageListener = null
 let stopExtensionWindowInputListener = null
+let stopExtensionHostCallListener = null
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -440,6 +443,17 @@ onMounted(() => {
   }).then((unlisten) => {
     stopExtensionWindowInputListener = unlisten
   }).catch(() => {})
+  void listenExtensionHostCallRequested((event) => {
+    const payload = event?.payload || {}
+    void resolveExtensionHostCall({
+      requestId: String(payload.requestId || ''),
+      accepted: false,
+      result: null,
+      error: `Unhandled extension host call kind: ${String(payload.kind || 'unknown')}`,
+    }).catch(() => {})
+  }).then((unlisten) => {
+    stopExtensionHostCallListener = unlisten
+  }).catch(() => {})
   void extensionsStore.refreshRegistry().catch(() => {})
 })
 
@@ -452,6 +466,8 @@ onBeforeUnmount(() => {
   stopExtensionWindowMessageListener = null
   stopExtensionWindowInputListener?.()
   stopExtensionWindowInputListener = null
+  stopExtensionHostCallListener?.()
+  stopExtensionHostCallListener = null
 })
 
 const {

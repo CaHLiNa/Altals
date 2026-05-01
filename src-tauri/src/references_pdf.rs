@@ -93,19 +93,12 @@ fn first_non_empty_line(text: &str) -> String {
         .to_string()
 }
 
-#[tauri::command]
-pub async fn references_pdf_extract_text(params: ReferencePdfPathParams) -> Result<String, String> {
-    let path = Path::new(params.file_path.trim());
+pub(crate) fn extract_reference_pdf_text(path: &Path) -> Result<String, String> {
     validate_reference_pdf_path(path)?;
     pdf_extract::extract_text(path).map_err(|error| format!("Failed to extract PDF text: {error}"))
 }
 
-#[tauri::command]
-pub async fn references_pdf_extract_metadata(
-    params: ReferencePdfPathParams,
-) -> Result<Value, String> {
-    let normalized_path = params.file_path.trim();
-    let path = Path::new(normalized_path);
+pub(crate) fn extract_reference_pdf_metadata(path: &Path) -> Result<Value, String> {
     validate_reference_pdf_path(path)?;
 
     let extracted_text = pdf_extract::extract_text(path)
@@ -160,6 +153,21 @@ pub async fn references_pdf_extract_metadata(
             "year": year,
         }
     }))
+}
+
+#[tauri::command]
+pub async fn references_pdf_extract_text(params: ReferencePdfPathParams) -> Result<String, String> {
+    let path = Path::new(params.file_path.trim());
+    extract_reference_pdf_text(path)
+}
+
+#[tauri::command]
+pub async fn references_pdf_extract_metadata(
+    params: ReferencePdfPathParams,
+) -> Result<Value, String> {
+    let normalized_path = params.file_path.trim();
+    let path = Path::new(normalized_path);
+    extract_reference_pdf_metadata(path)
 }
 
 #[cfg(test)]

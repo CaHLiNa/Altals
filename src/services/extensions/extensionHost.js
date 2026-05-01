@@ -10,3 +10,25 @@ export async function activateExtensionHost(payload = {}) {
     },
   })
 }
+
+export async function updateExtensionHostSettings(payload = {}) {
+  return invoke('extension_host_update_settings', {
+    params: {
+      globalConfigDir: String(payload.globalConfigDir || ''),
+      workspaceRoot: String(payload.workspaceRoot || ''),
+      extensionId: String(payload.extensionId || ''),
+      settings: payload.settings || {},
+    },
+  })
+}
+
+export async function resolveExtensionHostCall(payload = {}) {
+  return invoke('extension_host_resolve_host_call', {
+    params: {
+      requestId: String(payload.requestId || ''),
+      accepted: payload.accepted !== false,
+      result: payload.result,
+      error: String(payload.error || ''),
+    },
+  })
+}

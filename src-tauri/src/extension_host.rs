@@ -1,10 +1,12 @@
-use crate::extension_manifest::ExtensionManifest;
+use crate::extension_manifest::{ExtensionManifest, ExtensionPermissions};
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use crate::extension_settings::load_extension_runtime_state_snapshot;
 use crate::extension_settings::load_extension_settings;
 use crate::extension_settings::save_extension_runtime_state_snapshot;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(not(test))]
+use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -48,6 +50,7 @@ struct ExtensionHostProcess {
 pub struct ExtensionHostState {
     activated_extensions: Arc<Mutex<HashSet<String>>>,
     ui_requests: Arc<Mutex<HashMap<String, ExtensionHostUiRequestStatus>>>,
+    host_calls: Arc<Mutex<HashMap<String, ExtensionHostCallStatus>>>,
     activation_context: Arc<Mutex<HashMap<String, (String, String)>>>,
     #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
@@ -60,6 +63,7 @@ impl Default for ExtensionHostState {
         Self {
             activated_extensions: Arc::new(Mutex::new(HashSet::new())),
             ui_requests: Arc::new(Mutex::new(HashMap::new())),
+            host_calls: Arc::new(Mutex::new(HashMap::new())),
             activation_context: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
@@ -74,6 +78,17 @@ enum ExtensionHostUiRequestStatus {
     #[cfg_attr(test, allow(dead_code))]
     Pending,
     Completed { cancelled: bool, result: Value },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ExtensionHostCallStatus {
+    #[cfg_attr(test, allow(dead_code))]
+    Pending,
+    Completed {
+        accepted: bool,
+        result: Value,
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -95,6 +110,8 @@ pub struct ExtensionHostActivationResult {
     pub registered_views: Vec<String>,
     #[serde(default)]
     pub registered_command_details: Vec<ExtensionHostRegisteredCommand>,
+    #[serde(default)]
+    pub registered_menu_actions: Vec<ExtensionHostRegisteredMenuAction>,
     #[serde(default)]
     pub registered_view_details: Vec<ExtensionHostRegisteredView>,
 }
@@ -119,6 +136,21 @@ pub struct ExtensionHostRegisteredView {
     pub title: String,
     #[serde(default)]
     pub when: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRegisteredMenuAction {
+    pub command_id: String,
+    pub surface: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub when: String,
+    #[serde(default)]
+    pub group: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -175,6 +207,7 @@ pub enum ExtensionHostRequest {
         extension_path: String,
         manifest_path: String,
         main_entry: String,
+        permissions: ExtensionPermissions,
         #[serde(default)]
         activation_state: ExtensionHostActivationState,
     },
@@ -209,6 +242,20 @@ pub enum ExtensionHostRequest {
         cancelled: bool,
         #[serde(default)]
         result: Value,
+    },
+    ResolveHostCall {
+        request_id: String,
+        #[serde(default)]
+        accepted: bool,
+        #[serde(default)]
+        result: Value,
+        #[serde(default)]
+        error: String,
+    },
+    UpdateSettings {
+        extension_id: String,
+        #[serde(default)]
+        settings: Value,
     },
     NotifyViewSelection {
         extension_id: String,
@@ -366,6 +413,60 @@ pub struct ExtensionHostUiRequestAcknowledgement {
     pub accepted: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostCallRequestedEvent {
+    pub request_id: String,
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    pub kind: String,
+    #[serde(default)]
+    pub payload: Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostResolveHostCallParams {
+    #[serde(default)]
+    pub request_id: String,
+    #[serde(default)]
+    pub accepted: bool,
+    #[serde(default)]
+    pub result: Value,
+    #[serde(default)]
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostCallAcknowledgement {
+    pub request_id: String,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostUpdateSettingsParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    #[serde(default)]
+    pub extension_id: String,
+    #[serde(default)]
+    pub settings: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostSettingsUpdateAcknowledgement {
+    pub extension_id: String,
+    pub accepted: bool,
+    #[serde(default)]
+    pub changed_keys: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostRespondUiRequestParams {
@@ -437,6 +538,9 @@ pub enum ExtensionHostResponse {
     ViewRevealRequested(ExtensionHostViewRevealRequestedEvent),
     WindowInputRequested(ExtensionHostWindowInputRequestedEvent),
     AcknowledgeUiRequest(ExtensionHostUiRequestAcknowledgement),
+    HostCallRequested(ExtensionHostCallRequestedEvent),
+    AcknowledgeHostCall(ExtensionHostCallAcknowledgement),
+    AcknowledgeSettingsUpdate(ExtensionHostSettingsUpdateAcknowledgement),
     AcknowledgeViewSelection(ExtensionHostViewSelectionAcknowledgement),
     StateChanged(ExtensionHostStateChangedEvent),
     WindowMessage(ExtensionHostWindowMessageEvent),
@@ -516,6 +620,7 @@ pub fn activate_extension(
         extension_path: extension_path.to_string_lossy().to_string(),
         manifest_path: entry.path.clone(),
         main_entry: manifest.main.clone(),
+        permissions: manifest.permissions.clone(),
         activation_state: ExtensionHostActivationState {
             settings: extension_settings,
             global_state: runtime_state.global_state,
@@ -728,12 +833,38 @@ fn emit_extension_host_window_message(
 }
 
 #[cfg(not(test))]
+fn emit_extension_host_call_requested(
+    state: &ExtensionHostState,
+    event: &ExtensionHostCallRequestedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit("extension-host-call-requested", event.clone())
+            .map_err(|error| format!("Failed to emit extension host call request event: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
 fn mark_ui_request_pending(state: &ExtensionHostState, request_id: &str) -> Result<(), String> {
     let mut ui_requests = state
         .ui_requests
         .lock()
         .map_err(|_| "Failed to access extension host UI request state".to_string())?;
     ui_requests.insert(request_id.to_string(), ExtensionHostUiRequestStatus::Pending);
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn mark_host_call_pending(state: &ExtensionHostState, request_id: &str) -> Result<(), String> {
+    let mut host_calls = state
+        .host_calls
+        .lock()
+        .map_err(|_| "Failed to access extension host call state".to_string())?;
+    host_calls.insert(request_id.to_string(), ExtensionHostCallStatus::Pending);
     Ok(())
 }
 
@@ -773,6 +904,46 @@ fn wait_for_ui_request_completion(
     }
 }
 
+#[cfg(not(test))]
+fn wait_for_host_call_completion(
+    state: &ExtensionHostState,
+    request_id: &str,
+) -> Result<ExtensionHostResolveHostCallParams, String> {
+    let started = Instant::now();
+    let timeout = Duration::from_secs(300);
+    loop {
+        {
+            let mut host_calls = state
+                .host_calls
+                .lock()
+                .map_err(|_| "Failed to access extension host call state".to_string())?;
+            if let Some(ExtensionHostCallStatus::Completed {
+                accepted,
+                result,
+                error,
+            }) = host_calls.get(request_id).cloned()
+            {
+                host_calls.remove(request_id);
+                return Ok(ExtensionHostResolveHostCallParams {
+                    request_id: request_id.to_string(),
+                    accepted,
+                    result,
+                    error,
+                });
+            }
+        }
+        if started.elapsed() >= timeout {
+            let mut host_calls = state
+                .host_calls
+                .lock()
+                .map_err(|_| "Failed to access extension host call state".to_string())?;
+            host_calls.remove(request_id);
+            return Err(format!("Extension host call timed out: {request_id}"));
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+}
+
 pub fn respond_extension_host_ui_request(
     state: &ExtensionHostState,
     params: ExtensionHostRespondUiRequestParams,
@@ -793,6 +964,32 @@ pub fn respond_extension_host_ui_request(
         result: params.result,
     };
     Ok(ExtensionHostRespondUiRequestResult {
+        request_id,
+        accepted: true,
+    })
+}
+
+pub fn resolve_extension_host_call(
+    state: &ExtensionHostState,
+    params: ExtensionHostResolveHostCallParams,
+) -> Result<ExtensionHostCallAcknowledgement, String> {
+    let request_id = params.request_id.trim().to_string();
+    if request_id.is_empty() {
+        return Err("Extension host call request id is required".to_string());
+    }
+    let mut host_calls = state
+        .host_calls
+        .lock()
+        .map_err(|_| "Failed to access extension host call state".to_string())?;
+    let Some(status) = host_calls.get_mut(&request_id) else {
+        return Err(format!("Pending extension host call not found: {request_id}"));
+    };
+    *status = ExtensionHostCallStatus::Completed {
+        accepted: params.accepted,
+        result: params.result,
+        error: params.error,
+    };
+    Ok(ExtensionHostCallAcknowledgement {
         request_id,
         accepted: true,
     })
@@ -823,6 +1020,236 @@ fn persist_extension_host_state_changed_event(
     Ok(())
 }
 
+#[cfg(not(test))]
+fn activation_context_for_extension(
+    state: &ExtensionHostState,
+    extension_id: &str,
+) -> Result<(String, String), String> {
+    state
+        .activation_context
+        .lock()
+        .map_err(|_| "Failed to access extension host activation context".to_string())?
+        .get(extension_id)
+        .cloned()
+        .ok_or_else(|| format!("Extension activation context not found: {extension_id}"))
+}
+
+#[cfg(not(test))]
+fn resolve_process_call_working_dir(
+    workspace_root: &str,
+    payload: &Value,
+) -> Result<Option<PathBuf>, String> {
+    let requested = payload
+        .get("cwd")
+        .and_then(Value::as_str)
+        .unwrap_or(workspace_root)
+        .trim()
+        .to_string();
+    if requested.is_empty() {
+        return Ok(None);
+    }
+    let cwd = Path::new(&requested)
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve process cwd: {error}"))?;
+    if !workspace_root.trim().is_empty() {
+        let canonical_workspace_root = Path::new(workspace_root)
+            .canonicalize()
+            .map_err(|error| format!("Failed to resolve workspace root: {error}"))?;
+        if !cwd.starts_with(&canonical_workspace_root) {
+            return Err(format!(
+                "Process cwd is outside the active workspace: {}",
+                cwd.display()
+            ));
+        }
+    }
+    Ok(Some(cwd))
+}
+
+#[cfg(not(test))]
+fn handle_extension_host_process_call(
+    state: &ExtensionHostState,
+    event: &ExtensionHostCallRequestedEvent,
+) -> Result<ExtensionHostResolveHostCallParams, String> {
+    let (global_config_dir, workspace_root) =
+        activation_context_for_extension(state, &event.extension_id)?;
+    let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
+    let Some(manifest) = entry.manifest.as_ref() else {
+        return Err(format!("Extension manifest is invalid: {}", entry.id));
+    };
+    if !manifest.permissions.spawn_process {
+        return Err(format!(
+            "Extension {} is not allowed to spawn local processes",
+            entry.id
+        ));
+    }
+
+    let payload = if event.payload.is_object() {
+        event.payload.as_object().cloned().unwrap_or_default()
+    } else {
+        Default::default()
+    };
+    let command_name = payload
+        .get("command")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if command_name.is_empty() {
+        return Err("Process command is required".to_string());
+    }
+    let args = payload
+        .get("args")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|value| match value {
+            Value::String(text) => text,
+            other => other.to_string(),
+        })
+        .collect::<Vec<_>>();
+    let env_map = payload
+        .get("env")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut command = background_command(&command_name);
+    command.args(&args);
+    if let Some(cwd) = resolve_process_call_working_dir(&workspace_root, &Value::Object(payload.clone()))? {
+        command.current_dir(cwd);
+    }
+    for (key, value) in env_map {
+        let normalized_key = key.trim();
+        if normalized_key.is_empty() {
+            continue;
+        }
+        let normalized_value = match value {
+            Value::String(text) => text,
+            other => other.to_string(),
+        };
+        command.env(normalized_key, normalized_value);
+    }
+
+    let result = match event.kind.as_str() {
+        "process.exec" => {
+            command.stdin(Stdio::null());
+            command.stdout(Stdio::piped());
+            command.stderr(Stdio::piped());
+            let output = command
+                .output()
+                .map_err(|error| format!("Failed to execute process: {error}"))?;
+            json!({
+                "ok": output.status.success(),
+                "code": output.status.code(),
+                "stdout": String::from_utf8_lossy(&output.stdout).to_string(),
+                "stderr": String::from_utf8_lossy(&output.stderr).to_string(),
+            })
+        }
+        "process.spawn" => {
+            command.stdin(Stdio::null());
+            command.stdout(Stdio::null());
+            command.stderr(Stdio::null());
+            let child = command
+                .spawn()
+                .map_err(|error| format!("Failed to spawn process: {error}"))?;
+            json!({
+                "ok": true,
+                "pid": child.id(),
+            })
+        }
+        other => {
+            return Err(format!("Unsupported extension host call kind: {other}"));
+        }
+    };
+
+    Ok(ExtensionHostResolveHostCallParams {
+        request_id: event.request_id.clone(),
+        accepted: true,
+        result,
+        error: String::new(),
+    })
+}
+
+#[cfg(not(test))]
+fn handle_extension_host_reference_call(
+    state: &ExtensionHostState,
+    event: &ExtensionHostCallRequestedEvent,
+) -> Result<ExtensionHostResolveHostCallParams, String> {
+    let (global_config_dir, workspace_root) =
+        activation_context_for_extension(state, &event.extension_id)?;
+    let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
+    let Some(manifest) = entry.manifest.as_ref() else {
+        return Err(format!("Extension manifest is invalid: {}", entry.id));
+    };
+    if !manifest.permissions.read_reference_library {
+        return Err(format!(
+            "Extension {} is not allowed to read the reference library",
+            entry.id
+        ));
+    }
+    let result = match event.kind.as_str() {
+        "references.readCurrentLibrary" => {
+            crate::references_backend::load_reference_library_snapshot(&global_config_dir)?
+        }
+        other => {
+            return Err(format!("Unsupported reference host call kind: {other}"));
+        }
+    };
+    Ok(ExtensionHostResolveHostCallParams {
+        request_id: event.request_id.clone(),
+        accepted: true,
+        result,
+        error: String::new(),
+    })
+}
+
+#[cfg(not(test))]
+fn handle_extension_host_pdf_call(
+    state: &ExtensionHostState,
+    event: &ExtensionHostCallRequestedEvent,
+) -> Result<ExtensionHostResolveHostCallParams, String> {
+    let (global_config_dir, workspace_root) =
+        activation_context_for_extension(state, &event.extension_id)?;
+    let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
+    let Some(manifest) = entry.manifest.as_ref() else {
+        return Err(format!("Extension manifest is invalid: {}", entry.id));
+    };
+    if !manifest.permissions.read_workspace_files && !manifest.permissions.read_reference_library {
+        return Err(format!(
+            "Extension {} is not allowed to inspect PDF content",
+            entry.id
+        ));
+    }
+    let file_path = event
+        .payload
+        .get("filePath")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if file_path.is_empty() {
+        return Err("PDF filePath is required".to_string());
+    }
+    let result = match event.kind.as_str() {
+        "pdf.extractText" => Value::String(
+            crate::references_pdf::extract_reference_pdf_text(Path::new(&file_path))?,
+        ),
+        "pdf.extractMetadata" => {
+            crate::references_pdf::extract_reference_pdf_metadata(Path::new(&file_path))?
+        }
+        other => {
+            return Err(format!("Unsupported PDF host call kind: {other}"));
+        }
+    };
+    Ok(ExtensionHostResolveHostCallParams {
+        request_id: event.request_id.clone(),
+        accepted: true,
+        result,
+        error: String::new(),
+    })
+}
+
 pub fn invoke_extension_host(
     state: &ExtensionHostState,
     request: ExtensionHostRequest,
@@ -844,30 +1271,35 @@ pub fn invoke_extension_host(
         let serialized_request = serde_json::to_string(&request)
             .map_err(|error| format!("Failed to serialize extension host request: {error}"))?;
 
-        let mut process = ensure_extension_host_process(state)?;
-        let stdin = process
-            .stdin
-            .as_mut()
-            .ok_or_else(|| "Extension host stdin is unavailable".to_string())?;
-        stdin
-            .write_all(serialized_request.as_bytes())
-            .map_err(|error| format!("Failed to write extension host request: {error}"))?;
-        stdin
-            .write_all(b"\n")
-            .map_err(|error| format!("Failed to finalize extension host request: {error}"))?;
-        stdin
-            .flush()
-            .map_err(|error| format!("Failed to flush extension host request: {error}"))?;
+        {
+            let mut process = ensure_extension_host_process(state)?;
+            let stdin = process
+                .stdin
+                .as_mut()
+                .ok_or_else(|| "Extension host stdin is unavailable".to_string())?;
+            stdin
+                .write_all(serialized_request.as_bytes())
+                .map_err(|error| format!("Failed to write extension host request: {error}"))?;
+            stdin
+                .write_all(b"\n")
+                .map_err(|error| format!("Failed to finalize extension host request: {error}"))?;
+            stdin
+                .flush()
+                .map_err(|error| format!("Failed to flush extension host request: {error}"))?;
+        }
 
-        let stdout = process
-            .stdout
-            .as_mut()
-            .ok_or_else(|| "Extension host stdout is unavailable".to_string())?;
         loop {
             let mut response_line = String::new();
-            stdout
-                .read_line(&mut response_line)
-                .map_err(|error| format!("Failed to read extension host response: {error}"))?;
+            {
+                let mut process = ensure_extension_host_process(state)?;
+                let stdout = process
+                    .stdout
+                    .as_mut()
+                    .ok_or_else(|| "Extension host stdout is unavailable".to_string())?;
+                stdout
+                    .read_line(&mut response_line)
+                    .map_err(|error| format!("Failed to read extension host response: {error}"))?;
+            }
             if response_line.trim().is_empty() {
                 continue;
             }
@@ -891,16 +1323,68 @@ pub fn invoke_extension_host(
                     mark_ui_request_pending(state, &event.request_id)?;
                     emit_extension_host_window_input_requested(state, event)?;
                     let request_id = event.request_id.clone();
-                    drop(process);
-                    let response = wait_for_ui_request_completion(state, &request_id)?;
-                    return invoke_extension_host(
+                    let completed = wait_for_ui_request_completion(state, &request_id)?;
+                    let response = invoke_extension_host(
                         state,
                         ExtensionHostRequest::RespondUiRequest {
-                            request_id: response.request_id,
-                            cancelled: response.cancelled,
-                            result: response.result,
+                            request_id: completed.request_id,
+                            cancelled: completed.cancelled,
+                            result: completed.result,
                         },
-                    );
+                    )?;
+                    match response {
+                        ExtensionHostResponse::AcknowledgeUiRequest(_) => continue,
+                        ExtensionHostResponse::Error { message } => return Err(message),
+                        other => return Ok(other),
+                    }
+                }
+                ExtensionHostResponse::HostCallRequested(event) => {
+                    let completed = match event.kind.as_str() {
+                        "process.exec" | "process.spawn" => {
+                            Some(handle_extension_host_process_call(state, event)?)
+                        }
+                        "references.readCurrentLibrary" => {
+                            Some(handle_extension_host_reference_call(state, event)?)
+                        }
+                        "pdf.extractText" | "pdf.extractMetadata" => {
+                            Some(handle_extension_host_pdf_call(state, event)?)
+                        }
+                        _ => None,
+                    };
+                    if let Some(completed) = completed {
+                        let response = invoke_extension_host(
+                            state,
+                            ExtensionHostRequest::ResolveHostCall {
+                                request_id: completed.request_id,
+                                accepted: completed.accepted,
+                                result: completed.result,
+                                error: completed.error,
+                            },
+                        )?;
+                        match response {
+                            ExtensionHostResponse::AcknowledgeHostCall(_) => continue,
+                            ExtensionHostResponse::Error { message } => return Err(message),
+                            other => return Ok(other),
+                        }
+                    }
+                    mark_host_call_pending(state, &event.request_id)?;
+                    emit_extension_host_call_requested(state, event)?;
+                    let request_id = event.request_id.clone();
+                    let completed = wait_for_host_call_completion(state, &request_id)?;
+                    let response = invoke_extension_host(
+                        state,
+                        ExtensionHostRequest::ResolveHostCall {
+                            request_id: completed.request_id,
+                            accepted: completed.accepted,
+                            result: completed.result,
+                            error: completed.error,
+                        },
+                    )?;
+                    match response {
+                        ExtensionHostResponse::AcknowledgeHostCall(_) => continue,
+                        ExtensionHostResponse::Error { message } => return Err(message),
+                        other => return Ok(other),
+                    }
                 }
                 ExtensionHostResponse::StateChanged(event) => {
                     persist_extension_host_state_changed_event(state, event)?;
@@ -965,6 +1449,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             registered_capabilities: Vec::new(),
             registered_views: Vec::new(),
             registered_command_details: Vec::new(),
+            registered_menu_actions: Vec::new(),
             registered_view_details: Vec::new(),
         }),
         ExtensionHostRequest::InvokeCapability { envelope, .. } => {
@@ -1011,6 +1496,23 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 request_id,
                 accepted: true,
             })
+        }
+        ExtensionHostRequest::ResolveHostCall {
+            request_id,
+            accepted,
+            ..
+        } => ExtensionHostResponse::AcknowledgeHostCall(ExtensionHostCallAcknowledgement {
+            request_id,
+            accepted,
+        }),
+        ExtensionHostRequest::UpdateSettings { extension_id, .. } => {
+            ExtensionHostResponse::AcknowledgeSettingsUpdate(
+                ExtensionHostSettingsUpdateAcknowledgement {
+                    extension_id,
+                    accepted: true,
+                    changed_keys: Vec::new(),
+                },
+            )
         }
         ExtensionHostRequest::NotifyViewSelection {
             extension_id,
@@ -1070,6 +1572,64 @@ pub async fn extension_host_respond_ui_request(
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostRespondUiRequestResult, String> {
     respond_extension_host_ui_request(state.inner(), params)
+}
+
+#[tauri::command]
+pub async fn extension_host_resolve_host_call(
+    params: ExtensionHostResolveHostCallParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostCallAcknowledgement, String> {
+    resolve_extension_host_call(state.inner(), params)
+}
+
+#[tauri::command]
+pub async fn extension_host_update_settings(
+    params: ExtensionHostUpdateSettingsParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostSettingsUpdateAcknowledgement, String> {
+    let extension_id = params.extension_id.trim().to_ascii_lowercase();
+    if extension_id.is_empty() {
+        return Err("Extension id is required".to_string());
+    }
+    let normalized_settings = if params.settings.is_object() {
+        params.settings
+    } else {
+        Value::Object(Default::default())
+    };
+    let entry = find_extension_entry(
+        &params.global_config_dir,
+        &params.workspace_root,
+        &extension_id,
+    )?;
+    let Some(manifest) = entry.manifest.as_ref() else {
+        return Err(format!("Extension manifest is invalid: {}", entry.id));
+    };
+    let changed_keys = normalized_settings
+        .as_object()
+        .map(|map| map.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    match invoke_extension_host(
+        state.inner(),
+        ExtensionHostRequest::UpdateSettings {
+            extension_id: extension_id.clone(),
+            settings: normalized_settings,
+        },
+    )? {
+        ExtensionHostResponse::AcknowledgeSettingsUpdate(result) => Ok(result),
+        ExtensionHostResponse::Activate(_) => Ok(ExtensionHostSettingsUpdateAcknowledgement {
+            extension_id: extension_id.clone(),
+            accepted: true,
+            changed_keys,
+        }),
+        _ if manifest.runtime.runtime_type == "extensionHost" => Ok(
+            ExtensionHostSettingsUpdateAcknowledgement {
+                extension_id,
+                accepted: true,
+                changed_keys,
+            },
+        ),
+        _ => Err("Unexpected extension host response for settings update".to_string()),
+    }
 }
 
 #[tauri::command]
