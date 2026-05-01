@@ -194,6 +194,8 @@ pub struct ExtensionConfigurationProperty {
     pub enum_values: Vec<Value>,
     #[serde(default)]
     pub enum_item_labels: Vec<String>,
+    #[serde(default)]
+    pub secure_storage: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -601,6 +603,15 @@ mod tests {
                         "key": "mod+alt+t",
                         "when": "resource.kind == pdf"
                     }],
+                    "configuration": {
+                        "properties": {
+                            "examplePdfExtension.apiKey": {
+                                "type": "string",
+                                "default": "",
+                                "secureStorage": true
+                            }
+                        }
+                    },
                     "menus": {
                         "pdf.preview.actions": [{
                             "command": "scribeflow.pdf.translate",
@@ -635,6 +646,15 @@ mod tests {
         assert_eq!(
             manifest.contributes.views["examplePdfExtension.tools"][0].id,
             "examplePdfExtension.translateView"
+        );
+        assert_eq!(
+            manifest
+                .contributes
+                .configuration
+                .properties
+                .get("examplePdfExtension.apiKey")
+                .map(|property| property.secure_storage),
+            Some(true)
         );
     }
 

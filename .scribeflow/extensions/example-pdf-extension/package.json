@@ -83,6 +83,12 @@
           "type": "string",
           "default": "zh-CN",
           "description": "Target language for the example provider."
+        },
+        "examplePdfExtension.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Example secure provider credential.",
+          "secureStorage": true
         }
       }
     }

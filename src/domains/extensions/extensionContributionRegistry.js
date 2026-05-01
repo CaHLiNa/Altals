@@ -23,6 +23,7 @@ function normalizeSettingDefinition(key = '', definition = {}) {
       : '',
     label,
     description: normalizeId(definition?.description),
+    secureStorage: definition?.secureStorage === true,
     options: Array.isArray(definition?.enum)
       ? definition.enum.map((value, index) => ({
           value,
