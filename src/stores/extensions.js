@@ -7,6 +7,7 @@ import {
 } from '../services/extensions/extensionRegistry'
 import {
   executeExtensionCommand,
+  invokeExtensionCapability,
 } from '../services/extensions/extensionCommands'
 import {
   cancelExtensionTask as cancelExtensionTaskWithBackend,
@@ -88,6 +89,16 @@ function normalizeExtension(extension = {}) {
     errors: Array.isArray(extension.errors) ? extension.errors : [],
     settingsSchema: contributions.configuration,
   }
+}
+
+function runtimeCapabilityIds(entry = {}) {
+  const ids = new Set()
+  const runtimeEntry = normalizeRuntimeEntry(entry)
+  for (const capability of Array.isArray(runtimeEntry?.registeredCapabilities) ? runtimeEntry.registeredCapabilities : []) {
+    const id = normalizeCapability(capability)
+    if (id) ids.add(id)
+  }
+  return ids
 }
 
 function normalizeTask(task = {}) {
@@ -824,6 +835,50 @@ export const useExtensionsStore = defineStore('extensions', {
         workspaceRoot: workspace.path || '',
         extensionId,
         commandId,
+        itemId: String(action.itemId || ''),
+        itemHandle: String(action.itemHandle || ''),
+        target,
+        settings: {
+          ...extensionSettings,
+          ...(settings && typeof settings === 'object' ? settings : {}),
+        },
+      })
+      const task = this.upsertTask(result?.task || {})
+      this.markViewsChanged(result?.changedViews, extensionId)
+      return task
+    },
+    async invokeCapability(action = {}, target = {}, settings = {}) {
+      const extensionId = normalizeExtensionId(action.extensionId)
+      const capabilityId = normalizeCapability(action.capabilityId || action.capability || action.id || '')
+      const extension = this.registry.find((entry) => entry.id === extensionId)
+      if (!extension || extension.status !== 'available') {
+        throw new Error(`Extension capability is not available: ${extensionId || capabilityId}`)
+      }
+      if (!capabilityId) {
+        throw new Error('Extension capability id is required')
+      }
+      await this.activateExtension(extensionId, `onCapability:${capabilityId}`).catch(() => {})
+      const runtimeCapabilities = runtimeCapabilityIds(this.runtimeRegistry?.[extensionId])
+      const manifestCapabilities = new Set(
+        (extension.contributedCapabilities || [])
+          .map((capability) => normalizeCapability(capability?.id))
+          .filter(Boolean),
+      )
+      if (runtimeCapabilities.size > 0) {
+        if (!runtimeCapabilities.has(capabilityId)) {
+          throw new Error(`Extension ${extensionId} does not register capability ${capabilityId} at runtime`)
+        }
+      } else if (!manifestCapabilities.has(capabilityId)) {
+        throw new Error(`Extension ${extensionId} does not contribute capability ${capabilityId}`)
+      }
+      const workspace = useWorkspaceStore()
+      const globalConfigDir = await workspace.ensureGlobalConfigDir()
+      const extensionSettings = this.configForExtension(extension)
+      const result = await invokeExtensionCapability({
+        globalConfigDir,
+        workspaceRoot: workspace.path || '',
+        extensionId,
+        capabilityId,
         itemId: String(action.itemId || ''),
         itemHandle: String(action.itemHandle || ''),
         target,

@@ -35,7 +35,7 @@ function send(method, params) {
 }
 
 function isTerminal(message) {
-  return ["Activate", "ExecuteCommand", "Error"].includes(message.kind);
+  return ["Activate", "InvokeCapability", "ExecuteCommand", "Error"].includes(message.kind);
 }
 
 function call(method, params) {
@@ -273,6 +273,18 @@ async function main() {
     },
   });
 
+  const invokedCapability = await call("InvokeCapability", {
+    activationEvent: "onCapability:pdf.translate",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    envelope: {
+      ...baseEnvelope,
+      capability: "pdf.translate",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
   const processApis = await call("ExecuteCommand", {
     activationEvent: "onCommand:examplePdfExtension.inspectProcessApi",
     extensionPath,
@@ -399,6 +411,7 @@ async function main() {
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
     manifestPermissions: permissions,
     runtimeOnlyTaskState: runtimeOnly?.payload?.taskState || "",
+    capabilityTaskState: invokedCapability?.payload?.taskState || "",
     processTaskState: processApis?.payload?.taskState || "",
     processExecTaskState: processExecApis?.payload?.taskState || "",
     pdfTextTaskState: pdfTextApis?.payload?.taskState || "",
@@ -428,6 +441,8 @@ async function main() {
   ensure(permissions.spawnProcess === true, "manifest no longer grants process access", summary);
   ensure(runtimeOnly?.payload?.accepted === true, "runtime-only command was not accepted", summary);
   ensure(runtimeOnly?.payload?.taskState === "succeeded", "runtime-only command did not succeed", summary);
+  ensure(invokedCapability?.payload?.accepted === true, "capability invocation was not accepted", summary);
+  ensure(invokedCapability?.payload?.taskState === "succeeded", "capability invocation did not succeed", summary);
   ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);
   ensure(processApis?.payload?.taskState === "succeeded", "process command did not succeed", summary);
   ensure(processExecApis?.payload?.accepted === true, "process exec command was not accepted", summary);

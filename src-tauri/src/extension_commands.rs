@@ -46,6 +46,27 @@ pub struct ExtensionCommandExecutionResult {
     pub changed_views: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionCapabilityInvokeParams {
+    #[serde(default)]
+    pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_root: String,
+    #[serde(default)]
+    pub extension_id: String,
+    #[serde(default)]
+    pub capability_id: String,
+    #[serde(default)]
+    pub target: ExtensionTaskTarget,
+    #[serde(default)]
+    pub settings: Value,
+    #[serde(default)]
+    pub item_id: String,
+    #[serde(default)]
+    pub item_handle: String,
+}
+
 fn extension_dir_from_manifest_path(path: &str) -> String {
     Path::new(path)
         .parent()
@@ -69,6 +90,22 @@ fn manifest_declares_command(manifest: &ExtensionManifest, command_id: &str) -> 
         .any(|command| command.command.trim() == normalized_command_id)
 }
 
+fn manifest_declares_capability(manifest: &ExtensionManifest, capability_id: &str) -> bool {
+    let normalized_capability_id = capability_id.trim();
+    if normalized_capability_id.is_empty() {
+        return false;
+    }
+    manifest
+        .contributes
+        .capabilities
+        .iter()
+        .any(|capability| capability.id.trim() == normalized_capability_id)
+        || manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability.trim() == normalized_capability_id)
+}
+
 fn activation_result_registers_command(
     activation_result: &ExtensionHostActivationResult,
     command_id: &str,
@@ -87,6 +124,20 @@ fn activation_result_registers_command(
             .any(|command| command.command_id.trim() == normalized_command_id)
 }
 
+fn activation_result_registers_capability(
+    activation_result: &ExtensionHostActivationResult,
+    capability_id: &str,
+) -> bool {
+    let normalized_capability_id = capability_id.trim();
+    if normalized_capability_id.is_empty() {
+        return false;
+    }
+    activation_result
+        .registered_capabilities
+        .iter()
+        .any(|capability| capability.trim() == normalized_capability_id)
+}
+
 fn command_is_available_for_execution(
     manifest: &ExtensionManifest,
     activation_result: &ExtensionHostActivationResult,
@@ -99,6 +150,20 @@ fn command_is_available_for_execution(
         activation_result_registers_command(activation_result, command_id)
     } else {
         manifest_declares_command(manifest, command_id)
+    }
+}
+
+fn capability_is_available_for_execution(
+    manifest: &ExtensionManifest,
+    activation_result: &ExtensionHostActivationResult,
+    capability_id: &str,
+) -> bool {
+    let runtime_declared_any_capabilities = !activation_result.registered_capabilities.is_empty();
+
+    if runtime_declared_any_capabilities {
+        activation_result_registers_capability(activation_result, capability_id)
+    } else {
+        manifest_declares_capability(manifest, capability_id)
     }
 }
 
@@ -117,6 +182,43 @@ fn normalize_task_state(value: &str) -> &str {
         "failed" => "failed",
         _ => "succeeded",
     }
+}
+
+fn record_extension_result(
+    task: &ExtensionTask,
+    result: crate::extension_host::ExtensionHostCapabilityResult,
+    task_runtime_state: &crate::extension_tasks::ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<ExtensionCommandExecutionResult, String> {
+    let artifacts = normalize_artifacts(result.artifacts);
+    let normalized_state = normalize_task_state(&result.task_state);
+    let recorded = match normalized_state {
+        "queued" => mark_task_queued(&task.id, &result.progress_label, artifacts.clone()),
+        "running" => {
+            mark_task_running_with_progress(&task.id, &result.progress_label, artifacts.clone())
+        }
+        "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
+        "failed" => crate::extension_tasks::mark_task_failed(
+            &task.id,
+            if result.message.trim().is_empty() {
+                "Extension execution failed"
+            } else {
+                &result.message
+            },
+        ),
+        _ => mark_task_succeeded(&task.id, artifacts, &result.progress_label),
+    }
+    .map_err(|error| format!("Failed to record extension result: {error}"))?;
+    if let Some(pid) = task_runtime_state.unregister_pid(&recorded.id)? {
+        let _ = crate::extension_host::reap_spawned_process(extension_host_state, pid, false);
+    }
+    task_runtime_state.emit_task_changed(&recorded);
+    write_task_log(&recorded, &result.message);
+    let task = get_task(&task.id)?;
+    Ok(ExtensionCommandExecutionResult {
+        task,
+        changed_views: result.changed_views,
+    })
 }
 
 #[tauri::command]
@@ -216,41 +318,12 @@ pub async fn extension_command_execute(
     );
 
     match response {
-        Ok(ExtensionHostResponse::ExecuteCommand(result)) => {
-            let artifacts = normalize_artifacts(result.artifacts);
-            let normalized_state = normalize_task_state(&result.task_state);
-            let recorded = match normalized_state {
-                "queued" => mark_task_queued(&task.id, &result.progress_label, artifacts.clone()),
-                "running" => {
-                    mark_task_running_with_progress(&task.id, &result.progress_label, artifacts.clone())
-                }
-                "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
-                "failed" => crate::extension_tasks::mark_task_failed(
-                    &task.id,
-                    if result.message.trim().is_empty() {
-                        "Extension command failed"
-                    } else {
-                        &result.message
-                    },
-                ),
-                _ => mark_task_succeeded(&task.id, artifacts, &result.progress_label),
-            }
-            .map_err(|error| format!("Failed to record extension result: {error}"))?;
-            if let Some(pid) = task_runtime_state.unregister_pid(&recorded.id)? {
-                let _ = crate::extension_host::reap_spawned_process(
-                    extension_host_state.inner(),
-                    pid,
-                    false,
-                );
-            }
-            task_runtime_state.emit_task_changed(&recorded);
-            write_task_log(&recorded, &result.message);
-            let task = get_task(&task.id)?;
-            Ok(ExtensionCommandExecutionResult {
-                task,
-                changed_views: result.changed_views,
-            })
-        }
+        Ok(ExtensionHostResponse::ExecuteCommand(result)) => record_extension_result(
+            &task,
+            result,
+            task_runtime_state.inner(),
+            extension_host_state.inner(),
+        ),
         Ok(ExtensionHostResponse::Error { message }) => {
             let failed = mark_task_failed(&task.id, &message)?;
             if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
@@ -294,11 +367,157 @@ pub async fn extension_command_execute(
     }
 }
 
+#[tauri::command]
+pub async fn extension_capability_invoke(
+    params: ExtensionCapabilityInvokeParams,
+    _scope_state: tauri::State<'_, WorkspaceScopeState>,
+    task_runtime_state: tauri::State<'_, crate::extension_tasks::ExtensionTaskRuntimeState>,
+    extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
+) -> Result<ExtensionCommandExecutionResult, String> {
+    let capability_id = params.capability_id.trim().to_string();
+    if capability_id.is_empty() {
+        return Err("Extension capability id is required".to_string());
+    }
+
+    let entry = find_extension_entry(
+        &params.global_config_dir,
+        &params.workspace_root,
+        &params.extension_id,
+    )?;
+    let Some(manifest) = entry.manifest.as_ref() else {
+        return Err(format!(
+            "Extension manifest is invalid: {}",
+            params.extension_id
+        ));
+    };
+    if entry.status == "invalid" || entry.status == "blocked" {
+        return Err(format!("Extension is not runnable: {}", entry.status));
+    }
+    validate_manifest_permissions(manifest)?;
+    if manifest.runtime.runtime_type != "extensionHost" {
+        return Err(format!(
+            "Only extensionHost runtime is supported: {}",
+            manifest.runtime.runtime_type
+        ));
+    }
+    let activation_event = format!("onCapability:{capability_id}");
+    let task = create_command_task(
+        &entry.id,
+        &capability_id,
+        params.target.clone(),
+        params.settings.clone(),
+    )?;
+    task_runtime_state.emit_task_changed(&task);
+    let running = mark_task_running(&task.id)?;
+    task_runtime_state.emit_task_changed(&running);
+    let activated = activate_extension(
+        extension_host_state.inner(),
+        &params.global_config_dir,
+        &params.workspace_root,
+        &entry,
+        &activation_event,
+    );
+    let activated = match activated {
+        Ok(activation_result) => activation_result,
+        Err(error) => {
+            let failed = mark_task_failed(&task.id, &error)?;
+            task_runtime_state.emit_task_changed(&failed);
+            write_task_log(&failed, &error);
+            return Err(error);
+        }
+    };
+    if !capability_is_available_for_execution(manifest, &activated, &capability_id) {
+        let message = format!(
+            "Extension {} does not register capability {} at runtime",
+            entry.id, capability_id
+        );
+        let failed = mark_task_failed(&task.id, &message)?;
+        task_runtime_state.emit_task_changed(&failed);
+        write_task_log(&failed, &message);
+        return Err(message);
+    }
+
+    let envelope = build_extension_invocation_envelope(
+        &task.id,
+        &entry.id,
+        &params.workspace_root,
+        "",
+        &params.item_id,
+        &params.item_handle,
+        &params.target.reference_id,
+        &capability_id,
+        &params.target.kind,
+        &params.target.path,
+        &params.settings,
+    );
+    let response = invoke_extension_host(
+        extension_host_state.inner(),
+        Some(task_runtime_state.inner()),
+        ExtensionHostRequest::InvokeCapability {
+            activation_event,
+            extension_path: extension_dir_from_manifest_path(&entry.path),
+            manifest_path: entry.path.clone(),
+            main_entry: manifest.main.clone(),
+            envelope,
+        },
+    );
+
+    match response {
+        Ok(ExtensionHostResponse::InvokeCapability(result)) => record_extension_result(
+            &task,
+            result,
+            task_runtime_state.inner(),
+            extension_host_state.inner(),
+        ),
+        Ok(ExtensionHostResponse::Error { message }) => {
+            let failed = mark_task_failed(&task.id, &message)?;
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
+            task_runtime_state.emit_task_changed(&failed);
+            write_task_log(&failed, &message);
+            Err(message)
+        }
+        Ok(_) => {
+            let message = "Unexpected extension host response for capability invocation".to_string();
+            let failed = mark_task_failed(&task.id, &message)?;
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
+            task_runtime_state.emit_task_changed(&failed);
+            write_task_log(&failed, &message);
+            Err(message)
+        }
+        Err(error) => {
+            let failed = mark_task_failed(&task.id, &error)?;
+            if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
+                let _ = crate::extension_host::reap_spawned_process(
+                    extension_host_state.inner(),
+                    pid,
+                    false,
+                );
+            }
+            task_runtime_state.emit_task_changed(&failed);
+            write_task_log(&failed, &error);
+            Err(format!("Extension host capability invocation failed: {error}"))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        activation_result_registers_command, command_is_available_for_execution,
-        manifest_declares_command, normalize_artifacts,
+        activation_result_registers_capability, activation_result_registers_command,
+        capability_is_available_for_execution, command_is_available_for_execution,
+        manifest_declares_capability, manifest_declares_command, normalize_artifacts,
     };
     use crate::extension_artifacts::ExtensionArtifact;
     use crate::extension_host::{
@@ -418,6 +637,45 @@ mod tests {
             &manifest,
             &activation,
             "scribeflow.pdf.translate"
+        ));
+    }
+
+    #[test]
+    fn capability_registry_enables_runtime_capability_execution() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "capabilities": [{
+                    "id": "pdf.translate"
+                }]
+            }
+        }));
+        let activation = ExtensionHostActivationResult {
+            extension_id: "example-pdf-extension".to_string(),
+            activated: true,
+            reason: "Activated by host".to_string(),
+            registered_commands: Vec::new(),
+            registered_capabilities: vec!["pdf.translate".to_string()],
+            registered_views: Vec::new(),
+            registered_command_details: Vec::new(),
+            registered_menu_actions: Vec::new(),
+            registered_view_details: Vec::new(),
+        };
+
+        assert!(manifest_declares_capability(&manifest, "pdf.translate"));
+        assert!(activation_result_registers_capability(&activation, "pdf.translate"));
+        assert!(capability_is_available_for_execution(
+            &manifest,
+            &activation,
+            "pdf.translate"
+        ));
+        assert!(!capability_is_available_for_execution(
+            &manifest,
+            &activation,
+            "document.summarize"
         ));
     }
 

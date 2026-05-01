@@ -509,6 +509,7 @@ pub fn run() {
             extension_host::extension_host_notify_view_selection,
             extension_host::extension_host_update_settings,
             extension_commands::extension_command_execute,
+            extension_commands::extension_capability_invoke,
             extension_views::extension_view_resolve,
             extension_tasks::extension_task_list,
             extension_tasks::extension_task_get,

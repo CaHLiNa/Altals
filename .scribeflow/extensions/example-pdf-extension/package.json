@@ -10,10 +10,16 @@
   "main": "./dist/extension.js",
   "extensionKind": ["workspace"],
   "activationEvents": [
+    "onCapability:pdf.translate",
     "onCommand:scribeflow.pdf.translate",
     "onView:examplePdfExtension.translateView"
   ],
   "contributes": {
+    "capabilities": [
+      {
+        "id": "pdf.translate"
+      }
+    ],
     "commands": [
       {
         "command": "scribeflow.pdf.translate",
