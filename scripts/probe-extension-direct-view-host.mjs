@@ -8,23 +8,41 @@ const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extensi
 
 const extensionSource = `
 export async function activate(context) {
-  context.commands.registerCommand('exampleDirectViewExtension.emitArtifact', async () => ({
-    message: 'direct command artifact emitted',
-    progressLabel: 'Direct command completed',
-    taskState: 'succeeded',
-    artifacts: [
-      {
-        id: 'command-artifact',
-        extensionId: 'spoofed-extension',
-        taskId: 'spoofed-task',
-        capability: 'spoofed.capability',
-        kind: 'translated-text',
-        mediaType: 'text/plain',
-        path: '/tmp/command-output.txt',
-        sourcePath: '/tmp/direct-source.md',
-      },
-    ],
-  }))
+  context.commands.registerCommand('exampleDirectViewExtension.emitArtifact', async () => {
+    context.views.updateView('exampleDirectViewExtension.resultView', {
+      message: 'direct command pushed view artifact',
+      artifacts: [
+        {
+          id: 'direct-view-artifact',
+          extensionId: 'example-direct-view-extension',
+          taskId: 'external-view-task',
+          capability: 'document.transform',
+          kind: 'translated-text',
+          mediaType: 'text/plain',
+          path: '/tmp/direct-view-output.txt',
+          sourcePath: '/tmp/direct-source.md',
+        },
+      ],
+    })
+
+    return {
+      message: 'direct command artifact emitted',
+      progressLabel: 'Direct command completed',
+      taskState: 'succeeded',
+      artifacts: [
+        {
+          id: 'command-artifact',
+          extensionId: 'spoofed-extension',
+          taskId: 'spoofed-task',
+          capability: 'spoofed.capability',
+          kind: 'translated-text',
+          mediaType: 'text/plain',
+          path: '/tmp/command-output.txt',
+          sourcePath: '/tmp/direct-source.md',
+        },
+      ],
+    }
+  })
 
   context.capabilities.registerProvider('document.transform', async () => ({
     message: 'direct capability artifact emitted',
@@ -122,6 +140,28 @@ function ensure(condition, message, details = null) {
   const error = new Error(message)
   error.details = details
   throw error
+}
+
+function waitForObserved(observed, predicate, timeoutMs = 4000) {
+  const existing = observed.find((message) => predicate(message))
+  if (existing) {
+    return Promise.resolve(existing)
+  }
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs
+    const interval = setInterval(() => {
+      const match = observed.find((message) => predicate(message))
+      if (match) {
+        clearInterval(interval)
+        resolve(match)
+        return
+      }
+      if (Date.now() >= deadline) {
+        clearInterval(interval)
+        reject(new Error('timed out waiting for observed host message'))
+      }
+    }, 10)
+  })
 }
 
 async function main() {
@@ -301,6 +341,13 @@ async function main() {
         settingsJson: '{}',
       },
     })
+    const commandViewStateChanged = await waitForObserved(
+      observed,
+      (message) =>
+        message.kind === 'ViewStateChanged' &&
+        String(message.payload?.viewId || '') === 'exampleDirectViewExtension.resultView' &&
+        String(message.payload?.message || '') === 'direct command pushed view artifact',
+    )
 
     const invoked = await call('InvokeCapability', {
       activationEvent: 'onCapability:document.transform',
@@ -336,6 +383,10 @@ async function main() {
     ensure(String(executed?.payload?.artifacts?.[0]?.taskId || '') === 'command-task', 'direct command artifact task id was not anchored to envelope', executed?.payload || {})
     ensure(String(executed?.payload?.artifacts?.[0]?.capability || '') === 'exampleDirectViewExtension.emitArtifact', 'direct command artifact capability was not anchored to envelope', executed?.payload || {})
     ensure(String(executed?.payload?.artifacts?.[0]?.extensionId || '') === 'example-direct-view-extension', 'direct command artifact extension id was not anchored to envelope', executed?.payload || {})
+    ensure(Array.isArray(commandViewStateChanged?.payload?.artifacts) && commandViewStateChanged.payload.artifacts.length === 1, 'direct command view state did not return artifacts', commandViewStateChanged?.payload || {})
+    ensure(String(commandViewStateChanged?.payload?.artifacts?.[0]?.taskId || '') === 'external-view-task', 'direct command view artifact task id drifted', commandViewStateChanged?.payload || {})
+    ensure(String(commandViewStateChanged?.payload?.artifacts?.[0]?.capability || '') === 'document.transform', 'direct command view artifact capability drifted', commandViewStateChanged?.payload || {})
+    ensure(String(commandViewStateChanged?.payload?.artifacts?.[0]?.extensionId || '') === 'example-direct-view-extension', 'direct command view artifact extension id drifted', commandViewStateChanged?.payload || {})
     ensure(Array.isArray(invoked?.payload?.artifacts) && invoked.payload.artifacts.length === 1, 'direct capability did not return artifacts', invoked?.payload || {})
     ensure(Array.isArray(invoked?.payload?.outputs) && invoked.payload.outputs.length === 1, 'direct capability did not return outputs', invoked?.payload || {})
     ensure(String(invoked?.payload?.artifacts?.[0]?.taskId || '') === 'capability-task', 'direct capability artifact task id was not anchored to envelope', invoked?.payload || {})
@@ -355,6 +406,8 @@ async function main() {
         outputIds: resolved.payload.outputs.map((entry) => entry.id),
         commandArtifactTaskIds: executed.payload.artifacts.map((entry) => entry.taskId),
         commandArtifactCapabilities: executed.payload.artifacts.map((entry) => entry.capability),
+        commandViewArtifactTaskIds: commandViewStateChanged.payload.artifacts.map((entry) => entry.taskId),
+        commandViewArtifactCapabilities: commandViewStateChanged.payload.artifacts.map((entry) => entry.capability),
         capabilityArtifactTaskIds: invoked.payload.artifacts.map((entry) => entry.taskId),
         capabilityArtifactCapabilities: invoked.payload.artifacts.map((entry) => entry.capability),
       },

@@ -620,7 +620,9 @@ function createExtensionApi(registry) {
             ? normalizeResultEntries(patch.resultEntries, registry.id)
             : current.resultEntries,
           artifacts: Array.isArray(patch?.artifacts)
-            ? normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {})
+            ? normalizeArtifactEntries(patch.artifacts, registry.lastInvocation || {}, {
+                preferExplicitMetadata: true,
+              })
             : current.artifacts,
           outputs: Array.isArray(patch?.outputs) ? normalizeOutputEntries(patch.outputs) : current.outputs,
         };
