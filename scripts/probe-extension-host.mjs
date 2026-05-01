@@ -273,6 +273,25 @@ async function main() {
     },
   });
 
+  const rejectedTranslate = await call("ExecuteCommand", {
+    activationEvent: "onCommand:scribeflow.pdf.translate",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "scribeflow.pdf.translate",
+    envelope: {
+      ...baseEnvelope,
+      referenceId: "",
+      targetKind: "workspace",
+      targetPath: "/tmp/note.md",
+      commandId: "scribeflow.pdf.translate",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  }).catch((error) => ({
+    kind: "Error",
+    payload: { message: error?.message || String(error) },
+  }));
+
   const invokedCapability = await call("InvokeCapability", {
     activationEvent: "onCapability:pdf.translate",
     extensionPath,
@@ -411,6 +430,7 @@ async function main() {
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
     manifestPermissions: permissions,
     runtimeOnlyTaskState: runtimeOnly?.payload?.taskState || "",
+    rejectedTranslateError: String(rejectedTranslate?.payload?.message || ""),
     capabilityTaskState: invokedCapability?.payload?.taskState || "",
     processTaskState: processApis?.payload?.taskState || "",
     processExecTaskState: processExecApis?.payload?.taskState || "",
@@ -441,6 +461,8 @@ async function main() {
   ensure(permissions.spawnProcess === true, "manifest no longer grants process access", summary);
   ensure(runtimeOnly?.payload?.accepted === true, "runtime-only command was not accepted", summary);
   ensure(runtimeOnly?.payload?.taskState === "succeeded", "runtime-only command did not succeed", summary);
+  ensure(rejectedTranslate?.kind === "Error", "schema-invalid translation command was not rejected", summary);
+  ensure(/requires one of: \.pdf/i.test(String(rejectedTranslate?.payload?.message || "")), "schema-invalid translation command returned the wrong error", summary);
   ensure(invokedCapability?.payload?.accepted === true, "capability invocation was not accepted", summary);
   ensure(invokedCapability?.payload?.taskState === "succeeded", "capability invocation did not succeed", summary);
   ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);

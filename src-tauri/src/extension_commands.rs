@@ -1,4 +1,7 @@
 use crate::extension_artifacts::ExtensionArtifact;
+use crate::extension_capability_contract::{
+    manifest_capability_by_id, validate_capability_inputs, validate_capability_outputs,
+};
 use crate::extension_host::{
     activate_extension, build_extension_invocation_envelope, invoke_extension_host,
     ExtensionHostActivationResult, ExtensionHostRequest, ExtensionHostResponse,
@@ -186,11 +189,16 @@ fn normalize_task_state(value: &str) -> &str {
 
 fn record_extension_result(
     task: &ExtensionTask,
+    capability_contract: Option<&crate::extension_manifest::ExtensionCapabilityContribution>,
     result: crate::extension_host::ExtensionHostCapabilityResult,
     task_runtime_state: &crate::extension_tasks::ExtensionTaskRuntimeState,
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<ExtensionCommandExecutionResult, String> {
     let artifacts = normalize_artifacts(result.artifacts);
+    if let Some(contract) = capability_contract {
+        validate_capability_outputs(contract, &artifacts)
+            .map_err(|error| format!("Failed to record extension result: {error}"))?;
+    }
     let normalized_state = normalize_task_state(&result.task_state);
     let recorded = match normalized_state {
         "queued" => mark_task_queued(&task.id, &result.progress_label, artifacts.clone()),
@@ -320,6 +328,7 @@ pub async fn extension_command_execute(
     match response {
         Ok(ExtensionHostResponse::ExecuteCommand(result)) => record_extension_result(
             &task,
+            None,
             result,
             task_runtime_state.inner(),
             extension_host_state.inner(),
@@ -436,6 +445,15 @@ pub async fn extension_capability_invoke(
         write_task_log(&failed, &message);
         return Err(message);
     }
+    let capability_contract = manifest_capability_by_id(manifest, &capability_id);
+    if let Some(contract) = capability_contract {
+        if let Err(error) = validate_capability_inputs(contract, &params.target) {
+            let failed = mark_task_failed(&task.id, &error)?;
+            task_runtime_state.emit_task_changed(&failed);
+            write_task_log(&failed, &error);
+            return Err(error);
+        }
+    }
 
     let envelope = build_extension_invocation_envelope(
         &task.id,
@@ -465,6 +483,7 @@ pub async fn extension_capability_invoke(
     match response {
         Ok(ExtensionHostResponse::InvokeCapability(result)) => record_extension_result(
             &task,
+            capability_contract,
             result,
             task_runtime_state.inner(),
             extension_host_state.inner(),
@@ -519,6 +538,9 @@ mod tests {
         capability_is_available_for_execution, command_is_available_for_execution,
         manifest_declares_capability, manifest_declares_command, normalize_artifacts,
     };
+    use crate::extension_capability_contract::{
+        manifest_capability_by_id, validate_capability_inputs, validate_capability_outputs,
+    };
     use crate::extension_artifacts::ExtensionArtifact;
     use crate::extension_host::{
         ExtensionHostActivationResult, ExtensionHostRegisteredCommand,
@@ -526,6 +548,7 @@ mod tests {
     use crate::extension_manifest::{
         parse_extension_manifest_str, ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
+    use crate::extension_tasks::ExtensionTaskTarget;
 
     fn manifest_from_json(value: serde_json::Value) -> ExtensionManifest {
         parse_extension_manifest_str(
@@ -710,5 +733,67 @@ mod tests {
 
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0].path, "/tmp/translated.pdf");
+    }
+
+    #[test]
+    fn capability_input_contract_rejects_wrong_target_path() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "capabilities": [{
+                    "id": "pdf.translate",
+                    "inputs": {
+                        "document": {
+                            "type": "workspaceFile",
+                            "required": true,
+                            "extensions": [".pdf"]
+                        }
+                    }
+                }]
+            }
+        }));
+        let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
+        let error = validate_capability_inputs(
+            capability,
+            &ExtensionTaskTarget {
+                kind: "workspace".to_string(),
+                reference_id: String::new(),
+                path: "/tmp/note.md".to_string(),
+            },
+        )
+        .expect_err("wrong extension should fail");
+
+        assert!(error.contains("Requires one of: .pdf"));
+    }
+
+    #[test]
+    fn capability_output_contract_requires_matching_artifact() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "capabilities": [{
+                    "id": "pdf.translate",
+                    "outputs": {
+                        "summary": {
+                            "type": "artifact",
+                            "mediaType": "text/plain",
+                            "required": true
+                        }
+                    }
+                }]
+            }
+        }));
+        let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
+        let error =
+            validate_capability_outputs(capability, &[]).expect_err("missing artifact should fail");
+
+        assert!(error.contains("summary"));
+        assert!(error.contains("text/plain"));
     }
 }

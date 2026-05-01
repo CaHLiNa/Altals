@@ -11,6 +11,7 @@ mod document_workspace_preview;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
 mod extension_artifacts;
+mod extension_capability_contract;
 mod extension_commands;
 mod extension_host;
 mod extension_manifest;

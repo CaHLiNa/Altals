@@ -1,10 +1,55 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 
 const extensions = new Map();
 const pendingUiRequests = new Map();
 const pendingHostCalls = new Map();
+
+function normalizeCapabilityExtensions(values = []) {
+  return Array.isArray(values)
+    ? values
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+        .map((value) => (value.startsWith(".") ? value : `.${value.replace(/^\.+/, "")}`))
+    : [];
+}
+
+function validateCapabilityInputDefinition(key = "", definition = {}, target = {}) {
+  const inputType = String(definition?.type || definition?.inputType || "").trim().toLowerCase();
+  const targetPath = String(target?.path || "").trim();
+  const referenceId = String(target?.referenceId || "").trim();
+  const targetExtension = targetPath ? path.extname(targetPath).toLowerCase() : "";
+  if (inputType === "workspacefile" || inputType === "artifact") {
+    if (!targetPath) {
+      throw new Error(`Capability input \`${key}\` is not satisfied: Requires an active file target`);
+    }
+    const allowedExtensions = normalizeCapabilityExtensions(definition?.extensions);
+    if (allowedExtensions.length > 0 && !allowedExtensions.includes(targetExtension)) {
+      throw new Error(`Capability input \`${key}\` is not satisfied: Requires one of: ${allowedExtensions.join(", ")}`);
+    }
+    return;
+  }
+  if (inputType === "reference") {
+    if (!referenceId) {
+      throw new Error(`Capability input \`${key}\` is not satisfied: Requires a selected reference`);
+    }
+    return;
+  }
+  if (!targetPath && !referenceId) {
+    throw new Error(`Capability input \`${key}\` is not satisfied: Missing required capability input`);
+  }
+}
+
+function validateCapabilityInputs(contract = {}, target = {}) {
+  const inputs = contract?.inputs && typeof contract.inputs === "object" ? contract.inputs : {};
+  for (const [key, definition] of Object.entries(inputs)) {
+    if (definition?.required === true) {
+      validateCapabilityInputDefinition(key, definition, target);
+    }
+  }
+}
 
 function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
@@ -426,9 +471,25 @@ function createExtensionApi(registry) {
         };
       },
       async invoke(capability, payload) {
-        const provider = registry.capabilities.get(String(capability || "").trim());
+        const capabilityId = String(capability || "").trim();
+        const provider = registry.capabilities.get(capabilityId);
         if (!provider) {
-          throw new Error(`No capability provider registered for ${capability}`);
+          throw new Error(`No capability provider registered for ${capabilityId}`);
+        }
+        const invocation = registry.lastInvocation || createInvocationContext(registry);
+        const mergedTarget = {
+          ...(invocation?.target || { kind: "", referenceId: "", path: "" }),
+          ...(payload && typeof payload === "object" && !Array.isArray(payload)
+            ? {
+                kind: String(payload?.targetKind || payload?.kind || invocation?.target?.kind || "").trim(),
+                referenceId: String(payload?.referenceId || invocation?.target?.referenceId || "").trim(),
+                path: String(payload?.targetPath || payload?.path || invocation?.target?.path || "").trim(),
+              }
+            : {}),
+        };
+        const contract = registry.capabilityContracts.get(capabilityId);
+        if (contract) {
+          validateCapabilityInputs(contract, mergedTarget);
         }
         return await provider(payload);
       },
@@ -863,6 +924,7 @@ async function ensureActivated(request) {
     commandMetadata: new Map(),
     menuActionMetadata: new Map(),
     capabilities: new Map(),
+    capabilityContracts: new Map(),
     viewProviders: new Map(),
     treeViews: new Map(),
     treeViewControllers: new Map(),
@@ -914,6 +976,20 @@ async function ensureActivated(request) {
   });
   await activate(context);
   record.subscriptions = context.subscriptions;
+  try {
+    const manifestContent = await readFile(manifestPath, "utf8");
+    const manifestJson = JSON.parse(manifestContent);
+    const capabilities = Array.isArray(manifestJson?.contributes?.capabilities)
+      ? manifestJson.contributes.capabilities
+      : [];
+    for (const capability of capabilities) {
+      const id = String(capability?.id || "").trim();
+      if (!id) continue;
+      record.capabilityContracts.set(id, capability);
+    }
+  } catch {
+    // Rust remains the source of truth. Host-level validation is a local mirror.
+  }
   extensions.set(extensionId, record);
   return record;
 }
