@@ -25,6 +25,12 @@
             {{ artifact.kind || t('Artifact') }}
           </button>
         </div>
+        <ExtensionResultPreview
+          v-if="activeArtifactEntry(task)"
+          :entry="activeArtifactEntry(task)"
+          :busy-action-key="artifactActionBusyKey"
+          @run-action="openArtifactEntry"
+        />
       </div>
       <div class="extension-task-actions">
         <UiButton
@@ -49,15 +55,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
+import ExtensionResultPreview from './ExtensionResultPreview.vue'
+import { buildExtensionArtifactPreviewEntries } from '../../services/extensions/extensionArtifactPreviewEntries'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const extensionsStore = useExtensionsStore()
+const artifactActionBusyKey = ref('')
+const activeArtifactEntryIds = ref({})
 const props = defineProps({
   extensionId: { type: String, default: '' },
 })
@@ -71,6 +81,37 @@ function openArtifact(artifact = {}) {
     return
   }
   void extensionsStore.openArtifact(artifact)
+}
+
+function artifactEntries(task = {}) {
+  return buildExtensionArtifactPreviewEntries(task.artifacts)
+}
+
+function activeArtifactEntry(task = {}) {
+  const entries = artifactEntries(task)
+  if (entries.length === 0) return null
+  const selectedId = activeArtifactEntryIds.value[String(task.id || '')]
+  return entries.find((entry) => entry.id === selectedId) || entries[0] || null
+}
+
+function artifactActionKey(entry = {}) {
+  return [
+    String(entry?.id || '').trim(),
+    String(entry?.action || '').trim().toLowerCase(),
+    String(entry?.path || '').trim(),
+  ].join('::')
+}
+
+async function openArtifactEntry(entry = {}) {
+  const busyKey = artifactActionKey(entry)
+  artifactActionBusyKey.value = busyKey
+  try {
+    await extensionsStore.runResultEntryAction(entry, {})
+  } finally {
+    if (artifactActionBusyKey.value === busyKey) {
+      artifactActionBusyKey.value = ''
+    }
+  }
 }
 
 function taskTitle(task = {}) {
