@@ -26,18 +26,30 @@
             @keydown="handleQuickPickKeydown"
           />
         </div>
-        <div class="extension-window-prompt__list" role="listbox">
+        <div
+          class="extension-window-prompt__list"
+          role="listbox"
+          :aria-multiselectable="supportsMultiSelect ? 'true' : 'false'"
+        >
           <button
             v-for="(item, index) in filteredItems"
             :key="item.id"
             type="button"
             class="extension-window-prompt__item"
-            :class="{ 'is-active': index === activeIndex }"
+            :class="{ 'is-active': index === activeIndex, 'is-selected': isItemSelected(item.id) }"
+            :aria-selected="supportsMultiSelect ? String(isItemSelected(item.id)) : String(index === activeIndex)"
             :disabled="busy"
             @mouseenter="activeIndex = index"
-            @mousedown.prevent="submitQuickPick(item)"
+            @mousedown.prevent="handleQuickPickPointer(item)"
           >
             <div class="extension-window-prompt__item-main">
+              <span
+                v-if="supportsMultiSelect"
+                class="extension-window-prompt__item-check"
+                aria-hidden="true"
+              >
+                {{ isItemSelected(item.id) ? '✓' : '' }}
+              </span>
               <span class="extension-window-prompt__item-label">{{ item.label }}</span>
               <span v-if="item.description" class="extension-window-prompt__item-description">{{ item.description }}</span>
             </div>
@@ -82,6 +94,12 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import {
+  isQuickPickItemSelected,
+  resolveQuickPickSubmission,
+  seedQuickPickSelection,
+  toggleQuickPickSelection,
+} from '../../domains/extensions/extensionWindowPromptState.js'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
 
@@ -98,8 +116,10 @@ const inputRef = ref(null)
 const query = ref('')
 const inputValue = ref('')
 const activeIndex = ref(0)
+const selectedItemIds = ref([])
 
 const isQuickPick = computed(() => String(props.request?.kind || '') === 'quickPick')
+const supportsMultiSelect = computed(() => isQuickPick.value && Boolean(props.request?.canPickMany))
 const placeholderText = computed(() => props.request?.placeholder || t('Type to filter'))
 const titleText = computed(() => props.request?.title || (isQuickPick.value ? t('Select item') : t('Input required')))
 const subtitleText = computed(() => props.request?.extensionId || '')
@@ -117,7 +137,9 @@ const filteredItems = computed(() => {
 })
 const confirmDisabled = computed(() =>
   isQuickPick.value
-    ? filteredItems.value.length === 0
+    ? supportsMultiSelect.value
+      ? selectedItemIds.value.length === 0
+      : filteredItems.value.length === 0
     : String(inputValue.value || '').trim().length === 0
 )
 
@@ -128,6 +150,7 @@ watch(
     query.value = ''
     inputValue.value = String(props.request?.value || '')
     activeIndex.value = 0
+    selectedItemIds.value = seedQuickPickSelection(props.request?.items)
     await nextTick()
     inputRef.value?.focus?.()
   }
@@ -151,9 +174,39 @@ function move(delta) {
 }
 
 function submitQuickPick(item = null) {
-  const target = item || filteredItems.value[activeIndex.value]
-  if (!target || props.busy) return
-  emit('submit', target.value)
+  if (props.busy) return
+  const result = resolveQuickPickSubmission({
+    requestItems: props.request?.items,
+    filteredItems: filteredItems.value,
+    activeIndex: activeIndex.value,
+    selectedItemIds: selectedItemIds.value,
+    canPickMany: supportsMultiSelect.value,
+    explicitItem: item,
+  })
+  if (supportsMultiSelect.value) {
+    if (!Array.isArray(result) || result.length === 0) return
+    emit('submit', result)
+    return
+  }
+  if (typeof result === 'undefined') return
+  emit('submit', result)
+}
+
+function toggleSelectedItem(itemId = '') {
+  selectedItemIds.value = toggleQuickPickSelection(selectedItemIds.value, itemId)
+}
+
+function isItemSelected(itemId = '') {
+  return isQuickPickItemSelected(selectedItemIds.value, itemId)
+}
+
+function handleQuickPickPointer(item = null) {
+  if (!item || props.busy) return
+  if (supportsMultiSelect.value) {
+    toggleSelectedItem(item.id)
+    return
+  }
+  submitQuickPick(item)
 }
 
 function submitInputBox() {
@@ -178,6 +231,14 @@ function handleQuickPickKeydown(event) {
     move(-1)
   } else if (event.key === 'Enter') {
     event.preventDefault()
+    if (supportsMultiSelect.value) {
+      const target = filteredItems.value[activeIndex.value]
+      if (!target) return
+      if (selectedItemIds.value.length === 0 || !isItemSelected(target.id)) {
+        toggleSelectedItem(target.id)
+        return
+      }
+    }
     submitQuickPick()
   } else if (event.key === 'Escape') {
     event.preventDefault()
@@ -290,7 +351,8 @@ function handleInputBoxKeydown(event) {
 }
 
 .extension-window-prompt__item:hover,
-.extension-window-prompt__item.is-active {
+.extension-window-prompt__item.is-active,
+.extension-window-prompt__item.is-selected {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface-hover));
 }
 
@@ -299,6 +361,15 @@ function handleInputBoxKeydown(event) {
   display: flex;
   gap: 8px;
   align-items: baseline;
+}
+
+.extension-window-prompt__item-check {
+  width: 16px;
+  min-width: 16px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .extension-window-prompt__item-label {
