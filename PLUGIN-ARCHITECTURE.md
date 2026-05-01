@@ -196,6 +196,7 @@ Plugin settings remain declared in manifest schema so the host can render a sett
 But settings behavior should still be runtime-oriented:
 
 - manifest defines the keys and defaults
+- manifest schema may mark secret fields with `secureStorage: true` so the host stores them in keychain-backed storage instead of plain `extension-settings.json`
 - runtime reads resolved values from host APIs
 - plugin logic interprets settings locally
 
@@ -215,7 +216,7 @@ Translation-oriented boundary:
 - provider defaults and non-secret knobs may live in host-managed plugin settings
 - runtime task execution, progress, result summary and artifact links belong in the document right sidebar
 - external OCR / LLM work should fit either a sidecar process or another local worker behind `context.process`
-- password-like plugin settings should use secure host-managed storage before secrets are treated as first-class settings
+- password-like plugin settings declared with `secureStorage: true` already use secure host-managed storage, and legacy plaintext values are migrated on load
 
 ## 11. Current Compatibility Rule
 

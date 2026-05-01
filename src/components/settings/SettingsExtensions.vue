@@ -81,6 +81,10 @@
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
                   <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
                 </div>
+                <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Secure Settings') }}</span>
+                  <span class="extension-meta-value">{{ secureSettingSummary(extension) }}</span>
+                </div>
               </div>
               <div v-if="runtimeReason(extension)" class="extension-meta-list">
                 <span class="extension-meta-label">{{ t('Runtime Activation') }}</span>
@@ -142,7 +146,12 @@
                   class="extension-setting-row"
                 >
                   <div class="extension-setting-copy">
-                    <div class="extension-setting-label">{{ t(setting.label || humanizeSettingKey(key)) }}</div>
+                    <div class="extension-setting-label-row">
+                      <div class="extension-setting-label">{{ t(setting.label || humanizeSettingKey(key)) }}</div>
+                      <span v-if="setting.secureStorage === true" class="extension-setting-badge">
+                        {{ t('Keychain') }}
+                      </span>
+                    </div>
                     <div v-if="setting.description" class="extension-setting-hint">
                       {{ t(setting.description) }}
                     </div>
@@ -273,6 +282,14 @@ function permissionSummary(extension = {}) {
   if (permissions.readReferenceLibrary) labels.push(t('reference library'))
   if (permissions.spawnProcess) labels.push(t('local process'))
   return labels.join(' · ')
+}
+
+function secureSettingSummary(extension = {}) {
+  const entries = Object.entries(extension.settingsSchema || {})
+    .filter(([, setting]) => setting?.secureStorage === true)
+    .map(([key, setting]) => t(setting?.label || humanizeSettingKey(key)))
+  if (!entries.length) return t('No secure settings')
+  return entries.join(' · ')
 }
 
 function commandSummary(extension = {}) {
@@ -706,9 +723,29 @@ onMounted(async () => {
   flex: 1 1 auto;
 }
 
+.extension-setting-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .extension-setting-label {
   font-size: 12px;
   color: var(--text-primary);
+}
+
+.extension-setting-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 12%, var(--surface-raised));
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .extension-setting-hint {

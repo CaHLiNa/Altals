@@ -313,7 +313,7 @@ Tasks:
 - decide the boundary between plugin runtime and sidecar worker
 - define plugin settings for provider defaults and non-secret configuration
 - define how task state and output PDF links show up in the right sidebar
-- decide whether secure credential storage must be added before production use
+- declare API keys and tokens with `secureStorage: true` so secure host-managed keychain storage remains the production credential path
 
 Primary files:
 

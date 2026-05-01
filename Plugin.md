@@ -149,7 +149,7 @@ For a future PDF translation plugin such as `retain-pdf`, the current platform b
 - Settings stores provider defaults and non-secret configuration
 - the document right sidebar hosts task state, source context, result summary, and artifact entry points
 - plugin runtime may orchestrate work through `context.process` when a sidecar or local worker is needed
-- password-like plugin settings are now redirected into secure host-managed storage instead of plain extension settings files
+- password-like plugin settings declared with `secureStorage: true` are redirected into secure host-managed storage instead of plain extension settings files, with legacy plaintext values migrated during load
 
 Current production-oriented guidance:
 
