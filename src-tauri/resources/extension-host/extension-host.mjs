@@ -162,6 +162,13 @@ function normalizeSettingsObject(value) {
   return value;
 }
 
+function canReadPdfContent(registry) {
+  return Boolean(
+    registry.permissions?.readWorkspaceFiles ||
+      registry.permissions?.readReferenceLibrary,
+  );
+}
+
 function normalizeArtifactEntries(entries = [], envelope = {}) {
   const taskId = String(envelope?.taskId || "").trim();
   const extensionId = String(envelope?.extensionId || "").trim();
@@ -699,6 +706,9 @@ function createExtensionApi(registry) {
         };
       },
       async readCurrentLibrary() {
+        if (!registry.permissions?.readReferenceLibrary) {
+          throw new Error(`Extension ${registry.id} is not allowed to read the reference library`);
+        }
         const result = await requestHostCall(registry, "references.readCurrentLibrary", {});
         return result && typeof result === "object" ? result : {};
       },
@@ -716,6 +726,9 @@ function createExtensionApi(registry) {
         };
       },
       async extractText(filePath = "") {
+        if (!canReadPdfContent(registry)) {
+          throw new Error(`Extension ${registry.id} is not allowed to inspect PDF content`);
+        }
         const normalizedPath = String(filePath || registry.lastInvocation?.resource?.path || "").trim();
         if (!normalizedPath) {
           throw new Error("PDF file path is required");
@@ -725,6 +738,9 @@ function createExtensionApi(registry) {
         });
       },
       async extractMetadata(filePath = "") {
+        if (!canReadPdfContent(registry)) {
+          throw new Error(`Extension ${registry.id} is not allowed to inspect PDF content`);
+        }
         const normalizedPath = String(filePath || registry.lastInvocation?.resource?.path || "").trim();
         if (!normalizedPath) {
           throw new Error("PDF file path is required");
@@ -857,6 +873,8 @@ async function ensureActivated(request) {
     changedViews: new Set(),
     currentWorkspaceRoot: "",
     permissions: {
+      readWorkspaceFiles: Boolean(request.permissions?.readWorkspaceFiles),
+      readReferenceLibrary: Boolean(request.permissions?.readReferenceLibrary),
       spawnProcess: Boolean(request.permissions?.spawnProcess),
     },
     settings: new Map(),

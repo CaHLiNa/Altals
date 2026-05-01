@@ -1,10 +1,18 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const repoRoot = process.cwd();
 const hostPath = path.join(repoRoot, "src-tauri/resources/extension-host/extension-host.mjs");
 const extensionPath = path.join(repoRoot, ".scribeflow/extensions/example-pdf-extension");
 const manifestPath = path.join(extensionPath, "package.json");
+
+async function readManifestPermissions() {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  return manifest && typeof manifest.permissions === "object" && !Array.isArray(manifest.permissions)
+    ? manifest.permissions
+    : {};
+}
 
 const child = spawn("node", [hostPath], {
   cwd: repoRoot,
@@ -190,18 +198,11 @@ setTimeout(() => {
 }, 8000);
 
 async function main() {
+  const permissions = await readManifestPermissions();
   const activationState = {
     settings: { "examplePdfExtension.targetLang": "zh-CN" },
     globalState: {},
     workspaceState: {},
-  };
-  const permissions = {
-    readWorkspaceFiles: true,
-    readReferenceLibrary: true,
-    writeArtifacts: true,
-    writeReferenceMetadata: false,
-    spawnProcess: true,
-    network: "none",
   };
   const baseEnvelope = {
     taskId: "task",
@@ -347,6 +348,7 @@ async function main() {
   const summary = {
     runtimeCommands,
     runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
+    manifestPermissions: permissions,
     runtimeOnlyTaskState: runtimeOnly?.payload?.taskState || "",
     processTaskState: processApis?.payload?.taskState || "",
     translateTaskState: translate?.payload?.taskState || "",
@@ -364,7 +366,11 @@ async function main() {
   };
 
   ensure(runtimeCommands.includes("examplePdfExtension.captureContext"), "runtime-only command was not registered", summary);
+  ensure(runtimeCommands.includes("examplePdfExtension.inspectPdfApi"), "pdf inspection command was not registered", summary);
   ensure(runtimeCommands.includes("examplePdfExtension.inspectProcessApi"), "process inspection command was not registered", summary);
+  ensure(permissions.readWorkspaceFiles === true, "manifest no longer grants workspace PDF access", summary);
+  ensure(permissions.readReferenceLibrary === true, "manifest no longer grants reference library access", summary);
+  ensure(permissions.spawnProcess === true, "manifest no longer grants process access", summary);
   ensure(runtimeOnly?.payload?.accepted === true, "runtime-only command was not accepted", summary);
   ensure(runtimeOnly?.payload?.taskState === "succeeded", "runtime-only command did not succeed", summary);
   ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);

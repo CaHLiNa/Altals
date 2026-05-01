@@ -418,6 +418,38 @@ export async function activate(context) {
     category: "PDF",
   })
 
+  context.commands.registerCommand("examplePdfExtension.inspectPdfApi", async () => {
+    const pdf = currentPdf()
+    const candidatePdfPath = String(
+      pdf.path ||
+      currentDocumentTarget().path ||
+      currentResource().path ||
+      "",
+    )
+    const metadata = candidatePdfPath ? await context.pdf.extractMetadata(candidatePdfPath) : {}
+    updateSidebarView({
+      description: context.workspace?.hasWorkspace
+        ? `Workspace PDF tools · launched ${launchCount} times`
+        : `PDF tools · launched ${launchCount} times`,
+      message: metadata?.metadata?.title
+        ? `PDF API: title:${metadata.metadata.title}`
+        : "PDF API: metadata unavailable",
+      statusLabel: "PDF Ready",
+      statusTone: "success",
+      actionLabel: "PDF metadata is available to this plugin",
+      targetPath: candidatePdfPath,
+      providerStatus: metadata?.metadata?.title ? "Metadata resolved" : "Metadata unavailable",
+    })
+    context.views.refresh("examplePdfExtension.translateView")
+    return {
+      message: "example-pdf-extension inspected pdf api",
+      progressLabel: "PDF API inspected",
+    }
+  }, {
+    title: "Inspect PDF API",
+    category: "PDF",
+  })
+
   context.commands.registerCommand("examplePdfExtension.inspectProcessApi", async () => {
     const result = await context.process.spawn("node", {
       args: ["-e", "setTimeout(() => process.exit(0), 25)"],

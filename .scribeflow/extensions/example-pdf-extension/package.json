@@ -95,6 +95,7 @@
   },
   "permissions": {
     "readWorkspaceFiles": true,
+    "readReferenceLibrary": true,
     "spawnProcess": true
   }
 }
