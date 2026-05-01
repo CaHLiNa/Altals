@@ -263,12 +263,17 @@ pub fn mark_task_running(task_id: &str) -> Result<ExtensionTask, String> {
 pub fn mark_task_succeeded(
     task_id: &str,
     artifacts: Vec<ExtensionArtifact>,
+    progress_label: &str,
 ) -> Result<ExtensionTask, String> {
     update_task(task_id, |task| {
         task.state = "succeeded".to_string();
         task.finished_at = now_string();
         task.progress = ExtensionTaskProgress {
-            label: "Completed".to_string(),
+            label: if progress_label.trim().is_empty() {
+                "Completed".to_string()
+            } else {
+                progress_label.trim().to_string()
+            },
             current: 1,
             total: 1,
         };

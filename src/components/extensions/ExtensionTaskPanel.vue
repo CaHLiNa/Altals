@@ -4,12 +4,15 @@
     <div v-for="task in tasks" :key="task.id" class="extension-task-row">
       <div class="extension-task-main">
         <div class="extension-task-title">
-          <span>{{ task.commandId || task.capability }}</span>
-          <span class="extension-task-state" :class="`is-${task.state}`">{{ task.state }}</span>
+          <span>{{ taskTitle(task) }}</span>
+          <span class="extension-task-state" :class="`is-${task.state}`">{{ taskStateLabel(task) }}</span>
         </div>
         <div class="extension-task-meta">
-          {{ task.extensionId || t('Unknown extension') }}
+          {{ taskMeta(task) }}
           <span v-if="task.error"> · {{ task.error }}</span>
+        </div>
+        <div v-if="taskProgressSummary(task)" class="extension-task-progress">
+          {{ taskProgressSummary(task) }}
         </div>
         <div v-if="task.artifacts?.length" class="extension-artifacts">
           <button
@@ -68,6 +71,39 @@ function openArtifact(artifact = {}) {
     return
   }
   void extensionsStore.openArtifact(artifact)
+}
+
+function taskTitle(task = {}) {
+  return String(task.commandId || task.capability || t('Extension task'))
+}
+
+function taskStateLabel(task = {}) {
+  return String(task?.progress?.label || task?.state || '').trim() || t('Completed')
+}
+
+function taskTargetLabel(task = {}) {
+  const target = task?.target || {}
+  if (target.path) return target.path
+  if (target.referenceId) return `ref:${target.referenceId}`
+  if (target.kind) return target.kind
+  return ''
+}
+
+function taskMeta(task = {}) {
+  const parts = [String(task.extensionId || t('Unknown extension')).trim()]
+  const targetLabel = taskTargetLabel(task)
+  if (targetLabel) parts.push(targetLabel)
+  return parts.filter(Boolean).join(' · ')
+}
+
+function taskProgressSummary(task = {}) {
+  const label = String(task?.progress?.label || '').trim()
+  const current = Number(task?.progress?.current || 0)
+  const total = Number(task?.progress?.total || 0)
+  if (total > 0) {
+    return `${label || t('Progress')}: ${current}/${total}`
+  }
+  return label && label !== taskStateLabel(task) ? label : ''
 }
 </script>
 
@@ -129,6 +165,11 @@ function openArtifact(artifact = {}) {
   font-size: 12px;
   color: var(--text-secondary);
   overflow-wrap: anywhere;
+}
+
+.extension-task-progress {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .extension-artifacts {

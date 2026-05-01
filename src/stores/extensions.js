@@ -97,8 +97,17 @@ function normalizeTask(task = {}) {
     capability: normalizeCapability(task.capability),
     commandId: String(task.commandId || ''),
     state: String(task.state || ''),
+    progress: task?.progress && typeof task.progress === 'object'
+      ? {
+          label: String(task.progress.label || ''),
+          current: Number.isFinite(Number(task.progress.current)) ? Number(task.progress.current) : 0,
+          total: Number.isFinite(Number(task.progress.total)) ? Number(task.progress.total) : 0,
+        }
+      : { label: '', current: 0, total: 0 },
+    target: normalizeTarget(task?.target || {}),
     artifacts: Array.isArray(task.artifacts) ? task.artifacts : [],
     error: String(task.error || ''),
+    logPath: String(task.logPath || task.log_path || ''),
   }
 }
 

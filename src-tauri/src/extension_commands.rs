@@ -202,7 +202,7 @@ pub async fn extension_command_execute(
     match response {
         Ok(ExtensionHostResponse::ExecuteCommand(result)) => {
             let artifacts = normalize_artifacts(result.artifacts);
-            let completed = mark_task_succeeded(&task.id, artifacts)
+            let completed = mark_task_succeeded(&task.id, artifacts, &result.progress_label)
                 .map_err(|error| format!("Failed to record extension result: {error}"))?;
             write_task_log(&completed, &result.message);
             let task = get_task(&task.id)?;
