@@ -1372,9 +1372,6 @@ fn handle_extension_host_process_call(
                         .and_then(|value| value.trim().parse::<u64>().ok())
                 })
                 .ok_or_else(|| "Process pid is required for process.wait".to_string())?;
-            if let Some(runtime_state) = task_runtime_state {
-                let _ = runtime_state.unregister_pid(&task_id);
-            }
             wait_for_spawned_process(state, pid as u32)?
         }
         other => {
