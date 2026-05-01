@@ -50,6 +50,8 @@ pub struct ExtensionSettingsLoadResult {
 pub struct ExtensionSettingsLoadParams {
     #[serde(default)]
     pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -57,6 +59,8 @@ pub struct ExtensionSettingsLoadParams {
 pub struct ExtensionSettingsSaveParams {
     #[serde(default)]
     pub global_config_dir: String,
+    #[serde(default)]
+    pub workspace_root: String,
     #[serde(default)]
     pub settings: ExtensionSettings,
 }
@@ -76,6 +80,7 @@ fn is_secret_setting_key(key: &str) -> bool {
 
 fn secure_storage_keys_for_extension(
     global_config_dir: &str,
+    workspace_root: &str,
     extension_id: &str,
 ) -> Result<Vec<String>, String> {
     let mut keys = Vec::new();
@@ -84,7 +89,7 @@ fn secure_storage_keys_for_extension(
         return Ok(keys);
     }
 
-    if let Ok(entry) = find_extension_entry(global_config_dir, "", &normalized_extension_id) {
+    if let Ok(entry) = find_extension_entry(global_config_dir, workspace_root, &normalized_extension_id) {
         if let Some(manifest) = entry.manifest.as_ref() {
             for (key, definition) in &manifest.contributes.configuration.properties {
                 if definition.secure_storage {
@@ -112,10 +117,11 @@ fn extension_secret_storage_key(extension_id: &str, key: &str) -> String {
 
 fn secret_keys_for_config(
     global_config_dir: &str,
+    workspace_root: &str,
     extension_id: &str,
     config: &serde_json::Map<String, Value>,
 ) -> Result<Vec<String>, String> {
-    let declared = secure_storage_keys_for_extension(global_config_dir, extension_id)?;
+    let declared = secure_storage_keys_for_extension(global_config_dir, workspace_root, extension_id)?;
     let mut keys = declared
         .into_iter()
         .filter(|key| config.contains_key(key))
@@ -133,13 +139,14 @@ fn secret_keys_for_config(
 
 fn redact_secret_settings_for_disk(
     global_config_dir: &str,
+    workspace_root: &str,
     settings: &mut ExtensionSettings,
 ) -> Result<(), String> {
     for (extension_id, config) in &mut settings.extension_config {
         let Some(config_map) = config.as_object_mut() else {
             continue;
         };
-        let secret_keys = secret_keys_for_config(global_config_dir, extension_id, config_map)?;
+        let secret_keys = secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
         for key in secret_keys {
             let value = config_map.get(&key).cloned().unwrap_or(Value::Null);
             let normalized_value = match value {
@@ -162,6 +169,7 @@ fn redact_secret_settings_for_disk(
 
 fn hydrate_secret_settings_from_keychain(
     global_config_dir: &str,
+    workspace_root: &str,
     settings: &mut ExtensionSettings,
 ) -> Result<(), String> {
     for (extension_id, config) in &mut settings.extension_config {
@@ -169,7 +177,7 @@ fn hydrate_secret_settings_from_keychain(
             Value::Object(map) => map,
             _ => continue,
         };
-        let secret_keys = secret_keys_for_config(global_config_dir, extension_id, config_map)?;
+        let secret_keys = secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
         for key in secret_keys {
             let storage_key = extension_secret_storage_key(extension_id, &key);
             if let Some(value) = keychain::keychain_get_entry(&storage_key)? {
@@ -266,7 +274,10 @@ fn normalize_runtime_state_store(store: ExtensionRuntimeStateStore) -> Extension
     }
 }
 
-pub fn load_extension_settings(global_config_dir: &str) -> Result<ExtensionSettings, String> {
+pub fn load_extension_settings(
+    global_config_dir: &str,
+    workspace_root: &str,
+) -> Result<ExtensionSettings, String> {
     let path = settings_file(global_config_dir)?;
     if !path.exists() {
         return Ok(ExtensionSettings::default());
@@ -275,16 +286,17 @@ pub fn load_extension_settings(global_config_dir: &str) -> Result<ExtensionSetti
     let parsed = serde_json::from_str::<ExtensionSettings>(&content)
         .map_err(|error| format!("Failed to parse extension settings: {error}"))?;
     let mut normalized = normalize_settings(parsed);
-    hydrate_secret_settings_from_keychain(global_config_dir, &mut normalized)?;
+    hydrate_secret_settings_from_keychain(global_config_dir, workspace_root, &mut normalized)?;
     Ok(normalized)
 }
 
 pub fn load_extension_settings_with_state(
     global_config_dir: &str,
+    workspace_root: &str,
 ) -> Result<ExtensionSettingsLoadResult, String> {
     let path = settings_file(global_config_dir)?;
     let settings_exists = path.exists();
-    let settings = load_extension_settings(global_config_dir)?;
+    let settings = load_extension_settings(global_config_dir, workspace_root)?;
     Ok(ExtensionSettingsLoadResult {
         settings,
         settings_exists,
@@ -293,10 +305,11 @@ pub fn load_extension_settings_with_state(
 
 pub fn save_extension_settings(
     global_config_dir: &str,
+    workspace_root: &str,
     settings: ExtensionSettings,
 ) -> Result<ExtensionSettings, String> {
     let mut normalized = normalize_settings(settings);
-    redact_secret_settings_for_disk(global_config_dir, &mut normalized)?;
+    redact_secret_settings_for_disk(global_config_dir, workspace_root, &mut normalized)?;
     let path = settings_file(global_config_dir)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -305,7 +318,7 @@ pub fn save_extension_settings(
         .map_err(|error| format!("Failed to serialize extension settings: {error}"))?;
     fs::write(path, serialized).map_err(|error| error.to_string())?;
     let mut hydrated = normalized;
-    hydrate_secret_settings_from_keychain(global_config_dir, &mut hydrated)?;
+    hydrate_secret_settings_from_keychain(global_config_dir, workspace_root, &mut hydrated)?;
     Ok(hydrated)
 }
 
@@ -395,14 +408,14 @@ pub fn save_extension_runtime_state_snapshot(
 pub async fn extension_settings_load(
     params: ExtensionSettingsLoadParams,
 ) -> Result<ExtensionSettingsLoadResult, String> {
-    load_extension_settings_with_state(&params.global_config_dir)
+    load_extension_settings_with_state(&params.global_config_dir, &params.workspace_root)
 }
 
 #[tauri::command]
 pub async fn extension_settings_save(
     params: ExtensionSettingsSaveParams,
 ) -> Result<ExtensionSettings, String> {
-    save_extension_settings(&params.global_config_dir, params.settings)
+    save_extension_settings(&params.global_config_dir, &params.workspace_root, params.settings)
 }
 
 #[cfg(test)]
@@ -462,6 +475,7 @@ mod tests {
         );
         let saved = save_extension_settings(
             &root.to_string_lossy(),
+            "",
             ExtensionSettings {
                 enabled_extension_ids: vec![
                     " Example-Pdf-Extension ".to_string(),
@@ -480,7 +494,7 @@ mod tests {
             Some(&serde_json::json!({"targetLang": "zh-CN"}))
         );
         assert_eq!(
-            load_extension_settings(&root.to_string_lossy()).expect("load"),
+            load_extension_settings(&root.to_string_lossy(), "").expect("load"),
             saved
         );
         fs::remove_dir_all(root).ok();
@@ -492,7 +506,7 @@ mod tests {
             "scribeflow-extension-settings-missing-{}",
             uuid::Uuid::new_v4()
         ));
-        let loaded = load_extension_settings_with_state(&root.to_string_lossy()).expect("load");
+        let loaded = load_extension_settings_with_state(&root.to_string_lossy(), "").expect("load");
         assert!(!loaded.settings_exists);
         assert!(loaded.settings.enabled_extension_ids.is_empty());
         fs::remove_dir_all(root).ok();
@@ -553,6 +567,7 @@ mod tests {
 
         let saved = save_extension_settings(
             &root.to_string_lossy(),
+            "",
             ExtensionSettings {
                 enabled_extension_ids: vec!["example-pdf-extension".to_string()],
                 extension_config,
@@ -604,7 +619,7 @@ mod tests {
             Some("opaque-secret".to_string())
         );
 
-        let loaded = load_extension_settings(&root.to_string_lossy()).expect("load");
+        let loaded = load_extension_settings(&root.to_string_lossy(), "").expect("load");
         assert_eq!(
             loaded.extension_config.get("example-pdf-extension"),
             Some(&serde_json::json!({

@@ -639,7 +639,7 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!force && this.settingsHydrated) return this.snapshotSettings()
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
-      const settings = await loadExtensionSettings(globalConfigDir)
+      const settings = await loadExtensionSettings(globalConfigDir, workspace.path || '')
       this.enabledExtensionIds = Array.isArray(settings?.enabledExtensionIds)
         ? settings.enabledExtensionIds.map(normalizeExtensionId).filter(Boolean)
         : []
@@ -658,7 +658,7 @@ export const useExtensionsStore = defineStore('extensions', {
         ...this.snapshotSettings(),
         ...patch,
       }
-      const saved = await saveExtensionSettings(globalConfigDir, next)
+      const saved = await saveExtensionSettings(globalConfigDir, workspace.path || '', next)
       this.enabledExtensionIds = Array.isArray(saved?.enabledExtensionIds)
         ? saved.enabledExtensionIds.map(normalizeExtensionId).filter(Boolean)
         : []

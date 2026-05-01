@@ -726,7 +726,7 @@ pub fn activate_extension(
     }
 
     let extension_path = resolve_extension_path(entry)?;
-    let extension_settings = load_extension_settings(global_config_dir)?
+    let extension_settings = load_extension_settings(global_config_dir, workspace_root)?
         .extension_config
         .get(&entry.id)
         .cloned()

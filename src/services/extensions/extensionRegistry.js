@@ -16,18 +16,20 @@ export async function validateExtensionManifest(manifest = {}) {
   })
 }
 
-export async function loadExtensionSettings(globalConfigDir = '') {
+export async function loadExtensionSettings(globalConfigDir = '', workspaceRoot = '') {
   return invoke('extension_settings_load', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
+      workspaceRoot: String(workspaceRoot || ''),
     },
   })
 }
 
-export async function saveExtensionSettings(globalConfigDir = '', settings = {}) {
+export async function saveExtensionSettings(globalConfigDir = '', workspaceRoot = '', settings = {}) {
   return invoke('extension_settings_save', {
     params: {
       globalConfigDir: String(globalConfigDir || ''),
+      workspaceRoot: String(workspaceRoot || ''),
       settings,
     },
   })
