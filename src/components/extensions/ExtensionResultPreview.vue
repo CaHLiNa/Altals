@@ -31,6 +31,24 @@
       <ImagePreviewPane :file-path="previewPath" />
     </div>
 
+    <div v-else-if="isHtmlPreview" class="extension-result-preview__body">
+      <iframe
+        v-if="htmlPreviewContent"
+        class="extension-result-preview__html-frame"
+        :srcdoc="htmlPreviewContent"
+        sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+        referrerpolicy="no-referrer"
+      ></iframe>
+      <HtmlPreviewPane v-else :file-path="previewPath" />
+    </div>
+
+    <div v-else-if="isTextPreview" class="extension-result-preview__body extension-result-preview__body--text">
+      <div v-if="textPreviewLoading" class="extension-result-preview__empty">
+        {{ t('Loading text preview...') }}
+      </div>
+      <pre v-else class="extension-result-preview__text">{{ textPreviewContent }}</pre>
+    </div>
+
     <div v-else class="extension-result-preview__empty">
       {{ t('Preview unavailable for this result entry.') }}
     </div>
@@ -38,12 +56,14 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
+import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
 const ImagePreviewPane = defineAsyncComponent(() => import('../editor/ImagePreviewPane.vue'))
+const HtmlPreviewPane = defineAsyncComponent(() => import('../editor/HtmlPreviewPane.vue'))
 
 const props = defineProps({
   entry: { type: Object, default: null },
@@ -59,6 +79,9 @@ const previewTitle = computed(() =>
   String(props.entry?.previewTitle || props.entry?.label || t('Result Preview'))
 )
 const hasOpenAction = computed(() => Boolean(props.entry?.path || props.entry?.previewPath))
+const textPreviewLoading = ref(false)
+const textPreviewContent = ref('')
+const htmlPreviewContent = computed(() => String(props.entry?.payload?.html || '').trim())
 
 const isPdfPreview = computed(() =>
   previewMode.value === 'pdf' ||
@@ -70,6 +93,39 @@ const isImagePreview = computed(() =>
   previewMode.value === 'image' ||
   /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(previewPath.value)
 )
+
+const isHtmlPreview = computed(() =>
+  previewMode.value === 'html' ||
+  /\.html?$/i.test(previewPath.value)
+)
+
+const isTextPreview = computed(() =>
+  previewMode.value === 'text' ||
+  /\.(txt|md|markdown|json|log|csv|tex|py|bib)$/i.test(previewPath.value)
+)
+
+async function loadTextPreview() {
+  textPreviewContent.value = String(props.entry?.payload?.text || '')
+  if (!isTextPreview.value) return
+  if (textPreviewContent.value) return
+  if (!previewPath.value) return
+  textPreviewLoading.value = true
+  try {
+    textPreviewContent.value = await readWorkspaceTextFile(previewPath.value, 4000)
+  } catch (error) {
+    textPreviewContent.value = error?.message || String(error || 'Preview failed.')
+  } finally {
+    textPreviewLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadTextPreview()
+})
+
+watch([previewPath, previewMode], () => {
+  void loadTextPreview()
+})
 </script>
 
 <style scoped>
@@ -121,11 +177,38 @@ const isImagePreview = computed(() =>
   border-radius: 8px;
 }
 
+.extension-result-preview__body--text {
+  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  background: color-mix(in srgb, var(--surface-base) 90%, transparent);
+}
+
 .extension-result-preview__body :deep(.pdf-artifact-preview-host),
-.extension-result-preview__body :deep(.image-preview-root) {
+.extension-result-preview__body :deep(.image-preview-root),
+.extension-result-preview__body :deep(.html-preview-root) {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.extension-result-preview__html-frame {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: white;
+}
+
+.extension-result-preview__text {
+  margin: 0;
+  width: 100%;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .extension-result-preview__empty {

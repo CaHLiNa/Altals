@@ -279,6 +279,7 @@ async function main() {
           targetPath: entry.targetPath || "",
           previewMode: entry.previewMode || "",
           previewPath: entry.previewPath || "",
+          previewTitle: entry.previewTitle || "",
           payloadKeys: entry.payload ? Object.keys(entry.payload) : [],
         })),
         richSidebarState: observed.find(
