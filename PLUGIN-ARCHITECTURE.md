@@ -119,6 +119,12 @@ Quick input contract note:
 - `context.window.showInformationMessage(...)`, `showWarningMessage(...)`, and `showErrorMessage(...)` must preserve severity semantics through the host event bridge
 - `context.window.showInputBox(...)` must preserve request fields (`title`, `prompt`, `placeholder`, `value`, `password`) and keep cancel distinct from confirmed text entry
 
+Tree-view controller contract note:
+
+- `context.views.createTreeView(...).onDidChangeSelection(...)` should receive the runtime tree elements that were resolved for the selected handles, not only frontend-normalized labels
+- selection events should preserve selected handles alongside the element payload so plugin runtime code can correlate state without re-resolving the tree
+- controller `reveal(...)` should emit root-to-leaf `parentHandles` ordering and preserve both default and explicit `focus`, `select`, and `expand` semantics
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:
@@ -251,7 +257,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule

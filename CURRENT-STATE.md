@@ -81,6 +81,7 @@ Current plugin lifecycle contract:
 - direct host deactivation is now probe-backed: `Activate -> Deactivate -> Reactivate` succeeds and plugin `deactivate()` state can be observed
 - host-process crash recovery is now probe-backed: a crashing command tears down the dead process handle, and the next host request respawns the persistent runtime and succeeds
 - host interruption during a pending window prompt is now probe-backed: waiting prompt flows fail fast when the host dies, the pending UI request is interrupted immediately, and the frontend prompt is cleared instead of lingering until timeout
+- tree-view controller contract is now probe-backed: `createTreeView(...).onDidChangeSelection(...)` receives runtime element payload plus selected handles, and controller `reveal(...)` preserves ordered parent handles together with default and explicit `focus/select/expand` flags
 - quick-pick multi-select is now probe-backed: picked defaults hydrate into the prompt, UI selection can accumulate multiple items, and the host roundtrip preserves an array result payload
 - quick-pick request and result semantics are now probe-backed: host request payload fields stay stable, picked defaults survive request serialization, confirm returns the selected value, and cancel resolves back to `undefined`
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
@@ -120,6 +121,7 @@ It runs:
 - `npm run probe:extension-host-recovery`
 - `npm run probe:extension-window-interruption`
 - `npm run probe:extension-host-ui-interruption`
+- `npm run probe:extension-treeview-contract`
 - `npm run probe:extension-quickpick-multiselect`
 - `npm run probe:extension-window-prompt-multiselect`
 - `npm run probe:extension-quickpick-host-multiselect`
@@ -157,6 +159,7 @@ Current baseline:
 - extension host recovery probe passes
 - extension window interruption probe passes
 - extension host UI interruption probe passes
+- extension tree-view controller contract probe passes
 - extension quick-pick multiselect logic probe passes
 - extension window prompt multiselect probe passes
 - extension quick-pick host multiselect probe passes
