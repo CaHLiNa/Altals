@@ -86,6 +86,16 @@ export async function activate(context) {
 
   function buildResultEntries(overrides = {}) {
     const targetPath = String(overrides.targetPath || lastResultPath || currentPdf().path || currentResource().path || "")
+    const translationArtifactPath = String(
+      overrides.translationArtifactPath ||
+      (targetPath
+        ? `${targetPath}.${String(
+            overrides.targetLang ||
+            context.settings.get("examplePdfExtension.targetLang", "zh-CN") ||
+            "zh-CN",
+          )}.translation.txt`
+        : ""),
+    )
     if (!targetPath) return []
     const targetLang = String(
       overrides.targetLang ||
@@ -133,6 +143,17 @@ export async function activate(context) {
         payload: {
           text: targetLang,
         },
+      },
+      {
+        id: "translation-text-output",
+        label: "Open Translation Output",
+        description: translationArtifactPath || "Translation output is not ready yet",
+        path: translationArtifactPath,
+        action: "open",
+        previewMode: "text",
+        previewPath: translationArtifactPath,
+        previewTitle: "Translated Text Output",
+        mediaType: "text/plain",
       },
       {
         id: "translation-summary-preview",
@@ -224,27 +245,73 @@ export async function activate(context) {
     const resource = currentResource()
     const reference = currentReference()
     lastResultPath = String(request?.targetPath || resource.path || "")
+    const translationArtifactPath = lastResultPath
+      ? `${lastResultPath}.${targetLang}.translation.txt`
+      : ""
+    const worker = await context.process.spawn("node", {
+      args: [
+        "-e",
+        [
+          "const fs = require('node:fs')",
+          "const path = require('node:path')",
+          "const targetPath = process.argv[1] || ''",
+          "const targetLang = process.argv[2] || 'zh-CN'",
+          "const explicitOutputPath = process.argv[3] || ''",
+          "const outputDir = process.argv[4] || process.cwd()",
+          "const targetName = targetPath ? targetPath.split(/[\\\\/]/).pop() : 'current-pdf.pdf'",
+          "const outputPath = explicitOutputPath || path.join(outputDir, `${targetName}.${targetLang}.translation.txt`)",
+          "fs.writeFileSync(outputPath, `translated:${targetLang}\\nsource:${targetPath || 'none'}\\nprovider:example-pdf-extension\\n`)",
+          "setTimeout(() => process.exit(0), 25)",
+        ].join(";"),
+        lastResultPath,
+        targetLang,
+        translationArtifactPath,
+        workspaceRoot || process.cwd(),
+      ],
+      cwd: workspaceRoot || "",
+    })
+    await context.tasks.update({
+      state: "running",
+      progressLabel: `Translating ${lastResultPath || "current PDF"} to ${targetLang}`,
+    })
+    const waited = await worker.wait()
     updateSidebarView({
       targetLang,
       targetPath: lastResultPath,
-      providerStatus: "Queued through example provider",
-      statusLabel: "Queued",
-      statusTone: "warning",
-      actionLabel: "Review context or rerun with another language",
-      message: `Queued translation for ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`,
+      translationArtifactPath,
+      providerStatus: waited?.ok ? "Completed through local worker" : "Local worker failed",
+      statusLabel: waited?.ok ? "Completed" : "Failed",
+      statusTone: waited?.ok ? "success" : "warning",
+      actionLabel: waited?.ok ? "Review result or rerun with another language" : "Review the task log and rerun",
+      message: waited?.ok
+        ? `Translated ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`
+        : `Translation failed for ${lastResultPath || "current PDF"}${reference.id ? ` · ref:${reference.id}` : ""}`,
     })
     return {
-      message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${reference.id ? ` · ref:${reference.id}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
-      progressLabel: "Translation queued",
-      taskState: "queued",
-      artifacts: lastResultPath
-        ? [{
-            id: "translated-pdf-artifact",
-            kind: "translated-pdf",
-            mediaType: "application/pdf",
-            path: lastResultPath,
-            sourcePath: resource.path || lastResultPath,
-          }]
+      message: waited?.ok
+        ? `example-pdf-extension translated ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${reference.id ? ` · ref:${reference.id}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`
+        : `example-pdf-extension failed to translate ${request?.capability || "unknown"} for ${targetLang}`,
+      progressLabel: waited?.ok ? "Translation completed" : "Translation failed",
+      taskState: waited?.ok ? "succeeded" : "failed",
+      artifacts: waited?.ok && translationArtifactPath
+        ? [
+            {
+              id: "translated-text-artifact",
+              kind: "translated-text",
+              mediaType: "text/plain",
+              path: translationArtifactPath,
+              sourcePath: resource.path || lastResultPath,
+            },
+            ...(lastResultPath
+              ? [{
+                  id: "translated-pdf-artifact",
+                  kind: "translated-pdf",
+                  mediaType: "application/pdf",
+                  path: lastResultPath,
+                  sourcePath: resource.path || lastResultPath,
+                }]
+              : []),
+          ]
         : [],
     }
   })

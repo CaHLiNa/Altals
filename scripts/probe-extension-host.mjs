@@ -300,6 +300,17 @@ async function main() {
     },
   });
 
+  const translateHostCallKinds = observed
+    .filter(
+      (entry) =>
+        entry.kind === "HostCallRequested" &&
+        String(entry.payload?.payload?.taskId || "") === "task",
+    )
+    .map((entry) => String(entry.payload?.kind || ""));
+  const translateProcessSpawnObserved = translateHostCallKinds.includes("process.spawn");
+  const translateProcessWaitObserved = translateHostCallKinds.includes("process.wait");
+  const translateTaskUpdateObserved = translateHostCallKinds.includes("tasks.update");
+
   const hostCallKinds = observed
     .filter((entry) => entry.kind === "HostCallRequested")
     .map((entry) => String(entry.payload?.kind || ""));
@@ -320,6 +331,7 @@ async function main() {
     action: entry.action,
     extensionId: entry.extensionId || "",
     targetPath: entry.targetPath || "",
+    path: entry.path || "",
     previewMode: entry.previewMode || "",
     previewPath: entry.previewPath || "",
     previewTitle: entry.previewTitle || "",
@@ -341,6 +353,9 @@ async function main() {
     processSpawnObserved,
     processWaitObserved,
     taskUpdateObserved,
+    translateProcessSpawnObserved,
+    translateProcessWaitObserved,
+    translateTaskUpdateObserved,
     resultActionKinds,
     settingsChangedMessage: String(settingsChanged?.payload?.message || ""),
     richSidebarSectionCount: Array.isArray(richSidebarState?.payload?.sections)
@@ -357,18 +372,32 @@ async function main() {
   ensure(processSpawnObserved, "process.spawn was not observed through host call bridge", summary);
   ensure(processWaitObserved, "process.wait was not observed through host call bridge", summary);
   ensure(taskUpdateObserved, "tasks.update was not observed through host call bridge", summary);
+  ensure(translateProcessSpawnObserved, "translation command did not spawn a local worker", summary);
+  ensure(translateProcessWaitObserved, "translation command did not wait for the local worker", summary);
+  ensure(translateTaskUpdateObserved, "translation command did not emit task updates", summary);
   ensure(
     String(settingsChanged?.payload?.message || "").includes("Settings updated: examplePdfExtension.targetLang"),
     "settings change event did not propagate into plugin runtime",
     summary,
   );
-  ensure(translate?.payload?.taskState === "queued", "translation command no longer returns queued task state", summary);
+  ensure(translate?.payload?.taskState === "succeeded", "translation command did not finish successfully", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "open-tab"), "open-tab result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "reveal"), "reveal result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "execute-command"), "execute-command result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.action === "open-reference"), "open-reference result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.previewMode === "html"), "html preview result entry missing", summary);
   ensure(resultActionKinds.some((entry) => entry.previewMode === "text"), "text preview result entry missing", summary);
+  ensure(
+    resultActionKinds.some(
+      (entry) =>
+        entry.id === "translation-text-output" &&
+        entry.previewMode === "text" &&
+        entry.previewPath.endsWith(".translation.txt"),
+    ),
+    "text artifact result entry missing",
+    summary,
+  );
+  ensure(resultActionKinds.some((entry) => entry.previewTitle === "Translated Text Output"), "translation output preview missing", summary);
   ensure(summary.richSidebarSectionCount > 0, "rich sidebar sections were not emitted", summary);
 
   console.log(JSON.stringify({ ok: true, summary }, null, 2));
