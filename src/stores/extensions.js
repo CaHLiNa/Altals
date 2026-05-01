@@ -702,7 +702,6 @@ export const useExtensionsStore = defineStore('extensions', {
     async refreshTasks() {
       this.loadingTasks = true
       try {
-        this.tasks = []
         this.tasks = (await listExtensionTasks()).map(normalizeTask)
         return this.tasks
       } finally {
@@ -808,9 +807,8 @@ export const useExtensionsStore = defineStore('extensions', {
           ...(settings && typeof settings === 'object' ? settings : {}),
         },
       })
-      const task = normalizeTask(result?.task || {})
+      const task = this.upsertTask(result?.task || {})
       this.markViewsChanged(result?.changedViews, extensionId)
-      await this.refreshTasks().catch(() => {})
       return task
     },
     async resolveView(view = {}, target = {}, settings = {}, parentItemId = '') {
@@ -931,6 +929,17 @@ export const useExtensionsStore = defineStore('extensions', {
     requestViewRefresh(viewKeys = []) {
       this.markViewsChanged(viewKeys)
     },
+    upsertTask(task = {}) {
+      const normalized = normalizeTask(task)
+      if (!normalized.id) return null
+      const index = this.tasks.findIndex((item) => item.id === normalized.id)
+      if (index >= 0) {
+        this.tasks.splice(index, 1, normalized)
+      } else {
+        this.tasks.unshift(normalized)
+      }
+      return normalized
+    },
     async startHostEventBridge() {
       if (this._extensionHostUnlisten) return
       this._extensionHostUnlisten = await listenExtensionViewChanged((event) => {
@@ -964,14 +973,7 @@ export const useExtensionsStore = defineStore('extensions', {
         }
       }).catch(() => null)
       this._extensionTaskChangedUnlisten = await listenExtensionTaskChanged((event) => {
-        const task = normalizeTask(event?.payload || {})
-        if (!task.id) return
-        const index = this.tasks.findIndex((item) => item.id === task.id)
-        if (index >= 0) {
-          this.tasks.splice(index, 1, task)
-        } else {
-          this.tasks.unshift(task)
-        }
+        this.upsertTask(event?.payload || {})
       }).catch(() => null)
       this._extensionHostViewRevealUnlisten = await listenExtensionViewRevealRequested((event) => {
         const payload = event?.payload || {}
@@ -980,6 +982,7 @@ export const useExtensionsStore = defineStore('extensions', {
         if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
         this.requestViewReveal(payload)
       }).catch(() => null)
+      await this.refreshTasks().catch(() => {})
     },
     stopHostEventBridge() {
       this._extensionHostUnlisten?.()
@@ -992,20 +995,11 @@ export const useExtensionsStore = defineStore('extensions', {
       this._extensionHostViewRevealUnlisten = null
     },
     async cancelTask(taskId = '') {
-      const task = normalizeTask(await cancelExtensionTaskWithBackend(taskId))
-      await this.refreshTasks().catch(() => {})
-      return task
+      return this.upsertTask(await cancelExtensionTaskWithBackend(taskId))
     },
 
     async refreshTask(taskId = '') {
-      const task = normalizeTask(await getExtensionTask(taskId))
-      const index = this.tasks.findIndex((item) => item.id === task.id)
-      if (index >= 0) {
-        this.tasks.splice(index, 1, task)
-      } else {
-        this.tasks.unshift(task)
-      }
-      return task
+      return this.upsertTask(await getExtensionTask(taskId))
     },
 
     openArtifact(artifact = {}) {
