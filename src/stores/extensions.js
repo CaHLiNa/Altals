@@ -17,6 +17,7 @@ import {
   openExtensionArtifact as openExtensionArtifactWithBackend,
   revealExtensionArtifact as revealExtensionArtifactWithBackend,
 } from '../services/extensions/extensionArtifacts'
+import { writeNativeClipboardText } from '../services/nativeClipboard'
 import {
   resolveExtensionView,
   notifyExtensionViewSelection,
@@ -137,6 +138,13 @@ function normalizeResultEntry(entry = {}, index = 0) {
     description: String(entry?.description || '').trim(),
     path: String(entry?.path || '').trim(),
     action: String(entry?.action || '').trim(),
+    commandId: String(entry?.commandId || entry?.command_id || '').trim(),
+    targetPath: String(entry?.targetPath || entry?.target_path || '').trim(),
+    referenceId: String(entry?.referenceId || entry?.reference_id || '').trim(),
+    targetKind: String(entry?.targetKind || entry?.target_kind || '').trim(),
+    payload: entry?.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
+      ? entry.payload
+      : {},
     mediaType: String(entry?.mediaType || entry?.media_type || '').trim(),
   }
 }
@@ -979,6 +987,50 @@ export const useExtensionsStore = defineStore('extensions', {
 
     revealArtifact(artifact = {}) {
       return revealExtensionArtifactWithBackend(artifact)
+    },
+
+    async runResultEntryAction(entry = {}, fallbackTarget = {}) {
+      const action = String(entry?.action || '').trim().toLowerCase()
+      const path = String(entry?.path || '').trim()
+      const mediaType = String(entry?.mediaType || '').trim()
+      const commandId = String(entry?.commandId || '').trim()
+      const target = {
+        kind: String(entry?.targetKind || fallbackTarget?.kind || '').trim(),
+        referenceId: String(entry?.referenceId || fallbackTarget?.referenceId || '').trim(),
+        path: String(entry?.targetPath || path || fallbackTarget?.path || '').trim(),
+      }
+
+      if (action === 'reveal' && path) {
+        return this.revealArtifact({ path })
+      }
+
+      if (action === 'copy-text') {
+        const text = String(entry?.payload?.text || path || '').trim()
+        if (!text) return null
+        return writeNativeClipboardText(text)
+      }
+
+      if (action === 'open-tab' && target.path) {
+        const { useEditorStore } = await import('./editor')
+        return useEditorStore().openFile(target.path)
+      }
+
+      if (action === 'execute-command' && commandId) {
+        return this.executeCommand({
+          extensionId: String(entry?.payload?.extensionId || ''),
+          commandId,
+        }, target, entry?.payload?.settings || {})
+      }
+
+      if ((action === 'open' || !action) && path) {
+        return this.openArtifact({ path, mediaType })
+      }
+
+      if (path) {
+        return this.openArtifact({ path, mediaType })
+      }
+
+      return null
     },
   },
 })

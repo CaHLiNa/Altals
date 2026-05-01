@@ -435,21 +435,12 @@ function summaryToneClass(tone = '') {
 }
 
 function openResultEntry(entry = {}) {
-  const path = String(entry?.path || '')
-  if (!path) return
-  const mediaType = String(entry?.mediaType || '').toLowerCase()
-  if (mediaType === 'application/pdf' || path.toLowerCase().endsWith('.pdf')) {
-    void extensionsStore.openArtifact({
-      path,
-      mediaType: mediaType || 'application/pdf',
+  void extensionsStore.runResultEntryAction(entry, props.target).catch((error) => {
+    toastStore.show(error?.message || String(error || t('Failed to open result entry')), {
+      type: 'error',
+      duration: 4200,
     })
-    return
-  }
-  if (String(entry?.action || '').trim().toLowerCase() === 'reveal') {
-    void extensionsStore.revealArtifact({ path })
-    return
-  }
-  void extensionsStore.openArtifact({ path, mediaType })
+  })
 }
 </script>
 

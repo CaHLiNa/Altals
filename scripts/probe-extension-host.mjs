@@ -266,6 +266,19 @@ async function main() {
         processApis,
         settingsChanged,
         capture,
+        resultActionKinds: (
+          observed.find(
+            (entry) =>
+              entry.kind === "ViewStateChanged" &&
+              Array.isArray(entry.payload?.resultEntries) &&
+              entry.payload.resultEntries.length > 0,
+          )?.payload?.resultEntries || []
+        ).map((entry) => ({
+          id: entry.id,
+          action: entry.action,
+          targetPath: entry.targetPath || "",
+          payloadKeys: entry.payload ? Object.keys(entry.payload) : [],
+        })),
         richSidebarState: observed.find(
           (entry) =>
             entry.kind === "ViewStateChanged" &&

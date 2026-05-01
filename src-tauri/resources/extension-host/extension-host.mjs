@@ -206,6 +206,14 @@ function normalizeResultEntries(entries = []) {
         description: String(entry.description || "").trim(),
         path: String(entry.path || "").trim(),
         action: String(entry.action || "").trim(),
+        commandId: String(entry.commandId || entry.command_id || "").trim(),
+        targetPath: String(entry.targetPath || entry.target_path || "").trim(),
+        referenceId: String(entry.referenceId || entry.reference_id || "").trim(),
+        targetKind: String(entry.targetKind || entry.target_kind || "").trim(),
+        payload:
+          entry.payload && typeof entry.payload === "object" && !Array.isArray(entry.payload)
+            ? entry.payload
+            : {},
         mediaType: String(entry.mediaType || entry.media_type || "").trim(),
       };
     })

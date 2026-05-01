@@ -87,6 +87,11 @@ export async function activate(context) {
   function buildResultEntries(overrides = {}) {
     const targetPath = String(overrides.targetPath || lastResultPath || currentPdf().path || currentResource().path || "")
     if (!targetPath) return []
+    const targetLang = String(
+      overrides.targetLang ||
+      context.settings.get("examplePdfExtension.targetLang", "zh-CN") ||
+      "zh-CN",
+    )
     return [
       {
         id: "source-pdf",
@@ -97,12 +102,31 @@ export async function activate(context) {
         mediaType: "application/pdf",
       },
       {
+        id: "open-tab-source-pdf",
+        label: "Open PDF In Editor",
+        description: "Open the current source PDF as a workspace tab",
+        path: targetPath,
+        targetPath,
+        targetKind: "pdf",
+        action: "open-tab",
+        mediaType: "application/pdf",
+      },
+      {
         id: "reveal-source-pdf",
         label: "Reveal Source PDF",
         description: "Reveal the current translation input in Finder",
         path: targetPath,
         action: "reveal",
         mediaType: "application/pdf",
+      },
+      {
+        id: "copy-target-language",
+        label: "Copy Target Language",
+        description: `Copy current language preset (${targetLang})`,
+        action: "copy-text",
+        payload: {
+          text: targetLang,
+        },
       },
     ]
   }

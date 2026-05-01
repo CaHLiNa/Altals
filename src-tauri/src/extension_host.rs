@@ -330,6 +330,16 @@ pub struct ExtensionHostResultEntry {
     #[serde(default)]
     pub action: String,
     #[serde(default)]
+    pub command_id: String,
+    #[serde(default)]
+    pub target_path: String,
+    #[serde(default)]
+    pub reference_id: String,
+    #[serde(default)]
+    pub target_kind: String,
+    #[serde(default)]
+    pub payload: Value,
+    #[serde(default)]
     pub media_type: String,
 }
 
