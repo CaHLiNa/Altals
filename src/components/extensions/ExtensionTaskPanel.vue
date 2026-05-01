@@ -25,6 +25,22 @@
             {{ artifact.kind || t('Artifact') }}
           </button>
         </div>
+        <div v-if="taskResultEntries(task).length > 0" class="extension-task-results">
+          <div class="extension-task-results__title">{{ t('Results') }}</div>
+          <button
+            v-for="entry in taskResultEntries(task)"
+            :key="entry.id"
+            type="button"
+            class="extension-task-results__entry"
+            :class="{ 'is-active': activeArtifactEntry(task)?.id === entry.id }"
+            @click="selectArtifactEntry(task, entry)"
+          >
+            <span class="extension-task-results__entry-label">{{ entry.label }}</span>
+            <span v-if="entry.description" class="extension-task-results__entry-description">
+              {{ entry.description }}
+            </span>
+          </button>
+        </div>
         <ExtensionResultPreview
           v-if="activeArtifactEntry(task)"
           :entry="activeArtifactEntry(task)"
@@ -61,7 +77,10 @@ import { useEditorStore } from '../../stores/editor'
 import { useExtensionsStore } from '../../stores/extensions'
 import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
-import { buildExtensionArtifactPreviewEntries } from '../../services/extensions/extensionArtifactPreviewEntries'
+import {
+  buildExtensionArtifactPreviewEntries,
+  buildExtensionTaskResultEntries,
+} from '../../services/extensions/extensionArtifactPreviewEntries'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
@@ -84,7 +103,7 @@ function openArtifact(artifact = {}) {
 }
 
 function artifactEntries(task = {}) {
-  return buildExtensionArtifactPreviewEntries(task.artifacts)
+  return buildExtensionTaskResultEntries(task)
 }
 
 function activeArtifactEntry(task = {}) {
@@ -92,6 +111,19 @@ function activeArtifactEntry(task = {}) {
   if (entries.length === 0) return null
   const selectedId = activeArtifactEntryIds.value[String(task.id || '')]
   return entries.find((entry) => entry.id === selectedId) || entries[0] || null
+}
+
+function taskResultEntries(task = {}) {
+  return artifactEntries(task)
+}
+
+function selectArtifactEntry(task = {}, entry = {}) {
+  const taskId = String(task.id || '')
+  if (!taskId) return
+  activeArtifactEntryIds.value = {
+    ...activeArtifactEntryIds.value,
+    [taskId]: String(entry?.id || ''),
+  }
 }
 
 function artifactActionKey(entry = {}) {
@@ -217,6 +249,50 @@ function taskProgressSummary(task = {}) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.extension-task-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.extension-task-results__title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.extension-task-results__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  border: 1px solid color-mix(in srgb, var(--border) 46%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.extension-task-results__entry.is-active {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+}
+
+.extension-task-results__entry-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extension-task-results__entry-description {
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .extension-artifact-link {

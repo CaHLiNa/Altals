@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   buildExtensionArtifactPreviewEntries,
+  buildExtensionTaskResultEntries,
 } from '../src/services/extensions/extensionArtifactPreviewEntries.js'
 
 async function main() {
@@ -55,9 +56,66 @@ async function main() {
     ],
   )
 
+  const taskEntries = buildExtensionTaskResultEntries({
+    id: 'task-1',
+    extensionId: 'example-pdf-extension',
+    commandId: 'scribeflow.pdf.translate',
+    target: {
+      kind: 'pdf',
+      referenceId: 'ref-123',
+      path: '/tmp/paper.pdf',
+    },
+    settings: {
+      'examplePdfExtension.targetLang': 'zh-CN',
+    },
+    logPath: '/tmp/extension-task.log',
+    artifacts: [
+      {
+        id: 'artifact-text',
+        kind: 'translated-text',
+        mediaType: 'text/plain',
+        path: '/tmp/paper.pdf.zh-CN.translation.txt',
+      },
+    ],
+  })
+
+  assert.deepEqual(
+    taskEntries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      previewMode: entry.previewMode,
+      commandId: entry.commandId || '',
+      previewTitle: entry.previewTitle || '',
+    })),
+    [
+      {
+        id: 'artifact-text',
+        action: 'open',
+        previewMode: 'text',
+        commandId: '',
+        previewTitle: 'Translated Text',
+      },
+      {
+        id: 'task-1:log',
+        action: 'open',
+        previewMode: 'text',
+        commandId: '',
+        previewTitle: 'Task Log',
+      },
+      {
+        id: 'task-1:rerun',
+        action: 'execute-command',
+        previewMode: undefined,
+        commandId: 'scribeflow.pdf.translate',
+        previewTitle: '',
+      },
+    ],
+  )
+
   console.log(JSON.stringify({
     ok: true,
     entries,
+    taskEntries,
   }, null, 2))
 }
 
