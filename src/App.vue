@@ -171,6 +171,7 @@ import {
 import {
   buildSurfaceContext,
 } from './domains/extensions/extensionContributionRegistry'
+import { resolveExtensionTargetContext } from './domains/extensions/extensionTargetContext'
 import {
   eventMatchesKeybinding,
   isEditableKeybindingTarget,
@@ -305,22 +306,11 @@ const currentDocumentLabel = computed(() => {
   return basenamePath(activePath) || activePath
 })
 const commandPaletteTarget = computed(() => {
-  if (workspace.leftSidebarPanel === 'references' && referencesStore.selectedReference?.pdfPath) {
-    return {
-      kind: 'referencePdf',
-      referenceId: String(referencesStore.selectedReference.id || ''),
-      path: String(referencesStore.selectedReference.pdfPath || ''),
-    }
-  }
-
-  const activePath = editorStore.activeTab || ''
-  const sourcePath = isPreviewPath(activePath) ? previewSourcePathFromPath(activePath) : activePath
-  const normalizedPath = String(sourcePath || '').trim()
-  return {
-    kind: normalizedPath.toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
-    referenceId: '',
-    path: normalizedPath,
-  }
+  return resolveExtensionTargetContext({
+    workspaceLeftSidebarPanel: workspace.leftSidebarPanel,
+    selectedReference: referencesStore.selectedReference,
+    activeTab: editorStore.activeTab,
+  })
 })
 const extensionCommandContext = computed(() =>
   buildSurfaceContext(commandPaletteTarget.value, {

@@ -223,19 +223,31 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useEditorStore } from '../../stores/editor'
+import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
 const workspaceStore = useWorkspaceStore()
+const editorStore = useEditorStore()
+const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
 const capabilityInvokeDisabled = computed(() => !String(workspaceStore.path || '').trim())
+const capabilityInvokeTarget = computed(() =>
+  resolveExtensionTargetContext({
+    workspaceLeftSidebarPanel: workspaceStore.leftSidebarPanel,
+    selectedReference: referencesStore.selectedReference,
+    activeTab: editorStore.activeTab,
+  })
+)
 function isEnabled(extensionId = '') {
   return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
 }
@@ -373,15 +385,10 @@ async function runCapability(extension = {}, capability = {}) {
   const busyId = `${extension.id}:${capabilityId}`
   capabilityBusyId.value = busyId
   try {
-    const target = {
-      kind: 'referencePdf',
-      referenceId: 'ref-settings',
-      path: '/tmp/paper.pdf',
-    }
     await extensionsStore.invokeCapability({
       extensionId: extension.id,
       capabilityId,
-    }, target)
+    }, capabilityInvokeTarget.value)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
     toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
