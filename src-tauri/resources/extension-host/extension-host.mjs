@@ -195,7 +195,8 @@ function normalizeSidebarSections(entries = []) {
     .filter((entry) => entry && (entry.title || entry.value));
 }
 
-function normalizeResultEntries(entries = []) {
+function normalizeResultEntries(entries = [], extensionId = "") {
+  const normalizedExtensionId = String(extensionId || "").trim();
   if (!Array.isArray(entries)) return [];
   return entries
     .map((entry, index) => {
@@ -210,6 +211,8 @@ function normalizeResultEntries(entries = []) {
         targetPath: String(entry.targetPath || entry.target_path || "").trim(),
         referenceId: String(entry.referenceId || entry.reference_id || "").trim(),
         targetKind: String(entry.targetKind || entry.target_kind || "").trim(),
+        extensionId:
+          String(entry.extensionId || entry.extension_id || "").trim() || normalizedExtensionId,
         payload:
           entry.payload && typeof entry.payload === "object" && !Array.isArray(entry.payload)
             ? entry.payload
@@ -453,7 +456,9 @@ function createExtensionApi(registry) {
           statusTone: typeof patch?.statusTone === "string" ? patch.statusTone : current.statusTone,
           actionLabel: typeof patch?.actionLabel === "string" ? patch.actionLabel : current.actionLabel,
           sections: Array.isArray(patch?.sections) ? normalizeSidebarSections(patch.sections) : current.sections,
-          resultEntries: Array.isArray(patch?.resultEntries) ? normalizeResultEntries(patch.resultEntries) : current.resultEntries,
+          resultEntries: Array.isArray(patch?.resultEntries)
+            ? normalizeResultEntries(patch.resultEntries, registry.id)
+            : current.resultEntries,
         };
         registry.viewState.set(id, next);
         writeMessage({
@@ -932,7 +937,7 @@ async function handleResolveView(params = {}) {
       statusTone: typeof result?.statusTone === "string" ? result.statusTone : "",
       actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
       sections: normalizeSidebarSections(result?.sections),
-      resultEntries: normalizeResultEntries(result?.resultEntries),
+      resultEntries: normalizeResultEntries(result?.resultEntries, record.id),
       items: Array.isArray(result?.items)
         ? normalizeViewItems(result.items, viewId)
         : [],
@@ -973,7 +978,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       statusTone: String(record.viewState.get(viewId)?.statusTone || ""),
       actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
       sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
-      resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || []),
+      resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || [], record.id),
       items,
     },
   };

@@ -13,6 +13,7 @@
           :key="action.id"
           variant="secondary"
           size="sm"
+          :loading="isActionBusy(action.entry)"
           @click="$emit('run-action', action.entry)"
         >
           {{ action.label }}
@@ -52,6 +53,11 @@
       <pre v-else class="extension-result-preview__text">{{ textPreviewContent }}</pre>
     </div>
 
+    <div v-else-if="toolbarActions.length > 0" class="extension-result-preview__empty extension-result-preview__empty--actionable">
+      <div class="extension-result-preview__empty-title">{{ t('This result provides actions instead of an inline preview.') }}</div>
+      <div class="extension-result-preview__empty-copy">{{ t('Use the actions above to continue.') }}</div>
+    </div>
+
     <div v-else class="extension-result-preview__empty">
       {{ t('Preview unavailable for this result entry.') }}
     </div>
@@ -70,6 +76,7 @@ const HtmlPreviewPane = defineAsyncComponent(() => import('../editor/HtmlPreview
 
 const props = defineProps({
   entry: { type: Object, default: null },
+  busyActionKey: { type: String, default: '' },
 })
 
 defineEmits(['run-action'])
@@ -84,6 +91,9 @@ const previewTitle = computed(() =>
 const textPreviewLoading = ref(false)
 const textPreviewContent = ref('')
 const htmlPreviewContent = computed(() => String(props.entry?.payload?.html || '').trim())
+const hasReferenceTarget = computed(() =>
+  Boolean(String(props.entry?.referenceId || props.entry?.reference_id || '').trim())
+)
 const toolbarActions = computed(() => {
   const actions = []
   const baseEntry = props.entry || {}
@@ -109,7 +119,7 @@ const toolbarActions = computed(() => {
       entry: { ...baseEntry, action: 'copy-path' },
     })
   }
-  if (String(baseEntry.referenceId || baseEntry.reference_id || '').trim()) {
+  if (primaryAction !== 'open-reference' && hasReferenceTarget.value) {
     actions.push({
       id: 'open-reference',
       label: t('Open Reference'),
@@ -181,6 +191,19 @@ function labelForAction(entry = {}) {
       return t('Open')
   }
 }
+
+function actionKeyForEntry(entry = {}) {
+  return [
+    String(entry?.id || '').trim(),
+    String(entry?.action || '').trim().toLowerCase(),
+    String(entry?.path || entry?.targetPath || '').trim(),
+    String(entry?.referenceId || entry?.reference_id || '').trim(),
+  ].join('::')
+}
+
+function isActionBusy(entry = {}) {
+  return actionKeyForEntry(entry) === String(props.busyActionKey || '').trim()
+}
 </script>
 
 <style scoped>
@@ -241,6 +264,27 @@ function labelForAction(entry = {}) {
 .extension-result-preview__body--text {
   border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
   background: color-mix(in srgb, var(--surface-base) 90%, transparent);
+}
+
+.extension-result-preview__empty--actionable {
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  border: 1px dashed color-mix(in srgb, var(--border) 36%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
+  padding: 14px;
+}
+
+.extension-result-preview__empty-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extension-result-preview__empty-copy {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .extension-result-preview__body :deep(.pdf-artifact-preview-host),

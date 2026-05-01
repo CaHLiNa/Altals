@@ -276,6 +276,7 @@ async function main() {
         ).map((entry) => ({
           id: entry.id,
           action: entry.action,
+          extensionId: entry.extensionId || "",
           targetPath: entry.targetPath || "",
           previewMode: entry.previewMode || "",
           previewPath: entry.previewPath || "",

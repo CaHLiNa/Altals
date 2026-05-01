@@ -96,6 +96,7 @@
         <ExtensionResultPreview
           v-if="activeResultEntry(view)"
           :entry="activeResultEntry(view)"
+          :busy-action-key="resultActionBusyKey"
           @run-action="openResultEntry"
         />
 
@@ -141,6 +142,7 @@ const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
 const toastStore = useToastStore()
 const activeResultEntryKeys = ref({})
+const resultActionBusyKey = ref('')
 
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
@@ -466,13 +468,49 @@ function summaryToneClass(tone = '') {
   return normalized ? `is-${normalized}` : ''
 }
 
-function openResultEntry(entry = {}) {
-  void extensionsStore.runResultEntryAction(entry, props.target).catch((error) => {
+function describeResultAction(entry = {}) {
+  const action = String(entry?.action || '').trim().toLowerCase()
+  switch (action) {
+    case 'copy-text':
+    case 'copy-path':
+      return t('Copied to clipboard')
+    case 'open-reference':
+      return t('Opened reference')
+    case 'execute-command':
+      return t('Extension task started')
+    default:
+      return ''
+  }
+}
+
+function resultActionKey(entry = {}) {
+  return [
+    String(entry?.id || '').trim(),
+    String(entry?.action || '').trim().toLowerCase(),
+    String(entry?.path || entry?.targetPath || '').trim(),
+    String(entry?.referenceId || entry?.reference_id || '').trim(),
+  ].join('::')
+}
+
+async function openResultEntry(entry = {}) {
+  const busyKey = resultActionKey(entry)
+  resultActionBusyKey.value = busyKey
+  try {
+    await extensionsStore.runResultEntryAction(entry, props.target)
+    const successMessage = describeResultAction(entry)
+    if (successMessage) {
+      toastStore.show(successMessage, { type: 'success', duration: 2200 })
+    }
+  } catch (error) {
     toastStore.show(error?.message || String(error || t('Failed to open result entry')), {
       type: 'error',
       duration: 4200,
     })
-  })
+  } finally {
+    if (resultActionBusyKey.value === busyKey) {
+      resultActionBusyKey.value = ''
+    }
+  }
 }
 </script>
 

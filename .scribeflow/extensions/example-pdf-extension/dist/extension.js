@@ -159,7 +159,6 @@ export async function activate(context) {
         targetKind: "pdf",
         targetPath,
         payload: {
-          extensionId: "example-pdf-extension",
           settings: {
             targetLang,
           },

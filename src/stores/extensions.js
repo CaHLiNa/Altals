@@ -142,6 +142,7 @@ function normalizeResultEntry(entry = {}, index = 0) {
     targetPath: String(entry?.targetPath || entry?.target_path || '').trim(),
     referenceId: String(entry?.referenceId || entry?.reference_id || '').trim(),
     targetKind: String(entry?.targetKind || entry?.target_kind || '').trim(),
+    extensionId: normalizeExtensionId(entry?.extensionId || entry?.extension_id || ''),
     payload: entry?.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
       ? entry.payload
       : {},
@@ -1020,7 +1021,12 @@ export const useExtensionsStore = defineStore('extensions', {
 
       if (action === 'execute-command' && commandId) {
         return this.executeCommand({
-          extensionId: String(entry?.payload?.extensionId || entry?.payload?.extension_id || ''),
+          extensionId: normalizeExtensionId(
+            entry?.extensionId ||
+            entry?.extension_id ||
+            entry?.payload?.extensionId ||
+            entry?.payload?.extension_id,
+          ),
           commandId,
         }, target, entry?.payload?.settings || {})
       }
