@@ -157,6 +157,8 @@ Workspace, documents, and invocation contract note:
 Commands and menus contract note:
 
 - `context.commands.executeCommand(...)` should resolve runtime-registered commands by id and preserve the callee's returned task payload instead of collapsing it into a fire-and-forget side effect
+- nested `context.commands.executeCommand(...)` should preserve the callee's `changedViews` union, including both explicit `changedViews` entries and host-tracked `views.refresh(...)` requests, so outer command flows can surface the full refresh set
+- nested `context.commands.executeCommand(...)` should surface runtime command failures and missing-command errors as catchable exceptions inside plugin code rather than collapsing them into host-level timeouts
 - `context.menus.registerAction(...)` should preserve per-surface runtime metadata such as `surface`, `commandId`, `title`, and `when`
 - disposed runtime menu actions should disappear from subsequent activation snapshots rather than leaking stale action metadata
 - runtime-registered command palette actions should stay authoritative over manifest fallbacks once runtime menu data exists

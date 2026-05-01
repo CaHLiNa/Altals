@@ -91,6 +91,7 @@ Current plugin lifecycle contract:
 - commands/menu registration contract is now probe-backed: `context.commands.executeCommand(...)` can synchronously route into another runtime-registered command and preserve its result payload, while `context.menus.registerAction(...)` preserves runtime action metadata per surface and cleans up disposed actions from subsequent activation snapshots
 - task update contract is now probe-backed: `context.tasks.update(...)` preserves spawned-process ownership across intermediate `running` updates so `spawn(...).wait()` still resolves, terminal updates reap runtime pid ownership without deleting the persisted task record, and task `artifacts` / `outputs` follow replace-on-present semantics through the Rust bridge
 - view state contract is now probe-backed: `context.views.updateView(...)` for normal view providers survives later `ResolveView` refreshes as an overlay, pushed fields stay authoritative, and untouched fields continue refreshing from the latest provider baseline
+- nested command contract is now probe-backed: `context.commands.executeCommand(...)` preserves the callee result payload, surfaces nested runtime failures as catchable plugin exceptions, and unions nested `changedViews` with host-tracked `views.refresh(...)` requests
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -114,6 +115,7 @@ It runs:
 - `npm run probe:extension-pdf-view-result-entries`
 - `npm run probe:extension-direct-view-host`
 - `npm run probe:extension-view-state-contract`
+- `npm run probe:extension-execute-command-contract`
 - `npm run probe:extension-capability-execution`
 - `npm run probe:extension-capability-schema`
 - `npm run probe:extension-activation-guards`
@@ -159,6 +161,7 @@ Current baseline:
 - extension PDF view result-entry merge probe passes
 - extension direct-view host probe passes
 - extension view-state contract probe passes
+- extension nested command contract probe passes
 - extension capability execution probe passes
 - extension capability schema probe passes
 - extension activation guard probe passes

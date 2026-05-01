@@ -118,6 +118,12 @@ View-state delivery also has a probe-backed runtime contract:
 - pushed fields such as `message`, `statusLabel`, `resultEntries`, `artifacts`, and `outputs` stay authoritative until replaced by another pushed patch
 - untouched fields such as baseline descriptions, badges, and sections still refresh from the provider on later `ResolveView` calls
 
+Nested command delivery also has a probe-backed runtime contract:
+
+- `commands.executeCommand(...)` can synchronously call another runtime-registered command and preserve that callee's returned payload
+- nested command failures and missing-command cases remain catchable inside plugin code as normal exceptions
+- nested command-triggered view refresh signals still surface through `changedViews`, including both explicit ids and host-tracked `views.refresh(...)` requests
+
 ## 4. Current Manifest Use
 
 `package.json` is still used for:
