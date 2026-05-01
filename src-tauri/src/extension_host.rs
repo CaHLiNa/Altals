@@ -1,3 +1,4 @@
+use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_manifest::{ExtensionManifest, ExtensionPermissions};
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use crate::extension_settings::load_extension_runtime_state_snapshot;
@@ -274,6 +275,8 @@ pub struct ExtensionHostCapabilityResult {
     pub progress_label: String,
     #[serde(default)]
     pub changed_views: Vec<String>,
+    #[serde(default)]
+    pub artifacts: Vec<ExtensionArtifact>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1576,6 +1579,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 ),
                 progress_label: "Accepted by extension host".to_string(),
                 changed_views: Vec::new(),
+                artifacts: Vec::new(),
             })
         }
         ExtensionHostRequest::ExecuteCommand {
@@ -1590,6 +1594,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             ),
             progress_label: "Accepted by extension host".to_string(),
             changed_views: Vec::new(),
+            artifacts: Vec::new(),
         }),
         ExtensionHostRequest::ResolveView {
             view_id,

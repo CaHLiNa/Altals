@@ -158,6 +158,34 @@ function normalizeSettingsObject(value) {
   return value;
 }
 
+function normalizeArtifactEntries(entries = [], envelope = {}) {
+  const taskId = String(envelope?.taskId || "").trim();
+  const extensionId = String(envelope?.extensionId || "").trim();
+  const capability = String(envelope?.capability || envelope?.commandId || "").trim();
+  const sourcePath = String(envelope?.targetPath || "").trim();
+  const createdAt = new Date().toISOString();
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const artifactPath = String(entry.path || entry.filePath || "").trim();
+      if (!artifactPath) return null;
+      return {
+        id: String(entry.id || `artifact:${index + 1}`).trim(),
+        extensionId,
+        taskId,
+        capability,
+        kind: String(entry.kind || "").trim(),
+        mediaType: String(entry.mediaType || entry.media_type || "").trim(),
+        path: artifactPath,
+        sourcePath: String(entry.sourcePath || entry.source_path || sourcePath).trim(),
+        sourceHash: String(entry.sourceHash || entry.source_hash || "").trim(),
+        createdAt: String(entry.createdAt || entry.created_at || createdAt).trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeCommandMetadata(command = "", metadata = {}) {
   const commandId = String(command || "").trim();
   if (!commandId) return null;
@@ -873,6 +901,7 @@ async function handleInvokeCapability(params = {}) {
         typeof result?.progressLabel === "string" && result.progressLabel.trim()
           ? result.progressLabel.trim()
           : "Handled by extension host",
+      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
     },
   };
 }
@@ -902,6 +931,7 @@ async function handleExecuteCommand(params = {}) {
           ? result.progressLabel.trim()
           : "Handled by extension command",
       changedViews,
+      artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
     },
   };
 }

@@ -1,3 +1,4 @@
+use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_host::{
     activate_extension, build_extension_invocation_envelope, invoke_extension_host,
     ExtensionHostActivationResult, ExtensionHostRequest, ExtensionHostResponse,
@@ -101,6 +102,13 @@ fn command_is_available_for_execution(
     }
 }
 
+fn normalize_artifacts(artifacts: Vec<ExtensionArtifact>) -> Vec<ExtensionArtifact> {
+    artifacts
+        .into_iter()
+        .filter(|artifact| !artifact.path.trim().is_empty())
+        .collect()
+}
+
 #[tauri::command]
 pub async fn extension_command_execute(
     params: ExtensionCommandExecuteParams,
@@ -193,7 +201,8 @@ pub async fn extension_command_execute(
 
     match response {
         Ok(ExtensionHostResponse::ExecuteCommand(result)) => {
-            let completed = mark_task_succeeded(&task.id, Vec::new())
+            let artifacts = normalize_artifacts(result.artifacts);
+            let completed = mark_task_succeeded(&task.id, artifacts)
                 .map_err(|error| format!("Failed to record extension result: {error}"))?;
             write_task_log(&completed, &result.message);
             let task = get_task(&task.id)?;
@@ -225,8 +234,9 @@ pub async fn extension_command_execute(
 mod tests {
     use super::{
         activation_result_registers_command, command_is_available_for_execution,
-        manifest_declares_command,
+        manifest_declares_command, normalize_artifacts,
     };
+    use crate::extension_artifacts::ExtensionArtifact;
     use crate::extension_host::{
         ExtensionHostActivationResult, ExtensionHostRegisteredCommand,
     };
@@ -345,5 +355,38 @@ mod tests {
             &activation,
             "scribeflow.pdf.translate"
         ));
+    }
+
+    #[test]
+    fn artifact_normalization_drops_entries_without_paths() {
+        let artifacts = normalize_artifacts(vec![
+            ExtensionArtifact {
+                id: "artifact-1".to_string(),
+                extension_id: "example-pdf-extension".to_string(),
+                task_id: "task-1".to_string(),
+                capability: "scribeflow.pdf.translate".to_string(),
+                kind: "pdf".to_string(),
+                media_type: "application/pdf".to_string(),
+                path: "/tmp/translated.pdf".to_string(),
+                source_path: "/tmp/paper.pdf".to_string(),
+                source_hash: String::new(),
+                created_at: "2026-05-01T00:00:00Z".to_string(),
+            },
+            ExtensionArtifact {
+                id: "artifact-2".to_string(),
+                extension_id: "example-pdf-extension".to_string(),
+                task_id: "task-1".to_string(),
+                capability: "scribeflow.pdf.translate".to_string(),
+                kind: "pdf".to_string(),
+                media_type: "application/pdf".to_string(),
+                path: String::new(),
+                source_path: "/tmp/paper.pdf".to_string(),
+                source_hash: String::new(),
+                created_at: "2026-05-01T00:00:00Z".to_string(),
+            },
+        ]);
+
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts[0].path, "/tmp/translated.pdf");
     }
 }

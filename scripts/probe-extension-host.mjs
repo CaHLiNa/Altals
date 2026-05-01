@@ -257,6 +257,19 @@ async function main() {
     },
   });
 
+  const translate = await call("ExecuteCommand", {
+    activationEvent: "onCommand:scribeflow.pdf.translate",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "scribeflow.pdf.translate",
+    envelope: {
+      ...baseEnvelope,
+      commandId: "scribeflow.pdf.translate",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
   console.log(
     JSON.stringify(
       {
@@ -266,6 +279,7 @@ async function main() {
         processApis,
         settingsChanged,
         capture,
+        translate,
         resultActionKinds: (
           observed.find(
             (entry) =>
