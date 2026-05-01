@@ -7,14 +7,17 @@
           {{ previewTitle }}
         </div>
       </div>
-      <UiButton
-        v-if="hasOpenAction"
-        variant="secondary"
-        size="sm"
-        @click="$emit('open-entry', entry)"
-      >
-        {{ t('Open') }}
-      </UiButton>
+      <div v-if="toolbarActions.length > 0" class="extension-result-preview__actions">
+        <UiButton
+          v-for="action in toolbarActions"
+          :key="action.id"
+          variant="secondary"
+          size="sm"
+          @click="$emit('run-action', action.entry)"
+        >
+          {{ action.label }}
+        </UiButton>
+      </div>
     </div>
 
     <div v-if="isPdfPreview" class="extension-result-preview__body">
@@ -69,7 +72,7 @@ const props = defineProps({
   entry: { type: Object, default: null },
 })
 
-defineEmits(['open-entry'])
+defineEmits(['run-action'])
 
 const { t } = useI18n()
 
@@ -78,10 +81,43 @@ const previewPath = computed(() => String(props.entry?.previewPath || props.entr
 const previewTitle = computed(() =>
   String(props.entry?.previewTitle || props.entry?.label || t('Result Preview'))
 )
-const hasOpenAction = computed(() => Boolean(props.entry?.path || props.entry?.previewPath))
 const textPreviewLoading = ref(false)
 const textPreviewContent = ref('')
 const htmlPreviewContent = computed(() => String(props.entry?.payload?.html || '').trim())
+const toolbarActions = computed(() => {
+  const actions = []
+  const baseEntry = props.entry || {}
+  const primaryAction = String(baseEntry.action || '').trim().toLowerCase()
+  if (baseEntry.path || baseEntry.previewPath || ['copy-text', 'copy-path', 'execute-command', 'open-reference'].includes(primaryAction)) {
+    actions.push({
+      id: 'primary',
+      label: labelForAction(baseEntry),
+      entry: baseEntry,
+    })
+  }
+  if (primaryAction !== 'reveal' && baseEntry.path) {
+    actions.push({
+      id: 'reveal',
+      label: t('Reveal'),
+      entry: { ...baseEntry, action: 'reveal' },
+    })
+  }
+  if (primaryAction !== 'copy-path' && baseEntry.path) {
+    actions.push({
+      id: 'copy-path',
+      label: t('Copy Path'),
+      entry: { ...baseEntry, action: 'copy-path' },
+    })
+  }
+  if (String(baseEntry.referenceId || baseEntry.reference_id || '').trim()) {
+    actions.push({
+      id: 'open-reference',
+      label: t('Open Reference'),
+      entry: { ...baseEntry, action: 'open-reference' },
+    })
+  }
+  return actions
+})
 
 const isPdfPreview = computed(() =>
   previewMode.value === 'pdf' ||
@@ -126,6 +162,25 @@ onMounted(() => {
 watch([previewPath, previewMode], () => {
   void loadTextPreview()
 })
+
+function labelForAction(entry = {}) {
+  switch (String(entry?.action || '').trim().toLowerCase()) {
+    case 'copy-text':
+      return t('Copy')
+    case 'copy-path':
+      return t('Copy Path')
+    case 'execute-command':
+      return t('Run')
+    case 'open-tab':
+      return t('Open Tab')
+    case 'open-reference':
+      return t('Open Reference')
+    case 'reveal':
+      return t('Reveal')
+    default:
+      return t('Open')
+  }
+}
 </script>
 
 <style scoped>
@@ -145,6 +200,12 @@ watch([previewPath, previewMode], () => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.extension-result-preview__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .extension-result-preview__title-wrap {

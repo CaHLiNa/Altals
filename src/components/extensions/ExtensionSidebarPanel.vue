@@ -96,7 +96,7 @@
         <ExtensionResultPreview
           v-if="activeResultEntry(view)"
           :entry="activeResultEntry(view)"
-          @open-entry="openResultEntry"
+          @run-action="openResultEntry"
         />
 
         <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">

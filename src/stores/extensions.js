@@ -1020,9 +1020,27 @@ export const useExtensionsStore = defineStore('extensions', {
 
       if (action === 'execute-command' && commandId) {
         return this.executeCommand({
-          extensionId: String(entry?.payload?.extensionId || ''),
+          extensionId: String(entry?.payload?.extensionId || entry?.payload?.extension_id || ''),
           commandId,
         }, target, entry?.payload?.settings || {})
+      }
+
+      if (action === 'open-reference' && target.referenceId) {
+        const { useWorkspaceStore } = await import('./workspace')
+        const { useReferencesStore } = await import('./references')
+        const workspaceStore = useWorkspaceStore()
+        const referencesStore = useReferencesStore()
+        referencesStore.selectReference(target.referenceId)
+        await workspaceStore.openWorkspaceSurface().catch(() => {})
+        await workspaceStore.setLeftSidebarPanel('references').catch(() => {})
+        await workspaceStore.openReferenceDock().catch(() => {})
+        return target.referenceId
+      }
+
+      if (action === 'copy-path') {
+        const text = String(path || target.path || '').trim()
+        if (!text) return null
+        return writeNativeClipboardText(text)
       }
 
       if ((action === 'open' || !action) && path) {

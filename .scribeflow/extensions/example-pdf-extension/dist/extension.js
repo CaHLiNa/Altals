@@ -151,6 +151,30 @@ export async function activate(context) {
         },
       },
       {
+        id: "rerun-translation-command",
+        label: "Run Translation Again",
+        description: "Execute the translation command for the current target again",
+        action: "execute-command",
+        commandId: "scribeflow.pdf.translate",
+        targetKind: "pdf",
+        targetPath,
+        payload: {
+          extensionId: "example-pdf-extension",
+          settings: {
+            targetLang,
+          },
+        },
+      },
+      ...(currentReference().id
+        ? [{
+            id: "open-reference-record",
+            label: "Open Reference Record",
+            description: "Jump to the linked reference in the library",
+            action: "open-reference",
+            referenceId: currentReference().id,
+          }]
+        : []),
+      {
         id: "translation-html-preview",
         label: "Preview HTML Result Card",
         description: "Inline HTML mockup for future translated output",
