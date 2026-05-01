@@ -70,6 +70,7 @@ import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 import { readExtensionArtifactText } from '../../services/extensions/extensionArtifacts'
+import { loadExtensionTextPreviewContent } from '../../services/extensions/extensionTextPreview'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
 const ImagePreviewPane = defineAsyncComponent(() => import('../editor/ImagePreviewPane.vue'))
@@ -158,13 +159,13 @@ async function loadTextPreview() {
   if (!previewPath.value) return
   textPreviewLoading.value = true
   try {
-    textPreviewContent.value = await readWorkspaceTextFile(previewPath.value, 4000)
-  } catch (error) {
-    try {
-      textPreviewContent.value = await readExtensionArtifactText({ path: previewPath.value }, 4000)
-    } catch (artifactError) {
-      textPreviewContent.value = artifactError?.message || String(artifactError || error || 'Preview failed.')
-    }
+    textPreviewContent.value = await loadExtensionTextPreviewContent({
+      inlineText: props.entry?.payload?.text || '',
+      previewPath: previewPath.value,
+      maxBytes: 4000,
+      readWorkspaceText: readWorkspaceTextFile,
+      readArtifactText: readExtensionArtifactText,
+    })
   } finally {
     textPreviewLoading.value = false
   }

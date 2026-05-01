@@ -86,3 +86,49 @@ pub async fn extension_artifact_read_text(
     }
     read_text_file_with_limit(path, params.max_bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{extension_artifact_read_text, ExtensionArtifactReadTextParams};
+    use std::fs;
+
+    #[tokio::test]
+    async fn reads_extension_artifact_text_with_limit() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-artifact-read-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        let artifact = root.join("translation.txt");
+        fs::write(&artifact, "translated content").expect("artifact write");
+
+        let content = extension_artifact_read_text(ExtensionArtifactReadTextParams {
+            path: artifact.to_string_lossy().to_string(),
+            max_bytes: Some(64),
+        })
+        .await
+        .expect("read artifact text");
+        assert_eq!(content, "translated content");
+
+        let error = extension_artifact_read_text(ExtensionArtifactReadTextParams {
+            path: artifact.to_string_lossy().to_string(),
+            max_bytes: Some(4),
+        })
+        .await
+        .expect_err("size limit should fail");
+        assert!(error.starts_with("FILE_TOO_LARGE:4:"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[tokio::test]
+    async fn rejects_missing_extension_artifact_text_path() {
+        let error = extension_artifact_read_text(ExtensionArtifactReadTextParams {
+            path: "/tmp/scribeflow-missing-artifact.txt".to_string(),
+            max_bytes: Some(64),
+        })
+        .await
+        .expect_err("missing artifact should fail");
+        assert!(error.starts_with("Artifact path does not exist:"));
+    }
+}
