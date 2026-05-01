@@ -97,6 +97,18 @@ function handleNonTerminal(message) {
       });
       return;
     }
+    if (message.payload.kind === "process.wait") {
+      send("ResolveHostCall", {
+        requestId: message.payload.requestId,
+        accepted: true,
+        result: {
+          ok: true,
+          pid: message.payload.payload?.pid || 4242,
+          code: 0,
+        },
+      });
+      return;
+    }
     if (message.payload.kind === "tasks.update") {
       send("ResolveHostCall", {
         requestId: message.payload.requestId,
@@ -292,6 +304,11 @@ async function main() {
         capture,
         translate,
         translateTaskState: translate?.payload?.taskState || "",
+        processWaitObserved: observed.some(
+          (entry) =>
+            entry.kind === "HostCallRequested" &&
+            entry.payload?.kind === "process.wait",
+        ),
         resultActionKinds: (
           observed.find(
             (entry) =>

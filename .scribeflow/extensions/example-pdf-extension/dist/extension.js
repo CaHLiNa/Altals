@@ -353,27 +353,36 @@ export async function activate(context) {
 
   context.commands.registerCommand("examplePdfExtension.inspectProcessApi", async () => {
     const result = await context.process.spawn("node", {
-      args: ["-e", "setTimeout(() => {}, 5000)"],
+      args: ["-e", "setTimeout(() => process.exit(0), 25)"],
       cwd: context.workspace?.rootPath || "",
     })
     await context.tasks.update({
       state: "running",
       progressLabel: `Spawned process ${String(result?.pid || "").trim() || "pending"}`,
     })
+    const waited = await result.wait()
+    await context.tasks.update({
+      state: waited?.ok ? "succeeded" : "failed",
+      progressLabel: waited?.ok
+        ? `Process ${String(waited?.pid || result?.pid || "").trim() || "done"} completed`
+        : `Process ${String(waited?.pid || result?.pid || "").trim() || "done"} failed`,
+      error: waited?.ok ? "" : `Process exited with code ${String(waited?.code ?? "unknown")}`,
+    })
     updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`
         : `PDF tools · launched ${launchCount} times`,
-      message: `Process API: pid ${String(result?.pid || "").trim() || "empty"}`,
-      statusLabel: "Process Ready",
-      statusTone: "success",
-      actionLabel: "Sidecar/process execution is available",
-      providerStatus: "Local process spawn ok",
+      message: `Process API: pid ${String(result?.pid || "").trim() || "empty"} · exit ${String(waited?.code ?? "unknown")}`,
+      statusLabel: waited?.ok ? "Process Complete" : "Process Failed",
+      statusTone: waited?.ok ? "success" : "warning",
+      actionLabel: waited?.ok ? "Spawn and wait completed" : "Spawn completed with failure",
+      providerStatus: waited?.ok ? "Local process spawn+wait ok" : "Local process returned non-zero exit",
     })
     context.views.refresh("examplePdfExtension.translateView")
     return {
       message: "example-pdf-extension inspected process api",
-      progressLabel: "Process API inspected",
+      progressLabel: waited?.ok ? "Process API inspected" : "Process API failed",
+      taskState: waited?.ok ? "succeeded" : "failed",
     }
   }, {
     title: "Inspect Process API",

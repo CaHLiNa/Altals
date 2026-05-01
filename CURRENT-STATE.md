@@ -23,6 +23,7 @@ Current desktop paths:
 - enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
+- allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
 - expose reference-aware and PDF-aware runtime context through `context.references` and `context.pdf`

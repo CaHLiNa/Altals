@@ -57,6 +57,8 @@ pub struct ExtensionHostState {
     host_calls: Arc<Mutex<HashMap<String, ExtensionHostCallStatus>>>,
     activation_context: Arc<Mutex<HashMap<String, (String, String)>>>,
     #[cfg(not(test))]
+    spawned_processes: Arc<Mutex<HashMap<u32, Child>>>,
+    #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
     #[cfg(not(test))]
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -69,6 +71,8 @@ impl Default for ExtensionHostState {
             ui_requests: Arc::new(Mutex::new(HashMap::new())),
             host_calls: Arc::new(Mutex::new(HashMap::new())),
             activation_context: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(not(test))]
+            spawned_processes: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
             #[cfg(not(test))]
@@ -833,6 +837,53 @@ fn task_id_for_host_call_event(event: &ExtensionHostCallRequestedEvent) -> Strin
 }
 
 #[cfg(not(test))]
+fn register_spawned_process(
+    state: &ExtensionHostState,
+    pid: u32,
+    child: Child,
+) -> Result<(), String> {
+    let mut processes = state
+        .spawned_processes
+        .lock()
+        .map_err(|_| "Failed to access spawned process state".to_string())?;
+    if let Some(mut existing) = processes.insert(pid, child) {
+        let _ = existing.kill();
+        let _ = existing.wait();
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn take_spawned_process(
+    state: &ExtensionHostState,
+    pid: u32,
+) -> Result<Option<Child>, String> {
+    let mut processes = state
+        .spawned_processes
+        .lock()
+        .map_err(|_| "Failed to access spawned process state".to_string())?;
+    Ok(processes.remove(&pid))
+}
+
+#[cfg(not(test))]
+fn wait_for_spawned_process(
+    state: &ExtensionHostState,
+    pid: u32,
+) -> Result<Value, String> {
+    let Some(mut child) = take_spawned_process(state, pid)? else {
+        return Err(format!("Spawned process not found: {pid}"));
+    };
+    let status = child
+        .wait()
+        .map_err(|error| format!("Failed to wait for spawned process {pid}: {error}"))?;
+    Ok(json!({
+        "ok": status.success(),
+        "pid": pid,
+        "code": status.code(),
+    }))
+}
+
+#[cfg(not(test))]
 fn ensure_extension_host_process(
     state: &ExtensionHostState,
 ) -> Result<std::sync::MutexGuard<'_, ExtensionHostProcess>, String> {
@@ -1240,26 +1291,28 @@ fn handle_extension_host_process_call(
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-
-    let mut command = background_command(&command_name);
-    command.args(&args);
-    if let Some(cwd) = resolve_process_call_working_dir(&workspace_root, &Value::Object(payload.clone()))? {
-        command.current_dir(cwd);
-    }
-    for (key, value) in env_map {
-        let normalized_key = key.trim();
-        if normalized_key.is_empty() {
-            continue;
-        }
-        let normalized_value = match value {
-            Value::String(text) => text,
-            other => other.to_string(),
-        };
-        command.env(normalized_key, normalized_value);
-    }
+    let task_id = task_id_for_host_call_event(event);
 
     let result = match event.kind.as_str() {
         "process.exec" => {
+            let mut command = background_command(&command_name);
+            command.args(&args);
+            if let Some(cwd) =
+                resolve_process_call_working_dir(&workspace_root, &Value::Object(payload.clone()))?
+            {
+                command.current_dir(cwd);
+            }
+            for (key, value) in env_map.clone() {
+                let normalized_key = key.trim();
+                if normalized_key.is_empty() {
+                    continue;
+                }
+                let normalized_value = match value {
+                    Value::String(text) => text,
+                    other => other.to_string(),
+                };
+                command.env(normalized_key, normalized_value);
+            }
             command.stdin(Stdio::null());
             command.stdout(Stdio::piped());
             command.stderr(Stdio::piped());
@@ -1274,19 +1327,55 @@ fn handle_extension_host_process_call(
             })
         }
         "process.spawn" => {
+            let mut command = background_command(&command_name);
+            command.args(&args);
+            if let Some(cwd) =
+                resolve_process_call_working_dir(&workspace_root, &Value::Object(payload.clone()))?
+            {
+                command.current_dir(cwd);
+            }
+            for (key, value) in env_map.clone() {
+                let normalized_key = key.trim();
+                if normalized_key.is_empty() {
+                    continue;
+                }
+                let normalized_value = match value {
+                    Value::String(text) => text,
+                    other => other.to_string(),
+                };
+                command.env(normalized_key, normalized_value);
+            }
             command.stdin(Stdio::null());
             command.stdout(Stdio::null());
             command.stderr(Stdio::null());
             let child = command
                 .spawn()
                 .map_err(|error| format!("Failed to spawn process: {error}"))?;
+            let pid = child.id();
             if let Some(runtime_state) = task_runtime_state {
-                runtime_state.register_pid(&task_id_for_host_call_event(event), child.id())?;
+                runtime_state.register_pid(&task_id, pid)?;
             }
+            register_spawned_process(state, pid, child)?;
             json!({
                 "ok": true,
-                "pid": child.id(),
+                "pid": pid,
             })
+        }
+        "process.wait" => {
+            let pid = payload
+                .get("pid")
+                .and_then(Value::as_u64)
+                .or_else(|| {
+                    payload
+                        .get("pid")
+                        .and_then(Value::as_str)
+                        .and_then(|value| value.trim().parse::<u64>().ok())
+                })
+                .ok_or_else(|| "Process pid is required for process.wait".to_string())?;
+            if let Some(runtime_state) = task_runtime_state {
+                let _ = runtime_state.unregister_pid(&task_id);
+            }
+            wait_for_spawned_process(state, pid as u32)?
         }
         other => {
             return Err(format!("Unsupported extension host call kind: {other}"));
@@ -1506,7 +1595,7 @@ pub fn invoke_extension_host(
                 }
                 ExtensionHostResponse::HostCallRequested(event) => {
                     let completed = match event.kind.as_str() {
-                        "process.exec" | "process.spawn" => {
+                        "process.exec" | "process.spawn" | "process.wait" => {
                             Some(handle_extension_host_process_call(
                                 state,
                                 task_runtime_state,
@@ -2037,6 +2126,27 @@ mod tests {
         match response {
             ExtensionHostResponse::ResolveView(result) => {
                 assert_eq!(result.view_id, "examplePdfExtension.translateView");
+            }
+            _ => panic!("unexpected response"),
+        }
+    }
+
+    #[test]
+    fn sidecar_request_handler_acknowledges_host_call_resolution() {
+        let response = handle_extension_host_request(ExtensionHostRequest::ResolveHostCall {
+            request_id: "example-pdf-extension:host:1".to_string(),
+            accepted: true,
+            result: serde_json::json!({
+                "ok": true,
+                "pid": 4242,
+                "code": 0
+            }),
+            error: String::new(),
+        });
+        match response {
+            ExtensionHostResponse::AcknowledgeHostCall(result) => {
+                assert_eq!(result.request_id, "example-pdf-extension:host:1");
+                assert!(result.accepted);
             }
             _ => panic!("unexpected response"),
         }

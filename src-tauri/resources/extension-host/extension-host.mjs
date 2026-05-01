@@ -600,6 +600,19 @@ function createExtensionApi(registry) {
         });
         return result && typeof result === "object" ? result : {};
       },
+      async wait(pid) {
+        if (!registry.permissions?.spawnProcess) {
+          throw new Error(`Extension ${registry.id} is not allowed to spawn local processes`);
+        }
+        const normalizedPid = Number.parseInt(String(pid ?? "").trim(), 10);
+        if (!Number.isFinite(normalizedPid) || normalizedPid <= 0) {
+          throw new Error("Process pid is required");
+        }
+        const result = await requestHostCall(registry, "process.wait", {
+          pid: normalizedPid,
+        });
+        return result && typeof result === "object" ? result : {};
+      },
       async spawn(command = "", options = {}) {
         if (!registry.permissions?.spawnProcess) {
           throw new Error(`Extension ${registry.id} is not allowed to spawn local processes`);
@@ -616,7 +629,20 @@ function createExtensionApi(registry) {
           cwd: String(options?.cwd || registry.currentWorkspaceRoot || ""),
           env: normalizeSettingsObject(options?.env),
         });
-        return result && typeof result === "object" ? result : {};
+        const normalizedResult = result && typeof result === "object" ? result : {};
+        return {
+          ...normalizedResult,
+          async wait() {
+            const pid = Number.parseInt(String(normalizedResult?.pid ?? "").trim(), 10);
+            if (!Number.isFinite(pid) || pid <= 0) {
+              throw new Error("Spawned process pid is required");
+            }
+            const waited = await requestHostCall(registry, "process.wait", {
+              pid,
+            });
+            return waited && typeof waited === "object" ? waited : {};
+          },
+        };
       },
     },
     tasks: {

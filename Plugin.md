@@ -65,6 +65,7 @@ Plugins can already use:
 - `pdf.extractMetadata(filePath?)`
 - `process.exec(command, options?)`
 - `process.spawn(command, options?)`
+- `process.wait(pid)`
 - `invocation.current`
 - `settings.onDidChange(...)`
 - `workspaceState`
