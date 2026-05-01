@@ -46,6 +46,12 @@ try {
         extensionConfig: args?.params?.settings?.extensionConfig || {},
       }
     }
+    if (cmd === 'extension_host_deactivate') {
+      return {
+        extensionId: args?.params?.extensionId || '',
+        accepted: true,
+      }
+    }
     if (cmd === 'extension_task_list') {
       return []
     }
@@ -144,6 +150,12 @@ try {
   assert.equal(extensions.viewControllerState['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.changedViewTicks['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.sidebarTargets['extension:examplePdfExtension.tools'], undefined)
+  assert.ok(
+    ipcCalls.some(([cmd, args]) =>
+      cmd === 'extension_host_deactivate' &&
+      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+    ),
+  )
 
   await assert.rejects(
     () => extensions.executeCommand({
@@ -204,6 +216,7 @@ try {
   console.log(JSON.stringify({
     ok: true,
     disabledRuntimeCleared: true,
+    deactivationObserved: ipcCalls.some(([cmd]) => cmd === 'extension_host_deactivate'),
     forbiddenCalls,
     persistedEnabledIds: disabledSnapshot.enabledExtensionIds,
   }, null, 2))

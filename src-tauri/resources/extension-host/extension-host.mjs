@@ -956,6 +956,18 @@ async function loadExtensionModule(mainPath) {
   return await import(pathToFileURL(normalized).href);
 }
 
+async function deactivateRecord(record) {
+  if (!record || typeof record !== "object") return;
+  if (typeof record.deactivate === "function") {
+    await record.deactivate();
+  }
+  const subscriptions = Array.isArray(record.subscriptions) ? record.subscriptions : [];
+  for (const subscription of subscriptions) {
+    if (!subscription || typeof subscription.dispose !== "function") continue;
+    subscription.dispose();
+  }
+}
+
 async function ensureActivated(request) {
   const extensionId = String(
     request.extensionId || request.envelope?.extensionId || "",
@@ -1032,6 +1044,7 @@ async function ensureActivated(request) {
   const api = createExtensionApi(record);
   const module = await loadExtensionModule(resolvedMain);
   const activate = typeof module.activate === "function" ? module.activate : null;
+  const deactivate = typeof module.deactivate === "function" ? module.deactivate : null;
   if (!activate) {
     throw new Error(`Extension activate() not found: ${resolvedMain}`);
   }
@@ -1044,6 +1057,7 @@ async function ensureActivated(request) {
   });
   await activate(context);
   record.subscriptions = context.subscriptions;
+  record.deactivate = deactivate;
   extensions.set(extensionId, record);
   return record;
 }
@@ -1080,6 +1094,32 @@ async function handleActivate(params = {}) {
         ]),
       ],
       registeredViewDetails: [...record.viewMetadata.values()],
+    },
+  };
+}
+
+async function handleDeactivate(params = {}) {
+  const extensionId = String(params.extensionId || "").trim();
+  if (!extensionId) {
+    throw new Error("Extension id is required");
+  }
+  const record = extensions.get(extensionId);
+  if (!record) {
+    return {
+      kind: "AcknowledgeDeactivation",
+      payload: {
+        extensionId,
+        accepted: false,
+      },
+    };
+  }
+  await deactivateRecord(record);
+  extensions.delete(extensionId);
+  return {
+    kind: "AcknowledgeDeactivation",
+    payload: {
+      extensionId,
+      accepted: true,
     },
   };
 }
@@ -1386,6 +1426,9 @@ async function dispatchRequest(request) {
   }
   if (request.method === "Activate") {
     return await handleActivate(request.params || {});
+  }
+  if (request.method === "Deactivate") {
+    return await handleDeactivate(request.params || {});
   }
   if (request.method === "InvokeCapability") {
     return await handleInvokeCapability(request.params || {});

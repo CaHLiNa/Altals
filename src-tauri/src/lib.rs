@@ -506,6 +506,7 @@ pub fn run() {
             extension_manifest::extension_registry_validate_manifest,
             extension_host::extension_host_status,
             extension_host::extension_host_activate,
+            extension_host::extension_host_deactivate,
             extension_host::extension_host_respond_ui_request,
             extension_host::extension_host_resolve_host_call,
             extension_host::extension_host_notify_view_selection,

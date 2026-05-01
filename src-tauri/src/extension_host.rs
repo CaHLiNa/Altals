@@ -224,6 +224,9 @@ pub enum ExtensionHostRequest {
         #[serde(default)]
         activation_state: ExtensionHostActivationState,
     },
+    Deactivate {
+        extension_id: String,
+    },
     InvokeCapability {
         activation_event: String,
         extension_path: String,
@@ -564,6 +567,20 @@ pub struct ExtensionHostSettingsUpdateAcknowledgement {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ExtensionHostDeactivateParams {
+    #[serde(default)]
+    pub extension_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostDeactivationAcknowledgement {
+    pub extension_id: String,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionHostRespondUiRequestParams {
     #[serde(default)]
     pub request_id: String,
@@ -625,6 +642,7 @@ pub struct ExtensionHostStateChangedEvent {
 #[serde(rename_all = "camelCase", tag = "kind", content = "payload")]
 pub enum ExtensionHostResponse {
     Activate(ExtensionHostActivationResult),
+    AcknowledgeDeactivation(ExtensionHostDeactivationAcknowledgement),
     InvokeCapability(ExtensionHostCapabilityResult),
     ExecuteCommand(ExtensionHostCapabilityResult),
     ResolveView(ExtensionHostViewResolveResult),
@@ -1764,6 +1782,14 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             registered_menu_actions: Vec::new(),
             registered_view_details: Vec::new(),
         }),
+        ExtensionHostRequest::Deactivate { extension_id } => {
+            ExtensionHostResponse::AcknowledgeDeactivation(
+                ExtensionHostDeactivationAcknowledgement {
+                    extension_id,
+                    accepted: true,
+                },
+            )
+        }
         ExtensionHostRequest::InvokeCapability { envelope, .. } => {
             ExtensionHostResponse::InvokeCapability(ExtensionHostCapabilityResult {
                 accepted: true,
@@ -1877,6 +1903,36 @@ pub async fn extension_host_activate(
         &entry,
         &params.activation_event,
     )
+}
+
+#[tauri::command]
+pub async fn extension_host_deactivate(
+    params: ExtensionHostDeactivateParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostDeactivationAcknowledgement, String> {
+    let extension_id = params.extension_id.trim().to_ascii_lowercase();
+    if extension_id.is_empty() {
+        return Err("Extension id is required".to_string());
+    }
+    let result = match invoke_extension_host(
+        state.inner(),
+        None,
+        ExtensionHostRequest::Deactivate {
+            extension_id: extension_id.clone(),
+        },
+    )? {
+        ExtensionHostResponse::AcknowledgeDeactivation(result) => result,
+        _ => return Err("Unexpected extension host response for deactivation".to_string()),
+    };
+    if result.accepted {
+        if let Ok(mut activated) = state.activated_extensions.lock() {
+            activated.remove(&extension_id);
+        }
+        if let Ok(mut contexts) = state.activation_context.lock() {
+            contexts.remove(&extension_id);
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]

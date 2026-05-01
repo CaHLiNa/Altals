@@ -11,6 +11,14 @@ export async function activateExtensionHost(payload = {}) {
   })
 }
 
+export async function deactivateExtensionHost(payload = {}) {
+  return invoke('extension_host_deactivate', {
+    params: {
+      extensionId: String(payload.extensionId || ''),
+    },
+  })
+}
+
 export async function updateExtensionHostSettings(payload = {}) {
   return invoke('extension_host_update_settings', {
     params: {

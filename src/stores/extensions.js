@@ -25,6 +25,7 @@ import {
 } from '../services/extensions/extensionViews'
 import {
   activateExtensionHost,
+  deactivateExtensionHost,
   updateExtensionHostSettings,
 } from '../services/extensions/extensionHost'
 import {
@@ -835,6 +836,9 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       const snapshot = await this.persistSettings({ enabledExtensionIds: [...ids] })
       if (!enabled) {
+        if (this.runtimeRegistry[id]?.activated) {
+          await deactivateExtensionHost({ extensionId: id }).catch(() => {})
+        }
         this.pruneExtensionRuntimeState(id)
       }
       return snapshot
