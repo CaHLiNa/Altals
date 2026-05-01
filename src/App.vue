@@ -154,6 +154,7 @@ import { useToastStore } from './stores/toast'
 import {
   listenExtensionWindowInputRequested,
   listenExtensionHostCallRequested,
+  listenExtensionHostInterrupted,
   listenExtensionWindowMessage,
 } from './services/extensions/extensionHostEvents'
 import { resolveExtensionHostCall } from './services/extensions/extensionHost'
@@ -216,6 +217,7 @@ const commandPaletteVisible = ref(false)
 let stopExtensionWindowMessageListener = null
 let stopExtensionWindowInputListener = null
 let stopExtensionHostCallListener = null
+let stopExtensionHostInterruptedListener = null
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -444,6 +446,15 @@ onMounted(() => {
   }).then((unlisten) => {
     stopExtensionHostCallListener = unlisten
   }).catch(() => {})
+  void listenExtensionHostInterrupted((event) => {
+    const payload = event?.payload || {}
+    const requestId = String(payload.requestId || '')
+    if (requestId && extensionWindowUi.pendingRequest?.requestId === requestId) {
+      extensionWindowUi.clearRequest()
+    }
+  }).then((unlisten) => {
+    stopExtensionHostInterruptedListener = unlisten
+  }).catch(() => {})
   void extensionsStore.refreshRegistry().catch(() => {})
 })
 
@@ -458,6 +469,8 @@ onBeforeUnmount(() => {
   stopExtensionWindowInputListener = null
   stopExtensionHostCallListener?.()
   stopExtensionHostCallListener = null
+  stopExtensionHostInterruptedListener?.()
+  stopExtensionHostInterruptedListener = null
 })
 
 const {

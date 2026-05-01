@@ -42,6 +42,8 @@ pub const EXTENSION_VIEW_REVEAL_REQUESTED_EVENT: &str = "extension-view-reveal-r
 #[cfg(not(test))]
 pub const EXTENSION_WINDOW_MESSAGE_EVENT: &str = "extension-window-message";
 #[cfg(not(test))]
+pub const EXTENSION_HOST_INTERRUPTED_EVENT: &str = "extension-host-interrupted";
+#[cfg(not(test))]
 const BUILTIN_NODE_HOST_RELATIVE_PATH: &str =
     "src-tauri/resources/extension-host/extension-host.mjs";
 
@@ -105,6 +107,8 @@ enum ExtensionHostUiRequestStatus {
     #[cfg_attr(test, allow(dead_code))]
     Pending,
     Completed { cancelled: bool, result: Value },
+    #[cfg_attr(test, allow(dead_code))]
+    Interrupted { error: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -116,6 +120,8 @@ enum ExtensionHostCallStatus {
         result: Value,
         error: String,
     },
+    #[cfg_attr(test, allow(dead_code))]
+    Interrupted { error: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -647,6 +653,16 @@ pub struct ExtensionHostWindowMessageEvent {
     pub message: String,
 }
 
+#[cfg_attr(test, allow(dead_code))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostInterruptedEvent {
+    #[serde(default)]
+    pub request_id: String,
+    pub kind: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostStateChangedEvent {
@@ -1031,6 +1047,128 @@ fn reset_extension_host_process_state(state: &ExtensionHostState) -> Result<(), 
 }
 
 #[cfg(not(test))]
+fn mark_pending_ui_requests_interrupted(
+    state: &ExtensionHostState,
+    error: &str,
+) -> Result<Vec<String>, String> {
+    let mut ui_requests = state
+        .ui_requests
+        .lock()
+        .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+    let interrupted = ui_requests
+        .iter()
+        .filter_map(|(request_id, status)| match status {
+            ExtensionHostUiRequestStatus::Pending => Some(request_id.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for request_id in &interrupted {
+        ui_requests.insert(
+            request_id.clone(),
+            ExtensionHostUiRequestStatus::Interrupted {
+                error: error.to_string(),
+            },
+        );
+    }
+    Ok(interrupted)
+}
+
+#[cfg(not(test))]
+fn mark_pending_host_calls_interrupted(
+    state: &ExtensionHostState,
+    error: &str,
+) -> Result<Vec<String>, String> {
+    let mut host_calls = state
+        .host_calls
+        .lock()
+        .map_err(|_| "Failed to access extension host call state".to_string())?;
+    let interrupted = host_calls
+        .iter()
+        .filter_map(|(request_id, status)| match status {
+            ExtensionHostCallStatus::Pending => Some(request_id.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for request_id in &interrupted {
+        host_calls.insert(
+            request_id.clone(),
+            ExtensionHostCallStatus::Interrupted {
+                error: error.to_string(),
+            },
+        );
+    }
+    Ok(interrupted)
+}
+
+#[cfg(not(test))]
+fn emit_extension_host_interrupted(
+    state: &ExtensionHostState,
+    event: &ExtensionHostInterruptedEvent,
+) -> Result<(), String> {
+    let handle = state
+        .app_handle
+        .lock()
+        .map_err(|_| "Failed to access extension host app handle".to_string())?;
+    if let Some(app) = handle.as_ref() {
+        app.emit(EXTENSION_HOST_INTERRUPTED_EVENT, event.clone())
+            .map_err(|error| format!("Failed to emit extension host interrupted event: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn notify_extension_host_interrupted(state: &ExtensionHostState, error: &str) -> Result<(), String> {
+    let interrupted_ui_requests = mark_pending_ui_requests_interrupted(state, error)?;
+    for request_id in interrupted_ui_requests {
+        let _ = emit_extension_host_interrupted(
+            state,
+            &ExtensionHostInterruptedEvent {
+                request_id,
+                kind: "windowInput".to_string(),
+                message: error.to_string(),
+            },
+        );
+    }
+
+    let interrupted_host_calls = mark_pending_host_calls_interrupted(state, error)?;
+    for request_id in interrupted_host_calls {
+        let _ = emit_extension_host_interrupted(
+            state,
+            &ExtensionHostInterruptedEvent {
+                request_id,
+                kind: "hostCall".to_string(),
+                message: error.to_string(),
+            },
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn extension_host_process_running(state: &ExtensionHostState) -> Result<bool, String> {
+    let mut process = state
+        .process
+        .lock()
+        .map_err(|_| "Failed to access extension host process state".to_string())?;
+    let Some(child) = process.child.as_mut() else {
+        return Ok(false);
+    };
+    match child.try_wait() {
+        Ok(Some(_)) => {
+            process.stdin = None;
+            process.stdout = None;
+            process.child = None;
+            Ok(false)
+        }
+        Ok(None) => Ok(process.stdin.is_some() && process.stdout.is_some()),
+        Err(error) => Err(format!(
+            "Failed to inspect extension host process while waiting: {error}"
+        )),
+    }
+}
+
+#[cfg(not(test))]
 fn send_extension_host_request(
     state: &ExtensionHostState,
     serialized_request: &str,
@@ -1055,6 +1193,12 @@ fn send_extension_host_request(
 
     if result.is_err() {
         let _ = reset_extension_host_process_state(state);
+        let error = result
+            .as_ref()
+            .err()
+            .cloned()
+            .unwrap_or_else(|| "Extension host request failed".to_string());
+        let _ = notify_extension_host_interrupted(state, &error);
     }
 
     result
@@ -1084,6 +1228,12 @@ fn read_extension_host_response_line(state: &ExtensionHostState) -> Result<Strin
 
     if result.is_err() {
         let _ = reset_extension_host_process_state(state);
+        let error = result
+            .as_ref()
+            .err()
+            .cloned()
+            .unwrap_or_else(|| "Extension host response failed".to_string());
+        let _ = notify_extension_host_interrupted(state, &error);
     }
 
     result
@@ -1238,6 +1388,12 @@ fn wait_for_ui_request_completion(
                     result,
                 });
             }
+            if let Some(ExtensionHostUiRequestStatus::Interrupted { error }) =
+                ui_requests.get(request_id).cloned()
+            {
+                ui_requests.remove(request_id);
+                return Err(error);
+            }
         }
         if started.elapsed() >= timeout {
             let mut ui_requests = state
@@ -1246,6 +1402,13 @@ fn wait_for_ui_request_completion(
                 .map_err(|_| "Failed to access extension host UI request state".to_string())?;
             ui_requests.remove(request_id);
             return Err(format!("Extension UI request timed out: {request_id}"));
+        }
+        if !extension_host_process_running(state)? {
+            let error = format!(
+                "Extension host stopped while waiting for UI request completion: {request_id}"
+            );
+            let _ = notify_extension_host_interrupted(state, &error);
+            continue;
         }
         std::thread::sleep(Duration::from_millis(16));
     }
@@ -1278,6 +1441,12 @@ fn wait_for_host_call_completion(
                     error,
                 });
             }
+            if let Some(ExtensionHostCallStatus::Interrupted { error }) =
+                host_calls.get(request_id).cloned()
+            {
+                host_calls.remove(request_id);
+                return Err(error);
+            }
         }
         if started.elapsed() >= timeout {
             let mut host_calls = state
@@ -1286,6 +1455,13 @@ fn wait_for_host_call_completion(
                 .map_err(|_| "Failed to access extension host call state".to_string())?;
             host_calls.remove(request_id);
             return Err(format!("Extension host call timed out: {request_id}"));
+        }
+        if !extension_host_process_running(state)? {
+            let error = format!(
+                "Extension host stopped while waiting for host call completion: {request_id}"
+            );
+            let _ = notify_extension_host_interrupted(state, &error);
+            continue;
         }
         std::thread::sleep(Duration::from_millis(16));
     }

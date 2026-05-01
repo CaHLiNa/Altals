@@ -148,6 +148,7 @@ Result contract rule:
 - task artifacts are envelope-authoritative and cannot spoof `taskId`, `capability`, or `extensionId`
 - direct view artifacts and pushed view-state artifacts may intentionally preserve explicit metadata because they describe view-owned state rather than task-owned execution records
 - persistent host recovery is part of the runtime contract: if the Node extension host crashes, Rust must detect the dead process, clear broken stdio handles, and let the next request respawn the host instead of leaving the platform in a broken-pipe state
+- pending prompt waits must be interruption-aware: if the host dies after requesting UI, Rust should fail the wait immediately instead of relying on long timeouts, and frontend prompt state should clear on the interruption event
 
 ## 7. API Philosophy
 
@@ -235,7 +236,7 @@ Translation-oriented boundary:
 Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
-- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule
