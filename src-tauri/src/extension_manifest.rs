@@ -1,3 +1,4 @@
+use crate::extension_secret_settings::looks_like_secret_setting_key;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -411,6 +412,14 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         warnings.push("Extension declares no activationEvents".to_string());
     }
 
+    for (key, property) in &manifest.contributes.configuration.properties {
+        if looks_like_secret_setting_key(key) && !property.secure_storage {
+            warnings.push(format!(
+                "Secret-like setting should declare secureStorage for an explicit keychain contract: {key}"
+            ));
+        }
+    }
+
     for command in &manifest.contributes.commands {
         if command.command.trim().is_empty() {
             errors.push("Contributed command id is required".to_string());
@@ -656,6 +665,25 @@ mod tests {
                 .map(|property| property.secure_storage),
             Some(true)
         );
+    }
+
+    #[test]
+    fn warns_when_secret_like_setting_omits_secure_storage() {
+        let mut manifest = valid_manifest();
+        manifest
+            .contributes
+            .configuration
+            .properties
+            .get_mut("examplePdfExtension.apiKey")
+            .expect("api key property")
+            .secure_storage = false;
+
+        let result = validate_extension_manifest(&manifest);
+        assert!(result.ok, "{:?}", result.errors);
+        assert!(result
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("declare secureStorage") && warning.contains("examplePdfExtension.apiKey")));
     }
 
     #[test]

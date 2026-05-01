@@ -16,6 +16,7 @@ mod extension_host;
 mod extension_manifest;
 mod extension_permissions;
 mod extension_registry;
+mod extension_secret_settings;
 mod extension_settings;
 mod extension_tasks;
 mod extension_views;

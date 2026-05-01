@@ -200,6 +200,10 @@ But settings behavior should still be runtime-oriented:
 - runtime reads resolved values from host APIs
 - plugin logic interprets settings locally
 
+Compatibility note:
+
+- secret-like keys still fall back to keychain-backed storage for compatibility, but plugin manifests should declare `secureStorage: true` explicitly and the registry warns when that contract is missing
+
 The settings page should communicate:
 
 - install source
@@ -216,7 +220,7 @@ Translation-oriented boundary:
 - provider defaults and non-secret knobs may live in host-managed plugin settings
 - runtime task execution, progress, result summary and artifact links belong in the document right sidebar
 - external OCR / LLM work should fit either a sidecar process or another local worker behind `context.process`
-- password-like plugin settings declared with `secureStorage: true` already use secure host-managed storage, and legacy plaintext values are migrated on load
+- password-like plugin settings declared with `secureStorage: true` already use secure host-managed storage, legacy plaintext values are migrated on load, and undeclared secret-like keys remain a compatibility fallback rather than the preferred contract
 
 ## 11. Current Compatibility Rule
 

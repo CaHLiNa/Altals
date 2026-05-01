@@ -1,4 +1,5 @@
 use crate::app_dirs;
+use crate::extension_secret_settings::looks_like_secret_setting_key;
 use crate::extension_registry::find_extension_entry;
 use crate::keychain;
 use serde::{Deserialize, Serialize};
@@ -69,15 +70,6 @@ fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
 }
 
-fn is_secret_setting_key(key: &str) -> bool {
-    let normalized = key.trim().to_ascii_lowercase();
-    normalized.contains("apikey")
-        || normalized.contains("api_key")
-        || normalized.contains("token")
-        || normalized.contains("secret")
-        || normalized.contains("password")
-}
-
 fn secure_storage_keys_for_extension(
     global_config_dir: &str,
     workspace_root: &str,
@@ -129,7 +121,7 @@ fn secret_keys_for_config(
     keys.extend(
         config
             .keys()
-            .filter(|key| is_secret_setting_key(key))
+            .filter(|key| looks_like_secret_setting_key(key))
             .cloned(),
     );
     keys.sort();
