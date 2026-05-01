@@ -66,6 +66,10 @@
                   <span class="extension-meta-value">{{ runtimeCapabilitySummary(extension) }}</span>
                 </div>
                 <div class="extension-meta-item">
+                  <span class="extension-meta-label">{{ t('Bootstrap Capabilities') }}</span>
+                  <span class="extension-meta-value">{{ bootstrapCapabilitySummary(extension) }}</span>
+                </div>
+                <div class="extension-meta-item">
                   <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
                   <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
                 </div>
@@ -110,6 +114,18 @@
                 <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
                   {{ capability }}
                 </span>
+              </div>
+              <div v-if="capabilityActions(extension).length" class="extension-capability-actions">
+                <UiButton
+                  v-for="capability in capabilityActions(extension)"
+                  :key="`${extension.id}:${capability.id}`"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || capabilityInvokeDisabled"
+                  @click="runCapability(extension, capability)"
+                >
+                  {{ capabilityButtonLabel(capability) }}
+                </UiButton>
               </div>
               <div v-if="extension.errors.length" class="extension-message is-error">
                 {{ extension.errors.map((message) => t(message)).join('; ') }}
@@ -203,16 +219,23 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { useToastStore } from '../../stores/toast'
+import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
+const workspaceStore = useWorkspaceStore()
+const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
+const capabilityBusyId = ref('')
+const capabilityInvokeDisabled = computed(() => !String(workspaceStore.path || '').trim())
 function isEnabled(extensionId = '') {
   return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
 }
@@ -275,6 +298,14 @@ function runtimeCapabilitySummary(extension = {}) {
   return entry.registeredCapabilities.join(' · ')
 }
 
+function bootstrapCapabilitySummary(extension = {}) {
+  const capabilities = Array.isArray(extension.contributedCapabilities)
+    ? extension.contributedCapabilities.map((capability) => String(capability?.id || '').trim()).filter(Boolean)
+    : []
+  if (!capabilities.length) return t('No bootstrap capabilities')
+  return capabilities.join(' · ')
+}
+
 function permissionSummary(extension = {}) {
   const permissions = extension.permissions || {}
   const labels = []
@@ -321,6 +352,47 @@ function viewSummary(extension = {}) {
     ...containers.map((container) => container.title || container.id),
     ...views.map((view) => view.title || view.id),
   ].join(' · ')
+}
+
+function capabilityActions(extension = {}) {
+  const capabilities = Array.isArray(extension.contributedCapabilities)
+    ? extension.contributedCapabilities
+    : []
+  return capabilities.filter((capability) => String(capability?.id || '').trim())
+}
+
+function capabilityButtonLabel(capability = {}) {
+  return t('Run {name}', {
+    name: String(capability?.id || '').trim(),
+  })
+}
+
+async function runCapability(extension = {}, capability = {}) {
+  const capabilityId = String(capability?.id || '').trim()
+  if (!capabilityId || capabilityInvokeDisabled.value) return
+  const busyId = `${extension.id}:${capabilityId}`
+  capabilityBusyId.value = busyId
+  try {
+    const target = {
+      kind: 'referencePdf',
+      referenceId: 'ref-settings',
+      path: '/tmp/paper.pdf',
+    }
+    await extensionsStore.invokeCapability({
+      extensionId: extension.id,
+      capabilityId,
+    }, target)
+    toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
+      type: 'error',
+      duration: 4200,
+    })
+  } finally {
+    if (capabilityBusyId.value === busyId) {
+      capabilityBusyId.value = ''
+    }
+  }
 }
 
 function shortSettingKey(key = '') {
@@ -611,6 +683,13 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.extension-capability-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .extension-meta-grid {
