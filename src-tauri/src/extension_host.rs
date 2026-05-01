@@ -1629,15 +1629,6 @@ fn handle_extension_host_process_call(
     } else {
         Default::default()
     };
-    let command_name = payload
-        .get("command")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim()
-        .to_string();
-    if command_name.is_empty() {
-        return Err("Process command is required".to_string());
-    }
     let args = payload
         .get("args")
         .and_then(Value::as_array)
@@ -1658,6 +1649,15 @@ fn handle_extension_host_process_call(
 
     let result = match event.kind.as_str() {
         "process.exec" => {
+            let command_name = payload
+                .get("command")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if command_name.is_empty() {
+                return Err("Process command is required".to_string());
+            }
             let mut command = background_command(&command_name);
             command.args(&args);
             if let Some(cwd) =
@@ -1690,6 +1690,15 @@ fn handle_extension_host_process_call(
             })
         }
         "process.spawn" => {
+            let command_name = payload
+                .get("command")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if command_name.is_empty() {
+                return Err("Process command is required".to_string());
+            }
             let mut command = background_command(&command_name);
             command.args(&args);
             if let Some(cwd) =
@@ -1931,22 +1940,44 @@ pub fn invoke_extension_host(
                 }
                 ExtensionHostResponse::HostCallRequested(event) => {
                     let completed = match event.kind.as_str() {
-                        "process.exec" | "process.spawn" | "process.wait" => {
-                            Some(handle_extension_host_process_call(
-                                state,
-                                task_runtime_state,
-                                event,
-                            )?)
-                        }
-                        "tasks.update" => {
-                            Some(handle_extension_host_task_call(state, task_runtime_state, event)?)
-                        }
-                        "references.readCurrentLibrary" => {
-                            Some(handle_extension_host_reference_call(state, event)?)
-                        }
-                        "pdf.extractText" | "pdf.extractMetadata" => {
-                            Some(handle_extension_host_pdf_call(state, event)?)
-                        }
+                        "process.exec" | "process.spawn" | "process.wait" => Some(
+                            handle_extension_host_process_call(state, task_runtime_state, event)
+                                .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
+                                    request_id: event.request_id.clone(),
+                                    accepted: false,
+                                    result: Value::Null,
+                                    error,
+                                }),
+                        ),
+                        "tasks.update" => Some(
+                            handle_extension_host_task_call(state, task_runtime_state, event)
+                                .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
+                                    request_id: event.request_id.clone(),
+                                    accepted: false,
+                                    result: Value::Null,
+                                    error,
+                                }),
+                        ),
+                        "references.readCurrentLibrary" => Some(
+                            handle_extension_host_reference_call(state, event).unwrap_or_else(
+                                |error| ExtensionHostResolveHostCallParams {
+                                    request_id: event.request_id.clone(),
+                                    accepted: false,
+                                    result: Value::Null,
+                                    error,
+                                },
+                            ),
+                        ),
+                        "pdf.extractText" | "pdf.extractMetadata" => Some(
+                            handle_extension_host_pdf_call(state, event).unwrap_or_else(|error| {
+                                ExtensionHostResolveHostCallParams {
+                                    request_id: event.request_id.clone(),
+                                    accepted: false,
+                                    result: Value::Null,
+                                    error,
+                                }
+                            }),
+                        ),
                         _ => None,
                     };
                     if let Some(completed) = completed {

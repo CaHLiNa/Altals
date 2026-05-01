@@ -132,6 +132,14 @@ Settings change contract note:
 - `event.values` should reflect the post-update settings snapshot only, with removed keys absent
 - no-op settings snapshots should not emit extra runtime change events
 
+Process contract note:
+
+- `context.process.exec(...)` should default `cwd` to the active workspace root when the caller does not provide one
+- `context.process.spawn(...).wait()` should preserve the spawned pid and return a stable `{ ok, pid, code }` shape from the Rust bridge
+- env values should cross the Rust bridge as strings without requiring plugin-specific shell wrappers
+- failing process executions should preserve non-zero exit codes and stderr text
+- requested `cwd` values must stay inside the active workspace; outside-workspace requests should fail instead of silently escaping the scope boundary
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:
@@ -264,7 +272,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule

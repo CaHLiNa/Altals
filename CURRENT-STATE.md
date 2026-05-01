@@ -85,6 +85,7 @@ Current plugin lifecycle contract:
 - quick-pick multi-select is now probe-backed: picked defaults hydrate into the prompt, UI selection can accumulate multiple items, and the host roundtrip preserves an array result payload
 - quick-pick request and result semantics are now probe-backed: host request payload fields stay stable, picked defaults survive request serialization, confirm returns the selected value, and cancel resolves back to `undefined`
 - settings change contract is now probe-backed: host updates replace the runtime settings snapshot instead of merging stale keys, `changedKeys` includes updates plus removals, `event.values` reflects the post-update snapshot, and no-op snapshots do not emit extra runtime changes
+- process bridge contract is now probe-backed: `context.process.exec(...)` inherits the workspace root as default cwd, `spawn(...).wait()` preserves pid and exit result shape, env vars cross the Rust bridge, failing execs keep stderr plus non-zero codes, and cwd requests outside the active workspace are rejected
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -116,6 +117,7 @@ It runs:
 - `npm run probe:extension-deactivation-host`
 - `npm run probe:extension-secure-settings-bridge`
 - `npm run probe:extension-settings-change-contract`
+- `npm run probe:extension-process-contract`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
@@ -155,6 +157,7 @@ Current baseline:
 - extension deactivation host probe passes
 - extension secure settings bridge probe passes
 - extension settings change contract probe passes
+- extension process bridge contract probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes
