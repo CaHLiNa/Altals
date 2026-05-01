@@ -461,6 +461,40 @@ mod tests {
         .expect("write manifest");
     }
 
+    fn write_workspace_test_extension_manifest(
+        workspace_root: &Path,
+        extension_id: &str,
+        secure_key: &str,
+    ) {
+        let extension_dir = workspace_root
+            .join(".scribeflow")
+            .join("extensions")
+            .join(extension_id);
+        fs::create_dir_all(&extension_dir).expect("workspace extension dir");
+        let manifest = serde_json::json!({
+            "name": extension_id,
+            "displayName": "Workspace Test Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "configuration": {
+                    "properties": {
+                        secure_key: {
+                            "type": "string",
+                            "default": "",
+                            "secureStorage": true
+                        }
+                    }
+                }
+            }
+        });
+        fs::write(
+            extension_dir.join("package.json"),
+            serde_json::to_string_pretty(&manifest).expect("workspace manifest json"),
+        )
+        .expect("write workspace manifest");
+    }
+
     #[test]
     fn saves_normalized_extension_settings() {
         let root = std::env::temp_dir().join(format!(
@@ -631,5 +665,71 @@ mod tests {
         );
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn workspace_extensions_honor_schema_declared_secure_storage() {
+        let global_root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-workspace-global-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let workspace_root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-workspace-root-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&global_root).expect("global root");
+        fs::create_dir_all(&workspace_root).expect("workspace root");
+        write_workspace_test_extension_manifest(
+            &workspace_root,
+            "workspace-only-extension",
+            "opaqueCredential",
+        );
+
+        let mut extension_config = BTreeMap::new();
+        extension_config.insert(
+            "workspace-only-extension".to_string(),
+            serde_json::json!({
+                "opaqueCredential": "workspace-secret",
+                "targetLang": "en"
+            }),
+        );
+
+        let saved = save_extension_settings(
+            &global_root.to_string_lossy(),
+            &workspace_root.to_string_lossy(),
+            ExtensionSettings {
+                enabled_extension_ids: vec!["workspace-only-extension".to_string()],
+                extension_config,
+            },
+        )
+        .expect("save workspace settings");
+
+        assert_eq!(
+            saved.extension_config.get("workspace-only-extension"),
+            Some(&serde_json::json!({
+                "opaqueCredential": "workspace-secret",
+                "targetLang": "en"
+            }))
+        );
+
+        let file_content = fs::read_to_string(global_root.join("extension-settings.json"))
+            .expect("workspace settings file");
+        assert!(!file_content.contains("workspace-secret"));
+
+        let loaded = load_extension_settings(
+            &global_root.to_string_lossy(),
+            &workspace_root.to_string_lossy(),
+        )
+        .expect("load workspace settings");
+        assert_eq!(
+            loaded.extension_config.get("workspace-only-extension"),
+            Some(&serde_json::json!({
+                "opaqueCredential": "workspace-secret",
+                "targetLang": "en"
+            }))
+        );
+
+        fs::remove_dir_all(global_root).ok();
+        fs::remove_dir_all(workspace_root).ok();
     }
 }
