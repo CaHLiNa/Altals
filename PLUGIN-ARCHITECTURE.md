@@ -177,6 +177,13 @@ View state contract note:
 - pushed `resultEntries`, `artifacts`, and `outputs` should survive later refreshes until the plugin replaces them with another pushed snapshot
 - tree-view refresh should keep consuming the stored host view state, while normal view providers should merge the latest provider baseline with the stored pushed patch
 
+Lifecycle state contract note:
+
+- persisted extension `settings` from the Rust settings store should still hydrate into the next activation after a host crash, not only after a clean deactivate/reactivate cycle
+- runtime-owned `globalState` should survive across deactivate, reactivate, and crash-recovery activation for the same extension id
+- runtime-owned `workspaceState` should survive the same lifecycle within one workspace root but stay isolated across different workspace roots
+- process-local plugin counters may reset after a host crash, but persisted state channels and saved settings must recover on the next activation
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:

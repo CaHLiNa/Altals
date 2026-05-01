@@ -863,6 +863,35 @@ pub fn activate_extension_by_id_for_probe(
     )
 }
 
+pub fn deactivate_extension_for_probe(
+    state: &ExtensionHostState,
+    extension_id: &str,
+) -> Result<ExtensionHostDeactivationAcknowledgement, String> {
+    let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    if normalized_extension_id.is_empty() {
+        return Err("Extension id is required".to_string());
+    }
+    let result = match invoke_extension_host(
+        state,
+        None,
+        ExtensionHostRequest::Deactivate {
+            extension_id: normalized_extension_id.clone(),
+        },
+    )? {
+        ExtensionHostResponse::AcknowledgeDeactivation(result) => result,
+        _ => return Err("Unexpected extension host response for deactivation".to_string()),
+    };
+    if result.accepted {
+        if let Ok(mut activated) = state.activated_extensions.lock() {
+            activated.remove(&normalized_extension_id);
+        }
+        if let Ok(mut contexts) = state.activation_context.lock() {
+            contexts.remove(&normalized_extension_id);
+        }
+    }
+    Ok(result)
+}
+
 pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event: &str) -> bool {
     let target = activation_event.trim();
     if target.is_empty() {

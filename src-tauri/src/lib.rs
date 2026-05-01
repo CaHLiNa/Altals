@@ -61,6 +61,7 @@ mod workspace_preferences;
 pub use extension_host::{
     activate_extension as extension_host_activate_entry,
     activate_extension_by_id_for_probe as extension_host_activate_by_id_for_probe,
+    deactivate_extension_for_probe as extension_host_deactivate_for_probe,
     invoke_extension_host_for_probe as extension_host_invoke_probe_request,
     invoke_extension_host_with_task_runtime_for_probe as extension_host_invoke_probe_request_with_task_runtime,
     invoke_extension_host as extension_host_invoke_request,
@@ -70,6 +71,12 @@ pub use extension_host::{
     ExtensionHostState,
 };
 pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
+pub use extension_settings::{
+    load_extension_runtime_state_snapshot as extension_settings_load_runtime_state_snapshot_for_probe,
+    load_extension_settings_with_state as extension_settings_load_with_state_for_probe,
+    save_extension_settings as extension_settings_save_for_probe,
+    ExtensionSettings,
+};
 
 use percent_encoding::percent_decode_str;
 use std::fs;

@@ -92,6 +92,7 @@ Current plugin lifecycle contract:
 - task update contract is now probe-backed: `context.tasks.update(...)` preserves spawned-process ownership across intermediate `running` updates so `spawn(...).wait()` still resolves, terminal updates reap runtime pid ownership without deleting the persisted task record, and task `artifacts` / `outputs` follow replace-on-present semantics through the Rust bridge
 - view state contract is now probe-backed: `context.views.updateView(...)` for normal view providers survives later `ResolveView` refreshes as an overlay, pushed fields stay authoritative, and untouched fields continue refreshing from the latest provider baseline
 - nested command contract is now probe-backed: `context.commands.executeCommand(...)` preserves the callee result payload, surfaces nested runtime failures as catchable plugin exceptions, and unions nested `changedViews` with host-tracked `views.refresh(...)` requests
+- lifecycle state contract is now probe-backed: persisted extension settings, `globalState`, and same-workspace `workspaceState` survive through `deactivate -> reactivate -> host crash recovery`, while `workspaceState` remains isolated across workspace roots
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -130,6 +131,7 @@ It runs:
 - `npm run probe:extension-invocation-contract`
 - `npm run probe:extension-command-menu-contract`
 - `npm run probe:extension-task-contract`
+- `npm run probe:extension-lifecycle-state-contract`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
@@ -176,6 +178,7 @@ Current baseline:
 - extension workspace/documents/invocation contract probe passes
 - extension commands/menu registration contract probe passes
 - extension task update contract probe passes
+- extension lifecycle state contract probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes

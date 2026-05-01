@@ -124,6 +124,13 @@ Nested command delivery also has a probe-backed runtime contract:
 - nested command failures and missing-command cases remain catchable inside plugin code as normal exceptions
 - nested command-triggered view refresh signals still surface through `changedViews`, including both explicit ids and host-tracked `views.refresh(...)` requests
 
+Lifecycle-state delivery also has a probe-backed runtime contract:
+
+- persisted extension `settings` survive clean reactivation and host-crash recovery because Rust rehydrates them into the next activation request
+- `globalState` survives across deactivate, reactivate, and crash recovery for the same extension id
+- `workspaceState` survives the same lifecycle only within its originating workspace root and stays isolated from other workspaces
+- plugin-local in-memory counters may reset after a host crash; only persisted settings and runtime state channels are guaranteed to recover
+
 ## 4. Current Manifest Use
 
 `package.json` is still used for:
