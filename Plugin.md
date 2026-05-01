@@ -120,10 +120,16 @@ Plugins can currently appear in:
 
 - command palette
 - action buttons
-- sidebar view containers
+- document right sidebar tabs and plugin-owned views inside those tabs
 - tree item context actions
 - plugin settings page
 - host-rendered quick input surfaces
+
+Current usage rule:
+
+- Settings is for discovery, lifecycle control, permissions and configuration
+- normal plugin workflows should run from the document right sidebar after setup
+- plugin-owned PDF/document actions should focus the matching plugin right-sidebar tab by default
 
 ## 6. Current Gap
 

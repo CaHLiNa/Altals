@@ -26,9 +26,9 @@ import {
 } from '@tabler/icons-vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
+  DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
-  DOCUMENT_DOCK_PLUGINS_PAGE,
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
@@ -169,26 +169,33 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
     },
   },
   {
-    id: DOCUMENT_DOCK_PLUGINS_PAGE,
+    id: DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX,
     resolve(context = {}) {
-      if (context.hasPluginViews !== true) return null
+      const containers = Array.isArray(context.pluginContainers) ? context.pluginContainers : []
+      if (containers.length === 0) return null
 
-      const label = context.t?.('Assistant Tools') || 'Assistant Tools'
-      return {
-        key: DOCUMENT_DOCK_PLUGINS_PAGE,
-        type: DOCUMENT_DOCK_PLUGINS_PAGE,
-        icon: IconPlug,
-        title: label,
-        ariaLabel: label,
-        tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
-        labelClass: 'document-dock__preview-label',
-        iconClass: 'document-dock__preview-icon',
-        closeable: false,
-        component: DocumentPluginsPanel,
-        componentProps: {
-          filePath: context.filePath,
-        },
-      }
+      return containers.map((container) => {
+        const label = container.title || container.id || (context.t?.('Plugin') || 'Plugin')
+        const badgeValue = Number.isInteger(container.badgeValue) ? container.badgeValue : null
+        const title = badgeValue != null ? `${label} (${badgeValue})` : label
+        return {
+          key: container.panelId,
+          type: container.panelId || `${DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX}${container.id || ''}`,
+          icon: IconPlug,
+          label,
+          title,
+          ariaLabel: title,
+          tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
+          labelClass: 'document-dock__preview-label',
+          iconClass: 'document-dock__preview-icon',
+          closeable: false,
+          component: DocumentPluginsPanel,
+          componentProps: {
+            filePath: context.filePath,
+            panelId: container.panelId,
+          },
+        }
+      })
     },
   },
   {

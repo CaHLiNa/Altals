@@ -55,7 +55,10 @@ import UiButton from '../shared/ui/UiButton.vue'
 const { t } = useI18n()
 const editorStore = useEditorStore()
 const extensionsStore = useExtensionsStore()
-const tasks = computed(() => extensionsStore.recentTasks)
+const props = defineProps({
+  extensionId: { type: String, default: '' },
+})
+const tasks = computed(() => extensionsStore.recentTasksForExtension(props.extensionId))
 
 function openArtifact(artifact = {}) {
   const path = String(artifact?.path || '')

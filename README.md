@@ -18,9 +18,9 @@ It combines a Vue frontend with a Rust runtime for workspace files, editor state
 - Sync selected document references into LaTeX bibliography files
 - Inspect where references are cited in the workspace
 - Configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
-- Discover local plugin packages, configure them and run runtime-registered commands through the host
-- Switch into plugin-provided sidebar surfaces from the workspace mode menu
-- Render plugin-owned sidebar tree views and prompt surfaces through the plugin host
+- Discover local plugin packages, enable and configure them in Settings
+- Use plugin-owned right sidebar tabs from the active document or PDF workflow
+- Render plugin-owned sidebar tree views, task summaries and prompt surfaces through the plugin host
 
 ## Requirements
 

@@ -28,11 +28,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
-  DOCUMENT_DOCK_PLUGINS_PAGE,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
+  isDocumentDockPluginPage,
 } from '../../domains/editor/documentDockPages.js'
 import {
   findInlineDockPage,
@@ -90,25 +90,45 @@ const pluginTarget = computed(() => ({
   referenceId: '',
   path: String(props.filePath || ''),
 }))
-const pluginContext = computed(() =>
-  buildExtensionContext(pluginTarget.value, {
-    workbench: {
-      surface: 'workspace',
-      panel: 'documentDock',
-      activeView: 'documentDock.plugins',
-      hasWorkspace: workspace.isOpen,
-      workspaceFolder: workspace.path || '',
-    },
-  })
+const pluginContainers = computed(() =>
+  extensionsStore.sidebarViewContainers
+    .map((container) => {
+      const target = extensionsStore.sidebarTargetForPanel(container.panelId, pluginTarget.value)
+      const context = buildExtensionContext(target, {
+        workbench: {
+          surface: 'workspace',
+          panel: 'documentDock',
+          activeView: container.panelId,
+          hasWorkspace: workspace.isOpen,
+          workspaceFolder: workspace.path || '',
+        },
+      })
+      const views = extensionsStore.viewsForContainer(container.id, context)
+      if (views.length === 0) return null
+      const firstView = views[0]
+      const state = extensionsStore.viewStateFor(`${firstView.extensionId}:${firstView.id}`) || {}
+      return {
+        ...container,
+        badgeValue: Number.isInteger(state.badgeValue) ? state.badgeValue : null,
+        badgeTooltip: String(state.badgeTooltip || ''),
+      }
+    })
+    .filter(Boolean)
 )
-const hasPluginViews = computed(() =>
-  extensionsStore.sidebarViewContainers.some(
-    (container) => extensionsStore.viewsForContainer(container.id, pluginContext.value).length > 0
-  )
-)
+const hasPluginViews = computed(() => pluginContainers.value.length > 0)
+const allowedDocumentDockPageIds = computed(() => {
+  const baseIds = Array.isArray(workspace.documentDockPageIds) ? [...workspace.documentDockPageIds] : []
+  const pageIds = new Set(baseIds)
+  for (const container of pluginContainers.value) {
+    if (container?.panelId) {
+      pageIds.add(container.panelId)
+    }
+  }
+  return [...pageIds]
+})
 const dockPages = computed(() =>
   documentDockPageRegistry.resolvePages({
-    allowedPageIds: workspace.documentDockPageIds,
+    allowedPageIds: allowedDocumentDockPageIds.value,
     comparisonTabs: comparisonTabs.value,
     documentDockResizing: props.documentDockResizing,
     documentLabel: documentLabel.value,
@@ -117,6 +137,7 @@ const dockPages = computed(() =>
     pageDefinitions: workspace.documentDockPageDefinitions,
     paneId: props.paneId,
     hasPluginViews: hasPluginViews.value,
+    pluginContainers: pluginContainers.value,
     problemCount: hasProblemsPage.value ? problemCount.value : 0,
     previewMode: previewMode.value,
     previewState: props.previewState,
@@ -126,8 +147,8 @@ const dockPages = computed(() =>
 const hasDockTabs = computed(() => dockPages.value.length > 0)
 const activeDockKey = computed(() => {
   return resolveInlineDockActivePageKey(dockPages.value, workspace.documentDockActivePage, {
-    defaultType: hasPluginViews.value ? DOCUMENT_DOCK_PLUGINS_PAGE : (workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE),
-    fallbackTypes: [DOCUMENT_DOCK_REFERENCES_PAGE, DOCUMENT_DOCK_PLUGINS_PAGE, DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
+    defaultType: pluginContainers.value[0]?.panelId || workspace.documentDockDefaultPage || DOCUMENT_DOCK_PREVIEW_PAGE,
+    fallbackTypes: [DOCUMENT_DOCK_REFERENCES_PAGE, ...pluginContainers.value.map((container) => container.panelId), DOCUMENT_DOCK_FILE_PAGE, DOCUMENT_DOCK_PROBLEMS_PAGE],
     preferredKeysByType: documentDockPreferredKeysByType(),
   })
 })
@@ -211,8 +232,8 @@ function activateDockPage(page = {}) {
     return
   }
 
-  if (page.type === DOCUMENT_DOCK_PLUGINS_PAGE) {
-    void workspace.setDocumentDockActivePage(DOCUMENT_DOCK_PLUGINS_PAGE)
+  if (isDocumentDockPluginPage(page.type)) {
+    void workspace.setDocumentDockActivePage(page.type)
   }
 }
 

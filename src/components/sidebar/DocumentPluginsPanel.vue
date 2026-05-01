@@ -1,181 +1,166 @@
 <template>
-  <div class="document-plugins-panel">
-    <div v-if="containers.length === 0" class="document-plugins-panel__empty">
+  <div class="document-plugin-page">
+    <div v-if="!container" class="document-plugin-page__empty">
       {{ t('No document plugins available') }}
     </div>
 
-    <div v-else class="document-plugins-panel__shell">
-      <div class="document-plugins-panel__switcher" role="tablist" :aria-label="t('Document plugins')">
-        <button
-          v-for="container in containers"
-          :key="container.panelId"
-          type="button"
-          class="document-plugins-panel__switcher-button"
-          :class="{ 'is-active': activePanelId === container.panelId }"
-          :title="containerTitle(container)"
-          :aria-selected="activePanelId === container.panelId"
-          role="tab"
-          @click="activePanelId = container.panelId"
-        >
-          <span class="document-plugins-panel__switcher-label">{{ containerTitle(container) }}</span>
+    <div v-else class="document-plugin-page__shell">
+      <div class="document-plugin-page__meta">
+        <div class="document-plugin-page__title-row">
+          <div class="document-plugin-page__title">{{ containerTitle }}</div>
           <span
-            v-if="containerBadge(container) != null"
-            class="document-plugins-panel__switcher-badge"
-            :title="containerBadgeTooltip(container)"
+            v-if="containerBadge != null"
+            class="document-plugin-page__badge"
+            :title="containerBadgeTooltip"
           >
-            {{ containerBadge(container) }}
+            {{ containerBadge }}
           </span>
-        </button>
-      </div>
-
-      <div class="document-plugins-panel__active-meta">
-        <div class="document-plugins-panel__active-title">{{ activeContainerTitle }}</div>
-        <div v-if="activeContainerDescription" class="document-plugins-panel__active-description">
-          {{ activeContainerDescription }}
+        </div>
+        <div v-if="containerDescription" class="document-plugin-page__description">
+          {{ containerDescription }}
+        </div>
+        <div v-if="targetSummary" class="document-plugin-page__target">
+          {{ targetSummary }}
         </div>
       </div>
 
-      <div class="document-plugins-panel__stack">
-        <ExtensionSidebarPanel
-          v-if="activeContainer"
-          :key="activeContainer.panelId"
-          :container="activeContainer"
-          :context="extensionContext"
-          :target="extensionTarget"
-        />
+      <div class="document-plugin-page__content">
+        <div class="document-plugin-page__stack">
+          <ExtensionSidebarPanel
+            :key="container.panelId"
+            :container="container"
+            :context="extensionContext"
+            :target="resolvedTarget"
+          />
+        </div>
+        <section v-if="extensionTasks.length > 0" class="document-plugin-page__tasks">
+          <div class="document-plugin-page__section-title">{{ t('Plugin Tasks') }}</div>
+          <ExtensionTaskPanel :extension-id="container.extensionId" />
+        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
+import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
 
 const props = defineProps({
-  filePath: { type: String, required: true },
+  filePath: { type: String, default: '' },
+  panelId: { type: String, required: true },
 })
 
 const { t } = useI18n()
+const workspace = useWorkspaceStore()
 const extensionsStore = useExtensionsStore()
-const activePanelId = ref('')
 
-const extensionTarget = computed(() => ({
+const fallbackTarget = computed(() => ({
   kind: String(props.filePath || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
   referenceId: '',
   path: String(props.filePath || ''),
 }))
 
+const container = computed(() => extensionsStore.containerForPanelId(props.panelId))
+const resolvedTarget = computed(() =>
+  extensionsStore.sidebarTargetForPanel(props.panelId, fallbackTarget.value)
+)
+
 const extensionContext = computed(() =>
-  buildExtensionContext(extensionTarget.value, {
+  buildExtensionContext(resolvedTarget.value, {
     workbench: {
       surface: 'workspace',
       panel: 'documentDock',
-      activeView: 'documentDock.plugins',
-      hasWorkspace: true,
+      activeView: String(props.panelId || ''),
+      hasWorkspace: workspace.isOpen,
+      workspaceFolder: workspace.path || '',
     },
   })
 )
 
-const containers = computed(() =>
-  extensionsStore.sidebarViewContainers.filter((container) =>
-    extensionsStore.viewsForContainer(container.id, extensionContext.value).length > 0
-  )
-)
-
-watch(containers, (next) => {
-  if (!next.length) {
-    activePanelId.value = ''
-    return
-  }
-  if (!next.some((container) => container.panelId === activePanelId.value)) {
-    activePanelId.value = next[0].panelId
-  }
-}, { immediate: true })
-
-const activeContainer = computed(() =>
-  containers.value.find((container) => container.panelId === activePanelId.value) || containers.value[0] || null
-)
-
-const activeContainerTitle = computed(() =>
-  activeContainer.value ? containerTitle(activeContainer.value) : ''
-)
-
-const activeContainerDescription = computed(() => {
-  const container = activeContainer.value
-  if (!container) return ''
-  const firstView = extensionsStore.viewsForContainer(container.id, extensionContext.value)[0]
-  if (!firstView) return ''
-  return extensionsStore.viewStateFor(`${firstView.extensionId}:${firstView.id}`)?.description || ''
+const firstView = computed(() => {
+  const currentContainer = container.value
+  if (!currentContainer) return null
+  return extensionsStore.viewsForContainer(currentContainer.id, extensionContext.value)[0] || null
 })
 
-function containerTitle(container = {}) {
-  return t(container.title || container.id || 'Plugin')
-}
+const firstViewState = computed(() => {
+  const view = firstView.value
+  if (!view) return null
+  return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`) || null
+})
 
-function containerBadge(container = {}) {
-  const firstView = extensionsStore.viewsForContainer(container.id, extensionContext.value)[0]
-  if (!firstView) return null
-  return extensionsStore.viewStateFor(`${firstView.extensionId}:${firstView.id}`)?.badgeValue ?? null
-}
+const containerTitle = computed(() =>
+  t(container.value?.title || container.value?.id || 'Plugin')
+)
+const containerDescription = computed(() => String(firstViewState.value?.description || ''))
+const containerBadge = computed(() => firstViewState.value?.badgeValue ?? null)
+const containerBadgeTooltip = computed(() => String(firstViewState.value?.badgeTooltip || ''))
+const extensionTasks = computed(() =>
+  container.value?.extensionId
+    ? extensionsStore.recentTasksForExtension(container.value.extensionId)
+    : []
+)
 
-function containerBadgeTooltip(container = {}) {
-  const firstView = extensionsStore.viewsForContainer(container.id, extensionContext.value)[0]
-  if (!firstView) return ''
-  return extensionsStore.viewStateFor(`${firstView.extensionId}:${firstView.id}`)?.badgeTooltip || ''
-}
+const targetSummary = computed(() => {
+  const target = resolvedTarget.value
+  if (target.referenceId && target.path) {
+    return t('Target: {path} · ref:{referenceId}', {
+      path: target.path,
+      referenceId: target.referenceId,
+    })
+  }
+  if (target.path) {
+    return t('Target: {path}', { path: target.path })
+  }
+  if (target.referenceId) {
+    return t('Target reference: {referenceId}', { referenceId: target.referenceId })
+  }
+  return ''
+})
 </script>
 
 <style scoped>
-.document-plugins-panel {
+.document-plugin-page {
   display: flex;
   min-height: 0;
   height: 100%;
   flex-direction: column;
 }
 
-.document-plugins-panel__shell {
+.document-plugin-page__shell {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
 }
 
-.document-plugins-panel__switcher {
+.document-plugin-page__meta {
   display: flex;
-  gap: 6px;
-  padding: 8px 8px 0;
-  overflow-x: auto;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 0;
 }
 
-.document-plugins-panel__switcher-button {
-  display: inline-flex;
+.document-plugin-page__title-row {
+  display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-base) 88%, transparent);
-  color: var(--text-secondary);
-  font-size: 12px;
 }
 
-.document-plugins-panel__switcher-button.is-active {
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface-hover));
+.document-plugin-page__title {
   color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.document-plugins-panel__switcher-label {
-  white-space: nowrap;
-}
-
-.document-plugins-panel__switcher-badge {
+.document-plugin-page__badge {
   display: inline-flex;
   align-items: center;
   min-width: 18px;
@@ -187,35 +172,46 @@ function containerBadgeTooltip(container = {}) {
   font-size: 10px;
 }
 
-.document-plugins-panel__active-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px 0;
-}
-
-.document-plugins-panel__active-title {
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.document-plugins-panel__active-description {
+.document-plugin-page__description,
+.document-plugin-page__target,
+.document-plugin-page__empty {
   color: var(--text-muted);
   font-size: 11px;
 }
 
-.document-plugins-panel__stack {
+.document-plugin-page__content {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
   padding: 8px;
   overflow: hidden;
 }
 
-.document-plugins-panel__empty {
+.document-plugin-page__stack {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.document-plugin-page__tasks {
+  flex: 0 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  padding-top: 8px;
+}
+
+.document-plugin-page__section-title {
+  padding: 0 8px 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.document-plugin-page__empty {
   padding: 16px;
-  color: var(--text-muted);
-  font-size: 12px;
 }
 </style>

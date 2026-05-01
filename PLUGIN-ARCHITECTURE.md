@@ -163,10 +163,16 @@ The first-class UI extension points should be limited and explicit:
 
 - command palette
 - toolbar / action buttons
-- sidebar views
+- document right sidebar tabs and plugin-owned views inside those tabs
 - item context actions
 - settings section / settings tab
 - modal / prompt surfaces
+
+Product rule:
+
+- Settings is a plugin management surface, not the normal operational work surface
+- a normal plugin should map to one document right-sidebar tab/container
+- document and PDF actions should route users into that plugin-owned sidebar tab instead of into Settings
 
 Do not model every UI surface through generic manifest contribution tables unless there is a strong need.
 

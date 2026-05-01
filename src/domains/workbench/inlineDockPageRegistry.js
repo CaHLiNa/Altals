@@ -44,6 +44,19 @@ function allowedPageIdsFromContext(context = {}) {
   return new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))
 }
 
+function isDefinitionAllowed(definition = {}, allowedPageIds = new Set()) {
+  if (allowedPageIds.size === 0) return true
+  const definitionId = String(definition?.id || '').trim()
+  if (!definitionId) return false
+  if (allowedPageIds.has(definitionId)) return true
+  for (const allowedId of allowedPageIds) {
+    if (allowedId.startsWith(definitionId)) {
+      return true
+    }
+  }
+  return false
+}
+
 export function createInlineDockPageRegistry(definitions = []) {
   const normalizedDefinitions = definitions
     .map((definition) => ({
@@ -57,7 +70,7 @@ export function createInlineDockPageRegistry(definitions = []) {
     const allowedPageIds = allowedPageIdsFromContext(context)
     const lifecycleDefinitions = lifecycleDefinitionsFromContext(context)
     const definitions = allowedPageIds.size > 0
-      ? normalizedDefinitions.filter((definition) => allowedPageIds.has(definition.id))
+      ? normalizedDefinitions.filter((definition) => isDefinitionAllowed(definition, allowedPageIds))
       : normalizedDefinitions
 
     return definitions.flatMap((definition) =>

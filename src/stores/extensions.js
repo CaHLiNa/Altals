@@ -34,6 +34,7 @@ import {
   matchesWhenClause,
   normalizeExtensionContributions,
 } from '../domains/extensions/extensionContributionRegistry'
+import { buildExtensionContext } from '../domains/extensions/extensionContext.js'
 
 function normalizeExtensionId(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -41,6 +42,19 @@ function normalizeExtensionId(value = '') {
 
 function normalizeCapability(value = '') {
   return String(value || '').trim()
+}
+
+function normalizeTarget(target = {}) {
+  return {
+    kind: String(target?.kind || '').trim(),
+    referenceId: String(target?.referenceId || '').trim(),
+    path: String(target?.path || '').trim(),
+  }
+}
+
+function targetHasValue(target = {}) {
+  const normalized = normalizeTarget(target)
+  return Boolean(normalized.kind || normalized.referenceId || normalized.path)
 }
 
 function normalizeExtension(extension = {}) {
@@ -178,6 +192,14 @@ function runtimeCommandIds(entry = {}) {
   return commandIds
 }
 
+function contributedViewForId(extension = {}, viewId = '') {
+  const normalizedViewId = String(viewId || '').trim()
+  if (!normalizedViewId) return null
+  return (extension?.contributedViews || []).find(
+    (view) => String(view?.id || '').trim() === normalizedViewId,
+  ) || null
+}
+
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
     registry: [],
@@ -188,6 +210,7 @@ export const useExtensionsStore = defineStore('extensions', {
     viewState: {},
     viewControllerState: {},
     runtimeRegistry: {},
+    sidebarTargets: {},
     changedViewTicks: {},
     loadingRegistry: false,
     loadingTasks: false,
@@ -302,16 +325,37 @@ export const useExtensionsStore = defineStore('extensions', {
           {
             const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
             const runtimeViewDetails = runtimeEntry.registeredViewDetails
+            const manifestViews = extension.contributedViews || []
+            const manifestViewById = new Map(
+              manifestViews.map((view) => [String(view?.id || '').trim(), view]),
+            )
             const sourceViews = runtimeViewDetails.length > 0
               ? runtimeViewDetails.map((view) => ({
-                  id: view.id,
-                  title: view.title || view.id,
-                  contextualTitle: '',
-                  when: view.when,
-                  containerId: normalizedContainerId,
-                  panelId: `extension:${normalizedContainerId}`,
+                  ...(manifestViewById.get(String(view?.id || '').trim()) || {}),
+                  id: String(view?.id || '').trim(),
+                  title: String(
+                    view?.title ||
+                    manifestViewById.get(String(view?.id || '').trim())?.title ||
+                    view?.id ||
+                    '',
+                  ).trim(),
+                  contextualTitle: String(
+                    manifestViewById.get(String(view?.id || '').trim())?.contextualTitle || '',
+                  ).trim(),
+                  when: String(
+                    view?.when ||
+                    manifestViewById.get(String(view?.id || '').trim())?.when ||
+                    '',
+                  ).trim(),
+                  containerId: String(
+                    manifestViewById.get(String(view?.id || '').trim())?.containerId || '',
+                  ).trim(),
+                  panelId: String(
+                    manifestViewById.get(String(view?.id || '').trim())?.panelId || '',
+                  ).trim(),
                 }))
-              : (extension.contributedViews || [])
+                .filter((view) => view.id && view.containerId && view.panelId)
+              : manifestViews
             return sourceViews
             .filter((view) =>
               view.containerId === normalizedContainerId &&
@@ -342,6 +386,9 @@ export const useExtensionsStore = defineStore('extensions', {
             .filter((action) => matchesWhenClause(action.when, context))
             .map((action) => ({
               ...action,
+              viewId: String(view?.id || ''),
+              containerId: String(view?.containerId || ''),
+              panelId: String(view?.panelId || ''),
               extensionId: extension.id,
               extensionName: extension.name,
             }))
@@ -370,6 +417,9 @@ export const useExtensionsStore = defineStore('extensions', {
             .filter((action) => matchesWhenClause(action.when, mergedContext))
             .map((action) => ({
               ...action,
+              viewId: String(view?.id || ''),
+              containerId: String(view?.containerId || ''),
+              panelId: String(view?.panelId || ''),
               extensionId: extension.id,
               extensionName: extension.name,
             }))
@@ -389,6 +439,15 @@ export const useExtensionsStore = defineStore('extensions', {
     viewRefreshTickFor: (state) => (viewKey = '') => state.changedViewTicks[String(viewKey || '').trim()] || 0,
     recentTasks(state) {
       return [...state.tasks].slice(0, 8)
+    },
+    recentTasksForExtension(state) {
+      return (extensionId = '') => {
+        const normalizedExtensionId = normalizeExtensionId(extensionId)
+        const tasks = normalizedExtensionId
+          ? state.tasks.filter((task) => task.extensionId === normalizedExtensionId)
+          : state.tasks
+        return [...tasks].slice(0, 8)
+      }
     },
     defaultConfigForExtension: () => (extension = {}) => {
       const defaults = {}
@@ -416,6 +475,20 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     runtimeEntryFor: (state) => (extensionId = '') =>
       normalizeRuntimeEntry(state.runtimeRegistry?.[normalizeExtensionId(extensionId)]),
+    sidebarTargetForPanel: (state) => (panelId = '', fallbackTarget = {}) => {
+      const normalizedPanelId = String(panelId || '').trim()
+      const storedTarget = state.sidebarTargets?.[normalizedPanelId]
+      return targetHasValue(storedTarget)
+        ? normalizeTarget(storedTarget)
+        : normalizeTarget(fallbackTarget)
+    },
+    containerForPanelId() {
+      return (panelId = '') => {
+        const normalizedPanelId = String(panelId || '').trim()
+        if (!normalizedPanelId) return null
+        return this.sidebarViewContainers.find((container) => container.panelId === normalizedPanelId) || null
+      }
+    },
   },
 
   actions: {
@@ -424,6 +497,99 @@ export const useExtensionsStore = defineStore('extensions', {
         enabledExtensionIds: [...this.enabledExtensionIds],
         extensionConfig: { ...this.extensionConfig },
       }
+    },
+
+    setSidebarTarget(panelId = '', target = {}) {
+      const normalizedPanelId = String(panelId || '').trim()
+      const normalizedTarget = normalizeTarget(target)
+      if (!normalizedPanelId || !targetHasValue(normalizedTarget)) return null
+      this.sidebarTargets = {
+        ...this.sidebarTargets,
+        [normalizedPanelId]: normalizedTarget,
+      }
+      return normalizedTarget
+    },
+
+    resolveContainerForViewId(extensionId = '', viewId = '') {
+      const normalizedExtensionId = normalizeExtensionId(extensionId)
+      const normalizedViewId = String(viewId || '').trim()
+      if (!normalizedExtensionId || !normalizedViewId) return null
+      const extension = this.registry.find((entry) => entry.id === normalizedExtensionId)
+      if (!extension) return null
+      const contributedView = contributedViewForId(extension, normalizedViewId)
+      if (!contributedView?.containerId) return null
+      return this.sidebarViewContainers.find((container) =>
+        container.extensionId === normalizedExtensionId &&
+        container.id === String(contributedView.containerId || '').trim()
+      ) || null
+    },
+
+    resolveContainerForAction(action = {}, target = {}) {
+      const extensionId = normalizeExtensionId(action.extensionId)
+      if (!extensionId) return null
+
+      const explicitPanelId = String(action.panelId || '').trim()
+      if (explicitPanelId) {
+        return this.containerForPanelId(explicitPanelId)
+      }
+
+      const explicitContainerId = String(action.containerId || '').trim()
+      if (explicitContainerId) {
+        return this.sidebarViewContainers.find((container) =>
+          container.extensionId === extensionId && container.id === explicitContainerId
+        ) || null
+      }
+
+      const resolvedFromView = this.resolveContainerForViewId(extensionId, action.viewId)
+      if (resolvedFromView) return resolvedFromView
+
+      const candidateContainers = this.sidebarViewContainers.filter(
+        (container) => container.extensionId === extensionId,
+      )
+      if (candidateContainers.length <= 1) {
+        return candidateContainers[0] || null
+      }
+
+      const workspace = useWorkspaceStore()
+      for (const container of candidateContainers) {
+        const context = buildExtensionContext(normalizeTarget(target), {
+          workbench: {
+            surface: workspace.isSettingsSurface ? 'settings' : 'workspace',
+            panel: 'documentDock',
+            activeView: container.panelId,
+            hasWorkspace: workspace.isOpen,
+            workspaceFolder: workspace.path || '',
+          },
+        })
+        if (this.viewsForContainer(container.id, context).length > 0) {
+          return container
+        }
+      }
+
+      return candidateContainers[0] || null
+    },
+
+    async focusSidebarContainer(panelId = '', target = {}) {
+      const normalizedPanelId = String(panelId || '').trim()
+      if (!normalizedPanelId) return ''
+      const workspace = useWorkspaceStore()
+      if (workspace.isSettingsSurface) {
+        await workspace.openWorkspaceSurface().catch(() => {})
+      }
+      if (workspace.leftSidebarPanel === 'references') {
+        await workspace.setLeftSidebarPanel('files').catch(() => {})
+      }
+      this.setSidebarTarget(normalizedPanelId, target)
+      await workspace.openDocumentDock().catch(() => {})
+      await workspace.setDocumentDockActivePage(normalizedPanelId).catch(() => {})
+      return normalizedPanelId
+    },
+
+    async routeActionToSidebar(action = {}, target = {}) {
+      const container = this.resolveContainerForAction(action, target)
+      if (!container?.panelId) return null
+      await this.focusSidebarContainer(container.panelId, target)
+      return container
     },
 
     async hydrateSettings(force = false) {
@@ -570,6 +736,7 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!extension || extension.status !== 'available') {
         throw new Error(`Extension command is not available: ${extensionId || commandId}`)
       }
+      await this.routeActionToSidebar(action, target).catch(() => {})
       await this.activateExtension(extensionId, `onCommand:${commandId}`).catch(() => {})
       const runtimeCommands = runtimeCommandIds(this.runtimeRegistry?.[extensionId])
       const manifestCommands = new Set(
@@ -686,6 +853,13 @@ export const useExtensionsStore = defineStore('extensions', {
         focusedHandle: payload.focus ? itemHandle : '',
         revealedPathHandles: payload.expand === false ? [] : parentHandles,
       })
+      const container = this.resolveContainerForViewId(extensionId, viewId)
+      if (container?.panelId) {
+        void this.focusSidebarContainer(
+          container.panelId,
+          this.sidebarTargetForPanel(container.panelId),
+        ).catch(() => {})
+      }
     },
     markViewsChanged(changedViews = [], defaultExtensionId = '') {
       const extensionId = normalizeExtensionId(defaultExtensionId)

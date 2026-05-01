@@ -96,6 +96,12 @@
                   {{ t('Runtime registration first. Manifest metadata is only bootstrap information.') }}
                 </span>
               </div>
+              <div class="extension-meta-list">
+                <span class="extension-meta-label">{{ t('Usage Surface') }}</span>
+                <span class="extension-meta-value">
+                  {{ t('Configure plugins here, then use them from the document right sidebar.') }}
+                </span>
+              </div>
               <div class="extension-chip-row">
                 <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
                   {{ capability }}
@@ -181,12 +187,6 @@
       </div>
     </section>
 
-    <section v-if="extensionsStore.recentTasks.length > 0" class="settings-group">
-      <div class="settings-group-title">{{ t('Recent Extension Tasks') }}</div>
-      <div class="settings-group-body">
-        <ExtensionTaskPanel />
-      </div>
-    </section>
   </div>
 </template>
 
@@ -197,7 +197,6 @@ import { useExtensionsStore } from '../../stores/extensions'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
-import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()

@@ -18,8 +18,9 @@ Current desktop paths:
 - sync selected document references into LaTeX bibliography files
 - inspect where references are cited in the workspace
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
-- discover local plugin packages, enable or disable them, configure host-managed plugin settings and run plugin commands through the host
-- render plugin surfaces in the document right sidebar, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
+- discover local plugin packages, enable or disable them, and configure host-managed plugin settings in Settings
+- render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
+- route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
@@ -78,7 +79,7 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 151 tests
+- Rust tests pass: 156 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 
