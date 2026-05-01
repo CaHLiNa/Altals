@@ -478,6 +478,11 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
             ));
         }
     }
+    if manifest.contributes.views_containers.activitybar.len() > 1 {
+        errors.push(
+            "Each extension may declare only one activitybar view container; plugins map to one document right-sidebar tab".to_string(),
+        );
+    }
 
     for (container_id, views) in &manifest.contributes.views {
         let normalized_container_id = container_id.trim();
@@ -752,5 +757,25 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("views container is not declared")));
+    }
+
+    #[test]
+    fn rejects_multiple_activitybar_view_containers() {
+        let mut manifest = valid_manifest();
+        manifest
+            .contributes
+            .views_containers
+            .activitybar
+            .push(super::ExtensionViewContainerContribution {
+                id: "examplePdfExtension.secondary".to_string(),
+                title: "Secondary".to_string(),
+                icon: String::new(),
+            });
+        let result = validate_extension_manifest(&manifest);
+        assert!(!result.ok);
+        assert!(result
+            .errors
+            .iter()
+            .any(|error| error.contains("only one activitybar view container")));
     }
 }

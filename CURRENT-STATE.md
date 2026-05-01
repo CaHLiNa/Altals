@@ -20,6 +20,7 @@ Current desktop paths:
 - configure editor, workspace, PDF, citation, environment, Zotero, extensions and update settings
 - discover local plugin packages, enable or disable them, and configure host-managed plugin settings in Settings
 - render plugin surfaces as document right sidebar tabs, resolve tree roots and child nodes from the plugin host, support reveal and selection events, and surface host-rendered quick input flows for plugins
+- enforce one activitybar view container per plugin so each normal plugin maps to one document right sidebar tab/container
 - route PDF actions, command invocations and view reveal requests into the matching plugin-owned right sidebar tab by default
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
@@ -43,6 +44,7 @@ Boundary rules:
 - Tauri `invoke`, Tauri plugin calls and event bridges belong in `src/services`.
 - Rust owns filesystem authority, persisted app state, reference normalization, compile/runtime execution and workspace-scoped security checks.
 - Rust owns plugin discovery, manifest validation, plugin host startup, command execution, task state and artifact access.
+- Rust manifest validation enforces the single-container right-sidebar contract for normal plugins.
 - Vue owns plugin prompt rendering, plugin sidebar rendering, command palette integration and runtime event presentation through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
 

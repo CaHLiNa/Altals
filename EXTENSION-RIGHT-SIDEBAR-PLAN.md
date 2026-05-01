@@ -55,12 +55,16 @@ Relevant current files:
 - `src/components/sidebar/DocumentDock.vue`
 - `src/stores/workspace.js`
 
-What is not yet fully formalized:
+What is already formalized:
 
-- “Settings is only for management, not usage” is not yet written as a hard product rule
-- “every plugin maps to one right-sidebar tab/container” is not yet enforced as the preferred UX contract
-- jump-to-plugin flows from document actions and PDF actions are not yet fully normalized as the default usage path
+- Settings is a management surface, not the primary plugin work surface
+- every normal plugin maps to one right-sidebar tab/container, and manifest validation now enforces a single activitybar container per plugin
+- PDF actions, command invocations, and view reveal requests already route into the matching plugin tab by default
+
+What still needs tightening:
+
 - plugin panel semantics still need to be tightened so the platform speaks in one consistent vocabulary
+- long-running task UX still needs deeper productization beyond the example plugin path
 
 ## 5. Target UX Contract
 
