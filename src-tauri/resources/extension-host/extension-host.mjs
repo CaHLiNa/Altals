@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 const extensions = new Map();
 const pendingUiRequests = new Map();
 const pendingHostCalls = new Map();
+let menuActionCounter = 0;
 
 function normalizeCapabilityExtensions(values = []) {
   return Array.isArray(values)
@@ -496,16 +497,14 @@ function createExtensionApi(registry) {
       registerAction(command, metadata = {}) {
         const commandId = String(command || "").trim();
         const normalizedMetadata = normalizeMenuActionMetadata(commandId, metadata);
+        const registrationId = normalizedMetadata ? `menu:${menuActionCounter += 1}` : "";
         if (normalizedMetadata) {
-          registry.menuActionMetadata.set(
-            `${normalizedMetadata.surface}:${commandId}`,
-            normalizedMetadata,
-          );
+          registry.menuActionMetadata.set(registrationId, normalizedMetadata);
         }
         return {
           dispose() {
-            if (!normalizedMetadata) return;
-            registry.menuActionMetadata.delete(`${normalizedMetadata.surface}:${commandId}`);
+            if (!normalizedMetadata || !registrationId) return;
+            registry.menuActionMetadata.delete(registrationId);
           },
         };
       },

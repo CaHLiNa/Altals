@@ -154,6 +154,13 @@ Workspace, documents, and invocation contract note:
 - `context.documents.target` should preserve the invocation target payload exactly enough for plugin code to reason about `kind`, `referenceId`, and `path`
 - `context.invocation.current` should surface the same stable task, command, reference, target, and resource context that the host used for the current request, instead of requiring plugins to infer or cache it elsewhere
 
+Commands and menus contract note:
+
+- `context.commands.executeCommand(...)` should resolve runtime-registered commands by id and preserve the callee's returned task payload instead of collapsing it into a fire-and-forget side effect
+- `context.menus.registerAction(...)` should preserve per-surface runtime metadata such as `surface`, `commandId`, `title`, and `when`
+- disposed runtime menu actions should disappear from subsequent activation snapshots rather than leaking stale action metadata
+- runtime-registered command palette actions should stay authoritative over manifest fallbacks once runtime menu data exists
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:
@@ -286,7 +293,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, reference and PDF host-call semantics, workspace/documents/invocation surface semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, reference and PDF host-call semantics, workspace/documents/invocation surface semantics, command and menu runtime registration semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule
