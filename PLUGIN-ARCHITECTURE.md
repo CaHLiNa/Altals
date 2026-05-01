@@ -75,6 +75,9 @@ The manifest should keep only:
 - `configuration`
 - optional minimal UI bootstrap metadata
 
+The `permissions` field should describe only host capabilities that ScribeFlow actually enforces at runtime.
+Capability ids and capability IO metadata are optional bootstrap metadata, not a required manifest surface for every plugin.
+
 Recommended minimal UI bootstrap metadata:
 
 - plugin settings presence
@@ -115,7 +118,6 @@ Rust remains runtime authority for:
 - filesystem access
 - workspace scope enforcement
 - process spawning
-- artifact output
 - reference library mutation
 - PDF and document runtime capabilities
 - persistence

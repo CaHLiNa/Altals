@@ -50,7 +50,7 @@ Plugin architecture direction:
 - runtime registration first
 - manifest as bootstrap metadata
 - Obsidian-style plugin model with Rust authority retained
-- current VS Code-like contribution machinery is transitional, not the end-state architecture
+- current platform contract is runtime-first for local owner-authored plugins; remaining work is additive host API growth rather than a direction reset
 
 ## Verification
 

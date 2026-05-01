@@ -23,9 +23,7 @@ mod tests {
                 "type": "extensionHost"
             },
             "permissions": {
-                "writeArtifacts": true,
-                "spawnProcess": false,
-                "network": "none"
+                "spawnProcess": false
             },
             "contributes": {
                 "capabilities": [{

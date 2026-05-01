@@ -10,7 +10,6 @@
   "main": "./dist/extension.js",
   "extensionKind": ["workspace"],
   "activationEvents": [
-    "onCapability:pdf.translate",
     "onCommand:scribeflow.pdf.translate",
     "onView:examplePdfExtension.translateView"
   ],
@@ -24,16 +23,6 @@
       {
         "command": "examplePdfExtension.refreshTranslateView",
         "title": "Refresh Translate View",
-        "category": "PDF"
-      },
-      {
-        "command": "examplePdfExtension.inspectRuntimeApis",
-        "title": "Inspect Runtime APIs",
-        "category": "PDF"
-      },
-      {
-        "command": "examplePdfExtension.inspectProcessApi",
-        "title": "Inspect Process API",
         "category": "PDF"
       }
     ],
@@ -87,24 +76,6 @@
         "when": "resourceExtname == .pdf || resource.kind == pdf"
       }
     ],
-    "capabilities": [
-      {
-        "id": "pdf.translate",
-        "inputs": {
-          "pdfPath": {
-            "type": "file",
-            "required": true,
-            "extensions": ["pdf"]
-          }
-        },
-        "outputs": {
-          "translatedPdf": {
-            "type": "artifact",
-            "mediaType": "application/pdf"
-          }
-        }
-      }
-    ],
     "configuration": {
       "title": "Example PDF Extension",
       "properties": {
@@ -118,8 +89,6 @@
   },
   "permissions": {
     "readWorkspaceFiles": true,
-    "writeArtifacts": true,
-    "spawnProcess": true,
-    "network": "none"
+    "spawnProcess": true
   }
 }

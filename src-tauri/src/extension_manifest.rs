@@ -81,13 +81,7 @@ pub struct ExtensionPermissions {
     #[serde(default)]
     pub read_reference_library: bool,
     #[serde(default)]
-    pub write_artifacts: bool,
-    #[serde(default)]
-    pub write_reference_metadata: bool,
-    #[serde(default)]
     pub spawn_process: bool,
-    #[serde(default = "default_network_permission")]
-    pub network: String,
 }
 
 impl Default for ExtensionPermissions {
@@ -95,16 +89,9 @@ impl Default for ExtensionPermissions {
         Self {
             read_workspace_files: false,
             read_reference_library: false,
-            write_artifacts: false,
-            write_reference_metadata: false,
             spawn_process: false,
-            network: default_network_permission(),
         }
     }
-}
-
-fn default_network_permission() -> String {
-    "none".to_string()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -328,13 +315,6 @@ pub fn is_known_capability(value: &str) -> bool {
     KNOWN_CAPABILITIES.contains(&value.trim())
 }
 
-fn capability_produces_artifacts(capability: &str) -> bool {
-    matches!(
-        capability,
-        "pdf.translate" | "pdf.ocr" | "document.transform"
-    )
-}
-
 fn dedupe_capability_ids(capabilities: &[ExtensionCapabilityContribution]) -> Vec<String> {
     let mut seen = BTreeMap::new();
     for capability in capabilities {
@@ -417,10 +397,6 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
 
     if manifest.main.trim().is_empty() {
         errors.push("package.json extensions require main".to_string());
-    }
-
-    if manifest.capabilities.is_empty() {
-        errors.push("At least one capability is required".to_string());
     }
 
     for capability in &manifest.capabilities {
@@ -552,21 +528,6 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         errors.push("Canonical extension manifests must use extensionHost runtime".to_string());
     }
 
-    match manifest.permissions.network.as_str() {
-        "none" | "optional" | "required" => {}
-        other => errors.push(format!("Unsupported network permission: {other}")),
-    }
-
-    if manifest
-        .capabilities
-        .iter()
-        .any(|capability| capability_produces_artifacts(capability))
-        && !manifest.permissions.write_artifacts
-    {
-        errors
-            .push("Artifact-producing capabilities require writeArtifacts permission".to_string());
-    }
-
     for capability in &manifest.contributes.capabilities {
         for (key, input) in &capability.inputs {
             if key.trim().is_empty() {
@@ -578,10 +539,6 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
                 }
             }
         }
-    }
-
-    if manifest.permissions.network == "optional" {
-        warnings.push("Extension declares optional network access".to_string());
     }
 
     ExtensionValidationResult::from_messages(warnings, errors)
@@ -597,7 +554,8 @@ pub async fn extension_registry_validate_manifest(
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_extension_manifest_str, validate_extension_manifest, ExtensionManifest,
+        parse_extension_manifest_str, validate_extension_manifest, ExtensionCapabilityContribution,
+        ExtensionManifest,
         CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
 
@@ -643,16 +601,11 @@ mod tests {
                             "command": "scribeflow.pdf.translate",
                             "when": "resource.kind == pdf"
                         }]
-                    },
-                    "capabilities": [{
-                        "id": "pdf.translate"
-                    }]
+                    }
                 },
                 "permissions": {
                     "readWorkspaceFiles": true,
-                    "writeArtifacts": true,
-                    "spawnProcess": false,
-                    "network": "none"
+                    "spawnProcess": false
                 }
             })
             .to_string(),
@@ -668,7 +621,7 @@ mod tests {
         let result = validate_extension_manifest(&manifest);
         assert!(result.ok, "{:?}", result.errors);
         assert_eq!(manifest.runtime.runtime_type, "extensionHost");
-        assert_eq!(manifest.capabilities, vec!["pdf.translate".to_string()]);
+        assert!(manifest.capabilities.is_empty());
         assert_eq!(manifest.contributes.keybindings[0].key, "mod+alt+t");
         assert_eq!(
             manifest.contributes.views_containers.activitybar[0].id,
@@ -692,11 +645,7 @@ mod tests {
             &serde_json::json!({
                 "name": "example-pdf-extension",
                 "version": "0.1.0",
-                "contributes": {
-                    "capabilities": [{
-                        "id": "pdf.translate"
-                    }]
-                }
+                "contributes": {}
             })
             .to_string(),
             CANONICAL_EXTENSION_MANIFEST_FILENAME,
@@ -739,6 +688,12 @@ mod tests {
     #[test]
     fn rejects_missing_contributed_capability_binding() {
         let mut manifest = valid_manifest();
+        manifest.capabilities = vec!["pdf.translate".to_string()];
+        manifest.contributes.capabilities.push(ExtensionCapabilityContribution {
+            id: "pdf.translate".to_string(),
+            inputs: Default::default(),
+            outputs: Default::default(),
+        });
         manifest.contributes.capabilities[0].id = "document.summarize".to_string();
         let result = validate_extension_manifest(&manifest);
         assert!(!result.ok);

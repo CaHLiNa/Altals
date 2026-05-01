@@ -1,7 +1,8 @@
 use crate::extension_host::{
     activate_extension, build_extension_invocation_envelope, invoke_extension_host,
-    should_activate_for_event, ExtensionHostRequest, ExtensionHostResponse,
+    ExtensionHostActivationResult, ExtensionHostRequest, ExtensionHostResponse,
 };
+use crate::extension_manifest::ExtensionManifest;
 use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
@@ -55,6 +56,51 @@ fn write_task_log(task: &ExtensionTask, message: &str) {
     let _ = fs::write(&task.log_path, message);
 }
 
+fn manifest_declares_command(manifest: &ExtensionManifest, command_id: &str) -> bool {
+    let normalized_command_id = command_id.trim();
+    if normalized_command_id.is_empty() {
+        return false;
+    }
+    manifest
+        .contributes
+        .commands
+        .iter()
+        .any(|command| command.command.trim() == normalized_command_id)
+}
+
+fn activation_result_registers_command(
+    activation_result: &ExtensionHostActivationResult,
+    command_id: &str,
+) -> bool {
+    let normalized_command_id = command_id.trim();
+    if normalized_command_id.is_empty() {
+        return false;
+    }
+    activation_result
+        .registered_commands
+        .iter()
+        .any(|command| command.trim() == normalized_command_id)
+        || activation_result
+            .registered_command_details
+            .iter()
+            .any(|command| command.command_id.trim() == normalized_command_id)
+}
+
+fn command_is_available_for_execution(
+    manifest: &ExtensionManifest,
+    activation_result: &ExtensionHostActivationResult,
+    command_id: &str,
+) -> bool {
+    let runtime_declared_any_commands = !activation_result.registered_commands.is_empty()
+        || !activation_result.registered_command_details.is_empty();
+
+    if runtime_declared_any_commands {
+        activation_result_registers_command(activation_result, command_id)
+    } else {
+        manifest_declares_command(manifest, command_id)
+    }
+}
+
 #[tauri::command]
 pub async fn extension_command_execute(
     params: ExtensionCommandExecuteParams,
@@ -87,26 +133,7 @@ pub async fn extension_command_execute(
             manifest.runtime.runtime_type
         ));
     }
-    if !manifest
-        .contributes
-        .commands
-        .iter()
-        .any(|command| command.command.trim() == command_id)
-    {
-        return Err(format!(
-            "Extension {} does not contribute command {}",
-            entry.id, command_id
-        ));
-    }
-
     let activation_event = format!("onCommand:{command_id}");
-    if !should_activate_for_event(manifest, &activation_event) {
-        return Err(format!(
-            "Extension {} does not declare activation for command {}",
-            entry.id, command_id
-        ));
-    }
-
     let task = create_command_task(
         &entry.id,
         &command_id,
@@ -121,10 +148,22 @@ pub async fn extension_command_execute(
         &entry,
         &activation_event,
     );
-    if let Err(error) = activated {
-        let failed = mark_task_failed(&task.id, &error)?;
-        write_task_log(&failed, &error);
-        return Err(error);
+    let activated = match activated {
+        Ok(activation_result) => activation_result,
+        Err(error) => {
+            let failed = mark_task_failed(&task.id, &error)?;
+            write_task_log(&failed, &error);
+            return Err(error);
+        }
+    };
+    if !command_is_available_for_execution(manifest, &activated, &command_id) {
+        let message = format!(
+            "Extension {} does not register command {} at runtime",
+            entry.id, command_id
+        );
+        let failed = mark_task_failed(&task.id, &message)?;
+        write_task_log(&failed, &message);
+        return Err(message);
     }
 
     let envelope = build_extension_invocation_envelope(
@@ -179,5 +218,132 @@ pub async fn extension_command_execute(
             write_task_log(&failed, &error);
             Err(format!("Extension host command execution failed: {error}"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        activation_result_registers_command, command_is_available_for_execution,
+        manifest_declares_command,
+    };
+    use crate::extension_host::{
+        ExtensionHostActivationResult, ExtensionHostRegisteredCommand,
+    };
+    use crate::extension_manifest::{
+        parse_extension_manifest_str, ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
+    };
+
+    fn manifest_from_json(value: serde_json::Value) -> ExtensionManifest {
+        parse_extension_manifest_str(
+            &value.to_string(),
+            CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        )
+        .expect("manifest parse")
+        .manifest
+    }
+
+    fn activation_result_with_commands(commands: &[&str]) -> ExtensionHostActivationResult {
+        ExtensionHostActivationResult {
+            extension_id: "example-pdf-extension".to_string(),
+            activated: true,
+            reason: "Activated by host".to_string(),
+            registered_commands: commands.iter().map(|command| command.to_string()).collect(),
+            registered_capabilities: Vec::new(),
+            registered_views: Vec::new(),
+            registered_command_details: commands
+                .iter()
+                .map(|command| ExtensionHostRegisteredCommand {
+                    command_id: command.to_string(),
+                    title: command.to_string(),
+                    category: String::new(),
+                    when: String::new(),
+                })
+                .collect(),
+            registered_menu_actions: Vec::new(),
+            registered_view_details: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn manifest_command_lookup_respects_declared_bootstrap_commands() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "commands": [{
+                    "command": "scribeflow.pdf.translate",
+                    "title": "Translate"
+                }]
+            }
+        }));
+        assert!(manifest_declares_command(
+            &manifest,
+            "scribeflow.pdf.translate"
+        ));
+        assert!(!manifest_declares_command(
+            &manifest,
+            "examplePdfExtension.captureContext"
+        ));
+    }
+
+    #[test]
+    fn runtime_registered_commands_enable_runtime_only_execution() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "commands": [{
+                    "command": "scribeflow.pdf.translate",
+                    "title": "Translate"
+                }]
+            }
+        }));
+        let activation = activation_result_with_commands(&[
+            "scribeflow.pdf.translate",
+            "examplePdfExtension.captureContext",
+        ]);
+
+        assert!(activation_result_registers_command(
+            &activation,
+            "examplePdfExtension.captureContext"
+        ));
+        assert!(command_is_available_for_execution(
+            &manifest,
+            &activation,
+            "examplePdfExtension.captureContext"
+        ));
+    }
+
+    #[test]
+    fn runtime_registry_outweighs_stale_manifest_command_lists() {
+        let manifest = manifest_from_json(serde_json::json!({
+            "name": "Example PDF Extension",
+            "displayName": "Example PDF Extension",
+            "version": "0.1.0",
+            "main": "./dist/extension.js",
+            "contributes": {
+                "commands": [{
+                    "command": "stale.manifest.command",
+                    "title": "Stale"
+                }]
+            }
+        }));
+        let activation = activation_result_with_commands(&["scribeflow.pdf.translate"]);
+
+        assert!(!command_is_available_for_execution(
+            &manifest,
+            &activation,
+            "stale.manifest.command"
+        ));
+        assert!(command_is_available_for_execution(
+            &manifest,
+            &activation,
+            "scribeflow.pdf.translate"
+        ));
     }
 }

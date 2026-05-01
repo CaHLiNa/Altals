@@ -69,6 +69,12 @@ Plugins can already use:
 - `settings.onDidChange(...)`
 - `workspaceState`
 
+Runtime command behavior now follows the host registry first:
+
+- plugins may register runtime-only commands inside `activate(context)` without mirroring every internal command in manifest bootstrap metadata
+- command execution is accepted when the host runtime registry reports the command, even if the command is omitted from `contributes.commands`
+- command palette visibility still follows explicit menu registration, so internal runtime commands do not leak into top-level UI by default
+
 Tree view support already includes:
 
 - host-resolved root and child items
@@ -93,6 +99,13 @@ Runtime action registration already covers:
 - settings schema
 - basic command / view bootstrap metadata
 
+In practice this means:
+
+- keep sidebar/view identity, default user-facing command metadata, permissions, and settings schema in manifest
+- keep internal helper commands, richer behavior wiring, and action registration in runtime code when they do not need standalone bootstrap UI
+- treat manifest permissions as the Rust-backed host capabilities that are actually enforced today: workspace files, reference library, and local process spawning
+- keep capability ids and capability IO schema in manifest only when the plugin actually benefits from that bootstrap metadata; they are not mandatory for every plugin package
+
 But the intended direction is runtime-registration-first.
 
 That means:
@@ -114,13 +127,11 @@ Plugins can currently appear in:
 
 ## 6. Current Gap
 
-The platform is functional, but it is not yet the final Obsidian-style shape.
+The platform contract is now aligned with the intended local owner-authored runtime model.
 
 Remaining cleanup direction:
 
-- reduce contribution-schema-first assumptions
-- move more behavior to runtime registration APIs
-- keep expanding thick host APIs beyond `workspace` and `documents`
+- keep expanding thick host APIs beyond `workspace`, `documents`, `references`, `pdf`, and `process`
 - make settings and registered runtime capabilities clearer in the UI
 - avoid growing the workbench model just for parity with VS Code
 

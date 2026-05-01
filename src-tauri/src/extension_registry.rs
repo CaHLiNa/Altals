@@ -254,9 +254,7 @@ mod tests {
                 },
                 "permissions": {
                     "readWorkspaceFiles": true,
-                    "writeArtifacts": true,
-                    "spawnProcess": false,
-                    "network": "optional"
+                    "spawnProcess": false
                 }
             })
             .to_string(),

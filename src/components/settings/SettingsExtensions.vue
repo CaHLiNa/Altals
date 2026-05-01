@@ -269,11 +269,7 @@ function permissionSummary(extension = {}) {
   const labels = []
   if (permissions.readWorkspaceFiles) labels.push(t('workspace files'))
   if (permissions.readReferenceLibrary) labels.push(t('reference library'))
-  if (permissions.writeArtifacts) labels.push(t('artifact output'))
-  if (permissions.writeReferenceMetadata) labels.push(t('reference metadata'))
   if (permissions.spawnProcess) labels.push(t('local process'))
-  const network = String(permissions.network || 'none')
-  labels.push(network === 'none' ? t('no network') : t('{value} network', { value: t(network) }))
   return labels.join(' · ')
 }
 

@@ -208,6 +208,19 @@ async function main() {
     },
   });
 
+  const runtimeOnly = await call("ExecuteCommand", {
+    activationEvent: "onCommand:examplePdfExtension.captureContext",
+    extensionPath,
+    manifestPath,
+    mainEntry: "./dist/extension.js",
+    commandId: "examplePdfExtension.captureContext",
+    envelope: {
+      ...baseEnvelope,
+      commandId: "examplePdfExtension.captureContext",
+      settingsJson: JSON.stringify({ "examplePdfExtension.targetLang": "zh-CN" }),
+    },
+  });
+
   const processApis = await call("ExecuteCommand", {
     activationEvent: "onCommand:examplePdfExtension.inspectProcessApi",
     extensionPath,
@@ -249,6 +262,7 @@ async function main() {
       {
         activate,
         runtimeApis,
+        runtimeOnly,
         processApis,
         settingsChanged,
         capture,

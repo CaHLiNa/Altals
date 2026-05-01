@@ -167,6 +167,17 @@ function normalizeRuntimeEntry(entry = {}) {
   }
 }
 
+function runtimeCommandIds(entry = {}) {
+  const normalized = normalizeRuntimeEntry(entry)
+  const commandIds = new Set(normalized.registeredCommands)
+  for (const command of normalized.registeredCommandDetails) {
+    if (command.commandId) {
+      commandIds.add(command.commandId)
+    }
+  }
+  return commandIds
+}
+
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
     registry: [],
@@ -241,6 +252,7 @@ export const useExtensionsStore = defineStore('extensions', {
             .filter((menu) => menu.surface === 'commandPalette')
           const fallbackPaletteMenus = (extension.contributedMenus || [])
             .filter((menu) => menu.surface === 'commandPalette')
+          const useRuntimePalette = runtimeEntry.registeredMenuActions.length > 0
           const sourceCommands = runtimeCommandDetails.length > 0
             ? runtimeCommandDetails.map((command) => ({
                 ...command,
@@ -252,14 +264,17 @@ export const useExtensionsStore = defineStore('extensions', {
                 ...command,
                 extensionId: extension.id,
                 extensionName: extension.name,
-              }))
+            }))
           return sourceCommands
             .filter((command) => {
+              const commandMenus = (paletteMenus.length > 0 ? paletteMenus : fallbackPaletteMenus)
+                .filter((menu) => menu.commandId === command.commandId)
+              if (useRuntimePalette && commandMenus.length === 0) {
+                return false
+              }
               if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
                 return false
               }
-              const commandMenus = (paletteMenus.length > 0 ? paletteMenus : fallbackPaletteMenus)
-                .filter((menu) => menu.commandId === command.commandId)
               if (commandMenus.length === 0) return true
               return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
             })
@@ -545,7 +560,7 @@ export const useExtensionsStore = defineStore('extensions', {
       const enabled = new Set(this.enabledExtensionIds.map(normalizeExtensionId))
       for (const extension of this.registry) {
         if (!enabled.has(extension.id) || extension.status !== 'available') continue
-        await this.activateExtension(extension.id, '*').catch(() => {})
+        await this.activateExtension(extension.id, '').catch(() => {})
       }
     },
     async executeCommand(action = {}, target = {}, settings = {}) {
@@ -555,10 +570,18 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!extension || extension.status !== 'available') {
         throw new Error(`Extension command is not available: ${extensionId || commandId}`)
       }
-      if (!(extension.contributedCommands || []).some((command) => command.commandId === commandId)) {
+      await this.activateExtension(extensionId, `onCommand:${commandId}`).catch(() => {})
+      const runtimeCommands = runtimeCommandIds(this.runtimeRegistry?.[extensionId])
+      const manifestCommands = new Set(
+        (extension.contributedCommands || []).map((command) => String(command.commandId || '').trim()).filter(Boolean),
+      )
+      if (runtimeCommands.size > 0) {
+        if (!runtimeCommands.has(commandId)) {
+          throw new Error(`Extension ${extensionId} does not register command ${commandId} at runtime`)
+        }
+      } else if (!manifestCommands.has(commandId)) {
         throw new Error(`Extension ${extensionId} does not contribute command ${commandId}`)
       }
-      await this.activateExtension(extensionId, `onCommand:${commandId}`).catch(() => {})
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)

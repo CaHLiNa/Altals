@@ -3,6 +3,7 @@ use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use crate::extension_settings::load_extension_runtime_state_snapshot;
 use crate::extension_settings::load_extension_settings;
 use crate::extension_settings::save_extension_runtime_state_snapshot;
+use crate::security::canonicalize_for_scope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(not(test))]
@@ -554,6 +555,45 @@ fn resolve_extension_path(entry: &ExtensionRegistryEntry) -> Result<PathBuf, Str
         .ok_or_else(|| "Extension manifest has no parent directory".to_string())
 }
 
+fn path_is_within_root(path: &Path, root: &Path) -> bool {
+    path == root || path.starts_with(root)
+}
+
+fn reference_library_asset_roots(global_config_dir: &str) -> Vec<PathBuf> {
+    if global_config_dir.trim().is_empty() {
+        return Vec::new();
+    }
+    let root = Path::new(global_config_dir).join("references");
+    vec![root.join("pdfs"), root.join("fulltext")]
+}
+
+fn ensure_extension_pdf_path_allowed(
+    workspace_root: &str,
+    global_config_dir: &str,
+    manifest: &ExtensionManifest,
+    file_path: &str,
+) -> Result<PathBuf, String> {
+    let canonical_path = canonicalize_for_scope(Path::new(file_path))?;
+    let allowed_by_workspace = manifest.permissions.read_workspace_files
+        && !workspace_root.trim().is_empty()
+        && path_is_within_root(&canonical_path, &canonicalize_for_scope(Path::new(workspace_root))?);
+
+    let allowed_by_reference_library = manifest.permissions.read_reference_library
+        && reference_library_asset_roots(global_config_dir)
+            .into_iter()
+            .filter_map(|root| canonicalize_for_scope(&root).ok())
+            .any(|root| path_is_within_root(&canonical_path, &root));
+
+    if allowed_by_workspace || allowed_by_reference_library {
+        Ok(canonical_path)
+    } else {
+        Err(format!(
+            "Extension {} is not allowed to inspect PDF path: {}",
+            manifest.id, canonical_path.display()
+        ))
+    }
+}
+
 #[cfg(not(test))]
 fn resolve_builtin_node_host_script() -> Result<PathBuf, String> {
     let cwd_candidate = std::env::current_dir()
@@ -649,6 +689,7 @@ pub fn activate_extension(
     Ok(result)
 }
 
+#[cfg(test)]
 pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event: &str) -> bool {
     let target = activation_event.trim();
     if target.is_empty() {
@@ -1231,12 +1272,18 @@ fn handle_extension_host_pdf_call(
     if file_path.is_empty() {
         return Err("PDF filePath is required".to_string());
     }
+    let canonical_path = ensure_extension_pdf_path_allowed(
+        &workspace_root,
+        &global_config_dir,
+        manifest,
+        &file_path,
+    )?;
     let result = match event.kind.as_str() {
         "pdf.extractText" => Value::String(
-            crate::references_pdf::extract_reference_pdf_text(Path::new(&file_path))?,
+            crate::references_pdf::extract_reference_pdf_text(&canonical_path)?,
         ),
         "pdf.extractMetadata" => {
-            crate::references_pdf::extract_reference_pdf_metadata(Path::new(&file_path))?
+            crate::references_pdf::extract_reference_pdf_metadata(&canonical_path)?
         }
         other => {
             return Err(format!("Unsupported PDF host call kind: {other}"));
@@ -1545,18 +1592,6 @@ pub async fn extension_host_activate(
         &params.workspace_root,
         &params.extension_id,
     )?;
-    let Some(manifest) = entry.manifest.as_ref() else {
-        return Err(format!(
-            "Extension manifest is invalid: {}",
-            params.extension_id
-        ));
-    };
-    if !should_activate_for_event(manifest, &params.activation_event) {
-        return Err(format!(
-            "Extension {} does not activate on {}",
-            entry.id, params.activation_event
-        ));
-    }
     activate_extension(
         state.inner(),
         &params.global_config_dir,
@@ -1658,13 +1693,15 @@ pub async fn extension_host_notify_view_selection(
 #[cfg(test)]
 mod tests {
     use super::{
-        activate_extension, build_extension_invocation_envelope, handle_extension_host_request,
-        should_activate_for_event, ExtensionHostRequest, ExtensionHostResponse, ExtensionHostState,
+        activate_extension, build_extension_invocation_envelope, ensure_extension_pdf_path_allowed,
+        handle_extension_host_request, should_activate_for_event, ExtensionHostRequest,
+        ExtensionHostResponse, ExtensionHostState,
     };
     use crate::extension_manifest::{
-        parse_extension_manifest_str, CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        parse_extension_manifest_str, ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
     use crate::extension_registry::ExtensionRegistryEntry;
+    use std::fs;
 
     fn canonical_entry() -> ExtensionRegistryEntry {
         let manifest = parse_extension_manifest_str(
@@ -1683,16 +1720,11 @@ mod tests {
                     "commands": [{
                         "command": "scribeflow.pdf.translate",
                         "title": "Translate"
-                    }],
-                    "capabilities": [{
-                        "id": "pdf.translate"
                     }]
                 },
                 "permissions": {
                     "readWorkspaceFiles": true,
-                    "writeArtifacts": true,
-                    "spawnProcess": true,
-                    "network": "optional"
+                    "spawnProcess": true
                 }
             })
             .to_string(),
@@ -1752,7 +1784,7 @@ mod tests {
             &manifest,
             "onCommand:scribeflow.pdf.translate"
         ));
-        assert!(should_activate_for_event(
+        assert!(!should_activate_for_event(
             &manifest,
             "onCapability:pdf.translate"
         ));
@@ -1869,5 +1901,90 @@ mod tests {
             }
             _ => panic!("unexpected response"),
         }
+    }
+
+    fn manifest_with_permissions(
+        read_workspace_files: bool,
+        read_reference_library: bool,
+    ) -> ExtensionManifest {
+        parse_extension_manifest_str(
+            &serde_json::json!({
+                "name": "example-pdf-extension",
+                "displayName": "Example PDF Extension",
+                "version": "0.1.0",
+                "main": "./dist/extension.js",
+                "contributes": {
+                    "capabilities": [{
+                        "id": "pdf.translate"
+                    }]
+                },
+                "permissions": {
+                    "readWorkspaceFiles": read_workspace_files,
+                    "readReferenceLibrary": read_reference_library
+                }
+            })
+            .to_string(),
+            CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        )
+        .expect("manifest parse")
+        .manifest
+    }
+
+    #[test]
+    fn pdf_permission_allows_workspace_pdf_when_workspace_read_is_enabled() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-workspace-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&workspace_root).expect("workspace root");
+        let pdf_path = workspace_root.join("paper.pdf");
+        fs::write(&pdf_path, b"%PDF-1.4\n").expect("write pdf");
+
+        let manifest = manifest_with_permissions(true, false);
+        let resolved = ensure_extension_pdf_path_allowed(
+            &workspace_root.to_string_lossy(),
+            "",
+            &manifest,
+            &pdf_path.to_string_lossy(),
+        )
+        .expect("workspace pdf should be allowed");
+
+        assert_eq!(resolved, crate::security::canonicalize_for_scope(&pdf_path).expect("canonical"));
+        fs::remove_dir_all(workspace_root).ok();
+    }
+
+    #[test]
+    fn pdf_permission_restricts_reference_library_reads_to_reference_assets() {
+        let global_root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-global-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let reference_pdf_dir = global_root.join("references").join("pdfs");
+        fs::create_dir_all(&reference_pdf_dir).expect("reference pdf dir");
+        let allowed_pdf = reference_pdf_dir.join("paper.pdf");
+        fs::write(&allowed_pdf, b"%PDF-1.4\n").expect("write allowed pdf");
+
+        let outside_pdf = global_root.join("other.pdf");
+        fs::write(&outside_pdf, b"%PDF-1.4\n").expect("write outside pdf");
+
+        let manifest = manifest_with_permissions(false, true);
+        ensure_extension_pdf_path_allowed(
+            "",
+            &global_root.to_string_lossy(),
+            &manifest,
+            &allowed_pdf.to_string_lossy(),
+        )
+        .expect("reference asset pdf should be allowed");
+
+        let error = ensure_extension_pdf_path_allowed(
+            "",
+            &global_root.to_string_lossy(),
+            &manifest,
+            &outside_pdf.to_string_lossy(),
+        )
+        .expect_err("non-reference pdf should be rejected");
+        assert!(error.contains("is not allowed to inspect PDF path"));
+
+        fs::remove_dir_all(global_root).ok();
     }
 }
