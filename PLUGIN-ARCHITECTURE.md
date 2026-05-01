@@ -205,6 +205,11 @@ Plugins should get two persistence scopes:
 
 Long-term plugin settings should be treated as host-managed configuration data, not ad hoc plugin file IO.
 
+Persistence contract note:
+
+- `globalState` and `workspaceState` are runtime-owned persisted channels, not in-memory conveniences
+- updates emitted from plugin runtime must survive later host activations and be restored before the next `activate(context)` logic runs
+
 ## 10. Settings Model
 
 Plugin settings remain declared in manifest schema so the host can render a settings surface without hardcoding per-plugin UI.
@@ -242,7 +247,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, quick-pick multi-select roundtrips, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, quick-pick multi-select roundtrips, state persistence restore, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule

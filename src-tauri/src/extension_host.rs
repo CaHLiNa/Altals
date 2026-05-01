@@ -846,6 +846,23 @@ pub fn activate_extension(
     Ok(result)
 }
 
+pub fn activate_extension_by_id_for_probe(
+    state: &ExtensionHostState,
+    global_config_dir: &str,
+    workspace_root: &str,
+    extension_id: &str,
+    activation_event: &str,
+) -> Result<ExtensionHostActivationResult, String> {
+    let entry = find_extension_entry(global_config_dir, workspace_root, extension_id)?;
+    activate_extension(
+        state,
+        global_config_dir,
+        workspace_root,
+        &entry,
+        activation_event,
+    )
+}
+
 pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event: &str) -> bool {
     let target = activation_event.trim();
     if target.is_empty() {

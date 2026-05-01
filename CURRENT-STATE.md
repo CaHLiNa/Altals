@@ -28,6 +28,7 @@ Current desktop paths:
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
 - support `context.window.showQuickPick(..., { canPickMany: true })` end-to-end so plugin quick-pick flows can return multi-select arrays instead of only single values
+- persist plugin `globalState` and `workspaceState` through the Rust runtime and restore both scopes on later activation
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
 - store schema-declared secure plugin settings in secure host-managed keychain storage instead of plain `extension-settings.json`, while legacy secret-like keys still use a compatibility fallback until plugin manifests declare `secureStorage`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
@@ -78,6 +79,7 @@ Current plugin lifecycle contract:
 - host-process crash recovery is now probe-backed: a crashing command tears down the dead process handle, and the next host request respawns the persistent runtime and succeeds
 - host interruption during a pending window prompt is now probe-backed: waiting prompt flows fail fast when the host dies, the pending UI request is interrupted immediately, and the frontend prompt is cleared instead of lingering until timeout
 - quick-pick multi-select is now probe-backed: picked defaults hydrate into the prompt, UI selection can accumulate multiple items, and the host roundtrip preserves an array result payload
+- runtime state persistence is now probe-backed: plugin `globalState` and `workspaceState` updates survive a later host activation and re-enter the plugin context as restored values
 
 ## Verification
 
@@ -115,6 +117,7 @@ It runs:
 - `npm run probe:extension-quickpick-multiselect`
 - `npm run probe:extension-window-prompt-multiselect`
 - `npm run probe:extension-quickpick-host-multiselect`
+- `npm run probe:extension-host-state-persistence`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -148,6 +151,7 @@ Current baseline:
 - extension quick-pick multiselect logic probe passes
 - extension window prompt multiselect probe passes
 - extension quick-pick host multiselect probe passes
+- extension host state persistence probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
