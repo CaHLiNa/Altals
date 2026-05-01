@@ -17,7 +17,32 @@
   "contributes": {
     "capabilities": [
       {
-        "id": "pdf.translate"
+        "id": "pdf.translate",
+        "inputs": {
+          "document": {
+            "type": "workspaceFile",
+            "required": true,
+            "extensions": [
+              ".pdf"
+            ]
+          },
+          "reference": {
+            "type": "reference",
+            "required": false
+          }
+        },
+        "outputs": {
+          "summary": {
+            "type": "artifact",
+            "mediaType": "text/plain",
+            "required": true
+          },
+          "translatedPdf": {
+            "type": "artifact",
+            "mediaType": "application/pdf",
+            "required": false
+          }
+        }
       }
     ],
     "commands": [

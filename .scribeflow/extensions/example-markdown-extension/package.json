@@ -17,7 +17,25 @@
   "contributes": {
     "capabilities": [
       {
-        "id": "document.summarize"
+        "id": "document.summarize",
+        "inputs": {
+          "document": {
+            "type": "workspaceFile",
+            "required": true,
+            "extensions": [
+              ".md",
+              ".markdown",
+              ".txt"
+            ]
+          }
+        },
+        "outputs": {
+          "summary": {
+            "type": "inlineText",
+            "mediaType": "text/plain",
+            "required": true
+          }
+        }
       }
     ],
     "commands": [

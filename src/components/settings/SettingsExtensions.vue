@@ -115,17 +115,80 @@
                   {{ capability }}
                 </span>
               </div>
-              <div v-if="capabilityActions(extension).length" class="extension-capability-actions">
-                <UiButton
+              <div v-if="capabilityActions(extension).length" class="extension-capability-list">
+                <section
                   v-for="capability in capabilityActions(extension)"
                   :key="`${extension.id}:${capability.id}`"
-                  variant="ghost"
-                  size="sm"
-                  :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || capabilityInvokeDisabled"
-                  @click="runCapability(extension, capability)"
+                  class="extension-capability-card"
                 >
-                  {{ capabilityButtonLabel(capability) }}
-                </UiButton>
+                  <div class="extension-capability-card-header">
+                    <div class="extension-capability-card-copy">
+                      <div class="extension-capability-card-title-row">
+                        <div class="extension-capability-card-title">{{ capability.id }}</div>
+                        <span
+                          class="extension-capability-card-status"
+                          :class="{ 'is-ready': capabilityIsReady(capability), 'is-unavailable': !capabilityIsReady(capability) }"
+                        >
+                          {{ capabilityStatusLabel(capability) }}
+                        </span>
+                      </div>
+                      <div class="extension-capability-card-message">
+                        {{ capabilityStatusMessage(capability) }}
+                      </div>
+                    </div>
+                    <UiButton
+                      variant="ghost"
+                      size="sm"
+                      :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || !capabilityIsReady(capability)"
+                      @click="runCapability(extension, capability)"
+                    >
+                      {{ capabilityButtonLabel(capability) }}
+                    </UiButton>
+                  </div>
+                  <div class="extension-capability-schema-grid">
+                    <div class="extension-capability-schema-column">
+                      <div class="extension-capability-schema-title">{{ t('Inputs') }}</div>
+                      <div v-if="capabilityInputs(capability).length" class="extension-capability-schema-list">
+                        <div
+                          v-for="input in capabilityInputs(capability)"
+                          :key="`${extension.id}:${capability.id}:input:${input.key}`"
+                          class="extension-capability-schema-item"
+                          :class="{ 'is-warning': input.blocking }"
+                        >
+                          <div class="extension-capability-schema-item-row">
+                            <span class="extension-capability-schema-item-label">{{ input.label }}</span>
+                            <span class="extension-chip">{{ capabilityTypeLabel(input) }}</span>
+                            <span class="extension-chip">{{ capabilityRequiredLabel(input) }}</span>
+                          </div>
+                          <div v-if="capabilityDefinitionDetail(input)" class="extension-capability-schema-item-detail">
+                            {{ capabilityDefinitionDetail(input) }}
+                          </div>
+                        </div>
+                      </div>
+                      <div v-else class="extension-capability-schema-empty">{{ t('No declared inputs') }}</div>
+                    </div>
+                    <div class="extension-capability-schema-column">
+                      <div class="extension-capability-schema-title">{{ t('Outputs') }}</div>
+                      <div v-if="capabilityOutputs(capability).length" class="extension-capability-schema-list">
+                        <div
+                          v-for="output in capabilityOutputs(capability)"
+                          :key="`${extension.id}:${capability.id}:output:${output.key}`"
+                          class="extension-capability-schema-item"
+                        >
+                          <div class="extension-capability-schema-item-row">
+                            <span class="extension-capability-schema-item-label">{{ output.label }}</span>
+                            <span class="extension-chip">{{ capabilityTypeLabel(output) }}</span>
+                            <span class="extension-chip">{{ capabilityRequiredLabel(output) }}</span>
+                          </div>
+                          <div v-if="capabilityDefinitionDetail(output)" class="extension-capability-schema-item-detail">
+                            {{ capabilityDefinitionDetail(output) }}
+                          </div>
+                        </div>
+                      </div>
+                      <div v-else class="extension-capability-schema-empty">{{ t('No declared outputs') }}</div>
+                    </div>
+                  </div>
+                </section>
               </div>
               <div v-if="extension.errors.length" class="extension-message is-error">
                 {{ extension.errors.map((message) => t(message)).join('; ') }}
@@ -231,6 +294,7 @@ import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
+import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -240,7 +304,7 @@ const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
-const capabilityInvokeDisabled = computed(() => !String(workspaceStore.path || '').trim())
+const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
 const capabilityInvokeTarget = computed(() =>
   resolveExtensionTargetContext({
     workspaceLeftSidebarPanel: workspaceStore.leftSidebarPanel,
@@ -379,9 +443,57 @@ function capabilityButtonLabel(capability = {}) {
   })
 }
 
+function inspectCapability(capability = {}) {
+  return inspectExtensionCapability(capability, capabilityInvokeTarget.value, {
+    workspaceReady: capabilityWorkspaceReady.value,
+  })
+}
+
+function capabilityIsReady(capability = {}) {
+  return inspectCapability(capability).ready
+}
+
+function capabilityStatusLabel(capability = {}) {
+  return capabilityIsReady(capability) ? t('Ready') : t('Unavailable')
+}
+
+function capabilityStatusMessage(capability = {}) {
+  const inspection = inspectCapability(capability)
+  return t(inspection.messageKey, inspection.messageVars)
+}
+
+function capabilityInputs(capability = {}) {
+  return inspectCapability(capability).inputs
+}
+
+function capabilityOutputs(capability = {}) {
+  return inspectCapability(capability).outputs
+}
+
+function capabilityTypeLabel(definition = {}) {
+  return t(definition.typeLabelKey || '')
+}
+
+function capabilityRequiredLabel(definition = {}) {
+  return t(definition.required ? 'Required' : 'Optional')
+}
+
+function capabilityDefinitionDetail(definition = {}) {
+  if (definition.blocking && definition.messageKey) {
+    return t(definition.messageKey, definition.messageVars)
+  }
+  if (definition.detailKey) {
+    return t(definition.detailKey, definition.detailVars)
+  }
+  if (definition.mediaType) {
+    return definition.mediaType
+  }
+  return ''
+}
+
 async function runCapability(extension = {}, capability = {}) {
   const capabilityId = String(capability?.id || '').trim()
-  if (!capabilityId || capabilityInvokeDisabled.value) return
+  if (!capabilityId || !capabilityIsReady(capability)) return
   const busyId = `${extension.id}:${capabilityId}`
   capabilityBusyId.value = busyId
   try {
@@ -692,11 +804,136 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.extension-capability-actions {
+.extension-capability-list {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.extension-capability-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
+  padding: 12px;
+}
+
+.extension-capability-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extension-capability-card-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.extension-capability-card-title-row {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 2px;
+}
+
+.extension-capability-card-title {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extension-capability-card-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.extension-capability-card-status.is-ready {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.extension-capability-card-status.is-unavailable {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.extension-capability-card-message {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.extension-capability-schema-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.extension-capability-schema-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.extension-capability-schema-title {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.extension-capability-schema-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.extension-capability-schema-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 24%, transparent);
+  padding: 9px 10px;
+}
+
+.extension-capability-schema-item.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 38%, var(--border));
+}
+
+.extension-capability-schema-item-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.extension-capability-schema-item-label {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.extension-capability-schema-item-detail,
+.extension-capability-schema-empty {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .extension-meta-grid {
@@ -879,6 +1116,15 @@ onMounted(async () => {
 @media (max-width: 720px) {
   .extension-header {
     flex-direction: column;
+  }
+
+  .extension-capability-card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .extension-capability-schema-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .extension-setting-group-heading {
