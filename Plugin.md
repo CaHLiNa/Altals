@@ -66,6 +66,8 @@ Plugins can already use:
 - `process.exec(command, options?)`
 - `process.spawn(command, options?)`
 - `process.wait(pid)`
+- `tasks.current`
+- `tasks.update(patch)`
 - `invocation.current`
 - `settings.onDidChange(...)`
 - `workspaceState`
@@ -103,6 +105,12 @@ Current precedence and ownership contract:
 - view-owned artifacts returned from `ResolveView` or pushed through `views.updateView(...)` may preserve explicit plugin metadata such as `taskId` and `capability`
 
 This contract is probe-backed, not just descriptive prose.
+
+Task progress delivery also has a probe-backed runtime contract:
+
+- plugins may push intermediate task state through `tasks.update(...)` without losing ownership of a still-running spawned worker
+- terminal task updates remain responsible for cleaning up spawned worker ownership in the Rust runtime
+- task `artifacts` and `outputs` are replace-on-present snapshots, so plugin code can either keep existing values by omitting a field or replace the persisted value by sending a new array, including an explicit empty array
 
 ## 4. Current Manifest Use
 

@@ -89,6 +89,7 @@ Current plugin lifecycle contract:
 - references/pdf bridge contract is now probe-backed: `context.references.current` and `context.pdf.current` preserve invocation `referenceId` and active PDF path, `readCurrentLibrary()` returns the normalized snapshot through the Rust bridge, `extractMetadata()`/`extractText()` resolve the active PDF, and out-of-scope PDF paths reject with a surfaced runtime error
 - workspace/documents/invocation contract is now probe-backed: `context.workspace`, `context.documents`, and `context.invocation` preserve the active workspace root, derived resource metadata, target payload, and empty-state defaults without requiring plugins to reconstruct the envelope manually
 - commands/menu registration contract is now probe-backed: `context.commands.executeCommand(...)` can synchronously route into another runtime-registered command and preserve its result payload, while `context.menus.registerAction(...)` preserves runtime action metadata per surface and cleans up disposed actions from subsequent activation snapshots
+- task update contract is now probe-backed: `context.tasks.update(...)` preserves spawned-process ownership across intermediate `running` updates so `spawn(...).wait()` still resolves, terminal updates reap runtime pid ownership without deleting the persisted task record, and task `artifacts` / `outputs` follow replace-on-present semantics through the Rust bridge
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -124,6 +125,7 @@ It runs:
 - `npm run probe:extension-reference-pdf-contract`
 - `npm run probe:extension-invocation-contract`
 - `npm run probe:extension-command-menu-contract`
+- `npm run probe:extension-task-contract`
 - `npm run probe:extension-sidebar-routing`
 - `npm run probe:extension-text-preview-fallback`
 - `npm run probe:extension-artifact-preview-entries`
@@ -167,6 +169,7 @@ Current baseline:
 - extension references/pdf bridge contract probe passes
 - extension workspace/documents/invocation contract probe passes
 - extension commands/menu registration contract probe passes
+- extension task update contract probe passes
 - extension sidebar routing probe passes
 - extension text preview fallback probe passes
 - extension artifact preview mapping probe passes

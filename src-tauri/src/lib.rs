@@ -62,11 +62,14 @@ pub use extension_host::{
     activate_extension as extension_host_activate_entry,
     activate_extension_by_id_for_probe as extension_host_activate_by_id_for_probe,
     invoke_extension_host_for_probe as extension_host_invoke_probe_request,
+    invoke_extension_host_with_task_runtime_for_probe as extension_host_invoke_probe_request_with_task_runtime,
     invoke_extension_host as extension_host_invoke_request,
+    spawned_process_count_for_probe as extension_host_spawned_process_count_for_probe,
     ExtensionHostRequest,
     ExtensionHostResponse,
     ExtensionHostState,
 };
+pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
 
 use percent_encoding::percent_decode_str;
 use std::fs;

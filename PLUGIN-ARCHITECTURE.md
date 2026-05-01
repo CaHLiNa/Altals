@@ -161,6 +161,13 @@ Commands and menus contract note:
 - disposed runtime menu actions should disappear from subsequent activation snapshots rather than leaking stale action metadata
 - runtime-registered command palette actions should stay authoritative over manifest fallbacks once runtime menu data exists
 
+Task update contract note:
+
+- `context.tasks.update(...)` should preserve non-terminal task ownership so a spawned worker can still complete `spawn(...).wait()` after intermediate `running` progress updates
+- terminal task updates should reap spawned-process ownership from the Rust runtime without deleting the persisted task record
+- `artifacts` and `outputs` on task updates should follow replace-on-present semantics: omitted fields keep the current value, while provided arrays replace the persisted snapshot, including explicit empty arrays
+- intermediate and final task updates should preserve structured `outputs` through the Rust bridge instead of dropping them at the task patch boundary
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:

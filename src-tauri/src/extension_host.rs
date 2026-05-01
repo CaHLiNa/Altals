@@ -1808,8 +1808,10 @@ fn handle_extension_host_task_call(
     .map_err(|error| format!("Invalid task update payload: {error}"))?;
     let task = crate::extension_tasks::apply_task_update(&event.extension_id, &task_id, patch)?;
     if let Some(runtime_state) = task_runtime_state {
-        if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
-            let _ = reap_spawned_process(state, pid, false);
+        if matches!(task.state.as_str(), "succeeded" | "failed" | "cancelled") {
+            if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
+                let _ = reap_spawned_process(state, pid, false);
+            }
         }
         runtime_state.emit_task_changed(&task);
     }
@@ -2037,6 +2039,28 @@ pub fn invoke_extension_host_for_probe(
     request: ExtensionHostRequest,
 ) -> Result<ExtensionHostResponse, String> {
     invoke_extension_host(state, None, request)
+}
+
+pub fn invoke_extension_host_with_task_runtime_for_probe(
+    state: &ExtensionHostState,
+    request: ExtensionHostRequest,
+) -> Result<ExtensionHostResponse, String> {
+    let runtime_state = crate::extension_tasks::ExtensionTaskRuntimeState::default();
+    invoke_extension_host(state, Some(&runtime_state), request)
+}
+
+#[cfg(not(test))]
+pub fn spawned_process_count_for_probe(state: &ExtensionHostState) -> Result<usize, String> {
+    let processes = state
+        .spawned_processes
+        .lock()
+        .map_err(|_| "Failed to access spawned process state".to_string())?;
+    Ok(processes.len())
+}
+
+#[cfg(test)]
+pub fn spawned_process_count_for_probe(_state: &ExtensionHostState) -> Result<usize, String> {
+    Ok(0)
 }
 
 pub fn run_extension_host_stdio_loop() -> Result<(), String> {

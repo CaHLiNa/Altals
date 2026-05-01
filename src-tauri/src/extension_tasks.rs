@@ -96,6 +96,25 @@ pub struct ExtensionTaskArtifactPatch {
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ExtensionTaskOutputPatch {
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "type", default)]
+    pub output_type: String,
+    #[serde(default)]
+    pub media_type: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub html: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionTaskUpdatePatch {
     #[serde(default)]
     pub task_id: String,
@@ -107,8 +126,8 @@ pub struct ExtensionTaskUpdatePatch {
     pub progress_total: Option<u32>,
     #[serde(default)]
     pub error: String,
-    #[serde(default)]
-    pub artifacts: Vec<ExtensionTaskArtifactPatch>,
+    pub artifacts: Option<Vec<ExtensionTaskArtifactPatch>>,
+    pub outputs: Option<Vec<ExtensionTaskOutputPatch>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,6 +268,24 @@ pub fn create_command_task(
         command_id,
         target,
         settings,
+    )
+}
+
+pub fn create_command_task_for_probe(
+    extension_id: &str,
+    command_id: &str,
+    target_kind: &str,
+    target_path: &str,
+) -> Result<ExtensionTask, String> {
+    create_command_task(
+        extension_id,
+        command_id,
+        ExtensionTaskTarget {
+            kind: target_kind.to_string(),
+            reference_id: String::new(),
+            path: target_path.to_string(),
+        },
+        serde_json::json!({}),
     )
 }
 
@@ -519,6 +556,32 @@ fn normalize_task_artifact(
     })
 }
 
+fn normalize_task_output(
+    patch: &ExtensionTaskOutputPatch,
+    index: usize,
+) -> Option<ExtensionCapabilityOutput> {
+    let text = patch.text.trim();
+    let html = patch.html.trim();
+    let output_type = patch.output_type.trim();
+    let media_type = patch.media_type.trim();
+    if text.is_empty() && html.is_empty() && output_type.is_empty() && media_type.is_empty() {
+        return None;
+    }
+    Some(ExtensionCapabilityOutput {
+        id: if patch.id.trim().is_empty() {
+            format!("output:{}", index + 1)
+        } else {
+            patch.id.trim().to_string()
+        },
+        output_type: output_type.to_string(),
+        media_type: media_type.to_string(),
+        title: patch.title.trim().to_string(),
+        description: patch.description.trim().to_string(),
+        text: text.to_string(),
+        html: html.to_string(),
+    })
+}
+
 fn apply_task_update_in_dir(
     tasks_root: &Path,
     extension_id: &str,
@@ -537,17 +600,20 @@ fn apply_task_update_in_dir(
     }
     let terminal_task = is_terminal_task_state(&task.state);
     let next_state = normalize_task_state(&patch.state);
-    let next_artifacts = if patch.artifacts.is_empty() {
-        None
-    } else {
-        Some(
-            patch.artifacts
+    let next_artifacts = patch.artifacts.as_ref().map(|artifacts| {
+        artifacts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, artifact)| normalize_task_artifact(&task, artifact, index))
+            .collect::<Vec<_>>()
+    });
+    let next_outputs = patch.outputs.as_ref().map(|outputs| {
+        outputs
                 .iter()
                 .enumerate()
-                .filter_map(|(index, artifact)| normalize_task_artifact(&task, artifact, index))
-                .collect::<Vec<_>>(),
-        )
-    };
+            .filter_map(|(index, output)| normalize_task_output(output, index))
+            .collect::<Vec<_>>()
+    });
     update_task_in_dir(tasks_root, task_id, |task| {
         if terminal_task {
             return;
@@ -629,6 +695,9 @@ fn apply_task_update_in_dir(
         }
         if let Some(artifacts) = &next_artifacts {
             task.artifacts = artifacts.clone();
+        }
+        if let Some(outputs) = &next_outputs {
+            task.outputs = outputs.clone();
         }
     })
 }
@@ -748,8 +817,8 @@ pub async fn extension_task_cancel(
 mod tests {
     use super::{
         apply_task_update_in_dir, create_task_in_dir, list_tasks_from_dir, recover_interrupted_tasks_in_dir,
-        update_task_in_dir, ExtensionTaskArtifactPatch, ExtensionTaskRuntimeState, ExtensionTaskTarget,
-        ExtensionTaskUpdatePatch,
+        update_task_in_dir, ExtensionTaskArtifactPatch, ExtensionTaskOutputPatch,
+        ExtensionTaskRuntimeState, ExtensionTaskTarget, ExtensionTaskUpdatePatch,
     };
     use std::fs;
 
@@ -912,7 +981,7 @@ mod tests {
                 progress_current: Some(1),
                 progress_total: Some(3),
                 error: String::new(),
-                artifacts: vec![ExtensionTaskArtifactPatch {
+                artifacts: Some(vec![ExtensionTaskArtifactPatch {
                     id: "artifact-1".to_string(),
                     kind: "log".to_string(),
                     media_type: "text/plain".to_string(),
@@ -920,7 +989,8 @@ mod tests {
                     source_path: "/tmp/paper.pdf".to_string(),
                     source_hash: String::new(),
                     created_at: String::new(),
-                }],
+                }]),
+                outputs: None,
             },
         )
         .expect("apply task update");
@@ -1019,7 +1089,8 @@ mod tests {
                 progress_current: Some(2),
                 progress_total: Some(3),
                 error: String::new(),
-                artifacts: Vec::new(),
+                artifacts: None,
+                outputs: None,
             },
         )
         .expect("late update ignored");
@@ -1029,6 +1100,93 @@ mod tests {
         assert_eq!(updated.progress.current, 0);
         assert_eq!(updated.progress.total, 0);
         assert_eq!(updated.finished_at, "2026-05-01T01:00:00Z");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn apply_task_update_can_replace_artifacts_and_outputs() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-replace-contract");
+        let task = create_task_in_dir(
+            &root,
+            "example-markdown-extension",
+            "document.summarize",
+            "scribeflow.markdown.summarize",
+            ExtensionTaskTarget {
+                kind: "workspace".to_string(),
+                reference_id: String::new(),
+                path: "/tmp/draft.md".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let running = super::update_task_in_dir(&root, &task.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-01T00:00:00Z".to_string();
+            task.artifacts = vec![crate::extension_artifacts::ExtensionArtifact {
+                id: "artifact-1".to_string(),
+                extension_id: task.extension_id.clone(),
+                task_id: task.id.clone(),
+                capability: task.capability.clone(),
+                kind: "preview".to_string(),
+                media_type: "text/plain".to_string(),
+                path: "/tmp/original.txt".to_string(),
+                source_path: task.target.path.clone(),
+                source_hash: String::new(),
+                created_at: "2026-05-01T00:00:01Z".to_string(),
+            }];
+            task.outputs = vec![crate::extension_outputs::ExtensionCapabilityOutput {
+                id: "summary-1".to_string(),
+                output_type: "inlineText".to_string(),
+                media_type: "text/plain".to_string(),
+                title: "Original Summary".to_string(),
+                description: String::new(),
+                text: "before".to_string(),
+                html: String::new(),
+            }];
+        })
+        .expect("running");
+        assert_eq!(running.artifacts.len(), 1);
+        assert_eq!(running.outputs.len(), 1);
+
+        let replaced = apply_task_update_in_dir(
+            &root,
+            "example-markdown-extension",
+            &task.id,
+            ExtensionTaskUpdatePatch {
+                task_id: task.id.clone(),
+                state: "running".to_string(),
+                progress_label: "Streaming update".to_string(),
+                progress_current: Some(2),
+                progress_total: Some(4),
+                error: String::new(),
+                artifacts: Some(Vec::new()),
+                outputs: Some(vec![ExtensionTaskOutputPatch {
+                    id: "summary-2".to_string(),
+                    output_type: "inlineText".to_string(),
+                    media_type: "text/plain".to_string(),
+                    title: "Updated Summary".to_string(),
+                    description: String::new(),
+                    text: "after".to_string(),
+                    html: String::new(),
+                }]),
+            },
+        )
+        .expect("replace patch");
+
+        assert_eq!(replaced.artifacts.len(), 0);
+        assert_eq!(replaced.outputs.len(), 1);
+        assert_eq!(replaced.outputs[0].id, "summary-2");
+        assert_eq!(replaced.outputs[0].text, "after");
+
+        let persisted = list_tasks_from_dir(&root).expect("list tasks");
+        let persisted = persisted
+            .iter()
+            .find(|entry| entry.id == task.id)
+            .expect("persisted task");
+        assert_eq!(persisted.artifacts.len(), 0);
+        assert_eq!(persisted.outputs.len(), 1);
+        assert_eq!(persisted.outputs[0].title, "Updated Summary");
         fs::remove_dir_all(root).ok();
     }
 
