@@ -95,17 +95,6 @@ export async function activate(context) {
     if (!resource.path) return []
     return [
       {
-        id: "summary-preview",
-        label: "Preview Note Summary",
-        description: "Inline summary preview for the active note",
-        action: "open",
-        previewMode: "text",
-        previewTitle: "Note Summary",
-        payload: {
-          text: summaryText || "No summary generated yet",
-        },
-      },
-      {
         id: "open-note",
         label: "Open Source Note",
         description: resource.path,
@@ -133,6 +122,16 @@ export async function activate(context) {
       statusTone,
       actionLabel: resource.path ? "Run summary or inspect the current note" : "Open a Markdown note first",
       sections: buildSections(summaryText),
+      outputs: summaryText
+        ? [{
+            id: "summary",
+            type: "inlineText",
+            mediaType: "text/plain",
+            title: "Note Summary",
+            description: resource.path || "Current note summary",
+            text: summaryText,
+          }]
+        : [],
       resultEntries: buildResultEntries(summaryText),
     })
   }

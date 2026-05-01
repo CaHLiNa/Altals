@@ -394,6 +394,8 @@ pub struct ExtensionHostViewResolveResult {
     #[serde(default)]
     pub result_entries: Vec<ExtensionHostResultEntry>,
     #[serde(default)]
+    pub outputs: Vec<ExtensionCapabilityOutput>,
+    #[serde(default)]
     pub items: Vec<ExtensionHostViewItem>,
 }
 
@@ -434,6 +436,8 @@ pub struct ExtensionHostViewStateChangedEvent {
     pub sections: Vec<ExtensionHostSidebarSection>,
     #[serde(default)]
     pub result_entries: Vec<ExtensionHostResultEntry>,
+    #[serde(default)]
+    pub outputs: Vec<ExtensionCapabilityOutput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1804,6 +1808,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             action_label: String::new(),
             sections: Vec::new(),
             result_entries: Vec::new(),
+            outputs: Vec::new(),
             items: Vec::new(),
         }),
         ExtensionHostRequest::RespondUiRequest { request_id, .. } => {

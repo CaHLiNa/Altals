@@ -1,3 +1,5 @@
+import { mergeDefaultResultEntries } from './extensionResultEntries.js'
+
 function normalizeText(value = '') {
   return String(value || '').trim()
 }
@@ -58,46 +60,7 @@ export function buildExtensionArtifactPreviewEntries(artifacts = []) {
 
 export function buildExtensionTaskResultEntries(task = {}) {
   const results = buildExtensionArtifactPreviewEntries(task?.artifacts)
-  const outputEntries = (Array.isArray(task?.outputs) ? task.outputs : [])
-    .map((output, index) => {
-      const outputType = normalizeText(output?.type || output?.outputType || output?.output_type)
-      const mediaType = normalizeText(output?.mediaType || output?.media_type)
-      const text = normalizeText(output?.text)
-      const html = normalizeText(output?.html)
-      if (outputType.toLowerCase() === 'inlinetext' && text) {
-        const title = normalizeText(output?.title) || 'Inline Text Output'
-        return {
-          id: normalizeText(output?.id) || `task-output:${index + 1}`,
-          label: title,
-          description: normalizeText(output?.description),
-          action: 'open',
-          previewMode: 'text',
-          previewTitle: title,
-          mediaType: mediaType || 'text/plain',
-          payload: {
-            text,
-          },
-        }
-      }
-      if (outputType.toLowerCase() === 'inlinehtml' && html) {
-        const title = normalizeText(output?.title) || 'Inline HTML Output'
-        return {
-          id: normalizeText(output?.id) || `task-output:${index + 1}`,
-          label: title,
-          description: normalizeText(output?.description),
-          action: 'open',
-          previewMode: 'html',
-          previewTitle: title,
-          mediaType: mediaType || 'text/html',
-          payload: {
-            html,
-          },
-        }
-      }
-      return null
-    })
-    .filter(Boolean)
-  results.push(...outputEntries)
+  results.push(...mergeDefaultResultEntries({ outputs: task?.outputs }))
   const commandId = normalizeText(task?.commandId)
   const extensionId = normalizeText(task?.extensionId)
   const targetPath = normalizeText(task?.target?.path)

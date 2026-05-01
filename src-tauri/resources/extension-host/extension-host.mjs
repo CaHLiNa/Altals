@@ -589,6 +589,7 @@ function createExtensionApi(registry) {
           resultEntries: Array.isArray(patch?.resultEntries)
             ? normalizeResultEntries(patch.resultEntries, registry.id)
             : current.resultEntries,
+          outputs: Array.isArray(patch?.outputs) ? normalizeOutputEntries(patch.outputs) : current.outputs,
         };
         registry.viewState.set(id, next);
         writeMessage({
@@ -607,6 +608,7 @@ function createExtensionApi(registry) {
             actionLabel: next.actionLabel,
             sections: next.sections,
             resultEntries: next.resultEntries,
+            outputs: next.outputs,
           },
         });
       },
@@ -1180,6 +1182,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
       sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
       resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || [], record.id),
+      outputs: normalizeOutputEntries(record.viewState.get(viewId)?.outputs || []),
       items,
     },
   };
@@ -1248,6 +1251,7 @@ function createEmptyViewState(viewId = "") {
     actionLabel: "",
     sections: [],
     resultEntries: [],
+    outputs: [],
   };
 }
 

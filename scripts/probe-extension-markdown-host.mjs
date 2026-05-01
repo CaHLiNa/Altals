@@ -184,6 +184,8 @@ async function main() {
   ensure(String(command?.payload?.message || "").includes("summarized"), "markdown command did not run through capability provider", command?.payload || {});
   ensure(Array.isArray(resolved?.payload?.sections) && resolved.payload.sections.length > 0, "markdown view did not emit sidebar sections", resolved?.payload || {});
   ensure(Array.isArray(resolved?.payload?.resultEntries) && resolved.payload.resultEntries.length > 0, "markdown view did not emit result entries", resolved?.payload || {});
+  ensure(Array.isArray(resolved?.payload?.outputs) && resolved.payload.outputs.length > 0, "markdown view did not emit structured outputs", resolved?.payload || {});
+  ensure(String(resolved?.payload?.outputs?.[0]?.type || '').toLowerCase() === 'inlinetext', "markdown view output type drifted", resolved?.payload || {});
 
   console.log(JSON.stringify({
     ok: true,
@@ -193,6 +195,9 @@ async function main() {
       runtimeViews,
       outputTypes: Array.isArray(capability?.payload?.outputs)
         ? capability.payload.outputs.map((entry) => entry.type)
+        : [],
+      viewOutputTypes: Array.isArray(resolved?.payload?.outputs)
+        ? resolved.payload.outputs.map((entry) => entry.type)
         : [],
       commandMessage: command?.payload?.message || "",
       resultEntryIds: Array.isArray(resolved?.payload?.resultEntries)

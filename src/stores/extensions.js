@@ -38,6 +38,7 @@ import {
   normalizeExtensionContributions,
 } from '../domains/extensions/extensionContributionRegistry'
 import { buildExtensionContext } from '../domains/extensions/extensionContext.js'
+import { mergeDefaultResultEntries } from '../services/extensions/extensionResultEntries'
 
 function normalizeExtensionId(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -936,9 +937,12 @@ export const useExtensionsStore = defineStore('extensions', {
         sections: Array.isArray(resolved?.sections)
           ? resolved.sections.map((entry, index) => normalizeSidebarSection(entry, index))
           : [],
-        resultEntries: Array.isArray(resolved?.resultEntries)
-          ? resolved.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
-          : [],
+        resultEntries: mergeDefaultResultEntries({
+          existingEntries: Array.isArray(resolved?.resultEntries)
+            ? resolved.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+            : [],
+          outputs: resolved?.outputs,
+        }),
       }
       return resolved
     },
@@ -1048,9 +1052,12 @@ export const useExtensionsStore = defineStore('extensions', {
           sections: Array.isArray(payload.sections)
             ? payload.sections.map((entry, index) => normalizeSidebarSection(entry, index))
             : [],
-          resultEntries: Array.isArray(payload.resultEntries)
-            ? payload.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
-            : [],
+          resultEntries: mergeDefaultResultEntries({
+            existingEntries: Array.isArray(payload.resultEntries)
+              ? payload.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+              : [],
+            outputs: payload.outputs,
+          }),
         }
       }).catch(() => null)
       this._extensionTaskChangedUnlisten = await listenExtensionTaskChanged((event) => {
