@@ -146,6 +146,9 @@
                     <div v-if="setting.description" class="extension-setting-hint">
                       {{ t(setting.description) }}
                     </div>
+                    <div v-if="setting.secureStorage === true" class="extension-setting-hint">
+                      {{ t('Stored securely in the app keychain.') }}
+                    </div>
                   </div>
                   <div class="extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
                     <UiSwitch
@@ -435,6 +438,9 @@ function coerceSettingValue(setting = {}, value = '') {
 }
 
 function inputTypeForSetting(key = '', setting = {}) {
+  if (setting?.secureStorage === true) {
+    return 'password'
+  }
   const normalized = shortSettingKey(key).toLowerCase()
   if (normalized.includes('key') ||
     normalized.includes('token') ||
