@@ -215,7 +215,7 @@ Translation-oriented boundary:
 - provider defaults and non-secret knobs may live in host-managed plugin settings
 - runtime task execution, progress, result summary and artifact links belong in the document right sidebar
 - external OCR / LLM work should fit either a sidecar process or another local worker behind `context.process`
-- production credential handling should move to secure host-managed storage before secrets are treated as first-class settings
+- password-like plugin settings should use secure host-managed storage before secrets are treated as first-class settings
 
 ## 11. Current Compatibility Rule
 

@@ -1,4 +1,5 @@
 use crate::app_dirs;
+use crate::keychain;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -61,6 +62,74 @@ pub struct ExtensionSettingsSaveParams {
 
 fn normalize_root(path: &str) -> String {
     path.trim().trim_end_matches('/').to_string()
+}
+
+fn is_secret_setting_key(key: &str) -> bool {
+    let normalized = key.trim().to_ascii_lowercase();
+    normalized.contains("apikey")
+        || normalized.contains("api_key")
+        || normalized.contains("token")
+        || normalized.contains("secret")
+        || normalized.contains("password")
+}
+
+fn extension_secret_storage_key(extension_id: &str, key: &str) -> String {
+    format!(
+        "extension-setting:{}:{}",
+        extension_id.trim().to_ascii_lowercase(),
+        key.trim()
+    )
+}
+
+fn redact_secret_settings_for_disk(settings: &mut ExtensionSettings) -> Result<(), String> {
+    for (extension_id, config) in &mut settings.extension_config {
+        let Some(config_map) = config.as_object_mut() else {
+            continue;
+        };
+        let secret_keys = config_map
+            .keys()
+            .filter(|key| is_secret_setting_key(key))
+            .cloned()
+            .collect::<Vec<_>>();
+        for key in secret_keys {
+            let value = config_map.get(&key).cloned().unwrap_or(Value::Null);
+            let normalized_value = match value {
+                Value::String(text) => text.trim().to_string(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            };
+            let storage_key = extension_secret_storage_key(extension_id, &key);
+            if normalized_value.is_empty() {
+                let _ = keychain::keychain_delete_entry(&storage_key);
+                config_map.insert(key, Value::String(String::new()));
+            } else {
+                keychain::keychain_set_entry(&storage_key, &normalized_value)?;
+                config_map.insert(key, Value::String(String::new()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn hydrate_secret_settings_from_keychain(settings: &mut ExtensionSettings) -> Result<(), String> {
+    for (extension_id, config) in &mut settings.extension_config {
+        let config_map = match config {
+            Value::Object(map) => map,
+            _ => continue,
+        };
+        let secret_keys = config_map
+            .keys()
+            .filter(|key| is_secret_setting_key(key))
+            .cloned()
+            .collect::<Vec<_>>();
+        for key in secret_keys {
+            let storage_key = extension_secret_storage_key(extension_id, &key);
+            if let Some(value) = keychain::keychain_get_entry(&storage_key)? {
+                config_map.insert(key, Value::String(value));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn settings_file(global_config_dir: &str) -> Result<std::path::PathBuf, String> {
@@ -157,7 +226,9 @@ pub fn load_extension_settings(global_config_dir: &str) -> Result<ExtensionSetti
     let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
     let parsed = serde_json::from_str::<ExtensionSettings>(&content)
         .map_err(|error| format!("Failed to parse extension settings: {error}"))?;
-    Ok(normalize_settings(parsed))
+    let mut normalized = normalize_settings(parsed);
+    hydrate_secret_settings_from_keychain(&mut normalized)?;
+    Ok(normalized)
 }
 
 pub fn load_extension_settings_with_state(
@@ -176,7 +247,8 @@ pub fn save_extension_settings(
     global_config_dir: &str,
     settings: ExtensionSettings,
 ) -> Result<ExtensionSettings, String> {
-    let normalized = normalize_settings(settings);
+    let mut normalized = normalize_settings(settings);
+    redact_secret_settings_for_disk(&mut normalized)?;
     let path = settings_file(global_config_dir)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -184,7 +256,9 @@ pub fn save_extension_settings(
     let serialized = serde_json::to_string_pretty(&normalized)
         .map_err(|error| format!("Failed to serialize extension settings: {error}"))?;
     fs::write(path, serialized).map_err(|error| error.to_string())?;
-    Ok(normalized)
+    let mut hydrated = normalized;
+    hydrate_secret_settings_from_keychain(&mut hydrated)?;
+    Ok(hydrated)
 }
 
 pub fn load_extension_runtime_state_store(
@@ -290,6 +364,7 @@ mod tests {
         load_extension_settings_with_state, save_extension_runtime_state_snapshot,
         save_extension_settings, ExtensionRuntimeStateSnapshot, ExtensionSettings,
     };
+    use crate::keychain;
     use std::collections::BTreeMap;
     use std::fs;
 
@@ -373,6 +448,79 @@ mod tests {
         .expect("load runtime state");
 
         assert_eq!(loaded, saved);
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn secret_extension_settings_are_not_persisted_in_plaintext() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-secret-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+
+        let mut extension_config = BTreeMap::new();
+        extension_config.insert(
+            "example-pdf-extension".to_string(),
+            serde_json::json!({
+                "apiKey": "sk-secret",
+                "targetLang": "zh-CN",
+                "serviceToken": "tok-secret"
+            }),
+        );
+
+        let saved = save_extension_settings(
+            &root.to_string_lossy(),
+            ExtensionSettings {
+                enabled_extension_ids: vec!["example-pdf-extension".to_string()],
+                extension_config,
+            },
+        )
+        .expect("save");
+
+        assert_eq!(
+            saved.extension_config.get("example-pdf-extension"),
+            Some(&serde_json::json!({
+                "apiKey": "sk-secret",
+                "targetLang": "zh-CN",
+                "serviceToken": "tok-secret"
+            }))
+        );
+
+        let file_content = fs::read_to_string(root.join("extension-settings.json")).expect("settings file");
+        assert!(!file_content.contains("sk-secret"));
+        assert!(!file_content.contains("tok-secret"));
+
+        let raw = serde_json::from_str::<serde_json::Value>(&file_content).expect("raw json");
+        let config = raw
+            .get("extensionConfig")
+            .and_then(|value| value.get("example-pdf-extension"))
+            .and_then(|value| value.as_object())
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(config.get("apiKey"), Some(&serde_json::Value::String(String::new())));
+        assert_eq!(config.get("serviceToken"), Some(&serde_json::Value::String(String::new())));
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:example-pdf-extension:apiKey")
+                .expect("keychain api key"),
+            Some("sk-secret".to_string())
+        );
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:example-pdf-extension:serviceToken")
+                .expect("keychain token"),
+            Some("tok-secret".to_string())
+        );
+
+        let loaded = load_extension_settings(&root.to_string_lossy()).expect("load");
+        assert_eq!(
+            loaded.extension_config.get("example-pdf-extension"),
+            Some(&serde_json::json!({
+                "apiKey": "sk-secret",
+                "targetLang": "zh-CN",
+                "serviceToken": "tok-secret"
+            }))
+        );
+
         fs::remove_dir_all(root).ok();
     }
 }

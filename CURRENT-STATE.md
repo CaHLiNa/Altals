@@ -25,6 +25,7 @@ Current desktop paths:
 - expose thicker runtime APIs for plugins through `context.workspace`, `context.documents`, `context.invocation`, `context.references`, `context.pdf` and `context.process`
 - allow process-driven plugins to `spawn` local workers and explicitly `wait` for completion through the Rust-backed host bridge
 - propagate host-managed extension setting changes into activated plugins through `context.settings.onDidChange(...)`
+- store password-like plugin settings in secure host-managed keychain storage instead of plain `extension-settings.json`
 - prefer runtime-registered plugin actions for command palette, PDF preview actions, view title actions and view item actions
 - expose reference-aware and PDF-aware runtime context through `context.references` and `context.pdf`
 - allow plugins to query the current reference library, inspect PDF metadata/text, and run permission-gated local processes through the Rust-backed host bridge

@@ -149,11 +149,11 @@ For a future PDF translation plugin such as `retain-pdf`, the current platform b
 - Settings stores provider defaults and non-secret configuration
 - the document right sidebar hosts task state, source context, result summary, and artifact entry points
 - plugin runtime may orchestrate work through `context.process` when a sidecar or local worker is needed
-- secrets should not be normalized into ordinary plugin settings values for production use
+- password-like plugin settings are now redirected into secure host-managed storage instead of plain extension settings files
 
 Current production-oriented guidance:
 
-- prefer env-based or sidecar-managed credentials until a secure host-managed secret store is added
+- prefer secure host-managed plugin secrets for API keys and tokens; use env-based or sidecar-managed credentials only when the plugin needs a more complex external auth model
 - keep OCR / LLM execution outside the core UI layer
 - keep translated PDFs and related outputs flowing back as normal plugin tasks and artifacts
 

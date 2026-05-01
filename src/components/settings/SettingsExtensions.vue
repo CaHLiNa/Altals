@@ -319,7 +319,7 @@ const settingGroupDefinitions = [
   {
     id: 'model',
     titleKey: 'Model Access',
-    hintKey: 'Host-managed model, endpoint, and credential values.',
+    hintKey: 'Host-managed model, endpoint, and secure credential values.',
     keys: ['apiKey', 'apiUrl', 'model'],
     match: (key) => {
       const normalized = shortSettingKey(key).toLowerCase()
