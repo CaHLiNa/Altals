@@ -147,21 +147,31 @@ fn execute_capture_command(
 
 fn main() -> Result<(), String> {
     let probe_root = unique_temp_dir()?;
-    let workspace_root = probe_root.join("workspace");
+    let workspace_root = probe_root.join("workspace-a");
+    let workspace_root_b = probe_root.join("workspace-b");
     let global_config_dir = probe_root.join("global-config");
     fs::create_dir_all(&workspace_root)
         .map_err(|error| format!("Failed to create probe workspace root: {error}"))?;
+    fs::create_dir_all(&workspace_root_b)
+        .map_err(|error| format!("Failed to create secondary probe workspace root: {error}"))?;
     fs::create_dir_all(&global_config_dir)
         .map_err(|error| format!("Failed to create probe global config dir: {error}"))?;
     build_probe_extension(&workspace_root)?;
+    build_probe_extension(&workspace_root_b)?;
 
     let manifest_path = workspace_root
         .join(".scribeflow")
         .join("extensions")
         .join("example-state-extension")
         .join("package.json");
+    let manifest_path_b = workspace_root_b
+        .join(".scribeflow")
+        .join("extensions")
+        .join("example-state-extension")
+        .join("package.json");
 
     let workspace_root_text = workspace_root.to_string_lossy().to_string();
+    let workspace_root_b_text = workspace_root_b.to_string_lossy().to_string();
     let global_config_dir_text = global_config_dir.to_string_lossy().to_string();
 
     let first_state = ExtensionHostState::default();
@@ -220,6 +230,34 @@ fn main() -> Result<(), String> {
         ));
     }
 
+    let third_state = ExtensionHostState::default();
+    let activate_third = extension_host_activate_by_id_for_probe(
+        &third_state,
+        &global_config_dir_text,
+        &workspace_root_b_text,
+        "example-state-extension",
+        "onCommand:exampleStateExtension.captureState",
+    )?;
+    if !activate_third.activated {
+        return Err(format!(
+            "State probe extension did not activate for secondary workspace: {}",
+            activate_third.reason
+        ));
+    }
+
+    let third = execute_capture_command(
+        &third_state,
+        &workspace_root_b_text,
+        &manifest_path_b.to_string_lossy(),
+    )?;
+    let third_global = output_text(&third, "global-count").unwrap_or_default();
+    let third_workspace = output_text(&third, "workspace-count").unwrap_or_default();
+    if third_global != "3" || third_workspace != "1" {
+        return Err(format!(
+            "Workspace state isolation drifted across roots: global={third_global} workspace={third_workspace}"
+        ));
+    }
+
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -229,6 +267,8 @@ fn main() -> Result<(), String> {
                 "firstWorkspace": first_workspace,
                 "secondGlobal": second_global,
                 "secondWorkspace": second_workspace,
+                "thirdGlobal": third_global,
+                "thirdWorkspace": third_workspace,
             }
         }))
         .map_err(|error| format!("Failed to serialize state persistence probe result: {error}"))?

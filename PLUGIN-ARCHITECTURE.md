@@ -209,6 +209,7 @@ Persistence contract note:
 
 - `globalState` and `workspaceState` are runtime-owned persisted channels, not in-memory conveniences
 - updates emitted from plugin runtime must survive later host activations and be restored before the next `activate(context)` logic runs
+- `globalState` is shared across workspaces for the same extension id, while `workspaceState` is keyed by workspace root and must stay isolated across different workspaces
 
 ## 10. Settings Model
 

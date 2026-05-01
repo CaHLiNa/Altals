@@ -79,7 +79,7 @@ Current plugin lifecycle contract:
 - host-process crash recovery is now probe-backed: a crashing command tears down the dead process handle, and the next host request respawns the persistent runtime and succeeds
 - host interruption during a pending window prompt is now probe-backed: waiting prompt flows fail fast when the host dies, the pending UI request is interrupted immediately, and the frontend prompt is cleared instead of lingering until timeout
 - quick-pick multi-select is now probe-backed: picked defaults hydrate into the prompt, UI selection can accumulate multiple items, and the host roundtrip preserves an array result payload
-- runtime state persistence is now probe-backed: plugin `globalState` and `workspaceState` updates survive a later host activation and re-enter the plugin context as restored values
+- runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 
 ## Verification
 
