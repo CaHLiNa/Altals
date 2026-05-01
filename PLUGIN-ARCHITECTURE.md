@@ -140,6 +140,13 @@ Process contract note:
 - failing process executions should preserve non-zero exit codes and stderr text
 - requested `cwd` values must stay inside the active workspace; outside-workspace requests should fail instead of silently escaping the scope boundary
 
+Reference and PDF contract note:
+
+- `context.references.current` and `context.pdf.current` should preserve the invocation `referenceId`, active PDF path, and derived filename without forcing plugin code to reconstruct them from the envelope
+- `context.references.readCurrentLibrary()` should return the normalized reference snapshot shape from the Rust bridge, not a plugin-local cache
+- `context.pdf.extractMetadata()` and `context.pdf.extractText()` should resolve the active PDF by default when the caller omits `filePath`
+- PDF inspection should obey workspace/reference-library path boundaries and surface an explicit runtime error for out-of-scope paths
+
 ## 6. Host Boundary
 
 Rust remains runtime authority for:
@@ -272,7 +279,7 @@ Verification-oriented note:
 
 - plugin contracts should be treated as real only when covered by `npm run verify`
 - the current gate includes host activation, capability schema, activation guards, permission guards, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, bundle budget, Rust check, and Rust tests
-- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
+- the current gate includes host activation, capability schema, activation guards, permission guards, secure settings bridge behavior, runtime settings snapshot-change semantics, process bridge exec/spawn/wait semantics, reference and PDF host-call semantics, sidebar routing, result-entry derivation, direct-view host behavior, host crash recovery, window prompt interruption cleanup, tree-view controller selection and reveal semantics, quick-pick request-result semantics, quick-pick multi-select roundtrips, state persistence restore, window message severity routing, input box request-result semantics, bundle budget, Rust check, and Rust tests
 - probes should be preferred over prose whenever a contract can drift silently
 
 ## 11. Current Compatibility Rule
