@@ -69,6 +69,15 @@ async function main() {
       'examplePdfExtension.targetLang': 'zh-CN',
     },
     logPath: '/tmp/extension-task.log',
+    outputs: [
+      {
+        id: 'inline-summary',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Inline Summary',
+        text: 'inline summary text',
+      },
+    ],
     artifacts: [
       {
         id: 'artifact-text',
@@ -94,6 +103,13 @@ async function main() {
         previewMode: 'text',
         commandId: '',
         previewTitle: 'Translated Text',
+      },
+      {
+        id: 'inline-summary',
+        action: 'open',
+        previewMode: 'text',
+        commandId: '',
+        previewTitle: 'Inline Summary',
       },
       {
         id: 'task-1:log',

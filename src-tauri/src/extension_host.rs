@@ -1,5 +1,6 @@
 use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_manifest::{ExtensionManifest, ExtensionPermissions};
+use crate::extension_outputs::ExtensionCapabilityOutput;
 #[cfg(not(test))]
 use crate::extension_tasks::ExtensionTaskRuntimeState;
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
@@ -285,6 +286,8 @@ pub struct ExtensionHostCapabilityResult {
     pub changed_views: Vec<String>,
     #[serde(default)]
     pub artifacts: Vec<ExtensionArtifact>,
+    #[serde(default)]
+    pub outputs: Vec<ExtensionCapabilityOutput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1759,6 +1762,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 task_state: "succeeded".to_string(),
                 changed_views: Vec::new(),
                 artifacts: Vec::new(),
+                outputs: Vec::new(),
             })
         }
         ExtensionHostRequest::ExecuteCommand {
@@ -1775,6 +1779,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             task_state: "succeeded".to_string(),
             changed_views: Vec::new(),
             artifacts: Vec::new(),
+            outputs: Vec::new(),
         }),
         ExtensionHostRequest::ResolveView {
             view_id,

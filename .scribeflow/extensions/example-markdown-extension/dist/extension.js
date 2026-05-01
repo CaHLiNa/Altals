@@ -164,6 +164,16 @@ export async function activate(context) {
       message: `example-markdown-extension summarized ${resource.path || "current note"}`,
       progressLabel: "Note summary completed",
       taskState: "succeeded",
+      outputs: [
+        {
+          id: "summary",
+          type: "inlineText",
+          mediaType: "text/plain",
+          title: "Note Summary",
+          description: resource.path || "Current note summary",
+          text: summaryText,
+        },
+      ],
     }
   })
 

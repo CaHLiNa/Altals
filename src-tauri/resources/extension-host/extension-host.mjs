@@ -242,6 +242,27 @@ function normalizeArtifactEntries(entries = [], envelope = {}) {
     .filter(Boolean);
 }
 
+function normalizeOutputEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry, index) => {
+      if (!entry || typeof entry !== "object") return null;
+      const text = String(entry.text || "").trim();
+      const outputType = String(entry.type || entry.outputType || entry.output_type || "").trim();
+      const mediaType = String(entry.mediaType || entry.media_type || "").trim();
+      if (!text && !outputType && !mediaType) return null;
+      return {
+        id: String(entry.id || `output:${index + 1}`).trim(),
+        type: outputType,
+        mediaType,
+        title: String(entry.title || "").trim(),
+        description: String(entry.description || "").trim(),
+        text,
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeTaskState(value = "", fallback = "succeeded") {
   const normalized = String(value || "").trim().toLowerCase();
   if (["queued", "running", "succeeded", "failed", "cancelled"].includes(normalized)) {
@@ -1054,6 +1075,7 @@ async function handleInvokeCapability(params = {}) {
           : "Handled by extension host",
       taskState: normalizeTaskState(result?.taskState, "succeeded"),
       artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
+      outputs: normalizeOutputEntries(result?.outputs),
     },
   };
 }
@@ -1085,6 +1107,7 @@ async function handleExecuteCommand(params = {}) {
       taskState: normalizeTaskState(result?.taskState, "succeeded"),
       changedViews,
       artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
+      outputs: normalizeOutputEntries(result?.outputs),
     },
   };
 }

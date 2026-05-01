@@ -121,6 +121,7 @@ function normalizeTask(task = {}) {
     finishedAt: String(task.finishedAt || task.finished_at || ''),
     target: normalizeTarget(task?.target || {}),
     artifacts: Array.isArray(task.artifacts) ? task.artifacts : [],
+    outputs: Array.isArray(task.outputs) ? task.outputs : [],
     error: String(task.error || ''),
     logPath: String(task.logPath || task.log_path || ''),
   }

@@ -7,6 +7,7 @@ use crate::extension_host::{
     ExtensionHostActivationResult, ExtensionHostRequest, ExtensionHostResponse,
 };
 use crate::extension_manifest::ExtensionManifest;
+use crate::extension_outputs::ExtensionCapabilityOutput;
 use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
@@ -177,6 +178,18 @@ fn normalize_artifacts(artifacts: Vec<ExtensionArtifact>) -> Vec<ExtensionArtifa
         .collect()
 }
 
+fn normalize_outputs(outputs: Vec<ExtensionCapabilityOutput>) -> Vec<ExtensionCapabilityOutput> {
+    outputs
+        .into_iter()
+        .filter(|output| {
+            !output.id.trim().is_empty()
+                || !output.output_type.trim().is_empty()
+                || !output.media_type.trim().is_empty()
+                || !output.text.trim().is_empty()
+        })
+        .collect()
+}
+
 fn normalize_task_state(value: &str) -> &str {
     match value.trim().to_ascii_lowercase().as_str() {
         "queued" => "queued",
@@ -195,15 +208,26 @@ fn record_extension_result(
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<ExtensionCommandExecutionResult, String> {
     let artifacts = normalize_artifacts(result.artifacts);
+    let outputs = normalize_outputs(result.outputs);
     if let Some(contract) = capability_contract {
-        validate_capability_outputs(contract, &artifacts)
+        validate_capability_outputs(contract, &artifacts, &outputs)
             .map_err(|error| format!("Failed to record extension result: {error}"))?;
     }
     let normalized_state = normalize_task_state(&result.task_state);
     let recorded = match normalized_state {
-        "queued" => mark_task_queued(&task.id, &result.progress_label, artifacts.clone()),
+        "queued" => mark_task_queued(
+            &task.id,
+            &result.progress_label,
+            artifacts.clone(),
+            outputs.clone(),
+        ),
         "running" => {
-            mark_task_running_with_progress(&task.id, &result.progress_label, artifacts.clone())
+            mark_task_running_with_progress(
+                &task.id,
+                &result.progress_label,
+                artifacts.clone(),
+                outputs.clone(),
+            )
         }
         "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
         "failed" => crate::extension_tasks::mark_task_failed(
@@ -214,7 +238,7 @@ fn record_extension_result(
                 &result.message
             },
         ),
-        _ => mark_task_succeeded(&task.id, artifacts, &result.progress_label),
+        _ => mark_task_succeeded(&task.id, artifacts, outputs, &result.progress_label),
     }
     .map_err(|error| format!("Failed to record extension result: {error}"))?;
     if let Some(pid) = task_runtime_state.unregister_pid(&recorded.id)? {
@@ -790,8 +814,8 @@ mod tests {
             }
         }));
         let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
-        let error =
-            validate_capability_outputs(capability, &[]).expect_err("missing artifact should fail");
+        let error = validate_capability_outputs(capability, &[], &[])
+            .expect_err("missing artifact should fail");
 
         assert!(error.contains("summary"));
         assert!(error.contains("text/plain"));

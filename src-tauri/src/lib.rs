@@ -15,6 +15,7 @@ mod extension_capability_contract;
 mod extension_commands;
 mod extension_host;
 mod extension_manifest;
+mod extension_outputs;
 mod extension_permissions;
 mod extension_registry;
 mod extension_secret_settings;

@@ -3,6 +3,7 @@ use crate::extension_manifest::{
     ExtensionCapabilityContribution, ExtensionInputDefinition, ExtensionOutputDefinition,
     ExtensionManifest,
 };
+use crate::extension_outputs::ExtensionCapabilityOutput;
 use crate::extension_tasks::ExtensionTaskTarget;
 
 fn normalize_text(value: &str) -> String {
@@ -147,15 +148,25 @@ fn output_matches_definition(
 pub fn validate_capability_outputs(
     capability: &ExtensionCapabilityContribution,
     artifacts: &[ExtensionArtifact],
+    outputs: &[ExtensionCapabilityOutput],
 ) -> Result<(), String> {
     for (key, output) in &capability.outputs {
         if !output.required {
             continue;
         }
-        let matched = artifacts
+        let matched_artifact = artifacts
             .iter()
             .any(|artifact| output_matches_definition(output, artifact));
-        if !matched {
+        let matched_output = outputs.iter().any(|entry| {
+            let output_type = output.output_type.trim().to_ascii_lowercase();
+            let media_type = output.media_type.trim().to_ascii_lowercase();
+            let entry_type = entry.output_type.trim().to_ascii_lowercase();
+            let entry_media_type = entry.media_type.trim().to_ascii_lowercase();
+            let type_matches = output_type.is_empty() || entry_type == output_type;
+            let media_type_matches = media_type.is_empty() || entry_media_type == media_type;
+            type_matches && media_type_matches
+        });
+        if !(matched_artifact || matched_output) {
             let mut contract = String::new();
             if !output.output_type.trim().is_empty() {
                 contract.push_str(output.output_type.trim());
@@ -187,6 +198,7 @@ mod tests {
     use crate::extension_manifest::{
         parse_extension_manifest_str, CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
+    use crate::extension_outputs::ExtensionCapabilityOutput;
     use crate::extension_tasks::ExtensionTaskTarget;
 
     fn manifest() -> crate::extension_manifest::ExtensionManifest {
@@ -287,7 +299,7 @@ mod tests {
             source_hash: String::new(),
             created_at: "2026-05-02T00:00:00Z".to_string(),
         }];
-        let result = validate_capability_outputs(capability, &artifacts);
+        let result = validate_capability_outputs(capability, &artifacts, &[]);
         assert!(result.is_ok(), "{result:?}");
     }
 
@@ -295,9 +307,50 @@ mod tests {
     fn rejects_missing_required_output_artifact() {
         let manifest = manifest();
         let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
-        let error =
-            validate_capability_outputs(capability, &[]).expect_err("missing required output");
+        let error = validate_capability_outputs(capability, &[], &[])
+            .expect_err("missing required output");
         assert!(error.contains("summary"));
         assert!(error.contains("text/plain"));
+    }
+
+    #[test]
+    fn accepts_required_inline_text_output_match() {
+        let manifest = parse_extension_manifest_str(
+            &serde_json::json!({
+                "name": "example-markdown-extension",
+                "displayName": "Example Markdown Extension",
+                "version": "0.1.0",
+                "main": "./dist/extension.js",
+                "contributes": {
+                    "capabilities": [{
+                        "id": "document.summarize",
+                        "outputs": {
+                            "summary": {
+                                "type": "inlineText",
+                                "mediaType": "text/plain",
+                                "required": true
+                            }
+                        }
+                    }]
+                }
+            })
+            .to_string(),
+            CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        )
+        .expect("manifest parse")
+        .manifest;
+        let capability =
+            manifest_capability_by_id(&manifest, "document.summarize").expect("capability");
+        let outputs = vec![ExtensionCapabilityOutput {
+            id: "summary".to_string(),
+            output_type: "inlineText".to_string(),
+            media_type: "text/plain".to_string(),
+            title: "Summary".to_string(),
+            description: String::new(),
+            text: "hello".to_string(),
+        }];
+
+        let result = validate_capability_outputs(capability, &[], &outputs);
+        assert!(result.is_ok(), "{result:?}");
     }
 }

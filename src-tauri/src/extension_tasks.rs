@@ -1,5 +1,6 @@
 use crate::app_dirs;
 use crate::extension_artifacts::ExtensionArtifact;
+use crate::extension_outputs::ExtensionCapabilityOutput;
 #[cfg(not(test))]
 use tauri::Emitter;
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,8 @@ pub struct ExtensionTask {
     pub settings: Value,
     pub progress: ExtensionTaskProgress,
     pub artifacts: Vec<ExtensionArtifact>,
+    #[serde(default)]
+    pub outputs: Vec<ExtensionCapabilityOutput>,
     pub error: String,
     pub log_path: String,
 }
@@ -280,6 +283,7 @@ fn create_task_in_dir(
             total: 0,
         },
         artifacts: Vec::new(),
+        outputs: Vec::new(),
         error: String::new(),
         log_path,
     };
@@ -334,6 +338,7 @@ fn mark_task_queued_in_dir(
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
 ) -> Result<ExtensionTask, String> {
     update_task_in_dir(tasks_root, task_id, |task| {
         if is_terminal_task_state(&task.state) {
@@ -353,6 +358,7 @@ fn mark_task_queued_in_dir(
             total: 0,
         };
         task.artifacts = artifacts;
+        task.outputs = outputs;
     })
 }
 
@@ -360,8 +366,9 @@ pub fn mark_task_queued(
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
 ) -> Result<ExtensionTask, String> {
-    mark_task_queued_in_dir(&tasks_dir()?, task_id, progress_label, artifacts)
+    mark_task_queued_in_dir(&tasks_dir()?, task_id, progress_label, artifacts, outputs)
 }
 
 fn mark_task_running_with_progress_in_dir(
@@ -369,6 +376,7 @@ fn mark_task_running_with_progress_in_dir(
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
 ) -> Result<ExtensionTask, String> {
     update_task_in_dir(tasks_root, task_id, |task| {
         if is_terminal_task_state(&task.state) {
@@ -390,6 +398,7 @@ fn mark_task_running_with_progress_in_dir(
             total: 0,
         };
         task.artifacts = artifacts;
+        task.outputs = outputs;
     })
 }
 
@@ -397,14 +406,16 @@ pub fn mark_task_running_with_progress(
     task_id: &str,
     progress_label: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
 ) -> Result<ExtensionTask, String> {
-    mark_task_running_with_progress_in_dir(&tasks_dir()?, task_id, progress_label, artifacts)
+    mark_task_running_with_progress_in_dir(&tasks_dir()?, task_id, progress_label, artifacts, outputs)
 }
 
 fn mark_task_succeeded_in_dir(
     tasks_root: &Path,
     task_id: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
     progress_label: &str,
 ) -> Result<ExtensionTask, String> {
     update_task_in_dir(tasks_root, task_id, |task| {
@@ -423,6 +434,7 @@ fn mark_task_succeeded_in_dir(
             total: 1,
         };
         task.artifacts = artifacts;
+        task.outputs = outputs;
         task.error.clear();
     })
 }
@@ -430,9 +442,10 @@ fn mark_task_succeeded_in_dir(
 pub fn mark_task_succeeded(
     task_id: &str,
     artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
     progress_label: &str,
 ) -> Result<ExtensionTask, String> {
-    mark_task_succeeded_in_dir(&tasks_dir()?, task_id, artifacts, progress_label)
+    mark_task_succeeded_in_dir(&tasks_dir()?, task_id, artifacts, outputs, progress_label)
 }
 
 fn mark_task_failed_in_dir(
@@ -922,6 +935,54 @@ mod tests {
     }
 
     #[test]
+    fn task_state_transitions_persist_structured_outputs() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-outputs");
+        let task = create_task_in_dir(
+            &root,
+            "example-markdown-extension",
+            "document.summarize",
+            "scribeflow.markdown.summarize",
+            ExtensionTaskTarget {
+                kind: "workspace".to_string(),
+                reference_id: String::new(),
+                path: "/tmp/draft.md".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let completed = super::mark_task_succeeded_in_dir(
+            &root,
+            &task.id,
+            Vec::new(),
+            vec![crate::extension_outputs::ExtensionCapabilityOutput {
+                id: "summary".to_string(),
+                output_type: "inlineText".to_string(),
+                media_type: "text/plain".to_string(),
+                title: "Note Summary".to_string(),
+                description: "/tmp/draft.md".to_string(),
+                text: "summary body".to_string(),
+            }],
+            "Completed",
+        )
+        .expect("mark succeeded");
+
+        assert_eq!(completed.outputs.len(), 1);
+        assert_eq!(completed.outputs[0].output_type, "inlineText");
+        assert_eq!(completed.outputs[0].text, "summary body");
+
+        let listed = list_tasks_from_dir(&root).expect("list tasks");
+        let persisted = listed
+            .iter()
+            .find(|entry| entry.id == task.id)
+            .expect("persisted task");
+        assert_eq!(persisted.outputs.len(), 1);
+        assert_eq!(persisted.outputs[0].media_type, "text/plain");
+        assert_eq!(persisted.outputs[0].title, "Note Summary");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn apply_task_update_does_not_reopen_terminal_task() {
         let root = temp_tasks_root("scribeflow-extension-tasks-terminal-guard");
         let task = create_task_in_dir(
@@ -1000,13 +1061,20 @@ mod tests {
             &task.id,
             "Late running",
             Vec::new(),
+            Vec::new(),
         )
         .expect("late running ignored");
         assert_eq!(running.state, "cancelled");
         assert_eq!(running.progress.label, "Cancelled");
 
-        let succeeded = super::mark_task_succeeded_in_dir(&root, &task.id, Vec::new(), "Late success")
-            .expect("late success ignored");
+        let succeeded = super::mark_task_succeeded_in_dir(
+            &root,
+            &task.id,
+            Vec::new(),
+            Vec::new(),
+            "Late success",
+        )
+        .expect("late success ignored");
         assert_eq!(succeeded.state, "cancelled");
         assert_eq!(succeeded.progress.label, "Cancelled");
         assert_eq!(succeeded.finished_at, "2026-05-01T02:00:00Z");

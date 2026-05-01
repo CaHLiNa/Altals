@@ -171,6 +171,8 @@ async function main() {
     runtimeViews,
   });
   ensure(capability?.payload?.accepted === true, "markdown capability invocation was not accepted", capability?.payload || {});
+  ensure(Array.isArray(capability?.payload?.outputs) && capability.payload.outputs.length > 0, "markdown capability did not emit structured outputs", capability?.payload || {});
+  ensure(String(capability?.payload?.outputs?.[0]?.type || '').toLowerCase() === 'inlinetext', "markdown capability output type drifted", capability?.payload || {});
   ensure(command?.payload?.accepted === true, "markdown command execution was not accepted", command?.payload || {});
   ensure(String(command?.payload?.message || "").includes("summarized"), "markdown command did not run through capability provider", command?.payload || {});
   ensure(Array.isArray(resolved?.payload?.sections) && resolved.payload.sections.length > 0, "markdown view did not emit sidebar sections", resolved?.payload || {});
@@ -182,6 +184,9 @@ async function main() {
       runtimeCommands,
       runtimeCapabilities,
       runtimeViews,
+      outputTypes: Array.isArray(capability?.payload?.outputs)
+        ? capability.payload.outputs.map((entry) => entry.type)
+        : [],
       commandMessage: command?.payload?.message || "",
       resultEntryIds: Array.isArray(resolved?.payload?.resultEntries)
         ? resolved.payload.resultEntries.map((entry) => entry.id)

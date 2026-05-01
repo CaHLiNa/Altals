@@ -58,6 +58,30 @@ export function buildExtensionArtifactPreviewEntries(artifacts = []) {
 
 export function buildExtensionTaskResultEntries(task = {}) {
   const results = buildExtensionArtifactPreviewEntries(task?.artifacts)
+  const outputEntries = (Array.isArray(task?.outputs) ? task.outputs : [])
+    .map((output, index) => {
+      const outputType = normalizeText(output?.type || output?.outputType || output?.output_type)
+      const mediaType = normalizeText(output?.mediaType || output?.media_type)
+      const text = normalizeText(output?.text)
+      if (outputType.toLowerCase() === 'inlinetext' && text) {
+        const title = normalizeText(output?.title) || 'Inline Text Output'
+        return {
+          id: normalizeText(output?.id) || `task-output:${index + 1}`,
+          label: title,
+          description: normalizeText(output?.description),
+          action: 'open',
+          previewMode: 'text',
+          previewTitle: title,
+          mediaType: mediaType || 'text/plain',
+          payload: {
+            text,
+          },
+        }
+      }
+      return null
+    })
+    .filter(Boolean)
+  results.push(...outputEntries)
   const commandId = normalizeText(task?.commandId)
   const extensionId = normalizeText(task?.extensionId)
   const targetPath = normalizeText(task?.target?.path)
