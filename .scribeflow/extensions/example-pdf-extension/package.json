@@ -37,6 +37,11 @@
             "mediaType": "text/plain",
             "required": true
           },
+          "resultCard": {
+            "type": "inlineHtml",
+            "mediaType": "text/html",
+            "required": true
+          },
           "translatedPdf": {
             "type": "artifact",
             "mediaType": "application/pdf",

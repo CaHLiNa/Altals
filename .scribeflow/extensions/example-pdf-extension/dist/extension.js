@@ -197,7 +197,7 @@ export async function activate(context) {
       {
         id: "translation-html-preview",
         label: "Preview HTML Result Card",
-        description: "Inline HTML mockup for future translated output",
+        description: "Open the structured HTML result saved with this task",
         action: "open",
         previewMode: "html",
         previewTitle: "Translation HTML Preview",
@@ -293,6 +293,29 @@ export async function activate(context) {
         : `example-pdf-extension failed to translate ${request?.capability || "unknown"} for ${targetLang}`,
       progressLabel: waited?.ok ? "Translation completed" : "Translation failed",
       taskState: waited?.ok ? "succeeded" : "failed",
+      outputs: waited?.ok
+        ? [
+            {
+              id: "translation-result-card",
+              type: "inlineHtml",
+              mediaType: "text/html",
+              title: "Translation HTML Preview",
+              description: lastResultPath || "Translation result card",
+              html: `
+                <html>
+                  <body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; margin: 0; padding: 20px; background: #fffdf8; color: #181512;">
+                    <h2 style="margin: 0 0 8px; font-size: 18px;">Example Translation Result</h2>
+                    <p style="margin: 0 0 14px; color: #5b5349;">This is a mock preview surface for future translated output.</p>
+                    <div style="padding: 12px 14px; border: 1px solid #e6ded2; border-radius: 10px; background: #ffffff;">
+                      <div style="font-size: 12px; color: #6e6256; text-transform: uppercase; letter-spacing: .04em;">Target</div>
+                      <div style="margin-top: 4px; font-size: 14px;">${lastResultPath || "No active PDF"}</div>
+                    </div>
+                  </body>
+                </html>
+              `,
+            },
+          ]
+        : [],
       artifacts: waited?.ok && translationArtifactPath
         ? [
             {

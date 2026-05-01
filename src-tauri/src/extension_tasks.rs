@@ -962,6 +962,7 @@ mod tests {
                 title: "Note Summary".to_string(),
                 description: "/tmp/draft.md".to_string(),
                 text: "summary body".to_string(),
+                html: String::new(),
             }],
             "Completed",
         )

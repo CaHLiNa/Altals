@@ -77,6 +77,13 @@ async function main() {
         title: 'Inline Summary',
         text: 'inline summary text',
       },
+      {
+        id: 'inline-html',
+        type: 'inlineHtml',
+        mediaType: 'text/html',
+        title: 'Inline HTML',
+        html: '<p>inline html preview</p>',
+      },
     ],
     artifacts: [
       {
@@ -110,6 +117,13 @@ async function main() {
         previewMode: 'text',
         commandId: '',
         previewTitle: 'Inline Summary',
+      },
+      {
+        id: 'inline-html',
+        action: 'open',
+        previewMode: 'html',
+        commandId: '',
+        previewTitle: 'Inline HTML',
       },
       {
         id: 'task-1:log',

@@ -162,9 +162,10 @@ pub fn validate_capability_outputs(
             let media_type = output.media_type.trim().to_ascii_lowercase();
             let entry_type = entry.output_type.trim().to_ascii_lowercase();
             let entry_media_type = entry.media_type.trim().to_ascii_lowercase();
+            let content_present = !entry.text.trim().is_empty() || !entry.html.trim().is_empty();
             let type_matches = output_type.is_empty() || entry_type == output_type;
             let media_type_matches = media_type.is_empty() || entry_media_type == media_type;
-            type_matches && media_type_matches
+            type_matches && media_type_matches && content_present
         });
         if !(matched_artifact || matched_output) {
             let mut contract = String::new();
@@ -348,6 +349,48 @@ mod tests {
             title: "Summary".to_string(),
             description: String::new(),
             text: "hello".to_string(),
+            html: String::new(),
+        }];
+
+        let result = validate_capability_outputs(capability, &[], &outputs);
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn accepts_required_inline_html_output_match() {
+        let manifest = parse_extension_manifest_str(
+            &serde_json::json!({
+                "name": "example-pdf-extension",
+                "displayName": "Example PDF Extension",
+                "version": "0.1.0",
+                "main": "./dist/extension.js",
+                "contributes": {
+                    "capabilities": [{
+                        "id": "pdf.translate",
+                        "outputs": {
+                            "resultCard": {
+                                "type": "inlineHtml",
+                                "mediaType": "text/html",
+                                "required": true
+                            }
+                        }
+                    }]
+                }
+            })
+            .to_string(),
+            CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        )
+        .expect("manifest parse")
+        .manifest;
+        let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
+        let outputs = vec![ExtensionCapabilityOutput {
+            id: "result-card".to_string(),
+            output_type: "inlineHtml".to_string(),
+            media_type: "text/html".to_string(),
+            title: "Result Card".to_string(),
+            description: String::new(),
+            text: String::new(),
+            html: "<p>ok</p>".to_string(),
         }];
 
         let result = validate_capability_outputs(capability, &[], &outputs);

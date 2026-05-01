@@ -15,4 +15,6 @@ pub struct ExtensionCapabilityOutput {
     pub description: String,
     #[serde(default)]
     pub text: String,
+    #[serde(default)]
+    pub html: String,
 }

@@ -29,7 +29,7 @@ async function main() {
   const markdownCapability = capabilityById(markdownManifest, 'example-markdown-extension', 'document.summarize')
 
   assert.deepEqual(Object.keys(pdfCapability.inputs), ['document', 'reference'])
-  assert.deepEqual(Object.keys(pdfCapability.outputs), ['summary', 'translatedPdf'])
+  assert.deepEqual(Object.keys(pdfCapability.outputs), ['summary', 'resultCard', 'translatedPdf'])
   assert.deepEqual(Object.keys(markdownCapability.inputs), ['document'])
   assert.deepEqual(Object.keys(markdownCapability.outputs), ['summary'])
 

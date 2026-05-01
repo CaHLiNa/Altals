@@ -465,6 +465,12 @@ async function main() {
   ensure(/requires one of: \.pdf/i.test(String(rejectedTranslate?.payload?.message || "")), "schema-invalid translation command returned the wrong error", summary);
   ensure(invokedCapability?.payload?.accepted === true, "capability invocation was not accepted", summary);
   ensure(invokedCapability?.payload?.taskState === "succeeded", "capability invocation did not succeed", summary);
+  ensure(
+    Array.isArray(invokedCapability?.payload?.outputs) &&
+      invokedCapability.payload.outputs.some((entry) => String(entry?.type || "").toLowerCase() === "inlinehtml"),
+    "pdf capability did not emit inlineHtml output",
+    summary,
+  );
   ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);
   ensure(processApis?.payload?.taskState === "succeeded", "process command did not succeed", summary);
   ensure(processExecApis?.payload?.accepted === true, "process exec command was not accepted", summary);

@@ -248,9 +248,10 @@ function normalizeOutputEntries(entries = []) {
     .map((entry, index) => {
       if (!entry || typeof entry !== "object") return null;
       const text = String(entry.text || "").trim();
+      const html = String(entry.html || "").trim();
       const outputType = String(entry.type || entry.outputType || entry.output_type || "").trim();
       const mediaType = String(entry.mediaType || entry.media_type || "").trim();
-      if (!text && !outputType && !mediaType) return null;
+      if (!text && !html && !outputType && !mediaType) return null;
       return {
         id: String(entry.id || `output:${index + 1}`).trim(),
         type: outputType,
@@ -258,6 +259,7 @@ function normalizeOutputEntries(entries = []) {
         title: String(entry.title || "").trim(),
         description: String(entry.description || "").trim(),
         text,
+        html,
       };
     })
     .filter(Boolean);
