@@ -252,11 +252,61 @@ pub fn mark_task_running(task_id: &str) -> Result<ExtensionTask, String> {
     update_task(task_id, |task| {
         task.state = "running".to_string();
         task.started_at = now_string();
+        task.finished_at.clear();
+        task.error.clear();
         task.progress = ExtensionTaskProgress {
             label: "Running".to_string(),
             current: 0,
             total: 0,
         };
+    })
+}
+
+pub fn mark_task_queued(
+    task_id: &str,
+    progress_label: &str,
+    artifacts: Vec<ExtensionArtifact>,
+) -> Result<ExtensionTask, String> {
+    update_task(task_id, |task| {
+        task.state = "queued".to_string();
+        task.started_at.clear();
+        task.finished_at.clear();
+        task.error.clear();
+        task.progress = ExtensionTaskProgress {
+            label: if progress_label.trim().is_empty() {
+                "Queued".to_string()
+            } else {
+                progress_label.trim().to_string()
+            },
+            current: 0,
+            total: 0,
+        };
+        task.artifacts = artifacts;
+    })
+}
+
+pub fn mark_task_running_with_progress(
+    task_id: &str,
+    progress_label: &str,
+    artifacts: Vec<ExtensionArtifact>,
+) -> Result<ExtensionTask, String> {
+    update_task(task_id, |task| {
+        task.state = "running".to_string();
+        if task.started_at.trim().is_empty() {
+            task.started_at = now_string();
+        }
+        task.finished_at.clear();
+        task.error.clear();
+        task.progress = ExtensionTaskProgress {
+            label: if progress_label.trim().is_empty() {
+                "Running".to_string()
+            } else {
+                progress_label.trim().to_string()
+            },
+            current: 0,
+            total: 0,
+        };
+        task.artifacts = artifacts;
     })
 }
 
@@ -436,6 +486,44 @@ mod tests {
         let recovered = tasks.iter().find(|item| item.id == task.id).expect("task");
         assert_eq!(recovered.state, "failed");
         assert_eq!(recovered.error, "Interrupted by application shutdown");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn queued_task_hint_resets_runtime_timestamps() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-queued");
+        let task = create_task_in_dir(
+            &root,
+            "pdfmathtranslate",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-3".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        update_task_in_dir(&root, &task.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-01T00:00:00Z".to_string();
+        })
+        .expect("running");
+
+        let queued = super::update_task_in_dir(&root, &task.id, |task| {
+            task.state = "queued".to_string();
+            task.started_at.clear();
+            task.finished_at.clear();
+            task.progress.label = "Translation queued".to_string();
+        })
+        .expect("queued");
+
+        assert_eq!(queued.state, "queued");
+        assert!(queued.started_at.is_empty());
+        assert!(queued.finished_at.is_empty());
+        assert_eq!(queued.progress.label, "Translation queued");
         fs::remove_dir_all(root).ok();
     }
 }

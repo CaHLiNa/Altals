@@ -235,7 +235,7 @@ export async function activate(context) {
     })
     return {
       message: `example-pdf-extension handled ${request?.capability || "unknown"} for ${targetLang}${resource.path ? ` · ${resource.path}` : ""}${reference.id ? ` · ref:${reference.id}` : ""}${workspaceRoot ? ` · ${workspaceRoot}` : ""}`,
-      progressLabel: "Example extension provider executed",
+      progressLabel: "Translation queued",
       taskState: "queued",
       artifacts: lastResultPath
         ? [{

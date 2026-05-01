@@ -7,8 +7,8 @@ use crate::extension_manifest::ExtensionManifest;
 use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
-    create_command_task, get_task, mark_task_failed, mark_task_running, mark_task_succeeded,
-    ExtensionTask, ExtensionTaskTarget,
+    create_command_task, get_task, mark_task_failed, mark_task_queued, mark_task_running,
+    mark_task_running_with_progress, mark_task_succeeded, ExtensionTask, ExtensionTaskTarget,
 };
 use crate::security::WorkspaceScopeState;
 use serde::Deserialize;
@@ -214,26 +214,10 @@ pub async fn extension_command_execute(
             let artifacts = normalize_artifacts(result.artifacts);
             let normalized_state = normalize_task_state(&result.task_state);
             let recorded = match normalized_state {
-                "queued" => crate::extension_tasks::update_task(&task.id, |task| {
-                    task.state = "queued".to_string();
-                    task.progress.label = if result.progress_label.trim().is_empty() {
-                        "Queued".to_string()
-                    } else {
-                        result.progress_label.trim().to_string()
-                    };
-                    task.artifacts = artifacts.clone();
-                    task.error.clear();
-                }),
-                "running" => crate::extension_tasks::update_task(&task.id, |task| {
-                    task.state = "running".to_string();
-                    task.progress.label = if result.progress_label.trim().is_empty() {
-                        "Running".to_string()
-                    } else {
-                        result.progress_label.trim().to_string()
-                    };
-                    task.artifacts = artifacts.clone();
-                    task.error.clear();
-                }),
+                "queued" => mark_task_queued(&task.id, &result.progress_label, artifacts.clone()),
+                "running" => {
+                    mark_task_running_with_progress(&task.id, &result.progress_label, artifacts.clone())
+                }
                 "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
                 "failed" => crate::extension_tasks::mark_task_failed(
                     &task.id,
