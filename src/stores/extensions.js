@@ -145,6 +145,9 @@ function normalizeResultEntry(entry = {}, index = 0) {
     payload: entry?.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
       ? entry.payload
       : {},
+    previewMode: String(entry?.previewMode || entry?.preview_mode || '').trim(),
+    previewPath: String(entry?.previewPath || entry?.preview_path || '').trim(),
+    previewTitle: String(entry?.previewTitle || entry?.preview_title || '').trim(),
     mediaType: String(entry?.mediaType || entry?.media_type || '').trim(),
   }
 }

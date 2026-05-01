@@ -340,6 +340,12 @@ pub struct ExtensionHostResultEntry {
     #[serde(default)]
     pub payload: Value,
     #[serde(default)]
+    pub preview_mode: String,
+    #[serde(default)]
+    pub preview_path: String,
+    #[serde(default)]
+    pub preview_title: String,
+    #[serde(default)]
     pub media_type: String,
 }
 

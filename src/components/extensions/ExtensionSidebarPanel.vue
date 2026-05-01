@@ -83,7 +83,8 @@
             :key="entry.id"
             type="button"
             class="extension-sidebar-panel__result-entry"
-            @click="openResultEntry(entry)"
+            :class="{ 'is-active': isActiveResultEntry(view, entry) }"
+            @click="selectResultEntry(view, entry)"
           >
             <span class="extension-sidebar-panel__result-label">{{ entry.label }}</span>
             <span v-if="entry.description" class="extension-sidebar-panel__result-description">
@@ -91,6 +92,12 @@
             </span>
           </button>
         </div>
+
+        <ExtensionResultPreview
+          v-if="activeResultEntry(view)"
+          :entry="activeResultEntry(view)"
+          @open-entry="openResultEntry"
+        />
 
         <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">
           {{ t('No extension view items found') }}
@@ -122,6 +129,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
+import ExtensionResultPreview from './ExtensionResultPreview.vue'
 
 const props = defineProps({
   container: { type: Object, required: true },
@@ -132,6 +140,7 @@ const props = defineProps({
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
 const toastStore = useToastStore()
+const activeResultEntryKeys = ref({})
 
 const title = computed(() => t(props.container?.title || props.container?.id || 'Extension'))
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
@@ -250,6 +259,29 @@ function resolvedViewSections(view = {}) {
 function resolvedViewResults(view = {}) {
   const entries = extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`)?.resultEntries
   return Array.isArray(entries) ? entries : []
+}
+
+function viewResultStateKey(view = {}) {
+  return `${view.extensionId}:${view.id}`
+}
+
+function activeResultEntry(view = {}) {
+  const entries = resolvedViewResults(view)
+  if (entries.length === 0) return null
+  const selectedId = activeResultEntryKeys.value[viewResultStateKey(view)]
+  return entries.find((entry) => entry.id === selectedId) || entries[0] || null
+}
+
+function isActiveResultEntry(view = {}, entry = {}) {
+  return activeResultEntry(view)?.id === entry?.id
+}
+
+function selectResultEntry(view = {}, entry = {}) {
+  const key = viewResultStateKey(view)
+  activeResultEntryKeys.value = {
+    ...activeResultEntryKeys.value,
+    [key]: String(entry?.id || ''),
+  }
 }
 
 function resolvedItems(view = {}) {
@@ -643,6 +675,11 @@ function openResultEntry(entry = {}) {
   padding: 10px;
   text-align: left;
   cursor: pointer;
+}
+
+.extension-sidebar-panel__result-entry.is-active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-base));
 }
 
 .extension-sidebar-panel__result-entry:hover {

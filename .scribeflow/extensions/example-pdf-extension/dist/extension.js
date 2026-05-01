@@ -99,6 +99,9 @@ export async function activate(context) {
         description: targetPath,
         path: targetPath,
         action: "open",
+        previewMode: "pdf",
+        previewPath: targetPath,
+        previewTitle: "Source PDF Preview",
         mediaType: "application/pdf",
       },
       {
@@ -109,6 +112,9 @@ export async function activate(context) {
         targetPath,
         targetKind: "pdf",
         action: "open-tab",
+        previewMode: "pdf",
+        previewPath: targetPath,
+        previewTitle: "Source PDF Preview",
         mediaType: "application/pdf",
       },
       {
