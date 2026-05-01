@@ -15,6 +15,13 @@ const observed = [];
 let currentResolve = null;
 const observers = [];
 
+function ensure(condition, message, details = null) {
+  if (condition) return;
+  const error = new Error(message);
+  error.details = details;
+  throw error;
+}
+
 function send(method, params) {
   child.stdin.write(`${JSON.stringify({ method, params })}\n`);
 }
@@ -293,59 +300,87 @@ async function main() {
     },
   });
 
-  console.log(
-    JSON.stringify(
-      {
-        activate,
-        runtimeApis,
-        runtimeOnly,
-        processApis,
-        settingsChanged,
-        capture,
-        translate,
-        translateTaskState: translate?.payload?.taskState || "",
-        processWaitObserved: observed.some(
-          (entry) =>
-            entry.kind === "HostCallRequested" &&
-            entry.payload?.kind === "process.wait",
-        ),
-        resultActionKinds: (
-          observed.find(
-            (entry) =>
-              entry.kind === "ViewStateChanged" &&
-              Array.isArray(entry.payload?.resultEntries) &&
-              entry.payload.resultEntries.length > 0,
-          )?.payload?.resultEntries || []
-        ).map((entry) => ({
-          id: entry.id,
-          action: entry.action,
-          extensionId: entry.extensionId || "",
-          targetPath: entry.targetPath || "",
-          previewMode: entry.previewMode || "",
-          previewPath: entry.previewPath || "",
-          previewTitle: entry.previewTitle || "",
-          payloadKeys: entry.payload ? Object.keys(entry.payload) : [],
-        })),
-        richSidebarState: observed.find(
-          (entry) =>
-            entry.kind === "ViewStateChanged" &&
-            Array.isArray(entry.payload?.sections) &&
-            entry.payload.sections.length > 0 &&
-            Array.isArray(entry.payload?.resultEntries),
-        ) || null,
-        observed: observed.filter((entry) =>
-          ["ViewStateChanged", "HostCallRequested"].includes(entry.kind),
-        ),
-      },
-      null,
-      2,
-    ),
+  const hostCallKinds = observed
+    .filter((entry) => entry.kind === "HostCallRequested")
+    .map((entry) => String(entry.payload?.kind || ""));
+  const processWaitObserved = hostCallKinds.includes("process.wait");
+  const processSpawnObserved = hostCallKinds.includes("process.spawn");
+  const taskUpdateObserved = hostCallKinds.includes("tasks.update");
+  const runtimeCommands = activate?.payload?.registeredCommands || [];
+  const runtimeActions = activate?.payload?.registeredMenuActions || [];
+  const resultActionKinds = (
+    observed.find(
+      (entry) =>
+        entry.kind === "ViewStateChanged" &&
+        Array.isArray(entry.payload?.resultEntries) &&
+        entry.payload.resultEntries.length > 0,
+    )?.payload?.resultEntries || []
+  ).map((entry) => ({
+    id: entry.id,
+    action: entry.action,
+    extensionId: entry.extensionId || "",
+    targetPath: entry.targetPath || "",
+    previewMode: entry.previewMode || "",
+    previewPath: entry.previewPath || "",
+    previewTitle: entry.previewTitle || "",
+    payloadKeys: entry.payload ? Object.keys(entry.payload) : [],
+  }));
+  const richSidebarState = observed.find(
+    (entry) =>
+      entry.kind === "ViewStateChanged" &&
+      Array.isArray(entry.payload?.sections) &&
+      entry.payload.sections.length > 0 &&
+      Array.isArray(entry.payload?.resultEntries),
+  ) || null;
+  const summary = {
+    runtimeCommands,
+    runtimeActionSurfaces: runtimeActions.map((entry) => entry.surface),
+    runtimeOnlyTaskState: runtimeOnly?.payload?.taskState || "",
+    processTaskState: processApis?.payload?.taskState || "",
+    translateTaskState: translate?.payload?.taskState || "",
+    processSpawnObserved,
+    processWaitObserved,
+    taskUpdateObserved,
+    resultActionKinds,
+    settingsChangedMessage: String(settingsChanged?.payload?.message || ""),
+    richSidebarSectionCount: Array.isArray(richSidebarState?.payload?.sections)
+      ? richSidebarState.payload.sections.length
+      : 0,
+  };
+
+  ensure(runtimeCommands.includes("examplePdfExtension.captureContext"), "runtime-only command was not registered", summary);
+  ensure(runtimeCommands.includes("examplePdfExtension.inspectProcessApi"), "process inspection command was not registered", summary);
+  ensure(runtimeOnly?.payload?.accepted === true, "runtime-only command was not accepted", summary);
+  ensure(runtimeOnly?.payload?.taskState === "succeeded", "runtime-only command did not succeed", summary);
+  ensure(processApis?.payload?.accepted === true, "process command was not accepted", summary);
+  ensure(processApis?.payload?.taskState === "succeeded", "process command did not succeed", summary);
+  ensure(processSpawnObserved, "process.spawn was not observed through host call bridge", summary);
+  ensure(processWaitObserved, "process.wait was not observed through host call bridge", summary);
+  ensure(taskUpdateObserved, "tasks.update was not observed through host call bridge", summary);
+  ensure(
+    String(settingsChanged?.payload?.message || "").includes("Settings updated: examplePdfExtension.targetLang"),
+    "settings change event did not propagate into plugin runtime",
+    summary,
   );
+  ensure(translate?.payload?.taskState === "queued", "translation command no longer returns queued task state", summary);
+  ensure(resultActionKinds.some((entry) => entry.action === "open-tab"), "open-tab result entry missing", summary);
+  ensure(resultActionKinds.some((entry) => entry.action === "reveal"), "reveal result entry missing", summary);
+  ensure(resultActionKinds.some((entry) => entry.action === "execute-command"), "execute-command result entry missing", summary);
+  ensure(resultActionKinds.some((entry) => entry.action === "open-reference"), "open-reference result entry missing", summary);
+  ensure(resultActionKinds.some((entry) => entry.previewMode === "html"), "html preview result entry missing", summary);
+  ensure(resultActionKinds.some((entry) => entry.previewMode === "text"), "text preview result entry missing", summary);
+  ensure(summary.richSidebarSectionCount > 0, "rich sidebar sections were not emitted", summary);
+
+  console.log(JSON.stringify({ ok: true, summary }, null, 2));
   child.kill();
 }
 
 void main().catch((error) => {
-  console.error(error);
+  console.error(JSON.stringify({
+    ok: false,
+    error: error?.message || String(error),
+    details: error?.details || null,
+  }, null, 2));
   process.exitCode = 1;
   child.kill();
 });
