@@ -356,6 +356,10 @@ export async function activate(context) {
       args: ["-e", "setTimeout(() => {}, 5000)"],
       cwd: context.workspace?.rootPath || "",
     })
+    await context.tasks.update({
+      state: "running",
+      progressLabel: `Spawned process ${String(result?.pid || "").trim() || "pending"}`,
+    })
     updateSidebarView({
       description: context.workspace?.hasWorkspace
         ? `Workspace PDF tools · launched ${launchCount} times`

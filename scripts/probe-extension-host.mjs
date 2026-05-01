@@ -97,6 +97,19 @@ function handleNonTerminal(message) {
       });
       return;
     }
+    if (message.payload.kind === "tasks.update") {
+      send("ResolveHostCall", {
+        requestId: message.payload.requestId,
+        accepted: true,
+        result: {
+          ok: true,
+          taskId: message.payload.payload?.taskId || "",
+          state: message.payload.payload?.state || "",
+          progressLabel: message.payload.payload?.progressLabel || "",
+        },
+      });
+      return;
+    }
     send("ResolveHostCall", {
       requestId: message.payload.requestId,
       accepted: false,

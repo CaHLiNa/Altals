@@ -619,6 +619,19 @@ function createExtensionApi(registry) {
         return result && typeof result === "object" ? result : {};
       },
     },
+    tasks: {
+      get current() {
+        return {
+          id: String(registry.lastInvocation?.taskId || "").trim(),
+          commandId: String(registry.lastInvocation?.commandId || "").trim(),
+          capability: String(registry.lastInvocation?.capability || "").trim(),
+        };
+      },
+      async update(patch = {}) {
+        const result = await requestHostCall(registry, "tasks.update", normalizeTaskPatch(patch));
+        return result && typeof result === "object" ? result : {};
+      },
+    },
     workspace: {
       get rootPath() {
         return String(registry.lastInvocation?.workspaceRoot || registry.currentWorkspaceRoot || "");
@@ -763,6 +776,7 @@ function createActivationContext(api, payload = {}) {
     documents: api.documents,
     references: api.references,
     pdf: api.pdf,
+    tasks: api.tasks,
     process: api.process,
     invocation: api.invocation,
     globalState: api.globalState,
@@ -861,6 +875,11 @@ async function ensureActivated(request) {
 }
 
 function paramsToObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
+function normalizeTaskPatch(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value;
 }

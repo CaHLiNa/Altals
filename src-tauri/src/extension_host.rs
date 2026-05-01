@@ -1335,6 +1335,33 @@ fn handle_extension_host_reference_call(
 }
 
 #[cfg(not(test))]
+fn handle_extension_host_task_call(
+    _state: &ExtensionHostState,
+    task_runtime_state: Option<&crate::extension_tasks::ExtensionTaskRuntimeState>,
+    event: &ExtensionHostCallRequestedEvent,
+) -> Result<ExtensionHostResolveHostCallParams, String> {
+    let task_id = task_id_for_host_call_event(event);
+    if task_id.is_empty() {
+        return Err("Task update requires taskId".to_string());
+    }
+    let patch = serde_json::from_value::<crate::extension_tasks::ExtensionTaskUpdatePatch>(
+        event.payload.clone(),
+    )
+    .map_err(|error| format!("Invalid task update payload: {error}"))?;
+    let task = crate::extension_tasks::apply_task_update(&event.extension_id, &task_id, patch)?;
+    if let Some(runtime_state) = task_runtime_state {
+        runtime_state.emit_task_changed(&task);
+    }
+    Ok(ExtensionHostResolveHostCallParams {
+        request_id: event.request_id.clone(),
+        accepted: true,
+        result: serde_json::to_value(task)
+            .map_err(|error| format!("Failed to serialize task update result: {error}"))?,
+        error: String::new(),
+    })
+}
+
+#[cfg(not(test))]
 fn handle_extension_host_pdf_call(
     state: &ExtensionHostState,
     event: &ExtensionHostCallRequestedEvent,
@@ -1484,6 +1511,9 @@ pub fn invoke_extension_host(
                                 task_runtime_state,
                                 event,
                             )?)
+                        }
+                        "tasks.update" => {
+                            Some(handle_extension_host_task_call(state, task_runtime_state, event)?)
                         }
                         "references.readCurrentLibrary" => {
                             Some(handle_extension_host_reference_call(state, event)?)

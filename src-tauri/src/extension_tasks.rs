@@ -72,6 +72,42 @@ pub struct ExtensionTask {
     pub log_path: String,
 }
 
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionTaskArtifactPatch {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub media_type: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub source_path: String,
+    #[serde(default)]
+    pub source_hash: String,
+    #[serde(default)]
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionTaskUpdatePatch {
+    #[serde(default)]
+    pub task_id: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub progress_label: String,
+    pub progress_current: Option<u32>,
+    pub progress_total: Option<u32>,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub artifacts: Vec<ExtensionTaskArtifactPatch>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExtensionTasksFile {
@@ -96,6 +132,17 @@ fn default_tasks_version() -> u32 {
 
 fn now_string() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+fn normalize_task_state(value: &str) -> Option<&'static str> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "queued" => Some("queued"),
+        "running" => Some("running"),
+        "succeeded" => Some("succeeded"),
+        "failed" => Some("failed"),
+        "cancelled" => Some("cancelled"),
+        _ => None,
+    }
 }
 
 pub fn tasks_dir() -> Result<PathBuf, String> {
@@ -366,6 +413,159 @@ pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
     })
 }
 
+fn normalize_task_artifact(
+    task: &ExtensionTask,
+    patch: &ExtensionTaskArtifactPatch,
+    index: usize,
+) -> Option<ExtensionArtifact> {
+    let path = patch.path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    Some(ExtensionArtifact {
+        id: if patch.id.trim().is_empty() {
+            format!("artifact:{}", index + 1)
+        } else {
+            patch.id.trim().to_string()
+        },
+        extension_id: task.extension_id.clone(),
+        task_id: task.id.clone(),
+        capability: task.capability.clone(),
+        kind: patch.kind.trim().to_string(),
+        media_type: patch.media_type.trim().to_string(),
+        path: path.to_string(),
+        source_path: if patch.source_path.trim().is_empty() {
+            task.target.path.clone()
+        } else {
+            patch.source_path.trim().to_string()
+        },
+        source_hash: patch.source_hash.trim().to_string(),
+        created_at: if patch.created_at.trim().is_empty() {
+            now_string()
+        } else {
+            patch.created_at.trim().to_string()
+        },
+    })
+}
+
+fn apply_task_update_in_dir(
+    tasks_root: &Path,
+    extension_id: &str,
+    task_id: &str,
+    patch: ExtensionTaskUpdatePatch,
+) -> Result<ExtensionTask, String> {
+    let task = list_tasks_from_dir(tasks_root)?
+        .into_iter()
+        .find(|task| task.id == task_id)
+        .ok_or_else(|| format!("Extension task not found: {task_id}"))?;
+    if task.extension_id.trim() != extension_id.trim() {
+        return Err(format!(
+            "Extension {} is not allowed to update task {}",
+            extension_id, task_id
+        ));
+    }
+    let next_state = normalize_task_state(&patch.state);
+    let next_artifacts = if patch.artifacts.is_empty() {
+        None
+    } else {
+        Some(
+            patch.artifacts
+                .iter()
+                .enumerate()
+                .filter_map(|(index, artifact)| normalize_task_artifact(&task, artifact, index))
+                .collect::<Vec<_>>(),
+        )
+    };
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if let Some(state) = next_state {
+            match state {
+                "queued" => {
+                    task.state = "queued".to_string();
+                    task.started_at.clear();
+                    task.finished_at.clear();
+                    if task.progress.label.trim().is_empty() {
+                        task.progress.label = "Queued".to_string();
+                    }
+                    task.error.clear();
+                }
+                "running" => {
+                    task.state = "running".to_string();
+                    if task.started_at.trim().is_empty() {
+                        task.started_at = now_string();
+                    }
+                    task.finished_at.clear();
+                    if task.progress.label.trim().is_empty() {
+                        task.progress.label = "Running".to_string();
+                    }
+                    task.error.clear();
+                }
+                "succeeded" => {
+                    task.state = "succeeded".to_string();
+                    if task.started_at.trim().is_empty() {
+                        task.started_at = now_string();
+                    }
+                    task.finished_at = now_string();
+                    if task.progress.label.trim().is_empty() {
+                        task.progress.label = "Completed".to_string();
+                    }
+                    if patch.progress_current.is_none() && patch.progress_total.is_none() {
+                        task.progress.current = 1;
+                        task.progress.total = 1;
+                    }
+                    task.error.clear();
+                }
+                "failed" => {
+                    task.state = "failed".to_string();
+                    if task.started_at.trim().is_empty() {
+                        task.started_at = now_string();
+                    }
+                    task.finished_at = now_string();
+                    if task.progress.label.trim().is_empty() {
+                        task.progress.label = "Failed".to_string();
+                    }
+                }
+                "cancelled" => {
+                    task.state = "cancelled".to_string();
+                    if task.started_at.trim().is_empty() {
+                        task.started_at = now_string();
+                    }
+                    task.finished_at = now_string();
+                    if task.progress.label.trim().is_empty() {
+                        task.progress.label = "Cancelled".to_string();
+                    }
+                    task.error.clear();
+                }
+                _ => {}
+            }
+        }
+
+        if !patch.progress_label.trim().is_empty() {
+            task.progress.label = patch.progress_label.trim().to_string();
+        }
+        if let Some(current) = patch.progress_current {
+            task.progress.current = current;
+        }
+        if let Some(total) = patch.progress_total {
+            task.progress.total = total;
+        }
+        if !patch.error.trim().is_empty() {
+            task.error = patch.error.trim().to_string();
+        }
+        if let Some(artifacts) = &next_artifacts {
+            task.artifacts = artifacts.clone();
+        }
+    })
+}
+
+#[cfg_attr(test, allow(dead_code))]
+pub fn apply_task_update(
+    extension_id: &str,
+    task_id: &str,
+    patch: ExtensionTaskUpdatePatch,
+) -> Result<ExtensionTask, String> {
+    apply_task_update_in_dir(&tasks_dir()?, extension_id, task_id, patch)
+}
+
 impl ExtensionTaskRuntimeState {
     #[cfg(not(test))]
     pub fn bind_app_handle(&self, app: tauri::AppHandle) {
@@ -464,8 +664,9 @@ pub async fn extension_task_cancel(
 #[cfg(test)]
 mod tests {
     use super::{
-        create_task_in_dir, list_tasks_from_dir, recover_interrupted_tasks_in_dir,
-        update_task_in_dir, ExtensionTaskRuntimeState, ExtensionTaskTarget,
+        apply_task_update_in_dir, create_task_in_dir, list_tasks_from_dir, recover_interrupted_tasks_in_dir,
+        update_task_in_dir, ExtensionTaskArtifactPatch, ExtensionTaskRuntimeState, ExtensionTaskTarget,
+        ExtensionTaskUpdatePatch,
     };
     use std::fs;
 
@@ -591,5 +792,62 @@ mod tests {
             .unregister_pid("task-1")
             .expect("unregister missing pid");
         assert_eq!(second, None);
+    }
+
+    #[test]
+    fn apply_task_update_merges_running_progress_and_artifacts() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-update");
+        let task = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-4".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let updated = super::update_task_in_dir(&root, &task.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-01T00:00:00Z".to_string();
+        })
+        .expect("running");
+        assert_eq!(updated.state, "running");
+
+        let result = apply_task_update_in_dir(
+            &root,
+            "example-pdf-extension",
+            &task.id,
+            ExtensionTaskUpdatePatch {
+                task_id: task.id.clone(),
+                state: "running".to_string(),
+                progress_label: "Spawned process 4242".to_string(),
+                progress_current: Some(1),
+                progress_total: Some(3),
+                error: String::new(),
+                artifacts: vec![ExtensionTaskArtifactPatch {
+                    id: "artifact-1".to_string(),
+                    kind: "log".to_string(),
+                    media_type: "text/plain".to_string(),
+                    path: "/tmp/output.log".to_string(),
+                    source_path: "/tmp/paper.pdf".to_string(),
+                    source_hash: String::new(),
+                    created_at: String::new(),
+                }],
+            },
+        )
+        .expect("apply task update");
+
+        assert_eq!(result.state, "running");
+        assert_eq!(result.progress.label, "Spawned process 4242");
+        assert_eq!(result.progress.current, 1);
+        assert_eq!(result.progress.total, 3);
+        assert_eq!(result.artifacts.len(), 1);
+        assert_eq!(result.artifacts[0].path, "/tmp/output.log");
+        fs::remove_dir_all(root).ok();
     }
 }
