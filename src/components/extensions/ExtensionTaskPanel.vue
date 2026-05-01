@@ -80,6 +80,7 @@ import ExtensionResultPreview from './ExtensionResultPreview.vue'
 import {
   buildExtensionArtifactPreviewEntries,
   buildExtensionTaskResultEntries,
+  titleCaseKey,
 } from '../../services/extensions/extensionArtifactPreviewEntries'
 
 const { t } = useI18n()
@@ -147,7 +148,10 @@ async function openArtifactEntry(entry = {}) {
 }
 
 function taskTitle(task = {}) {
-  return String(task.commandId || task.capability || t('Extension task'))
+  const explicit = String(task.commandId || task.capability || '').trim()
+  if (!explicit) return t('Extension task')
+  const normalized = titleCaseKey(explicit)
+  return t(normalized)
 }
 
 function taskStateLabel(task = {}) {

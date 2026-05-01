@@ -2,14 +2,18 @@ function normalizeText(value = '') {
   return String(value || '').trim()
 }
 
-function titleForArtifact(artifact = {}) {
-  const kind = normalizeText(artifact.kind)
-  if (!kind) return 'Artifact Preview'
-  return kind
+function titleCaseKey(value = '') {
+  return value
     .split(/[-_.]+/)
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ')
+}
+
+function titleForArtifact(artifact = {}) {
+  const kind = normalizeText(artifact.kind)
+  if (!kind) return 'Artifact Preview'
+  return titleCaseKey(kind)
 }
 
 export function extensionArtifactToPreviewEntry(artifact = {}, index = 0) {
@@ -94,3 +98,5 @@ export function buildExtensionTaskResultEntries(task = {}) {
 
   return results
 }
+
+export { titleCaseKey }

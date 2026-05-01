@@ -72,6 +72,8 @@ It runs:
 - `npm run guard:textmate-runtime`
 - `npm run probe:extension-host`
 - `npm run probe:extension-sidebar-routing`
+- `npm run probe:extension-text-preview-fallback`
+- `npm run probe:extension-artifact-preview-entries`
 - `npm run build`
 - `npm run check:bundle`
 - `npm run check:rust`
@@ -84,10 +86,12 @@ Current baseline:
 - TextMate runtime boundary guard passes
 - extension host runtime probe passes
 - extension sidebar routing probe passes
+- extension text preview fallback probe passes
+- extension artifact preview mapping probe passes
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 168 tests
+- Rust tests pass: 170 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 
