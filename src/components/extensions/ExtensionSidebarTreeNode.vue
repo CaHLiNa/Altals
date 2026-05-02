@@ -11,29 +11,19 @@
       </button>
       <span v-else class="extension-tree-node__chevron extension-tree-node__chevron--empty"></span>
 
-      <button
-        type="button"
-        class="extension-tree-node__primary"
-        :class="{
-          'extension-tree-node__primary--selected': isSelected,
-          'extension-tree-node__primary--focused': isFocused,
-          'extension-tree-node__primary--blocked': primaryBlocked,
-        }"
+      <ExtensionSidebarTreePrimaryButton
+        :selected="isSelected"
+        :focused="isFocused"
+        :blocked="primaryBlocked"
+        :icon="item.icon"
+        :label="item.label"
+        :meta="item.description"
         :title="primaryBlocked ? blockedMessage : (item.tooltip || item.description || '')"
-        :disabled="primaryBlocked"
+        :blocked-label="blockedLabel"
+        :blocked-message="blockedMessage"
+        :blocked-tone-class="blockPresentation.toneClass"
         @click="$emit('run-command', item)"
-      >
-        <span v-if="item.icon" class="extension-tree-node__icon">{{ item.icon }}</span>
-        <span class="extension-tree-node__label">{{ item.label }}</span>
-        <span v-if="item.description" class="extension-tree-node__meta">{{ item.description }}</span>
-        <ExtensionBlockedStatusChip
-          v-if="primaryBlocked"
-          :label="blockedLabel"
-          :title="blockedMessage"
-          :tone-class="blockPresentation.toneClass"
-          compact
-        />
-      </button>
+      />
 
       <div v-if="itemActions.length > 0" class="extension-tree-node__actions">
         <ExtensionBlockedActionButton
@@ -76,7 +66,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
-import ExtensionBlockedStatusChip from './ExtensionBlockedStatusChip.vue'
+import ExtensionSidebarTreePrimaryButton from './ExtensionSidebarTreePrimaryButton.vue'
 
 defineOptions({ name: 'ExtensionSidebarTreeNode' })
 
@@ -149,7 +139,6 @@ function secondaryBlocked(action = {}) {
 }
 
 .extension-tree-node__chevron,
-.extension-tree-node__primary,
 .extension-tree-node__action {
   border: 0;
   background: transparent;
@@ -168,58 +157,13 @@ function secondaryBlocked(action = {}) {
   cursor: default;
 }
 
-.extension-tree-node__primary {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-base) 78%, transparent);
-  padding: 10px;
-  text-align: left;
-}
-
-.extension-tree-node__primary:disabled,
 .extension-tree-node__action:disabled {
   cursor: not-allowed;
 }
 
-.extension-tree-node__icon {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.extension-tree-node__primary:hover:not(:disabled),
 .extension-tree-node__chevron:hover:not(.extension-tree-node__chevron--empty),
 .extension-tree-node__action:hover:not(:disabled) {
   background: var(--surface-hover);
-}
-
-.extension-tree-node__primary--selected {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-base));
-}
-
-.extension-tree-node__primary--focused {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-
-.extension-tree-node__primary--blocked {
-  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
-}
-
-.extension-tree-node__label {
-  min-width: 0;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.extension-tree-node__meta {
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
 .extension-tree-node__actions {
