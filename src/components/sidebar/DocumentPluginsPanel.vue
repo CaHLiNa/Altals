@@ -28,13 +28,14 @@
               {{ t('Host Runtime') }}
             </div>
             <button
-              v-if="showPromptRecoveryAction"
+              v-if="recoveryAction.available"
               type="button"
               class="document-plugin-page__diagnostics-action"
-              :disabled="promptRecoveryBusy"
-              @click="void recoverPrompt()"
+              :disabled="recoveryAction.busy"
+              :title="recoveryAction.title"
+              @click="void triggerRecoveryAction()"
             >
-              {{ promptRecoveryBusy ? t('Cancelling...') : t('Cancel Prompt') }}
+              {{ recoveryAction.label }}
             </button>
           </div>
           <div class="document-plugin-page__diagnostics-copy">
@@ -137,9 +138,8 @@ const hostStatusSurface = computed(() =>
 )
 const {
   presentation: hostStatusPresentation,
-  promptRecoveryBusy,
-  promptRecovery,
-  cancelPromptRecovery,
+  recoveryAction,
+  triggerRecoveryAction,
 } = useExtensionHostStatusPresentation(() => hostStatusSurface.value)
 
 const targetSummary = computed(() => {
@@ -167,13 +167,6 @@ const hostDiagnosticToneClass = computed(() => {
   return hostStatusPresentation.value.toneClass || ''
 })
 
-const showPromptRecoveryAction = computed(() => {
-  return promptRecovery.value.available
-})
-
-async function recoverPrompt() {
-  await cancelPromptRecovery()
-}
 </script>
 
 <style scoped>

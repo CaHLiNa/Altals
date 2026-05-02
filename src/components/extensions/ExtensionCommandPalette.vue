@@ -10,7 +10,7 @@
   >
     <div class="command-palette-shell">
       <div
-        v-if="promptRecoveryAvailable"
+        v-if="hostRecoveryAction.available"
         class="command-palette-recovery"
         :class="activeHostStatusPresentation.toneClass"
       >
@@ -20,11 +20,11 @@
         <UiButton
           variant="ghost"
           size="sm"
-          :disabled="promptRecoveryBusy"
-          :title="promptRecoveryTitle"
-          @click="void recoverPrompt()"
+          :disabled="hostRecoveryAction.busy"
+          :title="hostRecoveryAction.title"
+          @click="void triggerHostRecoveryAction()"
         >
-          {{ promptRecoveryLabel }}
+          {{ hostRecoveryAction.label }}
         </UiButton>
       </div>
 
@@ -161,13 +161,9 @@ const activeHostStatusSurface = computed(() => {
 })
 const {
   presentation: activeHostStatusPresentation,
-  promptRecoveryBusy,
-  promptRecovery,
-  cancelPromptRecovery,
+  recoveryAction: hostRecoveryAction,
+  triggerRecoveryAction: triggerHostRecoveryAction,
 } = useExtensionHostStatusPresentation(() => activeHostStatusSurface.value)
-const promptRecoveryAvailable = computed(() => promptRecovery.value.available)
-const promptRecoveryLabel = computed(() => promptRecovery.value.label)
-const promptRecoveryTitle = computed(() => promptRecovery.value.title)
 
 watch(
   () => props.visible,
@@ -229,10 +225,6 @@ async function execute(command = null) {
   } finally {
     busy.value = false
   }
-}
-
-async function recoverPrompt() {
-  await cancelPromptRecovery()
 }
 
 function handleInputKeydown(event) {

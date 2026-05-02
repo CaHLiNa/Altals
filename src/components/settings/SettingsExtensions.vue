@@ -37,13 +37,14 @@
                 {{ hostRuntimeRestartBusy ? t('Restarting...') : t('Restart Runtime') }}
               </UiButton>
               <UiButton
-                v-if="showHostPromptRecoveryAction"
+                v-if="hostRecoveryAction.available"
                 variant="ghost"
                 size="sm"
-                :disabled="hostPromptRecoveryBusy"
-                @click="void recoverHostPrompt()"
+                :disabled="hostRecoveryAction.busy"
+                :title="hostRecoveryAction.title"
+                @click="void triggerHostRecoveryAction()"
               >
-                {{ hostPromptRecoveryBusy ? t('Cancelling...') : t('Cancel Prompt') }}
+                {{ hostRecoveryAction.label }}
               </UiButton>
               <UiButton
                 variant="secondary"
@@ -858,17 +859,13 @@ const hostPromptOwnerSummary = computed(() => {
 })
 const {
   presentation: hostStatusPresentation,
-  promptRecoveryBusy: hostPromptRecoveryBusy,
-  promptRecovery: hostPromptRecovery,
-  cancelPromptRecovery: recoverHostPrompt,
+  recoveryAction: hostRecoveryAction,
+  triggerRecoveryAction: triggerHostRecoveryAction,
 } = useExtensionHostStatusPresentation(() => hostStatusSurface.value)
 const hostRuntimeBadge = computed(() => hostStatusPresentation.value.badge)
 const hostRuntimeTitle = computed(() => hostStatusPresentation.value.title)
 const hostRuntimeDescription = computed(() => hostStatusPresentation.value.description)
 const hostRuntimeCardToneClass = computed(() => hostStatusPresentation.value.toneClass)
-const showHostPromptRecoveryAction = computed(() =>
-  hostPromptRecovery.value.available
-)
 
 async function restartHostRuntimeSlot(slot = {}) {
   const extensionId = String(slot?.extensionId || '').trim()

@@ -17,8 +17,21 @@ export function useExtensionHostStatusPresentation(surface = () => null) {
     cancel: cancelPromptRecovery,
   } = useExtensionPromptRecovery(() => presentation.value.recoveryOwner)
 
+  const recoveryAction = computed(() => ({
+    available: promptRecovery.value.available,
+    busy: promptRecoveryBusy.value,
+    label: promptRecovery.value.label,
+    title: promptRecovery.value.title,
+  }))
+
+  async function triggerRecoveryAction() {
+    await cancelPromptRecovery()
+  }
+
   return {
     presentation,
+    recoveryAction,
+    triggerRecoveryAction,
     promptRecoveryBusy,
     promptRecovery,
     cancelPromptRecovery,
