@@ -24,6 +24,7 @@ try {
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
   const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
   const { buildExtensionContext } = await vite.ssrLoadModule('/src/domains/extensions/extensionContext.js')
+  const { buildExtensionPluginContainerPresentation } = await vite.ssrLoadModule('/src/domains/extensions/extensionPluginContainerPresentation.js')
   const { documentDockPageRegistry } = await vite.ssrLoadModule('/src/components/sidebar/documentDockPageRegistry.js')
 
   const pinia = createPinia()
@@ -171,6 +172,18 @@ try {
   assert.ok(pluginPage)
   assert.equal(pluginPage.type, 'extension:examplePdfExtension.tools')
   assert.equal(pluginPage.componentProps?.panelId, 'extension:examplePdfExtension.tools')
+  const pluginPresentation = buildExtensionPluginContainerPresentation(
+    {
+      id: 'examplePdfExtension.tools',
+      title: 'PDF Tools',
+    },
+    {
+      badgeValue: 1,
+      badgeTooltip: 'One quick action is available for the active PDF.',
+    },
+    (value) => value,
+  )
+  assert.equal(pluginPresentation.title, 'PDF Tools (1)')
 
   console.log(JSON.stringify({
     ok: true,
@@ -182,6 +195,7 @@ try {
       type: pluginPage.type,
       title: pluginPage.title,
     },
+    pluginPresentationTitle: pluginPresentation.title,
   }, null, 2))
 } finally {
   await vite.close()

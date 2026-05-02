@@ -32,6 +32,7 @@ import {
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.js'
+import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
 import { createInlineDockPageRegistry } from '../../domains/workbench/inlineDockPageRegistry.js'
 import { getDocumentWorkflowKind } from '../../services/documentWorkflow/policy.js'
 import { getFileIconName } from '../../utils/fileTypes.js'
@@ -175,16 +176,21 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
       if (containers.length === 0) return null
 
       return containers.map((container) => {
-        const label = container.title || container.id || (context.t?.('Plugin') || 'Plugin')
-        const badgeValue = Number.isInteger(container.badgeValue) ? container.badgeValue : null
-        const title = badgeValue != null ? `${label} (${badgeValue})` : label
+        const presentation = buildExtensionPluginContainerPresentation(
+          container,
+          {
+            badgeValue: container.badgeValue,
+            badgeTooltip: container.badgeTooltip,
+          },
+          context.t,
+        )
         return {
           key: container.panelId,
           type: container.panelId || `${DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX}${container.id || ''}`,
           icon: IconPlug,
-          label,
-          title,
-          ariaLabel: title,
+          label: presentation.label,
+          title: presentation.title,
+          ariaLabel: presentation.title,
           tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
           labelClass: 'document-dock__preview-label',
           iconClass: 'document-dock__preview-icon',

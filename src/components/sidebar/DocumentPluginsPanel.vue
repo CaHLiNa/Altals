@@ -57,6 +57,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
+import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
 import ExtensionCountBadge from '../extensions/ExtensionCountBadge.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
@@ -106,12 +107,17 @@ const firstViewState = computed(() => {
   return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`) || null
 })
 
-const containerTitle = computed(() =>
-  t(container.value?.title || container.value?.id || 'Plugin')
+const containerPresentation = computed(() =>
+  buildExtensionPluginContainerPresentation(
+    container.value || {},
+    firstViewState.value || {},
+    t,
+  )
 )
-const containerDescription = computed(() => String(firstViewState.value?.description || ''))
-const containerBadge = computed(() => firstViewState.value?.badgeValue ?? null)
-const containerBadgeTooltip = computed(() => String(firstViewState.value?.badgeTooltip || ''))
+const containerTitle = computed(() => containerPresentation.value.title)
+const containerDescription = computed(() => containerPresentation.value.description)
+const containerBadge = computed(() => containerPresentation.value.badgeValue)
+const containerBadgeTooltip = computed(() => containerPresentation.value.badgeTooltip)
 const extensionTasks = computed(() =>
   container.value?.extensionId
     ? extensionsStore.recentTasksForExtension(container.value.extensionId)
