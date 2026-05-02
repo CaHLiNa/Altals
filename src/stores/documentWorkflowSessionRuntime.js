@@ -1,16 +1,16 @@
-import { workspacePathExists } from '../../services/pathExists.js'
+import { workspacePathExists } from '../services/pathExists.js'
 import {
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,
   saveDocumentWorkflowSessionState,
-} from '../../services/documentWorkflow/sessionStateBridge.js'
+} from '../services/documentWorkflow/sessionStateBridge.js'
 import {
   createWorkflowPreviewPath,
   getDocumentWorkflowKind,
   isDocumentWorkflowSource,
-} from '../../services/documentWorkflow/policy.js'
-import { previewSourcePathFromPath } from '../../utils/fileTypes.js'
-import { resolveDocumentPreviewCloseEffect } from './documentWorkspacePreviewRuntime.js'
+} from '../services/documentWorkflow/policy.js'
+import { previewSourcePathFromPath } from '../utils/fileTypes.js'
+import { resolveDocumentPreviewCloseEffect } from '../domains/document/documentWorkspacePreviewRuntime.js'
 
 export function createDefaultDocumentWorkflowPersistentState() {
   return createDocumentWorkflowPersistentState()

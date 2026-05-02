@@ -133,7 +133,6 @@ Current `src/domains/**` modules with service dependencies:
 | --- | --- | --- |
 | `src/domains/editor/editorPersistenceRuntime.js` | `src/services/editorPersistence.js` | Frozen editor-adjacent debt; preserve behavior until a separate editor/session phase. |
 | `src/domains/editor/editorRestoreRuntime.js` | `src/services/editorPersistence.js` | Frozen editor-adjacent debt; do not change during this reorganization unless payload compatibility is proven externally. |
-| `src/domains/document/documentWorkflowSessionRuntime.js` | path existence, session state bridge, workflow policy service | Move persistence/path checks behind Rust/service calls owned by store orchestration. |
 
 No `src/domains/**` file currently imports `@tauri-apps/**` directly.
 
@@ -214,6 +213,7 @@ Components over 500 lines:
 - 2026-05-02: Document workflow action execution and build operation orchestration moved from `src/domains/document` into `src/stores/documentWorkflowActionRuntime.js` and `src/stores/documentWorkflowBuildOperationRuntime.js`, keeping Rust-backed action resolution, editor save-before-build, and store mutation calls outside pure domain modules.
 - 2026-05-02: Document workflow controller orchestration moved from `src/domains/document/documentWorkflowRuntime.js` to `src/stores/documentWorkflowRuntime.js`, so Rust controller invocation and editor pane mutation no longer live in the pure domain layer.
 - 2026-05-02: Document workflow build context orchestration moved from `src/domains/document/documentWorkflowBuildRuntime.js` to `src/stores/documentWorkflowBuildRuntime.js`; the pure status-tone helper remains in `src/domains/document/documentWorkflowStatusTone.js`.
+- 2026-05-02: Document workflow session persistence, preview binding mutation, LaTeX artifact reconciliation, and workspace preview request state moved from `src/domains/document/documentWorkflowSessionRuntime.js` to `src/stores/documentWorkflowSessionRuntime.js`. After this move, non-editor `src/domains/document/**` modules no longer import services or stores.
 
 ## Phase 1 Verification Targets
 
