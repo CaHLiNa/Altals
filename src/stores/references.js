@@ -64,30 +64,9 @@ function resolveCollection(collections = [], collectionKey = '') {
   )
 }
 
-function normalizeDocumentReferenceSelectionsForReferences(value = {}, references = []) {
+function resolveDocumentReferenceSelections(value = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  const validReferenceIds = new Set(
-    (Array.isArray(references) ? references : [])
-      .map((reference) => String(reference?.id || '').trim())
-      .filter(Boolean)
-  )
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .map(([texPath, referenceIds]) => {
-        const normalizedTexPath = String(texPath || '').trim()
-        if (!normalizedTexPath || !Array.isArray(referenceIds)) return null
-        const ids = Array.from(
-          new Set(
-            referenceIds
-              .map((referenceId) => String(referenceId || '').trim())
-              .filter((referenceId) => validReferenceIds.has(referenceId))
-          )
-        )
-        return ids.length > 0 ? [normalizedTexPath, ids] : null
-      })
-      .filter(Boolean)
-  )
+  return value
 }
 
 async function shouldMarkReferenceForZoteroPush() {
@@ -308,10 +287,7 @@ export const useReferencesStore = defineStore('references', {
       this.collections = Array.isArray(normalized.collections) ? normalized.collections : []
       this.tags = Array.isArray(normalized.tags) ? normalized.tags : []
       this.references = Array.isArray(normalized.references) ? normalized.references : []
-      this.documentReferenceSelections = normalizeDocumentReferenceSelectionsForReferences(
-        normalized.documentReferenceSelections,
-        this.references
-      )
+      this.documentReferenceSelections = resolveDocumentReferenceSelections(normalized.documentReferenceSelections)
       this.citationStyle = String(normalized.citationStyle || 'apa')
       if (!resolveCollection(this.collections, this.selectedCollectionKey)) {
         this.selectedCollectionKey = ''
@@ -678,27 +654,18 @@ export const useReferencesStore = defineStore('references', {
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
       const normalizedTexPath = String(texPath || '').trim()
       if (!normalizedTexPath) return false
-      const validReferenceIds = new Set(this.references.map((reference) => String(reference.id || '')))
-      const ids = Array.from(
-        new Set(
-          (Array.isArray(referenceIds) ? referenceIds : [])
-            .map((referenceId) => String(referenceId || '').trim())
-            .filter((referenceId) => validReferenceIds.has(referenceId))
-        )
-      )
-      const nextSelections = { ...this.documentReferenceSelections }
-      if (ids.length > 0) {
-        nextSelections[normalizedTexPath] = ids
-      } else {
-        delete nextSelections[normalizedTexPath]
-      }
-      await this.commitLibrarySnapshot(projectRoot, {
-        ...this.buildLibrarySnapshotPayload(),
-        documentReferenceSelections: nextSelections,
-      }, {
+      const mutation = await applyReferenceMutation({
+        snapshot: this.buildLibrarySnapshotPayload(),
+        action: {
+          type: 'setDocumentReferenceIds',
+          texPath: normalizedTexPath,
+          referenceIds: Array.isArray(referenceIds) ? referenceIds : [],
+        },
+      })
+      await this.commitLibrarySnapshot(projectRoot, mutation?.snapshot || this.buildLibrarySnapshotPayload(), {
         preferredSelectedReferenceId: this.selectedReferenceId,
       })
-      return true
+      return mutation?.result?.changed === true
     },
 
     async addDocumentReference(projectRoot = '', texPath = '', referenceId = '') {

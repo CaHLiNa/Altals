@@ -206,6 +206,7 @@ Components over 500 lines:
 ## Reference Authority Cleanup Log
 
 - 2026-05-02: `src/services/references/referenceLibraryIO.js` no longer re-normalizes reference library snapshots in JavaScript after Rust `references_snapshot_normalize`, `references_library_load_workspace`, or `references_library_write` returns. Snapshot shape, document reference selection pruning, collection/tag registry cleanup, record normalization, rating removal, and library persistence normalization remain owned by `src-tauri/src/references_snapshot.rs` and `src-tauri/src/references_backend.rs`; the JS service now only bridges commands and provides an empty fallback when no storage root is available.
+- 2026-05-02: `src/stores/references.js` no longer filters, deduplicates, or clears `documentReferenceSelections` directly when a document's reference ids change or when applying a Rust-loaded library snapshot. The store now dispatches `setDocumentReferenceIds` through `references_mutation_apply`, and `src-tauri/src/references_mutation.rs` plus `src-tauri/src/references_snapshot.rs` own the mutation, id pruning, deduplication, and empty-selection cleanup.
 
 ## Phase 1 Verification Targets
 

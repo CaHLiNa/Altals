@@ -54,6 +54,12 @@ pub enum ReferencesMutationAction {
     MergeImportedReferences {
         imported: Vec<Value>,
     },
+    SetDocumentReferenceIds {
+        #[serde(alias = "texPath")]
+        tex_path: String,
+        #[serde(default, alias = "referenceIds")]
+        reference_ids: Vec<String>,
+    },
 }
 
 fn normalize_collection_label(label: &str) -> String {
@@ -642,6 +648,52 @@ fn apply_remove_reference(snapshot: &Value, reference_id: &str) -> Value {
     })
 }
 
+fn apply_set_document_reference_ids(
+    snapshot: &Value,
+    tex_path: &str,
+    reference_ids: &[String],
+) -> Value {
+    let normalized_tex_path = tex_path.trim();
+    if normalized_tex_path.is_empty() {
+        return json!({
+            "snapshot": normalize_snapshot(snapshot),
+            "result": {
+                "changed": false,
+            },
+        });
+    }
+
+    let mut next = snapshot.as_object().cloned().unwrap_or_default();
+    let mut selections = next
+        .get("documentReferenceSelections")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let ids = reference_ids
+        .iter()
+        .map(|reference_id| reference_id.trim())
+        .filter(|reference_id| !reference_id.is_empty())
+        .map(|reference_id| Value::String(reference_id.to_string()))
+        .collect::<Vec<_>>();
+
+    if ids.is_empty() {
+        selections.remove(normalized_tex_path);
+    } else {
+        selections.insert(normalized_tex_path.to_string(), Value::Array(ids));
+    }
+    next.insert(
+        "documentReferenceSelections".to_string(),
+        Value::Object(selections),
+    );
+
+    json!({
+        "snapshot": normalize_snapshot(&Value::Object(next)),
+        "result": {
+            "changed": true,
+        },
+    })
+}
+
 #[tauri::command]
 pub async fn references_mutation_apply(
     params: ReferencesMutationApplyParams,
@@ -677,6 +729,12 @@ pub async fn references_mutation_apply(
         }
         ReferencesMutationAction::MergeImportedReferences { imported } => {
             apply_merge_imported_references(&normalized_snapshot, &imported)
+        }
+        ReferencesMutationAction::SetDocumentReferenceIds {
+            tex_path,
+            reference_ids,
+        } => {
+            apply_set_document_reference_ids(&normalized_snapshot, &tex_path, &reference_ids)
         }
     };
 
@@ -788,6 +846,26 @@ mod tests {
                 assert_eq!(collection_key, "reading");
             }
             _ => panic!("expected toggleReferenceCollection action"),
+        }
+
+        let document_reference_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
+            "snapshot": sample_snapshot(),
+            "action": {
+                "type": "setDocumentReferenceIds",
+                "texPath": "/workspace/main.tex",
+                "referenceIds": ["ref-1"]
+            }
+        }))
+        .expect("deserialize setDocumentReferenceIds action from frontend payload");
+        match document_reference_params.action {
+            ReferencesMutationAction::SetDocumentReferenceIds {
+                tex_path,
+                reference_ids,
+            } => {
+                assert_eq!(tex_path, "/workspace/main.tex");
+                assert_eq!(reference_ids, vec!["ref-1".to_string()]);
+            }
+            _ => panic!("expected setDocumentReferenceIds action"),
         }
     }
 
@@ -992,6 +1070,43 @@ mod tests {
                 .as_array()
                 .map(|items| items.len()),
             Some(0)
+        );
+    }
+
+    #[tokio::test]
+    async fn set_document_reference_ids_prunes_invalid_and_empty_entries() {
+        let result = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: sample_snapshot(),
+            action: ReferencesMutationAction::SetDocumentReferenceIds {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_ids: vec![
+                    "ref-1".to_string(),
+                    "missing".to_string(),
+                    "ref-1".to_string(),
+                    "".to_string(),
+                ],
+            },
+        })
+        .await
+        .expect("set document reference ids");
+
+        assert_eq!(
+            result["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"],
+            json!(["ref-1"])
+        );
+
+        let cleared = references_mutation_apply(ReferencesMutationApplyParams {
+            snapshot: result["snapshot"].clone(),
+            action: ReferencesMutationAction::SetDocumentReferenceIds {
+                tex_path: "/workspace/main.tex".to_string(),
+                reference_ids: vec![],
+            },
+        })
+        .await
+        .expect("clear document reference ids");
+
+        assert!(
+            cleared["snapshot"]["documentReferenceSelections"]["/workspace/main.tex"].is_null()
         );
     }
 }
