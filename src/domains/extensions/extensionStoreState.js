@@ -6,6 +6,7 @@ import {
   buildExtensionCommandHostState,
   buildExtensionRuntimeBlockDescriptor,
 } from './extensionCommandHostState.js'
+import { mergeDefaultResultEntries } from './extensionResultEntries.js'
 
 export function normalizeExtensionId(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -245,6 +246,32 @@ export function normalizeResultEntry(entry = {}, index = 0) {
     previewPath: String(entry?.previewPath || entry?.preview_path || '').trim(),
     previewTitle: String(entry?.previewTitle || entry?.preview_title || '').trim(),
     mediaType: String(entry?.mediaType || entry?.media_type || '').trim(),
+  }
+}
+
+export function buildExtensionViewState(entry = {}) {
+  return {
+    title: String(entry?.title || ''),
+    description: String(entry?.description || ''),
+    message: String(entry?.message || ''),
+    badgeValue: Number.isInteger(entry?.badgeValue) ? entry.badgeValue : null,
+    badgeTooltip: String(entry?.badgeTooltip || ''),
+    statusLabel: String(entry?.statusLabel || ''),
+    statusTone: String(entry?.statusTone || ''),
+    actionLabel: String(entry?.actionLabel || ''),
+    presentation: normalizeViewPresentation(entry?.presentation),
+    sections: Array.isArray(entry?.sections)
+      ? entry.sections.map((section, index) => normalizeSidebarSection(section, index))
+      : [],
+    resultEntries: mergeDefaultResultEntries({
+      existingEntries: Array.isArray(entry?.resultEntries)
+        ? entry.resultEntries.map((resultEntry, index) => normalizeResultEntry(resultEntry, index))
+        : [],
+      artifacts: Array.isArray(entry?.artifacts)
+        ? entry.artifacts.map((artifact) => normalizeArtifactEntry(artifact))
+        : [],
+      outputs: entry?.outputs,
+    }),
   }
 }
 

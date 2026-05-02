@@ -50,19 +50,17 @@ import {
   commandHostStateFor,
   contributedViewForId,
   deferredViewRequestKey,
+  buildExtensionViewState,
   isPromptIsolationError,
   mergeResolvedViewState,
-  normalizeArtifactEntry,
   normalizeCapability,
   normalizeExtension,
   normalizeExtensionId,
   normalizeHostSummary,
   normalizeResultEntry,
   normalizeRuntimeEntry,
-  normalizeSidebarSection,
   normalizeTarget,
   normalizeTask,
-  normalizeViewPresentation,
   normalizeWorkspaceRoot,
   panelIdMatchesExtension,
   recentTasksForExtensionList,
@@ -72,7 +70,6 @@ import {
   targetHasValue,
   viewKeyMatchesExtension,
 } from '../domains/extensions/extensionStoreState.js'
-import { mergeDefaultResultEntries } from '../services/extensions/extensionResultEntries'
 
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
@@ -994,29 +991,7 @@ export const useExtensionsStore = defineStore('extensions', {
         resolved,
         parentItemId,
       )
-      this.viewState[viewKey] = {
-        title: String(resolved?.title || ''),
-        description: String(resolved?.description || ''),
-        message: String(resolved?.message || ''),
-        badgeValue: Number.isInteger(resolved?.badgeValue) ? resolved.badgeValue : null,
-        badgeTooltip: String(resolved?.badgeTooltip || ''),
-        statusLabel: String(resolved?.statusLabel || ''),
-        statusTone: String(resolved?.statusTone || ''),
-        actionLabel: String(resolved?.actionLabel || ''),
-        presentation: normalizeViewPresentation(resolved?.presentation),
-        sections: Array.isArray(resolved?.sections)
-          ? resolved.sections.map((entry, index) => normalizeSidebarSection(entry, index))
-          : [],
-        resultEntries: mergeDefaultResultEntries({
-          existingEntries: Array.isArray(resolved?.resultEntries)
-            ? resolved.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
-            : [],
-          artifacts: Array.isArray(resolved?.artifacts)
-            ? resolved.artifacts.map((entry) => normalizeArtifactEntry(entry))
-            : [],
-          outputs: resolved?.outputs,
-        }),
-      }
+      this.viewState[viewKey] = buildExtensionViewState(resolved)
       this.retryDeferredViewRequests()
       return resolved
     },
@@ -1214,29 +1189,7 @@ export const useExtensionsStore = defineStore('extensions', {
         const workspaceRoot = String(payload.workspaceRoot || '')
         if (workspaceRoot && activeWorkspaceRoot && workspaceRoot !== activeWorkspaceRoot) return
         const viewKey = `${normalizeExtensionId(payload.extensionId)}:${String(payload.viewId || '').trim()}`
-        this.viewState[viewKey] = {
-          title: String(payload.title || ''),
-          description: String(payload.description || ''),
-          message: String(payload.message || ''),
-          badgeValue: Number.isInteger(payload.badgeValue) ? payload.badgeValue : null,
-          badgeTooltip: String(payload.badgeTooltip || ''),
-          statusLabel: String(payload.statusLabel || ''),
-          statusTone: String(payload.statusTone || ''),
-          actionLabel: String(payload.actionLabel || ''),
-          presentation: normalizeViewPresentation(payload.presentation),
-          sections: Array.isArray(payload.sections)
-            ? payload.sections.map((entry, index) => normalizeSidebarSection(entry, index))
-            : [],
-          resultEntries: mergeDefaultResultEntries({
-            existingEntries: Array.isArray(payload.resultEntries)
-              ? payload.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
-              : [],
-            artifacts: Array.isArray(payload.artifacts)
-              ? payload.artifacts.map((entry) => normalizeArtifactEntry(entry))
-              : [],
-            outputs: payload.outputs,
-          }),
-        }
+        this.viewState[viewKey] = buildExtensionViewState(payload)
       }).catch(() => null)
       this._extensionTaskChangedUnlisten = await listenExtensionTaskChanged((event) => {
         this.upsertTask(event?.payload || {})
