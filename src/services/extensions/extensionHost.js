@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 
+export async function loadExtensionHostStatus() {
+  return invoke('extension_host_status')
+}
+
 export async function activateExtensionHost(payload = {}) {
   return invoke('extension_host_activate', {
     params: {

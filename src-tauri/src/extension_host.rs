@@ -160,6 +160,26 @@ pub struct ExtensionHostSummary {
     pub available: bool,
     pub runtime: String,
     pub activated_extensions: Vec<String>,
+    #[serde(default)]
+    pub active_runtime_slots: Vec<ExtensionHostRuntimeSlot>,
+    #[serde(default)]
+    pub pending_prompt_owner: Option<ExtensionHostPendingPromptOwner>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostRuntimeSlot {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostPendingPromptOwner {
+    pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -831,6 +851,14 @@ pub fn extension_host_summary(state: &ExtensionHostState) -> Result<ExtensionHos
         .activated_extensions
         .lock()
         .map_err(|_| "Failed to access extension host state".to_string())?;
+    let active_runtime_slots = activated
+        .iter()
+        .map(|key| ExtensionHostRuntimeSlot {
+            extension_id: key.extension_id.clone(),
+            workspace_root: key.workspace_root.clone(),
+        })
+        .collect::<Vec<_>>();
+    let pending_prompt_owner = pending_ui_request_owner(state).ok().flatten();
     Ok(ExtensionHostSummary {
         available: true,
         runtime: "node-extension-host-persistent".to_string(),
@@ -838,6 +866,8 @@ pub fn extension_host_summary(state: &ExtensionHostState) -> Result<ExtensionHos
             .iter()
             .map(|key| key.extension_id.clone())
             .collect(),
+        active_runtime_slots,
+        pending_prompt_owner,
     })
 }
 
@@ -1259,8 +1289,13 @@ fn complete_pending_ui_requests_for_extension(
     Ok(matching)
 }
 
-#[cfg(not(test))]
-fn pending_ui_request_owner(state: &ExtensionHostState) -> Result<Option<String>, String> {
+fn format_pending_prompt_owner(owner: &ExtensionHostPendingPromptOwner) -> String {
+    format!("{}@{}", owner.extension_id, owner.workspace_root)
+}
+
+fn pending_ui_request_owner(
+    state: &ExtensionHostState,
+) -> Result<Option<ExtensionHostPendingPromptOwner>, String> {
     let ui_requests = state
         .ui_requests
         .lock()
@@ -1269,13 +1304,10 @@ fn pending_ui_request_owner(state: &ExtensionHostState) -> Result<Option<String>
         ExtensionHostUiRequestStatus::Pending {
             extension_id,
             workspace_root,
-        } => {
-            Some(format!(
-                "{}@{}",
-                extension_id.trim().to_ascii_lowercase(),
-                workspace_root.trim()
-            ))
-        }
+        } => Some(ExtensionHostPendingPromptOwner {
+            extension_id: extension_id.trim().to_ascii_lowercase(),
+            workspace_root: workspace_root.trim().to_string(),
+        }),
         _ => None,
     }))
 }
@@ -2149,10 +2181,11 @@ pub fn invoke_extension_host(
                 response
             } else {
                 if !matches!(request, ExtensionHostRequest::RespondUiRequest { .. }) {
-                    if let Some(owner_extension_id) = pending_ui_request_owner(state)? {
+                    if let Some(owner) = pending_ui_request_owner(state)? {
                         let _request_extension_key = request_extension_key(&request);
                         return Err(format!(
-                            "Extension host is waiting for UI input from {owner_extension_id}; complete or cancel that prompt before sending another top-level request"
+                            "Extension host is waiting for UI input from {}; complete or cancel that prompt before sending another top-level request",
+                            format_pending_prompt_owner(&owner)
                         ));
                     }
                 }

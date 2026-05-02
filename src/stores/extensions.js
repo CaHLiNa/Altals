@@ -28,6 +28,7 @@ import {
   activateExtensionHost,
   cancelExtensionWindowInputs,
   deactivateExtensionHost,
+  loadExtensionHostStatus,
   updateExtensionHostSettings,
 } from '../services/extensions/extensionHost'
 import {
@@ -312,6 +313,35 @@ function normalizeRuntimeEntry(entry = {}) {
   }
 }
 
+function normalizeHostSummary(summary = {}) {
+  return {
+    available: summary?.available !== false,
+    runtime: String(summary?.runtime || ''),
+    activatedExtensions: Array.isArray(summary?.activatedExtensions)
+      ? summary.activatedExtensions.map(normalizeExtensionId).filter(Boolean)
+      : [],
+    activeRuntimeSlots: Array.isArray(summary?.activeRuntimeSlots)
+      ? summary.activeRuntimeSlots
+        .map((entry) => ({
+          extensionId: normalizeExtensionId(entry?.extensionId || entry?.extension_id || ''),
+          workspaceRoot: normalizeWorkspaceRoot(entry?.workspaceRoot || entry?.workspace_root || ''),
+        }))
+        .filter((entry) => entry.extensionId)
+      : [],
+    pendingPromptOwner:
+      summary?.pendingPromptOwner && typeof summary.pendingPromptOwner === 'object'
+        ? {
+          extensionId: normalizeExtensionId(
+            summary.pendingPromptOwner.extensionId || summary.pendingPromptOwner.extension_id || '',
+          ),
+          workspaceRoot: normalizeWorkspaceRoot(
+            summary.pendingPromptOwner.workspaceRoot || summary.pendingPromptOwner.workspace_root || '',
+          ),
+        }
+        : null,
+  }
+}
+
 function runtimeCommandIds(entry = {}) {
   const normalized = normalizeRuntimeEntry(entry)
   const commandIds = new Set(normalized.registeredCommands)
@@ -360,6 +390,7 @@ export const useExtensionsStore = defineStore('extensions', {
     viewState: {},
     viewControllerState: {},
     runtimeRegistry: {},
+    hostSummary: normalizeHostSummary(),
     sidebarTargets: {},
     changedViewTicks: {},
     deferredViewRequests: {},
@@ -628,6 +659,9 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     runtimeEntryFor: (state) => (extensionId = '') =>
       normalizeRuntimeEntry(state.runtimeRegistry?.[normalizeExtensionId(extensionId)]),
+    hostStatus(state) {
+      return normalizeHostSummary(state.hostSummary)
+    },
     sidebarTargetForPanel: (state) => (panelId = '', fallbackTarget = {}) => {
       const normalizedPanelId = String(panelId || '').trim()
       const storedTarget = state.sidebarTargets?.[normalizedPanelId]
@@ -696,6 +730,7 @@ export const useExtensionsStore = defineStore('extensions', {
       this.viewState = {}
       this.viewControllerState = {}
       this.runtimeRegistry = {}
+      this.hostSummary = normalizeHostSummary()
       this.sidebarTargets = {}
       this.changedViewTicks = {}
       this.deferredViewRequests = {}
@@ -861,6 +896,7 @@ export const useExtensionsStore = defineStore('extensions', {
           }
         }
         await this.activateEnabledExtensions().catch(() => {})
+        await this.refreshHostSummary().catch(() => {})
         return this.registry
       } catch (error) {
         this.lastError = error?.message || String(error || '')
@@ -879,6 +915,11 @@ export const useExtensionsStore = defineStore('extensions', {
       } finally {
         this.loadingTasks = false
       }
+    },
+
+    async refreshHostSummary() {
+      this.hostSummary = normalizeHostSummary(await loadExtensionHostStatus())
+      return this.hostSummary
     },
 
     async setExtensionEnabled(extensionId = '', enabled = true) {
@@ -909,6 +950,7 @@ export const useExtensionsStore = defineStore('extensions', {
           await deactivateExtensionHost({ extensionId: id, workspaceRoot }).catch(() => {})
         }
         this.pruneExtensionRuntimeState(id)
+        await this.refreshHostSummary().catch(() => {})
       }
       return snapshot
     },
@@ -956,6 +998,7 @@ export const useExtensionsStore = defineStore('extensions', {
         activationEvent,
       })
       this.runtimeRegistry[id] = normalizeRuntimeEntry(result)
+      await this.refreshHostSummary().catch(() => {})
       return this.runtimeRegistry[id]
     },
     async activateEnabledExtensions() {

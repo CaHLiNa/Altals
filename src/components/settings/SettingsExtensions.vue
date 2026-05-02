@@ -324,6 +324,17 @@ function runtimeEntry(extension = {}) {
   return extensionsStore.runtimeEntryFor(extension.id)
 }
 
+function hostStatus() {
+  return extensionsStore.hostStatus
+}
+
+function activeRuntimeSlotsForExtension(extension = {}) {
+  const extensionId = String(extension?.id || '').trim().toLowerCase()
+  return Array.isArray(hostStatus().activeRuntimeSlots)
+    ? hostStatus().activeRuntimeSlots.filter((entry) => entry.extensionId === extensionId)
+    : []
+}
+
 function displayStatus(extension = {}) {
   if (extension.status !== 'available') return extension.status
   return isEnabled(extension.id) ? extension.status : 'disabled'
@@ -331,11 +342,35 @@ function displayStatus(extension = {}) {
 
 function runtimeStatus(extension = {}) {
   const entry = runtimeEntry(extension)
+  const slots = activeRuntimeSlotsForExtension(extension)
+  if (entry.activated && slots.length > 1) {
+    return t('activated') + ` · ${slots.length} workspaces`
+  }
   return entry.activated ? t('activated') : t('idle')
 }
 
 function runtimeReason(extension = {}) {
-  return runtimeEntry(extension).reason || ''
+  const entry = runtimeEntry(extension)
+  const slots = activeRuntimeSlotsForExtension(extension)
+  const slotSummary = slots.length
+    ? slots
+      .map((slot) => slot.workspaceRoot || '/')
+      .join(' · ')
+    : ''
+  const promptOwner = hostStatus().pendingPromptOwner
+  const ownsPendingPrompt = promptOwner?.extensionId === String(extension?.id || '').trim().toLowerCase()
+  if (entry.reason && slotSummary && ownsPendingPrompt) {
+    return `${entry.reason} · ${slotSummary} · waiting for prompt in ${promptOwner.workspaceRoot || '/'}`
+  }
+  if (entry.reason && slotSummary) {
+    return `${entry.reason} · ${slotSummary}`
+  }
+  if (entry.reason) return entry.reason
+  if (slotSummary) return slotSummary
+  if (ownsPendingPrompt) {
+    return `waiting for prompt in ${promptOwner.workspaceRoot || '/'}`
+  }
+  return ''
 }
 
 function runtimeCommandSummary(extension = {}) {
