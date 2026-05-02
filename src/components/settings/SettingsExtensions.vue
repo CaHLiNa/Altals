@@ -141,9 +141,6 @@
               <div class="settings-row-copy extension-setting-copy">
                 <div class="settings-row-title extension-setting-label-row">
                   <span>{{ t(setting.label || humanizeSettingKey(key)) }}</span>
-                  <span v-if="setting.secureStorage === true" class="extension-setting-badge">
-                    {{ t('Keychain') }}
-                  </span>
                 </div>
               </div>
               <div class="settings-row-control extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
@@ -174,6 +171,7 @@
                   v-else
                   :model-value="settingDraftValue(selectedExtension, key)"
                   :type="inputTypeForSetting(key, setting)"
+                  :placeholder="hasPersistedSecureSetting(selectedExtension, key) ? t('Saved') : ''"
                   :monospace="isTechnicalSetting(key)"
                   size="sm"
                   @update:model-value="(value) => updateSettingDraft(selectedExtension.id, key, coerceSettingValue(setting, value))"
@@ -407,6 +405,12 @@ function settingDraftValue(extension = {}, key = '') {
     return savedSecureSettingDrafts[draftKey]
   }
   return settingValue(extension, key)
+}
+
+function hasPersistedSecureSetting(extension = {}, key = '') {
+  const setting = extension?.settingsSchema?.[key]
+  if (setting?.secureStorage !== true) return false
+  return String(settingValue(extension, key) ?? '').trim().length > 0
 }
 
 function settingOptions(setting = {}) {
