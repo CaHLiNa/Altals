@@ -335,6 +335,7 @@ fn main() -> Result<(), String> {
         &state,
         ExtensionHostRequest::UpdateSettings {
             extension_id: "example-lifecycle-state-contract-extension".to_string(),
+            workspace_root: workspace_root_text.clone(),
             settings: serde_json::to_value(
                 updated_settings
                     .extension_config
@@ -357,7 +358,11 @@ fn main() -> Result<(), String> {
     }
 
     let deactivated =
-        extension_host_deactivate_for_probe(&state, "example-lifecycle-state-contract-extension")?;
+        extension_host_deactivate_for_probe(
+            &state,
+            "example-lifecycle-state-contract-extension",
+            &workspace_root_text,
+        )?;
     if !deactivated.accepted {
         return Err("Lifecycle state extension was not deactivated".to_string());
     }

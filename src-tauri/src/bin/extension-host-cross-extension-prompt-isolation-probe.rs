@@ -277,7 +277,11 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
     );
     let competing_elapsed_ms = competing_started.elapsed().as_millis();
 
-    let _ = extension_host_cancel_window_inputs_for_probe(&state, "example-prompt-owner-extension");
+    let _ = extension_host_cancel_window_inputs_for_probe(
+        &state,
+        "example-prompt-owner-extension",
+        &workspace_root_text,
+    );
     let owner_result = owner_thread
         .join()
         .map_err(|_| "Owner prompt thread panicked".to_string())?;

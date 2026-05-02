@@ -199,6 +199,7 @@ async function main() {
   try {
     const activate = await call('Activate', {
       extensionId: 'example-settings-contract-extension',
+      workspaceRoot: '/tmp/workspace',
       activationEvent: 'onCommand:exampleSettingsContractExtension.inspect',
       extensionPath,
       manifestPath,
@@ -223,6 +224,7 @@ async function main() {
 
     const updateAck = await call('UpdateSettings', {
       extensionId: 'example-settings-contract-extension',
+      workspaceRoot: '/tmp/workspace',
       settings: updatedSettings,
     })
 
@@ -237,6 +239,7 @@ async function main() {
 
     const noOpAck = await call('UpdateSettings', {
       extensionId: 'example-settings-contract-extension',
+      workspaceRoot: '/tmp/workspace',
       settings: updatedSettings,
     })
 

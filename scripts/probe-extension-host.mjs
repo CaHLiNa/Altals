@@ -252,6 +252,7 @@ async function main() {
 
   const activate = await call("Activate", {
     extensionId: "example-pdf-extension",
+    workspaceRoot: "/tmp/workspace",
     activationEvent: "onCommand:examplePdfExtension.inspectRuntimeApis",
     extensionPath,
     manifestPath,
@@ -359,6 +360,7 @@ async function main() {
 
   send("UpdateSettings", {
     extensionId: "example-pdf-extension",
+    workspaceRoot: "/tmp/workspace",
     settings: { "examplePdfExtension.targetLang": "en" },
   });
   const settingsChanged = await waitForObserved(
@@ -408,6 +410,7 @@ async function main() {
 
   const selectionAck = await call("NotifyViewSelection", {
     extensionId: "example-pdf-extension",
+    workspaceRoot: "/tmp/workspace",
     viewId: "examplePdfExtension.translateView",
     itemHandle: "translate-current-pdf:/tmp/paper.pdf",
   });

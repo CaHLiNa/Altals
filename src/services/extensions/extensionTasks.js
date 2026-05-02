@@ -25,10 +25,11 @@ export async function cancelExtensionTask(taskId = '') {
   })
 }
 
-export async function cancelExtensionTasksForExtension(extensionId = '') {
+export async function cancelExtensionTasksForExtension(extensionId = '', workspaceRoot = '') {
   const tasks = await invoke('extension_task_cancel_extension', {
     params: {
       extensionId: String(extensionId || ''),
+      workspaceRoot: String(workspaceRoot || ''),
     },
   })
   return Array.isArray(tasks) ? tasks : []

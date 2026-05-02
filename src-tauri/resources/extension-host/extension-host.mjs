@@ -7,6 +7,34 @@ const pendingUiRequests = new Map();
 const pendingHostCalls = new Map();
 let menuActionCounter = 0;
 
+function normalizeExtensionId(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeWorkspaceRoot(value = "") {
+  return String(value || "").trim();
+}
+
+function extensionRuntimeKey(extensionId = "", workspaceRoot = "") {
+  return `${normalizeExtensionId(extensionId)}::${normalizeWorkspaceRoot(workspaceRoot)}`;
+}
+
+function requestWorkspaceRoot(request = {}) {
+  return normalizeWorkspaceRoot(
+    request.workspaceRoot ||
+      request.envelope?.workspaceRoot ||
+      request.currentWorkspaceRoot ||
+      "",
+  );
+}
+
+function requestRuntimeKey(request = {}) {
+  return extensionRuntimeKey(
+    request.extensionId || request.envelope?.extensionId || "",
+    requestWorkspaceRoot(request),
+  );
+}
+
 function normalizeCapabilityExtensions(values = []) {
   return Array.isArray(values)
     ? values
@@ -55,14 +83,10 @@ function writeMessage(message) {
   process.stdout.write(JSON.stringify(message) + "\n");
 }
 
-function findRegisteredCommand(commandId = "") {
+function findRegisteredCommand(registry, commandId = "") {
   const normalized = String(commandId || "").trim();
   if (!normalized) return null;
-  for (const extension of extensions.values()) {
-    const handler = extension.commands.get(normalized);
-    if (handler) return handler;
-  }
-  return null;
+  return registry?.commands?.get(normalized) || null;
 }
 
 function emitWindowMessage(registry, severity = "info", message = "") {
@@ -486,7 +510,7 @@ function createExtensionApi(registry) {
         if (!id) {
           throw new Error("Command id is required");
         }
-        const handler = findRegisteredCommand(id);
+        const handler = findRegisteredCommand(registry, id);
         if (!handler) {
           throw new Error(`Command not registered: ${id}`);
         }
@@ -996,11 +1020,13 @@ async function ensureActivated(request) {
   const extensionId = String(
     request.extensionId || request.envelope?.extensionId || "",
   ).trim();
+  const workspaceRoot = requestWorkspaceRoot(request);
   if (!extensionId) {
     throw new Error("Extension id is required");
   }
 
-  let record = extensions.get(extensionId);
+  const runtimeKey = extensionRuntimeKey(extensionId, workspaceRoot);
+  let record = extensions.get(runtimeKey);
   if (record) {
     return record;
   }
@@ -1030,7 +1056,7 @@ async function ensureActivated(request) {
     viewState: new Map(),
     viewStatePatches: new Map(),
     changedViews: new Set(),
-    currentWorkspaceRoot: "",
+    currentWorkspaceRoot: workspaceRoot,
     permissions: {
       readWorkspaceFiles: Boolean(request.permissions?.readWorkspaceFiles),
       readReferenceLibrary: Boolean(request.permissions?.readReferenceLibrary),
@@ -1040,8 +1066,9 @@ async function ensureActivated(request) {
     settingsEmitter: createEmitter(),
     globalState: new Map(),
     workspaceState: new Map(),
-    lastInvocation: createInvocationContext({ id: extensionId, currentWorkspaceRoot: "" }),
+    lastInvocation: createInvocationContext({ id: extensionId, currentWorkspaceRoot: workspaceRoot }),
     subscriptions: [],
+    runtimeKey,
   };
   const activationSettings =
     paramsToObject(request.activationState?.settings) || {};
@@ -1083,7 +1110,7 @@ async function ensureActivated(request) {
   await activate(context);
   record.subscriptions = context.subscriptions;
   record.deactivate = deactivate;
-  extensions.set(extensionId, record);
+  extensions.set(runtimeKey, record);
   return record;
 }
 
@@ -1125,10 +1152,12 @@ async function handleActivate(params = {}) {
 
 async function handleDeactivate(params = {}) {
   const extensionId = String(params.extensionId || "").trim();
+  const workspaceRoot = requestWorkspaceRoot(params);
   if (!extensionId) {
     throw new Error("Extension id is required");
   }
-  const record = extensions.get(extensionId);
+  const runtimeKey = extensionRuntimeKey(extensionId, workspaceRoot);
+  const record = extensions.get(runtimeKey);
   if (!record) {
     return {
       kind: "AcknowledgeDeactivation",
@@ -1139,7 +1168,7 @@ async function handleDeactivate(params = {}) {
     };
   }
   await deactivateRecord(record);
-  extensions.delete(extensionId);
+  extensions.delete(runtimeKey);
   return {
     kind: "AcknowledgeDeactivation",
     payload: {
@@ -1612,10 +1641,11 @@ function handleResolveHostCall(params = {}) {
 
 function handleUpdateSettings(params = {}) {
   const extensionId = String(params.extensionId || "").trim();
+  const workspaceRoot = requestWorkspaceRoot(params);
   if (!extensionId) {
     throw new Error("Extension id is required");
   }
-  const registry = extensions.get(extensionId);
+  const registry = extensions.get(extensionRuntimeKey(extensionId, workspaceRoot));
   if (!registry) {
     return {
       kind: "AcknowledgeSettingsUpdate",
@@ -1688,12 +1718,13 @@ function createTreeViewController(registry, viewId = "") {
 
 function handleNotifyViewSelection(params = {}) {
   const extensionId = String(params.extensionId || "").trim();
+  const workspaceRoot = requestWorkspaceRoot(params);
   const viewId = String(params.viewId || "").trim();
   const itemHandle = String(params.itemHandle || "").trim();
   if (!extensionId || !viewId) {
     throw new Error("Extension id and view id are required");
   }
-  const registry = extensions.get(extensionId);
+  const registry = extensions.get(extensionRuntimeKey(extensionId, workspaceRoot));
   if (!registry) {
     throw new Error(`Extension not activated: ${extensionId}`);
   }

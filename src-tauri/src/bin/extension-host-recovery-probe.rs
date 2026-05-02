@@ -155,6 +155,7 @@ fn main() -> Result<(), String> {
         &state,
         ExtensionHostRequest::Activate {
             extension_id: "example-recovery-extension".to_string(),
+            workspace_root: workspace_root.clone(),
             activation_event: "onCommand:exampleRecoveryExtension.crash".to_string(),
             extension_path: Path::new(&manifest_path)
                 .parent()

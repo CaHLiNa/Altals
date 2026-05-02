@@ -895,16 +895,18 @@ export const useExtensionsStore = defineStore('extensions', {
       } else {
         const { useExtensionWindowUiStore } = await import('./extensionWindowUi')
         const extensionWindowUi = useExtensionWindowUiStore()
+        const workspace = useWorkspaceStore()
+        const workspaceRoot = workspace.path || ''
         if (String(extensionWindowUi.pendingRequest?.extensionId || '').trim().toLowerCase() === id) {
           extensionWindowUi.clearRequest()
         }
-        await cancelExtensionWindowInputs({ extensionId: id }).catch(() => {})
-        const cancelledTasks = await cancelExtensionTasksForExtensionWithBackend(id).catch(() => [])
+        await cancelExtensionWindowInputs({ extensionId: id, workspaceRoot }).catch(() => {})
+        const cancelledTasks = await cancelExtensionTasksForExtensionWithBackend(id, workspaceRoot).catch(() => [])
         for (const task of cancelledTasks) {
           this.upsertTask(task)
         }
         if (this.runtimeRegistry[id]?.activated) {
-          await deactivateExtensionHost({ extensionId: id }).catch(() => {})
+          await deactivateExtensionHost({ extensionId: id, workspaceRoot }).catch(() => {})
         }
         this.pruneExtensionRuntimeState(id)
       }

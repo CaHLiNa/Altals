@@ -122,6 +122,7 @@ async function runDeniedScenario({
 
     const activate = await probe.call("Activate", {
       extensionId,
+      workspaceRoot: "/tmp/workspace",
       activationEvent,
       extensionPath,
       manifestPath,

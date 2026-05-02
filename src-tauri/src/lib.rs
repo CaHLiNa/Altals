@@ -78,7 +78,7 @@ pub use extension_artifacts::ExtensionArtifact;
 pub use extension_outputs::ExtensionCapabilityOutput;
 pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
 pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
-pub use extension_tasks::cancel_active_tasks_for_extension as extension_task_cancel_extension_for_probe;
+pub use extension_tasks::cancel_active_tasks_for_extension_for_probe as extension_task_cancel_extension_for_probe;
 pub use extension_tasks::ExtensionTaskRuntimeState;
 pub use extension_settings::{
     load_extension_runtime_state_snapshot as extension_settings_load_runtime_state_snapshot_for_probe,

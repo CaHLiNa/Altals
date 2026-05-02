@@ -15,6 +15,7 @@ export async function deactivateExtensionHost(payload = {}) {
   return invoke('extension_host_deactivate', {
     params: {
       extensionId: String(payload.extensionId || ''),
+      workspaceRoot: String(payload.workspaceRoot || ''),
     },
   })
 }
@@ -23,6 +24,7 @@ export async function cancelExtensionWindowInputs(payload = {}) {
   return invoke('extension_host_cancel_window_inputs', {
     params: {
       extensionId: String(payload.extensionId || ''),
+      workspaceRoot: String(payload.workspaceRoot || ''),
     },
   })
 }

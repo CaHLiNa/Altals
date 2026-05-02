@@ -217,13 +217,15 @@ try {
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_host_cancel_window_inputs' &&
-      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+      String(args?.params?.extensionId || '') === 'example-pdf-extension' &&
+      String(args?.params?.workspaceRoot || '') === '/tmp/workspace'
     ),
   )
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_host_deactivate' &&
-      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+      String(args?.params?.extensionId || '') === 'example-pdf-extension' &&
+      String(args?.params?.workspaceRoot || '') === '/tmp/workspace'
     ),
   )
 

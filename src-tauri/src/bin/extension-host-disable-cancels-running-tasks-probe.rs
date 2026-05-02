@@ -100,6 +100,12 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
         "pdf",
         "/tmp/paper-b.pdf",
     )?;
+    let other_workspace_same_extension = extension_task_create_command_for_probe(
+        "example-pdf-extension",
+        "scribeflow.pdf.translate",
+        "pdf",
+        "/tmp/paper-d.pdf",
+    )?;
     let other = extension_task_create_command_for_probe(
         "other-extension",
         "scribeflow.pdf.translate",
@@ -109,6 +115,7 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
 
     runtime.register_pid(&running.id, 4242)?;
     runtime.register_pid(&queued.id, 4243)?;
+    runtime.register_pid(&other_workspace_same_extension.id, 4245)?;
     runtime.register_pid(&other.id, 4244)?;
 
     let tasks_path = tasks_file_path(home_root);
@@ -127,6 +134,7 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
             .unwrap_or("")
             .to_string();
         if id == running.id {
+            task["workspaceRoot"] = Value::String("/tmp/workspace-a".to_string());
             task["state"] = Value::String("running".to_string());
             task["startedAt"] = Value::String("2026-05-02T10:00:00Z".to_string());
             task["outputs"] = json!([
@@ -139,9 +147,17 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
                 }
             ]);
         }
+        if id == queued.id {
+            task["workspaceRoot"] = Value::String("/tmp/workspace-a".to_string());
+        }
         if id == other.id {
             task["state"] = Value::String("running".to_string());
             task["startedAt"] = Value::String("2026-05-02T11:00:00Z".to_string());
+        }
+        if id == other_workspace_same_extension.id {
+            task["workspaceRoot"] = Value::String("/tmp/workspace-b".to_string());
+            task["state"] = Value::String("running".to_string());
+            task["startedAt"] = Value::String("2026-05-02T11:30:00Z".to_string());
         }
     }
     fs::write(
@@ -153,6 +169,7 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
 
     let cancelled = extension_task_cancel_extension_for_probe(
         "example-pdf-extension",
+        "/tmp/workspace-a",
         &runtime,
         &host_state,
     )?;
@@ -175,6 +192,12 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
     if runtime.unregister_pid(&queued.id)?.is_some() {
         return Err("Queued task pid ownership was not cleared on extension disable".to_string());
     }
+    if runtime.unregister_pid(&other_workspace_same_extension.id)? != Some(4245) {
+        return Err(
+            "Other workspace task pid ownership should remain intact during workspace-scoped disable"
+                .to_string(),
+        );
+    }
     if runtime.unregister_pid(&other.id)? != Some(4244) {
         return Err("Other extension pid ownership should remain intact".to_string());
     }
@@ -185,6 +208,11 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
         .ok_or_else(|| "Persisted queued task record missing after extension disable".to_string())?;
     let persisted_other = task_entry(home_root, &other.id)?
         .ok_or_else(|| "Persisted other extension task record missing after extension disable".to_string())?;
+    let persisted_other_workspace_same_extension = task_entry(home_root, &other_workspace_same_extension.id)?
+        .ok_or_else(|| {
+            "Persisted same-extension other-workspace task record missing after extension disable"
+                .to_string()
+        })?;
 
     if persisted_running.get("state").and_then(Value::as_str).unwrap_or("") != "cancelled" {
         return Err(format!(
@@ -199,6 +227,16 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
     if persisted_other.get("state").and_then(Value::as_str).unwrap_or("") != "running" {
         return Err(format!(
             "Other extension task state drifted during disable cancellation: {persisted_other}"
+        ));
+    }
+    if persisted_other_workspace_same_extension
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != "running"
+    {
+        return Err(format!(
+            "Same-extension other-workspace task state drifted during workspace-scoped disable cancellation: {persisted_other_workspace_same_extension}"
         ));
     }
     if persisted_running
@@ -222,6 +260,10 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
                 "cancelledTaskIds": cancelled.iter().map(|task| task.id.clone()).collect::<Vec<_>>(),
                 "runningTaskState": persisted_running.get("state").and_then(Value::as_str).unwrap_or(""),
                 "queuedTaskState": persisted_queued.get("state").and_then(Value::as_str).unwrap_or(""),
+                "otherWorkspaceSameExtensionTaskState": persisted_other_workspace_same_extension
+                    .get("state")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
                 "otherTaskState": persisted_other.get("state").and_then(Value::as_str).unwrap_or(""),
                 "preservedRunningOutputText": persisted_running
                     .get("outputs")

@@ -117,6 +117,7 @@ async function main() {
 
   const activate = await call("Activate", {
     extensionId: "example-markdown-extension",
+    workspaceRoot: "/tmp/workspace",
     activationEvent: "onCommand:scribeflow.markdown.summarize",
     extensionPath,
     manifestPath,

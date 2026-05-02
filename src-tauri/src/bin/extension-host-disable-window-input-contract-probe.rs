@@ -173,6 +173,7 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
         .ok_or_else(|| "Disable window-input probe manifest has no parent".to_string())?
         .to_string_lossy()
         .to_string();
+    let worker_workspace_root_text = workspace_root_text.clone();
 
     let worker_state = state.clone();
     let invoke_thread = std::thread::spawn(move || {
@@ -188,7 +189,7 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
                 envelope: extension_host_build_invocation_envelope_for_probe(
                     "disable-window-input-task",
                     "example-disable-window-input-contract-extension",
-                    &workspace_root_text,
+                    &worker_workspace_root_text,
                     "exampleDisableWindowInputContractExtension.prompt",
                     "",
                     "",
@@ -207,6 +208,7 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
     let cancelled = extension_host_cancel_window_inputs_for_probe(
         &state,
         "example-disable-window-input-contract-extension",
+        &workspace_root_text,
     )
     .map_err(|error| format!("Failed to cancel pending window inputs: {error}"))?;
     if !cancelled.accepted {
@@ -221,6 +223,7 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
     let deactivated = extension_host_deactivate_for_probe(
         &state,
         "example-disable-window-input-contract-extension",
+        &workspace_root_text,
     )?;
     if !deactivated.accepted {
         return Err("Disable window-input deactivation was not accepted".to_string());

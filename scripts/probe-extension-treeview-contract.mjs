@@ -268,6 +268,7 @@ async function main() {
   try {
     const activate = await call('Activate', {
       extensionId: 'example-treeview-contract-extension',
+      workspaceRoot: '/tmp/workspace',
       activationEvent: `onView:${viewId}`,
       extensionPath,
       manifestPath,
@@ -313,6 +314,7 @@ async function main() {
 
     const selectionAck = await call('NotifyViewSelection', {
       extensionId: 'example-treeview-contract-extension',
+      workspaceRoot: '/tmp/workspace',
       viewId,
       itemHandle: 'leaf',
     })

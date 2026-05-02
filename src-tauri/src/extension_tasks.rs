@@ -243,8 +243,10 @@ fn list_tasks_from_dir(tasks_root: &Path) -> Result<Vec<ExtensionTask>, String> 
 fn active_tasks_for_extension_in_dir(
     tasks_root: &Path,
     extension_id: &str,
+    workspace_root: &str,
 ) -> Result<Vec<ExtensionTask>, String> {
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    let normalized_workspace_root = workspace_root.trim();
     if normalized_extension_id.is_empty() {
         return Ok(Vec::new());
     }
@@ -252,6 +254,8 @@ fn active_tasks_for_extension_in_dir(
         .into_iter()
         .filter(|task| {
             task.extension_id.trim().eq_ignore_ascii_case(&normalized_extension_id)
+                && (normalized_workspace_root.is_empty()
+                    || task.workspace_root.trim() == normalized_workspace_root)
                 && matches!(task.state.as_str(), "queued" | "running")
         })
         .collect())
@@ -308,6 +312,20 @@ pub fn create_command_task_for_probe(
             path: target_path.to_string(),
         },
         serde_json::json!({}),
+    )
+}
+
+pub fn cancel_active_tasks_for_extension_for_probe(
+    extension_id: &str,
+    workspace_root: &str,
+    runtime_state: &ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<Vec<ExtensionTask>, String> {
+    cancel_active_tasks_for_extension(
+        extension_id,
+        workspace_root,
+        runtime_state,
+        extension_host_state,
     )
 }
 
@@ -905,10 +923,12 @@ pub fn cancel_task_for_runtime(
 fn cancel_active_tasks_for_extension_in_dir(
     tasks_root: &Path,
     extension_id: &str,
+    workspace_root: &str,
     runtime_state: &ExtensionTaskRuntimeState,
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<Vec<ExtensionTask>, String> {
-    let active_tasks = active_tasks_for_extension_in_dir(tasks_root, extension_id)?;
+    let active_tasks =
+        active_tasks_for_extension_in_dir(tasks_root, extension_id, workspace_root)?;
     let mut cancelled = Vec::with_capacity(active_tasks.len());
     for task in active_tasks {
         if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
@@ -924,6 +944,7 @@ fn cancel_active_tasks_for_extension_in_dir(
 
 pub fn cancel_active_tasks_for_extension(
     extension_id: &str,
+    workspace_root: &str,
     runtime_state: &ExtensionTaskRuntimeState,
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<Vec<ExtensionTask>, String> {
@@ -931,6 +952,7 @@ pub fn cancel_active_tasks_for_extension(
     cancel_active_tasks_for_extension_in_dir(
         &tasks_root,
         extension_id,
+        workspace_root,
         runtime_state,
         extension_host_state,
     )
@@ -948,6 +970,8 @@ pub struct ExtensionTaskGetParams {
 pub struct ExtensionTaskExtensionParams {
     #[serde(default)]
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -999,6 +1023,7 @@ pub async fn extension_task_cancel_extension(
 ) -> Result<Vec<ExtensionTask>, String> {
     cancel_active_tasks_for_extension(
         &params.extension_id,
+        &params.workspace_root,
         runtime_state.inner(),
         extension_host_state.inner(),
     )
@@ -1218,7 +1243,11 @@ mod tests {
         })
         .expect("mark other running");
 
-        let active = active_tasks_for_extension_in_dir(&root, "example-pdf-extension")
+        let active = active_tasks_for_extension_in_dir(
+            &root,
+            "example-pdf-extension",
+            "/tmp/workspace-a",
+        )
             .expect("active tasks for extension");
         let ids = active.into_iter().map(|task| task.id).collect::<Vec<_>>();
         assert_eq!(ids, vec![queued.id, running.id]);
@@ -1289,6 +1318,20 @@ mod tests {
             serde_json::json!({}),
         )
         .expect("create other extension task");
+        let other_workspace_same_extension = create_task_in_dir(
+            &tasks_root,
+            "example-pdf-extension",
+            "/tmp/workspace-b",
+            "scribeflow.pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "pdf".to_string(),
+                reference_id: "ref-17".to_string(),
+                path: "/tmp/paper-e.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create other workspace same extension task");
 
         update_task_in_dir(&tasks_root, &running.id, |task| {
             task.state = "running".to_string();
@@ -1305,6 +1348,11 @@ mod tests {
             task.started_at = "2026-05-02T12:00:00Z".to_string();
         })
         .expect("mark other extension running");
+        update_task_in_dir(&tasks_root, &other_workspace_same_extension.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-02T12:30:00Z".to_string();
+        })
+        .expect("mark other workspace same extension running");
 
         runtime
             .register_pid(&running.id, 4242)
@@ -1315,10 +1363,14 @@ mod tests {
         runtime
             .register_pid(&other_extension.id, 4244)
             .expect("register other pid");
+        runtime
+            .register_pid(&other_workspace_same_extension.id, 4245)
+            .expect("register other workspace same extension pid");
 
         let cancelled = cancel_active_tasks_for_extension_in_dir(
             &tasks_root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             &runtime,
             &host_state,
         )
@@ -1334,6 +1386,12 @@ mod tests {
                 .expect("other pid kept"),
             Some(4244)
         );
+        assert_eq!(
+            runtime
+                .unregister_pid(&other_workspace_same_extension.id)
+                .expect("other workspace pid kept"),
+            Some(4245)
+        );
 
         let listed = list_tasks_from_dir(&tasks_root).expect("list tasks");
         let running_task = listed.iter().find(|task| task.id == running.id).expect("running task");
@@ -1343,10 +1401,15 @@ mod tests {
             .iter()
             .find(|task| task.id == other_extension.id)
             .expect("other task");
+        let other_workspace_same_extension_task = listed
+            .iter()
+            .find(|task| task.id == other_workspace_same_extension.id)
+            .expect("other workspace same extension task");
         assert_eq!(running_task.state, "cancelled");
         assert_eq!(queued_task.state, "cancelled");
         assert_eq!(completed_task.state, "succeeded");
         assert_eq!(other_task.state, "running");
+        assert_eq!(other_workspace_same_extension_task.state, "running");
         fs::remove_dir_all(root).ok();
     }
 

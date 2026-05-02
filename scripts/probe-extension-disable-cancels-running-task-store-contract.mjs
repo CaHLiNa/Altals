@@ -233,13 +233,15 @@ try {
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_task_cancel_extension' &&
-      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+      String(args?.params?.extensionId || '') === 'example-pdf-extension' &&
+      String(args?.params?.workspaceRoot || '') === '/tmp/workspace'
     ),
   )
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_host_deactivate' &&
-      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+      String(args?.params?.extensionId || '') === 'example-pdf-extension' &&
+      String(args?.params?.workspaceRoot || '') === '/tmp/workspace'
     ),
   )
 

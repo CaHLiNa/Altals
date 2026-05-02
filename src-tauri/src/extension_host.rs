@@ -75,10 +75,10 @@ fn reset_extension_host_process(process: &mut ExtensionHostProcess) {
 
 #[derive(Clone)]
 pub struct ExtensionHostState {
-    activated_extensions: Arc<Mutex<HashSet<String>>>,
+    activated_extensions: Arc<Mutex<HashSet<ExtensionWorkspaceKey>>>,
     ui_requests: Arc<Mutex<HashMap<String, ExtensionHostUiRequestStatus>>>,
     host_calls: Arc<Mutex<HashMap<String, ExtensionHostCallStatus>>>,
-    activation_context: Arc<Mutex<HashMap<String, (String, String)>>>,
+    activation_context: Arc<Mutex<HashMap<ExtensionWorkspaceKey, (String, String)>>>,
     #[cfg(not(test))]
     request_lock: Arc<Mutex<()>>,
     #[cfg(not(test))]
@@ -87,6 +87,22 @@ pub struct ExtensionHostState {
     process: Arc<Mutex<ExtensionHostProcess>>,
     #[cfg(not(test))]
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ExtensionWorkspaceKey {
+    extension_id: String,
+    workspace_root: String,
+}
+
+fn normalize_extension_workspace_key(
+    extension_id: &str,
+    workspace_root: &str,
+) -> ExtensionWorkspaceKey {
+    ExtensionWorkspaceKey {
+        extension_id: extension_id.trim().to_ascii_lowercase(),
+        workspace_root: workspace_root.trim().to_string(),
+    }
 }
 
 impl Default for ExtensionHostState {
@@ -111,7 +127,10 @@ impl Default for ExtensionHostState {
 #[derive(Debug, Clone, PartialEq)]
 enum ExtensionHostUiRequestStatus {
     #[cfg_attr(test, allow(dead_code))]
-    Pending { extension_id: String },
+    Pending {
+        extension_id: String,
+        workspace_root: String,
+    },
     Completed { cancelled: bool, result: Value },
     #[cfg_attr(test, allow(dead_code))]
     Interrupted { error: String },
@@ -252,6 +271,8 @@ pub struct ExtensionHostInvocationEnvelope {
 pub enum ExtensionHostRequest {
     Activate {
         extension_id: String,
+        #[serde(default)]
+        workspace_root: String,
         activation_event: String,
         extension_path: String,
         manifest_path: String,
@@ -264,6 +285,8 @@ pub enum ExtensionHostRequest {
     },
     Deactivate {
         extension_id: String,
+        #[serde(default)]
+        workspace_root: String,
     },
     InvokeCapability {
         activation_event: String,
@@ -309,10 +332,14 @@ pub enum ExtensionHostRequest {
     UpdateSettings {
         extension_id: String,
         #[serde(default)]
+        workspace_root: String,
+        #[serde(default)]
         settings: Value,
     },
     NotifyViewSelection {
         extension_id: String,
+        #[serde(default)]
+        workspace_root: String,
         view_id: String,
         #[serde(default)]
         item_handle: String,
@@ -608,6 +635,8 @@ pub struct ExtensionHostSettingsUpdateAcknowledgement {
 pub struct ExtensionHostDeactivateParams {
     #[serde(default)]
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -622,6 +651,8 @@ pub struct ExtensionHostDeactivationAcknowledgement {
 pub struct ExtensionHostCancelWindowInputsParams {
     #[serde(default)]
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -656,6 +687,8 @@ pub struct ExtensionHostRespondUiRequestResult {
 pub struct ExtensionHostNotifyViewSelectionParams {
     #[serde(default)]
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
     #[serde(default)]
     pub view_id: String,
     #[serde(default)]
@@ -801,7 +834,10 @@ pub fn extension_host_summary(state: &ExtensionHostState) -> Result<ExtensionHos
     Ok(ExtensionHostSummary {
         available: true,
         runtime: "node-extension-host-persistent".to_string(),
-        activated_extensions: activated.iter().cloned().collect(),
+        activated_extensions: activated
+            .iter()
+            .map(|key| key.extension_id.clone())
+            .collect(),
     })
 }
 
@@ -839,6 +875,7 @@ pub fn activate_extension(
         load_extension_runtime_state_snapshot(global_config_dir, workspace_root, &entry.id)?;
     let request = ExtensionHostRequest::Activate {
         extension_id: entry.id.clone(),
+        workspace_root: workspace_root.to_string(),
         activation_event: activation_event.trim().to_string(),
         extension_path: extension_path.to_string_lossy().to_string(),
         manifest_path: entry.path.clone(),
@@ -860,12 +897,13 @@ pub fn activate_extension(
         .activated_extensions
         .lock()
         .map_err(|_| "Failed to access extension host state".to_string())?;
+    let activation_key = normalize_extension_workspace_key(&entry.id, workspace_root);
     if result.activated {
-        activated.insert(entry.id.clone());
+        activated.insert(activation_key.clone());
     }
     if let Ok(mut contexts) = state.activation_context.lock() {
         contexts.insert(
-            entry.id.clone(),
+            activation_key,
             (global_config_dir.to_string(), workspace_root.to_string()),
         );
     }
@@ -893,8 +931,10 @@ pub fn activate_extension_by_id_for_probe(
 pub fn deactivate_extension_for_probe(
     state: &ExtensionHostState,
     extension_id: &str,
+    workspace_root: &str,
 ) -> Result<ExtensionHostDeactivationAcknowledgement, String> {
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    let normalized_workspace_root = workspace_root.trim().to_string();
     if normalized_extension_id.is_empty() {
         return Err("Extension id is required".to_string());
     }
@@ -903,17 +943,20 @@ pub fn deactivate_extension_for_probe(
         None,
         ExtensionHostRequest::Deactivate {
             extension_id: normalized_extension_id.clone(),
+            workspace_root: normalized_workspace_root.clone(),
         },
     )? {
         ExtensionHostResponse::AcknowledgeDeactivation(result) => result,
         _ => return Err("Unexpected extension host response for deactivation".to_string()),
     };
     if result.accepted {
+        let activation_key =
+            normalize_extension_workspace_key(&normalized_extension_id, &normalized_workspace_root);
         if let Ok(mut activated) = state.activated_extensions.lock() {
-            activated.remove(&normalized_extension_id);
+            activated.remove(&activation_key);
         }
         if let Ok(mut contexts) = state.activation_context.lock() {
-            contexts.remove(&normalized_extension_id);
+            contexts.remove(&activation_key);
         }
     }
     Ok(result)
@@ -922,8 +965,10 @@ pub fn deactivate_extension_for_probe(
 pub fn cancel_window_inputs_for_extension_for_probe(
     _state: &ExtensionHostState,
     extension_id: &str,
+    workspace_root: &str,
 ) -> Result<ExtensionHostCancelWindowInputsResult, String> {
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    let normalized_workspace_root = workspace_root.trim().to_string();
     if normalized_extension_id.is_empty() {
         return Err("Extension id is required".to_string());
     }
@@ -933,6 +978,7 @@ pub fn cancel_window_inputs_for_extension_for_probe(
     let cancelled_request_ids = complete_pending_ui_requests_for_extension(
         _state,
         &normalized_extension_id,
+        &normalized_workspace_root,
         true,
         Value::Null,
     )?;
@@ -1174,10 +1220,12 @@ fn mark_pending_ui_requests_interrupted(
 fn complete_pending_ui_requests_for_extension(
     state: &ExtensionHostState,
     extension_id: &str,
+    workspace_root: &str,
     cancelled: bool,
     result: Value,
 ) -> Result<Vec<String>, String> {
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    let normalized_workspace_root = workspace_root.trim().to_string();
     if normalized_extension_id.is_empty() {
         return Ok(Vec::new());
     }
@@ -1188,8 +1236,11 @@ fn complete_pending_ui_requests_for_extension(
     let matching = ui_requests
         .iter()
         .filter_map(|(request_id, status)| match status {
-            ExtensionHostUiRequestStatus::Pending { extension_id }
-                if extension_id.eq_ignore_ascii_case(&normalized_extension_id) =>
+            ExtensionHostUiRequestStatus::Pending {
+                extension_id,
+                workspace_root,
+            } if extension_id.eq_ignore_ascii_case(&normalized_extension_id)
+                && workspace_root.trim() == normalized_workspace_root =>
             {
                 Some(request_id.clone())
             }
@@ -1215,27 +1266,49 @@ fn pending_ui_request_owner(state: &ExtensionHostState) -> Result<Option<String>
         .lock()
         .map_err(|_| "Failed to access extension host UI request state".to_string())?;
     Ok(ui_requests.values().find_map(|status| match status {
-        ExtensionHostUiRequestStatus::Pending { extension_id } => {
-            Some(extension_id.trim().to_ascii_lowercase())
+        ExtensionHostUiRequestStatus::Pending {
+            extension_id,
+            workspace_root,
+        } => {
+            Some(format!(
+                "{}@{}",
+                extension_id.trim().to_ascii_lowercase(),
+                workspace_root.trim()
+            ))
         }
         _ => None,
     }))
 }
 
 #[cfg(not(test))]
-fn request_extension_id(request: &ExtensionHostRequest) -> String {
+fn request_extension_key(request: &ExtensionHostRequest) -> String {
     match request {
-        ExtensionHostRequest::Activate { extension_id, .. }
-        | ExtensionHostRequest::Deactivate { extension_id }
-        | ExtensionHostRequest::UpdateSettings { extension_id, .. }
-        | ExtensionHostRequest::NotifyViewSelection { extension_id, .. } => {
-            extension_id.trim().to_ascii_lowercase()
+        ExtensionHostRequest::Activate { .. } => String::new(),
+        ExtensionHostRequest::Deactivate {
+            extension_id,
+            workspace_root,
         }
+        | ExtensionHostRequest::UpdateSettings {
+            extension_id,
+            workspace_root,
+            ..
+        }
+        | ExtensionHostRequest::NotifyViewSelection {
+            extension_id,
+            workspace_root,
+            ..
+        } => format!(
+            "{}@{}",
+            extension_id.trim().to_ascii_lowercase(),
+            workspace_root.trim()
+        ),
         ExtensionHostRequest::InvokeCapability { envelope, .. }
         | ExtensionHostRequest::ExecuteCommand { envelope, .. }
-        | ExtensionHostRequest::ResolveView { envelope, .. } => {
-            envelope.extension_id.trim().to_ascii_lowercase()
-        }
+        | ExtensionHostRequest::ResolveView { envelope, .. } => format!(
+            "{}@{}",
+            envelope.extension_id.trim().to_ascii_lowercase(),
+            envelope.workspace_root.trim()
+        ),
         ExtensionHostRequest::RespondUiRequest { .. } | ExtensionHostRequest::ResolveHostCall { .. } => {
             String::new()
         }
@@ -1519,6 +1592,7 @@ fn mark_ui_request_pending(
     state: &ExtensionHostState,
     request_id: &str,
     extension_id: &str,
+    workspace_root: &str,
 ) -> Result<(), String> {
     let mut ui_requests = state
         .ui_requests
@@ -1528,6 +1602,7 @@ fn mark_ui_request_pending(
         request_id.to_string(),
         ExtensionHostUiRequestStatus::Pending {
             extension_id: extension_id.trim().to_ascii_lowercase(),
+            workspace_root: workspace_root.trim().to_string(),
         },
     );
     Ok(())
@@ -1701,11 +1776,13 @@ fn persist_extension_host_state_changed_event(
     state: &ExtensionHostState,
     event: &ExtensionHostStateChangedEvent,
 ) -> Result<(), String> {
+    let activation_key =
+        normalize_extension_workspace_key(&event.extension_id, &event.workspace_root);
     let global_config_dir = state
         .activation_context
         .lock()
         .map_err(|_| "Failed to access extension host activation context".to_string())?
-        .get(&event.extension_id)
+        .get(&activation_key)
         .map(|(global_config_dir, _)| global_config_dir.clone())
         .unwrap_or_default();
     let snapshot = crate::extension_settings::ExtensionRuntimeStateSnapshot {
@@ -1725,14 +1802,21 @@ fn persist_extension_host_state_changed_event(
 fn activation_context_for_extension(
     state: &ExtensionHostState,
     extension_id: &str,
+    workspace_root: &str,
 ) -> Result<(String, String), String> {
+    let activation_key = normalize_extension_workspace_key(extension_id, workspace_root);
     state
         .activation_context
         .lock()
         .map_err(|_| "Failed to access extension host activation context".to_string())?
-        .get(extension_id)
+        .get(&activation_key)
         .cloned()
-        .ok_or_else(|| format!("Extension activation context not found: {extension_id}"))
+        .ok_or_else(|| {
+            format!(
+                "Extension activation context not found: {}@{}",
+                extension_id, workspace_root
+            )
+        })
 }
 
 #[cfg(not(test))]
@@ -1773,7 +1857,7 @@ fn handle_extension_host_process_call(
     event: &ExtensionHostCallRequestedEvent,
 ) -> Result<ExtensionHostResolveHostCallParams, String> {
     let (global_config_dir, workspace_root) =
-        activation_context_for_extension(state, &event.extension_id)?;
+        activation_context_for_extension(state, &event.extension_id, &event.workspace_root)?;
     let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
     let Some(manifest) = entry.manifest.as_ref() else {
         return Err(format!("Extension manifest is invalid: {}", entry.id));
@@ -1926,7 +2010,7 @@ fn handle_extension_host_reference_call(
     event: &ExtensionHostCallRequestedEvent,
 ) -> Result<ExtensionHostResolveHostCallParams, String> {
     let (global_config_dir, workspace_root) =
-        activation_context_for_extension(state, &event.extension_id)?;
+        activation_context_for_extension(state, &event.extension_id, &event.workspace_root)?;
     let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
     let Some(manifest) = entry.manifest.as_ref() else {
         return Err(format!("Extension manifest is invalid: {}", entry.id));
@@ -1991,7 +2075,7 @@ fn handle_extension_host_pdf_call(
     event: &ExtensionHostCallRequestedEvent,
 ) -> Result<ExtensionHostResolveHostCallParams, String> {
     let (global_config_dir, workspace_root) =
-        activation_context_for_extension(state, &event.extension_id)?;
+        activation_context_for_extension(state, &event.extension_id, &event.workspace_root)?;
     let entry = find_extension_entry(&global_config_dir, &workspace_root, &event.extension_id)?;
     let Some(manifest) = entry.manifest.as_ref() else {
         return Err(format!("Extension manifest is invalid: {}", entry.id));
@@ -2066,7 +2150,7 @@ pub fn invoke_extension_host(
             } else {
                 if !matches!(request, ExtensionHostRequest::RespondUiRequest { .. }) {
                     if let Some(owner_extension_id) = pending_ui_request_owner(state)? {
-                        let _request_extension_id = request_extension_id(&request);
+                        let _request_extension_key = request_extension_key(&request);
                         return Err(format!(
                             "Extension host is waiting for UI input from {owner_extension_id}; complete or cancel that prompt before sending another top-level request"
                         ));
@@ -2117,7 +2201,12 @@ fn invoke_extension_host_serialized(
                 continue;
             }
             ExtensionHostResponse::WindowInputRequested(event) => {
-                mark_ui_request_pending(state, &event.request_id, &event.extension_id)?;
+                mark_ui_request_pending(
+                    state,
+                    &event.request_id,
+                    &event.extension_id,
+                    &event.workspace_root,
+                )?;
                 emit_extension_host_window_input_requested(state, event)?;
                 let request_id = event.request_id.clone();
                 let completed = wait_for_ui_request_completion(state, &request_id)?;
@@ -2309,7 +2398,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             registered_menu_actions: Vec::new(),
             registered_view_details: Vec::new(),
         }),
-        ExtensionHostRequest::Deactivate { extension_id } => {
+        ExtensionHostRequest::Deactivate { extension_id, .. } => {
             ExtensionHostResponse::AcknowledgeDeactivation(
                 ExtensionHostDeactivationAcknowledgement {
                     extension_id,
@@ -2438,6 +2527,7 @@ pub async fn extension_host_deactivate(
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostDeactivationAcknowledgement, String> {
     let extension_id = params.extension_id.trim().to_ascii_lowercase();
+    let workspace_root = params.workspace_root.trim().to_string();
     if extension_id.is_empty() {
         return Err("Extension id is required".to_string());
     }
@@ -2446,17 +2536,19 @@ pub async fn extension_host_deactivate(
         None,
         ExtensionHostRequest::Deactivate {
             extension_id: extension_id.clone(),
+            workspace_root: workspace_root.clone(),
         },
     )? {
         ExtensionHostResponse::AcknowledgeDeactivation(result) => result,
         _ => return Err("Unexpected extension host response for deactivation".to_string()),
     };
     if result.accepted {
+        let activation_key = normalize_extension_workspace_key(&extension_id, &workspace_root);
         if let Ok(mut activated) = state.activated_extensions.lock() {
-            activated.remove(&extension_id);
+            activated.remove(&activation_key);
         }
         if let Ok(mut contexts) = state.activation_context.lock() {
-            contexts.remove(&extension_id);
+            contexts.remove(&activation_key);
         }
     }
     Ok(result)
@@ -2467,7 +2559,11 @@ pub async fn extension_host_cancel_window_inputs(
     params: ExtensionHostCancelWindowInputsParams,
     state: tauri::State<'_, ExtensionHostState>,
 ) -> Result<ExtensionHostCancelWindowInputsResult, String> {
-    cancel_window_inputs_for_extension_for_probe(state.inner(), &params.extension_id)
+    cancel_window_inputs_for_extension_for_probe(
+        state.inner(),
+        &params.extension_id,
+        &params.workspace_root,
+    )
 }
 
 #[tauri::command]
@@ -2517,6 +2613,7 @@ pub async fn extension_host_update_settings(
         None,
         ExtensionHostRequest::UpdateSettings {
             extension_id: extension_id.clone(),
+            workspace_root: params.workspace_root.clone(),
             settings: normalized_settings,
         },
     )? {
@@ -2552,6 +2649,7 @@ pub async fn extension_host_notify_view_selection(
         None,
         ExtensionHostRequest::NotifyViewSelection {
             extension_id: extension_id.clone(),
+            workspace_root: params.workspace_root.clone(),
             view_id: view_id.clone(),
             item_handle: params.item_handle.trim().to_string(),
         },
