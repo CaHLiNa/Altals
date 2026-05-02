@@ -124,12 +124,6 @@
     "configuration": {
       "title": "%extension.displayName%",
       "properties": {
-        "retainPdf.apiBaseUrl": {
-          "type": "string",
-          "default": "http://127.0.0.1:41000",
-          "title": "%setting.apiBaseUrl.title%",
-          "description": "%setting.apiBaseUrl.description%"
-        },
         "retainPdf.ocrProvider": {
           "type": "string",
           "default": "mineru",

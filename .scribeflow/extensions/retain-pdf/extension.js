@@ -75,7 +75,6 @@ function boolSetting(context, key = "", fallback = false) {
 
 function collectSettings(context) {
   return {
-    apiBaseUrl: String(setting(context, "apiBaseUrl", "http://127.0.0.1:41000")),
     ocrProvider: String(setting(context, "ocrProvider", "mineru")),
     mineruToken: String(setting(context, "mineruToken", "")),
     paddleToken: String(setting(context, "paddleToken", "")),
@@ -98,6 +97,7 @@ function splitWorkerSettings(settings = {}) {
   return {
     publicSettings,
     secretEnv: {
+      RETAIN_PDF_API_BASE_URL: "http://127.0.0.1:41000",
       RETAIN_PDF_MINERU_TOKEN: String(settings.mineruToken || ""),
       RETAIN_PDF_PADDLE_TOKEN: String(settings.paddleToken || ""),
       RETAIN_PDF_MODEL_API_KEY: String(settings.modelApiKey || ""),
@@ -159,12 +159,6 @@ function contextSections(context, overrides = {}) {
       kind: "context",
       title: tr(context, "section.reference"),
       value: reference.id || tr(context, "value.noLinkedReference"),
-    },
-    {
-      id: "retain-api",
-      kind: "config",
-      title: tr(context, "section.retainApi"),
-      value: settings.apiBaseUrl || "http://127.0.0.1:41000",
     },
     {
       id: "provider",

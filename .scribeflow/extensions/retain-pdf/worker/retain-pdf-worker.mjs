@@ -139,7 +139,7 @@ async function main() {
       throw new Error("sourcePdf is required")
     }
     const settings = settingsPath ? JSON.parse(await readFile(settingsPath, "utf8")) : {}
-    const baseUrl = normalizeBaseUrl(settings.apiBaseUrl)
+    const baseUrl = normalizeBaseUrl(process.env.RETAIN_PDF_API_BASE_URL)
     const apiKey = readSecret("RETAIN_PDF_API_KEY", settings.apiKey)
     const headers = apiKey ? { "X-API-Key": apiKey } : {}
     const pollIntervalMs = Math.max(1000, Number(settings.pollIntervalSeconds || 5) * 1000)
