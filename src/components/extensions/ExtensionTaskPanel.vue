@@ -117,7 +117,7 @@ import ExtensionResultPreview from './ExtensionResultPreview.vue'
 import {
   buildExtensionTaskResultEntries,
   titleCaseKey,
-} from '../../services/extensions/extensionArtifactPreviewEntries'
+} from '../../domains/extensions/extensionResultEntries'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()

@@ -147,7 +147,7 @@ try {
   assert.deepEqual(timeline.recent.map((task) => task.id), ['task-failed'])
 
   const resultEntries = extensions
-    ? (await vite.ssrLoadModule('/src/services/extensions/extensionArtifactPreviewEntries.js'))
+    ? (await vite.ssrLoadModule('/src/domains/extensions/extensionResultEntries.js'))
         .buildExtensionTaskResultEntries(failedTask)
     : []
 

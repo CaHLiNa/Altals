@@ -507,6 +507,7 @@ git commit -m "refactor: clarify document runtime boundaries"
 - 2026-05-02: Moved extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers from `src/stores/extensions.js` into `src/domains/extensions/extensionStoreState.js`. The store still owns Pinia/service orchestration, so Phase 7 remains open for further command/view presentation cleanup.
 - 2026-05-02: Moved deterministic result-entry generation and resolved/pushed view-state shaping into extension domain helpers. Service imports remain as compatibility re-exports while store actions now call `buildExtensionViewState`.
 - 2026-05-02: Moved extension menu/keybinding/command palette/sidebar/view action derivation from Pinia getters into pure extension domain helpers. Store getters remain as compatibility wrappers over store state.
+- 2026-05-02: Removed extension result-entry compatibility shims from `src/services/extensions`; result-entry presentation imports now point directly at the extension domain module.
 
 **Verification:**
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-const { buildExtensionTaskResultEntries } = await import('../src/services/extensions/extensionArtifactPreviewEntries.js')
+const { buildExtensionTaskResultEntries } = await import('../src/domains/extensions/extensionResultEntries.js')
 
 const task = {
   id: 'task-result-entry',

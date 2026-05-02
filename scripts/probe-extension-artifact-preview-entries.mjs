@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import {
   buildExtensionArtifactPreviewEntries,
   buildExtensionTaskResultEntries,
-} from '../src/services/extensions/extensionArtifactPreviewEntries.js'
-import { buildDefaultResultEntries, mergeDefaultResultEntries } from '../src/services/extensions/extensionResultEntries.js'
+  buildDefaultResultEntries,
+  mergeDefaultResultEntries,
+} from '../src/domains/extensions/extensionResultEntries.js'
 
 async function main() {
   const entries = buildExtensionArtifactPreviewEntries([
