@@ -21,7 +21,7 @@ import {
   createDefaultDocumentWorkflowSession,
   documentWorkflowSessionActions,
 } from '../domains/document/documentWorkflowSessionRuntime.js'
-import { documentWorkflowResolvedStateActions } from '../domains/document/documentWorkflowResolvedStateRuntime.js'
+import { documentWorkflowResolvedStateActions } from './documentWorkflowResolvedStateActions.js'
 import { openLocalPath } from '../services/localFileOpen.js'
 import { mutateDocumentWorkspacePreview } from '../services/documentWorkflow/workspacePreviewBridge.js'
 

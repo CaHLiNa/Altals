@@ -1,0 +1,43 @@
+function stableContentFingerprint(value = '') {
+  const text = String(value || '')
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${text.length}:${(hash >>> 0).toString(16)}`
+}
+
+export function buildResolvedMarkdownDraftProblemsKey(request = {}) {
+  return JSON.stringify({
+    sourcePath: String(request.sourcePath || ''),
+    fingerprint: stableContentFingerprint(request.content),
+  })
+}
+
+export function buildResolvedWorkspacePreviewStateKey(request = {}) {
+  return JSON.stringify({
+    path: String(request.path || ''),
+    sourcePath: String(request.sourcePath || ''),
+    workflowKind: String(request.workflowKind || ''),
+    workflowPreviewKind: String(request.workflowPreviewKind || ''),
+    previewKind: String(request.previewKind || ''),
+    resolvedTargetPath: String(request.resolvedTargetPath || ''),
+    targetResolution: String(request.targetResolution || ''),
+    hiddenByUser: request.hiddenByUser === true,
+    previewRequested: request.previewRequested === true,
+    artifactReady: request.artifactReady === true,
+  })
+}
+
+export function buildResolvedWorkflowUiStateKey(request = {}) {
+  return JSON.stringify({
+    filePath: String(request.filePath || ''),
+    artifactPath: String(request.artifactPath || ''),
+    previewState: request.previewState || null,
+    markdownState: request.markdownState || null,
+    latexState: request.latexState || null,
+    pythonState: request.pythonState || null,
+    queueState: request.queueState || null,
+  })
+}

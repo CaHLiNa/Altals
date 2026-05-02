@@ -136,7 +136,6 @@ Current `src/domains/**` modules with service dependencies:
 | `src/domains/document/documentWorkflowActionRuntime.js` | `src/services/documentWorkflow/actionRuntimeBridge.js` | Move bridge call orchestration back to store/service; keep only action presentation in domain. |
 | `src/domains/document/documentWorkflowBuildRuntime.js` | `src/services/documentWorkflow/adapters/index.js` | Split backend workflow adapter calls from pure build-state derivation. |
 | `src/domains/document/documentWorkflowRuntime.js` | `src/services/documentWorkflow/controllerBridge.js` | Store should orchestrate controller execution; domain should derive UI policy only. |
-| `src/domains/document/documentWorkflowResolvedStateRuntime.js` | workflow UI/preview state bridges and Markdown runtime bridge | Move Rust-backed resolution calls to service/store; keep display state transformation pure. |
 | `src/domains/document/documentWorkflowSessionRuntime.js` | path existence, session state bridge, workflow policy service | Move persistence/path checks behind Rust/service calls owned by store orchestration. |
 
 No `src/domains/**` file currently imports `@tauri-apps/**` directly.
@@ -214,6 +213,7 @@ Components over 500 lines:
 - 2026-05-02: `src/stores/python.js` no longer normalizes raw Python runtime command DTOs itself. `src/services/pythonRuntime.js` now adapts `python_runtime_list`, `python_runtime_detect`, and `python_runtime_compile` responses into stable frontend DTOs, while Rust `src-tauri/src/python_runtime.rs` remains the runtime discovery and execution authority and the Pinia store keeps compile UI state only.
 - 2026-05-02: `src/services/latex/runtime.js` now normalizes `latex_runtime_compile_execute` responses into a stable bridge DTO with camelCase aliases while preserving Rust result fields. `src/stores/latex.js` consumes the adapted compile result for PDF refresh metadata and keeps compile UI orchestration, with compile execution and diagnostics still owned by Rust.
 - 2026-05-02: Frontend PDF SyncTeX no longer reads or parses `.synctex` content through the removed LaTeXWorkshop JS fallback. `src/services/pdf/artifactPreview.js` now delegates forward/backward SyncTeX to Rust commands only, and `src-tauri/src/latex.rs` owns CLI execution plus parser fallback for SyncTeX files under the workspace scope.
+- 2026-05-02: `src/domains/document/documentWorkflowResolvedStateRuntime.js` was split so pure resolved-state cache keys live in `src/domains/document/documentWorkflowResolvedStateKeys.js`, while Rust-backed Markdown/workflow/preview resolution calls and Pinia inflight cache coordination live in `src/stores/documentWorkflowResolvedStateActions.js`.
 
 ## Phase 1 Verification Targets
 

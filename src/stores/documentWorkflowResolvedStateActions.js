@@ -1,24 +1,16 @@
-import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../../services/documentWorkflow/workflowUiStateBridge.js'
-import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../../services/documentWorkflow/workspacePreviewStateBridge.js'
-import { extractMarkdownDraftProblems } from '../../services/markdown/runtimeBridge.js'
-
-function stableContentFingerprint(value = '') {
-  const text = String(value || '')
-  let hash = 2166136261
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return `${text.length}:${(hash >>> 0).toString(16)}`
-}
+import {
+  buildResolvedMarkdownDraftProblemsKey,
+  buildResolvedWorkspacePreviewStateKey,
+  buildResolvedWorkflowUiStateKey,
+} from '../domains/document/documentWorkflowResolvedStateKeys.js'
+import { resolveDocumentWorkflowUiState as resolveDocumentWorkflowUiStateFromBackend } from '../services/documentWorkflow/workflowUiStateBridge.js'
+import { resolveDocumentWorkspacePreviewState as resolveDocumentWorkspacePreviewStateFromBackend } from '../services/documentWorkflow/workspacePreviewStateBridge.js'
+import { extractMarkdownDraftProblems } from '../services/markdown/runtimeBridge.js'
 
 export const documentWorkflowResolvedStateActions = {
-  buildResolvedMarkdownDraftProblemsKey(request = {}) {
-    return JSON.stringify({
-      sourcePath: String(request.sourcePath || ''),
-      fingerprint: stableContentFingerprint(request.content),
-    })
-  },
+  buildResolvedMarkdownDraftProblemsKey,
+  buildResolvedWorkspacePreviewStateKey,
+  buildResolvedWorkflowUiStateKey,
 
   getResolvedMarkdownDraftProblems(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
@@ -82,21 +74,6 @@ export const documentWorkflowResolvedStateActions = {
     return null
   },
 
-  buildResolvedWorkspacePreviewStateKey(request = {}) {
-    return JSON.stringify({
-      path: String(request.path || ''),
-      sourcePath: String(request.sourcePath || ''),
-      workflowKind: String(request.workflowKind || ''),
-      workflowPreviewKind: String(request.workflowPreviewKind || ''),
-      previewKind: String(request.previewKind || ''),
-      resolvedTargetPath: String(request.resolvedTargetPath || ''),
-      targetResolution: String(request.targetResolution || ''),
-      hiddenByUser: request.hiddenByUser === true,
-      previewRequested: request.previewRequested === true,
-      artifactReady: request.artifactReady === true,
-    })
-  },
-
   getResolvedWorkspacePreviewState(filePath, request = {}) {
     const normalizedPath = String(filePath || '')
     if (!normalizedPath) return null
@@ -116,18 +93,6 @@ export const documentWorkflowResolvedStateActions = {
         state,
       },
     }
-  },
-
-  buildResolvedWorkflowUiStateKey(request = {}) {
-    return JSON.stringify({
-      filePath: String(request.filePath || ''),
-      artifactPath: String(request.artifactPath || ''),
-      previewState: request.previewState || null,
-      markdownState: request.markdownState || null,
-      latexState: request.latexState || null,
-      pythonState: request.pythonState || null,
-      queueState: request.queueState || null,
-    })
   },
 
   getResolvedWorkflowUiState(filePath, request = {}) {
