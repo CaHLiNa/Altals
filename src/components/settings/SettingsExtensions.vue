@@ -258,7 +258,23 @@ const settingGroupDefinitions = [
     id: 'model',
     titleKey: 'Model Access',
     hintKey: 'Host-managed model, endpoint, and secure credential values.',
-    keys: ['apiKey', 'apiUrl', 'model'],
+    keys: [
+      'modelBaseUrl',
+      'apiUrl',
+      'baseUrl',
+      'endpoint',
+      'modelApiKey',
+      'apiKey',
+      'model',
+      'modelName',
+      'mineruToken',
+      'mineru',
+      'paddleToken',
+      'paddleOcrToken',
+      'paddleocrToken',
+      'paddleOcr',
+      'paddleocr',
+    ],
     match: (key) => {
       const normalized = shortSettingKey(key).toLowerCase()
       return normalized.includes('api') ||
@@ -304,17 +320,38 @@ function settingEntries(extension = {}) {
   return Object.entries(extension.settingsSchema || {})
 }
 
+function settingSortAliases(key = '') {
+  const shortKey = shortSettingKey(key)
+  const normalized = shortKey.toLowerCase()
+  const aliases = [String(key || ''), shortKey]
+  if (normalized.includes('baseurl') || normalized.includes('apiurl') || normalized.includes('endpoint')) {
+    aliases.push('modelBaseUrl')
+  }
+  if ((normalized.includes('apikey') || normalized.includes('api_key')) &&
+    !normalized.includes('mineru') &&
+    !normalized.includes('paddle')) {
+    aliases.push('apiKey')
+  }
+  if (normalized === 'model' || normalized.includes('modelname')) aliases.push('model')
+  if (normalized.includes('mineru')) aliases.push('mineru')
+  if (normalized.includes('paddleocr') || normalized.includes('paddle')) aliases.push('paddleocr')
+  return aliases
+}
+
 function sortSettingEntries(entries = [], orderedKeys = []) {
   const order = new Map(orderedKeys.map((key, index) => [key, index]))
+  const sourceOrder = new Map(entries.map(([key], index) => [key, index]))
+  const orderFor = (key = '') => {
+    for (const alias of settingSortAliases(key)) {
+      if (order.has(alias)) return order.get(alias)
+    }
+    return Number.MAX_SAFE_INTEGER
+  }
   return [...entries].sort(([left], [right]) => {
-    const leftOrder = order.has(left) ? order.get(left) : Number.MAX_SAFE_INTEGER
-    const leftShort = shortSettingKey(left)
-    const rightShort = shortSettingKey(right)
-    const normalizedLeftOrder = order.has(leftShort) ? order.get(leftShort) : leftOrder
-    const rightOrder = order.has(right) ? order.get(right) : Number.MAX_SAFE_INTEGER
-    const normalizedRightOrder = order.has(rightShort) ? order.get(rightShort) : rightOrder
+    const normalizedLeftOrder = orderFor(left)
+    const normalizedRightOrder = orderFor(right)
     if (normalizedLeftOrder !== normalizedRightOrder) return normalizedLeftOrder - normalizedRightOrder
-    return left.localeCompare(right)
+    return (sourceOrder.get(left) ?? 0) - (sourceOrder.get(right) ?? 0)
   })
 }
 
