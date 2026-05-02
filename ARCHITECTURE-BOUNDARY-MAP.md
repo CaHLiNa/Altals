@@ -14,6 +14,32 @@
 | `src/services` | Tauri/plugin bridge, native event subscription, DTO mapping | Long-lived business state, backend policy, duplicate frontend backend centers |
 | `src-tauri/src` | Filesystem, workspace access, persistence, normalization, imports, runtime execution, plugins, security | UI rendering and transient screen layout state |
 
+Canonical layer shorthand used in repository docs:
+
+| Layer | Responsibility |
+| --- | --- |
+| Vue UI | render surfaces, receive props, emit user intent, show loading/error/empty states |
+| JS bridge | `src/services` wraps Tauri commands, plugins, native events and DTO compatibility |
+| Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
+| JS domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
+| Rust runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
+
+Allowed/disallowed examples:
+
+- Allowed: `ReferenceDetailPanel.vue` maintains local draft fields and emits save intent; `src/stores/references.js` calls `referenceRuntime.applyMutation`; Rust validates, normalizes and persists the resulting reference.
+- Disallowed: Vue components write normalized reference records directly.
+- Allowed: a service wrapper invokes a Rust command such as `references_mutation_apply` and maps frontend camelCase DTO fields to the command payload.
+- Disallowed: a service wrapper owns reference merge policy, workspace security, plugin host lifecycle, or persisted settings schema decisions.
+- Allowed: a store performs optimistic UI updates only when Rust returns a normalized final state afterward.
+- Disallowed: a store parses files, validates filesystem authority, executes LaTeX/Python runtime work, or becomes a replacement backend.
+
+Command contract:
+
+- Tauri command name, parameter shape, response JSON shape, store action contract, and persisted state shape are compatibility boundaries.
+- Any command payload shape change must update Rust command handling, JS bridge DTO mapping, store call sites, and regression verification in the same commit.
+- Existing command names should not be renamed during cleanup unless a dedicated compatibility phase is added.
+- Compatibility shims must be explicit and scheduled for removal when they are not required by persisted data or stable bridge contracts.
+
 ## Editor Freeze
 
 These files are frozen during global module reorganization unless a separate editor phase is explicitly approved:

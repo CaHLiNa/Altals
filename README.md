@@ -94,6 +94,29 @@ npm run test:rust
 
 Frontend layers should not import Tauri APIs directly. Tauri `invoke`, Tauri plugin access and native event bridges belong in `src/services`.
 
+Layer contract:
+
+| Layer | Responsibility |
+| --- | --- |
+| Vue UI | render surfaces, emit user intent, show loading/error/empty states |
+| JS bridge | wrap Tauri commands, plugins, native events and DTO compatibility in `src/services` |
+| Pinia coordination | coordinate screen state and service calls in `src/stores` |
+| JS domains | keep pure presentation rules, labels, sorting and deterministic state derivation in `src/domains` |
+| Rust runtime | own filesystem, workspace state, references, runtime execution, persistence, plugins and security in `src-tauri/src` |
+
+Boundary examples:
+
+- Allowed: a reference detail component edits a local draft and asks the references store to save it; the store calls a service; Rust validates, normalizes and persists the record.
+- Disallowed: a Vue component or service performs reference merge policy that should be Rust-owned.
+- Allowed: a service maps frontend camelCase DTOs to a stable Rust command payload.
+- Disallowed: a store validates workspace path authority or executes runtime work that should be Rust-owned.
+
+Command payload changes must update the Rust command, JS bridge, store call sites and regression verification together.
+
+Editor core is frozen during global module reorganization. Do not edit `src/editor/**`, the core editor Vue surfaces, `src/stores/editor.js`, `src/services/editorPersistence.js` or `src-tauri/src/editor_session_runtime.rs` unless a separate editor-specific phase is approved.
+
+See `ARCHITECTURE-BOUNDARY-MAP.md` for the current boundary inventory and known cleanup debt.
+
 ## Release
 
 The repository includes `.github/workflows/release-installers.yml` for desktop installer builds.

@@ -40,6 +40,36 @@ ScribeFlow 是本地优先的桌面学术研究工作台。主路径是：
 - 不新增第二套 frontend backend center。
 - 不恢复旧 migration / localStorage / per-workspace historical data paths，除非用户明确要求做数据救援。
 
+Canonical layer table:
+
+| Layer | 责任 |
+| --- | --- |
+| Vue UI | render surfaces, receive props, emit user intent, show loading/error/empty states |
+| JS bridge | `src/services` wraps Tauri commands, plugins, native events and DTO compatibility |
+| Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
+| JS domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
+| Rust runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
+
+允许/禁止示例：
+
+- 允许：`ReferenceDetailPanel.vue` 维护表单 draft 并发出 save intent，`references.js` 调用 `referenceRuntime.applyMutation`，Rust 校验、normalize 并持久化。
+- 禁止：Vue component 直接写入 normalized reference records 或自己决定 merge policy。
+- 允许：service wrapper 调用 `references_mutation_apply` 并做 camelCase DTO compatibility。
+- 禁止：service wrapper 执行应由 Rust 拥有的 reference merge、workspace security 或 persisted schema policy。
+- 允许：Pinia store 在 Rust 返回 normalized result 后更新 UI state。
+- 禁止：Pinia store 自己成为 filesystem、reference、LaTeX/Python 或 plugin host backend。
+
+Tauri command contract：
+
+- 改 command 名称、参数 shape、返回 JSON shape、store action contract 或 persisted state shape，必须同一 commit 更新 bridge、store 调用和回归验证。
+- 没有 dedicated compatibility phase，不重命名现有 Tauri commands。
+- 需要兼容历史 persisted data 时，在 Rust 或 service DTO adapter 中显式写明 compatibility 边界。
+
+Editor freeze：
+
+- 全局模块整理期间不编辑 `src/editor/**`、`src/components/editor/TextEditor.vue`、`src/components/editor/EditorPane.vue`、`src/components/editor/EditorTextRouteSurface.vue`、`src/components/editor/EditorTextWorkspaceSurface.vue`、`src/components/editor/PaneContainer.vue`、`src/composables/useTextEditorBridges.js`、`src/stores/editor.js`、`src/services/editorPersistence.js`、`src-tauri/src/editor_session_runtime.rs`。
+- editor 相关改动必须开独立 editor-specific phase，并先说明 cursor、selection、reveal、scroll、session payload 和 event timing 的验证方式。
+
 ## Rust-first 开发纪律
 
 - 优先保持桌面主路径可运行。

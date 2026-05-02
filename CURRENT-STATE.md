@@ -48,6 +48,16 @@ Current desktop paths:
 - `src/stores`: Pinia coordination state
 - `src-tauri/src`: Rust runtime authority for filesystem, workspace access, sessions, preferences, references, LaTeX, Python, extensions and updates
 
+Canonical layer table:
+
+| Layer | Responsibility |
+| --- | --- |
+| Vue UI | render product surfaces, receive props, emit user intent, show loading/error/empty states |
+| JS bridge | `src/services` wraps Tauri commands, plugins, native events and DTO compatibility |
+| Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
+| JS domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
+| Rust runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
+
 Boundary rules:
 
 - Vue components, stores, domains and composables do not import Tauri APIs directly.
@@ -57,6 +67,16 @@ Boundary rules:
 - Rust manifest validation enforces the single-container right-sidebar contract for normal plugins.
 - Vue owns plugin prompt rendering, plugin sidebar rendering, command palette integration and runtime event presentation through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
+- `src/domains` must not gain native bridge, persistence, filesystem or process authority; existing document/editor domain service imports are recorded as cleanup debt in `ARCHITECTURE-BOUNDARY-MAP.md`.
+- Tauri command payload shape changes must update Rust command handling, JS bridge DTO mapping, store call sites and regression verification in the same commit.
+- Editor core changes require a separate editor-specific phase; global module cleanup must not alter cursor, selection, reveal, scroll, CodeMirror behavior, editor session payloads or editor event timing.
+
+Allowed/disallowed examples:
+
+- Allowed: `ReferenceDetailPanel.vue` edits local draft state, `references.js` sends one mutation request through `referenceRuntime`, and Rust validates, normalizes and persists the reference.
+- Disallowed: Vue components write normalized reference records directly or duplicate Rust-owned merge policy.
+- Allowed: a service wrapper invokes a Tauri command and maps camelCase DTOs.
+- Disallowed: a service wrapper becomes the policy owner for workspace security, reference merging, plugin host lifecycle or persisted settings schema.
 
 Plugin architecture direction:
 
