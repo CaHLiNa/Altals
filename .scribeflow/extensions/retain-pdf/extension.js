@@ -76,7 +76,6 @@ function boolSetting(context, key = "", fallback = false) {
 function collectSettings(context) {
   return {
     apiBaseUrl: String(setting(context, "apiBaseUrl", "http://127.0.0.1:41000")),
-    apiKey: String(setting(context, "apiKey", "")),
     ocrProvider: String(setting(context, "ocrProvider", "mineru")),
     mineruToken: String(setting(context, "mineruToken", "")),
     paddleToken: String(setting(context, "paddleToken", "")),
@@ -93,14 +92,12 @@ function collectSettings(context) {
 
 function splitWorkerSettings(settings = {}) {
   const publicSettings = { ...settings }
-  delete publicSettings.apiKey
   delete publicSettings.mineruToken
   delete publicSettings.paddleToken
   delete publicSettings.modelApiKey
   return {
     publicSettings,
     secretEnv: {
-      RETAIN_PDF_API_KEY: String(settings.apiKey || ""),
       RETAIN_PDF_MINERU_TOKEN: String(settings.mineruToken || ""),
       RETAIN_PDF_PADDLE_TOKEN: String(settings.paddleToken || ""),
       RETAIN_PDF_MODEL_API_KEY: String(settings.modelApiKey || ""),
@@ -115,18 +112,15 @@ function settingStatus(context) {
     ? Boolean(settings.paddleToken.trim())
     : Boolean(settings.mineruToken.trim())
   const modelConfigured = Boolean(settings.modelApiKey.trim())
-  const apiConfigured = Boolean(settings.apiKey.trim())
   return {
     provider,
     ocrConfigured,
     modelConfigured,
-    apiConfigured,
     ready: ocrConfigured && modelConfigured,
     summary: [
       provider,
       ocrConfigured ? tr(context, "runtime.ocrTokenConfigured") : tr(context, "runtime.ocrTokenMissing"),
       modelConfigured ? tr(context, "runtime.modelKeyConfigured") : tr(context, "runtime.modelKeyMissing"),
-      apiConfigured ? tr(context, "runtime.apiKeyConfigured") : tr(context, "runtime.apiKeyEmpty"),
     ].join(" · "),
   }
 }

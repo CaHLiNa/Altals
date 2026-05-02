@@ -130,13 +130,6 @@
           "title": "%setting.apiBaseUrl.title%",
           "description": "%setting.apiBaseUrl.description%"
         },
-        "retainPdf.apiKey": {
-          "type": "string",
-          "default": "",
-          "title": "%setting.apiKey.title%",
-          "description": "%setting.apiKey.description%",
-          "secureStorage": true
-        },
         "retainPdf.ocrProvider": {
           "type": "string",
           "default": "mineru",

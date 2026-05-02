@@ -217,15 +217,6 @@ try {
     warnings: [],
     errors: [],
     settingsSchema: {
-      'retainPdf.apiKey': {
-        key: 'retainPdf.apiKey',
-        type: 'string',
-        default: '',
-        label: 'RetainPDF API 密钥',
-        description: 'RetainPDF Rust API 使用的 X-API-Key 密钥。',
-        secureStorage: true,
-        options: [],
-      },
       'retainPdf.modelBaseUrl': {
         key: 'retainPdf.modelBaseUrl',
         type: 'string',
@@ -233,6 +224,15 @@ try {
         label: '模型 API 地址',
         description: 'RetainPDF 翻译时使用的 OpenAI 兼容模型 API 地址。',
         secureStorage: false,
+        options: [],
+      },
+      'retainPdf.modelApiKey': {
+        key: 'retainPdf.modelApiKey',
+        type: 'string',
+        default: '',
+        label: '模型 API 密钥',
+        description: '翻译模型服务的 API 密钥。',
+        secureStorage: true,
         options: [],
       },
       'retainPdf.developerMode': {
@@ -330,12 +330,13 @@ try {
   extensions.runtimeRegistry = {}
 
   const localizedHtml = await renderCurrentState()
-  assert.match(localizedHtml, /RetainPDF API 密钥/)
   assert.match(localizedHtml, /模型 API 地址/)
+  assert.match(localizedHtml, /模型 API 密钥/)
   assert.match(localizedHtml, /开发者模式/)
   assert.match(localizedHtml, /钥匙串/)
   assert.match(localizedHtml, /由主程序管理模型、接口地址和安全凭据。/)
   assert.match(localizedHtml, /不常用的插件专属选项。/)
+  assert.doesNotMatch(localizedHtml, /RetainPDF API 密钥/)
   assert.doesNotMatch(localizedHtml, />apiKey</)
   assert.doesNotMatch(localizedHtml, />modelBaseUrl</)
   assert.doesNotMatch(localizedHtml, />developerMode</)
@@ -350,8 +351,8 @@ try {
       blockedUsesSharedButtonLabel: blockedHtml.includes('>Blocked<'),
       readyKeepsStatusPill: readyHtml.includes('extension-status-pill'),
       readyActionLabel: readyHtml.includes('Run Summarize document'),
-      localizedSettingTitles: localizedHtml.includes('RetainPDF API 密钥') &&
-        localizedHtml.includes('模型 API 地址') &&
+      localizedSettingTitles: localizedHtml.includes('模型 API 地址') &&
+        localizedHtml.includes('模型 API 密钥') &&
         localizedHtml.includes('开发者模式'),
       localizedSecureBadge: localizedHtml.includes('钥匙串'),
     },

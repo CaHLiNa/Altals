@@ -187,7 +187,6 @@ async function main() {
   const activationState = {
     settings: {
       'retainPdf.apiBaseUrl': 'http://127.0.0.1:41000',
-      'retainPdf.apiKey': 'backend-key',
       'retainPdf.ocrProvider': 'mineru',
       'retainPdf.mineruToken': 'mineru-token',
       'retainPdf.modelBaseUrl': 'https://api.deepseek.com/v1',
@@ -242,7 +241,7 @@ async function main() {
   ensure(!Object.hasOwn(writtenSettings, 'paddleToken'), 'RetainPDF worker settings leaked paddleToken to disk', writtenSettings)
   ensure(!Object.hasOwn(writtenSettings, 'modelApiKey'), 'RetainPDF worker settings leaked modelApiKey to disk', writtenSettings)
   const spawnEnv = spawnEnvPayloads[0] || {}
-  ensure(spawnEnv.RETAIN_PDF_API_KEY === 'backend-key', 'RetainPDF worker api key was not passed through process env', spawnEnv)
+  ensure(!Object.hasOwn(spawnEnv, 'RETAIN_PDF_API_KEY'), 'RetainPDF backend api key should be inherited by backend runtime, not passed from user settings', spawnEnv)
   ensure(spawnEnv.RETAIN_PDF_MINERU_TOKEN === 'mineru-token', 'RetainPDF worker OCR token was not passed through process env', spawnEnv)
   ensure(spawnEnv.RETAIN_PDF_MODEL_API_KEY === 'model-key', 'RetainPDF worker model key was not passed through process env', spawnEnv)
 
