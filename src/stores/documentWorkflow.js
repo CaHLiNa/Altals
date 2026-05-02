@@ -11,7 +11,7 @@ import {
   isDocumentWorkflowSource,
 } from '../services/documentWorkflow/policy.js'
 import { getDocumentAdapterByKind } from '../services/documentWorkflow/adapters/index.js'
-import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
+import { createDocumentWorkflowRuntime } from './documentWorkflowRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from './documentWorkflowActionRuntime.js'

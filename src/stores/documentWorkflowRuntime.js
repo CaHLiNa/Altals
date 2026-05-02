@@ -1,4 +1,4 @@
-import { executeDocumentWorkflowController } from '../../services/documentWorkflow/controllerBridge.js'
+import { executeDocumentWorkflowController } from '../services/documentWorkflow/controllerBridge.js'
 
 function normalizeBinding(binding = null) {
   if (!binding || typeof binding !== 'object') return null
