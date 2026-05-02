@@ -178,7 +178,7 @@ Components over 500 lines:
 | `src/stores/documentWorkflow.js` | 339 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
 | `src/stores/editor.js` | 579 | Frozen editor shell/session state | Do not edit during this reorganization. |
 | `src/stores/extensionWindowUi.js` | 82 | Extension prompt window UI state | Low; keep UI-only. |
-| `src/stores/extensions.js` | 1724 | Extension registry, host state, tasks, prompts, views, commands | High; Phase 7 should extract pure presentation helpers and keep host authority in Rust. |
+| `src/stores/extensions.js` | 1346 | Extension registry, host state, tasks, prompts, views, commands | High; Phase 7 should keep extracting pure presentation helpers and keep host authority in Rust. |
 | `src/stores/files.js` | 949 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
 | `src/stores/latex.js` | 924 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
 | `src/stores/links.js` | 334 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
@@ -214,6 +214,10 @@ Components over 500 lines:
 - 2026-05-02: Document workflow controller orchestration moved from `src/domains/document/documentWorkflowRuntime.js` to `src/stores/documentWorkflowRuntime.js`, so Rust controller invocation and editor pane mutation no longer live in the pure domain layer.
 - 2026-05-02: Document workflow build context orchestration moved from `src/domains/document/documentWorkflowBuildRuntime.js` to `src/stores/documentWorkflowBuildRuntime.js`; the pure status-tone helper remains in `src/domains/document/documentWorkflowStatusTone.js`.
 - 2026-05-02: Document workflow session persistence, preview binding mutation, LaTeX artifact reconciliation, and workspace preview request state moved from `src/domains/document/documentWorkflowSessionRuntime.js` to `src/stores/documentWorkflowSessionRuntime.js`. After this move, non-editor `src/domains/document/**` modules no longer import services or stores.
+
+## Extension Runtime Cleanup Log
+
+- 2026-05-02: `src/stores/extensions.js` no longer carries extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers inline. The pure helpers now live in `src/domains/extensions/extensionStoreState.js`; the Pinia store keeps service orchestration, host activation, command/capability dispatch, prompt recovery, and UI state coordination.
 
 ## Phase 1 Verification Targets
 

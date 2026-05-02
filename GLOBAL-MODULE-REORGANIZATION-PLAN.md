@@ -502,6 +502,10 @@ git commit -m "refactor: clarify document runtime boundaries"
 - [ ] Keep extension runtime probes green after each change.
 - [ ] Do not merge extension cleanup with reference or editor changes.
 
+**Progress notes:**
+
+- 2026-05-02: Moved extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers from `src/stores/extensions.js` into `src/domains/extensions/extensionStoreState.js`. The store still owns Pinia/service orchestration, so Phase 7 remains open for further command/view presentation cleanup.
+
 **Verification:**
 
 Run all extension probes if extension boundary behavior changes:
