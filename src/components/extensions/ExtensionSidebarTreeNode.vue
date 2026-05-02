@@ -26,22 +26,28 @@
         <span v-if="item.icon" class="extension-tree-node__icon">{{ item.icon }}</span>
         <span class="extension-tree-node__label">{{ item.label }}</span>
         <span v-if="item.description" class="extension-tree-node__meta">{{ item.description }}</span>
-        <span v-if="primaryBlocked" class="extension-tree-node__blocked-label">{{ blockedLabel }}</span>
+        <ExtensionBlockedStatusChip
+          v-if="primaryBlocked"
+          :label="blockedLabel"
+          :title="blockedMessage"
+          :tone-class="blockPresentation.toneClass"
+          compact
+        />
       </button>
 
       <div v-if="itemActions.length > 0" class="extension-tree-node__actions">
-        <button
+        <ExtensionBlockedActionButton
           v-for="action in itemActions"
           :key="`${action.extensionId}:${action.commandId}:${item.id}`"
-          type="button"
-          class="extension-tree-node__action"
-          :class="{ 'extension-tree-node__action--blocked': secondaryBlocked(action) }"
-          :title="secondaryBlocked(action) ? blockedMessage : ''"
-          :disabled="secondaryBlocked(action)"
+          native
+          :extra-class="['extension-tree-node__action', secondaryBlocked(action) ? 'extension-tree-node__action--blocked' : '']"
+          :blocked="secondaryBlocked(action)"
+          :blocked-label="blockedLabel"
+          :blocked-message="blockedMessage"
+          :label="t(action.title || action.commandId)"
+          :title="t(action.title || action.commandId)"
           @click.stop="$emit('run-item-action', action)"
-        >
-          {{ secondaryBlocked(action) ? blockedLabel : t(action.title || action.commandId) }}
-        </button>
+        />
       </div>
     </div>
 
@@ -69,6 +75,8 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
+import ExtensionBlockedStatusChip from './ExtensionBlockedStatusChip.vue'
 
 defineOptions({ name: 'ExtensionSidebarTreeNode' })
 
@@ -212,12 +220,6 @@ function secondaryBlocked(action = {}) {
 .extension-tree-node__meta {
   color: var(--text-muted);
   font-size: 11px;
-}
-
-.extension-tree-node__blocked-label {
-  color: color-mix(in srgb, var(--warning) 78%, var(--text-primary));
-  font-size: 10px;
-  font-weight: 600;
 }
 
 .extension-tree-node__actions {

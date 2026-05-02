@@ -52,11 +52,12 @@
           <div class="command-palette-row-meta">
             <span
               v-if="entry.hostState.blocked"
-              class="command-palette-status-pill"
-              :class="entry.hostState.tone"
-              :title="entry.hostMessage"
             >
-              {{ entry.hostLabel }}
+              <ExtensionBlockedStatusChip
+                :label="entry.hostLabel"
+                :title="entry.hostMessage"
+                :tone-class="entry.hostState.tone"
+              />
             </span>
             <span class="command-palette-id">{{ entry.command.commandId }}</span>
           </div>
@@ -80,6 +81,7 @@ import { useExtensionHostStatusPresentation } from '../../composables/useExtensi
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import ExtensionBlockedStatusChip from './ExtensionBlockedStatusChip.vue'
 import ExtensionHostStatusSurface from './ExtensionHostStatusSurface.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
@@ -343,27 +345,6 @@ function handleInputKeydown(event) {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.command-palette-status-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: color-mix(in srgb, var(--surface-hover) 82%, transparent);
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.command-palette-status-pill.is-warning {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-}
-
-.command-palette-status-pill.is-blocked {
-  background: color-mix(in srgb, var(--error) 16%, transparent);
-  color: color-mix(in srgb, var(--error) 78%, var(--text-primary));
 }
 
 .command-palette-id {
