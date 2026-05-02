@@ -9,24 +9,14 @@
     @close="close"
   >
     <div class="command-palette-shell">
-      <div
+      <ExtensionHostStatusSurface
         v-if="hostRecoveryAction.available"
-        class="command-palette-recovery"
-        :class="activeHostStatusPresentation.toneClass"
-      >
-        <div class="command-palette-recovery__copy">
-          {{ activeHostStatusPresentation.description }}
-        </div>
-        <UiButton
-          variant="ghost"
-          size="sm"
-          :disabled="hostRecoveryAction.busy"
-          :title="hostRecoveryAction.title"
-          @click="void triggerHostRecoveryAction()"
-        >
-          {{ hostRecoveryAction.label }}
-        </UiButton>
-      </div>
+        :description="activeHostStatusPresentation.description"
+        :tone-class="activeHostStatusPresentation.toneClass"
+        :recovery-action="hostRecoveryAction"
+        compact
+        @recover="void triggerHostRecoveryAction()"
+      />
 
       <div class="command-palette-search">
         <UiInput
@@ -90,6 +80,7 @@ import { useExtensionHostStatusPresentation } from '../../composables/useExtensi
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import ExtensionHostStatusSurface from './ExtensionHostStatusSurface.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
@@ -265,27 +256,6 @@ function handleInputKeydown(event) {
   min-height: 0;
   max-height: min(560px, calc(100vh - 140px));
   flex-direction: column;
-}
-
-.command-palette-recovery {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface-base));
-}
-
-.command-palette-recovery.is-blocked {
-  background: color-mix(in srgb, var(--error) 7%, var(--surface-base));
-}
-
-.command-palette-recovery__copy {
-  min-width: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .command-palette-search {

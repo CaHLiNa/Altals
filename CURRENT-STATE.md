@@ -117,6 +117,7 @@ Current plugin lifecycle contract:
 - host-status surface presentation is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery copy all derive badge/title/description/tone/recovery-owner fields from one shared host-status descriptor instead of each surface maintaining its own blocked-versus-waiting wording
 - host-status surface translation/recovery orchestration is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery now all derive translated badge/title/description/summary text plus prompt-recovery owner wiring from one shared presentation/composable layer instead of each surface hand-assembling summary strings and recovery bindings
 - host-status recovery action contract is now probe-backed too: those same surfaces also consume the same `available/busy/label/title/trigger` recovery action shape, so cancel-prompt affordances no longer reassemble button state and trigger wiring independently per surface
+- host-status UI shell is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery now render through one shared host-status surface component with compact/full variants and slot-based extension points instead of maintaining three separate DOM/CSS shells
 - runtime-block action presentation is now shared too: command buttons, sidebar header actions, tree-item actions, result-preview actions, and command-palette row pills all derive the same blocked/waiting label and message rendering from one shared presentation helper instead of each surface manually translating `labelKey/messageKey`
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
@@ -162,6 +163,7 @@ It runs:
 - `npm run probe:extension-host-status-surface-contract`
 - `npm run probe:extension-host-status-presentation-contract`
 - `npm run probe:extension-host-status-recovery-action-contract`
+- `npm run probe:extension-host-status-surface-component-contract`
 - `npm run probe:extension-runtime-block-presentation-contract`
 - `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
@@ -238,6 +240,7 @@ Current baseline:
 - extension host-status surface contract probe passes
 - extension host-status presentation contract probe passes
 - extension host-status recovery action contract probe passes
+- extension host-status surface component contract probe passes
 - extension runtime-block presentation contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes

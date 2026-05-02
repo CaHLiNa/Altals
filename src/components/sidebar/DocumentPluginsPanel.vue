@@ -22,26 +22,15 @@
         <div v-if="targetSummary" class="document-plugin-page__target">
           {{ targetSummary }}
         </div>
-        <div v-if="hostDiagnosticSummary" class="document-plugin-page__diagnostics" :class="hostDiagnosticToneClass">
-          <div class="document-plugin-page__diagnostics-header">
-            <div class="document-plugin-page__diagnostics-title">
-              {{ t('Host Runtime') }}
-            </div>
-            <button
-              v-if="recoveryAction.available"
-              type="button"
-              class="document-plugin-page__diagnostics-action"
-              :disabled="recoveryAction.busy"
-              :title="recoveryAction.title"
-              @click="void triggerRecoveryAction()"
-            >
-              {{ recoveryAction.label }}
-            </button>
-          </div>
-          <div class="document-plugin-page__diagnostics-copy">
-            {{ hostDiagnosticSummary }}
-          </div>
-        </div>
+        <ExtensionHostStatusSurface
+          v-if="hostDiagnosticSummary"
+          :title="t('Host Runtime')"
+          :description="hostDiagnosticSummary"
+          :tone-class="hostDiagnosticToneClass"
+          :recovery-action="recoveryAction"
+          compact
+          @recover="void triggerRecoveryAction()"
+        />
       </div>
 
       <div class="document-plugin-page__content">
@@ -70,6 +59,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
+import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
 
@@ -221,68 +211,6 @@ const hostDiagnosticToneClass = computed(() => {
 .document-plugin-page__empty {
   color: var(--text-muted);
   font-size: 11px;
-}
-
-.document-plugin-page__diagnostics {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
-}
-
-.document-plugin-page__diagnostics-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.document-plugin-page__diagnostics.is-active {
-  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
-}
-
-.document-plugin-page__diagnostics.is-info {
-  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
-}
-
-.document-plugin-page__diagnostics.is-warning {
-  border-color: color-mix(in srgb, #d97706 32%, var(--border));
-  background: color-mix(in srgb, #d97706 8%, var(--surface-elevated));
-}
-
-.document-plugin-page__diagnostics-title {
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.document-plugin-page__diagnostics-action {
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.document-plugin-page__diagnostics-action:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.document-plugin-page__diagnostics-copy {
-  color: var(--text-primary);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .document-plugin-page__content {

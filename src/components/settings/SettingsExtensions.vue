@@ -15,48 +15,39 @@
     <section class="settings-group">
       <div class="settings-group-title">{{ t('Extension Host Runtime') }}</div>
       <div class="settings-group-body">
-        <div class="extension-host-runtime-card" :class="hostRuntimeCardToneClass">
-          <div class="extension-host-runtime-card__header">
-            <div class="extension-host-runtime-card__copy">
-              <div class="extension-host-runtime-card__title-row">
-                <div class="extension-host-runtime-card__title">{{ hostRuntimeTitle }}</div>
-                <span class="extension-host-runtime-card__badge">{{ hostRuntimeBadge }}</span>
-              </div>
-              <div class="extension-host-runtime-card__description">
-                {{ hostRuntimeDescription }}
-              </div>
-            </div>
-            <div class="extension-host-runtime-card__actions">
-              <UiButton
-                v-if="showHostRuntimeRestartAction"
-                variant="ghost"
-                size="sm"
-                :disabled="hostRuntimeRestartBusy"
-                @click="void restartHostRuntime()"
-              >
-                {{ hostRuntimeRestartBusy ? t('Restarting...') : t('Restart Runtime') }}
-              </UiButton>
-              <UiButton
-                v-if="hostRecoveryAction.available"
-                variant="ghost"
-                size="sm"
-                :disabled="hostRecoveryAction.busy"
-                :title="hostRecoveryAction.title"
-                @click="void triggerHostRecoveryAction()"
-              >
-                {{ hostRecoveryAction.label }}
-              </UiButton>
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="extensionsStore.loadingRegistry"
-                @click="refreshExtensionRegistry"
-              >
-                {{ t('Refresh Host Status') }}
-              </UiButton>
-            </div>
-          </div>
-          <div class="extension-host-runtime-card__meta">
+        <ExtensionHostStatusSurface
+          :title="hostRuntimeTitle"
+          :badge="hostRuntimeBadge"
+          :description="hostRuntimeDescription"
+          :tone-class="hostRuntimeCardToneClass"
+          :recovery-action="hostRecoveryAction"
+          @recover="void triggerHostRecoveryAction()"
+        >
+          <template #actions-before>
+            <UiButton
+              v-if="showHostRuntimeRestartAction"
+              variant="ghost"
+              size="sm"
+              :disabled="hostRuntimeRestartBusy"
+              @click="void restartHostRuntime()"
+            >
+              {{ hostRuntimeRestartBusy ? t('Restarting...') : t('Restart Runtime') }}
+            </UiButton>
+          </template>
+
+          <template #actions-after>
+            <UiButton
+              variant="secondary"
+              size="sm"
+              :disabled="extensionsStore.loadingRegistry"
+              @click="refreshExtensionRegistry"
+            >
+              {{ t('Refresh Host Status') }}
+            </UiButton>
+          </template>
+
+          <template #meta>
+            <div class="extension-host-runtime-card__meta">
             <div class="extension-host-runtime-card__meta-item">
               <span class="extension-meta-label">{{ t('Runtime') }}</span>
               <span class="extension-meta-value">{{ hostRuntimeName }}</span>
@@ -65,7 +56,9 @@
               <span class="extension-meta-label">{{ t('Pending Prompt Owner') }}</span>
               <span class="extension-meta-value">{{ hostPromptOwnerSummary }}</span>
             </div>
-          </div>
+            </div>
+          </template>
+
           <div class="extension-host-runtime-slots">
             <div class="extension-host-runtime-slots__title">{{ t('Active Runtime Slots') }}</div>
             <div v-if="hostRuntimeSlots.length === 0" class="extension-host-runtime-slots__empty">
@@ -94,7 +87,7 @@
               </UiButton>
             </div>
           </div>
-        </div>
+        </ExtensionHostStatusSurface>
       </div>
     </section>
 
@@ -379,6 +372,7 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
@@ -931,64 +925,6 @@ onMounted(async () => {
 
 .extension-host-runtime-card.is-active {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-}
-
-.extension-host-runtime-card.is-warning {
-  border-color: color-mix(in srgb, #d97706 32%, var(--border));
-  background: color-mix(in srgb, #d97706 8%, var(--surface-base));
-}
-
-.extension-host-runtime-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.extension-host-runtime-card__copy {
-  min-width: 0;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.extension-host-runtime-card__title-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.extension-host-runtime-card__title {
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.extension-host-runtime-card__badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border-radius: 6px;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1;
-}
-
-.extension-host-runtime-card__description {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.extension-host-runtime-card__actions {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .extension-host-runtime-card__meta {
