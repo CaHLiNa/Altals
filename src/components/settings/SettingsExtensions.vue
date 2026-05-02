@@ -378,7 +378,7 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
-import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
+import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
 import {
@@ -856,20 +856,19 @@ const hostPromptOwnerSummary = computed(() => {
   if (!owner?.extensionId) return t('No pending prompt')
   return `${owner.extensionId}@${owner.workspaceRoot || '/'}`
 })
-const hostRuntimeBadge = computed(() => t(hostStatusSurface.value.badgeKey))
-const hostRuntimeTitle = computed(() => t(hostStatusSurface.value.titleKey))
-const hostRuntimeDescription = computed(() =>
-  t(hostStatusSurface.value.descriptionKey, hostStatusSurface.value.descriptionParams)
-)
-const hostRuntimeCardToneClass = computed(() => hostStatusSurface.value.toneClass)
+const {
+  presentation: hostStatusPresentation,
+  promptRecoveryBusy: hostPromptRecoveryBusy,
+  promptRecovery: hostPromptRecovery,
+  cancelPromptRecovery: recoverHostPrompt,
+} = useExtensionHostStatusPresentation(() => hostStatusSurface.value)
+const hostRuntimeBadge = computed(() => hostStatusPresentation.value.badge)
+const hostRuntimeTitle = computed(() => hostStatusPresentation.value.title)
+const hostRuntimeDescription = computed(() => hostStatusPresentation.value.description)
+const hostRuntimeCardToneClass = computed(() => hostStatusPresentation.value.toneClass)
 const showHostPromptRecoveryAction = computed(() =>
   hostPromptRecovery.value.available
 )
-const {
-  busy: hostPromptRecoveryBusy,
-  descriptor: hostPromptRecovery,
-  cancel: recoverHostPrompt,
-} = useExtensionPromptRecovery(() => hostStatusSurface.value.recoveryOwner)
 
 async function restartHostRuntimeSlot(slot = {}) {
   const extensionId = String(slot?.extensionId || '').trim()

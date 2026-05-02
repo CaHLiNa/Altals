@@ -12,10 +12,10 @@
       <div
         v-if="promptRecoveryAvailable"
         class="command-palette-recovery"
-        :class="activeHostStatusSurface?.toneClass"
+        :class="activeHostStatusPresentation.toneClass"
       >
         <div class="command-palette-recovery__copy">
-          {{ activeHostStatusDescription }}
+          {{ activeHostStatusPresentation.description }}
         </div>
         <UiButton
           variant="ghost"
@@ -86,7 +86,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
+import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
@@ -159,16 +159,12 @@ const activeHostStatusSurface = computed(() => {
     blockingPromptWorkspaceRoot: blockedState.blockingPromptWorkspaceRoot || '',
   })
 })
-const activeHostStatusDescription = computed(() => {
-  const surface = activeHostStatusSurface.value
-  if (!surface?.descriptionKey) return ''
-  return t(surface.descriptionKey, surface.descriptionParams)
-})
 const {
-  busy: promptRecoveryBusy,
-  descriptor: promptRecovery,
-  cancel: cancelPromptRecovery,
-} = useExtensionPromptRecovery(() => activeHostStatusSurface.value?.recoveryOwner || null)
+  presentation: activeHostStatusPresentation,
+  promptRecoveryBusy,
+  promptRecovery,
+  cancelPromptRecovery,
+} = useExtensionHostStatusPresentation(() => activeHostStatusSurface.value)
 const promptRecoveryAvailable = computed(() => promptRecovery.value.available)
 const promptRecoveryLabel = computed(() => promptRecovery.value.label)
 const promptRecoveryTitle = computed(() => promptRecovery.value.title)

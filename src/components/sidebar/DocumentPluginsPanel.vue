@@ -66,7 +66,7 @@ import { computed } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
-import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
+import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
@@ -135,6 +135,12 @@ const hostDiagnostics = computed(() =>
 const hostStatusSurface = computed(() =>
   buildExtensionHostStatusSurface(hostDiagnostics.value || {})
 )
+const {
+  presentation: hostStatusPresentation,
+  promptRecoveryBusy,
+  promptRecovery,
+  cancelPromptRecovery,
+} = useExtensionHostStatusPresentation(() => hostStatusSurface.value)
 
 const targetSummary = computed(() => {
   const target = resolvedTarget.value
@@ -154,14 +160,11 @@ const targetSummary = computed(() => {
 })
 
 const hostDiagnosticSummary = computed(() => {
-  if (hostStatusSurface.value.summaryParts.length === 0) return ''
-  return hostStatusSurface.value.summaryParts
-    .map((segment) => t(segment.key, segment.params))
-    .join(' · ')
+  return hostStatusPresentation.value.summaryText
 })
 
 const hostDiagnosticToneClass = computed(() => {
-  return hostStatusSurface.value.toneClass || ''
+  return hostStatusPresentation.value.toneClass || ''
 })
 
 const showPromptRecoveryAction = computed(() => {
@@ -171,12 +174,6 @@ const showPromptRecoveryAction = computed(() => {
 async function recoverPrompt() {
   await cancelPromptRecovery()
 }
-
-const {
-  busy: promptRecoveryBusy,
-  descriptor: promptRecovery,
-  cancel: cancelPromptRecovery,
-} = useExtensionPromptRecovery(() => hostStatusSurface.value.recoveryOwner)
 </script>
 
 <style scoped>
