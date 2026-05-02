@@ -13,8 +13,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-process-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -211,8 +215,11 @@ fn main() -> Result<(), String> {
         ));
     }
 
-    let response =
-        execute_process_command(&state, &workspace_root_text, &manifest_path.to_string_lossy())?;
+    let response = execute_process_command(
+        &state,
+        &workspace_root_text,
+        &manifest_path.to_string_lossy(),
+    )?;
     let summary_text = require_text(
         output_text(&response, "process-contract-summary"),
         "process-contract-summary",

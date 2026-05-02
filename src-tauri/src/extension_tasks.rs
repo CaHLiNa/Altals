@@ -1,14 +1,14 @@
 use crate::app_dirs;
 use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_outputs::ExtensionCapabilityOutput;
-#[cfg(not(test))]
-use tauri::Emitter;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+#[cfg(not(test))]
+use tauri::Emitter;
 
 const TASKS_FILENAME: &str = "tasks.json";
 #[cfg(not(test))]
@@ -253,7 +253,9 @@ fn active_tasks_for_extension_in_dir(
     Ok(list_tasks_from_dir(tasks_root)?
         .into_iter()
         .filter(|task| {
-            task.extension_id.trim().eq_ignore_ascii_case(&normalized_extension_id)
+            task.extension_id
+                .trim()
+                .eq_ignore_ascii_case(&normalized_extension_id)
                 && (normalized_workspace_root.is_empty()
                     || task.workspace_root.trim() == normalized_workspace_root)
                 && matches!(task.state.as_str(), "queued" | "running")
@@ -487,7 +489,13 @@ pub fn mark_task_running_with_progress(
     artifacts: Vec<ExtensionArtifact>,
     outputs: Vec<ExtensionCapabilityOutput>,
 ) -> Result<ExtensionTask, String> {
-    mark_task_running_with_progress_in_dir(&tasks_dir()?, task_id, progress_label, artifacts, outputs)
+    mark_task_running_with_progress_in_dir(
+        &tasks_dir()?,
+        task_id,
+        progress_label,
+        artifacts,
+        outputs,
+    )
 }
 
 fn mark_task_succeeded_in_dir(
@@ -738,8 +746,8 @@ fn apply_task_update_in_dir(
     });
     let next_outputs = patch.outputs.as_ref().map(|outputs| {
         outputs
-                .iter()
-                .enumerate()
+            .iter()
+            .enumerate()
             .filter_map(|(index, output)| normalize_task_output(output, index))
             .collect::<Vec<_>>()
     });
@@ -880,7 +888,6 @@ impl ExtensionTaskRuntimeState {
             .map_err(|_| "Extension task runtime state is unavailable".to_string())?;
         Ok(guard.remove(task_id))
     }
-
 }
 
 fn kill_pid(pid: u32) -> Result<(), String> {
@@ -927,8 +934,7 @@ fn cancel_active_tasks_for_extension_in_dir(
     runtime_state: &ExtensionTaskRuntimeState,
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<Vec<ExtensionTask>, String> {
-    let active_tasks =
-        active_tasks_for_extension_in_dir(tasks_root, extension_id, workspace_root)?;
+    let active_tasks = active_tasks_for_extension_in_dir(tasks_root, extension_id, workspace_root)?;
     let mut cancelled = Vec::with_capacity(active_tasks.len());
     for task in active_tasks {
         if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
@@ -981,7 +987,10 @@ pub struct ExtensionTaskListParams {
     pub workspace_root: String,
 }
 
-fn list_tasks_for_workspace(tasks_root: &Path, workspace_root: &str) -> Result<Vec<ExtensionTask>, String> {
+fn list_tasks_for_workspace(
+    tasks_root: &Path,
+    workspace_root: &str,
+) -> Result<Vec<ExtensionTask>, String> {
     let normalized_workspace_root = workspace_root.trim();
     if normalized_workspace_root.is_empty() {
         return list_tasks_from_dir(tasks_root);
@@ -993,7 +1002,9 @@ fn list_tasks_for_workspace(tasks_root: &Path, workspace_root: &str) -> Result<V
 }
 
 #[tauri::command]
-pub async fn extension_task_list(params: ExtensionTaskListParams) -> Result<Vec<ExtensionTask>, String> {
+pub async fn extension_task_list(
+    params: ExtensionTaskListParams,
+) -> Result<Vec<ExtensionTask>, String> {
     list_tasks_for_workspace(&tasks_dir()?, &params.workspace_root)
 }
 
@@ -1154,9 +1165,7 @@ mod tests {
     #[test]
     fn runtime_state_registers_and_unregisters_spawned_pid() {
         let runtime = ExtensionTaskRuntimeState::default();
-        runtime
-            .register_pid("task-1", 4242)
-            .expect("register pid");
+        runtime.register_pid("task-1", 4242).expect("register pid");
 
         let first = runtime.unregister_pid("task-1").expect("unregister pid");
         assert_eq!(first, Some(4242));
@@ -1243,12 +1252,9 @@ mod tests {
         })
         .expect("mark other running");
 
-        let active = active_tasks_for_extension_in_dir(
-            &root,
-            "example-pdf-extension",
-            "/tmp/workspace-a",
-        )
-            .expect("active tasks for extension");
+        let active =
+            active_tasks_for_extension_in_dir(&root, "example-pdf-extension", "/tmp/workspace-a")
+                .expect("active tasks for extension");
         let ids = active.into_iter().map(|task| task.id).collect::<Vec<_>>();
         assert_eq!(ids, vec![queued.id, running.id]);
         fs::remove_dir_all(root).ok();
@@ -1378,8 +1384,14 @@ mod tests {
 
         assert_eq!(cancelled.len(), 2);
         assert!(cancelled.iter().all(|task| task.state == "cancelled"));
-        assert!(runtime.unregister_pid(&running.id).expect("running pid removed").is_none());
-        assert!(runtime.unregister_pid(&queued.id).expect("queued pid removed").is_none());
+        assert!(runtime
+            .unregister_pid(&running.id)
+            .expect("running pid removed")
+            .is_none());
+        assert!(runtime
+            .unregister_pid(&queued.id)
+            .expect("queued pid removed")
+            .is_none());
         assert_eq!(
             runtime
                 .unregister_pid(&other_extension.id)
@@ -1394,9 +1406,18 @@ mod tests {
         );
 
         let listed = list_tasks_from_dir(&tasks_root).expect("list tasks");
-        let running_task = listed.iter().find(|task| task.id == running.id).expect("running task");
-        let queued_task = listed.iter().find(|task| task.id == queued.id).expect("queued task");
-        let completed_task = listed.iter().find(|task| task.id == completed.id).expect("completed task");
+        let running_task = listed
+            .iter()
+            .find(|task| task.id == running.id)
+            .expect("running task");
+        let queued_task = listed
+            .iter()
+            .find(|task| task.id == queued.id)
+            .expect("queued task");
+        let completed_task = listed
+            .iter()
+            .find(|task| task.id == completed.id)
+            .expect("completed task");
         let other_task = listed
             .iter()
             .find(|task| task.id == other_extension.id)

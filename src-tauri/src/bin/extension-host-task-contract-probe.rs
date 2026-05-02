@@ -1,8 +1,7 @@
 use scribeflow_lib::{
-    extension_host_activate_by_id_for_probe,
-    extension_host_invoke_probe_request_with_task_runtime,
-    extension_host_spawned_process_count_for_probe, ExtensionHostRequest, ExtensionHostResponse,
-    ExtensionHostState, extension_task_create_command_for_probe,
+    extension_host_activate_by_id_for_probe, extension_host_invoke_probe_request_with_task_runtime,
+    extension_host_spawned_process_count_for_probe, extension_task_create_command_for_probe,
+    ExtensionHostRequest, ExtensionHostResponse, ExtensionHostState,
 };
 use serde_json::{json, Value};
 use std::fs;
@@ -15,8 +14,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-task-contract-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -162,7 +165,10 @@ fn require_text(value: Option<String>, label: &str) -> Result<String, String> {
 }
 
 fn tasks_file_path(home_root: &Path) -> PathBuf {
-    home_root.join(".scribeflow").join("extension-tasks").join("tasks.json")
+    home_root
+        .join(".scribeflow")
+        .join("extension-tasks")
+        .join("tasks.json")
 }
 
 fn task_entry(home_root: &Path, task_id: &str) -> Result<Option<Value>, String> {
@@ -170,10 +176,18 @@ fn task_entry(home_root: &Path, task_id: &str) -> Result<Option<Value>, String> 
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("Failed to read extension tasks file {}: {error}", path.display()))?;
-    let parsed = serde_json::from_str::<Value>(&content)
-        .map_err(|error| format!("Failed to parse extension tasks file {}: {error}", path.display()))?;
+    let content = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Failed to read extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
+    let parsed = serde_json::from_str::<Value>(&content).map_err(|error| {
+        format!(
+            "Failed to parse extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
     let task = parsed
         .get("tasks")
         .and_then(Value::as_array)
@@ -196,25 +210,43 @@ fn remove_task_records(home_root: &Path, task_id: &str) -> Result<(), String> {
     if !path.exists() {
         return Ok(());
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("Failed to read extension tasks file {}: {error}", path.display()))?;
-    let mut parsed = serde_json::from_str::<Value>(&content)
-        .map_err(|error| format!("Failed to parse extension tasks file {}: {error}", path.display()))?;
+    let content = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Failed to read extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
+    let mut parsed = serde_json::from_str::<Value>(&content).map_err(|error| {
+        format!(
+            "Failed to parse extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
     let Some(tasks) = parsed.get_mut("tasks").and_then(Value::as_array_mut) else {
         return Ok(());
     };
     tasks.retain(|entry| {
-        entry.get("id")
+        entry
+            .get("id")
             .and_then(Value::as_str)
             .map(|id| id != task_id)
             .unwrap_or(true)
     });
     fs::write(
         &path,
-        serde_json::to_string_pretty(&parsed)
-            .map_err(|error| format!("Failed to serialize cleaned tasks file {}: {error}", path.display()))?,
+        serde_json::to_string_pretty(&parsed).map_err(|error| {
+            format!(
+                "Failed to serialize cleaned tasks file {}: {error}",
+                path.display()
+            )
+        })?,
     )
-    .map_err(|error| format!("Failed to write cleaned tasks file {}: {error}", path.display()))
+    .map_err(|error| {
+        format!(
+            "Failed to write cleaned tasks file {}: {error}",
+            path.display()
+        )
+    })
 }
 
 #[cfg(unix)]

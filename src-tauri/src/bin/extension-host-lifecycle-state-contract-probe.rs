@@ -15,9 +15,14 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
-    let root = std::env::temp_dir().join(format!("scribeflow-extension-host-lifecycle-state-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    let root =
+        std::env::temp_dir().join(format!("scribeflow-extension-host-lifecycle-state-{now}"));
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -138,8 +143,9 @@ export async function deactivate() {
 
     write_file(
         &manifest_path,
-        &serde_json::to_string_pretty(&manifest)
-            .map_err(|error| format!("Failed to serialize lifecycle state probe manifest: {error}"))?,
+        &serde_json::to_string_pretty(&manifest).map_err(|error| {
+            format!("Failed to serialize lifecycle state probe manifest: {error}")
+        })?,
     )?;
     write_file(&entry_path, source)?;
     Ok(manifest_path)
@@ -202,10 +208,7 @@ fn parse_snapshot(response: &ExtensionHostResponse, label: &str) -> Result<Value
         .map_err(|error| format!("Failed to parse {label} lifecycle snapshot JSON: {error}"))
 }
 
-fn build_settings(
-    target_lang: &str,
-    theme: Option<&str>,
-) -> ExtensionSettings {
+fn build_settings(target_lang: &str, theme: Option<&str>) -> ExtensionSettings {
     let mut extension_config = BTreeMap::new();
     let mut config = serde_json::Map::new();
     config.insert(
@@ -357,12 +360,11 @@ fn main() -> Result<(), String> {
         _ => return Err("Unexpected response kind for runtime settings update".to_string()),
     }
 
-    let deactivated =
-        extension_host_deactivate_for_probe(
-            &state,
-            "example-lifecycle-state-contract-extension",
-            &workspace_root_text,
-        )?;
+    let deactivated = extension_host_deactivate_for_probe(
+        &state,
+        "example-lifecycle-state-contract-extension",
+        &workspace_root_text,
+    )?;
     if !deactivated.accepted {
         return Err("Lifecycle state extension was not deactivated".to_string());
     }

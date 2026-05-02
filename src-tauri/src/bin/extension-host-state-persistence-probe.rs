@@ -13,8 +13,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-state-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 

@@ -3,20 +3,20 @@ use crate::extension_manifest::{
     ExtensionCapabilityContribution, ExtensionManifest, ExtensionPermissions,
 };
 use crate::extension_outputs::ExtensionCapabilityOutput;
-#[cfg(not(test))]
-use crate::extension_tasks::ExtensionTaskRuntimeState;
 use crate::extension_registry::{find_extension_entry, ExtensionRegistryEntry};
 use crate::extension_settings::load_extension_runtime_state_snapshot;
 use crate::extension_settings::load_extension_settings;
 use crate::extension_settings::save_extension_runtime_state_snapshot;
+#[cfg(not(test))]
+use crate::extension_tasks::ExtensionTaskRuntimeState;
 use crate::security::canonicalize_for_scope;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 #[cfg(not(test))]
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
+use serde_json::Value;
 #[cfg(not(test))]
 use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 #[cfg(not(test))]
@@ -131,9 +131,14 @@ enum ExtensionHostUiRequestStatus {
         extension_id: String,
         workspace_root: String,
     },
-    Completed { cancelled: bool, result: Value },
+    Completed {
+        cancelled: bool,
+        result: Value,
+    },
     #[cfg_attr(test, allow(dead_code))]
-    Interrupted { error: String },
+    Interrupted {
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -258,6 +263,8 @@ pub struct ExtensionHostActivationState {
     pub global_state: Value,
     #[serde(default)]
     pub workspace_state: Value,
+    #[serde(default)]
+    pub locale: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -279,6 +286,8 @@ pub struct ExtensionHostInvocationEnvelope {
     pub target_kind: String,
     pub target_path: String,
     pub settings_json: String,
+    #[serde(default)]
+    pub locale: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -807,7 +816,10 @@ fn ensure_extension_pdf_path_allowed(
     let canonical_path = canonicalize_for_scope(Path::new(file_path))?;
     let allowed_by_workspace = manifest.permissions.read_workspace_files
         && !workspace_root.trim().is_empty()
-        && path_is_within_root(&canonical_path, &canonicalize_for_scope(Path::new(workspace_root))?);
+        && path_is_within_root(
+            &canonical_path,
+            &canonicalize_for_scope(Path::new(workspace_root))?,
+        );
 
     let allowed_by_reference_library = manifest.permissions.read_reference_library
         && reference_library_asset_roots(global_config_dir)
@@ -820,7 +832,8 @@ fn ensure_extension_pdf_path_allowed(
     } else {
         Err(format!(
             "Extension {} is not allowed to inspect PDF path: {}",
-            manifest.id, canonical_path.display()
+            manifest.id,
+            canonical_path.display()
         ))
     }
 }
@@ -905,6 +918,12 @@ pub fn activate_extension(
         .unwrap_or_else(|| Value::Object(Default::default()));
     let runtime_state =
         load_extension_runtime_state_snapshot(global_config_dir, workspace_root, &entry.id)?;
+    let locale = crate::workspace_preferences::read_workspace_preferences(global_config_dir)
+        .ok()
+        .flatten()
+        .map(|preferences| preferences.preferred_locale)
+        .map(|preference| crate::i18n_runtime::resolve_effective_locale(&preference))
+        .unwrap_or_else(|| crate::i18n_runtime::resolve_effective_locale("system"));
     let request = ExtensionHostRequest::Activate {
         extension_id: entry.id.clone(),
         workspace_root: workspace_root.to_string(),
@@ -918,6 +937,7 @@ pub fn activate_extension(
             settings: extension_settings,
             global_state: runtime_state.global_state,
             workspace_state: runtime_state.workspace_state,
+            locale,
         },
     };
     let response = invoke_extension_host(state, None, request)?;
@@ -1062,6 +1082,7 @@ pub fn build_extension_invocation_envelope(
     target_kind: &str,
     target_path: &str,
     settings: &Value,
+    locale: &str,
 ) -> ExtensionHostInvocationEnvelope {
     ExtensionHostInvocationEnvelope {
         task_id: task_id.to_string(),
@@ -1075,12 +1096,14 @@ pub fn build_extension_invocation_envelope(
         target_kind: target_kind.to_string(),
         target_path: target_path.to_string(),
         settings_json: settings.to_string(),
+        locale: locale.to_string(),
     }
 }
 
 #[cfg(not(test))]
 fn task_id_for_host_call_event(event: &ExtensionHostCallRequestedEvent) -> String {
-    event.payload
+    event
+        .payload
         .get("taskId")
         .and_then(Value::as_str)
         .unwrap_or("")
@@ -1106,10 +1129,7 @@ fn register_spawned_process(
 }
 
 #[cfg(not(test))]
-fn take_spawned_process(
-    state: &ExtensionHostState,
-    pid: u32,
-) -> Result<Option<Child>, String> {
+fn take_spawned_process(state: &ExtensionHostState, pid: u32) -> Result<Option<Child>, String> {
     let mut processes = state
         .spawned_processes
         .lock()
@@ -1118,10 +1138,7 @@ fn take_spawned_process(
 }
 
 #[cfg(not(test))]
-fn wait_for_spawned_process(
-    state: &ExtensionHostState,
-    pid: u32,
-) -> Result<Value, String> {
+fn wait_for_spawned_process(state: &ExtensionHostState, pid: u32) -> Result<Value, String> {
     let Some(mut child) = take_spawned_process(state, pid)? else {
         return Err(format!("Spawned process not found: {pid}"));
     };
@@ -1343,9 +1360,8 @@ fn request_extension_key(request: &ExtensionHostRequest) -> String {
             envelope.extension_id.trim().to_ascii_lowercase(),
             envelope.workspace_root.trim()
         ),
-        ExtensionHostRequest::RespondUiRequest { .. } | ExtensionHostRequest::ResolveHostCall { .. } => {
-            String::new()
-        }
+        ExtensionHostRequest::RespondUiRequest { .. }
+        | ExtensionHostRequest::ResolveHostCall { .. } => String::new(),
     }
 }
 
@@ -1393,7 +1409,10 @@ fn emit_extension_host_interrupted(
 }
 
 #[cfg(not(test))]
-fn notify_extension_host_interrupted(state: &ExtensionHostState, error: &str) -> Result<(), String> {
+fn notify_extension_host_interrupted(
+    state: &ExtensionHostState,
+    error: &str,
+) -> Result<(), String> {
     let interrupted_ui_requests = mark_pending_ui_requests_interrupted(state, error)?;
     for request_id in interrupted_ui_requests {
         let _ = emit_extension_host_interrupted(
@@ -1552,7 +1571,9 @@ fn emit_extension_host_view_state_changed(
         .map_err(|_| "Failed to access extension host app handle".to_string())?;
     if let Some(app) = handle.as_ref() {
         app.emit(EXTENSION_VIEW_STATE_CHANGED_EVENT, event.clone())
-            .map_err(|error| format!("Failed to emit extension view state change event: {error}"))?;
+            .map_err(|error| {
+                format!("Failed to emit extension view state change event: {error}")
+            })?;
     }
     Ok(())
 }
@@ -1568,7 +1589,9 @@ fn emit_extension_host_view_reveal_requested(
         .map_err(|_| "Failed to access extension host app handle".to_string())?;
     if let Some(app) = handle.as_ref() {
         app.emit(EXTENSION_VIEW_REVEAL_REQUESTED_EVENT, event.clone())
-            .map_err(|error| format!("Failed to emit extension view reveal request event: {error}"))?;
+            .map_err(|error| {
+                format!("Failed to emit extension view reveal request event: {error}")
+            })?;
     }
     Ok(())
 }
@@ -1584,7 +1607,9 @@ fn emit_extension_host_window_input_requested(
         .map_err(|_| "Failed to access extension host app handle".to_string())?;
     if let Some(app) = handle.as_ref() {
         app.emit("extension-window-input-requested", event.clone())
-            .map_err(|error| format!("Failed to emit extension window input request event: {error}"))?;
+            .map_err(|error| {
+                format!("Failed to emit extension window input request event: {error}")
+            })?;
     }
     Ok(())
 }
@@ -1616,7 +1641,9 @@ fn emit_extension_host_call_requested(
         .map_err(|_| "Failed to access extension host app handle".to_string())?;
     if let Some(app) = handle.as_ref() {
         app.emit("extension-host-call-requested", event.clone())
-            .map_err(|error| format!("Failed to emit extension host call request event: {error}"))?;
+            .map_err(|error| {
+                format!("Failed to emit extension host call request event: {error}")
+            })?;
     }
     Ok(())
 }
@@ -1767,7 +1794,9 @@ pub fn respond_extension_host_ui_request(
         .lock()
         .map_err(|_| "Failed to access extension host UI request state".to_string())?;
     let Some(status) = ui_requests.get_mut(&request_id) else {
-        return Err(format!("Pending extension UI request not found: {request_id}"));
+        return Err(format!(
+            "Pending extension UI request not found: {request_id}"
+        ));
     };
     *status = ExtensionHostUiRequestStatus::Completed {
         cancelled: params.cancelled,
@@ -1792,7 +1821,9 @@ pub fn resolve_extension_host_call(
         .lock()
         .map_err(|_| "Failed to access extension host call state".to_string())?;
     let Some(status) = host_calls.get_mut(&request_id) else {
-        return Err(format!("Pending extension host call not found: {request_id}"));
+        return Err(format!(
+            "Pending extension host call not found: {request_id}"
+        ));
     };
     *status = ExtensionHostCallStatus::Completed {
         accepted: params.accepted,
@@ -2137,9 +2168,9 @@ fn handle_extension_host_pdf_call(
         &file_path,
     )?;
     let result = match event.kind.as_str() {
-        "pdf.extractText" => Value::String(
-            crate::references_pdf::extract_reference_pdf_text(&canonical_path)?,
-        ),
+        "pdf.extractText" => Value::String(crate::references_pdf::extract_reference_pdf_text(
+            &canonical_path,
+        )?),
         "pdf.extractMetadata" => {
             crate::references_pdf::extract_reference_pdf_metadata(&canonical_path)?
         }
@@ -2660,13 +2691,13 @@ pub async fn extension_host_update_settings(
             accepted: true,
             changed_keys,
         }),
-        _ if manifest.runtime.runtime_type == "extensionHost" => Ok(
-            ExtensionHostSettingsUpdateAcknowledgement {
+        _ if manifest.runtime.runtime_type == "extensionHost" => {
+            Ok(ExtensionHostSettingsUpdateAcknowledgement {
                 extension_id,
                 accepted: true,
                 changed_keys,
-            },
-        ),
+            })
+        }
         _ => Err("Unexpected extension host response for settings update".to_string()),
     }
 }
@@ -2761,14 +2792,9 @@ mod tests {
     fn activates_extension_host_entry() {
         let state = ExtensionHostState::default();
         let entry = canonical_entry();
-        let activated = activate_extension(
-            &state,
-            "",
-            "",
-            &entry,
-            "onCommand:scribeflow.pdf.translate",
-        )
-        .expect("activate");
+        let activated =
+            activate_extension(&state, "", "", &entry, "onCommand:scribeflow.pdf.translate")
+                .expect("activate");
         assert!(activated.activated);
         assert_eq!(activated.extension_id, entry.id);
     }
@@ -2821,14 +2847,9 @@ mod tests {
         .expect_err("undeclared view activation must fail");
         assert!(denied_view.contains("does not declare activation event"));
 
-        let allowed = activate_extension(
-            &state,
-            "",
-            "",
-            &entry,
-            "onCommand:scribeflow.pdf.translate",
-        )
-        .expect("declared activation should pass");
+        let allowed =
+            activate_extension(&state, "", "", &entry, "onCommand:scribeflow.pdf.translate")
+                .expect("declared activation should pass");
         assert!(allowed.activated);
     }
 
@@ -2846,11 +2867,13 @@ mod tests {
             "referencePdf",
             "/tmp/paper.pdf",
             &serde_json::json!({"targetLang": "zh-CN"}),
+            "zh-CN",
         );
         assert_eq!(envelope.task_id, "task-1");
         assert_eq!(envelope.extension_id, "extension-1");
         assert_eq!(envelope.workspace_root, "/tmp/workspace");
         assert!(envelope.settings_json.contains("targetLang"));
+        assert_eq!(envelope.locale, "zh-CN");
     }
 
     #[test]
@@ -2872,6 +2895,7 @@ mod tests {
                 "referencePdf",
                 "/tmp/paper.pdf",
                 &serde_json::json!({"targetLang": "zh-CN"}),
+                "zh-CN",
             ),
         });
         match response {
@@ -2903,6 +2927,7 @@ mod tests {
                 "referencePdf",
                 "/tmp/paper.pdf",
                 &serde_json::json!({"targetLang": "zh-CN"}),
+                "zh-CN",
             ),
         });
         match response {
@@ -2935,6 +2960,7 @@ mod tests {
                 "referencePdf",
                 "/tmp/paper.pdf",
                 &serde_json::json!({"targetLang": "zh-CN"}),
+                "zh-CN",
             ),
         });
         match response {
@@ -3012,7 +3038,10 @@ mod tests {
         )
         .expect("workspace pdf should be allowed");
 
-        assert_eq!(resolved, crate::security::canonicalize_for_scope(&pdf_path).expect("canonical"));
+        assert_eq!(
+            resolved,
+            crate::security::canonicalize_for_scope(&pdf_path).expect("canonical")
+        );
         fs::remove_dir_all(workspace_root).ok();
     }
 

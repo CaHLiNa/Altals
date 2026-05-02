@@ -14,8 +14,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-ui-interrupt-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -109,7 +113,8 @@ fn main() -> Result<(), String> {
         extension_host_invoke_probe_request(
             &state_for_thread,
             ExtensionHostRequest::ExecuteCommand {
-                activation_event: "onCommand:exampleUiInterruptExtension.promptThenCrash".to_string(),
+                activation_event: "onCommand:exampleUiInterruptExtension.promptThenCrash"
+                    .to_string(),
                 extension_path: extension_path_for_thread,
                 manifest_path: manifest_path_for_thread,
                 main_entry: "./dist/extension.js".to_string(),

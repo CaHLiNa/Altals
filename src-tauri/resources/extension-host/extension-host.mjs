@@ -1,6 +1,7 @@
 import path from "node:path";
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
+import fs from "node:fs";
 
 const extensions = new Map();
 const pendingUiRequests = new Map();
@@ -33,6 +34,46 @@ function requestRuntimeKey(request = {}) {
     request.extensionId || request.envelope?.extensionId || "",
     requestWorkspaceRoot(request),
   );
+}
+
+function normalizeLocale(value = "") {
+  return String(value || "").trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+}
+
+function readJsonFile(filePath = "") {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function loadExtensionMessages(extensionPath = "", locale = "") {
+  const normalizedLocale = normalizeLocale(locale);
+  const messages = {
+    ...readJsonFile(path.join(extensionPath, "package.nls.json")),
+    ...readJsonFile(path.join(extensionPath, `package.nls.${normalizedLocale}.json`)),
+  };
+  return messages && typeof messages === "object" && !Array.isArray(messages) ? messages : {};
+}
+
+function interpolate(message = "", vars = {}) {
+  return String(message).replace(/\{(\w+)\}/g, (_, key) =>
+    vars[key] == null ? "" : String(vars[key]),
+  );
+}
+
+function createI18nApi(registry) {
+  return {
+    get locale() {
+      return normalizeLocale(registry.locale || "");
+    },
+    t(key = "", vars = {}) {
+      const normalizedKey = String(key || "");
+      const message = registry.messages?.[normalizedKey] || normalizedKey;
+      return interpolate(message, vars);
+    },
+  };
 }
 
 function normalizeCapabilityExtensions(values = []) {
@@ -468,11 +509,15 @@ function createInvocationContext(registry, envelope = {}) {
     target,
     resource,
     settingsJson: String(envelope?.settingsJson || "{}"),
+    locale: normalizeLocale(envelope?.locale || registry.locale || ""),
   };
 }
 
 function setInvocationContext(registry, envelope = {}) {
   registry.currentWorkspaceRoot = String(envelope?.workspaceRoot || "").trim();
+  if (envelope?.locale) {
+    registry.locale = normalizeLocale(envelope.locale);
+  }
   registry.lastInvocation = createInvocationContext(registry, envelope);
 }
 
@@ -929,6 +974,7 @@ function createExtensionApi(registry) {
         };
       },
     },
+    i18n: createI18nApi(registry),
     window: {
       async showInformationMessage(message) {
         emitWindowMessage(registry, "info", message);
@@ -993,6 +1039,7 @@ function createActivationContext(api, payload = {}) {
     globalState: api.globalState,
     workspaceState: api.workspaceState,
     window: api.window,
+    i18n: api.i18n,
   };
 }
 
@@ -1057,6 +1104,8 @@ async function ensureActivated(request) {
     viewStatePatches: new Map(),
     changedViews: new Set(),
     currentWorkspaceRoot: workspaceRoot,
+    locale: normalizeLocale(request.activationState?.locale || request.envelope?.locale || "en-US"),
+    messages: loadExtensionMessages(extensionPath, request.activationState?.locale || request.envelope?.locale || "en-US"),
     permissions: {
       readWorkspaceFiles: Boolean(request.permissions?.readWorkspaceFiles),
       readReferenceLibrary: Boolean(request.permissions?.readReferenceLibrary),

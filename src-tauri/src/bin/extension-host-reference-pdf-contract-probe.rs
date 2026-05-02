@@ -15,8 +15,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-reference-pdf-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -55,7 +59,10 @@ fn build_probe_pdf(path: &Path, title: &str, author: &str, year: &str) -> Result
             Operation::new("ET", vec![]),
         ],
     };
-    let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap_or_default()));
+    let content_id = doc.add_object(Stream::new(
+        dictionary! {},
+        content.encode().unwrap_or_default(),
+    ));
     let page_id = doc.add_object(dictionary! {
         "Type" => "Page",
         "Parent" => pages_id,
@@ -339,10 +346,13 @@ fn main() -> Result<(), String> {
         .unwrap_or("")
         .to_string();
 
-    if current_reference.get("id").and_then(Value::as_str).unwrap_or("") != "ref-123" {
-        return Err(format!(
-            "Reference context id drifted: {current_reference}"
-        ));
+    if current_reference
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != "ref-123"
+    {
+        return Err(format!("Reference context id drifted: {current_reference}"));
     }
     if current_reference
         .get("hasReference")
@@ -368,11 +378,19 @@ fn main() -> Result<(), String> {
                 .unwrap_or("")
         ));
     }
-    if current_pdf.get("path").and_then(Value::as_str).unwrap_or("") != pdf_path_text {
+    if current_pdf
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != pdf_path_text
+    {
         return Err(format!(
             "PDF context path drifted: expected {}, got {}",
             pdf_path_text,
-            current_pdf.get("path").and_then(Value::as_str).unwrap_or("")
+            current_pdf
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("")
         ));
     }
     if current_pdf.get("isPdf").and_then(Value::as_bool) != Some(true) {

@@ -213,6 +213,7 @@ async function main() {
         targetKind: 'pdf',
         targetPath: '/tmp/workspace/papers/demo.pdf',
         settingsJson: '{}',
+        locale: 'en-US',
       },
     })
 
@@ -234,6 +235,7 @@ async function main() {
         targetKind: '',
         targetPath: '',
         settingsJson: '{}',
+        locale: 'en-US',
       },
     })
 
@@ -315,6 +317,7 @@ async function main() {
             isPython: false,
           },
           settingsJson: '{}',
+          locale: 'en-US',
         },
       }),
       'invocation contract with workspace drifted',
@@ -394,6 +397,7 @@ async function main() {
             isPython: false,
           },
           settingsJson: '{}',
+          locale: 'en-US',
         },
       }),
       'invocation contract without workspace drifted',

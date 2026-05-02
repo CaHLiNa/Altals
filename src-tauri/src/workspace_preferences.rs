@@ -257,7 +257,7 @@ fn workspace_preferences_path(global_config_dir: &str) -> Option<PathBuf> {
     Some(Path::new(&root).join("workspace-preferences.json"))
 }
 
-fn read_workspace_preferences(
+pub fn read_workspace_preferences(
     global_config_dir: &str,
 ) -> Result<Option<WorkspacePreferences>, String> {
     let Some(path) = workspace_preferences_path(global_config_dir) else {

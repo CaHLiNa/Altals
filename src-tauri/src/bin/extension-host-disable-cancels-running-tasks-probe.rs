@@ -12,15 +12,23 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
-    let root =
-        std::env::temp_dir().join(format!("scribeflow-extension-disable-cancel-contract-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    let root = std::env::temp_dir().join(format!(
+        "scribeflow-extension-disable-cancel-contract-{now}"
+    ));
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
 fn tasks_file_path(home_root: &Path) -> PathBuf {
-    home_root.join(".scribeflow").join("extension-tasks").join("tasks.json")
+    home_root
+        .join(".scribeflow")
+        .join("extension-tasks")
+        .join("tasks.json")
 }
 
 fn task_entry(home_root: &Path, task_id: &str) -> Result<Option<Value>, String> {
@@ -28,10 +36,18 @@ fn task_entry(home_root: &Path, task_id: &str) -> Result<Option<Value>, String> 
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("Failed to read extension tasks file {}: {error}", path.display()))?;
-    let parsed = serde_json::from_str::<Value>(&content)
-        .map_err(|error| format!("Failed to parse extension tasks file {}: {error}", path.display()))?;
+    let content = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Failed to read extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
+    let parsed = serde_json::from_str::<Value>(&content).map_err(|error| {
+        format!(
+            "Failed to parse extension tasks file {}: {error}",
+            path.display()
+        )
+    })?;
     Ok(parsed
         .get("tasks")
         .and_then(Value::as_array)
@@ -119,10 +135,18 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
     runtime.register_pid(&other.id, 4244)?;
 
     let tasks_path = tasks_file_path(home_root);
-    let content = fs::read_to_string(&tasks_path)
-        .map_err(|error| format!("Failed to read seeded extension tasks file {}: {error}", tasks_path.display()))?;
-    let mut parsed = serde_json::from_str::<Value>(&content)
-        .map_err(|error| format!("Failed to parse seeded extension tasks file {}: {error}", tasks_path.display()))?;
+    let content = fs::read_to_string(&tasks_path).map_err(|error| {
+        format!(
+            "Failed to read seeded extension tasks file {}: {error}",
+            tasks_path.display()
+        )
+    })?;
+    let mut parsed = serde_json::from_str::<Value>(&content).map_err(|error| {
+        format!(
+            "Failed to parse seeded extension tasks file {}: {error}",
+            tasks_path.display()
+        )
+    })?;
     let tasks = parsed
         .get_mut("tasks")
         .and_then(Value::as_array_mut)
@@ -162,10 +186,19 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
     }
     fs::write(
         &tasks_path,
-        serde_json::to_string_pretty(&parsed)
-            .map_err(|error| format!("Failed to serialize seeded tasks file {}: {error}", tasks_path.display()))?,
+        serde_json::to_string_pretty(&parsed).map_err(|error| {
+            format!(
+                "Failed to serialize seeded tasks file {}: {error}",
+                tasks_path.display()
+            )
+        })?,
     )
-    .map_err(|error| format!("Failed to write seeded tasks file {}: {error}", tasks_path.display()))?;
+    .map_err(|error| {
+        format!(
+            "Failed to write seeded tasks file {}: {error}",
+            tasks_path.display()
+        )
+    })?;
 
     let cancelled = extension_task_cancel_extension_for_probe(
         "example-pdf-extension",
@@ -183,7 +216,10 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
     if !cancelled.iter().all(|task| task.state == "cancelled") {
         return Err(format!(
             "Cancelled task state drifted: {:?}",
-            cancelled.iter().map(|task| task.state.clone()).collect::<Vec<_>>()
+            cancelled
+                .iter()
+                .map(|task| task.state.clone())
+                .collect::<Vec<_>>()
         ));
     }
     if runtime.unregister_pid(&running.id)?.is_some() {
@@ -202,29 +238,47 @@ fn run_probe(home_root: &Path) -> Result<(), String> {
         return Err("Other extension pid ownership should remain intact".to_string());
     }
 
-    let persisted_running = task_entry(home_root, &running.id)?
-        .ok_or_else(|| "Persisted running task record missing after extension disable".to_string())?;
-    let persisted_queued = task_entry(home_root, &queued.id)?
-        .ok_or_else(|| "Persisted queued task record missing after extension disable".to_string())?;
-    let persisted_other = task_entry(home_root, &other.id)?
-        .ok_or_else(|| "Persisted other extension task record missing after extension disable".to_string())?;
-    let persisted_other_workspace_same_extension = task_entry(home_root, &other_workspace_same_extension.id)?
-        .ok_or_else(|| {
+    let persisted_running = task_entry(home_root, &running.id)?.ok_or_else(|| {
+        "Persisted running task record missing after extension disable".to_string()
+    })?;
+    let persisted_queued = task_entry(home_root, &queued.id)?.ok_or_else(|| {
+        "Persisted queued task record missing after extension disable".to_string()
+    })?;
+    let persisted_other = task_entry(home_root, &other.id)?.ok_or_else(|| {
+        "Persisted other extension task record missing after extension disable".to_string()
+    })?;
+    let persisted_other_workspace_same_extension =
+        task_entry(home_root, &other_workspace_same_extension.id)?.ok_or_else(|| {
             "Persisted same-extension other-workspace task record missing after extension disable"
                 .to_string()
         })?;
 
-    if persisted_running.get("state").and_then(Value::as_str).unwrap_or("") != "cancelled" {
+    if persisted_running
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != "cancelled"
+    {
         return Err(format!(
             "Running task did not persist cancelled state after extension disable: {persisted_running}"
         ));
     }
-    if persisted_queued.get("state").and_then(Value::as_str).unwrap_or("") != "cancelled" {
+    if persisted_queued
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != "cancelled"
+    {
         return Err(format!(
             "Queued task did not persist cancelled state after extension disable: {persisted_queued}"
         ));
     }
-    if persisted_other.get("state").and_then(Value::as_str).unwrap_or("") != "running" {
+    if persisted_other
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        != "running"
+    {
         return Err(format!(
             "Other extension task state drifted during disable cancellation: {persisted_other}"
         ));

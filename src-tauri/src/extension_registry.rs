@@ -4,7 +4,10 @@ use crate::extension_manifest::{
     ExtensionManifest, ExtensionPermissions, ExtensionRuntime,
     CANONICAL_EXTENSION_MANIFEST_FILENAME,
 };
+use crate::i18n_runtime::resolve_effective_locale;
+use crate::workspace_preferences::{read_workspace_preferences, WorkspacePreferences};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +19,8 @@ pub struct ExtensionRegistryListParams {
     pub global_config_dir: String,
     #[serde(default)]
     pub workspace_root: String,
+    #[serde(default)]
+    pub locale: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -89,6 +94,80 @@ fn invalid_entry(
     }
 }
 
+fn locale_for_registry(global_config_dir: &str, requested_locale: &str) -> String {
+    let requested = requested_locale.trim();
+    if !requested.is_empty() {
+        return resolve_effective_locale(requested);
+    }
+    let preferred = read_workspace_preferences(global_config_dir)
+        .ok()
+        .flatten()
+        .map(|preferences| preferences.preferred_locale)
+        .unwrap_or_else(|| WorkspacePreferences::default().preferred_locale);
+    resolve_effective_locale(&preferred)
+}
+
+fn read_nls_file(path: &Path) -> BTreeMap<String, String> {
+    let Ok(content) = fs::read_to_string(path) else {
+        return BTreeMap::new();
+    };
+    serde_json::from_str::<BTreeMap<String, String>>(&content).unwrap_or_default()
+}
+
+fn load_extension_nls_messages(extension_dir: &Path, locale: &str) -> BTreeMap<String, String> {
+    let mut messages = read_nls_file(&extension_dir.join("package.nls.json"));
+    let locale = locale.trim();
+    if !locale.is_empty() {
+        messages.extend(read_nls_file(
+            &extension_dir.join(format!("package.nls.{locale}.json")),
+        ));
+    }
+    messages
+}
+
+fn localize_string(value: &str, messages: &BTreeMap<String, String>) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() > 2 && trimmed.starts_with('%') && trimmed.ends_with('%') {
+        let key = &trimmed[1..trimmed.len() - 1];
+        return messages
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| value.to_string());
+    }
+    value.to_string()
+}
+
+fn localize_json_value(value: &mut Value, messages: &BTreeMap<String, String>) {
+    match value {
+        Value::String(text) => {
+            *text = localize_string(text, messages);
+        }
+        Value::Array(items) => {
+            for item in items {
+                localize_json_value(item, messages);
+            }
+        }
+        Value::Object(object) => {
+            for value in object.values_mut() {
+                localize_json_value(value, messages);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn localize_manifest(
+    manifest: &ExtensionManifest,
+    messages: &BTreeMap<String, String>,
+) -> ExtensionManifest {
+    if messages.is_empty() {
+        return manifest.clone();
+    }
+    let mut value = serde_json::to_value(manifest).unwrap_or(Value::Null);
+    localize_json_value(&mut value, messages);
+    serde_json::from_value::<ExtensionManifest>(value).unwrap_or_else(|_| manifest.clone())
+}
+
 fn status_for_manifest(_manifest: &ExtensionManifest, errors: &[String]) -> String {
     if !errors.is_empty() {
         if errors.iter().any(|error| {
@@ -103,7 +182,7 @@ fn status_for_manifest(_manifest: &ExtensionManifest, errors: &[String]) -> Stri
     "available".to_string()
 }
 
-fn load_entry(scope: &str, extension_dir: &Path) -> Option<ExtensionRegistryEntry> {
+fn load_entry(scope: &str, extension_dir: &Path, locale: &str) -> Option<ExtensionRegistryEntry> {
     let manifest_path = extension_dir.join(CANONICAL_EXTENSION_MANIFEST_FILENAME);
     if !manifest_path.exists() {
         return None;
@@ -132,13 +211,15 @@ fn load_entry(scope: &str, extension_dir: &Path) -> Option<ExtensionRegistryEntr
         Err(error) => return Some(invalid_entry(scope, &manifest_path, id_hint, error)),
     };
 
-    let manifest = parsed.manifest;
-    let validation = validate_extension_manifest(&manifest);
-    let status = status_for_manifest(&manifest, &validation.errors);
-    let id = if manifest.id.trim().is_empty() {
+    let raw_manifest = parsed.manifest;
+    let validation = validate_extension_manifest(&raw_manifest);
+    let status = status_for_manifest(&raw_manifest, &validation.errors);
+    let manifest_messages = load_extension_nls_messages(extension_dir, locale);
+    let manifest = localize_manifest(&raw_manifest, &manifest_messages);
+    let id = if raw_manifest.id.trim().is_empty() {
         normalize_extension_id(id_hint)
     } else {
-        normalize_extension_id(&manifest.id)
+        normalize_extension_id(&raw_manifest.id)
     };
 
     Some(ExtensionRegistryEntry {
@@ -159,7 +240,7 @@ fn load_entry(scope: &str, extension_dir: &Path) -> Option<ExtensionRegistryEntr
     })
 }
 
-fn scan_root(scope: &str, root: &Path) -> Vec<ExtensionRegistryEntry> {
+fn scan_root(scope: &str, root: &Path, locale: &str) -> Vec<ExtensionRegistryEntry> {
     if !root.exists() {
         return Vec::new();
     }
@@ -172,7 +253,7 @@ fn scan_root(scope: &str, root: &Path) -> Vec<ExtensionRegistryEntry> {
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| load_entry(scope, &path))
+        .filter_map(|path| load_entry(scope, &path, locale))
         .collect()
 }
 
@@ -180,14 +261,15 @@ pub fn list_extension_registry(
     params: &ExtensionRegistryListParams,
 ) -> Result<Vec<ExtensionRegistryEntry>, String> {
     let global_root = global_extensions_root(&params.global_config_dir)?;
+    let locale = locale_for_registry(&params.global_config_dir, &params.locale);
     let mut by_id = BTreeMap::<String, ExtensionRegistryEntry>::new();
 
-    for entry in scan_root("global", &global_root) {
+    for entry in scan_root("global", &global_root, &locale) {
         by_id.insert(entry.id.clone(), entry);
     }
 
     if let Some(workspace_root) = workspace_extensions_root(&params.workspace_root) {
-        for mut entry in scan_root("workspace", &workspace_root) {
+        for mut entry in scan_root("workspace", &workspace_root, &locale) {
             if by_id.contains_key(&entry.id) {
                 entry.warnings.push(
                     "Workspace extension overrides a global extension with the same id".to_string(),
@@ -209,6 +291,7 @@ pub fn find_extension_entry(
     list_extension_registry(&ExtensionRegistryListParams {
         global_config_dir: global_config_dir.to_string(),
         workspace_root: workspace_root.to_string(),
+        locale: String::new(),
     })?
     .into_iter()
     .find(|entry| entry.id == normalized)
@@ -285,6 +368,7 @@ mod tests {
         let entries = list_extension_registry(&ExtensionRegistryListParams {
             global_config_dir: global.to_string_lossy().to_string(),
             workspace_root: workspace.to_string_lossy().to_string(),
+            locale: String::new(),
         })
         .expect("list registry");
 
@@ -325,6 +409,7 @@ mod tests {
         let entries = list_extension_registry(&ExtensionRegistryListParams {
             global_config_dir: global.to_string_lossy().to_string(),
             workspace_root: workspace.to_string_lossy().to_string(),
+            locale: String::new(),
         })
         .expect("list registry");
         assert_eq!(entries.len(), 1);
@@ -348,6 +433,7 @@ mod tests {
         let entries = list_extension_registry(&ExtensionRegistryListParams {
             global_config_dir: global.to_string_lossy().to_string(),
             workspace_root: String::new(),
+            locale: String::new(),
         })
         .expect("list registry");
 
@@ -355,6 +441,90 @@ mod tests {
         assert_eq!(entries[0].manifest_format, "package.json");
         assert_eq!(entries[0].status, "available");
         assert_eq!(entries[0].runtime.runtime_type, "extensionHost");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn registry_localizes_manifest_from_extension_nls_files() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-registry-nls-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let global = root.join("global");
+        let extension = global.join("extensions").join("localized-extension");
+        fs::create_dir_all(&extension).expect("create extension dir");
+        fs::write(
+            extension.join(CANONICAL_EXTENSION_MANIFEST_FILENAME),
+            serde_json::json!({
+                "name": "localized-extension",
+                "displayName": "%extension.displayName%",
+                "version": "1.0.0",
+                "description": "%extension.description%",
+                "engines": {
+                    "scribeflow": "^1.1.0"
+                },
+                "main": "./dist/extension.js",
+                "extensionKind": ["workspace"],
+                "activationEvents": ["onCommand:localized.command"],
+                "contributes": {
+                    "commands": [{
+                        "command": "localized.command",
+                        "title": "%command.title%"
+                    }],
+                    "capabilities": [{
+                        "id": "pdf.translate"
+                    }],
+                    "configuration": {
+                        "properties": {
+                            "localized.apiKey": {
+                                "type": "string",
+                                "description": "%setting.apiKey.description%",
+                                "secureStorage": true
+                            }
+                        }
+                    }
+                },
+                "permissions": {
+                    "readWorkspaceFiles": true
+                }
+            })
+            .to_string(),
+        )
+        .expect("write manifest");
+        fs::write(
+            extension.join("package.nls.zh-CN.json"),
+            serde_json::json!({
+                "extension.displayName": "本地化扩展",
+                "extension.description": "来自插件语言包的描述",
+                "command.title": "运行本地化命令",
+                "setting.apiKey.description": "插件自己的密钥说明"
+            })
+            .to_string(),
+        )
+        .expect("write nls");
+
+        let entries = list_extension_registry(&ExtensionRegistryListParams {
+            global_config_dir: global.to_string_lossy().to_string(),
+            workspace_root: String::new(),
+            locale: "zh-CN".to_string(),
+        })
+        .expect("list registry");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "本地化扩展");
+        assert_eq!(entries[0].description, "来自插件语言包的描述");
+        let manifest = entries[0].manifest.as_ref().expect("manifest");
+        assert_eq!(manifest.contributes.commands[0].title, "运行本地化命令");
+        assert_eq!(
+            manifest
+                .contributes
+                .configuration
+                .properties
+                .get("localized.apiKey")
+                .expect("setting")
+                .description,
+            "插件自己的密钥说明"
+        );
         fs::remove_dir_all(root).ok();
     }
 }

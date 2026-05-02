@@ -1,9 +1,9 @@
 {
   "name": "retain-pdf",
-  "displayName": "RetainPDF",
+  "displayName": "%extension.displayName%",
   "version": "0.1.0",
   "type": "module",
-  "description": "Run RetainPDF layout-preserving PDF translation from the active ScribeFlow PDF/reference context.",
+  "description": "%extension.description%",
   "engines": {
     "scribeflow": "^1.1.0"
   },
@@ -64,25 +64,25 @@
     "commands": [
       {
         "command": "retainPdf.translateCurrent",
-        "title": "Translate Current PDF",
-        "category": "RetainPDF"
+        "title": "%command.translateCurrent.title%",
+        "category": "%category.retainPdf%"
       },
       {
         "command": "retainPdf.refreshView",
-        "title": "Refresh RetainPDF Panel",
-        "category": "RetainPDF"
+        "title": "%command.refreshView.title%",
+        "category": "%category.retainPdf%"
       },
       {
         "command": "retainPdf.captureContext",
-        "title": "Capture RetainPDF Context",
-        "category": "RetainPDF"
+        "title": "%command.captureContext.title%",
+        "category": "%category.retainPdf%"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "retainPdf.tools",
-          "title": "RetainPDF"
+          "title": "%extension.displayName%"
         }
       ]
     },
@@ -90,7 +90,7 @@
       "retainPdf.tools": [
         {
           "id": "retainPdf.panel",
-          "name": "RetainPDF",
+          "name": "%extension.displayName%",
           "when": "resourceExtname == .pdf || resource.kind == pdf"
         }
       ]
@@ -122,23 +122,23 @@
       ]
     },
     "configuration": {
-      "title": "RetainPDF",
+      "title": "%extension.displayName%",
       "properties": {
         "retainPdf.apiBaseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:41000",
-          "description": "RetainPDF Rust API base URL."
+          "description": "%setting.apiBaseUrl.description%"
         },
         "retainPdf.apiKey": {
           "type": "string",
           "default": "",
-          "description": "RetainPDF Rust API X-API-Key.",
+          "description": "%setting.apiKey.description%",
           "secureStorage": true
         },
         "retainPdf.ocrProvider": {
           "type": "string",
           "default": "mineru",
-          "description": "OCR provider used by RetainPDF.",
+          "description": "%setting.ocrProvider.description%",
           "enum": [
             "mineru",
             "paddle"
@@ -151,63 +151,63 @@
         "retainPdf.mineruToken": {
           "type": "string",
           "default": "",
-          "description": "MinerU token for RetainPDF OCR.",
+          "description": "%setting.mineruToken.description%",
           "secureStorage": true
         },
         "retainPdf.paddleToken": {
           "type": "string",
           "default": "",
-          "description": "PaddleOCR token for RetainPDF OCR.",
+          "description": "%setting.paddleToken.description%",
           "secureStorage": true
         },
         "retainPdf.modelBaseUrl": {
           "type": "string",
           "default": "https://api.deepseek.com/v1",
-          "description": "OpenAI-compatible model API base URL used by RetainPDF translation."
+          "description": "%setting.modelBaseUrl.description%"
         },
         "retainPdf.model": {
           "type": "string",
           "default": "deepseek-v4-flash",
-          "description": "Translation model name."
+          "description": "%setting.model.description%"
         },
         "retainPdf.modelApiKey": {
           "type": "string",
           "default": "",
-          "description": "Translation provider API key.",
+          "description": "%setting.modelApiKey.description%",
           "secureStorage": true
         },
         "retainPdf.workflow": {
           "type": "string",
           "default": "book",
-          "description": "RetainPDF workflow.",
+          "description": "%setting.workflow.description%",
           "enum": [
             "book",
             "translate"
           ],
           "enumItemLabels": [
-            "Full PDF",
-            "Translate only"
+            "%setting.workflow.book%",
+            "%setting.workflow.translate%"
           ]
         },
         "retainPdf.pageRanges": {
           "type": "string",
           "default": "",
-          "description": "Optional RetainPDF page range string."
+          "description": "%setting.pageRanges.description%"
         },
         "retainPdf.developerMode": {
           "type": "boolean",
           "default": true,
-          "description": "Enable RetainPDF developer-mode upload for local workspace PDFs."
+          "description": "%setting.developerMode.description%"
         },
         "retainPdf.pollIntervalSeconds": {
           "type": "number",
           "default": 5,
-          "description": "Worker polling interval in seconds."
+          "description": "%setting.pollIntervalSeconds.description%"
         },
         "retainPdf.timeoutSeconds": {
           "type": "number",
           "default": 1800,
-          "description": "RetainPDF job timeout in seconds."
+          "description": "%setting.timeoutSeconds.description%"
         }
       }
     }

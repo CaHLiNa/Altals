@@ -21,7 +21,7 @@ pub struct I18nRuntimeLoadParams {
     preferred_locale: String,
 }
 
-fn normalize_locale(value: &str) -> String {
+pub fn normalize_locale(value: &str) -> String {
     if value.trim().to_ascii_lowercase().starts_with("zh") {
         "zh-CN".to_string()
     } else {
@@ -29,7 +29,7 @@ fn normalize_locale(value: &str) -> String {
     }
 }
 
-fn normalize_locale_preference(value: &str) -> String {
+pub fn normalize_locale_preference(value: &str) -> String {
     match value.trim().to_ascii_lowercase().as_str() {
         "zh" | "zh-cn" => "zh-CN".to_string(),
         "en" | "en-us" => "en-US".to_string(),
@@ -37,13 +37,22 @@ fn normalize_locale_preference(value: &str) -> String {
     }
 }
 
-fn detect_system_locale() -> String {
+pub fn detect_system_locale() -> String {
     std::env::var("LC_ALL")
         .ok()
         .or_else(|| std::env::var("LC_MESSAGES").ok())
         .or_else(|| std::env::var("LANG").ok())
         .map(|value| normalize_locale(&value))
         .unwrap_or_else(|| "en-US".to_string())
+}
+
+pub fn resolve_effective_locale(preferred_locale: &str) -> String {
+    let preferred_locale = normalize_locale_preference(preferred_locale);
+    if preferred_locale == "system" {
+        detect_system_locale()
+    } else {
+        preferred_locale
+    }
 }
 
 fn load_messages() -> &'static HashMap<String, String> {
@@ -65,13 +74,7 @@ pub async fn i18n_runtime_load(
     params: Option<I18nRuntimeLoadParams>,
 ) -> Result<I18nRuntimePayload, String> {
     let system_locale = detect_system_locale();
-    let preferred_locale =
-        normalize_locale_preference(&params.unwrap_or_default().preferred_locale);
-    let locale = if preferred_locale == "system" {
-        system_locale.clone()
-    } else {
-        preferred_locale
-    };
+    let locale = resolve_effective_locale(&params.unwrap_or_default().preferred_locale);
 
     let messages = if locale == "zh-CN" {
         load_messages().clone()

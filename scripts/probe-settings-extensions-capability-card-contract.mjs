@@ -246,7 +246,7 @@ try {
   assert.match(readyHtml, /document\.summarize/)
   assert.match(readyHtml, /extension-status-pill/)
   assert.match(readyHtml, /Ready/)
-  assert.match(readyHtml, /Run document\.summarize/)
+  assert.match(readyHtml, /Run Summarize document/)
 
   console.log(JSON.stringify({
     ok: true,
@@ -254,7 +254,7 @@ try {
       blockedUsesSharedChip: blockedHtml.includes('extension-blocked-status-chip'),
       blockedUsesSharedButtonLabel: blockedHtml.includes('>Blocked<'),
       readyKeepsStatusPill: readyHtml.includes('extension-status-pill'),
-      readyActionLabel: readyHtml.includes('Run document.summarize'),
+      readyActionLabel: readyHtml.includes('Run Summarize document'),
     },
   }, null, 2))
 } finally {

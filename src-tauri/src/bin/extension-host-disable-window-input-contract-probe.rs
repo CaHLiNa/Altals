@@ -16,8 +16,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .as_millis();
     let root =
         std::env::temp_dir().join(format!("scribeflow-extension-disable-window-input-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -143,10 +147,12 @@ fn main() -> Result<(), String> {
 fn run_probe(probe_root: &Path) -> Result<(), String> {
     let workspace_root = probe_root.join("workspace");
     let global_config_dir = probe_root.join("global-config");
-    fs::create_dir_all(&workspace_root)
-        .map_err(|error| format!("Failed to create disable window-input probe workspace dir: {error}"))?;
-    fs::create_dir_all(&global_config_dir)
-        .map_err(|error| format!("Failed to create disable window-input probe global config dir: {error}"))?;
+    fs::create_dir_all(&workspace_root).map_err(|error| {
+        format!("Failed to create disable window-input probe workspace dir: {error}")
+    })?;
+    fs::create_dir_all(&global_config_dir).map_err(|error| {
+        format!("Failed to create disable window-input probe global config dir: {error}")
+    })?;
 
     let manifest_path = build_probe_extension(&workspace_root)?;
     let workspace_root_text = workspace_root.to_string_lossy().to_string();
@@ -198,6 +204,7 @@ fn run_probe(probe_root: &Path) -> Result<(), String> {
                     "workspace",
                     "/tmp/file.txt",
                     &serde_json::Value::Object(Default::default()),
+                    "en-US",
                 ),
             },
         )

@@ -13,8 +13,12 @@ fn unique_temp_dir() -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to read current time: {error}"))?
         .as_millis();
     let root = std::env::temp_dir().join(format!("scribeflow-extension-host-recovery-{now}"));
-    fs::create_dir_all(&root)
-        .map_err(|error| format!("Failed to create probe temp root {}: {error}", root.display()))?;
+    fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "Failed to create probe temp root {}: {error}",
+            root.display()
+        )
+    })?;
     Ok(root)
 }
 
@@ -32,7 +36,10 @@ fn write_file(path: &Path, content: &str) -> Result<(), String> {
 }
 
 fn build_probe_extension(root: &Path) -> Result<(String, String), String> {
-    let extension_root = root.join(".scribeflow").join("extensions").join("example-recovery-extension");
+    let extension_root = root
+        .join(".scribeflow")
+        .join("extensions")
+        .join("example-recovery-extension");
     let manifest_path = extension_root.join("package.json");
     let entry_path = extension_root.join("dist").join("extension.js");
     let manifest = json!({

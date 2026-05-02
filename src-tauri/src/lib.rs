@@ -58,35 +58,31 @@ mod workspace_access;
 mod workspace_lifecycle;
 mod workspace_preferences;
 
+pub use extension_artifacts::ExtensionArtifact;
+pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
 pub use extension_host::{
     activate_extension as extension_host_activate_entry,
     activate_extension_by_id_for_probe as extension_host_activate_by_id_for_probe,
     build_extension_invocation_envelope as extension_host_build_invocation_envelope_for_probe,
     cancel_window_inputs_for_extension_for_probe as extension_host_cancel_window_inputs_for_probe,
     deactivate_extension_for_probe as extension_host_deactivate_for_probe,
+    invoke_extension_host as extension_host_invoke_request,
     invoke_extension_host_for_probe as extension_host_invoke_probe_request,
     invoke_extension_host_with_task_runtime_for_probe as extension_host_invoke_probe_request_with_task_runtime,
-    invoke_extension_host as extension_host_invoke_request,
     spawned_process_count_for_probe as extension_host_spawned_process_count_for_probe,
-    ExtensionHostCapabilityResult,
-    ExtensionHostInvocationEnvelope,
-    ExtensionHostRequest,
-    ExtensionHostResponse,
-    ExtensionHostState,
+    ExtensionHostCapabilityResult, ExtensionHostInvocationEnvelope, ExtensionHostRequest,
+    ExtensionHostResponse, ExtensionHostState,
 };
-pub use extension_artifacts::ExtensionArtifact;
 pub use extension_outputs::ExtensionCapabilityOutput;
-pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
-pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
-pub use extension_tasks::cancel_active_tasks_for_extension_for_probe as extension_task_cancel_extension_for_probe;
-pub use extension_tasks::ExtensionTaskRuntimeState;
 pub use extension_settings::{
     load_extension_runtime_state_snapshot as extension_settings_load_runtime_state_snapshot_for_probe,
     load_extension_settings_with_state as extension_settings_load_with_state_for_probe,
-    save_extension_settings as extension_settings_save_for_probe,
-    ExtensionSettings,
+    save_extension_settings as extension_settings_save_for_probe, ExtensionSettings,
 };
-pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
+pub use extension_tasks::cancel_active_tasks_for_extension_for_probe as extension_task_cancel_extension_for_probe;
+pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
+pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
+pub use extension_tasks::ExtensionTaskRuntimeState;
 
 use percent_encoding::percent_decode_str;
 use std::fs;
@@ -479,7 +475,9 @@ pub fn run() {
                 extension_host_state.inner(),
                 app.handle().clone(),
             );
-            extension_task_state.inner().bind_app_handle(app.handle().clone());
+            extension_task_state
+                .inner()
+                .bind_app_handle(app.handle().clone());
             apply_macos_window_vibrancy(app.handle());
             Ok(())
         })
@@ -494,7 +492,9 @@ pub fn run() {
             extension_host_state.inner(),
             app.handle().clone(),
         );
-        extension_task_state.inner().bind_app_handle(app.handle().clone());
+        extension_task_state
+            .inner()
+            .bind_app_handle(app.handle().clone());
         Ok(())
     });
 

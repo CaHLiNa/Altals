@@ -1,7 +1,7 @@
 use crate::extension_artifacts::ExtensionArtifact;
 use crate::extension_manifest::{
-    ExtensionCapabilityContribution, ExtensionInputDefinition, ExtensionOutputDefinition,
-    ExtensionManifest,
+    ExtensionCapabilityContribution, ExtensionInputDefinition, ExtensionManifest,
+    ExtensionOutputDefinition,
 };
 use crate::extension_outputs::ExtensionCapabilityOutput;
 use crate::extension_tasks::ExtensionTaskTarget;
@@ -74,7 +74,10 @@ fn validate_workspace_file_input(
     }
 
     let target_extension = extname(&target_path);
-    if allowed_extensions.iter().any(|value| value == &target_extension) {
+    if allowed_extensions
+        .iter()
+        .any(|value| value == &target_extension)
+    {
         Ok(())
     } else {
         Err(format!(
@@ -269,8 +272,8 @@ mod tests {
     fn rejects_missing_workspace_file_input() {
         let manifest = manifest();
         let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
-        let error =
-            validate_capability_inputs(capability, &target("", "ref-123")).expect_err("missing path");
+        let error = validate_capability_inputs(capability, &target("", "ref-123"))
+            .expect_err("missing path");
         assert!(error.contains("document"));
         assert!(error.contains("Requires an active file target"));
     }
@@ -308,8 +311,8 @@ mod tests {
     fn rejects_missing_required_output_artifact() {
         let manifest = manifest();
         let capability = manifest_capability_by_id(&manifest, "pdf.translate").expect("capability");
-        let error = validate_capability_outputs(capability, &[], &[])
-            .expect_err("missing required output");
+        let error =
+            validate_capability_outputs(capability, &[], &[]).expect_err("missing required output");
         assert!(error.contains("summary"));
         assert!(error.contains("text/plain"));
     }

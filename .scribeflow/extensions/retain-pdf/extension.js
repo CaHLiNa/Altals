@@ -55,6 +55,10 @@ function setting(context, key = "", fallback = "") {
   return context.settings.get(`retainPdf.${key}`, fallback)
 }
 
+function tr(context, key = "", vars = {}) {
+  return context.i18n?.t ? context.i18n.t(key, vars) : String(key || "")
+}
+
 function numberSetting(context, key = "", fallback = 0) {
   const value = Number(setting(context, key, fallback))
   return Number.isFinite(value) ? value : fallback
@@ -120,9 +124,9 @@ function settingStatus(context) {
     ready: ocrConfigured && modelConfigured,
     summary: [
       provider,
-      ocrConfigured ? "OCR token configured" : "OCR token missing",
-      modelConfigured ? "model key configured" : "model key missing",
-      apiConfigured ? "API key configured" : "API key empty",
+      ocrConfigured ? tr(context, "runtime.ocrTokenConfigured") : tr(context, "runtime.ocrTokenMissing"),
+      modelConfigured ? tr(context, "runtime.modelKeyConfigured") : tr(context, "runtime.modelKeyMissing"),
+      apiConfigured ? tr(context, "runtime.apiKeyConfigured") : tr(context, "runtime.apiKeyEmpty"),
     ].join(" · "),
   }
 }
@@ -153,32 +157,32 @@ function contextSections(context, overrides = {}) {
     {
       id: "active-pdf",
       kind: "context",
-      title: "Active PDF",
-      value: targetPath || "No active PDF",
+      title: tr(context, "section.activePdf"),
+      value: targetPath || tr(context, "value.noActivePdf"),
     },
     {
       id: "reference",
       kind: "context",
-      title: "Reference",
-      value: reference.id || "No linked reference",
+      title: tr(context, "section.reference"),
+      value: reference.id || tr(context, "value.noLinkedReference"),
     },
     {
       id: "retain-api",
       kind: "config",
-      title: "RetainPDF API",
+      title: tr(context, "section.retainApi"),
       value: settings.apiBaseUrl || "http://127.0.0.1:41000",
     },
     {
       id: "provider",
       kind: status.ready ? "status" : "warning",
-      title: "Provider",
+      title: tr(context, "section.provider"),
       value: overrides.providerStatus || status.summary,
     },
     {
       id: "workflow",
       kind: "config",
-      title: "Workflow",
-      value: `${settings.workflow || "book"}${settings.pageRanges ? ` · pages ${settings.pageRanges}` : ""}`,
+      title: tr(context, "section.workflow"),
+      value: `${settings.workflow || "book"}${settings.pageRanges ? ` · ${tr(context, "value.pages", { pages: settings.pageRanges })}` : ""}`,
     },
   ]
 }
@@ -193,21 +197,21 @@ function resultEntriesFor(context, paths = {}, summary = {}, sourcePdf = "") {
   if (translatedPdfPath) {
     entries.push({
       id: "retain-pdf-translated-pdf",
-      label: "Open Translated PDF",
+      label: tr(context, "result.openTranslatedPdf"),
       description: basename(translatedPdfPath),
       action: "open",
       path: translatedPdfPath,
       mediaType: "application/pdf",
       previewMode: "pdf",
       previewPath: translatedPdfPath,
-      previewTitle: "RetainPDF Translated PDF",
+      previewTitle: tr(context, "preview.translatedPdf"),
       targetKind: "pdf",
       targetPath: translatedPdfPath,
       referenceId,
     })
     entries.push({
       id: "retain-pdf-reveal-translated-pdf",
-      label: "Reveal Translated PDF",
+      label: tr(context, "result.revealTranslatedPdf"),
       description: translatedPdfPath,
       action: "reveal",
       path: translatedPdfPath,
@@ -217,34 +221,34 @@ function resultEntriesFor(context, paths = {}, summary = {}, sourcePdf = "") {
   if (translatedTextPath) {
     entries.push({
       id: "retain-pdf-translated-text",
-      label: "Open Translation Text",
+      label: tr(context, "result.openTranslationText"),
       description: basename(translatedTextPath),
       action: "open",
       path: translatedTextPath,
       mediaType: "text/markdown",
       previewMode: "text",
       previewPath: translatedTextPath,
-      previewTitle: "RetainPDF Text Output",
+      previewTitle: tr(context, "preview.textOutput"),
       referenceId,
     })
   }
   if (logPath) {
     entries.push({
       id: "retain-pdf-log",
-      label: "Open RetainPDF Log",
+      label: tr(context, "result.openLog"),
       description: basename(logPath),
       action: "open",
       path: logPath,
       mediaType: "text/plain",
       previewMode: "text",
       previewPath: logPath,
-      previewTitle: "RetainPDF Log",
+      previewTitle: tr(context, "preview.log"),
     })
   }
   if (targetPath) {
     entries.push({
       id: "retain-pdf-rerun",
-      label: "Run RetainPDF Again",
+      label: tr(context, "result.rerun"),
       description: basename(targetPath),
       action: "execute-command",
       commandId: COMMAND_TRANSLATE,
@@ -294,19 +298,19 @@ function artifactsFor(paths = {}, summary = {}, sourcePdf = "") {
 function summaryOutput(context, summary = {}, sourcePdf = "") {
   const status = String(summary.status || "running")
   const lines = [
-    `Status: ${status}`,
-    `Source: ${sourcePdf || summary.sourcePdf || "No active PDF"}`,
-    `Reference: ${activeReferenceId(context) || "None"}`,
-    `RetainPDF job: ${summary.retainPdfJobId || "Not created yet"}`,
-    `Stage: ${summary.finalStage || "queued"}`,
-    summary.finalStageDetail ? `Detail: ${summary.finalStageDetail}` : "",
-    summary.message ? `Message: ${summary.message}` : "",
+    tr(context, "summary.status", { status }),
+    tr(context, "summary.source", { source: sourcePdf || summary.sourcePdf || tr(context, "value.noActivePdf") }),
+    tr(context, "summary.reference", { reference: activeReferenceId(context) || tr(context, "value.none") }),
+    tr(context, "summary.job", { job: summary.retainPdfJobId || tr(context, "value.jobNotCreated") }),
+    tr(context, "summary.stage", { stage: summary.finalStage || tr(context, "value.queued") }),
+    summary.finalStageDetail ? tr(context, "summary.detail", { detail: summary.finalStageDetail }) : "",
+    summary.message ? tr(context, "summary.message", { message: summary.message }) : "",
   ].filter(Boolean)
   return {
     id: "retain-pdf-summary",
     type: "inlineText",
     mediaType: "text/plain",
-    title: "RetainPDF Summary",
+    title: tr(context, "summary.title"),
     description: sourcePdf || summary.sourcePdf || "",
     text: lines.join("\n"),
   }
@@ -318,15 +322,15 @@ function updatePanel(context, overrides = {}) {
   const status = settingStatus(context)
   context.views.updateView(VIEW_ID, {
     title: "RetainPDF",
-    description: overrides.description ?? "Layout-preserving PDF translation",
+    description: overrides.description ?? tr(context, "panel.description"),
     message: overrides.message ?? (sourcePdf
-      ? `Ready for ${basename(sourcePdf)}`
-      : "Open a PDF or select a reference with a PDF to run RetainPDF."),
+      ? tr(context, "panel.readyFor", { name: basename(sourcePdf) })
+      : tr(context, "panel.openPdfFirstMessage")),
     badgeValue: overrides.badgeValue ?? (sourcePdf ? 1 : 0),
-    badgeTooltip: sourcePdf ? "RetainPDF can process the active PDF." : "No active PDF.",
-    statusLabel: overrides.statusLabel ?? (sourcePdf && status.ready ? "Ready" : "Needs Settings"),
+    badgeTooltip: sourcePdf ? tr(context, "panel.canProcessPdf") : tr(context, "panel.noActivePdf"),
+    statusLabel: overrides.statusLabel ?? (sourcePdf && status.ready ? tr(context, "panel.ready") : tr(context, "panel.needsSettings")),
     statusTone: overrides.statusTone ?? (sourcePdf && status.ready ? "success" : "warning"),
-    actionLabel: overrides.actionLabel ?? (sourcePdf ? "Run RetainPDF from the PDF action or panel item" : "Open a PDF first"),
+    actionLabel: overrides.actionLabel ?? (sourcePdf ? tr(context, "panel.runFromPdfAction") : tr(context, "panel.openPdfFirstAction")),
     sections: overrides.sections ?? contextSections(context, overrides),
     resultEntries: overrides.resultEntries ?? resultEntriesFor(context, overrides.paths || {}, overrides.summary || {}, sourcePdf),
     artifacts: Array.isArray(overrides.artifacts) ? overrides.artifacts : artifactsFor(overrides.paths || {}, overrides.summary || {}, sourcePdf),
@@ -350,7 +354,7 @@ async function writeJsonThroughHost(context, filePath = "", payload = {}) {
     cwd: context.workspace?.rootPath || "",
   })
   if (!result?.ok) {
-    throw new Error(String(result?.stderr || "Failed to write RetainPDF worker settings"))
+    throw new Error(String(result?.stderr || tr(context, "error.writeSettingsFailed")))
   }
 }
 
@@ -378,18 +382,18 @@ async function runRetainPdf(context, payload = {}) {
     const summary = {
       status: "failed",
       sourcePdf,
-      message: "RetainPDF requires the active target to be a PDF.",
+      message: tr(context, "task.requiresPdf"),
     }
     updatePanel(context, {
       sourcePdf,
       summary,
-      statusLabel: "No PDF",
+      statusLabel: tr(context, "panel.noPdf"),
       statusTone: "warning",
       message: summary.message,
     })
     return {
       taskState: "failed",
-      progressLabel: "No active PDF",
+      progressLabel: tr(context, "task.noActivePdf"),
       message: summary.message,
       outputs: [summaryOutput(context, summary, sourcePdf)],
     }
@@ -401,18 +405,18 @@ async function runRetainPdf(context, payload = {}) {
     const summary = {
       status: "failed",
       sourcePdf,
-      message: `RetainPDF settings are incomplete: ${status.summary}`,
+      message: tr(context, "task.settingsIncomplete", { summary: status.summary }),
     }
     updatePanel(context, {
       sourcePdf,
       summary,
-      statusLabel: "Settings Missing",
+      statusLabel: tr(context, "panel.settingsMissing"),
       statusTone: "warning",
       message: summary.message,
     })
     return {
       taskState: "failed",
-      progressLabel: "RetainPDF settings missing",
+      progressLabel: tr(context, "task.settingsMissing"),
       message: summary.message,
       outputs: [summaryOutput(context, summary, sourcePdf)],
     }
@@ -424,7 +428,7 @@ async function runRetainPdf(context, payload = {}) {
 
   await context.tasks.update({
     state: "running",
-    progressLabel: `RetainPDF processing ${basename(sourcePdf)}`,
+    progressLabel: tr(context, "task.processing", { name: basename(sourcePdf) }),
     outputs: [summaryOutput(context, { status: "running", sourcePdf, logPath: paths.logPath }, sourcePdf)],
     artifacts: [
       {
@@ -440,10 +444,10 @@ async function runRetainPdf(context, payload = {}) {
   updatePanel(context, {
     sourcePdf,
     paths,
-    statusLabel: "Running",
+    statusLabel: tr(context, "panel.running"),
     statusTone: "warning",
-    message: `RetainPDF is processing ${basename(sourcePdf)}.`,
-    actionLabel: "Use the task panel to cancel or inspect progress",
+    message: tr(context, "task.processingMessage", { name: basename(sourcePdf) }),
+    actionLabel: tr(context, "panel.useTaskPanel"),
     outputs: [summaryOutput(context, { status: "running", sourcePdf, logPath: paths.logPath }, sourcePdf)],
     artifacts: artifactsFor({ logPath: paths.logPath }, {}, sourcePdf),
   })
@@ -482,8 +486,8 @@ async function runRetainPdf(context, payload = {}) {
 
   await context.tasks.update({
     state: normalizedState,
-    progressLabel: ok ? "RetainPDF completed" : normalizedState === "cancelled" ? "RetainPDF cancelled" : "RetainPDF failed",
-    error: ok ? "" : String(finalSummary.message || "RetainPDF worker failed"),
+    progressLabel: ok ? tr(context, "task.completed") : normalizedState === "cancelled" ? tr(context, "task.cancelled") : tr(context, "task.failed"),
+    error: ok ? "" : String(finalSummary.message || tr(context, "task.workerFailed")),
     artifacts: finalArtifacts,
     outputs: finalOutputs,
   })
@@ -492,10 +496,10 @@ async function runRetainPdf(context, payload = {}) {
     sourcePdf,
     paths,
     summary: finalSummary,
-    statusLabel: ok ? "Completed" : normalizedState === "cancelled" ? "Cancelled" : "Failed",
+    statusLabel: ok ? tr(context, "panel.completed") : normalizedState === "cancelled" ? tr(context, "panel.cancelled") : tr(context, "panel.failed"),
     statusTone: ok ? "success" : "warning",
-    message: finalSummary.message || (ok ? "RetainPDF completed." : "RetainPDF failed."),
-    actionLabel: ok ? "Open the translated PDF or inspect the log" : "Open the log, fix settings, or rerun",
+    message: finalSummary.message || (ok ? tr(context, "task.completedMessage") : tr(context, "task.failedMessage")),
+    actionLabel: ok ? tr(context, "panel.openTranslatedOrLog") : tr(context, "panel.openLogFixSettings"),
     resultEntries: finalEntries,
     artifacts: finalArtifacts,
     outputs: finalOutputs,
@@ -504,8 +508,8 @@ async function runRetainPdf(context, payload = {}) {
 
   return {
     taskState: normalizedState,
-    progressLabel: ok ? "RetainPDF completed" : normalizedState === "cancelled" ? "RetainPDF cancelled" : "RetainPDF failed",
-    message: finalSummary.message || (ok ? "RetainPDF completed." : "RetainPDF failed."),
+    progressLabel: ok ? tr(context, "task.completed") : normalizedState === "cancelled" ? tr(context, "task.cancelled") : tr(context, "task.failed"),
+    message: finalSummary.message || (ok ? tr(context, "task.completedMessage") : tr(context, "task.failedMessage")),
     resultEntries: finalEntries,
     artifacts: finalArtifacts,
     outputs: finalOutputs,
@@ -520,26 +524,26 @@ export async function activate(context) {
 
   context.menus.registerAction(COMMAND_TRANSLATE, {
     surface: "commandPalette",
-    title: "Translate Current PDF",
-    category: "RetainPDF",
+    title: tr(context, "command.translateCurrent.title"),
+    category: tr(context, "category.retainPdf"),
     when: "resourceExtname == .pdf || resource.kind == pdf",
   })
   context.menus.registerAction(COMMAND_TRANSLATE, {
     surface: "pdf.preview.actions",
     title: "RetainPDF",
-    category: "PDF",
+    category: tr(context, "category.pdf"),
     when: "resource.kind == pdf",
   })
   context.menus.registerAction(COMMAND_REFRESH, {
     surface: "view/title",
-    title: "Refresh",
-    category: "RetainPDF",
+    title: tr(context, "command.refresh.title"),
+    category: tr(context, "category.retainPdf"),
     when: "activeView == extension:retainPdf.tools",
   })
   context.menus.registerAction(COMMAND_TRANSLATE, {
     surface: "view/item/context",
-    title: "Translate With RetainPDF",
-    category: "RetainPDF",
+    title: tr(context, "command.translateWithRetainPdf"),
+    category: tr(context, "category.retainPdf"),
     when: "viewItem.contextValue == retain-pdf-target",
   })
 
@@ -555,36 +559,36 @@ export async function activate(context) {
       referenceId: activeReferenceId(context, payload),
     })
     if (String(result?.taskState || "") === "succeeded") {
-      await context.window.showInformationMessage("RetainPDF translation completed")
+      await context.window.showInformationMessage(tr(context, "toast.completed"))
     } else if (String(result?.taskState || "") === "failed") {
-      await context.window.showErrorMessage("RetainPDF translation failed")
+      await context.window.showErrorMessage(tr(context, "toast.failed"))
     }
     return result
   }, {
-    title: "Translate Current PDF",
-    category: "RetainPDF",
+    title: tr(context, "command.translateCurrent.title"),
+    category: tr(context, "category.retainPdf"),
     when: "resourceExtname == .pdf || resource.kind == pdf",
   })
 
   context.commands.registerCommand(COMMAND_REFRESH, async () => {
     updatePanel(context, {
-      description: `Layout-preserving PDF translation · launched ${launchCount} times`,
+      description: tr(context, "panel.launchedTimes", { count: launchCount }),
       message: activePdfPath(context)
-        ? `Ready for ${basename(activePdfPath(context))}`
-        : "Open a PDF or select a reference with a PDF to run RetainPDF.",
-      statusLabel: activePdfPath(context) ? "Ready" : "Waiting",
+        ? tr(context, "panel.readyFor", { name: basename(activePdfPath(context)) })
+        : tr(context, "panel.openPdfFirstMessage"),
+      statusLabel: activePdfPath(context) ? tr(context, "panel.ready") : tr(context, "panel.waiting"),
       statusTone: activePdfPath(context) ? "success" : "warning",
-      actionLabel: activePdfPath(context) ? "Run RetainPDF on the active PDF" : "Open a PDF first",
+      actionLabel: activePdfPath(context) ? tr(context, "panel.runActivePdf") : tr(context, "panel.openPdfFirstAction"),
     })
     context.views.refresh(VIEW_ID)
     return {
-      message: "RetainPDF panel refreshed",
-      progressLabel: "RetainPDF panel refreshed",
+      message: tr(context, "event.panelRefreshed"),
+      progressLabel: tr(context, "event.panelRefreshed"),
       changedViews: [VIEW_ID],
     }
   }, {
-    title: "Refresh RetainPDF Panel",
-    category: "RetainPDF",
+    title: tr(context, "command.refreshView.title"),
+    category: tr(context, "category.retainPdf"),
   })
 
   context.commands.registerCommand(COMMAND_CAPTURE, async () => {
@@ -592,19 +596,23 @@ export async function activate(context) {
     const pdf = currentPdf(context)
     const metadata = pdf.path ? await context.pdf.extractMetadata(pdf.path).catch(() => ({})) : {}
     updatePanel(context, {
-      statusLabel: pdf.path ? "Context Ready" : "Waiting",
+      statusLabel: pdf.path ? tr(context, "panel.contextReady") : tr(context, "panel.waiting"),
       statusTone: pdf.path ? "success" : "warning",
-      message: `PDF: ${pdf.path || "none"} · refs:${Array.isArray(library?.references) ? library.references.length : 0}${metadata?.metadata?.title ? ` · ${metadata.metadata.title}` : ""}`,
-      actionLabel: "Context captured from ScribeFlow runtime",
+      message: tr(context, "event.contextMessage", {
+        path: pdf.path || tr(context, "value.none"),
+        count: Array.isArray(library?.references) ? library.references.length : 0,
+        title: metadata?.metadata?.title ? ` · ${metadata.metadata.title}` : "",
+      }),
+      actionLabel: tr(context, "panel.contextCapturedAction"),
     })
     return {
-      message: "RetainPDF captured current ScribeFlow context",
-      progressLabel: "Context captured",
+      message: tr(context, "event.contextCaptured"),
+      progressLabel: tr(context, "event.contextCapturedProgress"),
       changedViews: [VIEW_ID],
     }
   }, {
-    title: "Capture RetainPDF Context",
-    category: "RetainPDF",
+    title: tr(context, "command.captureContext.title"),
+    category: tr(context, "category.retainPdf"),
   })
 
   context.views.registerTreeDataProvider(VIEW_ID, {
@@ -640,9 +648,9 @@ export async function activate(context) {
         return {
           id: "retain-pdf-target-group",
           handle: "retain-pdf-target-group",
-          label: "Current PDF",
-          description: "Run RetainPDF on the active PDF/reference.",
-          tooltip: "Expand to process the current PDF with RetainPDF.",
+          label: tr(context, "tree.currentPdf"),
+          description: tr(context, "tree.currentPdfDescription"),
+          tooltip: tr(context, "tree.currentPdfTooltip"),
           contextValue: "retain-pdf-group",
           icon: "folder",
           collapsibleState: "collapsed",
@@ -652,9 +660,9 @@ export async function activate(context) {
       return {
         id: "retain-pdf-current-target",
         handle: String(element?.handle || "retain-pdf-current-target"),
-        label: targetPath ? basename(targetPath) : "No active PDF",
-        description: targetPath ? "Translate and preserve layout" : "Open a PDF first",
-        tooltip: targetPath || "Open a PDF first.",
+        label: targetPath ? basename(targetPath) : tr(context, "value.noActivePdf"),
+        description: targetPath ? tr(context, "tree.translatePreserveLayout") : tr(context, "tree.openPdfFirst"),
+        tooltip: targetPath || tr(context, "tree.openPdfFirstTooltip"),
         contextValue: "retain-pdf-target",
         icon: "file",
         commandId: targetPath ? COMMAND_TRANSLATE : "",
@@ -679,10 +687,10 @@ export async function activate(context) {
       context.workspaceState.update("lastRetainPdfTarget", targetPath)
       updatePanel(context, {
         sourcePdf: targetPath,
-        statusLabel: "Target Selected",
+        statusLabel: tr(context, "panel.targetSelected"),
         statusTone: "success",
-        message: `Selected ${basename(targetPath)} for RetainPDF.`,
-        actionLabel: "Run RetainPDF to process this PDF",
+        message: tr(context, "event.selected", { name: basename(targetPath) }),
+        actionLabel: tr(context, "panel.runSelectedPdf"),
       })
     }
   })
@@ -691,18 +699,20 @@ export async function activate(context) {
     const keys = Array.isArray(event?.keys) ? event.keys.filter(Boolean) : []
     if (keys.length === 0) return
     updatePanel(context, {
-      statusLabel: settingStatus(context).ready ? "Settings Ready" : "Needs Settings",
+      statusLabel: settingStatus(context).ready ? tr(context, "panel.settingsReady") : tr(context, "panel.needsSettings"),
       statusTone: settingStatus(context).ready ? "success" : "warning",
-      message: `RetainPDF settings updated: ${keys.join(", ")}`,
-      actionLabel: "Run RetainPDF with the updated settings",
+      message: tr(context, "event.settingsUpdated", { keys: keys.join(", ") }),
+      actionLabel: tr(context, "panel.runUpdatedSettings"),
     })
   })
 
   updatePanel(context, {
-    description: `Layout-preserving PDF translation · launched ${launchCount} times`,
+    description: tr(context, "panel.launchedTimes", { count: launchCount }),
     message: activePdfPath(context)
-      ? `Ready for ${basename(activePdfPath(context))}${activeReferenceId(context) ? ` · ref:${activeReferenceId(context)}` : ""}`
-      : "Open a PDF or select a reference with a PDF to run RetainPDF.",
+      ? activeReferenceId(context)
+        ? tr(context, "event.readyForWithReference", { name: basename(activePdfPath(context)), referenceId: activeReferenceId(context) })
+        : tr(context, "panel.readyFor", { name: basename(activePdfPath(context)) })
+      : tr(context, "panel.openPdfFirstMessage"),
   })
 }
 

@@ -1,6 +1,6 @@
 use crate::app_dirs;
-use crate::extension_secret_settings::looks_like_secret_setting_key;
 use crate::extension_registry::find_extension_entry;
+use crate::extension_secret_settings::looks_like_secret_setting_key;
 use crate::keychain;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -81,7 +81,9 @@ fn secure_storage_keys_for_extension(
         return Ok(keys);
     }
 
-    if let Ok(entry) = find_extension_entry(global_config_dir, workspace_root, &normalized_extension_id) {
+    if let Ok(entry) =
+        find_extension_entry(global_config_dir, workspace_root, &normalized_extension_id)
+    {
         if let Some(manifest) = entry.manifest.as_ref() {
             for (key, definition) in &manifest.contributes.configuration.properties {
                 if definition.secure_storage {
@@ -113,7 +115,8 @@ fn secret_keys_for_config(
     extension_id: &str,
     config: &serde_json::Map<String, Value>,
 ) -> Result<Vec<String>, String> {
-    let declared = secure_storage_keys_for_extension(global_config_dir, workspace_root, extension_id)?;
+    let declared =
+        secure_storage_keys_for_extension(global_config_dir, workspace_root, extension_id)?;
     let mut keys = declared
         .into_iter()
         .filter(|key| config.contains_key(key))
@@ -138,7 +141,8 @@ fn redact_secret_settings_for_disk(
         let Some(config_map) = config.as_object_mut() else {
             continue;
         };
-        let secret_keys = secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
+        let secret_keys =
+            secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
         for key in secret_keys {
             let value = config_map.get(&key).cloned().unwrap_or(Value::Null);
             let normalized_value = match value {
@@ -169,7 +173,8 @@ fn hydrate_secret_settings_from_keychain(
             Value::Object(map) => map,
             _ => continue,
         };
-        let secret_keys = secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
+        let secret_keys =
+            secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
         for key in secret_keys {
             let storage_key = extension_secret_storage_key(extension_id, &key);
             if let Some(value) = keychain::keychain_get_entry(&storage_key)? {
@@ -274,7 +279,12 @@ fn normalize_runtime_state_store(store: ExtensionRuntimeStateStore) -> Extension
     let global_state = store
         .global_state
         .into_iter()
-        .map(|(extension_id, value)| (extension_id.trim().to_ascii_lowercase(), normalize_state_value(value)))
+        .map(|(extension_id, value)| {
+            (
+                extension_id.trim().to_ascii_lowercase(),
+                normalize_state_value(value),
+            )
+        })
         .filter(|(extension_id, _)| !extension_id.is_empty())
         .collect();
 
@@ -288,7 +298,12 @@ fn normalize_runtime_state_store(store: ExtensionRuntimeStateStore) -> Extension
             }
             let normalized_states = states
                 .into_iter()
-                .map(|(extension_id, value)| (extension_id.trim().to_ascii_lowercase(), normalize_state_value(value)))
+                .map(|(extension_id, value)| {
+                    (
+                        extension_id.trim().to_ascii_lowercase(),
+                        normalize_state_value(value),
+                    )
+                })
                 .filter(|(extension_id, _)| !extension_id.is_empty())
                 .collect::<BTreeMap<_, _>>();
             Some((normalized_workspace_root, normalized_states))
@@ -417,9 +432,10 @@ pub fn save_extension_runtime_state_snapshot(
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
     let normalized_workspace_root = workspace_root.trim().to_string();
 
-    store
-        .global_state
-        .insert(normalized_extension_id.clone(), normalize_state_value(snapshot.global_state.clone()));
+    store.global_state.insert(
+        normalized_extension_id.clone(),
+        normalize_state_value(snapshot.global_state.clone()),
+    );
     if !normalized_workspace_root.is_empty() {
         store
             .workspace_state
@@ -448,7 +464,11 @@ pub async fn extension_settings_load(
 pub async fn extension_settings_save(
     params: ExtensionSettingsSaveParams,
 ) -> Result<ExtensionSettings, String> {
-    save_extension_settings(&params.global_config_dir, &params.workspace_root, params.settings)
+    save_extension_settings(
+        &params.global_config_dir,
+        &params.workspace_root,
+        params.settings,
+    )
 }
 
 #[cfg(test)]
@@ -463,11 +483,7 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    fn write_test_extension_manifest(
-        root: &Path,
-        extension_id: &str,
-        secure_key: &str,
-    ) {
+    fn write_test_extension_manifest(root: &Path, extension_id: &str, secure_key: &str) {
         let extension_dir = root.join("extensions").join(extension_id);
         fs::create_dir_all(&extension_dir).expect("extension dir");
         let manifest = serde_json::json!({
@@ -598,8 +614,14 @@ mod tests {
         )
         .expect("save runtime state");
 
-        assert_eq!(saved.global_state, serde_json::json!({"targetLang": "zh-CN"}));
-        assert_eq!(saved.workspace_state, serde_json::json!({"lastTarget": "paper.pdf"}));
+        assert_eq!(
+            saved.global_state,
+            serde_json::json!({"targetLang": "zh-CN"})
+        );
+        assert_eq!(
+            saved.workspace_state,
+            serde_json::json!({"lastTarget": "paper.pdf"})
+        );
 
         let loaded = load_extension_runtime_state_snapshot(
             &root.to_string_lossy(),
@@ -652,7 +674,8 @@ mod tests {
             }))
         );
 
-        let file_content = fs::read_to_string(root.join("extension-settings.json")).expect("settings file");
+        let file_content =
+            fs::read_to_string(root.join("extension-settings.json")).expect("settings file");
         assert!(!file_content.contains("sk-secret"));
         assert!(!file_content.contains("tok-secret"));
         assert!(!file_content.contains("opaque-secret"));
@@ -664,8 +687,14 @@ mod tests {
             .and_then(|value| value.as_object())
             .cloned()
             .unwrap_or_default();
-        assert_eq!(config.get("apiKey"), Some(&serde_json::Value::String(String::new())));
-        assert_eq!(config.get("serviceToken"), Some(&serde_json::Value::String(String::new())));
+        assert_eq!(
+            config.get("apiKey"),
+            Some(&serde_json::Value::String(String::new()))
+        );
+        assert_eq!(
+            config.get("serviceToken"),
+            Some(&serde_json::Value::String(String::new()))
+        );
         assert_eq!(
             config.get("opaqueCredential"),
             Some(&serde_json::Value::String(String::new()))
@@ -681,8 +710,10 @@ mod tests {
             Some("tok-secret".to_string())
         );
         assert_eq!(
-            keychain::keychain_get_entry("extension-setting:example-pdf-extension:opaqueCredential")
-                .expect("keychain opaque credential"),
+            keychain::keychain_get_entry(
+                "extension-setting:example-pdf-extension:opaqueCredential"
+            )
+            .expect("keychain opaque credential"),
             Some("opaque-secret".to_string())
         );
 
@@ -802,7 +833,8 @@ mod tests {
             }))
         );
 
-        let migrated_file = fs::read_to_string(root.join("extension-settings.json")).expect("migrated file");
+        let migrated_file =
+            fs::read_to_string(root.join("extension-settings.json")).expect("migrated file");
         assert!(!migrated_file.contains("legacy-secret"));
         assert!(!migrated_file.contains("opaque-legacy"));
         assert_eq!(
@@ -811,8 +843,10 @@ mod tests {
             Some("legacy-secret".to_string())
         );
         assert_eq!(
-            keychain::keychain_get_entry("extension-setting:example-pdf-extension-migrate:opaqueCredential")
-                .expect("migrated opaque credential"),
+            keychain::keychain_get_entry(
+                "extension-setting:example-pdf-extension-migrate:opaqueCredential"
+            )
+            .expect("migrated opaque credential"),
             Some("opaque-legacy".to_string())
         );
 

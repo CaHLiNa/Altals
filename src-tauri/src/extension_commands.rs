@@ -12,8 +12,8 @@ use crate::extension_outputs::ExtensionCapabilityOutput;
 use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
-    create_command_task, get_task, mark_task_failed, mark_task_failed_with_results,
-    mark_task_cancelled_with_results, mark_task_queued, mark_task_running,
+    create_command_task, get_task, mark_task_cancelled_with_results, mark_task_failed,
+    mark_task_failed_with_results, mark_task_queued, mark_task_running,
     mark_task_running_with_progress, mark_task_succeeded, ExtensionTask, ExtensionTaskTarget,
 };
 use crate::security::WorkspaceScopeState;
@@ -80,6 +80,15 @@ fn extension_dir_from_manifest_path(path: &str) -> String {
         .parent()
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default()
+}
+
+fn locale_for_extension_call(global_config_dir: &str) -> String {
+    crate::workspace_preferences::read_workspace_preferences(global_config_dir)
+        .ok()
+        .flatten()
+        .map(|preferences| preferences.preferred_locale)
+        .map(|preference| crate::i18n_runtime::resolve_effective_locale(&preference))
+        .unwrap_or_else(|| crate::i18n_runtime::resolve_effective_locale("system"))
 }
 
 fn write_task_log(task: &ExtensionTask, message: &str) {
@@ -225,20 +234,15 @@ fn record_extension_result(
             artifacts.clone(),
             outputs.clone(),
         ),
-        "running" => {
-            mark_task_running_with_progress(
-                &task.id,
-                &result.progress_label,
-                artifacts.clone(),
-                outputs.clone(),
-            )
-        }
-        "cancelled" => mark_task_cancelled_with_results(
+        "running" => mark_task_running_with_progress(
             &task.id,
-            artifacts,
-            outputs,
             &result.progress_label,
+            artifacts.clone(),
+            outputs.clone(),
         ),
+        "cancelled" => {
+            mark_task_cancelled_with_results(&task.id, artifacts, outputs, &result.progress_label)
+        }
         "failed" => mark_task_failed_with_results(
             &task.id,
             if result.message.trim().is_empty() {
@@ -273,13 +277,7 @@ pub fn record_extension_result_for_probe(
     task_runtime_state: &crate::extension_tasks::ExtensionTaskRuntimeState,
     extension_host_state: &crate::extension_host::ExtensionHostState,
 ) -> Result<ExtensionCommandExecutionResult, String> {
-    record_extension_result(
-        task,
-        None,
-        result,
-        task_runtime_state,
-        extension_host_state,
-    )
+    record_extension_result(task, None, result, task_runtime_state, extension_host_state)
 }
 
 #[tauri::command]
@@ -365,6 +363,7 @@ pub async fn extension_command_execute(
         &params.target.kind,
         &params.target.path,
         &params.settings,
+        &locale_for_extension_call(&params.global_config_dir),
     );
     let response = invoke_extension_host(
         extension_host_state.inner(),
@@ -522,6 +521,7 @@ pub async fn extension_capability_invoke(
         &params.target.kind,
         &params.target.path,
         &params.settings,
+        &locale_for_extension_call(&params.global_config_dir),
     );
     let response = invoke_extension_host(
         extension_host_state.inner(),
@@ -557,7 +557,8 @@ pub async fn extension_capability_invoke(
             Err(message)
         }
         Ok(_) => {
-            let message = "Unexpected extension host response for capability invocation".to_string();
+            let message =
+                "Unexpected extension host response for capability invocation".to_string();
             let failed = mark_task_failed(&task.id, &message)?;
             if let Some(pid) = task_runtime_state.unregister_pid(&failed.id)? {
                 let _ = crate::extension_host::reap_spawned_process(
@@ -581,7 +582,9 @@ pub async fn extension_capability_invoke(
             }
             task_runtime_state.emit_task_changed(&failed);
             write_task_log(&failed, &error);
-            Err(format!("Extension host capability invocation failed: {error}"))
+            Err(format!(
+                "Extension host capability invocation failed: {error}"
+            ))
         }
     }
 }
@@ -593,25 +596,20 @@ mod tests {
         capability_is_available_for_execution, command_is_available_for_execution,
         manifest_declares_capability, manifest_declares_command, normalize_artifacts,
     };
+    use crate::extension_artifacts::ExtensionArtifact;
     use crate::extension_capability_contract::{
         manifest_capability_by_id, validate_capability_inputs, validate_capability_outputs,
     };
-    use crate::extension_artifacts::ExtensionArtifact;
-    use crate::extension_host::{
-        ExtensionHostActivationResult, ExtensionHostRegisteredCommand,
-    };
+    use crate::extension_host::{ExtensionHostActivationResult, ExtensionHostRegisteredCommand};
     use crate::extension_manifest::{
         parse_extension_manifest_str, ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
     use crate::extension_tasks::ExtensionTaskTarget;
 
     fn manifest_from_json(value: serde_json::Value) -> ExtensionManifest {
-        parse_extension_manifest_str(
-            &value.to_string(),
-            CANONICAL_EXTENSION_MANIFEST_FILENAME,
-        )
-        .expect("manifest parse")
-        .manifest
+        parse_extension_manifest_str(&value.to_string(), CANONICAL_EXTENSION_MANIFEST_FILENAME)
+            .expect("manifest parse")
+            .manifest
     }
 
     fn activation_result_with_commands(commands: &[&str]) -> ExtensionHostActivationResult {
@@ -744,7 +742,10 @@ mod tests {
         };
 
         assert!(manifest_declares_capability(&manifest, "pdf.translate"));
-        assert!(activation_result_registers_capability(&activation, "pdf.translate"));
+        assert!(activation_result_registers_capability(
+            &activation,
+            "pdf.translate"
+        ));
         assert!(capability_is_available_for_execution(
             &manifest,
             &activation,

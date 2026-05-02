@@ -12,8 +12,8 @@
       </UiButton>
     </div>
 
-    <section class="settings-group">
-      <div class="settings-group-title">{{ t('Extension Host Runtime') }}</div>
+    <section v-if="showHostRuntimeNotice" class="settings-group">
+      <div class="settings-group-title">{{ t('Extension Runtime') }}</div>
       <div class="settings-group-body">
         <ExtensionHostStatusSurface
           :title="hostRuntimeTitle"
@@ -34,59 +34,6 @@
               {{ hostRuntimeRestartBusy ? t('Restarting...') : t('Restart Runtime') }}
             </UiButton>
           </template>
-
-          <template #actions-after>
-            <UiButton
-              variant="secondary"
-              size="sm"
-              :disabled="extensionsStore.loadingRegistry"
-              @click="refreshExtensionRegistry"
-            >
-              {{ t('Refresh Host Status') }}
-            </UiButton>
-          </template>
-
-          <template #meta>
-            <div class="extension-host-runtime-card__meta">
-            <div class="extension-host-runtime-card__meta-item">
-              <span class="extension-meta-label">{{ t('Runtime') }}</span>
-              <span class="extension-meta-value">{{ hostRuntimeName }}</span>
-            </div>
-            <div class="extension-host-runtime-card__meta-item">
-              <span class="extension-meta-label">{{ t('Pending Prompt Owner') }}</span>
-              <span class="extension-meta-value">{{ hostPromptOwnerSummary }}</span>
-            </div>
-            </div>
-          </template>
-
-          <div class="extension-host-runtime-slots">
-            <div class="extension-host-runtime-slots__title">{{ t('Active Runtime Slots') }}</div>
-            <div v-if="hostRuntimeSlots.length === 0" class="extension-host-runtime-slots__empty">
-              {{ t('No active runtime slots') }}
-            </div>
-            <div
-              v-for="slot in hostRuntimeSlots"
-              :key="`${slot.extensionId}@${slot.workspaceRoot}`"
-              class="extension-host-runtime-slot"
-            >
-              <div class="extension-host-runtime-slot__copy">
-                <div class="extension-host-runtime-slot__title">
-                  {{ slot.extensionId }}
-                </div>
-                <div class="extension-host-runtime-slot__workspace">
-                  {{ slot.workspaceRoot || '/' }}
-                </div>
-              </div>
-              <UiButton
-                variant="ghost"
-                size="sm"
-                :disabled="hostRuntimeRestartBusyKey === `${slot.extensionId}@${slot.workspaceRoot}`"
-                @click="void restartHostRuntimeSlot(slot)"
-              >
-                {{ hostRuntimeRestartBusyKey === `${slot.extensionId}@${slot.workspaceRoot}` ? t('Restarting...') : t('Restart Runtime') }}
-              </UiButton>
-            </div>
-          </div>
         </ExtensionHostStatusSurface>
       </div>
     </section>
@@ -104,95 +51,20 @@
           <div class="extension-header">
             <div class="extension-copy">
               <div class="extension-title-line">
-                <span class="extension-name">{{ t(extension.name || extension.id) }}</span>
+                <span class="extension-name">{{ extensionDisplayName(extension) }}</span>
                 <span class="extension-status" :class="`is-${displayStatus(extension)}`">{{ t(displayStatus(extension)) }}</span>
                 <span class="extension-scope">{{ t(extension.scope) }}</span>
               </div>
-              <div class="extension-description">{{ t(extension.description || extension.id) }}</div>
-              <div class="extension-meta-grid">
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Manifest') }}</span>
-                  <span class="extension-meta-value">{{ extension.manifestFormat || t('Not configured') }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Entrypoint') }}</span>
-                  <span class="extension-meta-value">
-                    {{ extension.main || extension.runtime?.command || t('Not configured') }}
-                  </span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime') }}</span>
-                  <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime Status') }}</span>
-                  <span class="extension-meta-value">{{ runtimeStatus(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime Commands') }}</span>
-                  <span class="extension-meta-value">{{ runtimeCommandSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime Views') }}</span>
-                  <span class="extension-meta-value">{{ runtimeViewSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime Actions') }}</span>
-                  <span class="extension-meta-value">{{ runtimeActionSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Runtime Capabilities') }}</span>
-                  <span class="extension-meta-value">{{ runtimeCapabilitySummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Bootstrap Capabilities') }}</span>
-                  <span class="extension-meta-value">{{ bootstrapCapabilitySummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
-                  <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Bootstrap Keybindings') }}</span>
-                  <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
-                  <span class="extension-meta-label">{{ t('Bootstrap Views') }}</span>
-                  <span class="extension-meta-value">{{ viewSummary(extension) }}</span>
-                </div>
-                <div class="extension-meta-item">
+              <div class="extension-description">{{ extensionDescription(extension) }}</div>
+              <div class="extension-summary-grid">
+                <div class="extension-summary-item">
                   <span class="extension-meta-label">{{ t('Permissions') }}</span>
-                  <span class="extension-meta-value">{{ permissionSummary(extension) }}</span>
+                  <span class="extension-meta-value">{{ userPermissionSummary(extension) }}</span>
                 </div>
-                <div class="extension-meta-item">
+                <div class="extension-summary-item">
                   <span class="extension-meta-label">{{ t('Secure Settings') }}</span>
                   <span class="extension-meta-value">{{ secureSettingSummary(extension) }}</span>
                 </div>
-              </div>
-              <div v-if="runtimeReason(extension)" class="extension-meta-list">
-                <span class="extension-meta-label">{{ t('Runtime Activation') }}</span>
-                <span class="extension-meta-value">{{ runtimeReason(extension) }}</span>
-              </div>
-              <div v-if="extension.activationEvents?.length" class="extension-meta-list">
-                <span class="extension-meta-label">{{ t('Activation Events') }}</span>
-                <span class="extension-meta-value">{{ extension.activationEvents.join(' · ') }}</span>
-              </div>
-              <div class="extension-meta-list">
-                <span class="extension-meta-label">{{ t('Plugin Model') }}</span>
-                <span class="extension-meta-value">
-                  {{ t('Runtime registration first. Manifest metadata is only bootstrap information.') }}
-                </span>
-              </div>
-              <div class="extension-meta-list">
-                <span class="extension-meta-label">{{ t('Usage Surface') }}</span>
-                <span class="extension-meta-value">
-                  {{ t('Configure plugins here, then use them from the document right sidebar.') }}
-                </span>
-              </div>
-              <div class="extension-chip-row">
-                <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
-                  {{ capability }}
-                </span>
               </div>
               <div v-if="capabilityActions(extension).length" class="extension-capability-list">
                 <section
@@ -203,7 +75,7 @@
                   <div class="extension-capability-card-header">
                     <div class="extension-capability-card-copy">
                       <div class="extension-capability-card-title-row">
-                        <div class="extension-capability-card-title">{{ capability.id }}</div>
+                        <div class="extension-capability-card-title">{{ capabilityDisplayName(capability) }}</div>
                         <ExtensionBlockedStatusChip
                           v-if="capabilityBlocked(extension, capability)"
                           :label="capabilityStatusLabel(extension, capability)"
@@ -236,49 +108,6 @@
                       @click="runCapability(extension, capability)"
                     />
                   </div>
-                  <div class="extension-capability-schema-grid">
-                    <div class="extension-capability-schema-column">
-                      <div class="extension-capability-schema-title">{{ t('Inputs') }}</div>
-                      <div v-if="capabilityInputs(capability).length" class="extension-capability-schema-list">
-                        <div
-                          v-for="input in capabilityInputs(capability)"
-                          :key="`${extension.id}:${capability.id}:input:${input.key}`"
-                          class="extension-capability-schema-item"
-                          :class="{ 'is-warning': input.blocking }"
-                        >
-                          <div class="extension-capability-schema-item-row">
-                            <span class="extension-capability-schema-item-label">{{ input.label }}</span>
-                            <span class="extension-chip">{{ capabilityTypeLabel(input) }}</span>
-                            <span class="extension-chip">{{ capabilityRequiredLabel(input) }}</span>
-                          </div>
-                          <div v-if="capabilityDefinitionDetail(input)" class="extension-capability-schema-item-detail">
-                            {{ capabilityDefinitionDetail(input) }}
-                          </div>
-                        </div>
-                      </div>
-                      <div v-else class="extension-capability-schema-empty">{{ t('No declared inputs') }}</div>
-                    </div>
-                    <div class="extension-capability-schema-column">
-                      <div class="extension-capability-schema-title">{{ t('Outputs') }}</div>
-                      <div v-if="capabilityOutputs(capability).length" class="extension-capability-schema-list">
-                        <div
-                          v-for="output in capabilityOutputs(capability)"
-                          :key="`${extension.id}:${capability.id}:output:${output.key}`"
-                          class="extension-capability-schema-item"
-                        >
-                          <div class="extension-capability-schema-item-row">
-                            <span class="extension-capability-schema-item-label">{{ output.label }}</span>
-                            <span class="extension-chip">{{ capabilityTypeLabel(output) }}</span>
-                            <span class="extension-chip">{{ capabilityRequiredLabel(output) }}</span>
-                          </div>
-                          <div v-if="capabilityDefinitionDetail(output)" class="extension-capability-schema-item-detail">
-                            {{ capabilityDefinitionDetail(output) }}
-                          </div>
-                        </div>
-                      </div>
-                      <div v-else class="extension-capability-schema-empty">{{ t('No declared outputs') }}</div>
-                    </div>
-                  </div>
                 </section>
               </div>
               <div v-if="extension.errors.length" class="extension-message is-error">
@@ -287,6 +116,123 @@
               <div v-else-if="extension.warnings.length" class="extension-message">
                 {{ extension.warnings.map((message) => t(message)).join('; ') }}
               </div>
+              <details class="extension-developer-panel">
+                <summary>{{ t('Developer information') }}</summary>
+                <div class="extension-meta-grid">
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Manifest') }}</span>
+                    <span class="extension-meta-value">{{ extension.manifestFormat || t('Not configured') }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Entrypoint') }}</span>
+                    <span class="extension-meta-value">
+                      {{ extension.main || extension.runtime?.command || t('Not configured') }}
+                    </span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime') }}</span>
+                    <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime Status') }}</span>
+                    <span class="extension-meta-value">{{ runtimeStatus(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime Commands') }}</span>
+                    <span class="extension-meta-value">{{ runtimeCommandSummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime Views') }}</span>
+                    <span class="extension-meta-value">{{ runtimeViewSummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime Actions') }}</span>
+                    <span class="extension-meta-value">{{ runtimeActionSummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Runtime Capabilities') }}</span>
+                    <span class="extension-meta-value">{{ runtimeCapabilitySummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Bootstrap Capabilities') }}</span>
+                    <span class="extension-meta-value">{{ bootstrapCapabilitySummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
+                    <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Bootstrap Keybindings') }}</span>
+                    <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
+                  </div>
+                  <div class="extension-meta-item">
+                    <span class="extension-meta-label">{{ t('Bootstrap Views') }}</span>
+                    <span class="extension-meta-value">{{ viewSummary(extension) }}</span>
+                  </div>
+                </div>
+                <div v-if="runtimeReason(extension)" class="extension-meta-list">
+                  <span class="extension-meta-label">{{ t('Runtime Activation') }}</span>
+                  <span class="extension-meta-value">{{ runtimeReason(extension) }}</span>
+                </div>
+                <div v-if="extension.activationEvents?.length" class="extension-meta-list">
+                  <span class="extension-meta-label">{{ t('Activation Events') }}</span>
+                  <span class="extension-meta-value">{{ extension.activationEvents.join(' · ') }}</span>
+                </div>
+                <div class="extension-chip-row">
+                  <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
+                    {{ capability }}
+                  </span>
+                </div>
+                <div
+                  v-for="capability in capabilityActions(extension)"
+                  :key="`${extension.id}:${capability.id}:schema`"
+                  class="extension-capability-schema-grid"
+                >
+                  <div class="extension-capability-schema-column">
+                    <div class="extension-capability-schema-title">
+                      {{ capability.id }} · {{ t('Inputs') }}
+                    </div>
+                    <div v-if="capabilityInputs(capability).length" class="extension-capability-schema-list">
+                      <div
+                        v-for="input in capabilityInputs(capability)"
+                        :key="`${extension.id}:${capability.id}:input:${input.key}`"
+                        class="extension-capability-schema-item"
+                        :class="{ 'is-warning': input.blocking }"
+                      >
+                        <div class="extension-capability-schema-item-row">
+                          <span class="extension-capability-schema-item-label">{{ input.label }}</span>
+                          <span class="extension-chip">{{ capabilityTypeLabel(input) }}</span>
+                          <span class="extension-chip">{{ capabilityRequiredLabel(input) }}</span>
+                        </div>
+                        <div v-if="capabilityDefinitionDetail(input)" class="extension-capability-schema-item-detail">
+                          {{ capabilityDefinitionDetail(input) }}
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="extension-capability-schema-empty">{{ t('No declared inputs') }}</div>
+                  </div>
+                  <div class="extension-capability-schema-column">
+                    <div class="extension-capability-schema-title">{{ t('Outputs') }}</div>
+                    <div v-if="capabilityOutputs(capability).length" class="extension-capability-schema-list">
+                      <div
+                        v-for="output in capabilityOutputs(capability)"
+                        :key="`${extension.id}:${capability.id}:output:${output.key}`"
+                        class="extension-capability-schema-item"
+                      >
+                        <div class="extension-capability-schema-item-row">
+                          <span class="extension-capability-schema-item-label">{{ output.label }}</span>
+                          <span class="extension-chip">{{ capabilityTypeLabel(output) }}</span>
+                          <span class="extension-chip">{{ capabilityRequiredLabel(output) }}</span>
+                        </div>
+                        <div v-if="capabilityDefinitionDetail(output)" class="extension-capability-schema-item-detail">
+                          {{ capabilityDefinitionDetail(output) }}
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="extension-capability-schema-empty">{{ t('No declared outputs') }}</div>
+                  </div>
+                </div>
+              </details>
             </div>
             <div class="extension-controls">
               <span class="extension-enable-label">{{ t('Enabled') }}</span>
@@ -447,6 +393,15 @@ function displayStatus(extension = {}) {
   return isEnabled(extension.id) ? extension.status : 'disabled'
 }
 
+function extensionDisplayName(extension = {}) {
+  return String(extension.name || extension.id || '').trim()
+}
+
+function extensionDescription(extension = {}) {
+  const description = String(extension.description || '').trim()
+  return description || t('No description provided')
+}
+
 function runtimeStatus(extension = {}) {
   const entry = runtimeEntry(extension)
   const slots = activeRuntimeSlotsForExtension(extension)
@@ -530,6 +485,10 @@ function permissionSummary(extension = {}) {
   return labels.join(' · ')
 }
 
+function userPermissionSummary(extension = {}) {
+  return permissionSummary(extension) || t('No extra permissions')
+}
+
 function secureSettingSummary(extension = {}) {
   const entries = Object.entries(extension.settingsSchema || {})
     .filter(([, setting]) => setting?.secureStorage === true)
@@ -595,9 +554,33 @@ function capabilityButtonLabel(extension = {}, capability = {}) {
 }
 
 function capabilityReadyActionLabel(capability = {}) {
-  return t('Run {name}', {
-    name: String(capability?.id || '').trim(),
-  })
+  return t('Run {name}', { name: capabilityDisplayName(capability) })
+}
+
+function capabilityDisplayName(capability = {}) {
+  const id = String(capability?.id || '').trim()
+  switch (id) {
+    case 'pdf.translate':
+      return t('PDF translation')
+    case 'pdf.ocr':
+      return t('PDF OCR')
+    case 'pdf.extractText':
+      return t('Extract PDF text')
+    case 'reference.enrich':
+      return t('Enrich reference metadata')
+    case 'reference.import':
+      return t('Import references')
+    case 'document.summarize':
+      return t('Summarize document')
+    case 'document.transform':
+      return t('Transform document')
+    case 'workspace.index':
+      return t('Index workspace')
+    case 'llm.chat':
+      return t('Chat with model')
+    default:
+      return humanizeSettingKey(id)
+  }
 }
 
 function inspectCapability(capability = {}) {
@@ -857,7 +840,6 @@ function updateSetting(extensionId = '', key = '', value = '') {
   void extensionsStore.setExtensionConfigValue(extensionId, key, value)
 }
 
-const hostRuntimeName = computed(() => hostStatus().runtime || t('Not configured'))
 const hostRuntimeSlots = computed(() =>
   Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
 )
@@ -871,11 +853,6 @@ const hostStatusSurface = computed(() =>
     hostRuntimeSlots: hostRuntimeSlots.value,
   })
 )
-const hostPromptOwnerSummary = computed(() => {
-  const owner = hostStatus().pendingPromptOwner
-  if (!owner?.extensionId) return t('No pending prompt')
-  return `${owner.extensionId}@${owner.workspaceRoot || '/'}`
-})
 const {
   presentation: hostStatusPresentation,
   recoveryAction: hostRecoveryAction,
@@ -885,6 +862,11 @@ const hostRuntimeBadge = computed(() => hostStatusPresentation.value.badge)
 const hostRuntimeTitle = computed(() => hostStatusPresentation.value.title)
 const hostRuntimeDescription = computed(() => hostStatusPresentation.value.description)
 const hostRuntimeCardToneClass = computed(() => hostStatusPresentation.value.toneClass)
+const showHostRuntimeNotice = computed(() =>
+  hostRecoveryAction.value.available ||
+    hostRuntimeCardToneClass.value === 'is-warning' ||
+    hostRuntimeCardToneClass.value === 'is-info'
+)
 
 async function restartHostRuntimeSlot(slot = {}) {
   const extensionId = String(slot?.extensionId || '').trim()
@@ -907,6 +889,13 @@ async function restartHostRuntimeSlot(slot = {}) {
     if (hostRuntimeRestartBusyKey.value === busyKey) {
       hostRuntimeRestartBusyKey.value = ''
     }
+  }
+}
+
+async function restartHostRuntime() {
+  for (const slot of hostRuntimeSlots.value) {
+    if (hostRuntimeRestartBusyKey.value) break
+    await restartHostRuntimeSlot(slot)
   }
 }
 
@@ -1093,6 +1082,24 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
+.extension-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.extension-summary-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 24%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 18%, transparent);
+}
+
 .extension-message.is-error {
   color: var(--error);
 }
@@ -1221,6 +1228,34 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 2px;
+}
+
+.extension-developer-panel {
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  padding-top: 8px;
+}
+
+.extension-developer-panel summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.extension-developer-panel[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.extension-meta-list {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .extension-meta-item {
@@ -1404,6 +1439,10 @@ onMounted(async () => {
   }
 
   .extension-capability-schema-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .extension-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

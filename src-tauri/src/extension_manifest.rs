@@ -571,8 +571,7 @@ pub async fn extension_registry_validate_manifest(
 mod tests {
     use super::{
         parse_extension_manifest_str, validate_extension_manifest, ExtensionCapabilityContribution,
-        ExtensionManifest,
-        CANONICAL_EXTENSION_MANIFEST_FILENAME,
+        ExtensionManifest, CANONICAL_EXTENSION_MANIFEST_FILENAME,
     };
 
     fn valid_manifest() -> ExtensionManifest {
@@ -683,7 +682,8 @@ mod tests {
         assert!(result
             .warnings
             .iter()
-            .any(|warning| warning.contains("declare secureStorage") && warning.contains("examplePdfExtension.apiKey")));
+            .any(|warning| warning.contains("declare secureStorage")
+                && warning.contains("examplePdfExtension.apiKey")));
     }
 
     #[test]
@@ -742,11 +742,14 @@ mod tests {
     fn rejects_missing_contributed_capability_binding() {
         let mut manifest = valid_manifest();
         manifest.capabilities = vec!["pdf.translate".to_string()];
-        manifest.contributes.capabilities.push(ExtensionCapabilityContribution {
-            id: "pdf.translate".to_string(),
-            inputs: Default::default(),
-            outputs: Default::default(),
-        });
+        manifest
+            .contributes
+            .capabilities
+            .push(ExtensionCapabilityContribution {
+                id: "pdf.translate".to_string(),
+                inputs: Default::default(),
+                outputs: Default::default(),
+            });
         manifest.contributes.capabilities[0].id = "document.summarize".to_string();
         let result = validate_extension_manifest(&manifest);
         assert!(!result.ok);
@@ -810,15 +813,13 @@ mod tests {
     #[test]
     fn rejects_multiple_activitybar_view_containers() {
         let mut manifest = valid_manifest();
-        manifest
-            .contributes
-            .views_containers
-            .activitybar
-            .push(super::ExtensionViewContainerContribution {
+        manifest.contributes.views_containers.activitybar.push(
+            super::ExtensionViewContainerContribution {
                 id: "examplePdfExtension.secondary".to_string(),
                 title: "Secondary".to_string(),
                 icon: String::new(),
-            });
+            },
+        );
         let result = validate_extension_manifest(&manifest);
         assert!(!result.ok);
         assert!(result

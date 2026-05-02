@@ -40,6 +40,15 @@ fn extension_dir_from_manifest_path(path: &str) -> String {
         .unwrap_or_default()
 }
 
+fn locale_for_extension_call(global_config_dir: &str) -> String {
+    crate::workspace_preferences::read_workspace_preferences(global_config_dir)
+        .ok()
+        .flatten()
+        .map(|preferences| preferences.preferred_locale)
+        .map(|preference| crate::i18n_runtime::resolve_effective_locale(&preference))
+        .unwrap_or_else(|| crate::i18n_runtime::resolve_effective_locale("system"))
+}
+
 #[tauri::command]
 pub async fn extension_view_resolve(
     params: ExtensionViewResolveParams,
@@ -96,6 +105,7 @@ pub async fn extension_view_resolve(
         &params.target_kind,
         &params.target_path,
         &params.settings,
+        &locale_for_extension_call(&params.global_config_dir),
     );
     match invoke_extension_host(
         state.inner(),

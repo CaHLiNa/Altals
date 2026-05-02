@@ -181,6 +181,7 @@ async function main() {
     targetPath: sourcePdf,
     referenceId: 'ref-probe',
     settingsJson: '{}',
+    locale: 'zh-CN',
   }
 
   const activationState = {
@@ -199,6 +200,7 @@ async function main() {
     },
     globalState: {},
     workspaceState: {},
+    locale: 'zh-CN',
   }
 
   const activation = await call('Activate', {
@@ -249,9 +251,14 @@ async function main() {
     entry.payload?.viewId === 'retainPdf.panel' &&
     Array.isArray(entry.payload?.resultEntries) &&
     entry.payload.resultEntries.some((item) => item.id === 'retain-pdf-translated-pdf') &&
-    entry.payload.statusLabel === 'Completed'
+    entry.payload.statusLabel === '已完成'
   )
   ensure(Boolean(viewChanged), 'retain-pdf panel did not publish completed translated result entries', observed)
+  ensure(
+    viewChanged.payload.resultEntries.some((item) => item.label === '打开翻译后 PDF'),
+    'retain-pdf panel did not localize result entries from plugin language pack',
+    viewChanged.payload,
+  )
 
   child.kill()
   console.log(JSON.stringify({
