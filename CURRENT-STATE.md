@@ -99,6 +99,7 @@ Current plugin lifecycle contract:
 - extension task cancellation is also probe-backed at the store/UI contract layer: after a cancel response returns, the frontend timeline moves the task out of the running bucket, preserves the `cancelled` terminal snapshot in recent tasks, and keeps the last running output payload visible
 - disabling an extension now also closes its task contract instead of only removing execution entrypoints: active `running`/`queued` tasks for that extension are cancelled through the Rust runtime, spawned-process ownership is reaped, persisted `cancelled` snapshots remain inspectable, and unrelated extensions keep their task ownership untouched
 - disabling an extension now also closes extension-scoped window input flows instead of leaving prompt waits hanging: pending `showQuickPick(...)` / `showInputBox(...)` requests for that extension are cancelled through the host bridge, the frontend prompt clears immediately, and the rest of the disable flow can proceed without waiting for manual prompt dismissal
+- cross-extension prompt isolation is now probe-backed too: if one extension currently owns a pending host prompt, another extension's top-level request fails immediately with a clear owner-specific error instead of silently blocking behind the prompt wait
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -135,6 +136,7 @@ It runs:
 - `npm run probe:extension-disable-cancels-running-task-store-contract`
 - `npm run probe:extension-disable-window-input-contract`
 - `npm run probe:extension-disable-window-input-store-contract`
+- `npm run probe:extension-cross-extension-prompt-isolation-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
 - `npm run probe:extension-secure-settings-bridge`
@@ -193,6 +195,7 @@ Current baseline:
 - extension disable-cancels-running-task store contract probe passes
 - extension disable-window-input runtime probe passes
 - extension disable-window-input store contract probe passes
+- extension cross-extension prompt isolation probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes
 - extension secure settings bridge probe passes

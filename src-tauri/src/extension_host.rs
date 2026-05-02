@@ -1209,6 +1209,40 @@ fn complete_pending_ui_requests_for_extension(
 }
 
 #[cfg(not(test))]
+fn pending_ui_request_owner(state: &ExtensionHostState) -> Result<Option<String>, String> {
+    let ui_requests = state
+        .ui_requests
+        .lock()
+        .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+    Ok(ui_requests.values().find_map(|status| match status {
+        ExtensionHostUiRequestStatus::Pending { extension_id } => {
+            Some(extension_id.trim().to_ascii_lowercase())
+        }
+        _ => None,
+    }))
+}
+
+#[cfg(not(test))]
+fn request_extension_id(request: &ExtensionHostRequest) -> String {
+    match request {
+        ExtensionHostRequest::Activate { extension_id, .. }
+        | ExtensionHostRequest::Deactivate { extension_id }
+        | ExtensionHostRequest::UpdateSettings { extension_id, .. }
+        | ExtensionHostRequest::NotifyViewSelection { extension_id, .. } => {
+            extension_id.trim().to_ascii_lowercase()
+        }
+        ExtensionHostRequest::InvokeCapability { envelope, .. }
+        | ExtensionHostRequest::ExecuteCommand { envelope, .. }
+        | ExtensionHostRequest::ResolveView { envelope, .. } => {
+            envelope.extension_id.trim().to_ascii_lowercase()
+        }
+        ExtensionHostRequest::RespondUiRequest { .. } | ExtensionHostRequest::ResolveHostCall { .. } => {
+            String::new()
+        }
+    }
+}
+
+#[cfg(not(test))]
 fn mark_pending_host_calls_interrupted(
     state: &ExtensionHostState,
     error: &str,
@@ -2030,6 +2064,18 @@ pub fn invoke_extension_host(
                 depth.set(current_depth);
                 response
             } else {
+                if !matches!(request, ExtensionHostRequest::RespondUiRequest { .. }) {
+                    if let Some(owner_extension_id) = pending_ui_request_owner(state)? {
+                        let request_extension_id = request_extension_id(&request);
+                        if request_extension_id.is_empty()
+                            || request_extension_id != owner_extension_id
+                        {
+                            return Err(format!(
+                                "Extension host is waiting for UI input from {owner_extension_id}; complete or cancel that prompt before sending another top-level request"
+                            ));
+                        }
+                    }
+                }
                 let _guard = state
                     .request_lock
                     .lock()
