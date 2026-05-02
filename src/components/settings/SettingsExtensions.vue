@@ -212,22 +212,22 @@
                         <div class="extension-capability-card-title">{{ capability.id }}</div>
                         <span
                           class="extension-capability-card-status"
-                          :class="{ 'is-ready': capabilityIsReady(capability), 'is-unavailable': !capabilityIsReady(capability) }"
+                          :class="capabilityStatusClass(extension, capability)"
                         >
-                          {{ capabilityStatusLabel(capability) }}
+                          {{ capabilityStatusLabel(extension, capability) }}
                         </span>
                       </div>
                       <div class="extension-capability-card-message">
-                        {{ capabilityStatusMessage(capability) }}
+                        {{ capabilityStatusMessage(extension, capability) }}
                       </div>
                     </div>
                     <UiButton
                       variant="ghost"
                       size="sm"
-                      :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || !capabilityIsReady(capability)"
+                      :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || !capabilityCanRun(extension, capability)"
                       @click="runCapability(extension, capability)"
                     >
-                      {{ capabilityButtonLabel(capability) }}
+                      {{ capabilityButtonLabel(extension, capability) }}
                     </UiButton>
                   </div>
                   <div class="extension-capability-schema-grid">
@@ -560,7 +560,40 @@ function capabilityActions(extension = {}) {
   return capabilities.filter((capability) => String(capability?.id || '').trim())
 }
 
-function capabilityButtonLabel(capability = {}) {
+function capabilityHostState(extension = {}) {
+  const diagnostics = hostDiagnostics(extension)
+  if (diagnostics.ownsPendingPrompt) {
+    return {
+      blocked: true,
+      label: t('Waiting for prompt'),
+      message: t('This extension is waiting for prompt input in {workspace}. Complete or cancel that prompt before running another capability.', {
+        workspace: diagnostics.pendingPromptWorkspaceRoot || '/',
+      }),
+      tone: 'is-warning',
+    }
+  }
+  if (diagnostics.blockedByForeignPrompt) {
+    return {
+      blocked: true,
+      label: t('Blocked'),
+      message: t('The shared extension host is currently blocked by {extensionId} in {workspace}. Resolve that prompt first.', {
+        extensionId: diagnostics.pendingPromptOwner?.extensionId || '',
+        workspace: diagnostics.blockingPromptWorkspaceRoot || '/',
+      }),
+      tone: 'is-blocked',
+    }
+  }
+  return {
+    blocked: false,
+    label: '',
+    message: '',
+    tone: '',
+  }
+}
+
+function capabilityButtonLabel(extension = {}, capability = {}) {
+  const hostState = capabilityHostState(extension)
+  if (hostState.blocked) return hostState.label
   return t('Run {name}', {
     name: String(capability?.id || '').trim(),
   })
@@ -572,15 +605,29 @@ function inspectCapability(capability = {}) {
   })
 }
 
-function capabilityIsReady(capability = {}) {
+function capabilitySchemaReady(capability = {}) {
   return inspectCapability(capability).ready
 }
 
-function capabilityStatusLabel(capability = {}) {
-  return capabilityIsReady(capability) ? t('Ready') : t('Unavailable')
+function capabilityCanRun(extension = {}, capability = {}) {
+  return capabilitySchemaReady(capability) && !capabilityHostState(extension).blocked
 }
 
-function capabilityStatusMessage(capability = {}) {
+function capabilityStatusLabel(extension = {}, capability = {}) {
+  const hostState = capabilityHostState(extension)
+  if (hostState.blocked) return hostState.label
+  return capabilitySchemaReady(capability) ? t('Ready') : t('Unavailable')
+}
+
+function capabilityStatusClass(extension = {}, capability = {}) {
+  const hostState = capabilityHostState(extension)
+  if (hostState.blocked) return hostState.tone
+  return capabilitySchemaReady(capability) ? 'is-ready' : 'is-unavailable'
+}
+
+function capabilityStatusMessage(extension = {}, capability = {}) {
+  const hostState = capabilityHostState(extension)
+  if (hostState.blocked) return hostState.message
   const inspection = inspectCapability(capability)
   return t(inspection.messageKey, inspection.messageVars)
 }
@@ -616,7 +663,7 @@ function capabilityDefinitionDetail(definition = {}) {
 
 async function runCapability(extension = {}, capability = {}) {
   const capabilityId = String(capability?.id || '').trim()
-  if (!capabilityId || !capabilityIsReady(capability)) return
+  if (!capabilityId || !capabilityCanRun(extension, capability)) return
   const busyId = `${extension.id}:${capabilityId}`
   capabilityBusyId.value = busyId
   try {
@@ -1196,6 +1243,14 @@ onMounted(async () => {
 
 .extension-capability-card-status.is-ready {
   background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.extension-capability-card-status.is-warning {
+  background: color-mix(in srgb, #d97706 18%, transparent);
+}
+
+.extension-capability-card-status.is-blocked {
+  background: color-mix(in srgb, #d97706 18%, transparent);
 }
 
 .extension-capability-card-status.is-unavailable {
