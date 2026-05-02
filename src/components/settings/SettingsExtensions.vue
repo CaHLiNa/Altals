@@ -381,6 +381,11 @@ import UiSwitch from '../shared/ui/UiSwitch.vue'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
 import {
+  buildExtensionCommandHostState,
+  buildExtensionRuntimeBlockDescriptor,
+  describeExtensionCommandError,
+} from '../../domains/extensions/extensionCommandHostState'
+import {
   secureSettingInputType,
   shortExtensionSettingKey,
 } from '../../domains/extensions/extensionSettingPresentation'
@@ -561,33 +566,14 @@ function capabilityActions(extension = {}) {
 }
 
 function capabilityHostState(extension = {}) {
-  const diagnostics = hostDiagnostics(extension)
-  if (diagnostics.ownsPendingPrompt) {
-    return {
-      blocked: true,
-      label: t('Waiting for prompt'),
-      message: t('This extension is waiting for prompt input in {workspace}. Complete or cancel that prompt before running another capability.', {
-        workspace: diagnostics.pendingPromptWorkspaceRoot || '/',
-      }),
-      tone: 'is-warning',
-    }
-  }
-  if (diagnostics.blockedByForeignPrompt) {
-    return {
-      blocked: true,
-      label: t('Blocked'),
-      message: t('The shared extension host is currently blocked by {extensionId} in {workspace}. Resolve that prompt first.', {
-        extensionId: diagnostics.pendingPromptOwner?.extensionId || '',
-        workspace: diagnostics.blockingPromptWorkspaceRoot || '/',
-      }),
-      tone: 'is-blocked',
-    }
-  }
+  const descriptor = buildExtensionRuntimeBlockDescriptor(
+    buildExtensionCommandHostState(hostDiagnostics(extension))
+  )
   return {
-    blocked: false,
-    label: '',
-    message: '',
-    tone: '',
+    blocked: descriptor.blocked,
+    label: descriptor.labelKey ? t(descriptor.labelKey) : '',
+    message: descriptor.messageKey ? t(descriptor.messageKey, descriptor.messageParams) : '',
+    tone: descriptor.tone,
   }
 }
 
@@ -673,10 +659,16 @@ async function runCapability(extension = {}, capability = {}) {
     }, capabilityInvokeTarget.value)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
-      type: 'error',
-      duration: 4200,
-    })
+    const commandError = describeExtensionCommandError(error, t('Failed to start extension task'))
+    toastStore.show(
+      commandError.messageKey
+        ? t(commandError.messageKey, commandError.messageParams)
+        : commandError.messageText || t('Failed to start extension task'),
+      {
+        type: commandError.type,
+        duration: 4200,
+      },
+    )
   } finally {
     if (capabilityBusyId.value === busyId) {
       capabilityBusyId.value = ''

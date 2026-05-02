@@ -46,6 +46,7 @@ import { buildExtensionHostDiagnostics } from '../domains/extensions/extensionHo
 import {
   buildExtensionCommandBlockedError,
   buildExtensionCommandHostState,
+  buildExtensionRuntimeBlockDescriptor,
 } from '../domains/extensions/extensionCommandHostState.js'
 import { mergeDefaultResultEntries } from '../services/extensions/extensionResultEntries'
 
@@ -383,6 +384,22 @@ function commandHostStateFor({
       workspaceRoot,
       hostStatus: normalizeHostSummary(hostSummary),
       runtimeEntry: normalizeRuntimeEntry(runtimeEntry),
+    })
+  )
+}
+
+function runtimeBlockDescriptorFor({
+  extensionId = '',
+  workspaceRoot = '',
+  hostSummary = {},
+  runtimeEntry = {},
+} = {}) {
+  return buildExtensionRuntimeBlockDescriptor(
+    commandHostStateFor({
+      extensionId,
+      workspaceRoot,
+      hostSummary,
+      runtimeEntry,
     })
   )
 }
@@ -1196,7 +1213,33 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!capabilityId) {
         throw new Error('Extension capability id is required')
       }
+      const workspace = useWorkspaceStore()
+      const workspaceRoot = workspace.path || ''
+      const preflightBlock = runtimeBlockDescriptorFor({
+        extensionId,
+        workspaceRoot,
+        hostSummary: await this.refreshHostSummary().catch(() => this.hostStatus),
+        runtimeEntry: this.runtimeRegistry?.[extensionId],
+      })
+      if (preflightBlock.blocked) {
+        throw buildExtensionCommandBlockedError(preflightBlock, {
+          extensionId,
+          commandId: capabilityId,
+        })
+      }
       await this.activateExtension(extensionId, `onCapability:${capabilityId}`).catch(() => {})
+      const postActivationBlock = runtimeBlockDescriptorFor({
+        extensionId,
+        workspaceRoot,
+        hostSummary: await this.refreshHostSummary().catch(() => this.hostStatus),
+        runtimeEntry: this.runtimeRegistry?.[extensionId],
+      })
+      if (postActivationBlock.blocked) {
+        throw buildExtensionCommandBlockedError(postActivationBlock, {
+          extensionId,
+          commandId: capabilityId,
+        })
+      }
       const runtimeCapabilities = runtimeCapabilityIds(this.runtimeRegistry?.[extensionId])
       const manifestCapabilities = new Set(
         (extension.contributedCapabilities || [])
@@ -1210,7 +1253,6 @@ export const useExtensionsStore = defineStore('extensions', {
       } else if (!manifestCapabilities.has(capabilityId)) {
         throw new Error(`Extension ${extensionId} does not contribute capability ${capabilityId}`)
       }
-      const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)
       const result = await invokeExtensionCapability({

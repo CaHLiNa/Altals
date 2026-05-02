@@ -57,6 +57,19 @@ export function buildExtensionCommandHostState(diagnostics = {}) {
   }
 }
 
+export function buildExtensionRuntimeBlockDescriptor(hostState = {}) {
+  return {
+    blocked: Boolean(hostState?.blocked),
+    labelKey: String(hostState?.labelKey || '').trim(),
+    messageKey: String(hostState?.messageKey || '').trim(),
+    messageParams: hostState?.messageParams && typeof hostState.messageParams === 'object'
+      ? { ...hostState.messageParams }
+      : {},
+    tone: String(hostState?.tone || '').trim(),
+    status: String(hostState?.status || '').trim(),
+  }
+}
+
 export function buildExtensionCommandBlockedError(hostState = {}, context = {}) {
   const messageKey = String(hostState?.messageKey || 'The extension command cannot run right now.')
   const messageParams = hostState?.messageParams && typeof hostState.messageParams === 'object'
