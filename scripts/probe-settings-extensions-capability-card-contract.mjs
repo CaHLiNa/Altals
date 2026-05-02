@@ -335,12 +335,15 @@ try {
   assert.match(localizedHtml, /<h4[^>]*class="settings-group-title"[^>]*>已加载扩展<\/h4>/)
   assert.match(localizedHtml, /aria-label="刷新扩展"/)
   assert.match(localizedHtml, /aria-label="打开扩展安装目录"/)
-  assert.match(localizedHtml, /模型 API 地址/)
-  assert.match(localizedHtml, /模型 API 密钥/)
-  assert.match(localizedHtml, /开发者模式/)
-  assert.match(localizedHtml, /钥匙串/)
-  assert.match(localizedHtml, /由主程序管理模型、接口地址和安全凭据。/)
-  assert.match(localizedHtml, /不常用的插件专属选项。/)
+  assert.match(localizedHtml, /aria-label="选项"/)
+  assert.doesNotMatch(localizedHtml, /模型 API 地址/)
+  assert.doesNotMatch(localizedHtml, /模型 API 密钥/)
+  assert.doesNotMatch(localizedHtml, /开发者模式/)
+  assert.doesNotMatch(localizedHtml, /钥匙串/)
+  assert.doesNotMatch(localizedHtml, /extension-setting-row/)
+  assert.doesNotMatch(localizedHtml, /extension-settings-panel/)
+  assert.doesNotMatch(localizedHtml, /由主程序管理模型、接口地址和安全凭据。/)
+  assert.doesNotMatch(localizedHtml, /不常用的插件专属选项。/)
   assert.doesNotMatch(localizedHtml, /权限/)
   assert.doesNotMatch(localizedHtml, /安全设置/)
   assert.doesNotMatch(localizedHtml, /开发者信息/)
@@ -369,10 +372,10 @@ try {
       localizedHeaderActions: localizedHtml.includes('已加载扩展') &&
         localizedHtml.includes('aria-label="刷新扩展"') &&
         localizedHtml.includes('aria-label="打开扩展安装目录"'),
-      localizedSettingTitles: localizedHtml.includes('模型 API 地址') &&
-        localizedHtml.includes('模型 API 密钥') &&
-        localizedHtml.includes('开发者模式'),
-      localizedSecureBadge: localizedHtml.includes('钥匙串'),
+      collapsedSettingsByDefault: !localizedHtml.includes('模型 API 地址') &&
+        !localizedHtml.includes('模型 API 密钥') &&
+        !localizedHtml.includes('开发者模式'),
+      localizedOptionsButton: localizedHtml.includes('aria-label="选项"'),
     },
   }, null, 2))
 } finally {
