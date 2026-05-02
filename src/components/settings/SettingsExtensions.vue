@@ -61,12 +61,36 @@
               <span class="extension-meta-value">{{ hostRuntimeName }}</span>
             </div>
             <div class="extension-host-runtime-card__meta-item">
-              <span class="extension-meta-label">{{ t('Active Runtime Slots') }}</span>
-              <span class="extension-meta-value">{{ hostRuntimeSlotsSummary }}</span>
-            </div>
-            <div class="extension-host-runtime-card__meta-item">
               <span class="extension-meta-label">{{ t('Pending Prompt Owner') }}</span>
               <span class="extension-meta-value">{{ hostPromptOwnerSummary }}</span>
+            </div>
+          </div>
+          <div class="extension-host-runtime-slots">
+            <div class="extension-host-runtime-slots__title">{{ t('Active Runtime Slots') }}</div>
+            <div v-if="hostRuntimeSlots.length === 0" class="extension-host-runtime-slots__empty">
+              {{ t('No active runtime slots') }}
+            </div>
+            <div
+              v-for="slot in hostRuntimeSlots"
+              :key="`${slot.extensionId}@${slot.workspaceRoot}`"
+              class="extension-host-runtime-slot"
+            >
+              <div class="extension-host-runtime-slot__copy">
+                <div class="extension-host-runtime-slot__title">
+                  {{ slot.extensionId }}
+                </div>
+                <div class="extension-host-runtime-slot__workspace">
+                  {{ slot.workspaceRoot || '/' }}
+                </div>
+              </div>
+              <UiButton
+                variant="ghost"
+                size="sm"
+                :disabled="hostRuntimeRestartBusyKey === `${slot.extensionId}@${slot.workspaceRoot}`"
+                @click="void restartHostRuntimeSlot(slot)"
+              >
+                {{ hostRuntimeRestartBusyKey === `${slot.extensionId}@${slot.workspaceRoot}` ? t('Restarting...') : t('Restart Runtime') }}
+              </UiButton>
             </div>
           </div>
         </div>
@@ -370,7 +394,7 @@ const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
 const hostPromptRecoveryBusy = ref(false)
-const hostRuntimeRestartBusy = ref(false)
+const hostRuntimeRestartBusyKey = ref('')
 const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
 const capabilityInvokeTarget = computed(() =>
   resolveExtensionTargetContext({
@@ -776,11 +800,9 @@ function updateSetting(extensionId = '', key = '', value = '') {
 }
 
 const hostRuntimeName = computed(() => hostStatus().runtime || t('Not configured'))
-const hostRuntimeSlotsSummary = computed(() => {
-  const slots = Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
-  if (!slots.length) return t('No active runtime slots')
-  return slots.map((slot) => `${slot.extensionId}@${slot.workspaceRoot || '/'}`).join(' · ')
-})
+const hostRuntimeSlots = computed(() =>
+  Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
+)
 const hostPromptOwnerSummary = computed(() => {
   const owner = hostStatus().pendingPromptOwner
   if (!owner?.extensionId) return t('No pending prompt')
@@ -814,14 +836,11 @@ const hostRuntimeDescription = computed(() => {
 })
 const hostRuntimeCardToneClass = computed(() => {
   if (hostStatus().pendingPromptOwner?.extensionId) return 'is-warning'
-  if (Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0) return 'is-active'
+  if (hostRuntimeSlots.value.length > 0) return 'is-active'
   return 'is-idle'
 })
 const showHostPromptRecoveryAction = computed(() =>
   Boolean(hostStatus().pendingPromptOwner?.extensionId && hostStatus().pendingPromptOwner?.workspaceRoot)
-)
-const showHostRuntimeRestartAction = computed(() =>
-  Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
 )
 
 async function recoverHostPrompt() {
@@ -844,12 +863,14 @@ async function recoverHostPrompt() {
   }
 }
 
-async function restartHostRuntime() {
-  const slot = Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots[0] : null
-  if (!slot?.extensionId || !slot?.workspaceRoot || hostRuntimeRestartBusy.value) return
-  hostRuntimeRestartBusy.value = true
+async function restartHostRuntimeSlot(slot = {}) {
+  const extensionId = String(slot?.extensionId || '').trim()
+  const workspaceRoot = String(slot?.workspaceRoot || '').trim()
+  const busyKey = `${extensionId}@${workspaceRoot}`
+  if (!extensionId || !workspaceRoot || hostRuntimeRestartBusyKey.value) return
+  hostRuntimeRestartBusyKey.value = busyKey
   try {
-    await extensionsStore.restartExtensionRuntime(slot.extensionId, slot.workspaceRoot)
+    await extensionsStore.restartExtensionRuntime(extensionId, workspaceRoot)
     toastStore.show(t('Restarted the selected extension runtime'), {
       type: 'success',
       duration: 2600,
@@ -860,7 +881,9 @@ async function restartHostRuntime() {
       duration: 4200,
     })
   } finally {
-    hostRuntimeRestartBusy.value = false
+    if (hostRuntimeRestartBusyKey.value === busyKey) {
+      hostRuntimeRestartBusyKey.value = ''
+    }
   }
 }
 
@@ -976,6 +999,55 @@ onMounted(async () => {
   gap: 8px;
   font-size: 11px;
   line-height: 1.4;
+}
+
+.extension-host-runtime-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.extension-host-runtime-slots__title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.extension-host-runtime-slots__empty {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.extension-host-runtime-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 26%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 74%, transparent);
+}
+
+.extension-host-runtime-slot__copy {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.extension-host-runtime-slot__title {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extension-host-runtime-slot__workspace {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .extension-card {
