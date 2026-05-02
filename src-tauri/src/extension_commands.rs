@@ -12,8 +12,8 @@ use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
     create_command_task, get_task, mark_task_failed, mark_task_failed_with_results,
-    mark_task_queued, mark_task_running, mark_task_running_with_progress, mark_task_succeeded,
-    ExtensionTask, ExtensionTaskTarget,
+    mark_task_cancelled_with_results, mark_task_queued, mark_task_running,
+    mark_task_running_with_progress, mark_task_succeeded, ExtensionTask, ExtensionTaskTarget,
 };
 use crate::security::WorkspaceScopeState;
 use serde::Deserialize;
@@ -230,7 +230,12 @@ fn record_extension_result(
                 outputs.clone(),
             )
         }
-        "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
+        "cancelled" => mark_task_cancelled_with_results(
+            &task.id,
+            artifacts,
+            outputs,
+            &result.progress_label,
+        ),
         "failed" => mark_task_failed_with_results(
             &task.id,
             if result.message.trim().is_empty() {

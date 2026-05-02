@@ -566,6 +566,48 @@ pub fn mark_task_cancelled(task_id: &str) -> Result<ExtensionTask, String> {
     mark_task_cancelled_in_dir(&tasks_dir()?, task_id)
 }
 
+fn mark_task_cancelled_with_results_in_dir(
+    tasks_root: &Path,
+    task_id: &str,
+    artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
+    progress_label: &str,
+) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
+        task.state = "cancelled".to_string();
+        if task.started_at.trim().is_empty() {
+            task.started_at = now_string();
+        }
+        task.finished_at = now_string();
+        task.progress.label = if progress_label.trim().is_empty() {
+            "Cancelled".to_string()
+        } else {
+            progress_label.trim().to_string()
+        };
+        task.artifacts = artifacts;
+        task.outputs = outputs;
+        task.error.clear();
+    })
+}
+
+pub fn mark_task_cancelled_with_results(
+    task_id: &str,
+    artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
+    progress_label: &str,
+) -> Result<ExtensionTask, String> {
+    mark_task_cancelled_with_results_in_dir(
+        &tasks_dir()?,
+        task_id,
+        artifacts,
+        outputs,
+        progress_label,
+    )
+}
+
 fn normalize_task_artifact(
     task: &ExtensionTask,
     patch: &ExtensionTaskArtifactPatch,
@@ -1171,6 +1213,73 @@ mod tests {
         assert_eq!(persisted.artifacts.len(), 1);
         assert_eq!(persisted.outputs.len(), 1);
         assert_eq!(persisted.outputs[0].title, "Failure Summary");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn cancelled_task_state_can_preserve_structured_results() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-cancelled-results");
+        let task = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-8".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let cancelled = super::mark_task_cancelled_with_results_in_dir(
+            &root,
+            &task.id,
+            vec![crate::extension_artifacts::ExtensionArtifact {
+                id: "cancel-log".to_string(),
+                extension_id: "example-pdf-extension".to_string(),
+                task_id: task.id.clone(),
+                capability: "pdf.translate".to_string(),
+                kind: "log".to_string(),
+                media_type: "text/plain".to_string(),
+                path: "/tmp/cancel.log".to_string(),
+                source_path: "/tmp/paper.pdf".to_string(),
+                source_hash: String::new(),
+                created_at: "2026-05-02T00:00:00Z".to_string(),
+            }],
+            vec![crate::extension_outputs::ExtensionCapabilityOutput {
+                id: "cancel-summary".to_string(),
+                output_type: "inlineText".to_string(),
+                media_type: "text/plain".to_string(),
+                title: "Cancelled Summary".to_string(),
+                description: "/tmp/paper.pdf".to_string(),
+                text: "cancelled by user".to_string(),
+                html: String::new(),
+            }],
+            "Cancelled by user",
+        )
+        .expect("mark cancelled with results");
+
+        assert_eq!(cancelled.state, "cancelled");
+        assert_eq!(cancelled.progress.label, "Cancelled by user");
+        assert_eq!(cancelled.error, "");
+        assert_eq!(cancelled.artifacts.len(), 1);
+        assert_eq!(cancelled.artifacts[0].path, "/tmp/cancel.log");
+        assert_eq!(cancelled.outputs.len(), 1);
+        assert_eq!(cancelled.outputs[0].id, "cancel-summary");
+        assert_eq!(cancelled.outputs[0].text, "cancelled by user");
+
+        let listed = list_tasks_from_dir(&root).expect("list tasks");
+        let persisted = listed
+            .iter()
+            .find(|entry| entry.id == task.id)
+            .expect("persisted cancelled task");
+        assert_eq!(persisted.state, "cancelled");
+        assert_eq!(persisted.progress.label, "Cancelled by user");
+        assert_eq!(persisted.artifacts.len(), 1);
+        assert_eq!(persisted.outputs.len(), 1);
+        assert_eq!(persisted.outputs[0].title, "Cancelled Summary");
         fs::remove_dir_all(root).ok();
     }
 
