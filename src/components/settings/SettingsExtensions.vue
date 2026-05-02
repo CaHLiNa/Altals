@@ -99,104 +99,96 @@
       </div>
     </section>
 
-    <section v-else class="settings-group extension-options-page">
-      <div class="extensions-group-heading">
-        <div class="extension-options-title">
-          <button
-            type="button"
-            class="extension-card-icon-button"
-            :title="t('Back to loaded extensions')"
-            :aria-label="t('Back to loaded extensions')"
-            @click="closeExtensionOptions"
-          >
-            <IconChevronLeft :size="18" :stroke-width="1.9" />
-          </button>
-          <h4 class="settings-group-title">{{ t('Extension options') }} · {{ extensionDisplayName(selectedExtension) }}</h4>
-        </div>
-      </div>
-
-      <div class="settings-group-body">
-        <div class="extension-options-summary">
-          <div class="extension-title-line">
-            <span class="extension-name">{{ extensionDisplayName(selectedExtension) }}</span>
-            <span class="extension-status" :class="`is-${displayStatus(selectedExtension)}`">{{ t(displayStatus(selectedExtension)) }}</span>
-            <span class="extension-scope">{{ t(selectedExtension.scope) }}</span>
+    <template v-else>
+      <section class="settings-group extension-options-navigation">
+        <div class="extensions-group-heading">
+          <div class="extension-options-title">
+            <button
+              type="button"
+              class="extension-card-icon-button"
+              :title="t('Back to loaded extensions')"
+              :aria-label="t('Back to loaded extensions')"
+              @click="closeExtensionOptions"
+            >
+              <IconChevronLeft :size="18" :stroke-width="1.9" />
+            </button>
           </div>
-          <div class="extension-description">{{ extensionDescription(selectedExtension) }}</div>
         </div>
+      </section>
 
-        <div v-if="selectedSettingGroups.length === 0" class="extension-empty-row">
-          {{ t('This extension has no configurable options.') }}
+      <section v-if="selectedSettingGroups.length === 0" class="settings-group">
+        <h4 class="settings-group-title">{{ t('Extension options') }}</h4>
+        <div class="settings-group-body">
+          <div class="extension-empty-row">
+            {{ t('This extension has no configurable options.') }}
+          </div>
         </div>
+      </section>
 
-        <div v-else class="extension-settings-panel">
-          <section
-            v-for="group in selectedSettingGroups"
-            :key="`${selectedExtension.id}:${group.id}`"
-            class="extension-setting-group"
-          >
-            <div class="extension-setting-group-heading">
-              <div class="extension-setting-group-title">{{ t(group.titleKey) }}</div>
-              <div class="extension-setting-group-hint">{{ t(group.hintKey) }}</div>
-            </div>
-            <div class="extension-setting-list">
-              <div
-                v-for="[key, setting] in group.entries"
-                :key="`${selectedExtension.id}:${key}`"
-                class="extension-setting-row"
-              >
-                <div class="extension-setting-copy">
-                  <div class="extension-setting-label-row">
-                    <div class="extension-setting-label">{{ t(setting.label || humanizeSettingKey(key)) }}</div>
-                    <span v-if="setting.secureStorage === true" class="extension-setting-badge">
-                      {{ t('Keychain') }}
-                    </span>
-                  </div>
-                  <div v-if="setting.description" class="extension-setting-hint">
-                    {{ t(setting.description) }}
-                  </div>
-                  <div v-if="setting.secureStorage === true" class="extension-setting-hint">
-                    {{ t('Stored securely in the app keychain.') }}
-                  </div>
+      <template v-else>
+        <section
+          v-for="group in selectedSettingGroups"
+          :key="`${selectedExtension.id}:${group.id}`"
+          class="settings-group extension-options-settings-group"
+        >
+          <h4 class="settings-group-title">{{ t(group.titleKey) }}</h4>
+          <div class="settings-group-body">
+            <div
+              v-for="[key, setting] in group.entries"
+              :key="`${selectedExtension.id}:${key}`"
+              class="settings-row extension-setting-row"
+            >
+              <div class="settings-row-copy extension-setting-copy">
+                <div class="settings-row-title extension-setting-label-row">
+                  <span>{{ t(setting.label || humanizeSettingKey(key)) }}</span>
+                  <span v-if="setting.secureStorage === true" class="extension-setting-badge">
+                    {{ t('Keychain') }}
+                  </span>
                 </div>
-                <div class="extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
-                  <UiSwitch
-                    v-if="setting.type === 'boolean'"
-                    :model-value="Boolean(settingValue(selectedExtension, key))"
-                    size="sm"
-                    :title="t(setting.label || humanizeSettingKey(key))"
-                    @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
-                  />
-                  <UiSelect
-                    v-else-if="settingOptions(setting).length"
-                    :model-value="settingValue(selectedExtension, key)"
-                    :options="settingOptions(setting)"
-                    :placeholder="t(setting.label || humanizeSettingKey(key))"
-                    @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
-                  />
-                  <textarea
-                    v-else-if="isLongTextSetting(key, setting)"
-                    class="extension-setting-textarea"
-                    :value="settingValue(selectedExtension, key)"
-                    spellcheck="false"
-                    rows="4"
-                    @input="(event) => updateSetting(selectedExtension.id, key, event.target.value)"
-                  ></textarea>
-                  <UiInput
-                    v-else
-                    :model-value="settingValue(selectedExtension, key)"
-                    :type="inputTypeForSetting(key, setting)"
-                    :monospace="isTechnicalSetting(key)"
-                    size="sm"
-                    @update:model-value="(value) => updateSetting(selectedExtension.id, key, coerceSettingValue(setting, value))"
-                  />
+                <div v-if="setting.description" class="settings-row-hint">
+                  {{ t(setting.description) }}
+                </div>
+                <div v-if="setting.secureStorage === true" class="settings-row-hint">
+                  {{ t('Stored securely in the app keychain.') }}
                 </div>
               </div>
+              <div class="settings-row-control extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
+                <UiSwitch
+                  v-if="setting.type === 'boolean'"
+                  :model-value="Boolean(settingValue(selectedExtension, key))"
+                  size="sm"
+                  :title="t(setting.label || humanizeSettingKey(key))"
+                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
+                />
+                <UiSelect
+                  v-else-if="settingOptions(setting).length"
+                  :model-value="settingValue(selectedExtension, key)"
+                  :options="settingOptions(setting)"
+                  :placeholder="t(setting.label || humanizeSettingKey(key))"
+                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
+                />
+                <textarea
+                  v-else-if="isLongTextSetting(key, setting)"
+                  class="extension-setting-textarea"
+                  :value="settingValue(selectedExtension, key)"
+                  spellcheck="false"
+                  rows="4"
+                  @input="(event) => updateSetting(selectedExtension.id, key, event.target.value)"
+                ></textarea>
+                <UiInput
+                  v-else
+                  :model-value="settingValue(selectedExtension, key)"
+                  :type="inputTypeForSetting(key, setting)"
+                  :monospace="isTechnicalSetting(key)"
+                  size="sm"
+                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, coerceSettingValue(setting, value))"
+                />
+              </div>
             </div>
-          </section>
-        </div>
-      </div>
-    </section>
+          </div>
+        </section>
+      </template>
+    </template>
 
   </div>
 </template>
@@ -571,15 +563,11 @@ onMounted(async () => {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   flex: 1 1 auto;
 }
 
-.extension-options-title .settings-group-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.extension-options-title .extension-card-icon-button {
+  margin: 8px 0 0 4px;
 }
 
 .extension-empty-row {
@@ -827,83 +815,12 @@ onMounted(async () => {
   opacity: 0.38;
 }
 
-.extension-options-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
-}
-
-.extension-settings-panel {
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-}
-
-.extension-setting-group {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
-}
-
-.extension-setting-group:last-child {
-  border-bottom: none;
-}
-
-.extension-setting-group-heading {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 6px 18px 8px;
-}
-
-.extension-setting-group-title {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  line-height: 1.35;
-  letter-spacing: 0.03em;
-}
-
-.extension-setting-group-hint {
-  margin-top: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.extension-setting-list {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
 .extension-setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  padding: 10px 18px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 24%, transparent);
-  transition: background-color 0.15s ease;
-}
-
-.extension-setting-row:hover {
-  background: color-mix(in srgb, var(--sidebar-item-hover) 18%, transparent);
+  min-height: 64px;
 }
 
 .extension-setting-copy {
-  min-width: 0;
-  flex: 1 1 auto;
+  gap: 2px;
 }
 
 .extension-setting-label-row {
@@ -911,11 +828,6 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.extension-setting-label {
-  font-size: 12px;
-  color: var(--text-primary);
 }
 
 .extension-setting-badge {
@@ -931,25 +843,12 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.extension-setting-hint {
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
-
 .extension-setting-control {
-  flex: 0 0 auto;
   width: min(100%, var(--settings-select-width, 280px));
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .extension-setting-control.is-wide {
   width: min(100%, 360px);
-  justify-content: stretch;
 }
 
 .extension-setting-textarea {
@@ -976,12 +875,6 @@ onMounted(async () => {
 @media (max-width: 720px) {
   .extension-header {
     flex-direction: column;
-  }
-
-  .extension-setting-group-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 2px;
   }
 
   .extension-setting-row {
