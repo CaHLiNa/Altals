@@ -112,6 +112,21 @@ try {
   const recoveredSummary = await extensions.syncHostSummaryAfterPromptEvent()
   assert.equal(recoveredSummary.pendingPromptOwner, null)
 
+  promptOpen = true
+  extensionWindowUi.presentRequest({
+    requestId: 'request-pending-prompt-cancelled-from-store',
+    extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace-a',
+    kind: 'inputBox',
+    title: 'Pending prompt',
+    prompt: 'Waiting for input',
+    placeholder: 'Type here',
+  })
+  await extensions.syncHostSummaryAfterPromptEvent()
+  const cancelledSummary = await extensions.cancelPendingPromptForExtension('example-pdf-extension', '/tmp/workspace-a')
+  assert.equal(cancelledSummary.pendingPromptOwner, null)
+  assert.equal(extensionWindowUi.visible, false)
+
   const diagnostics = extensions.hostDiagnosticsFor('example-pdf-extension', '/tmp/workspace-a')
   assert.equal(diagnostics.activeWorkspaceSlotCount, 1)
   assert.equal(diagnostics.otherWorkspaceSlotCount, 1)
@@ -125,6 +140,7 @@ try {
       activeRuntimeSlotRoots: summary.activeRuntimeSlots.map((entry) => entry.workspaceRoot),
       pendingPromptOwnerWhilePromptOpen: pendingSummary.pendingPromptOwner,
       pendingPromptOwnerAfterResolve: recoveredSummary.pendingPromptOwner,
+      pendingPromptOwnerAfterStoreCancel: cancelledSummary.pendingPromptOwner,
       activeWorkspaceSlotCount: diagnostics.activeWorkspaceSlotCount,
       otherWorkspaceSlotCount: diagnostics.otherWorkspaceSlotCount,
       respondRequestObserved: ipcCalls.some(([cmd]) => cmd === 'extension_host_respond_ui_request'),

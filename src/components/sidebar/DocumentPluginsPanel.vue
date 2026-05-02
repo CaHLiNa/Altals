@@ -23,8 +23,19 @@
           {{ targetSummary }}
         </div>
         <div v-if="hostDiagnosticSummary" class="document-plugin-page__diagnostics" :class="hostDiagnosticToneClass">
-          <div class="document-plugin-page__diagnostics-title">
-            {{ t('Host Runtime') }}
+          <div class="document-plugin-page__diagnostics-header">
+            <div class="document-plugin-page__diagnostics-title">
+              {{ t('Host Runtime') }}
+            </div>
+            <button
+              v-if="showPromptRecoveryAction"
+              type="button"
+              class="document-plugin-page__diagnostics-action"
+              :disabled="promptRecoveryBusy"
+              @click="void recoverPrompt()"
+            >
+              {{ promptRecoveryBusy ? t('Cancelling...') : t('Cancel Prompt') }}
+            </button>
           </div>
           <div class="document-plugin-page__diagnostics-copy">
             {{ hostDiagnosticSummary }}
@@ -51,9 +62,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
@@ -67,6 +79,8 @@ const props = defineProps({
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
 const extensionsStore = useExtensionsStore()
+const toastStore = useToastStore()
+const promptRecoveryBusy = ref(false)
 
 const fallbackTarget = computed(() => ({
   kind: String(props.filePath || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
@@ -180,6 +194,34 @@ const hostDiagnosticToneClass = computed(() => {
   if (diagnostics?.hasOtherWorkspaceRuntime) return 'is-info'
   return 'is-active'
 })
+
+const showPromptRecoveryAction = computed(() => {
+  const diagnostics = hostDiagnostics.value
+  return Boolean(
+    container.value?.extensionId &&
+    diagnostics?.ownsPendingPrompt &&
+    diagnostics?.pendingPromptInActiveWorkspace,
+  )
+})
+
+async function recoverPrompt() {
+  if (!container.value?.extensionId || promptRecoveryBusy.value) return
+  promptRecoveryBusy.value = true
+  try {
+    await extensionsStore.cancelPendingPromptForExtension(container.value.extensionId, workspace.path || '')
+    toastStore.show(t('Cancelled the pending extension prompt'), {
+      type: 'success',
+      duration: 2600,
+    })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to cancel extension prompt')), {
+      type: 'error',
+      duration: 4200,
+    })
+  } finally {
+    promptRecoveryBusy.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -247,6 +289,13 @@ const hostDiagnosticToneClass = computed(() => {
   background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
 }
 
+.document-plugin-page__diagnostics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .document-plugin-page__diagnostics.is-active {
   border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
 }
@@ -267,6 +316,22 @@ const hostDiagnosticToneClass = computed(() => {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.document-plugin-page__diagnostics-action {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.document-plugin-page__diagnostics-action:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .document-plugin-page__diagnostics-copy {

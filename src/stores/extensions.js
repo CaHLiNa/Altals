@@ -936,6 +936,33 @@ export const useExtensionsStore = defineStore('extensions', {
       return this.refreshHostSummary().catch(() => this.hostStatus)
     },
 
+    async cancelPendingPromptForExtension(extensionId = '', workspaceRoot = useWorkspaceStore().path || '') {
+      const id = normalizeExtensionId(extensionId)
+      const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
+      if (!id || !normalizedWorkspaceRoot) return this.hostStatus
+      const { useExtensionWindowUiStore } = await import('./extensionWindowUi')
+      const extensionWindowUi = useExtensionWindowUiStore()
+      const pendingRequestExtensionId = normalizeExtensionId(extensionWindowUi.pendingRequest?.extensionId || '')
+      const pendingRequestWorkspaceRoot = normalizeWorkspaceRoot(extensionWindowUi.pendingRequest?.workspaceRoot || '')
+      const requestMatches =
+        extensionWindowUi.visible &&
+        pendingRequestExtensionId === id &&
+        pendingRequestWorkspaceRoot === normalizedWorkspaceRoot
+
+      if (requestMatches) {
+        await extensionWindowUi.cancel().catch(() => {})
+      } else {
+        await cancelExtensionWindowInputs({
+          extensionId: id,
+          workspaceRoot: normalizedWorkspaceRoot,
+        }).catch(() => {})
+      }
+
+      await this.syncHostSummaryAfterPromptEvent().catch(() => {})
+      await this.flushDeferredViewRequests().catch(() => {})
+      return this.hostStatus
+    },
+
     async teardownWorkspaceRuntimeSlots(workspaceRoot = useWorkspaceStore().path || '') {
       const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
       if (!normalizedWorkspaceRoot) return []
