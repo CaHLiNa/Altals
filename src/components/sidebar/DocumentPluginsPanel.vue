@@ -22,6 +22,14 @@
         <div v-if="targetSummary" class="document-plugin-page__target">
           {{ targetSummary }}
         </div>
+        <div v-if="hostDiagnosticSummary" class="document-plugin-page__diagnostics" :class="hostDiagnosticToneClass">
+          <div class="document-plugin-page__diagnostics-title">
+            {{ t('Host Runtime') }}
+          </div>
+          <div class="document-plugin-page__diagnostics-copy">
+            {{ hostDiagnosticSummary }}
+          </div>
+        </div>
       </div>
 
       <div class="document-plugin-page__content">
@@ -106,6 +114,11 @@ const extensionTasks = computed(() =>
     ? extensionsStore.recentTasksForExtension(container.value.extensionId)
     : []
 )
+const hostDiagnostics = computed(() =>
+  container.value?.extensionId
+    ? extensionsStore.hostDiagnosticsFor(container.value.extensionId, workspace.path || '')
+    : null
+)
 
 const targetSummary = computed(() => {
   const target = resolvedTarget.value
@@ -122,6 +135,50 @@ const targetSummary = computed(() => {
     return t('Target reference: {referenceId}', { referenceId: target.referenceId })
   }
   return ''
+})
+
+const hostDiagnosticSummary = computed(() => {
+  const diagnostics = hostDiagnostics.value
+  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt) return ''
+
+  const segments = []
+  if (diagnostics.hasActiveWorkspaceRuntime) {
+    const label = diagnostics.activeWorkspaceSlotCount > 1
+      ? t('Active in {count} slots for this workspace', { count: diagnostics.activeWorkspaceSlotCount })
+      : t('Active in this workspace')
+    segments.push(label)
+  } else if (diagnostics.activated) {
+    segments.push(t('Runtime activated but no active slot is attached to this workspace'))
+  }
+
+  if (diagnostics.hasOtherWorkspaceRuntime) {
+    const roots = diagnostics.otherWorkspaceRoots.join(' · ')
+    segments.push(
+      diagnostics.otherWorkspaceSlotCount > 1
+        ? t('Also active in other workspaces: {roots}', { roots })
+        : t('Also active in another workspace: {roots}', { roots }),
+    )
+  }
+
+  if (diagnostics.ownsPendingPrompt) {
+    segments.push(
+      diagnostics.pendingPromptInActiveWorkspace
+        ? t('Waiting for prompt input in this workspace')
+        : t('Waiting for prompt input in {workspace}', {
+          workspace: diagnostics.pendingPromptWorkspaceRoot || '/',
+        }),
+    )
+  }
+
+  return segments.join(' · ')
+})
+
+const hostDiagnosticToneClass = computed(() => {
+  const diagnostics = hostDiagnostics.value
+  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt) return ''
+  if (diagnostics?.ownsPendingPrompt) return 'is-warning'
+  if (diagnostics?.hasOtherWorkspaceRuntime) return 'is-info'
+  return 'is-active'
 })
 </script>
 
@@ -177,6 +234,45 @@ const targetSummary = computed(() => {
 .document-plugin-page__empty {
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.document-plugin-page__diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+}
+
+.document-plugin-page__diagnostics.is-active {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+}
+
+.document-plugin-page__diagnostics.is-info {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+}
+
+.document-plugin-page__diagnostics.is-warning {
+  border-color: color-mix(in srgb, #d97706 32%, var(--border));
+  background: color-mix(in srgb, #d97706 8%, var(--surface-elevated));
+}
+
+.document-plugin-page__diagnostics-title {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.document-plugin-page__diagnostics-copy {
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .document-plugin-page__content {

@@ -34,7 +34,10 @@ try {
   clearTauriMocks = clearMocks
   mockWindows('main')
 
-  mockIPC((cmd) => {
+  let promptOpen = false
+  const ipcCalls = []
+  mockIPC((cmd, args) => {
+    ipcCalls.push([cmd, args])
     if (cmd === 'extension_host_status') {
       return {
         available: true,
@@ -50,10 +53,19 @@ try {
             workspaceRoot: '/tmp/workspace-b',
           },
         ],
-        pendingPromptOwner: {
-          extensionId: 'example-pdf-extension',
-          workspaceRoot: '/tmp/workspace-b',
-        },
+        pendingPromptOwner: promptOpen
+          ? {
+            extensionId: 'example-pdf-extension',
+            workspaceRoot: '/tmp/workspace-b',
+          }
+          : null,
+      }
+    }
+    if (cmd === 'extension_host_respond_ui_request') {
+      promptOpen = false
+      return {
+        requestId: String(args?.params?.requestId || ''),
+        accepted: true,
       }
     }
     if (cmd === 'extension_task_list') return []
@@ -62,6 +74,7 @@ try {
 
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
   const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useExtensionWindowUiStore } = await vite.ssrLoadModule('/src/stores/extensionWindowUi.js')
 
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -70,6 +83,7 @@ try {
   workspace.path = '/tmp/workspace-a'
 
   const extensions = useExtensionsStore(pinia)
+  const extensionWindowUi = useExtensionWindowUiStore(pinia)
   const summary = await extensions.refreshHostSummary()
 
   assert.equal(summary.runtime, 'node-extension-host-persistent')
@@ -77,8 +91,31 @@ try {
     summary.activeRuntimeSlots.map((entry) => entry.workspaceRoot),
     ['/tmp/workspace-a', '/tmp/workspace-b'],
   )
-  assert.equal(summary.pendingPromptOwner?.extensionId, 'example-pdf-extension')
-  assert.equal(summary.pendingPromptOwner?.workspaceRoot, '/tmp/workspace-b')
+  assert.equal(summary.pendingPromptOwner, null)
+
+  promptOpen = true
+  extensionWindowUi.presentRequest({
+    requestId: 'request-pending-prompt',
+    extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace-b',
+    kind: 'inputBox',
+    title: 'Pending prompt',
+    prompt: 'Waiting for input',
+    placeholder: 'Type here',
+  })
+
+  const pendingSummary = await extensions.syncHostSummaryAfterPromptEvent()
+  assert.equal(pendingSummary.pendingPromptOwner?.extensionId, 'example-pdf-extension')
+  assert.equal(pendingSummary.pendingPromptOwner?.workspaceRoot, '/tmp/workspace-b')
+
+  await extensionWindowUi.resolve('confirmed')
+  const recoveredSummary = await extensions.syncHostSummaryAfterPromptEvent()
+  assert.equal(recoveredSummary.pendingPromptOwner, null)
+
+  const diagnostics = extensions.hostDiagnosticsFor('example-pdf-extension', '/tmp/workspace-a')
+  assert.equal(diagnostics.activeWorkspaceSlotCount, 1)
+  assert.equal(diagnostics.otherWorkspaceSlotCount, 1)
+  assert.equal(diagnostics.ownsPendingPrompt, false)
 
   console.log(JSON.stringify({
     ok: true,
@@ -86,7 +123,11 @@ try {
       runtime: summary.runtime,
       activeRuntimeSlotCount: summary.activeRuntimeSlots.length,
       activeRuntimeSlotRoots: summary.activeRuntimeSlots.map((entry) => entry.workspaceRoot),
-      pendingPromptOwner: summary.pendingPromptOwner,
+      pendingPromptOwnerWhilePromptOpen: pendingSummary.pendingPromptOwner,
+      pendingPromptOwnerAfterResolve: recoveredSummary.pendingPromptOwner,
+      activeWorkspaceSlotCount: diagnostics.activeWorkspaceSlotCount,
+      otherWorkspaceSlotCount: diagnostics.otherWorkspaceSlotCount,
+      respondRequestObserved: ipcCalls.some(([cmd]) => cmd === 'extension_host_respond_ui_request'),
     },
   }, null, 2))
 } finally {

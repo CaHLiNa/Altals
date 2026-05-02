@@ -412,11 +412,13 @@ async function handleGlobalKeydown(event) {
 
 async function handleExtensionWindowPromptCancel() {
   await extensionWindowUi.cancel()
+  await extensionsStore.syncHostSummaryAfterPromptEvent().catch(() => {})
   await extensionsStore.flushDeferredViewRequests().catch(() => {})
 }
 
 async function handleExtensionWindowPromptSubmit(value) {
   await extensionWindowUi.resolve(value)
+  await extensionsStore.syncHostSummaryAfterPromptEvent().catch(() => {})
   await extensionsStore.flushDeferredViewRequests().catch(() => {})
 }
 
@@ -442,6 +444,7 @@ onMounted(() => {
   }).catch(() => {})
   void listenExtensionWindowInputRequested((event) => {
     extensionWindowUi.presentRequest(event?.payload || {})
+    void extensionsStore.syncHostSummaryAfterPromptEvent().catch(() => {})
   }).then((unlisten) => {
     stopExtensionWindowInputListener = unlisten
   }).catch(() => {})
@@ -461,6 +464,7 @@ onMounted(() => {
     const requestId = String(payload.requestId || '')
     if (requestId && extensionWindowUi.pendingRequest?.requestId === requestId) {
       extensionWindowUi.clearRequest()
+      void extensionsStore.syncHostSummaryAfterPromptEvent().catch(() => {})
       void extensionsStore.flushDeferredViewRequests().catch(() => {})
     }
   }).then((unlisten) => {

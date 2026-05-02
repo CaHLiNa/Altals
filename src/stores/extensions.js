@@ -42,6 +42,7 @@ import {
   normalizeExtensionContributions,
 } from '../domains/extensions/extensionContributionRegistry'
 import { buildExtensionContext } from '../domains/extensions/extensionContext.js'
+import { buildExtensionHostDiagnostics } from '../domains/extensions/extensionHostDiagnostics.js'
 import { mergeDefaultResultEntries } from '../services/extensions/extensionResultEntries'
 
 function normalizeExtensionId(value = '') {
@@ -662,6 +663,15 @@ export const useExtensionsStore = defineStore('extensions', {
     hostStatus(state) {
       return normalizeHostSummary(state.hostSummary)
     },
+    hostDiagnosticsFor(state) {
+      return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '') =>
+        buildExtensionHostDiagnostics({
+          extensionId,
+          workspaceRoot,
+          hostStatus: normalizeHostSummary(state.hostSummary),
+          runtimeEntry: normalizeRuntimeEntry(state.runtimeRegistry?.[normalizeExtensionId(extensionId)]),
+        })
+    },
     sidebarTargetForPanel: (state) => (panelId = '', fallbackTarget = {}) => {
       const normalizedPanelId = String(panelId || '').trim()
       const storedTarget = state.sidebarTargets?.[normalizedPanelId]
@@ -920,6 +930,10 @@ export const useExtensionsStore = defineStore('extensions', {
     async refreshHostSummary() {
       this.hostSummary = normalizeHostSummary(await loadExtensionHostStatus())
       return this.hostSummary
+    },
+
+    async syncHostSummaryAfterPromptEvent() {
+      return this.refreshHostSummary().catch(() => this.hostStatus)
     },
 
     async teardownWorkspaceRuntimeSlots(workspaceRoot = useWorkspaceStore().path || '') {

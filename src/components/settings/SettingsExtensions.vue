@@ -335,6 +335,10 @@ function activeRuntimeSlotsForExtension(extension = {}) {
     : []
 }
 
+function hostDiagnostics(extension = {}) {
+  return extensionsStore.hostDiagnosticsFor(extension.id, workspaceStore.path || '')
+}
+
 function displayStatus(extension = {}) {
   if (extension.status !== 'available') return extension.status
   return isEnabled(extension.id) ? extension.status : 'disabled'
@@ -351,26 +355,16 @@ function runtimeStatus(extension = {}) {
 
 function runtimeReason(extension = {}) {
   const entry = runtimeEntry(extension)
-  const slots = activeRuntimeSlotsForExtension(extension)
-  const slotSummary = slots.length
-    ? slots
-      .map((slot) => slot.workspaceRoot || '/')
-      .join(' · ')
-    : ''
-  const promptOwner = hostStatus().pendingPromptOwner
-  const ownsPendingPrompt = promptOwner?.extensionId === String(extension?.id || '').trim().toLowerCase()
-  if (entry.reason && slotSummary && ownsPendingPrompt) {
-    return `${entry.reason} · ${slotSummary} · waiting for prompt in ${promptOwner.workspaceRoot || '/'}`
+  const diagnostics = hostDiagnostics(extension)
+  const parts = []
+  if (entry.reason) parts.push(entry.reason)
+  if (diagnostics.workspaceRoots.length > 0) {
+    parts.push(diagnostics.workspaceRoots.join(' · '))
   }
-  if (entry.reason && slotSummary) {
-    return `${entry.reason} · ${slotSummary}`
+  if (diagnostics.ownsPendingPrompt) {
+    parts.push(`waiting for prompt in ${diagnostics.pendingPromptWorkspaceRoot || '/'}`)
   }
-  if (entry.reason) return entry.reason
-  if (slotSummary) return slotSummary
-  if (ownsPendingPrompt) {
-    return `waiting for prompt in ${promptOwner.workspaceRoot || '/'}`
-  }
-  return ''
+  return parts.join(' · ')
 }
 
 function runtimeCommandSummary(extension = {}) {
