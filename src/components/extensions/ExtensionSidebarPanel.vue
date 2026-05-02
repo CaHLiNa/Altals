@@ -42,13 +42,11 @@
             <span v-if="resolvedViewDescription(view)">{{ resolvedViewDescription(view) }}</span>
             <span v-else>{{ view.id }}</span>
           </div>
-          <div
+          <ExtensionCountBadge
             v-if="resolvedViewBadge(view) != null"
-            class="extension-sidebar-panel__view-badge"
+            :value="resolvedViewBadge(view)"
             :title="resolvedViewBadgeTooltip(view)"
-          >
-            {{ resolvedViewBadge(view) }}
-          </div>
+          />
         </div>
 
         <div v-if="resolvedViewMessage(view)" class="extension-sidebar-panel__view-message">
@@ -132,6 +130,7 @@ import { describeExtensionCommandError } from '../../domains/extensions/extensio
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
+import ExtensionCountBadge from './ExtensionCountBadge.vue'
 import ExtensionStatusPill from './ExtensionStatusPill.vue'
 import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
@@ -634,19 +633,6 @@ async function openResultEntry(entry = {}) {
   flex-direction: column;
   gap: 2px;
   padding: 0 4px;
-}
-
-.extension-sidebar-panel__view-badge {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 2px 8px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 600;
 }
 
 .extension-sidebar-panel__view-message {

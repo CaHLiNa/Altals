@@ -8,13 +8,11 @@
       <div class="document-plugin-page__meta">
         <div class="document-plugin-page__title-row">
           <div class="document-plugin-page__title">{{ containerTitle }}</div>
-          <span
+          <ExtensionCountBadge
             v-if="containerBadge != null"
-            class="document-plugin-page__badge"
+            :value="containerBadge"
             :title="containerBadgeTooltip"
-          >
-            {{ containerBadge }}
-          </span>
+          />
         </div>
         <div v-if="containerDescription" class="document-plugin-page__description">
           {{ containerDescription }}
@@ -59,6 +57,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
+import ExtensionCountBadge from '../extensions/ExtensionCountBadge.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
@@ -192,18 +191,6 @@ const hostDiagnosticToneClass = computed(() => {
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
-}
-
-.document-plugin-page__badge {
-  display: inline-flex;
-  align-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface-hover));
-  color: var(--text-primary);
-  font-size: 10px;
 }
 
 .document-plugin-page__description,
