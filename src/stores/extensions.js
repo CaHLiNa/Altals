@@ -352,6 +352,7 @@ export const useExtensionsStore = defineStore('extensions', {
     sidebarTargets: {},
     changedViewTicks: {},
     deferredViewRequests: {},
+    _flushingDeferredViewRequests: false,
     loadingRegistry: false,
     loadingTasks: false,
     settingsHydrated: false,
@@ -1098,6 +1099,7 @@ export const useExtensionsStore = defineStore('extensions', {
           outputs: resolved?.outputs,
         }),
       }
+      this.retryDeferredViewRequests()
       return resolved
     },
     async notifyViewSelection(view = {}, itemHandle = '') {
@@ -1110,13 +1112,15 @@ export const useExtensionsStore = defineStore('extensions', {
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       try {
-        return await notifyExtensionViewSelection({
+        const result = await notifyExtensionViewSelection({
           globalConfigDir,
           workspaceRoot: workspace.path || '',
           extensionId,
           viewId,
           itemHandle: String(itemHandle || ''),
         })
+        this.retryDeferredViewRequests()
+        return result
       } catch (error) {
         if (isPromptIsolationError(error)) {
           this.deferViewRequest({
@@ -1204,39 +1208,60 @@ export const useExtensionsStore = defineStore('extensions', {
         [key]: request,
       }
     },
+    requeueDeferredViewRequests(requests = []) {
+      if (!Array.isArray(requests) || requests.length === 0) return
+      for (const request of requests) {
+        this.deferViewRequest(request)
+      }
+    },
+    retryDeferredViewRequests() {
+      if (this._flushingDeferredViewRequests) return
+      if (Object.keys(this.deferredViewRequests || {}).length === 0) return
+      void this.flushDeferredViewRequests().catch(() => {})
+    },
     async flushDeferredViewRequests() {
+      if (this._flushingDeferredViewRequests) return []
       const pending = Object.values(this.deferredViewRequests || {})
       if (pending.length === 0) return []
+      this._flushingDeferredViewRequests = true
       this.deferredViewRequests = {}
       const replayed = []
-      for (const request of pending) {
-        try {
-          if (request.kind === 'resolveView') {
-            await this.resolveView(
-              { extensionId: request.extensionId, id: request.viewId },
-              request.target,
-              request.settings,
-              request.parentItemId,
-            )
-            replayed.push(deferredViewRequestKey(request))
-            continue
+      try {
+        for (let index = 0; index < pending.length; index += 1) {
+          const request = pending[index]
+          try {
+            if (request.kind === 'resolveView') {
+              await this.resolveView(
+                { extensionId: request.extensionId, id: request.viewId },
+                request.target,
+                request.settings,
+                request.parentItemId,
+              )
+              replayed.push(deferredViewRequestKey(request))
+              continue
+            }
+            if (request.kind === 'notifyViewSelection') {
+              await this.notifyViewSelection(
+                { extensionId: request.extensionId, id: request.viewId },
+                request.itemHandle,
+              )
+              replayed.push(deferredViewRequestKey(request))
+              continue
+            }
+            throw new Error(`Unsupported deferred extension view request kind: ${request.kind}`)
+          } catch (error) {
+            if (isPromptIsolationError(error)) {
+              this.deferViewRequest(request)
+              continue
+            }
+            this.requeueDeferredViewRequests(pending.slice(index))
+            throw error
           }
-          if (request.kind === 'notifyViewSelection') {
-            await this.notifyViewSelection(
-              { extensionId: request.extensionId, id: request.viewId },
-              request.itemHandle,
-            )
-            replayed.push(deferredViewRequestKey(request))
-          }
-        } catch (error) {
-          if (isPromptIsolationError(error)) {
-            this.deferViewRequest(request)
-            continue
-          }
-          throw error
         }
+        return replayed
+      } finally {
+        this._flushingDeferredViewRequests = false
       }
-      return replayed
     },
     upsertTask(task = {}) {
       const normalized = normalizeTask(task)

@@ -37,6 +37,7 @@ try {
   mockWindows('main')
 
   let promptBlocking = true
+  let failNextSelectionReplay = false
   const ipcCalls = []
   mockIPC((cmd, args) => {
     ipcCalls.push([cmd, args])
@@ -65,6 +66,10 @@ try {
     if (cmd === 'extension_host_notify_view_selection') {
       if (promptBlocking) {
         throw new Error('Extension host is waiting for UI input from example-pdf-extension; complete or cancel that prompt before sending another top-level request')
+      }
+      if (failNextSelectionReplay) {
+        failNextSelectionReplay = false
+        throw new Error('Selection replay transport failed')
       }
       return {
         extensionId: 'example-pdf-extension',
@@ -163,17 +168,43 @@ try {
   const resolvedView = extensions.resolvedViewFor('example-pdf-extension:examplePdfExtension.translateView')
   assert.equal(resolvedView?.items?.[0]?.label, 'Recovered item')
 
+  extensions.deferViewRequest({
+    kind: 'notifyViewSelection',
+    extensionId: 'example-pdf-extension',
+    viewId: 'examplePdfExtension.translateView',
+    itemHandle: 'group',
+  })
+  failNextSelectionReplay = true
+
+  await assert.rejects(
+    () => extensions.flushDeferredViewRequests(),
+    /Selection replay transport failed/i,
+  )
+
+  assert.equal(Object.keys(extensions.deferredViewRequests).length, 1)
+
+  await extensions.resolveView(
+    { extensionId: 'example-pdf-extension', id: 'examplePdfExtension.translateView' },
+    { kind: 'pdf', path: '/tmp/paper.pdf', referenceId: 'ref-123' },
+    {},
+    '',
+  )
+
+  assert.equal(Object.keys(extensions.deferredViewRequests).length, 0)
+
   const resolveCalls = ipcCalls.filter(([cmd]) => cmd === 'extension_view_resolve')
   const selectionCalls = ipcCalls.filter(([cmd]) => cmd === 'extension_host_notify_view_selection')
-  assert.equal(resolveCalls.length, 2)
-  assert.equal(selectionCalls.length, 2)
+  assert.equal(resolveCalls.length, 3)
+  assert.equal(selectionCalls.length, 4)
 
   console.log(JSON.stringify({
     ok: true,
     summary: {
       deferredCountBeforeFlush: 2,
-      deferredCountAfterFlush: Object.keys(extensions.deferredViewRequests).length,
+      deferredCountAfterInitialFlush: 0,
       recoveredItemLabel: resolvedView?.items?.[0]?.label || '',
+      deferredCountAfterReplayFailure: 1,
+      deferredCountAfterAutoRetry: Object.keys(extensions.deferredViewRequests).length,
       resolveCallCount: resolveCalls.length,
       selectionCallCount: selectionCalls.length,
     },
