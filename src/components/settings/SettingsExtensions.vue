@@ -132,21 +132,21 @@
           class="settings-group extension-options-settings-group"
         >
           <h4 class="settings-group-title">{{ t(group.title) }}</h4>
-          <div class="settings-group-body extension-options-actions-list">
+          <div class="settings-group-body">
             <div
               v-for="action in group.actions"
               :key="`${selectedExtension.id}:action:${action.id}`"
-              class="extension-options-actions-group"
+              class="settings-row extension-setting-row extension-action-row"
             >
-              <div class="extension-options-actions-copy">
+              <div class="settings-row-copy extension-setting-copy">
                 <div class="settings-row-title extension-setting-label-row">
                   <span>{{ t(action.title) }}</span>
                 </div>
-                <div class="extension-action-hint">
-                  {{ actionMessage(action.id, action.description) }}
+                <div v-if="actionMessage(action.id)" class="extension-action-hint">
+                  {{ actionMessage(action.id) }}
                 </div>
               </div>
-              <div class="extension-options-actions-bar">
+              <div class="settings-row-control extension-setting-control extension-action-control">
                 <UiButton
                   variant="secondary"
                   size="sm"
@@ -601,9 +601,9 @@ function isActionBusy(actionId = '') {
   return Boolean(selectedExtensionActionBusy[actionBusyKey(actionId)])
 }
 
-function actionMessage(actionId = '', fallback = '') {
+function actionMessage(actionId = '') {
   const key = actionBusyKey(actionId)
-  return selectedExtensionActionMessages[key] || t(fallback || '')
+  return selectedExtensionActionMessages[key] || ''
 }
 
 function actionButtonLabel(actionId = '', fallback = '') {
@@ -1093,19 +1093,8 @@ onBeforeUnmount(() => {
   width: min(100%, 360px);
 }
 
-.extension-options-actions-group {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.extension-options-actions-copy {
-  min-width: 0;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 4px;
+.extension-action-row {
+  min-height: 52px;
 }
 
 .extension-action-hint {
@@ -1114,10 +1103,8 @@ onBeforeUnmount(() => {
   line-height: 1.45;
 }
 
-.extension-options-actions-bar {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
+.extension-action-control {
+  justify-content: flex-end;
 }
 
 .extension-setting-textarea {
@@ -1157,16 +1144,11 @@ onBeforeUnmount(() => {
     justify-content: stretch;
   }
 
-  .extension-options-actions-group {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .extension-options-actions-bar {
+  .extension-action-control {
     width: 100%;
   }
 
-  .extension-options-actions-bar :deep(.ui-button) {
+  .extension-action-control :deep(.ui-button) {
     width: 100%;
   }
 
