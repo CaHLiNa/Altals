@@ -127,6 +127,33 @@
 
       <template v-else>
         <section
+          v-if="showSelectedExtensionActions"
+          class="settings-group extension-options-settings-group"
+        >
+          <h4 class="settings-group-title">{{ t('Runtime') }}</h4>
+          <div class="settings-group-body extension-options-actions-group">
+            <div class="extension-options-actions-copy">
+              <div class="settings-row-title extension-setting-label-row">
+                <span>{{ t('Plugin Environment') }}</span>
+              </div>
+              <div class="extension-action-hint">
+                {{ selectedExtensionRuntimeMessage }}
+              </div>
+            </div>
+            <div class="extension-options-actions-bar">
+              <UiButton
+                variant="secondary"
+                size="sm"
+                :disabled="selectedExtensionActionBusy"
+                @click="void runSelectedExtensionPrimaryAction()"
+              >
+                {{ selectedExtensionActionBusy ? t('Configuring...') : selectedExtensionPrimaryActionLabel }}
+              </UiButton>
+            </div>
+          </div>
+        </section>
+
+        <section
           v-for="group in selectedSettingGroups"
           :key="`${selectedExtension.id}:${group.id}`"
           class="settings-group extension-options-settings-group"
@@ -221,6 +248,8 @@ const SETTING_SAVE_DELAY_MS = 360
 const selectedExtension = computed(() =>
   extensions.value.find((extension) => extension.id === selectedExtensionId.value) || null
 )
+const selectedExtensionActionBusy = ref(false)
+const selectedExtensionRuntimeMessage = ref('')
 const selectedSettingGroups = computed(() =>
   selectedExtension.value ? settingGroups(selectedExtension.value) : []
 )
@@ -531,10 +560,57 @@ function openExtensionOptions(extensionId = '') {
   const normalized = String(extensionId || '').trim()
   if (!normalized) return
   selectedExtensionId.value = normalized
+  if (normalized.toLowerCase() === 'retain-pdf' && !selectedExtensionRuntimeMessage.value) {
+    selectedExtensionRuntimeMessage.value = t('Create a Python 3.11 uv environment and install the RetainPDF runtime dependencies.')
+  }
 }
 
 function closeExtensionOptions() {
   selectedExtensionId.value = ''
+  selectedExtensionRuntimeMessage.value = ''
+}
+
+const isRetainPdfSelected = computed(() =>
+  String(selectedExtension.value?.id || '').trim().toLowerCase() === 'retain-pdf'
+)
+
+const showSelectedExtensionActions = computed(() => isRetainPdfSelected.value)
+
+const selectedExtensionPrimaryActionLabel = computed(() =>
+  isRetainPdfSelected.value ? t('Configure Environment') : ''
+)
+
+async function runSelectedExtensionPrimaryAction() {
+  if (!isRetainPdfSelected.value || selectedExtensionActionBusy.value) return
+  selectedExtensionActionBusy.value = true
+  selectedExtensionRuntimeMessage.value = t('Configuring RetainPDF Python environment...')
+  try {
+    const task = await extensionsStore.executeCommand({
+      extensionId: 'retain-pdf',
+      commandId: 'retainPdf.setupEnvironment',
+    }, {
+      kind: 'workspace',
+      referenceId: '',
+      path: workspaceStore.path || '',
+    })
+    const isFailed = String(task?.state || '').trim().toLowerCase() === 'failed'
+    if (isFailed) {
+      throw new Error(String(task?.error || t('Failed to configure RetainPDF environment')))
+    }
+    selectedExtensionRuntimeMessage.value = t('RetainPDF environment is ready.')
+    toastStore.show(selectedExtensionRuntimeMessage.value, {
+      type: 'success',
+      duration: 3200,
+    })
+  } catch (error) {
+    selectedExtensionRuntimeMessage.value = error?.message || String(error || t('Failed to configure RetainPDF environment'))
+    toastStore.show(selectedExtensionRuntimeMessage.value, {
+      type: 'error',
+      duration: 4600,
+    })
+  } finally {
+    selectedExtensionActionBusy.value = false
+  }
 }
 
 const hostRuntimeSlots = computed(() =>
@@ -984,6 +1060,33 @@ onBeforeUnmount(() => {
   width: min(100%, 360px);
 }
 
+.extension-options-actions-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.extension-options-actions-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.extension-action-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.extension-options-actions-bar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
 .extension-setting-textarea {
   width: 100%;
   min-height: 86px;
@@ -1019,6 +1122,19 @@ onBeforeUnmount(() => {
   .extension-setting-control {
     width: 100%;
     justify-content: stretch;
+  }
+
+  .extension-options-actions-group {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .extension-options-actions-bar {
+    width: 100%;
+  }
+
+  .extension-options-actions-bar :deep(.ui-button) {
+    width: 100%;
   }
 
   .extension-controls {
