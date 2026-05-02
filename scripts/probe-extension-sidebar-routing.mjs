@@ -188,6 +188,27 @@ try {
   )
   assert.equal(pluginPresentation.title, 'PDF Tools (1)')
 
+  const markdownPages = documentDockPageRegistry.resolvePages({
+    allowedPageIds: ['preview', 'references', 'extension:', 'extension:examplePdfExtension.tools'],
+    filePath: '/tmp/notes.md',
+    pluginContainers: [],
+    hasPluginViews: false,
+    comparisonTabs: [],
+    pageDefinitions: [
+      { id: 'preview', permanent: true, dynamic: false, closeable: true, fallbackPage: 'file' },
+      { id: 'references', permanent: true, dynamic: false, closeable: false, fallbackPage: 'preview' },
+      { id: 'extension:', permanent: false, dynamic: true, closeable: false, fallbackPage: 'preview' },
+      { id: 'problems', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
+      { id: 'file', permanent: false, dynamic: true, closeable: true, fallbackPage: 'preview' },
+    ],
+    t: (value) => value,
+  })
+  assert.equal(
+    markdownPages.some((page) => page.key === 'extension:examplePdfExtension.tools'),
+    false,
+    'document dock should not expose PDF-only plugin page for non-PDF documents',
+  )
+
   console.log(JSON.stringify({
     ok: true,
     routedPanelId: routedContainer.panelId,

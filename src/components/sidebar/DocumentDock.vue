@@ -114,6 +114,11 @@ const pluginContainers = computed(() =>
       }
     })
     .filter(Boolean)
+    .filter((container) => {
+      if (!container?.panelId) return false
+      const target = extensionsStore.sidebarTargetForPanel(container.panelId, pluginTarget.value)
+      return String(target.kind || '').trim() === 'pdf'
+    })
 )
 const hasPluginViews = computed(() => pluginContainers.value.length > 0)
 const allowedDocumentDockPageIds = computed(() => {
