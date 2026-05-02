@@ -28,6 +28,15 @@
             </div>
             <div class="extension-host-runtime-card__actions">
               <UiButton
+                v-if="showHostRuntimeRestartAction"
+                variant="ghost"
+                size="sm"
+                :disabled="hostRuntimeRestartBusy"
+                @click="void restartHostRuntime()"
+              >
+                {{ hostRuntimeRestartBusy ? t('Restarting...') : t('Restart Runtime') }}
+              </UiButton>
+              <UiButton
                 v-if="showHostPromptRecoveryAction"
                 variant="ghost"
                 size="sm"
@@ -361,6 +370,7 @@ const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
 const hostPromptRecoveryBusy = ref(false)
+const hostRuntimeRestartBusy = ref(false)
 const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
 const capabilityInvokeTarget = computed(() =>
   resolveExtensionTargetContext({
@@ -810,6 +820,9 @@ const hostRuntimeCardToneClass = computed(() => {
 const showHostPromptRecoveryAction = computed(() =>
   Boolean(hostStatus().pendingPromptOwner?.extensionId && hostStatus().pendingPromptOwner?.workspaceRoot)
 )
+const showHostRuntimeRestartAction = computed(() =>
+  Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
+)
 
 async function recoverHostPrompt() {
   const owner = hostStatus().pendingPromptOwner
@@ -828,6 +841,26 @@ async function recoverHostPrompt() {
     })
   } finally {
     hostPromptRecoveryBusy.value = false
+  }
+}
+
+async function restartHostRuntime() {
+  const slot = Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots[0] : null
+  if (!slot?.extensionId || !slot?.workspaceRoot || hostRuntimeRestartBusy.value) return
+  hostRuntimeRestartBusy.value = true
+  try {
+    await extensionsStore.restartExtensionRuntime(slot.extensionId, slot.workspaceRoot)
+    toastStore.show(t('Restarted the selected extension runtime'), {
+      type: 'success',
+      duration: 2600,
+    })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to restart extension runtime')), {
+      type: 'error',
+      duration: 4200,
+    })
+  } finally {
+    hostRuntimeRestartBusy.value = false
   }
 }
 
