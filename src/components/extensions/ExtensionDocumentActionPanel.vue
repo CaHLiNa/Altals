@@ -147,28 +147,43 @@ async function runAction() {
 .extension-document-action-panel {
   display: flex;
   flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
   padding: 4px 2px 0;
 }
 
 .extension-document-action-panel__target {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   flex-direction: column;
   gap: 6px;
 }
 
+.extension-document-action-panel :deep(.ui-button) {
+  max-width: 100%;
+}
+
 .extension-document-action-panel__target-label,
 .extension-document-action-panel__progress-row {
+  min-width: 0;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
 }
 
 .extension-document-action-panel__filename {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
@@ -187,6 +202,9 @@ async function runAction() {
 
 .extension-document-action-panel__progress {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   flex-direction: column;
   gap: 7px;
@@ -197,6 +215,7 @@ async function runAction() {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
 }
 
 .extension-document-action-panel__progress-state {
@@ -219,6 +238,9 @@ async function runAction() {
 }
 
 .extension-document-action-panel__progress-track {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   height: 6px;
   border-radius: 999px;
