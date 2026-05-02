@@ -119,6 +119,7 @@ Current plugin lifecycle contract:
 - host-status recovery action contract is now probe-backed too: those same surfaces also consume the same `available/busy/label/title/trigger` recovery action shape, so cancel-prompt affordances no longer reassemble button state and trigger wiring independently per surface
 - host-status UI shell is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery now render through one shared host-status surface component with compact/full variants and slot-based extension points instead of maintaining three separate DOM/CSS shells
 - runtime-block action presentation is now shared too: command buttons, sidebar header actions, tree-item actions, result-preview actions, and command-palette row pills all derive the same blocked/waiting label and message rendering from one shared presentation helper instead of each surface manually translating `labelKey/messageKey`
+- runtime-block action button shell is now shared too: command buttons, sidebar header actions, and result-preview actions now render through one shared blocked-action button component, so blocked label/message/disabled/title behavior no longer requires each surface to hand-assemble its own button markup
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -165,6 +166,7 @@ It runs:
 - `npm run probe:extension-host-status-recovery-action-contract`
 - `npm run probe:extension-host-status-surface-component-contract`
 - `npm run probe:extension-runtime-block-presentation-contract`
+- `npm run probe:extension-blocked-action-button-contract`
 - `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
@@ -242,6 +244,7 @@ Current baseline:
 - extension host-status recovery action contract probe passes
 - extension host-status surface component contract probe passes
 - extension runtime-block presentation contract probe passes
+- extension blocked-action button contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes

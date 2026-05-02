@@ -6,18 +6,18 @@
         <div class="extension-sidebar-panel__meta">{{ extensionName }}</div>
       </div>
       <div class="extension-sidebar-panel__header-actions">
-        <button
+        <ExtensionBlockedActionButton
           v-for="action in viewTitleActionsWithState"
           :key="`${action.extensionId}:${action.commandId}`"
-          type="button"
-          class="extension-sidebar-panel__refresh"
-          :class="{ 'is-blocked': action.blocked }"
-          :title="action.blocked ? action.blockedMessage : ''"
-          :disabled="action.blocked"
+          native
+          :extra-class="['extension-sidebar-panel__refresh', action.blocked ? 'is-blocked' : '']"
+          :blocked="action.blocked"
+          :blocked-label="action.blockedLabel"
+          :blocked-message="action.blockedMessage"
+          :label="t(action.title || action.commandId)"
+          :title="t(action.title || action.commandId)"
           @click="runHeaderAction(action)"
-        >
-          {{ action.blocked ? action.blockedLabel : t(action.title || action.commandId) }}
-        </button>
+        />
         <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
           {{ t('Refresh') }}
         </button>
@@ -135,6 +135,7 @@ import { useToastStore } from '../../stores/toast'
 import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 

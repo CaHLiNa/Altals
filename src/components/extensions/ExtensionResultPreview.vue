@@ -8,19 +8,17 @@
         </div>
       </div>
       <div v-if="toolbarActions.length > 0" class="extension-result-preview__actions">
-        <UiButton
+        <ExtensionBlockedActionButton
           v-for="action in toolbarActions"
           :key="action.id"
-          variant="secondary"
-          size="sm"
-          :disabled="action.blocked"
+          :blocked="action.blocked"
           :loading="isActionBusy(action.entry)"
-          :title="action.blocked ? action.blockedMessage : action.label"
-          :aria-label="action.blocked ? action.blockedMessage : action.label"
+          :blocked-label="action.blockedLabel"
+          :blocked-message="action.blockedMessage"
+          :label="action.label"
+          :title="action.label"
           @click="$emit('run-action', action.entry)"
-        >
-          {{ action.blocked ? action.blockedLabel : action.label }}
-        </UiButton>
+        />
       </div>
     </div>
 
@@ -70,13 +68,13 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
-import UiButton from '../shared/ui/UiButton.vue'
 import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 import { readExtensionArtifactText } from '../../services/extensions/extensionArtifacts'
 import { loadExtensionTextPreviewContent } from '../../services/extensions/extensionTextPreview'
 import { useExtensionsStore } from '../../stores/extensions'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
 const ImagePreviewPane = defineAsyncComponent(() => import('../editor/ImagePreviewPane.vue'))

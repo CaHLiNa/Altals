@@ -1,18 +1,18 @@
 <template>
-  <UiButton
-    variant="secondary"
-    size="sm"
+  <ExtensionBlockedActionButton
     :disabled="disabled"
-    :loading="busy"
-    :title="buttonTitle"
-    :aria-label="buttonTitle"
+    :loading="busy.value"
+    :blocked="blockPresentation.blocked"
+    :blocked-label="blockPresentation.label"
+    :blocked-message="blockPresentation.message"
+    :label="label"
+    :title="label"
     @click="start"
   >
     <template #leading>
       <IconBolt :size="14" />
     </template>
-    {{ buttonLabel }}
-  </UiButton>
+  </ExtensionBlockedActionButton>
 </template>
 
 <script setup>
@@ -24,7 +24,7 @@ import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
-import UiButton from '../shared/ui/UiButton.vue'
+import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 
 const props = defineProps({
   action: { type: Object, default: null },
@@ -61,13 +61,6 @@ const hostState = computed(() => {
   )
 })
 const blockPresentation = computed(() => describeExtensionHostStatePresentation(hostState.value, t))
-const buttonLabel = computed(() => blockPresentation.value.blocked ? blockPresentation.value.label : label.value)
-const buttonTitle = computed(() => {
-  if (blockPresentation.value.blocked) {
-    return blockPresentation.value.message
-  }
-  return label.value
-})
 const disabled = computed(() =>
   props.disabled ||
   busy.value ||
