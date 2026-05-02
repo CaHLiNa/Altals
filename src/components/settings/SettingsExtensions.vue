@@ -145,12 +145,6 @@
                     {{ t('Keychain') }}
                   </span>
                 </div>
-                <div v-if="setting.description" class="settings-row-hint">
-                  {{ t(setting.description) }}
-                </div>
-                <div v-if="setting.secureStorage === true" class="settings-row-hint">
-                  {{ t('Stored securely in the app keychain.') }}
-                </div>
               </div>
               <div class="settings-row-control extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
                 <UiSwitch
@@ -820,7 +814,7 @@ onMounted(async () => {
 }
 
 .extension-setting-row {
-  min-height: 64px;
+  min-height: 52px;
 }
 
 .extension-setting-copy {
