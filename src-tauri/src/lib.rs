@@ -71,6 +71,8 @@ pub use extension_host::{
     ExtensionHostState,
 };
 pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
+pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
+pub use extension_tasks::ExtensionTaskRuntimeState;
 pub use extension_settings::{
     load_extension_runtime_state_snapshot as extension_settings_load_runtime_state_snapshot_for_probe,
     load_extension_settings_with_state as extension_settings_load_with_state_for_probe,

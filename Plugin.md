@@ -111,6 +111,7 @@ Task progress delivery also has a probe-backed runtime contract:
 - plugins may push intermediate task state through `tasks.update(...)` without losing ownership of a still-running spawned worker
 - terminal task updates remain responsible for cleaning up spawned worker ownership in the Rust runtime
 - task `artifacts` and `outputs` are replace-on-present snapshots, so plugin code can either keep existing values by omitting a field or replace the persisted value by sending a new array, including an explicit empty array
+- the formal cancel path now has its own contract too: cancelling a running task preserves the persisted `cancelled` state and clears spawned worker ownership from the runtime instead of leaving the process registry dirty
 
 View-state delivery also has a probe-backed runtime contract:
 

@@ -177,6 +177,7 @@ Task update contract note:
 - terminal task updates should reap spawned-process ownership from the Rust runtime without deleting the persisted task record
 - `artifacts` and `outputs` on task updates should follow replace-on-present semantics: omitted fields keep the current value, while provided arrays replace the persisted snapshot, including explicit empty arrays
 - intermediate and final task updates should preserve structured `outputs` through the Rust bridge instead of dropping them at the task patch boundary
+- the formal task-cancel path should also reap spawned-process ownership, preserve the task's persisted terminal state as `cancelled`, and avoid erasing the last running snapshot while cancellation is being recorded
 
 View state contract note:
 

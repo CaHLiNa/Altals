@@ -777,6 +777,20 @@ fn kill_pid(pid: u32) -> Result<(), String> {
     }
 }
 
+pub fn cancel_task_for_runtime(
+    task_id: &str,
+    runtime_state: &ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<ExtensionTask, String> {
+    if let Some(pid) = runtime_state.unregister_pid(task_id)? {
+        let _ = kill_pid(pid);
+        let _ = crate::extension_host::reap_spawned_process(extension_host_state, pid, true);
+    }
+    let task = mark_task_cancelled(task_id)?;
+    runtime_state.emit_task_changed(&task);
+    Ok(task)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionTaskGetParams {
@@ -800,17 +814,11 @@ pub async fn extension_task_cancel(
     runtime_state: tauri::State<'_, ExtensionTaskRuntimeState>,
     extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
 ) -> Result<ExtensionTask, String> {
-    if let Some(pid) = runtime_state.unregister_pid(&params.task_id)? {
-        let _ = kill_pid(pid);
-        let _ = crate::extension_host::reap_spawned_process(
-            extension_host_state.inner(),
-            pid,
-            true,
-        );
-    }
-    let task = mark_task_cancelled(&params.task_id)?;
-    runtime_state.emit_task_changed(&task);
-    Ok(task)
+    cancel_task_for_runtime(
+        &params.task_id,
+        runtime_state.inner(),
+        extension_host_state.inner(),
+    )
 }
 
 #[cfg(test)]
