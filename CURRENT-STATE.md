@@ -96,6 +96,7 @@ Current plugin lifecycle contract:
 - nested capability contract is now probe-backed: `context.capabilities.invoke(...)` preserves the callee result payload, surfaces nested capability failures as catchable plugin exceptions, unions nested `changedViews` with host-tracked `views.refresh(...)` requests, and now propagates that aggregated refresh set through the top-level capability invocation result
 - capability orchestration is now probe-backed as a first-class runtime contract: one capability provider can combine `tasks.update(...)`, `views.updateView(...)`, and `views.refresh(...)` in the same request, and the host preserves the running-task snapshot, pushed view state, and top-level `changedViews` refresh set together
 - extension task cancellation is now probe-backed as a first-class runtime contract: cancelling a running extension task reuses the formal task API, preserves the persisted `cancelled` terminal state, and clears spawned-process ownership from the runtime registry
+- extension task cancellation is also probe-backed at the store/UI contract layer: after a cancel response returns, the frontend timeline moves the task out of the running bucket, preserves the `cancelled` terminal snapshot in recent tasks, and keeps the last running output payload visible
 - runtime state persistence is now probe-backed: plugin `globalState` survives across later host activations and spans workspaces, while `workspaceState` restores only within the originating workspace root
 - window message severity is now probe-backed: runtime info/warning/error calls preserve ordering, message text, and severity classification through the host event bridge
 - input box request and result semantics are now probe-backed: host request payload fields stay stable, confirm returns the typed value, and cancel resolves back to `undefined`
@@ -135,6 +136,7 @@ It runs:
 - `npm run probe:extension-command-menu-contract`
 - `npm run probe:extension-task-contract`
 - `npm run probe:extension-task-cancel-contract`
+- `npm run probe:extension-task-cancel-store-contract`
 - `npm run probe:extension-lifecycle-state-contract`
 - `npm run probe:extension-capability-invoke-contract`
 - `npm run probe:extension-capability-orchestration-contract`
@@ -185,6 +187,7 @@ Current baseline:
 - extension commands/menu registration contract probe passes
 - extension task update contract probe passes
 - extension task cancel contract probe passes
+- extension task cancel store contract probe passes
 - extension lifecycle state contract probe passes
 - extension nested capability contract probe passes
 - extension capability orchestration contract probe passes

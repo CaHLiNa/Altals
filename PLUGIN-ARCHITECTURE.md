@@ -178,6 +178,7 @@ Task update contract note:
 - `artifacts` and `outputs` on task updates should follow replace-on-present semantics: omitted fields keep the current value, while provided arrays replace the persisted snapshot, including explicit empty arrays
 - intermediate and final task updates should preserve structured `outputs` through the Rust bridge instead of dropping them at the task patch boundary
 - the formal task-cancel path should also reap spawned-process ownership, preserve the task's persisted terminal state as `cancelled`, and avoid erasing the last running snapshot while cancellation is being recorded
+- frontend task timelines should consume that cancel result without extra reconciliation glue: a cancelled task should leave the running bucket, appear in recent history, and keep its last meaningful output snapshot available for inspection
 
 View state contract note:
 
