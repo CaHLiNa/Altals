@@ -244,7 +244,7 @@ try {
   const readyHtml = await renderCurrentState()
   assert.match(readyHtml, /Ready Extension/)
   assert.match(readyHtml, /document\.summarize/)
-  assert.match(readyHtml, /extension-capability-card-status/)
+  assert.match(readyHtml, /extension-status-pill/)
   assert.match(readyHtml, /Ready/)
   assert.match(readyHtml, /Run document\.summarize/)
 
@@ -253,7 +253,7 @@ try {
     summary: {
       blockedUsesSharedChip: blockedHtml.includes('extension-blocked-status-chip'),
       blockedUsesSharedButtonLabel: blockedHtml.includes('>Blocked<'),
-      readyKeepsStatusPill: readyHtml.includes('extension-capability-card-status'),
+      readyKeepsStatusPill: readyHtml.includes('extension-status-pill'),
       readyActionLabel: readyHtml.includes('Run document.summarize'),
     },
   }, null, 2))

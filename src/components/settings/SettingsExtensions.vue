@@ -212,10 +212,11 @@
                         />
                         <span
                           v-else
-                          class="extension-capability-card-status"
-                          :class="capabilityStatusClass(extension, capability)"
                         >
-                          {{ capabilityStatusLabel(extension, capability) }}
+                          <ExtensionStatusPill
+                            :label="capabilityStatusLabel(extension, capability)"
+                            :tone-class="capabilityStatusClass(extension, capability)"
+                          />
                         </span>
                       </div>
                       <div class="extension-capability-card-message">
@@ -385,6 +386,7 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import ExtensionBlockedActionButton from '../extensions/ExtensionBlockedActionButton.vue'
 import ExtensionBlockedStatusChip from '../extensions/ExtensionBlockedStatusChip.vue'
+import ExtensionStatusPill from '../extensions/ExtensionStatusPill.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
@@ -1144,33 +1146,6 @@ onMounted(async () => {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
-}
-
-.extension-capability-card-status {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: color-mix(in srgb, var(--surface-hover) 80%, transparent);
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.extension-capability-card-status.is-ready {
-  background: color-mix(in srgb, var(--success) 18%, transparent);
-}
-
-.extension-capability-card-status.is-warning {
-  background: color-mix(in srgb, #d97706 18%, transparent);
-}
-
-.extension-capability-card-status.is-blocked {
-  background: color-mix(in srgb, #d97706 18%, transparent);
-}
-
-.extension-capability-card-status.is-unavailable {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
 }
 
 .extension-capability-card-message {
