@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { basenamePath } from '../utils/path'
 import { getGlobalConfigDir as getAppGlobalConfigDir } from './appDirs.js'
-
-const MAX_RECENT_WORKSPACES = 10
 
 export function createWorkspaceLifecycleState() {
   return {
@@ -12,25 +9,6 @@ export function createWorkspaceLifecycleState() {
     reopenLastWorkspaceOnLaunch: true,
     reopenLastSessionOnLaunch: true,
   }
-}
-
-function normalizeRecentWorkspaces(recentWorkspaces = []) {
-  const seen = new Set()
-  const next = []
-
-  for (const item of Array.isArray(recentWorkspaces) ? recentWorkspaces : []) {
-    const path = String(item?.path || '').replace(/\/+$/, '')
-    if (!path || seen.has(path)) continue
-    seen.add(path)
-    next.push({
-      path,
-      name: basenamePath(path) || String(item?.name || path),
-      lastOpened: String(item?.lastOpened || ''),
-    })
-    if (next.length >= MAX_RECENT_WORKSPACES) break
-  }
-
-  return next
 }
 
 export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
@@ -50,17 +28,6 @@ export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = 
   })
 
   return normalized
-}
-
-export async function recordWorkspaceOpened(globalConfigDir = '', path = '') {
-  const state = await invoke('workspace_lifecycle_record_opened', {
-    params: {
-      globalConfigDir: String(globalConfigDir || ''),
-      path: String(path || ''),
-    },
-  })
-
-  return state
 }
 
 export async function getGlobalConfigDir() {
