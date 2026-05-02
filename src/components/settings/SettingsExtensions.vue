@@ -1,16 +1,6 @@
 <template>
   <div class="settings-page extensions-page">
-    <div class="extensions-page-header">
-      <h3 class="settings-section-title">{{ t('Extensions') }}</h3>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="extensionsStore.loadingRegistry"
-        @click="refreshExtensionRegistry"
-      >
-        {{ t('Refresh Extension Registry') }}
-      </UiButton>
-    </div>
+    <h3 class="settings-section-title">{{ t('Extensions') }}</h3>
 
     <section v-if="showHostRuntimeNotice" class="settings-group">
       <div class="settings-group-title">{{ t('Extension Runtime') }}</div>
@@ -39,7 +29,30 @@
     </section>
 
     <section class="settings-group">
-      <div class="settings-group-title">{{ t('Installed Extensions') }}</div>
+      <div class="extensions-group-heading">
+        <h4 class="settings-group-title">{{ t('Loaded Extensions') }}</h4>
+        <div class="extensions-page-actions">
+          <button
+            type="button"
+            class="extensions-page-icon-button"
+            :title="t('Refresh extensions')"
+            :aria-label="t('Refresh extensions')"
+            :disabled="extensionsStore.loadingRegistry"
+            @click="refreshExtensionRegistry"
+          >
+            <IconRefresh :size="18" :stroke-width="1.9" />
+          </button>
+          <button
+            type="button"
+            class="extensions-page-icon-button"
+            :title="t('Open extension install folder')"
+            :aria-label="t('Open extension install folder')"
+            @click="openExtensionInstallFolder"
+          >
+            <IconFolder :size="19" :stroke-width="1.9" />
+          </button>
+        </div>
+      </div>
       <div class="settings-group-body">
         <div v-if="extensionsStore.loadingRegistry" class="extension-empty-row">
           {{ t('Loading extensions...') }}
@@ -149,9 +162,12 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { IconFolder, IconRefresh } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
+import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
+import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
@@ -166,6 +182,7 @@ import {
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
+const workspaceStore = useWorkspaceStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const hostRuntimeRestartBusyKey = ref('')
@@ -417,6 +434,19 @@ async function refreshExtensionRegistry() {
   await extensionsStore.refreshTasks().catch(() => {})
 }
 
+async function openExtensionInstallFolder() {
+  try {
+    const globalConfigDir = await workspaceStore.ensureGlobalConfigDir()
+    if (!globalConfigDir) throw new Error(t('Extension install folder is unavailable'))
+    await revealPathInFileManager({ path: `${globalConfigDir}/extensions` })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to open extension install folder')), {
+      type: 'error',
+      duration: 3600,
+    })
+  }
+}
+
 onMounted(async () => {
   await refreshExtensionRegistry()
 })
@@ -427,11 +457,56 @@ onMounted(async () => {
   gap: 32px;
 }
 
-.extensions-page-header {
+.extensions-group-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+}
+
+.extensions-group-heading .settings-group-title {
+  margin-bottom: 8px;
+  flex: 1 1 auto;
+}
+
+.extensions-page-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 4px 8px 0;
+  flex: 0 0 auto;
+}
+
+.extensions-page-icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.extensions-page-icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sidebar-item-hover) 70%, transparent);
+  color: var(--text-primary);
+}
+
+.extensions-page-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.extensions-page-icon-button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .extension-empty-row {

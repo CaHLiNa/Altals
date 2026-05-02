@@ -331,6 +331,10 @@ try {
   extensions.runtimeRegistry = {}
 
   const localizedHtml = await renderCurrentState()
+  assert.match(localizedHtml, /已加载扩展/)
+  assert.match(localizedHtml, /<h4[^>]*class="settings-group-title"[^>]*>已加载扩展<\/h4>/)
+  assert.match(localizedHtml, /aria-label="刷新扩展"/)
+  assert.match(localizedHtml, /aria-label="打开扩展安装目录"/)
   assert.match(localizedHtml, /模型 API 地址/)
   assert.match(localizedHtml, /模型 API 密钥/)
   assert.match(localizedHtml, /开发者模式/)
@@ -342,6 +346,8 @@ try {
   assert.doesNotMatch(localizedHtml, /开发者信息/)
   assert.doesNotMatch(localizedHtml, /PDF translation/)
   assert.doesNotMatch(localizedHtml, /运行 PDF translation/)
+  assert.doesNotMatch(localizedHtml, /刷新扩展注册表/)
+  assert.doesNotMatch(localizedHtml, /已安装扩展/)
   assert.doesNotMatch(localizedHtml, /RetainPDF API 密钥/)
   assert.doesNotMatch(localizedHtml, />apiKey</)
   assert.doesNotMatch(localizedHtml, />modelBaseUrl</)
@@ -360,6 +366,9 @@ try {
       hiddenInternalSummaries: !localizedHtml.includes('权限') &&
         !localizedHtml.includes('安全设置') &&
         !localizedHtml.includes('开发者信息'),
+      localizedHeaderActions: localizedHtml.includes('已加载扩展') &&
+        localizedHtml.includes('aria-label="刷新扩展"') &&
+        localizedHtml.includes('aria-label="打开扩展安装目录"'),
       localizedSettingTitles: localizedHtml.includes('模型 API 地址') &&
         localizedHtml.includes('模型 API 密钥') &&
         localizedHtml.includes('开发者模式'),
