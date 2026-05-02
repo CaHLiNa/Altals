@@ -1,5 +1,5 @@
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
-import { resolveDocumentWorkflowAction } from '../../services/documentWorkflow/actionRuntimeBridge.js'
+import { resolveDocumentWorkflowAction } from '../services/documentWorkflow/actionRuntimeBridge.js'
 
 function planHasFollowUp(plan = null) {
   return !!(plan && typeof plan === 'object' && plan.followUpAction && typeof plan.followUpAction === 'object')

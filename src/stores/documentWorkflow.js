@@ -13,8 +13,8 @@ import {
 import { getDocumentAdapterByKind } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from '../domains/document/documentWorkflowRuntime.js'
 import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
-import { createDocumentWorkflowBuildOperationRuntime } from '../domains/document/documentWorkflowBuildOperationRuntime.js'
-import { createDocumentWorkflowActionRuntime } from '../domains/document/documentWorkflowActionRuntime.js'
+import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
+import { createDocumentWorkflowActionRuntime } from './documentWorkflowActionRuntime.js'
 import {
   createDefaultDocumentWorkflowPersistentState,
   createDefaultDocumentWorkflowPreviewPrefs,
