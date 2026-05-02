@@ -505,6 +505,51 @@ pub fn mark_task_failed(task_id: &str, error: &str) -> Result<ExtensionTask, Str
     mark_task_failed_in_dir(&tasks_dir()?, task_id, error)
 }
 
+fn mark_task_failed_with_results_in_dir(
+    tasks_root: &Path,
+    task_id: &str,
+    error: &str,
+    artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
+    progress_label: &str,
+) -> Result<ExtensionTask, String> {
+    update_task_in_dir(tasks_root, task_id, |task| {
+        if is_terminal_task_state(&task.state) {
+            return;
+        }
+        task.state = "failed".to_string();
+        if task.started_at.trim().is_empty() {
+            task.started_at = now_string();
+        }
+        task.finished_at = now_string();
+        task.progress.label = if progress_label.trim().is_empty() {
+            "Failed".to_string()
+        } else {
+            progress_label.trim().to_string()
+        };
+        task.artifacts = artifacts;
+        task.outputs = outputs;
+        task.error = error.to_string();
+    })
+}
+
+pub fn mark_task_failed_with_results(
+    task_id: &str,
+    error: &str,
+    artifacts: Vec<ExtensionArtifact>,
+    outputs: Vec<ExtensionCapabilityOutput>,
+    progress_label: &str,
+) -> Result<ExtensionTask, String> {
+    mark_task_failed_with_results_in_dir(
+        &tasks_dir()?,
+        task_id,
+        error,
+        artifacts,
+        outputs,
+        progress_label,
+    )
+}
+
 fn mark_task_cancelled_in_dir(tasks_root: &Path, task_id: &str) -> Result<ExtensionTask, String> {
     update_task_in_dir(tasks_root, task_id, |task| {
         if is_terminal_task_state(&task.state) {
@@ -1058,6 +1103,74 @@ mod tests {
         assert_eq!(persisted.outputs.len(), 1);
         assert_eq!(persisted.outputs[0].media_type, "text/plain");
         assert_eq!(persisted.outputs[0].title, "Note Summary");
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn failed_task_state_can_preserve_structured_results() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-failed-results");
+        let task = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-7".to_string(),
+                path: "/tmp/paper.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create task");
+
+        let failed = super::mark_task_failed_with_results_in_dir(
+            &root,
+            &task.id,
+            "Worker exited with code 7",
+            vec![crate::extension_artifacts::ExtensionArtifact {
+                id: "failure-log".to_string(),
+                extension_id: "example-pdf-extension".to_string(),
+                task_id: task.id.clone(),
+                capability: "pdf.translate".to_string(),
+                kind: "log".to_string(),
+                media_type: "text/plain".to_string(),
+                path: "/tmp/failure.log".to_string(),
+                source_path: "/tmp/paper.pdf".to_string(),
+                source_hash: String::new(),
+                created_at: "2026-05-02T00:00:00Z".to_string(),
+            }],
+            vec![crate::extension_outputs::ExtensionCapabilityOutput {
+                id: "failure-summary".to_string(),
+                output_type: "inlineText".to_string(),
+                media_type: "text/plain".to_string(),
+                title: "Failure Summary".to_string(),
+                description: "/tmp/paper.pdf".to_string(),
+                text: "worker stderr: boom".to_string(),
+                html: String::new(),
+            }],
+            "Worker failed",
+        )
+        .expect("mark failed with results");
+
+        assert_eq!(failed.state, "failed");
+        assert_eq!(failed.progress.label, "Worker failed");
+        assert_eq!(failed.error, "Worker exited with code 7");
+        assert_eq!(failed.artifacts.len(), 1);
+        assert_eq!(failed.artifacts[0].path, "/tmp/failure.log");
+        assert_eq!(failed.outputs.len(), 1);
+        assert_eq!(failed.outputs[0].id, "failure-summary");
+        assert_eq!(failed.outputs[0].text, "worker stderr: boom");
+
+        let listed = list_tasks_from_dir(&root).expect("list tasks");
+        let persisted = listed
+            .iter()
+            .find(|entry| entry.id == task.id)
+            .expect("persisted failed task");
+        assert_eq!(persisted.state, "failed");
+        assert_eq!(persisted.progress.label, "Worker failed");
+        assert_eq!(persisted.artifacts.len(), 1);
+        assert_eq!(persisted.outputs.len(), 1);
+        assert_eq!(persisted.outputs[0].title, "Failure Summary");
         fs::remove_dir_all(root).ok();
     }
 

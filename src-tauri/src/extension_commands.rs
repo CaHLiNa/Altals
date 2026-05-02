@@ -11,8 +11,9 @@ use crate::extension_outputs::ExtensionCapabilityOutput;
 use crate::extension_permissions::validate_manifest_permissions;
 use crate::extension_registry::find_extension_entry;
 use crate::extension_tasks::{
-    create_command_task, get_task, mark_task_failed, mark_task_queued, mark_task_running,
-    mark_task_running_with_progress, mark_task_succeeded, ExtensionTask, ExtensionTaskTarget,
+    create_command_task, get_task, mark_task_failed, mark_task_failed_with_results,
+    mark_task_queued, mark_task_running, mark_task_running_with_progress, mark_task_succeeded,
+    ExtensionTask, ExtensionTaskTarget,
 };
 use crate::security::WorkspaceScopeState;
 use serde::Deserialize;
@@ -230,13 +231,16 @@ fn record_extension_result(
             )
         }
         "cancelled" => crate::extension_tasks::mark_task_cancelled(&task.id),
-        "failed" => crate::extension_tasks::mark_task_failed(
+        "failed" => mark_task_failed_with_results(
             &task.id,
             if result.message.trim().is_empty() {
                 "Extension execution failed"
             } else {
                 &result.message
             },
+            artifacts,
+            outputs,
+            &result.progress_label,
         ),
         _ => mark_task_succeeded(&task.id, artifacts, outputs, &result.progress_label),
     }
@@ -251,6 +255,22 @@ fn record_extension_result(
         task,
         changed_views: result.changed_views,
     })
+}
+
+#[cfg_attr(test, allow(dead_code))]
+pub fn record_extension_result_for_probe(
+    task: &ExtensionTask,
+    result: crate::extension_host::ExtensionHostCapabilityResult,
+    task_runtime_state: &crate::extension_tasks::ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<ExtensionCommandExecutionResult, String> {
+    record_extension_result(
+        task,
+        None,
+        result,
+        task_runtime_state,
+        extension_host_state,
+    )
 }
 
 #[tauri::command]

@@ -66,10 +66,13 @@ pub use extension_host::{
     invoke_extension_host_with_task_runtime_for_probe as extension_host_invoke_probe_request_with_task_runtime,
     invoke_extension_host as extension_host_invoke_request,
     spawned_process_count_for_probe as extension_host_spawned_process_count_for_probe,
+    ExtensionHostCapabilityResult,
     ExtensionHostRequest,
     ExtensionHostResponse,
     ExtensionHostState,
 };
+pub use extension_artifacts::ExtensionArtifact;
+pub use extension_outputs::ExtensionCapabilityOutput;
 pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
 pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
 pub use extension_tasks::ExtensionTaskRuntimeState;
@@ -79,6 +82,7 @@ pub use extension_settings::{
     save_extension_settings as extension_settings_save_for_probe,
     ExtensionSettings,
 };
+pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
 
 use percent_encoding::percent_decode_str;
 use std::fs;

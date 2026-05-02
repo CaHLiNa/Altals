@@ -179,6 +179,7 @@ Task update contract note:
 - intermediate and final task updates should preserve structured `outputs` through the Rust bridge instead of dropping them at the task patch boundary
 - the formal task-cancel path should also reap spawned-process ownership, preserve the task's persisted terminal state as `cancelled`, and avoid erasing the last running snapshot while cancellation is being recorded
 - frontend task timelines should consume that cancel result without extra reconciliation glue: a cancelled task should leave the running bucket, appear in recent history, and keep its last meaningful output snapshot available for inspection
+- failed terminal task results should preserve the same structured result channels as success paths: failure artifacts, inline outputs, and failure-specific progress labels must survive persistence instead of collapsing into a bare error string
 
 View state contract note:
 
