@@ -1,7 +1,11 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export async function listExtensionTasks() {
-  const tasks = await invoke('extension_task_list')
+export async function listExtensionTasks(workspaceRoot = '') {
+  const tasks = await invoke('extension_task_list', {
+    params: {
+      workspaceRoot: String(workspaceRoot || ''),
+    },
+  })
   return Array.isArray(tasks) ? tasks : []
 }
 

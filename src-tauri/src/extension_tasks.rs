@@ -950,9 +950,27 @@ pub struct ExtensionTaskExtensionParams {
     pub extension_id: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionTaskListParams {
+    #[serde(default)]
+    pub workspace_root: String,
+}
+
+fn list_tasks_for_workspace(tasks_root: &Path, workspace_root: &str) -> Result<Vec<ExtensionTask>, String> {
+    let normalized_workspace_root = workspace_root.trim();
+    if normalized_workspace_root.is_empty() {
+        return list_tasks_from_dir(tasks_root);
+    }
+    Ok(list_tasks_from_dir(tasks_root)?
+        .into_iter()
+        .filter(|task| task.workspace_root.trim() == normalized_workspace_root)
+        .collect())
+}
+
 #[tauri::command]
-pub async fn extension_task_list() -> Result<Vec<ExtensionTask>, String> {
-    list_tasks()
+pub async fn extension_task_list(params: ExtensionTaskListParams) -> Result<Vec<ExtensionTask>, String> {
+    list_tasks_for_workspace(&tasks_dir()?, &params.workspace_root)
 }
 
 #[tauri::command]

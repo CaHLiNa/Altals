@@ -871,9 +871,10 @@ export const useExtensionsStore = defineStore('extensions', {
     },
 
     async refreshTasks() {
+      const workspace = useWorkspaceStore()
       this.loadingTasks = true
       try {
-        this.tasks = (await listExtensionTasks()).map(normalizeTask)
+        this.tasks = (await listExtensionTasks(workspace.path || '')).map(normalizeTask)
         return this.tasks
       } finally {
         this.loadingTasks = false
