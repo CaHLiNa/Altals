@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { isDraftPath, isLatex } from '../utils/fileTypes.js'
 import { getDocumentAdapterForFile } from '../services/documentWorkflow/adapters/index.js'
-import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowStatusTone.js'
 
 export function useEditorPaneWorkflow(options) {
   const {

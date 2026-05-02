@@ -1,7 +1,8 @@
 import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
-} from '../../services/documentWorkflow/adapters/index.js'
+} from '../services/documentWorkflow/adapters/index.js'
+import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowStatusTone.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
   if (options.adapter) return options.adapter
@@ -159,22 +160,6 @@ function resolveWorkflowUiState(filePath, adapter, context, options = {}, previe
   if (!adapter) return null
   const request = buildWorkflowUiStateRequest(filePath, adapter, context, options, previewState)
   return context.workflowStore?.ensureResolvedWorkflowUiState?.(filePath, request) || null
-}
-
-export function getDocumentWorkflowStatusTone(uiState = null) {
-  if (!uiState) return 'muted'
-  if (uiState.kind === 'markdown') {
-    if (uiState.exportPhase === 'exporting' || uiState.phase === 'rendering') return 'running'
-    if (uiState.phase === 'error') return 'error'
-    if (uiState.exportPhase === 'error') return 'warning'
-    if (uiState.phase === 'ready' || uiState.exportPhase === 'ready') return 'success'
-    return 'muted'
-  }
-  if (uiState.phase === 'running' || uiState.phase === 'compiling' || uiState.phase === 'rendering') return 'running'
-  if (uiState.phase === 'queued') return 'warning'
-  if (uiState.phase === 'error') return 'error'
-  if (uiState.phase === 'ready') return 'success'
-  return 'muted'
 }
 
 export function createDocumentWorkflowBuildRuntime({

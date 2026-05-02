@@ -1,4 +1,4 @@
-import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { createDocumentWorkflowBuildRuntime } from './documentWorkflowBuildRuntime.js'
 
 export function createDocumentWorkflowBuildOperationRuntime({
   getBuildRuntime = () => createDocumentWorkflowBuildRuntime(),

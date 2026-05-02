@@ -12,7 +12,7 @@ import {
 } from '../services/documentWorkflow/policy.js'
 import { getDocumentAdapterByKind } from '../services/documentWorkflow/adapters/index.js'
 import { createDocumentWorkflowRuntime } from './documentWorkflowRuntime.js'
-import { createDocumentWorkflowBuildRuntime } from '../domains/document/documentWorkflowBuildRuntime.js'
+import { createDocumentWorkflowBuildRuntime } from './documentWorkflowBuildRuntime.js'
 import { createDocumentWorkflowBuildOperationRuntime } from './documentWorkflowBuildOperationRuntime.js'
 import { createDocumentWorkflowActionRuntime } from './documentWorkflowActionRuntime.js'
 import {
