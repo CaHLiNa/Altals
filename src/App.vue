@@ -130,8 +130,8 @@
       :visible="extensionWindowUi.visible"
       :busy="extensionWindowUi.busy"
       :request="extensionWindowUi.pendingRequest"
-      @cancel="void extensionWindowUi.cancel()"
-      @submit="(value) => void extensionWindowUi.resolve(value)"
+      @cancel="void handleExtensionWindowPromptCancel()"
+      @submit="(value) => void handleExtensionWindowPromptSubmit(value)"
     />
 
     <!-- Toasts -->
@@ -410,6 +410,16 @@ async function handleGlobalKeydown(event) {
   }
 }
 
+async function handleExtensionWindowPromptCancel() {
+  await extensionWindowUi.cancel()
+  await extensionsStore.flushDeferredViewRequests().catch(() => {})
+}
+
+async function handleExtensionWindowPromptSubmit(value) {
+  await extensionWindowUi.resolve(value)
+  await extensionsStore.flushDeferredViewRequests().catch(() => {})
+}
+
 onMounted(() => {
   window.addEventListener('editor-typing', handleEditorTyping)
   window.addEventListener('mousemove', handleMouseMoveBreakZen)
@@ -451,6 +461,7 @@ onMounted(() => {
     const requestId = String(payload.requestId || '')
     if (requestId && extensionWindowUi.pendingRequest?.requestId === requestId) {
       extensionWindowUi.clearRequest()
+      void extensionsStore.flushDeferredViewRequests().catch(() => {})
     }
   }).then((unlisten) => {
     stopExtensionHostInterruptedListener = unlisten
@@ -821,4 +832,3 @@ useAppTeardown({
   }
 }
 </style>
---- END OF FILE src/App.vue ---

@@ -321,6 +321,24 @@ function contributedViewForId(extension = {}, viewId = '') {
   ) || null
 }
 
+function isPromptIsolationError(error) {
+  const message = String(error?.message || error || '').trim()
+  return message.includes('Extension host is waiting for UI input from')
+}
+
+function deferredViewRequestKey(payload = {}) {
+  return [
+    String(payload?.kind || '').trim(),
+    normalizeExtensionId(payload?.extensionId),
+    String(payload?.viewId || '').trim(),
+    String(payload?.parentItemId || '').trim(),
+    String(payload?.itemHandle || '').trim(),
+    String(payload?.target?.kind || '').trim(),
+    String(payload?.target?.referenceId || '').trim(),
+    String(payload?.target?.path || '').trim(),
+  ].join('::')
+}
+
 export const useExtensionsStore = defineStore('extensions', {
   state: () => ({
     registry: [],
@@ -333,6 +351,7 @@ export const useExtensionsStore = defineStore('extensions', {
     runtimeRegistry: {},
     sidebarTargets: {},
     changedViewTicks: {},
+    deferredViewRequests: {},
     loadingRegistry: false,
     loadingTasks: false,
     settingsHydrated: false,
@@ -624,6 +643,12 @@ export const useExtensionsStore = defineStore('extensions', {
       const id = normalizeExtensionId(extensionId)
       if (!id) return
       delete this.runtimeRegistry[id]
+      for (const requestKey of Object.keys(this.deferredViewRequests || {})) {
+        const request = this.deferredViewRequests[requestKey]
+        if (normalizeExtensionId(request?.extensionId) === id) {
+          delete this.deferredViewRequests[requestKey]
+        }
+      }
 
       for (const viewKey of Object.keys(this.resolvedViews)) {
         if (viewKeyMatchesExtension(viewKey, id)) {
@@ -1014,21 +1039,37 @@ export const useExtensionsStore = defineStore('extensions', {
       const extension = this.registry.find((entry) => entry.id === extensionId)
       await this.activateExtension(extensionId, `onView:${viewId}`).catch(() => {})
       const extensionSettings = extension ? this.configForExtension(extension) : {}
-      const resolved = await resolveExtensionView({
-        globalConfigDir,
-        workspaceRoot: workspace.path || '',
-        extensionId,
-        viewId,
-        parentItemId: String(parentItemId || ''),
-        commandId: String(view.commandId || ''),
-        targetKind: String(target?.kind || ''),
-        referenceId: String(target?.referenceId || ''),
-        targetPath: String(target?.path || ''),
-        settings: {
-          ...extensionSettings,
-          ...(settings && typeof settings === 'object' ? settings : {}),
-        },
-      })
+      const mergedSettings = {
+        ...extensionSettings,
+        ...(settings && typeof settings === 'object' ? settings : {}),
+      }
+      let resolved
+      try {
+        resolved = await resolveExtensionView({
+          globalConfigDir,
+          workspaceRoot: workspace.path || '',
+          extensionId,
+          viewId,
+          parentItemId: String(parentItemId || ''),
+          commandId: String(view.commandId || ''),
+          targetKind: String(target?.kind || ''),
+          referenceId: String(target?.referenceId || ''),
+          targetPath: String(target?.path || ''),
+          settings: mergedSettings,
+        })
+      } catch (error) {
+        if (isPromptIsolationError(error)) {
+          this.deferViewRequest({
+            kind: 'resolveView',
+            extensionId,
+            viewId,
+            target,
+            settings: mergedSettings,
+            parentItemId,
+          })
+        }
+        throw error
+      }
       const viewKey = `${extensionId}:${viewId}`
       this.resolvedViews[viewKey] = mergeResolvedViewState(
         this.resolvedViews[viewKey],
@@ -1068,13 +1109,26 @@ export const useExtensionsStore = defineStore('extensions', {
       }
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
-      return notifyExtensionViewSelection({
-        globalConfigDir,
-        workspaceRoot: workspace.path || '',
-        extensionId,
-        viewId,
-        itemHandle: String(itemHandle || ''),
-      })
+      try {
+        return await notifyExtensionViewSelection({
+          globalConfigDir,
+          workspaceRoot: workspace.path || '',
+          extensionId,
+          viewId,
+          itemHandle: String(itemHandle || ''),
+        })
+      } catch (error) {
+        if (isPromptIsolationError(error)) {
+          this.deferViewRequest({
+            kind: 'notifyViewSelection',
+            extensionId,
+            viewId,
+            target: {},
+            itemHandle,
+          })
+        }
+        throw error
+      }
     },
     setViewControllerState(viewKey = '', patch = {}) {
       const key = String(viewKey || '').trim()
@@ -1129,6 +1183,60 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     requestViewRefresh(viewKeys = []) {
       this.markViewsChanged(viewKeys)
+    },
+    deferViewRequest(payload = {}) {
+      const normalizedExtensionId = normalizeExtensionId(payload?.extensionId)
+      const normalizedViewId = String(payload?.viewId || '').trim()
+      const normalizedKind = String(payload?.kind || '').trim()
+      if (!normalizedExtensionId || !normalizedViewId || !normalizedKind) return
+      const request = {
+        kind: normalizedKind,
+        extensionId: normalizedExtensionId,
+        viewId: normalizedViewId,
+        target: normalizeTarget(payload?.target || {}),
+        settings: payload?.settings && typeof payload.settings === 'object' ? payload.settings : {},
+        parentItemId: String(payload?.parentItemId || '').trim(),
+        itemHandle: String(payload?.itemHandle || '').trim(),
+      }
+      const key = deferredViewRequestKey(request)
+      this.deferredViewRequests = {
+        ...this.deferredViewRequests,
+        [key]: request,
+      }
+    },
+    async flushDeferredViewRequests() {
+      const pending = Object.values(this.deferredViewRequests || {})
+      if (pending.length === 0) return []
+      this.deferredViewRequests = {}
+      const replayed = []
+      for (const request of pending) {
+        try {
+          if (request.kind === 'resolveView') {
+            await this.resolveView(
+              { extensionId: request.extensionId, id: request.viewId },
+              request.target,
+              request.settings,
+              request.parentItemId,
+            )
+            replayed.push(deferredViewRequestKey(request))
+            continue
+          }
+          if (request.kind === 'notifyViewSelection') {
+            await this.notifyViewSelection(
+              { extensionId: request.extensionId, id: request.viewId },
+              request.itemHandle,
+            )
+            replayed.push(deferredViewRequestKey(request))
+          }
+        } catch (error) {
+          if (isPromptIsolationError(error)) {
+            this.deferViewRequest(request)
+            continue
+          }
+          throw error
+        }
+      }
+      return replayed
     },
     upsertTask(task = {}) {
       const normalized = normalizeTask(task)
