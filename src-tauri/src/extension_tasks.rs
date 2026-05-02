@@ -238,6 +238,23 @@ fn list_tasks_from_dir(tasks_root: &Path) -> Result<Vec<ExtensionTask>, String> 
     Ok(file.tasks)
 }
 
+fn active_tasks_for_extension_in_dir(
+    tasks_root: &Path,
+    extension_id: &str,
+) -> Result<Vec<ExtensionTask>, String> {
+    let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    if normalized_extension_id.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(list_tasks_from_dir(tasks_root)?
+        .into_iter()
+        .filter(|task| {
+            task.extension_id.trim().eq_ignore_ascii_case(&normalized_extension_id)
+                && matches!(task.state.as_str(), "queued" | "running")
+        })
+        .collect())
+}
+
 pub fn recover_interrupted_tasks_on_startup() -> Result<Vec<ExtensionTask>, String> {
     recover_interrupted_tasks_in_dir(&tasks_dir()?)
 }
@@ -878,11 +895,52 @@ pub fn cancel_task_for_runtime(
     Ok(task)
 }
 
+fn cancel_active_tasks_for_extension_in_dir(
+    tasks_root: &Path,
+    extension_id: &str,
+    runtime_state: &ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<Vec<ExtensionTask>, String> {
+    let active_tasks = active_tasks_for_extension_in_dir(tasks_root, extension_id)?;
+    let mut cancelled = Vec::with_capacity(active_tasks.len());
+    for task in active_tasks {
+        if let Some(pid) = runtime_state.unregister_pid(&task.id)? {
+            let _ = kill_pid(pid);
+            let _ = crate::extension_host::reap_spawned_process(extension_host_state, pid, true);
+        }
+        let updated = mark_task_cancelled_in_dir(tasks_root, &task.id)?;
+        runtime_state.emit_task_changed(&updated);
+        cancelled.push(updated);
+    }
+    Ok(cancelled)
+}
+
+pub fn cancel_active_tasks_for_extension(
+    extension_id: &str,
+    runtime_state: &ExtensionTaskRuntimeState,
+    extension_host_state: &crate::extension_host::ExtensionHostState,
+) -> Result<Vec<ExtensionTask>, String> {
+    let tasks_root = tasks_dir()?;
+    cancel_active_tasks_for_extension_in_dir(
+        &tasks_root,
+        extension_id,
+        runtime_state,
+        extension_host_state,
+    )
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionTaskGetParams {
     #[serde(default)]
     pub task_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionTaskExtensionParams {
+    #[serde(default)]
+    pub extension_id: String,
 }
 
 #[tauri::command]
@@ -908,12 +966,27 @@ pub async fn extension_task_cancel(
     )
 }
 
+#[tauri::command]
+pub async fn extension_task_cancel_extension(
+    params: ExtensionTaskExtensionParams,
+    runtime_state: tauri::State<'_, ExtensionTaskRuntimeState>,
+    extension_host_state: tauri::State<'_, crate::extension_host::ExtensionHostState>,
+) -> Result<Vec<ExtensionTask>, String> {
+    cancel_active_tasks_for_extension(
+        &params.extension_id,
+        runtime_state.inner(),
+        extension_host_state.inner(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_task_update_in_dir, create_task_in_dir, list_tasks_from_dir, recover_interrupted_tasks_in_dir,
-        update_task_in_dir, ExtensionTaskArtifactPatch, ExtensionTaskOutputPatch,
-        ExtensionTaskRuntimeState, ExtensionTaskTarget, ExtensionTaskUpdatePatch,
+        active_tasks_for_extension_in_dir, apply_task_update_in_dir,
+        cancel_active_tasks_for_extension_in_dir, create_task_in_dir, list_tasks_from_dir,
+        recover_interrupted_tasks_in_dir, update_task_in_dir, ExtensionTaskArtifactPatch,
+        ExtensionTaskOutputPatch, ExtensionTaskRuntimeState, ExtensionTaskTarget,
+        ExtensionTaskUpdatePatch,
     };
     use std::fs;
 
@@ -1039,6 +1112,206 @@ mod tests {
             .unregister_pid("task-1")
             .expect("unregister missing pid");
         assert_eq!(second, None);
+    }
+
+    #[test]
+    fn active_tasks_for_extension_filters_running_and_queued_only() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-active-extension");
+        let running = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-9".to_string(),
+                path: "/tmp/paper-a.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create running task");
+        let queued = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.summarize",
+            "scribeflow.pdf.summarize",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-10".to_string(),
+                path: "/tmp/paper-b.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create queued task");
+        let completed = create_task_in_dir(
+            &root,
+            "example-pdf-extension",
+            "pdf.export",
+            "scribeflow.pdf.export",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-11".to_string(),
+                path: "/tmp/paper-c.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create completed task");
+        let other_extension = create_task_in_dir(
+            &root,
+            "other-extension",
+            "pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "referencePdf".to_string(),
+                reference_id: "ref-12".to_string(),
+                path: "/tmp/paper-d.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create other extension task");
+
+        update_task_in_dir(&root, &running.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-02T10:00:00Z".to_string();
+        })
+        .expect("mark running");
+        update_task_in_dir(&root, &completed.id, |task| {
+            task.state = "succeeded".to_string();
+            task.finished_at = "2026-05-02T11:00:00Z".to_string();
+        })
+        .expect("mark succeeded");
+        update_task_in_dir(&root, &other_extension.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-02T12:00:00Z".to_string();
+        })
+        .expect("mark other running");
+
+        let active = active_tasks_for_extension_in_dir(&root, "example-pdf-extension")
+            .expect("active tasks for extension");
+        let ids = active.into_iter().map(|task| task.id).collect::<Vec<_>>();
+        assert_eq!(ids, vec![queued.id, running.id]);
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn cancel_active_tasks_for_extension_marks_only_matching_active_tasks() {
+        let root = temp_tasks_root("scribeflow-extension-tasks-cancel-extension");
+        let runtime = ExtensionTaskRuntimeState::default();
+        let host_state = crate::extension_host::ExtensionHostState::default();
+        let tasks_root = root.join(".scribeflow").join("extension-tasks");
+        fs::create_dir_all(&tasks_root).expect("create tasks root");
+
+        let running = create_task_in_dir(
+            &tasks_root,
+            "example-pdf-extension",
+            "scribeflow.pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "pdf".to_string(),
+                reference_id: "ref-13".to_string(),
+                path: "/tmp/paper-a.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create running task");
+        let queued = create_task_in_dir(
+            &tasks_root,
+            "example-pdf-extension",
+            "scribeflow.pdf.summarize",
+            "scribeflow.pdf.summarize",
+            ExtensionTaskTarget {
+                kind: "pdf".to_string(),
+                reference_id: "ref-14".to_string(),
+                path: "/tmp/paper-b.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create queued task");
+        let completed = create_task_in_dir(
+            &tasks_root,
+            "example-pdf-extension",
+            "scribeflow.pdf.export",
+            "scribeflow.pdf.export",
+            ExtensionTaskTarget {
+                kind: "pdf".to_string(),
+                reference_id: "ref-15".to_string(),
+                path: "/tmp/paper-c.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create completed task");
+        let other_extension = create_task_in_dir(
+            &tasks_root,
+            "other-extension",
+            "scribeflow.pdf.translate",
+            "scribeflow.pdf.translate",
+            ExtensionTaskTarget {
+                kind: "pdf".to_string(),
+                reference_id: "ref-16".to_string(),
+                path: "/tmp/paper-d.pdf".to_string(),
+            },
+            serde_json::json!({}),
+        )
+        .expect("create other extension task");
+
+        update_task_in_dir(&tasks_root, &running.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-02T10:00:00Z".to_string();
+        })
+        .expect("mark running");
+        update_task_in_dir(&tasks_root, &completed.id, |task| {
+            task.state = "succeeded".to_string();
+            task.finished_at = "2026-05-02T11:00:00Z".to_string();
+        })
+        .expect("mark completed");
+        update_task_in_dir(&tasks_root, &other_extension.id, |task| {
+            task.state = "running".to_string();
+            task.started_at = "2026-05-02T12:00:00Z".to_string();
+        })
+        .expect("mark other extension running");
+
+        runtime
+            .register_pid(&running.id, 4242)
+            .expect("register running pid");
+        runtime
+            .register_pid(&queued.id, 4243)
+            .expect("register queued pid");
+        runtime
+            .register_pid(&other_extension.id, 4244)
+            .expect("register other pid");
+
+        let cancelled = cancel_active_tasks_for_extension_in_dir(
+            &tasks_root,
+            "example-pdf-extension",
+            &runtime,
+            &host_state,
+        )
+        .expect("cancel active tasks for extension");
+
+        assert_eq!(cancelled.len(), 2);
+        assert!(cancelled.iter().all(|task| task.state == "cancelled"));
+        assert!(runtime.unregister_pid(&running.id).expect("running pid removed").is_none());
+        assert!(runtime.unregister_pid(&queued.id).expect("queued pid removed").is_none());
+        assert_eq!(
+            runtime
+                .unregister_pid(&other_extension.id)
+                .expect("other pid kept"),
+            Some(4244)
+        );
+
+        let listed = list_tasks_from_dir(&tasks_root).expect("list tasks");
+        let running_task = listed.iter().find(|task| task.id == running.id).expect("running task");
+        let queued_task = listed.iter().find(|task| task.id == queued.id).expect("queued task");
+        let completed_task = listed.iter().find(|task| task.id == completed.id).expect("completed task");
+        let other_task = listed
+            .iter()
+            .find(|task| task.id == other_extension.id)
+            .expect("other task");
+        assert_eq!(running_task.state, "cancelled");
+        assert_eq!(queued_task.state, "cancelled");
+        assert_eq!(completed_task.state, "succeeded");
+        assert_eq!(other_task.state, "running");
+        fs::remove_dir_all(root).ok();
     }
 
     #[test]

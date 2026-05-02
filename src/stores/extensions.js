@@ -11,6 +11,7 @@ import {
 } from '../services/extensions/extensionCommands'
 import {
   cancelExtensionTask as cancelExtensionTaskWithBackend,
+  cancelExtensionTasksForExtension as cancelExtensionTasksForExtensionWithBackend,
   getExtensionTask,
   listExtensionTasks,
 } from '../services/extensions/extensionTasks'
@@ -838,6 +839,10 @@ export const useExtensionsStore = defineStore('extensions', {
       if (enabled) {
         await this.activateExtension(id, '').catch(() => {})
       } else {
+        const cancelledTasks = await cancelExtensionTasksForExtensionWithBackend(id).catch(() => [])
+        for (const task of cancelledTasks) {
+          this.upsertTask(task)
+        }
         if (this.runtimeRegistry[id]?.activated) {
           await deactivateExtensionHost({ extensionId: id }).catch(() => {})
         }

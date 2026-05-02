@@ -20,3 +20,12 @@ export async function cancelExtensionTask(taskId = '') {
     },
   })
 }
+
+export async function cancelExtensionTasksForExtension(extensionId = '') {
+  const tasks = await invoke('extension_task_cancel_extension', {
+    params: {
+      extensionId: String(extensionId || ''),
+    },
+  })
+  return Array.isArray(tasks) ? tasks : []
+}

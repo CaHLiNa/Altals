@@ -97,6 +97,7 @@ Current plugin lifecycle contract:
 - capability orchestration is now probe-backed as a first-class runtime contract: one capability provider can combine `tasks.update(...)`, `views.updateView(...)`, and `views.refresh(...)` in the same request, and the host preserves the running-task snapshot, pushed view state, and top-level `changedViews` refresh set together
 - extension task cancellation is now probe-backed as a first-class runtime contract: cancelling a running extension task reuses the formal task API, preserves the persisted `cancelled` terminal state, and clears spawned-process ownership from the runtime registry
 - extension task cancellation is also probe-backed at the store/UI contract layer: after a cancel response returns, the frontend timeline moves the task out of the running bucket, preserves the `cancelled` terminal snapshot in recent tasks, and keeps the last running output payload visible
+- disabling an extension now also closes its task contract instead of only removing execution entrypoints: active `running`/`queued` tasks for that extension are cancelled through the Rust runtime, spawned-process ownership is reaped, persisted `cancelled` snapshots remain inspectable, and unrelated extensions keep their task ownership untouched
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -129,6 +130,8 @@ It runs:
 - `npm run probe:extension-activation-guards`
 - `npm run probe:extension-permission-guards`
 - `npm run probe:extension-disable-guards`
+- `npm run probe:extension-disable-cancels-running-task-contract`
+- `npm run probe:extension-disable-cancels-running-task-store-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
 - `npm run probe:extension-secure-settings-bridge`
@@ -183,6 +186,8 @@ Current baseline:
 - extension activation guard probe passes
 - extension permission guard probe passes
 - extension disable guard probe passes
+- extension disable-cancels-running-task runtime probe passes
+- extension disable-cancels-running-task store contract probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes
 - extension secure settings bridge probe passes

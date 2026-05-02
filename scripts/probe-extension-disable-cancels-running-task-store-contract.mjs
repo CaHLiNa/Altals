@@ -47,7 +47,32 @@ try {
       }
     }
     if (cmd === 'extension_task_cancel_extension') {
-      return []
+      return [
+        {
+          id: 'task-running',
+          extensionId: 'example-pdf-extension',
+          capability: 'scribeflow.pdf.translate',
+          commandId: 'scribeflow.pdf.translate',
+          state: 'cancelled',
+          createdAt: '2026-05-02T10:00:00Z',
+          startedAt: '2026-05-02T10:00:05Z',
+          finishedAt: '2026-05-02T10:02:00Z',
+          target: { kind: 'pdf', path: '/tmp/paper-a.pdf', referenceId: 'ref-123' },
+          progress: { label: 'Cancelled', current: 1, total: 1 },
+          outputs: [
+            {
+              id: 'summary:running',
+              type: 'inlineText',
+              mediaType: 'text/plain',
+              title: 'Running Summary',
+              text: 'worker active',
+            },
+          ],
+          artifacts: [],
+          error: '',
+          logPath: '/tmp/running-task.log',
+        },
+      ]
     }
     if (cmd === 'extension_host_deactivate') {
       return {
@@ -140,19 +165,74 @@ try {
   extensions.changedViewTicks['example-pdf-extension:examplePdfExtension.translateView'] = 2
   extensions.sidebarTargets['extension:examplePdfExtension.tools'] = {
     kind: 'pdf',
-    path: '/tmp/paper.pdf',
+    path: '/tmp/paper-a.pdf',
     referenceId: 'ref-123',
   }
 
+  extensions.upsertTask({
+    id: 'task-succeeded',
+    extensionId: 'example-pdf-extension',
+    state: 'succeeded',
+    createdAt: '2026-05-02T09:00:00Z',
+    finishedAt: '2026-05-02T09:05:00Z',
+    target: { kind: 'pdf', path: '/tmp/paper-c.pdf' },
+    artifacts: [],
+    outputs: [],
+    logPath: '/tmp/task.log',
+  })
+
+  extensions.upsertTask({
+    id: 'task-running',
+    extensionId: 'example-pdf-extension',
+    capability: 'scribeflow.pdf.translate',
+    commandId: 'scribeflow.pdf.translate',
+    state: 'running',
+    createdAt: '2026-05-02T10:00:00Z',
+    startedAt: '2026-05-02T10:00:05Z',
+    target: { kind: 'pdf', path: '/tmp/paper-a.pdf', referenceId: 'ref-123' },
+    progress: { label: 'Running', current: 0, total: 1 },
+    outputs: [
+      {
+        id: 'summary:running',
+        type: 'inlineText',
+        mediaType: 'text/plain',
+        title: 'Running Summary',
+        text: 'worker active',
+      },
+    ],
+    artifacts: [],
+    error: '',
+    logPath: '/tmp/running-task.log',
+  })
+
+  const beforeTimeline = extensions.taskTimelineForExtension('example-pdf-extension')
+  assert.deepEqual(beforeTimeline.running.map((task) => task.id), ['task-running'])
+  assert.deepEqual(beforeTimeline.recent.map((task) => task.id), ['task-succeeded'])
+
   const disabledSnapshot = await extensions.setExtensionEnabled('example-pdf-extension', false)
+  const afterTimeline = extensions.taskTimelineForExtension('example-pdf-extension')
+
   assert.deepEqual(disabledSnapshot.enabledExtensionIds, [])
   assert.equal(extensions.isExtensionEnabled('example-pdf-extension'), false)
+  assert.deepEqual(afterTimeline.running.map((task) => task.id), [])
+  assert.deepEqual(afterTimeline.recent.map((task) => task.id), ['task-running', 'task-succeeded'])
+  assert.equal(afterTimeline.recent[0].state, 'cancelled')
+  assert.equal(afterTimeline.recent[0].progress.label, 'Cancelled')
+  assert.equal(afterTimeline.recent[0].outputs[0]?.text, 'worker active')
+
   assert.equal(extensions.runtimeRegistry['example-pdf-extension'], undefined)
   assert.equal(extensions.resolvedViews['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.viewState['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.viewControllerState['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.changedViewTicks['example-pdf-extension:examplePdfExtension.translateView'], undefined)
   assert.equal(extensions.sidebarTargets['extension:examplePdfExtension.tools'], undefined)
+
+  assert.ok(
+    ipcCalls.some(([cmd, args]) =>
+      cmd === 'extension_task_cancel_extension' &&
+      String(args?.params?.extensionId || '') === 'example-pdf-extension'
+    ),
+  )
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
       cmd === 'extension_host_deactivate' &&
@@ -160,68 +240,14 @@ try {
     ),
   )
 
-  await assert.rejects(
-    () => extensions.executeCommand({
-      extensionId: 'example-pdf-extension',
-      commandId: 'scribeflow.pdf.translate',
-    }, {
-      kind: 'pdf',
-      path: '/tmp/paper.pdf',
-      referenceId: 'ref-123',
-    }),
-    /Extension command is disabled/i,
-  )
-
-  await assert.rejects(
-    () => extensions.invokeCapability({
-      extensionId: 'example-pdf-extension',
-      capabilityId: 'pdf.translate',
-    }, {
-      kind: 'pdf',
-      path: '/tmp/paper.pdf',
-      referenceId: 'ref-123',
-    }),
-    /Extension capability is disabled/i,
-  )
-
-  await assert.rejects(
-    () => extensions.resolveView({
-      extensionId: 'example-pdf-extension',
-      id: 'examplePdfExtension.translateView',
-    }, {
-      kind: 'pdf',
-      path: '/tmp/paper.pdf',
-      referenceId: 'ref-123',
-    }),
-    /Extension view is disabled/i,
-  )
-
-  await assert.rejects(
-    () => extensions.notifyViewSelection({
-      extensionId: 'example-pdf-extension',
-      id: 'examplePdfExtension.translateView',
-    }, 'translate-group'),
-    /Extension view is disabled/i,
-  )
-
-  const forbiddenCalls = ipcCalls
-    .map(([cmd]) => cmd)
-    .filter((cmd) => [
-      'extension_host_activate',
-      'extension_command_execute',
-      'extension_capability_invoke',
-      'extension_view_resolve',
-      'extension_host_notify_view_selection',
-    ].includes(cmd))
-
-  assert.deepEqual(forbiddenCalls, [])
-
   console.log(JSON.stringify({
     ok: true,
-    disabledRuntimeCleared: true,
-    deactivationObserved: ipcCalls.some(([cmd]) => cmd === 'extension_host_deactivate'),
-    forbiddenCalls,
-    persistedEnabledIds: disabledSnapshot.enabledExtensionIds,
+    summary: {
+      recentTaskIds: afterTimeline.recent.map((task) => task.id),
+      cancelledTaskState: afterTimeline.recent[0].state,
+      preservedOutputText: afterTimeline.recent[0].outputs[0]?.text || '',
+      disableCancelledTaskCount: ipcCalls.filter(([cmd]) => cmd === 'extension_task_cancel_extension').length,
+    },
   }, null, 2))
 } finally {
   clearTauriMocks()
