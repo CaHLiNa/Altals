@@ -56,183 +56,12 @@
                 <span class="extension-scope">{{ t(extension.scope) }}</span>
               </div>
               <div class="extension-description">{{ extensionDescription(extension) }}</div>
-              <div class="extension-summary-grid">
-                <div class="extension-summary-item">
-                  <span class="extension-meta-label">{{ t('Permissions') }}</span>
-                  <span class="extension-meta-value">{{ userPermissionSummary(extension) }}</span>
-                </div>
-                <div class="extension-summary-item">
-                  <span class="extension-meta-label">{{ t('Secure Settings') }}</span>
-                  <span class="extension-meta-value">{{ secureSettingSummary(extension) }}</span>
-                </div>
-              </div>
-              <div v-if="capabilityActions(extension).length" class="extension-capability-list">
-                <section
-                  v-for="capability in capabilityActions(extension)"
-                  :key="`${extension.id}:${capability.id}`"
-                  class="extension-capability-card"
-                >
-                  <div class="extension-capability-card-header">
-                    <div class="extension-capability-card-copy">
-                      <div class="extension-capability-card-title-row">
-                        <div class="extension-capability-card-title">{{ capabilityDisplayName(capability) }}</div>
-                        <ExtensionBlockedStatusChip
-                          v-if="capabilityBlocked(extension, capability)"
-                          :label="capabilityStatusLabel(extension, capability)"
-                          :title="capabilityStatusMessage(extension, capability)"
-                          :tone-class="capabilityStatusClass(extension, capability)"
-                        />
-                        <span
-                          v-else
-                        >
-                          <ExtensionStatusPill
-                            :label="capabilityStatusLabel(extension, capability)"
-                            :tone-class="capabilityStatusClass(extension, capability)"
-                          />
-                        </span>
-                      </div>
-                      <div class="extension-capability-card-message">
-                        {{ capabilityStatusMessage(extension, capability) }}
-                      </div>
-                    </div>
-                    <ExtensionBlockedActionButton
-                      variant="ghost"
-                      size="sm"
-                      :loading="capabilityBusyId === `${extension.id}:${capability.id}`"
-                      :disabled="!capabilityBlocked(extension, capability) && !capabilitySchemaReady(capability)"
-                      :blocked="capabilityBlocked(extension, capability)"
-                      :blocked-label="capabilityStatusLabel(extension, capability)"
-                      :blocked-message="capabilityStatusMessage(extension, capability)"
-                      :label="capabilityButtonLabel(extension, capability)"
-                      :title="capabilityButtonLabel(extension, capability)"
-                      @click="runCapability(extension, capability)"
-                    />
-                  </div>
-                </section>
-              </div>
               <div v-if="extension.errors.length" class="extension-message is-error">
                 {{ extension.errors.map((message) => t(message)).join('; ') }}
               </div>
               <div v-else-if="extension.warnings.length" class="extension-message">
                 {{ extension.warnings.map((message) => t(message)).join('; ') }}
               </div>
-              <details class="extension-developer-panel">
-                <summary>{{ t('Developer information') }}</summary>
-                <div class="extension-meta-grid">
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Manifest') }}</span>
-                    <span class="extension-meta-value">{{ extension.manifestFormat || t('Not configured') }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Entrypoint') }}</span>
-                    <span class="extension-meta-value">
-                      {{ extension.main || extension.runtime?.command || t('Not configured') }}
-                    </span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime') }}</span>
-                    <span class="extension-meta-value">{{ extension.runtime?.runtimeType || t('Not configured') }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime Status') }}</span>
-                    <span class="extension-meta-value">{{ runtimeStatus(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime Commands') }}</span>
-                    <span class="extension-meta-value">{{ runtimeCommandSummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime Views') }}</span>
-                    <span class="extension-meta-value">{{ runtimeViewSummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime Actions') }}</span>
-                    <span class="extension-meta-value">{{ runtimeActionSummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Runtime Capabilities') }}</span>
-                    <span class="extension-meta-value">{{ runtimeCapabilitySummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Bootstrap Capabilities') }}</span>
-                    <span class="extension-meta-value">{{ bootstrapCapabilitySummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Bootstrap Commands') }}</span>
-                    <span class="extension-meta-value">{{ commandSummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Bootstrap Keybindings') }}</span>
-                    <span class="extension-meta-value">{{ keybindingSummary(extension) }}</span>
-                  </div>
-                  <div class="extension-meta-item">
-                    <span class="extension-meta-label">{{ t('Bootstrap Views') }}</span>
-                    <span class="extension-meta-value">{{ viewSummary(extension) }}</span>
-                  </div>
-                </div>
-                <div v-if="runtimeReason(extension)" class="extension-meta-list">
-                  <span class="extension-meta-label">{{ t('Runtime Activation') }}</span>
-                  <span class="extension-meta-value">{{ runtimeReason(extension) }}</span>
-                </div>
-                <div v-if="extension.activationEvents?.length" class="extension-meta-list">
-                  <span class="extension-meta-label">{{ t('Activation Events') }}</span>
-                  <span class="extension-meta-value">{{ extension.activationEvents.join(' · ') }}</span>
-                </div>
-                <div class="extension-chip-row">
-                  <span v-for="capability in extension.capabilities" :key="capability" class="extension-chip">
-                    {{ capability }}
-                  </span>
-                </div>
-                <div
-                  v-for="capability in capabilityActions(extension)"
-                  :key="`${extension.id}:${capability.id}:schema`"
-                  class="extension-capability-schema-grid"
-                >
-                  <div class="extension-capability-schema-column">
-                    <div class="extension-capability-schema-title">
-                      {{ capability.id }} · {{ t('Inputs') }}
-                    </div>
-                    <div v-if="capabilityInputs(capability).length" class="extension-capability-schema-list">
-                      <div
-                        v-for="input in capabilityInputs(capability)"
-                        :key="`${extension.id}:${capability.id}:input:${input.key}`"
-                        class="extension-capability-schema-item"
-                        :class="{ 'is-warning': input.blocking }"
-                      >
-                        <div class="extension-capability-schema-item-row">
-                          <span class="extension-capability-schema-item-label">{{ input.label }}</span>
-                          <span class="extension-chip">{{ capabilityTypeLabel(input) }}</span>
-                          <span class="extension-chip">{{ capabilityRequiredLabel(input) }}</span>
-                        </div>
-                        <div v-if="capabilityDefinitionDetail(input)" class="extension-capability-schema-item-detail">
-                          {{ capabilityDefinitionDetail(input) }}
-                        </div>
-                      </div>
-                    </div>
-                    <div v-else class="extension-capability-schema-empty">{{ t('No declared inputs') }}</div>
-                  </div>
-                  <div class="extension-capability-schema-column">
-                    <div class="extension-capability-schema-title">{{ t('Outputs') }}</div>
-                    <div v-if="capabilityOutputs(capability).length" class="extension-capability-schema-list">
-                      <div
-                        v-for="output in capabilityOutputs(capability)"
-                        :key="`${extension.id}:${capability.id}:output:${output.key}`"
-                        class="extension-capability-schema-item"
-                      >
-                        <div class="extension-capability-schema-item-row">
-                          <span class="extension-capability-schema-item-label">{{ output.label }}</span>
-                          <span class="extension-chip">{{ capabilityTypeLabel(output) }}</span>
-                          <span class="extension-chip">{{ capabilityRequiredLabel(output) }}</span>
-                        </div>
-                        <div v-if="capabilityDefinitionDetail(output)" class="extension-capability-schema-item-detail">
-                          {{ capabilityDefinitionDetail(output) }}
-                        </div>
-                      </div>
-                    </div>
-                    <div v-else class="extension-capability-schema-empty">{{ t('No declared outputs') }}</div>
-                  </div>
-                </div>
-              </details>
             </div>
             <div class="extension-controls">
               <span class="extension-enable-label">{{ t('Enabled') }}</span>
@@ -322,26 +151,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
-import { useWorkspaceStore } from '../../stores/workspace'
-import { useEditorStore } from '../../stores/editor'
-import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
-import ExtensionBlockedActionButton from '../extensions/ExtensionBlockedActionButton.vue'
-import ExtensionBlockedStatusChip from '../extensions/ExtensionBlockedStatusChip.vue'
-import ExtensionStatusPill from '../extensions/ExtensionStatusPill.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
-import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
-import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
-import {
-  buildExtensionCommandHostState,
-  buildExtensionRuntimeBlockDescriptor,
-  describeExtensionCommandError,
-} from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import {
   secureSettingInputType,
@@ -350,42 +166,15 @@ import {
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
-const workspaceStore = useWorkspaceStore()
-const editorStore = useEditorStore()
-const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
-const capabilityBusyId = ref('')
 const hostRuntimeRestartBusyKey = ref('')
-const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
-const capabilityInvokeTarget = computed(() =>
-  resolveExtensionTargetContext({
-    workspaceLeftSidebarPanel: workspaceStore.leftSidebarPanel,
-    selectedReference: referencesStore.selectedReference,
-    activeTab: editorStore.activeTab,
-  })
-)
 function isEnabled(extensionId = '') {
   return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
 }
 
-function runtimeEntry(extension = {}) {
-  return extensionsStore.runtimeEntryFor(extension.id)
-}
-
 function hostStatus() {
   return extensionsStore.hostStatus
-}
-
-function activeRuntimeSlotsForExtension(extension = {}) {
-  const extensionId = String(extension?.id || '').trim().toLowerCase()
-  return Array.isArray(hostStatus().activeRuntimeSlots)
-    ? hostStatus().activeRuntimeSlots.filter((entry) => entry.extensionId === extensionId)
-    : []
-}
-
-function hostDiagnostics(extension = {}) {
-  return extensionsStore.hostDiagnosticsFor(extension.id, workspaceStore.path || '')
 }
 
 function displayStatus(extension = {}) {
@@ -400,282 +189,6 @@ function extensionDisplayName(extension = {}) {
 function extensionDescription(extension = {}) {
   const description = String(extension.description || '').trim()
   return description || t('No description provided')
-}
-
-function runtimeStatus(extension = {}) {
-  const entry = runtimeEntry(extension)
-  const slots = activeRuntimeSlotsForExtension(extension)
-  if (entry.activated && slots.length > 1) {
-    return t('activated') + ` · ${slots.length} workspaces`
-  }
-  return entry.activated ? t('activated') : t('idle')
-}
-
-function runtimeReason(extension = {}) {
-  const entry = runtimeEntry(extension)
-  const diagnostics = hostDiagnostics(extension)
-  const parts = []
-  if (entry.reason) parts.push(entry.reason)
-  if (diagnostics.workspaceRoots.length > 0) {
-    parts.push(diagnostics.workspaceRoots.join(' · '))
-  }
-  if (diagnostics.blockedByForeignPrompt) {
-    parts.push(`blocked by ${diagnostics.pendingPromptOwner?.extensionId || ''} @ ${diagnostics.blockingPromptWorkspaceRoot || '/'}`)
-  }
-  if (diagnostics.ownsPendingPrompt) {
-    parts.push(`waiting for prompt in ${diagnostics.pendingPromptWorkspaceRoot || '/'}`)
-  }
-  return parts.join(' · ')
-}
-
-function runtimeCommandSummary(extension = {}) {
-  const entry = runtimeEntry(extension)
-  if (Array.isArray(entry.registeredCommandDetails) && entry.registeredCommandDetails.length > 0) {
-    return entry.registeredCommandDetails.map((command) => command.commandId).join(' · ')
-  }
-  if (Array.isArray(entry.registeredCommands) && entry.registeredCommands.length > 0) {
-    return entry.registeredCommands.join(' · ')
-  }
-  return t('No runtime commands')
-}
-
-function runtimeViewSummary(extension = {}) {
-  const entry = runtimeEntry(extension)
-  if (Array.isArray(entry.registeredViewDetails) && entry.registeredViewDetails.length > 0) {
-    return entry.registeredViewDetails.map((view) => view.id).join(' · ')
-  }
-  if (Array.isArray(entry.registeredViews) && entry.registeredViews.length > 0) {
-    return entry.registeredViews.join(' · ')
-  }
-  return t('No runtime views')
-}
-
-function runtimeActionSummary(extension = {}) {
-  const entry = runtimeEntry(extension)
-  if (!Array.isArray(entry.registeredMenuActions) || entry.registeredMenuActions.length === 0) {
-    return t('No runtime actions')
-  }
-  return entry.registeredMenuActions
-    .map((action) => `${action.surface}:${action.commandId}`)
-    .join(' · ')
-}
-
-function runtimeCapabilitySummary(extension = {}) {
-  const entry = runtimeEntry(extension)
-  if (!Array.isArray(entry.registeredCapabilities) || entry.registeredCapabilities.length === 0) {
-    return t('No runtime capabilities')
-  }
-  return entry.registeredCapabilities.join(' · ')
-}
-
-function bootstrapCapabilitySummary(extension = {}) {
-  const capabilities = Array.isArray(extension.contributedCapabilities)
-    ? extension.contributedCapabilities.map((capability) => String(capability?.id || '').trim()).filter(Boolean)
-    : []
-  if (!capabilities.length) return t('No bootstrap capabilities')
-  return capabilities.join(' · ')
-}
-
-function permissionSummary(extension = {}) {
-  const permissions = extension.permissions || {}
-  const labels = []
-  if (permissions.readWorkspaceFiles) labels.push(t('workspace files'))
-  if (permissions.readReferenceLibrary) labels.push(t('reference library'))
-  if (permissions.spawnProcess) labels.push(t('local process'))
-  return labels.join(' · ')
-}
-
-function userPermissionSummary(extension = {}) {
-  return permissionSummary(extension) || t('No extra permissions')
-}
-
-function secureSettingSummary(extension = {}) {
-  const entries = Object.entries(extension.settingsSchema || {})
-    .filter(([, setting]) => setting?.secureStorage === true)
-    .map(([key, setting]) => t(setting?.label || humanizeSettingKey(key)))
-  if (!entries.length) return t('No secure settings')
-  return entries.join(' · ')
-}
-
-function commandSummary(extension = {}) {
-  const commands = Array.isArray(extension.contributedCommands) ? extension.contributedCommands : []
-  if (!commands.length) return t('No bootstrap commands')
-  return commands.map((command) => command.commandId).join(' · ')
-}
-
-function keybindingSummary(extension = {}) {
-  const keybindings = Array.isArray(extension.contributedKeybindings)
-    ? extension.contributedKeybindings
-    : []
-  if (!keybindings.length) return t('No bootstrap keybindings')
-  return keybindings
-    .map((keybinding) => keybinding.mac || keybinding.key || keybinding.win || keybinding.linux)
-    .filter(Boolean)
-    .join(' · ')
-}
-
-function viewSummary(extension = {}) {
-  const containers = Array.isArray(extension.contributedViewContainers)
-    ? extension.contributedViewContainers
-    : []
-  const views = Array.isArray(extension.contributedViews)
-    ? extension.contributedViews
-    : []
-  if (!containers.length && !views.length) return t('No bootstrap views')
-  return [
-    ...containers.map((container) => container.title || container.id),
-    ...views.map((view) => view.title || view.id),
-  ].join(' · ')
-}
-
-function capabilityActions(extension = {}) {
-  const capabilities = Array.isArray(extension.contributedCapabilities)
-    ? extension.contributedCapabilities
-    : []
-  return capabilities.filter((capability) => String(capability?.id || '').trim())
-}
-
-function capabilityHostState(extension = {}) {
-  const descriptor = buildExtensionRuntimeBlockDescriptor(
-    buildExtensionCommandHostState(hostDiagnostics(extension))
-  )
-  return {
-    blocked: descriptor.blocked,
-    label: descriptor.labelKey ? t(descriptor.labelKey) : '',
-    message: descriptor.messageKey ? t(descriptor.messageKey, descriptor.messageParams) : '',
-    tone: descriptor.tone,
-  }
-}
-
-function capabilityButtonLabel(extension = {}, capability = {}) {
-  const hostState = capabilityHostState(extension)
-  if (hostState.blocked) return hostState.label
-  return capabilityReadyActionLabel(capability)
-}
-
-function capabilityReadyActionLabel(capability = {}) {
-  return t('Run {name}', { name: capabilityDisplayName(capability) })
-}
-
-function capabilityDisplayName(capability = {}) {
-  const id = String(capability?.id || '').trim()
-  switch (id) {
-    case 'pdf.translate':
-      return t('PDF translation')
-    case 'pdf.ocr':
-      return t('PDF OCR')
-    case 'pdf.extractText':
-      return t('Extract PDF text')
-    case 'reference.enrich':
-      return t('Enrich reference metadata')
-    case 'reference.import':
-      return t('Import references')
-    case 'document.summarize':
-      return t('Summarize document')
-    case 'document.transform':
-      return t('Transform document')
-    case 'workspace.index':
-      return t('Index workspace')
-    case 'llm.chat':
-      return t('Chat with model')
-    default:
-      return humanizeSettingKey(id)
-  }
-}
-
-function inspectCapability(capability = {}) {
-  return inspectExtensionCapability(capability, capabilityInvokeTarget.value, {
-    workspaceReady: capabilityWorkspaceReady.value,
-  })
-}
-
-function capabilitySchemaReady(capability = {}) {
-  return inspectCapability(capability).ready
-}
-
-function capabilityCanRun(extension = {}, capability = {}) {
-  return capabilitySchemaReady(capability) && !capabilityHostState(extension).blocked
-}
-
-function capabilityBlocked(extension = {}, capability = {}) {
-  return capabilityHostState(extension).blocked && Boolean(capability?.id)
-}
-
-function capabilityStatusLabel(extension = {}, capability = {}) {
-  const hostState = capabilityHostState(extension)
-  if (hostState.blocked) return hostState.label
-  return capabilitySchemaReady(capability) ? t('Ready') : t('Unavailable')
-}
-
-function capabilityStatusClass(extension = {}, capability = {}) {
-  const hostState = capabilityHostState(extension)
-  if (hostState.blocked) return hostState.tone
-  return capabilitySchemaReady(capability) ? 'is-ready' : 'is-unavailable'
-}
-
-function capabilityStatusMessage(extension = {}, capability = {}) {
-  const hostState = capabilityHostState(extension)
-  if (hostState.blocked) return hostState.message
-  const inspection = inspectCapability(capability)
-  return t(inspection.messageKey, inspection.messageVars)
-}
-
-function capabilityInputs(capability = {}) {
-  return inspectCapability(capability).inputs
-}
-
-function capabilityOutputs(capability = {}) {
-  return inspectCapability(capability).outputs
-}
-
-function capabilityTypeLabel(definition = {}) {
-  return t(definition.typeLabelKey || '')
-}
-
-function capabilityRequiredLabel(definition = {}) {
-  return t(definition.required ? 'Required' : 'Optional')
-}
-
-function capabilityDefinitionDetail(definition = {}) {
-  if (definition.blocking && definition.messageKey) {
-    return t(definition.messageKey, definition.messageVars)
-  }
-  if (definition.detailKey) {
-    return t(definition.detailKey, definition.detailVars)
-  }
-  if (definition.mediaType) {
-    return definition.mediaType
-  }
-  return ''
-}
-
-async function runCapability(extension = {}, capability = {}) {
-  const capabilityId = String(capability?.id || '').trim()
-  if (!capabilityId || !capabilityCanRun(extension, capability)) return
-  const busyId = `${extension.id}:${capabilityId}`
-  capabilityBusyId.value = busyId
-  try {
-    await extensionsStore.invokeCapability({
-      extensionId: extension.id,
-      capabilityId,
-    }, capabilityInvokeTarget.value)
-    toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
-  } catch (error) {
-    const commandError = describeExtensionCommandError(error, t('Failed to start extension task'))
-    toastStore.show(
-      commandError.messageKey
-        ? t(commandError.messageKey, commandError.messageParams)
-        : commandError.messageText || t('Failed to start extension task'),
-      {
-        type: commandError.type,
-        duration: 4200,
-      },
-    )
-  } finally {
-    if (capabilityBusyId.value === busyId) {
-      capabilityBusyId.value = ''
-    }
-  }
 }
 
 function shortSettingKey(key = '') {
@@ -1082,24 +595,6 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
-.extension-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.extension-summary-item {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 24%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-raised) 18%, transparent);
-}
-
 .extension-message.is-error {
   color: var(--error);
 }
@@ -1110,144 +605,11 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.extension-capability-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.extension-capability-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-base) 82%, transparent);
-  padding: 12px;
-}
-
-.extension-capability-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.extension-capability-card-copy {
-  min-width: 0;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.extension-capability-card-title-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.extension-capability-card-title {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.extension-capability-card-message {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.extension-capability-schema-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.extension-capability-schema-column {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.extension-capability-schema-title {
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.extension-capability-schema-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.extension-capability-schema-item {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  border: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-raised) 24%, transparent);
-  padding: 9px 10px;
-}
-
-.extension-capability-schema-item.is-warning {
-  border-color: color-mix(in srgb, var(--warning) 38%, var(--border));
-}
-
-.extension-capability-schema-item-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.extension-capability-schema-item-label {
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.extension-capability-schema-item-detail,
-.extension-capability-schema-empty {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
 .extension-meta-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 2px;
-}
-
-.extension-developer-panel {
-  margin-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
-  padding-top: 8px;
-}
-
-.extension-developer-panel summary {
-  width: fit-content;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.extension-developer-panel[open] {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .extension-meta-list {
@@ -1431,19 +793,6 @@ onMounted(async () => {
 @media (max-width: 720px) {
   .extension-header {
     flex-direction: column;
-  }
-
-  .extension-capability-card-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .extension-capability-schema-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .extension-summary-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .extension-setting-group-heading {

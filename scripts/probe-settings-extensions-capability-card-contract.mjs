@@ -282,11 +282,12 @@ try {
 
   const blockedHtml = await renderCurrentState()
   assert.match(blockedHtml, /Blocked Extension/)
-  assert.match(blockedHtml, /document\.translate/)
-  assert.match(blockedHtml, /extension-blocked-status-chip/)
-  assert.match(blockedHtml, /Blocked/)
-  assert.match(blockedHtml, /title="The shared extension host is currently blocked by another-extension in \/tmp\/workspace-b\. Resolve that prompt first\."/)
+  assert.doesNotMatch(blockedHtml, /document\.translate/)
+  assert.doesNotMatch(blockedHtml, /extension-blocked-status-chip/)
   assert.doesNotMatch(blockedHtml, /Run document\.translate/)
+  assert.doesNotMatch(blockedHtml, /权限/)
+  assert.doesNotMatch(blockedHtml, /安全设置/)
+  assert.doesNotMatch(blockedHtml, /开发者信息/)
 
   extensions.enabledExtensionIds = ['ready-extension']
   extensions.registry = [readyExtension]
@@ -311,10 +312,10 @@ try {
 
   const readyHtml = await renderCurrentState()
   assert.match(readyHtml, /Ready Extension/)
-  assert.match(readyHtml, /document\.summarize/)
-  assert.match(readyHtml, /extension-status-pill/)
-  assert.match(readyHtml, /Ready/)
-  assert.match(readyHtml, /Run Summarize document/)
+  assert.doesNotMatch(readyHtml, /document\.summarize/)
+  assert.doesNotMatch(readyHtml, /extension-status-pill/)
+  assert.doesNotMatch(readyHtml, /Run Summarize document/)
+  assert.doesNotMatch(readyHtml, /开发者信息/)
 
   await applyLocalePreference('zh-CN')
 
@@ -336,6 +337,11 @@ try {
   assert.match(localizedHtml, /钥匙串/)
   assert.match(localizedHtml, /由主程序管理模型、接口地址和安全凭据。/)
   assert.match(localizedHtml, /不常用的插件专属选项。/)
+  assert.doesNotMatch(localizedHtml, /权限/)
+  assert.doesNotMatch(localizedHtml, /安全设置/)
+  assert.doesNotMatch(localizedHtml, /开发者信息/)
+  assert.doesNotMatch(localizedHtml, /PDF translation/)
+  assert.doesNotMatch(localizedHtml, /运行 PDF translation/)
   assert.doesNotMatch(localizedHtml, /RetainPDF API 密钥/)
   assert.doesNotMatch(localizedHtml, />apiKey</)
   assert.doesNotMatch(localizedHtml, />modelBaseUrl</)
@@ -347,10 +353,13 @@ try {
   console.log(JSON.stringify({
     ok: true,
     summary: {
-      blockedUsesSharedChip: blockedHtml.includes('extension-blocked-status-chip'),
-      blockedUsesSharedButtonLabel: blockedHtml.includes('>Blocked<'),
-      readyKeepsStatusPill: readyHtml.includes('extension-status-pill'),
-      readyActionLabel: readyHtml.includes('Run Summarize document'),
+      hiddenBlockedCapabilityCard: !blockedHtml.includes('extension-blocked-status-chip') &&
+        !blockedHtml.includes('Run document.translate'),
+      hiddenReadyCapabilityCard: !readyHtml.includes('extension-status-pill') &&
+        !readyHtml.includes('Run Summarize document'),
+      hiddenInternalSummaries: !localizedHtml.includes('权限') &&
+        !localizedHtml.includes('安全设置') &&
+        !localizedHtml.includes('开发者信息'),
       localizedSettingTitles: localizedHtml.includes('模型 API 地址') &&
         localizedHtml.includes('模型 API 密钥') &&
         localizedHtml.includes('开发者模式'),
