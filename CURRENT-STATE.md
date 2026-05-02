@@ -79,6 +79,7 @@ Current plugin lifecycle contract:
 - disabling an activated extension requests host-side runtime deactivation and then clears frontend runtime/view/controller state
 - enabling an extension immediately re-activates its runtime registration so runtime-only commands and menus are visible again
 - direct host deactivation is now probe-backed: `Activate -> Deactivate -> Reactivate` succeeds and plugin `deactivate()` state can be observed
+- workspace transition teardown is now probe-backed: switching or closing a workspace deactivates host runtime slots owned by the old workspace before frontend session state resets, so stale activation state does not leak into the next workspace
 - host-process crash recovery is now probe-backed: a crashing command tears down the dead process handle, and the next host request respawns the persistent runtime and succeeds
 - host interruption during a pending window prompt is now probe-backed: waiting prompt flows fail fast when the host dies, the pending UI request is interrupted immediately, and the frontend prompt is cleared instead of lingering until timeout
 - tree-view controller contract is now probe-backed: `createTreeView(...).onDidChangeSelection(...)` receives runtime element payload plus selected handles, and controller `reveal(...)` preserves ordered parent handles together with default and explicit `focus/select/expand` flags

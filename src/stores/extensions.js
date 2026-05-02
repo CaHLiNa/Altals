@@ -922,6 +922,24 @@ export const useExtensionsStore = defineStore('extensions', {
       return this.hostSummary
     },
 
+    async teardownWorkspaceRuntimeSlots(workspaceRoot = useWorkspaceStore().path || '') {
+      const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
+      if (!normalizedWorkspaceRoot) return []
+      const summary = await this.refreshHostSummary().catch(() => this.hostStatus)
+      const slots = Array.isArray(summary?.activeRuntimeSlots)
+        ? summary.activeRuntimeSlots.filter((entry) => entry.workspaceRoot === normalizedWorkspaceRoot)
+        : []
+      for (const slot of slots) {
+        await deactivateExtensionHost({
+          extensionId: slot.extensionId,
+          workspaceRoot: normalizedWorkspaceRoot,
+        }).catch(() => {})
+        this.pruneExtensionRuntimeState(slot.extensionId)
+      }
+      await this.refreshHostSummary().catch(() => {})
+      return slots
+    },
+
     async setExtensionEnabled(extensionId = '', enabled = true) {
       const id = normalizeExtensionId(extensionId)
       const ids = new Set(this.enabledExtensionIds.map(normalizeExtensionId))

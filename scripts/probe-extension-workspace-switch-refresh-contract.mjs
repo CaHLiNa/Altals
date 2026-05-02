@@ -87,7 +87,9 @@ try {
   const { mockIPC, mockWindows, clearMocks } = await import('@tauri-apps/api/mocks')
   clearTauriMocks = clearMocks
   mockWindows('main')
+  const ipcCalls = []
   mockIPC((cmd, args) => {
+    ipcCalls.push([cmd, args])
     const workspaceRoot = String(args?.params?.workspaceRoot || '')
     if (cmd === 'extension_registry_list') {
       if (workspaceRoot === workspaceA) {
@@ -183,6 +185,35 @@ try {
         registeredViewDetails: [],
       }
     }
+    if (cmd === 'extension_host_status') {
+      return {
+        available: true,
+        runtime: 'node-extension-host-persistent',
+        activatedExtensions: workspaceRoot === workspaceB
+          ? ['workspace-b-extension']
+          : ['workspace-a-extension'],
+        activeRuntimeSlots: workspaceRoot === workspaceB
+          ? [
+            {
+              extensionId: 'workspace-b-extension',
+              workspaceRoot: workspaceB,
+            },
+          ]
+          : [
+            {
+              extensionId: 'workspace-a-extension',
+              workspaceRoot: workspaceA,
+            },
+          ],
+        pendingPromptOwner: null,
+      }
+    }
+    if (cmd === 'extension_host_deactivate') {
+      return {
+        extensionId: String(args?.params?.extensionId || ''),
+        accepted: true,
+      }
+    }
     if (cmd === 'extension_task_list') {
       return []
     }
@@ -225,6 +256,7 @@ try {
   })
 
   workspace.path = workspaceB
+  await extensions.teardownWorkspaceRuntimeSlots(workspaceA)
   extensions.resetWorkspaceSessionState()
   await extensions.refreshRegistry({ forceSettingsReload: true })
 
@@ -239,6 +271,13 @@ try {
   assert.deepEqual(extensions.tasks, [])
   assert.deepEqual(extensions.deferredViewRequests, {})
   assert.deepEqual(extensions.sidebarTargets, {})
+  assert.ok(
+    ipcCalls.some(([cmd, args]) =>
+      cmd === 'extension_host_deactivate' &&
+      String(args?.params?.extensionId || '') === 'workspace-a-extension' &&
+      String(args?.params?.workspaceRoot || '') === workspaceA
+    ),
+  )
 
   console.log(JSON.stringify({
     ok: true,
@@ -249,6 +288,7 @@ try {
       workspaceBRegistryIds,
       workspaceBEnabledIds,
       workspaceBSetting,
+      deactivatedWorkspaceARuntime: ipcCalls.some(([cmd]) => cmd === 'extension_host_deactivate'),
       deferredAfterReset: Object.keys(extensions.deferredViewRequests).length,
       sidebarTargetsAfterReset: Object.keys(extensions.sidebarTargets).length,
     },

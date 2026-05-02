@@ -264,6 +264,7 @@ export function useWorkspaceLifecycle() {
     latexStore.cleanup()
     referencesStore.cleanup()
     workflowStore.cleanup()
+    await extensionsStore.teardownWorkspaceRuntimeSlots(closingWorkspacePath).catch(() => {})
     extensionsStore.resetWorkspaceSessionState()
     await workspace.closeWorkspace()
     void releaseWorkspaceBookmark(closingWorkspacePath)
