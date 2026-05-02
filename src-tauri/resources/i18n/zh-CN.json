@@ -1296,6 +1296,8 @@
   "Extension options": "选项",
   "Back to loaded extensions": "返回已加载扩展",
   "This extension has no configurable options.": "此扩展没有可配置选项。",
+  "Failed to save extension setting": "保存扩展配置失败",
+  "Extension setting was not saved": "扩展配置未保存",
   "Refresh Extension Registry": "刷新扩展注册表",
   "Enable extension": "启用扩展",
   "Default Providers": "默认提供方",

@@ -152,30 +152,32 @@
                   :model-value="Boolean(settingValue(selectedExtension, key))"
                   size="sm"
                   :title="t(setting.label || humanizeSettingKey(key))"
-                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
+                  @update:model-value="(value) => updateSettingNow(selectedExtension.id, key, value)"
                 />
                 <UiSelect
                   v-else-if="settingOptions(setting).length"
                   :model-value="settingValue(selectedExtension, key)"
                   :options="settingOptions(setting)"
                   :placeholder="t(setting.label || humanizeSettingKey(key))"
-                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, value)"
+                  @update:model-value="(value) => updateSettingNow(selectedExtension.id, key, value)"
                 />
                 <textarea
                   v-else-if="isLongTextSetting(key, setting)"
                   class="extension-setting-textarea"
-                  :value="settingValue(selectedExtension, key)"
+                  :value="settingDraftValue(selectedExtension, key)"
                   spellcheck="false"
                   rows="4"
-                  @input="(event) => updateSetting(selectedExtension.id, key, event.target.value)"
+                  @input="(event) => updateSettingDraft(selectedExtension.id, key, event.target.value)"
+                  @blur="() => flushSettingDraft(selectedExtension.id, key)"
                 ></textarea>
                 <UiInput
                   v-else
-                  :model-value="settingValue(selectedExtension, key)"
+                  :model-value="settingDraftValue(selectedExtension, key)"
                   :type="inputTypeForSetting(key, setting)"
                   :monospace="isTechnicalSetting(key)"
                   size="sm"
-                  @update:model-value="(value) => updateSetting(selectedExtension.id, key, coerceSettingValue(setting, value))"
+                  @update:model-value="(value) => updateSettingDraft(selectedExtension.id, key, coerceSettingValue(setting, value))"
+                  @blur="() => flushSettingDraft(selectedExtension.id, key)"
                 />
               </div>
             </div>
@@ -188,7 +190,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { IconChevronLeft, IconFolder, IconRefresh, IconSettings } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
@@ -214,6 +216,9 @@ const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const hostRuntimeRestartBusyKey = ref('')
 const selectedExtensionId = ref('')
+const settingDrafts = reactive({})
+const settingSaveTimers = new Map()
+const SETTING_SAVE_DELAY_MS = 360
 const selectedExtension = computed(() =>
   extensions.value.find((extension) => extension.id === selectedExtensionId.value) || null
 )
@@ -388,6 +393,18 @@ function settingValue(extension = {}, key = '') {
   return extensionsStore.configForExtension(extension)?.[key]
 }
 
+function settingDraftKey(extensionId = '', key = '') {
+  return `${String(extensionId || '').trim().toLowerCase()}::${String(key || '').trim()}`
+}
+
+function settingDraftValue(extension = {}, key = '') {
+  const draftKey = settingDraftKey(extension.id, key)
+  if (Object.prototype.hasOwnProperty.call(settingDrafts, draftKey)) {
+    return settingDrafts[draftKey]
+  }
+  return settingValue(extension, key)
+}
+
 function settingOptions(setting = {}) {
   return Array.isArray(setting.options)
     ? setting.options.map((option) => ({
@@ -437,8 +454,62 @@ function humanizeSettingKey(key = '') {
     .replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
-function updateSetting(extensionId = '', key = '', value = '') {
-  void extensionsStore.setExtensionConfigValue(extensionId, key, value)
+async function persistSettingDraft(extensionId = '', key = '') {
+  const normalizedExtensionId = String(extensionId || '').trim().toLowerCase()
+  const normalizedKey = String(key || '').trim()
+  const draftKey = settingDraftKey(normalizedExtensionId, normalizedKey)
+  if (!normalizedExtensionId || !normalizedKey) return
+  if (settingSaveTimers.has(draftKey)) {
+    clearTimeout(settingSaveTimers.get(draftKey))
+    settingSaveTimers.delete(draftKey)
+  }
+  if (!Object.prototype.hasOwnProperty.call(settingDrafts, draftKey)) return
+  const value = settingDrafts[draftKey]
+  try {
+    await extensionsStore.setExtensionConfigValue(normalizedExtensionId, normalizedKey, value)
+    const extension = extensions.value.find((entry) => entry.id === normalizedExtensionId)
+    const savedValue = extension ? settingValue(extension, normalizedKey) : value
+    if (String(savedValue ?? '') === String(value ?? '')) {
+      delete settingDrafts[draftKey]
+      return
+    }
+    throw new Error(t('Extension setting was not saved'))
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to save extension setting')), {
+      type: 'error',
+      duration: 4200,
+    })
+  }
+}
+
+function updateSettingDraft(extensionId = '', key = '', value = '') {
+  const normalizedExtensionId = String(extensionId || '').trim().toLowerCase()
+  const normalizedKey = String(key || '').trim()
+  const draftKey = settingDraftKey(normalizedExtensionId, normalizedKey)
+  if (!normalizedExtensionId || !normalizedKey) return
+  settingDrafts[draftKey] = value
+  if (settingSaveTimers.has(draftKey)) {
+    clearTimeout(settingSaveTimers.get(draftKey))
+  }
+  settingSaveTimers.set(draftKey, setTimeout(() => {
+    void persistSettingDraft(normalizedExtensionId, normalizedKey)
+  }, SETTING_SAVE_DELAY_MS))
+}
+
+function flushSettingDraft(extensionId = '', key = '') {
+  void persistSettingDraft(extensionId, key)
+}
+
+function updateSettingNow(extensionId = '', key = '', value = '') {
+  const normalizedExtensionId = String(extensionId || '').trim().toLowerCase()
+  const normalizedKey = String(key || '').trim()
+  if (!normalizedExtensionId || !normalizedKey) return
+  extensionsStore.setExtensionConfigValue(normalizedExtensionId, normalizedKey, value).catch((error) => {
+    toastStore.show(error?.message || String(error || t('Failed to save extension setting')), {
+      type: 'error',
+      duration: 4200,
+    })
+  })
 }
 
 function openExtensionOptions(extensionId = '') {
@@ -530,6 +601,18 @@ async function openExtensionInstallFolder() {
 
 onMounted(async () => {
   await refreshExtensionRegistry()
+})
+
+onBeforeUnmount(() => {
+  for (const draftKey of Object.keys(settingDrafts)) {
+    const [extensionId, ...keyParts] = draftKey.split('::')
+    const key = keyParts.join('::')
+    void persistSettingDraft(extensionId, key)
+  }
+  for (const timer of settingSaveTimers.values()) {
+    clearTimeout(timer)
+  }
+  settingSaveTimers.clear()
 })
 </script>
 
