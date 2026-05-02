@@ -139,6 +139,7 @@ function normalizeViews(extensionId = '', manifest = {}, viewContainerById = new
           panelId: container?.panelId || '',
           title: normalizeId(entry?.name || entry?.contextualTitle || id),
           contextualTitle: normalizeId(entry?.contextualTitle),
+          presentation: normalizeId(entry?.presentation),
           when: normalizeId(entry?.when),
         }
       })

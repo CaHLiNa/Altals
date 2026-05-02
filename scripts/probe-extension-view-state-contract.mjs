@@ -13,8 +13,25 @@ export async function activate(context) {
   context.commands.registerCommand('exampleViewStateContractExtension.pushState', async () => {
     context.views.updateView('exampleViewStateContractExtension.resultView', {
       message: 'pushed message',
-      statusLabel: 'Streaming',
-      resultEntries: [
+          statusLabel: 'Streaming',
+          presentation: {
+            mode: 'documentAction',
+            target: {
+              label: 'pushed.pdf',
+              path: '/tmp/pushed.pdf',
+            },
+            action: {
+              label: 'Translate',
+              commandId: 'exampleViewStateContractExtension.pushState',
+            },
+            progress: {
+              label: 'Streaming',
+              state: 'running',
+              current: 1,
+              total: 3,
+            },
+          },
+          resultEntries: [
         {
           id: 'pushed-entry',
           label: 'Pushed Entry',
@@ -55,6 +72,23 @@ export async function activate(context) {
       statusLabel: 'Idle',
       statusTone: 'info',
       actionLabel: 'Inspect',
+      presentation: {
+        mode: 'documentAction',
+        target: {
+          label: 'baseline.pdf',
+          path: '/tmp/baseline.pdf',
+        },
+        action: {
+          label: 'Translate',
+          commandId: 'exampleViewStateContractExtension.pushState',
+        },
+        progress: {
+          label: 'Idle',
+          state: 'idle',
+          current: 0,
+          total: 0,
+        },
+      },
       sections: [
         {
           id: 'baseline',
@@ -308,12 +342,15 @@ async function main() {
     ensure(activate?.payload?.registeredViews?.includes('exampleViewStateContractExtension.resultView'), 'contract view was not registered', activate?.payload || {})
     ensure(String(firstResolve?.payload?.message || '') === 'baseline message #1', 'baseline resolve message drifted', firstResolve?.payload || {})
     ensure(String(firstResolve?.payload?.description || '') === 'baseline description #1', 'baseline resolve description drifted', firstResolve?.payload || {})
+    ensure(String(firstResolve?.payload?.presentation?.mode || '') === 'documentAction', 'baseline resolve presentation mode drifted', firstResolve?.payload || {})
+    ensure(String(firstResolve?.payload?.presentation?.target?.label || '') === 'baseline.pdf', 'baseline resolve presentation target drifted', firstResolve?.payload || {})
     ensure(String(firstResolve?.payload?.resultEntries?.[0]?.id || '') === 'baseline-entry', 'baseline resolve result entry drifted', firstResolve?.payload || {})
     ensure(String(firstResolve?.payload?.outputs?.[0]?.id || '') === 'baseline-output', 'baseline resolve output drifted', firstResolve?.payload || {})
 
     ensure(String(pushed?.payload?.taskState || '') === 'succeeded', 'push state command did not succeed', pushed?.payload || {})
     ensure(String(pushedEvent?.payload?.message || '') === 'pushed message', 'pushed view event message drifted', pushedEvent?.payload || {})
     ensure(String(pushedEvent?.payload?.statusLabel || '') === 'Streaming', 'pushed view event status drifted', pushedEvent?.payload || {})
+    ensure(String(pushedEvent?.payload?.presentation?.progress?.state || '') === 'running', 'pushed view event presentation progress drifted', pushedEvent?.payload || {})
     ensure(String(pushedEvent?.payload?.description || '') === 'baseline description #1', 'pushed view event should preserve prior baseline description', pushedEvent?.payload || {})
 
     ensure(String(secondResolve?.payload?.message || '') === 'pushed message', 'resolved view lost pushed message after refresh', secondResolve?.payload || {})
@@ -322,6 +359,7 @@ async function main() {
     ensure(Number(secondResolve?.payload?.badgeValue ?? NaN) === 2, 'resolved view did not refresh untouched baseline badge value', secondResolve?.payload || {})
     ensure(String(secondResolve?.payload?.resultEntries?.[0]?.id || '') === 'pushed-entry', 'resolved view did not preserve pushed result entries', secondResolve?.payload || {})
     ensure(String(secondResolve?.payload?.outputs?.[0]?.id || '') === 'pushed-output', 'resolved view did not preserve pushed outputs', secondResolve?.payload || {})
+    ensure(String(secondResolve?.payload?.presentation?.target?.label || '') === 'pushed.pdf', 'resolved view did not preserve pushed presentation', secondResolve?.payload || {})
     ensure(String(secondResolve?.payload?.actionLabel || '') === 'Inspect', 'resolved view lost untouched baseline action label', secondResolve?.payload || {})
 
     console.log(JSON.stringify({

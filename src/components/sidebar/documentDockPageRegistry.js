@@ -188,7 +188,6 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
           key: container.panelId,
           type: container.panelId || `${DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX}${container.id || ''}`,
           icon: IconPlug,
-          label: presentation.label,
           title: presentation.title,
           ariaLabel: presentation.title,
           tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',

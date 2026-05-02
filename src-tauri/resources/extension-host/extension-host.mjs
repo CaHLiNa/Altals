@@ -436,6 +436,38 @@ function normalizeResultEntries(entries = [], extensionId = "") {
     .filter((entry) => entry && entry.label);
 }
 
+function normalizeViewPresentation(entry = {}) {
+  const source = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+  const target = source.target && typeof source.target === "object" && !Array.isArray(source.target)
+    ? source.target
+    : {};
+  const action = source.action && typeof source.action === "object" && !Array.isArray(source.action)
+    ? source.action
+    : {};
+  const progress = source.progress && typeof source.progress === "object" && !Array.isArray(source.progress)
+    ? source.progress
+    : {};
+  return {
+    mode: String(source.mode || "").trim(),
+    target: {
+      label: String(target.label || "").trim(),
+      path: String(target.path || "").trim(),
+      emptyLabel: String(target.emptyLabel || "").trim(),
+    },
+    action: {
+      label: String(action.label || "").trim(),
+      commandId: String(action.commandId || action.command || "").trim(),
+      disabled: Boolean(action.disabled),
+    },
+    progress: {
+      label: String(progress.label || "").trim(),
+      state: String(progress.state || "").trim(),
+      current: Number.isFinite(Number(progress.current)) ? Number(progress.current) : 0,
+      total: Number.isFinite(Number(progress.total)) ? Number(progress.total) : 0,
+    },
+  };
+}
+
 function normalizeMenuActionMetadata(command = "", metadata = {}) {
   const commandId = String(command || "").trim();
   const surface = String(metadata?.surface || "").trim();
@@ -651,14 +683,19 @@ function createExtensionApi(registry) {
       },
     },
     views: {
-      registerViewProvider(viewId, provider) {
+      registerViewProvider(viewId, provider, metadata = {}) {
         const id = String(viewId || "").trim();
         if (id && typeof provider === "function") {
           registry.viewProviders.set(id, provider);
+          const normalizedMetadata = normalizeViewMetadata(id, metadata);
+          if (normalizedMetadata) {
+            registry.viewMetadata.set(id, normalizedMetadata);
+          }
         }
         return {
           dispose() {
             registry.viewProviders.delete(id);
+            registry.viewMetadata.delete(id);
             registry.viewState.delete(id);
             registry.viewStatePatches.delete(id);
           },
@@ -734,6 +771,7 @@ function createExtensionApi(registry) {
             statusLabel: next.statusLabel,
             statusTone: next.statusTone,
             actionLabel: next.actionLabel,
+            presentation: next.presentation,
             sections: next.sections,
             resultEntries: next.resultEntries,
             artifacts: next.artifacts,
@@ -1192,6 +1230,7 @@ async function handleActivate(params = {}) {
           ...record.viewProviders.keys(),
           ...record.treeViews.keys(),
           ...record.treeViewControllers.keys(),
+          ...record.viewMetadata.keys(),
         ]),
       ],
       registeredViewDetails: [...record.viewMetadata.values()],
@@ -1324,6 +1363,7 @@ async function handleResolveView(params = {}) {
       statusLabel: mergedState.statusLabel,
       statusTone: mergedState.statusTone,
       actionLabel: mergedState.actionLabel,
+      presentation: mergedState.presentation,
       sections: mergedState.sections,
       resultEntries: mergedState.resultEntries,
       artifacts: cloneArtifactEntries(mergedState.artifacts),
@@ -1367,6 +1407,7 @@ async function handleResolveTreeView(record, provider, viewId, parentItemId, env
       statusLabel: String(record.viewState.get(viewId)?.statusLabel || ""),
       statusTone: String(record.viewState.get(viewId)?.statusTone || ""),
       actionLabel: String(record.viewState.get(viewId)?.actionLabel || ""),
+      presentation: normalizeViewPresentation(record.viewState.get(viewId)?.presentation),
       sections: normalizeSidebarSections(record.viewState.get(viewId)?.sections || []),
       resultEntries: normalizeResultEntries(record.viewState.get(viewId)?.resultEntries || [], record.id),
       artifacts: cloneArtifactEntries(record.viewState.get(viewId)?.artifacts || []),
@@ -1437,6 +1478,7 @@ function createEmptyViewState(viewId = "") {
     statusLabel: "",
     statusTone: "",
     actionLabel: "",
+    presentation: normalizeViewPresentation({}),
     sections: [],
     resultEntries: [],
     artifacts: [],
@@ -1457,6 +1499,7 @@ function resolveViewStateFromResult(viewId = "", result = {}, extensionId = "", 
     statusLabel: typeof result?.statusLabel === "string" ? result.statusLabel : "",
     statusTone: typeof result?.statusTone === "string" ? result.statusTone : "",
     actionLabel: typeof result?.actionLabel === "string" ? result.actionLabel : "",
+    presentation: normalizeViewPresentation(result?.presentation),
     sections: normalizeSidebarSections(result?.sections),
     resultEntries: normalizeResultEntries(result?.resultEntries, extensionId),
     artifacts: normalizeArtifactEntries(result?.artifacts, envelope, {
@@ -1477,6 +1520,10 @@ function mergeViewStatePatch(current = {}, patch = {}, registry) {
     statusLabel: typeof patch?.statusLabel === "string" ? patch.statusLabel : current.statusLabel,
     statusTone: typeof patch?.statusTone === "string" ? patch.statusTone : current.statusTone,
     actionLabel: typeof patch?.actionLabel === "string" ? patch.actionLabel : current.actionLabel,
+    presentation:
+      patch?.presentation && typeof patch.presentation === "object" && !Array.isArray(patch.presentation)
+        ? normalizeViewPresentation(patch.presentation)
+        : current.presentation,
     sections: Array.isArray(patch?.sections) ? normalizeSidebarSections(patch.sections) : current.sections,
     resultEntries: Array.isArray(patch?.resultEntries)
       ? normalizeResultEntries(patch.resultEntries, registry.id)
@@ -1500,6 +1547,9 @@ function extractViewStatePatch(current = {}, patch = {}, registry) {
   if (typeof patch?.statusLabel === "string") next.statusLabel = patch.statusLabel;
   if (typeof patch?.statusTone === "string") next.statusTone = patch.statusTone;
   if (typeof patch?.actionLabel === "string") next.actionLabel = patch.actionLabel;
+  if (patch?.presentation && typeof patch.presentation === "object" && !Array.isArray(patch.presentation)) {
+    next.presentation = normalizeViewPresentation(patch.presentation);
+  }
   if (Array.isArray(patch?.sections)) next.sections = normalizeSidebarSections(patch.sections);
   if (Array.isArray(patch?.resultEntries)) next.resultEntries = normalizeResultEntries(patch.resultEntries, registry.id);
   if (Array.isArray(patch?.artifacts)) {
@@ -1528,6 +1578,10 @@ function mergeResolvedViewStateWithPushedState(baseline = {}, pushed = {}) {
     statusLabel: typeof pushed.statusLabel === "string" ? pushed.statusLabel : baseline.statusLabel,
     statusTone: typeof pushed.statusTone === "string" ? pushed.statusTone : baseline.statusTone,
     actionLabel: typeof pushed.actionLabel === "string" ? pushed.actionLabel : baseline.actionLabel,
+    presentation:
+      pushed.presentation && typeof pushed.presentation === "object" && !Array.isArray(pushed.presentation)
+        ? normalizeViewPresentation(pushed.presentation)
+        : baseline.presentation,
     sections: Array.isArray(pushed.sections) ? pushed.sections : baseline.sections,
     resultEntries: Array.isArray(pushed.resultEntries) ? pushed.resultEntries : baseline.resultEntries,
     artifacts: Array.isArray(pushed.artifacts) ? pushed.artifacts : baseline.artifacts,

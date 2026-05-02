@@ -433,6 +433,54 @@ pub struct ExtensionHostSidebarSection {
     pub tone: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewPresentationTarget {
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub empty_label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewPresentationAction {
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub command_id: String,
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewPresentationProgress {
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub current: u32,
+    #[serde(default)]
+    pub total: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostViewPresentation {
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub target: ExtensionHostViewPresentationTarget,
+    #[serde(default)]
+    pub action: ExtensionHostViewPresentationAction,
+    #[serde(default)]
+    pub progress: ExtensionHostViewPresentationProgress,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionHostResultEntry {
@@ -489,6 +537,8 @@ pub struct ExtensionHostViewResolveResult {
     #[serde(default)]
     pub action_label: String,
     #[serde(default)]
+    pub presentation: ExtensionHostViewPresentation,
+    #[serde(default)]
     pub sections: Vec<ExtensionHostSidebarSection>,
     #[serde(default)]
     pub result_entries: Vec<ExtensionHostResultEntry>,
@@ -533,6 +583,8 @@ pub struct ExtensionHostViewStateChangedEvent {
     pub status_tone: String,
     #[serde(default)]
     pub action_label: String,
+    #[serde(default)]
+    pub presentation: ExtensionHostViewPresentation,
     #[serde(default)]
     pub sections: Vec<ExtensionHostSidebarSection>,
     #[serde(default)]
@@ -2528,6 +2580,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             status_label: String::new(),
             status_tone: String::new(),
             action_label: String::new(),
+            presentation: ExtensionHostViewPresentation::default(),
             sections: Vec::new(),
             result_entries: Vec::new(),
             artifacts: Vec::new(),

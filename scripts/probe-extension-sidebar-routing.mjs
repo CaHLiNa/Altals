@@ -85,6 +85,7 @@ try {
         panelId: 'extension:examplePdfExtension.tools',
         title: 'Translate PDF',
         contextualTitle: '',
+        presentation: 'documentAction',
         when: 'resourceExtname == .pdf || resource.kind == pdf',
       },
     ],
@@ -140,6 +141,7 @@ try {
   const views = extensions.viewsForContainer('examplePdfExtension.tools', context)
   assert.equal(views.length, 1)
   assert.equal(views[0].panelId, 'extension:examplePdfExtension.tools')
+  assert.equal(views[0].presentation, 'documentAction')
 
   const titleActions = extensions.viewTitleActionsForView(views[0], context)
   assert.equal(titleActions.length, 1)
@@ -171,6 +173,7 @@ try {
   const pluginPage = pages.find((page) => page.key === 'extension:examplePdfExtension.tools')
   assert.ok(pluginPage)
   assert.equal(pluginPage.type, 'extension:examplePdfExtension.tools')
+  assert.equal(pluginPage.label, undefined)
   assert.equal(pluginPage.componentProps?.panelId, 'extension:examplePdfExtension.tools')
   const pluginPresentation = buildExtensionPluginContainerPresentation(
     {

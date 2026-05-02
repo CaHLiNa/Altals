@@ -249,14 +249,19 @@ async function main() {
   const viewChanged = observed.find((entry) =>
     entry.kind === 'ViewStateChanged' &&
     entry.payload?.viewId === 'retainPdf.panel' &&
-    Array.isArray(entry.payload?.resultEntries) &&
-    entry.payload.resultEntries.some((item) => item.id === 'retain-pdf-translated-pdf') &&
+    entry.payload?.presentation?.mode === 'documentAction' &&
+    entry.payload?.presentation?.target?.label === 'paper.pdf' &&
     entry.payload.statusLabel === '已完成'
   )
-  ensure(Boolean(viewChanged), 'retain-pdf panel did not publish completed translated result entries', observed)
+  ensure(Boolean(viewChanged), 'retain-pdf panel did not publish completed document action presentation', observed)
   ensure(
-    viewChanged.payload.resultEntries.some((item) => item.label === '打开翻译后 PDF'),
-    'retain-pdf panel did not localize result entries from plugin language pack',
+    viewChanged.payload.presentation.action.label === '翻译',
+    'retain-pdf panel did not localize document action from plugin language pack',
+    viewChanged.payload,
+  )
+  ensure(
+    Array.isArray(viewChanged.payload.resultEntries) && viewChanged.payload.resultEntries.length === 0,
+    'retain-pdf panel should not expose internal result entries in the sidebar view state',
     viewChanged.payload,
   )
 

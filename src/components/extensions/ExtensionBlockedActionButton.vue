@@ -2,6 +2,7 @@
   <UiButton
     v-if="!native"
     v-bind="boundProps"
+    @click="$emit('click', $event)"
   >
     {{ displayLabel }}
   </UiButton>
@@ -10,6 +11,7 @@
     v-else
     type="button"
     v-bind="boundProps"
+    @click="$emit('click', $event)"
   >
     {{ displayLabel }}
   </button>
@@ -30,8 +32,11 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   variant: { type: String, default: 'secondary' },
   size: { type: String, default: 'sm' },
+  block: { type: Boolean, default: false },
   extraClass: { type: [String, Object, Array], default: '' },
 })
+
+defineEmits(['click'])
 
 const displayLabel = computed(() => (
   props.blocked ? (props.blockedLabel || props.label) : props.label
@@ -59,6 +64,7 @@ const boundProps = computed(() => {
       variant: props.variant,
       size: props.size,
       loading: props.loading,
+      block: props.block,
     }
   }
 

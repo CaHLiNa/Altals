@@ -236,6 +236,38 @@ function normalizeSidebarSection(entry = {}, index = 0) {
   }
 }
 
+function normalizeViewPresentation(entry = {}) {
+  const source = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}
+  const target = source?.target && typeof source.target === 'object' && !Array.isArray(source.target)
+    ? source.target
+    : {}
+  const action = source?.action && typeof source.action === 'object' && !Array.isArray(source.action)
+    ? source.action
+    : {}
+  const progress = source?.progress && typeof source.progress === 'object' && !Array.isArray(source.progress)
+    ? source.progress
+    : {}
+  return {
+    mode: String(source.mode || '').trim(),
+    target: {
+      label: String(target.label || '').trim(),
+      path: String(target.path || '').trim(),
+      emptyLabel: String(target.emptyLabel || '').trim(),
+    },
+    action: {
+      label: String(action.label || '').trim(),
+      commandId: String(action.commandId || action.command || '').trim(),
+      disabled: Boolean(action.disabled),
+    },
+    progress: {
+      label: String(progress.label || '').trim(),
+      state: String(progress.state || '').trim(),
+      current: Number.isFinite(Number(progress.current)) ? Number(progress.current) : 0,
+      total: Number.isFinite(Number(progress.total)) ? Number(progress.total) : 0,
+    },
+  }
+}
+
 function normalizeResultEntry(entry = {}, index = 0) {
   return {
     id: String(entry?.id || `result:${index}`).trim(),
@@ -458,9 +490,14 @@ export const useExtensionsStore = defineStore('extensions', {
           const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
           const runtimeActions = runtimeEntry.registeredMenuActions
             .filter((action) => action.surface === normalizedSurface)
+          const manifestActions = (extension.contributedMenus || [])
+            .filter((action) => action.surface === normalizedSurface)
+          const manifestActionKeys = new Set(manifestActions.map((action) => action.commandId))
           const sourceActions = runtimeActions.length > 0
-            ? runtimeActions
-            : (extension.contributedMenus || []).filter((action) => action.surface === normalizedSurface)
+            ? runtimeActions.filter((action) =>
+                manifestActions.length === 0 || manifestActionKeys.has(action.commandId)
+              )
+            : manifestActions
           return sourceActions
             .filter((action) => matchesWhenClause(action.when, context))
             .map((action) => ({
@@ -562,6 +599,9 @@ export const useExtensionsStore = defineStore('extensions', {
                   ).trim(),
                   contextualTitle: String(
                     manifestViewById.get(String(view?.id || '').trim())?.contextualTitle || '',
+                  ).trim(),
+                  presentation: String(
+                    manifestViewById.get(String(view?.id || '').trim())?.presentation || '',
                   ).trim(),
                   when: String(
                     view?.when ||
@@ -1339,6 +1379,7 @@ export const useExtensionsStore = defineStore('extensions', {
         statusLabel: String(resolved?.statusLabel || ''),
         statusTone: String(resolved?.statusTone || ''),
         actionLabel: String(resolved?.actionLabel || ''),
+        presentation: normalizeViewPresentation(resolved?.presentation),
         sections: Array.isArray(resolved?.sections)
           ? resolved.sections.map((entry, index) => normalizeSidebarSection(entry, index))
           : [],
@@ -1558,6 +1599,7 @@ export const useExtensionsStore = defineStore('extensions', {
           statusLabel: String(payload.statusLabel || ''),
           statusTone: String(payload.statusTone || ''),
           actionLabel: String(payload.actionLabel || ''),
+          presentation: normalizeViewPresentation(payload.presentation),
           sections: Array.isArray(payload.sections)
             ? payload.sections.map((entry, index) => normalizeSidebarSection(entry, index))
             : [],

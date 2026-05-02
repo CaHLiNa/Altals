@@ -4,6 +4,15 @@
       {{ t('No document plugins available') }}
     </div>
 
+    <div v-else-if="usesDocumentActionPanel" class="document-plugin-page__shell">
+      <ExtensionDocumentActionPanel
+        :container="container"
+        :presentation="documentActionPresentation"
+        :target="resolvedTarget"
+        :title="containerTitle"
+      />
+    </div>
+
     <div v-else class="document-plugin-page__shell">
       <div class="document-plugin-page__meta">
         <div class="document-plugin-page__title-row">
@@ -50,7 +59,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
@@ -59,6 +68,7 @@ import { buildExtensionContext } from '../../domains/extensions/extensionContext
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
 import ExtensionCountBadge from '../extensions/ExtensionCountBadge.vue'
+import ExtensionDocumentActionPanel from '../extensions/ExtensionDocumentActionPanel.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
@@ -118,6 +128,30 @@ const containerTitle = computed(() => containerPresentation.value.title)
 const containerDescription = computed(() => containerPresentation.value.description)
 const containerBadge = computed(() => containerPresentation.value.badgeValue)
 const containerBadgeTooltip = computed(() => containerPresentation.value.badgeTooltip)
+const firstViewPresentation = computed(() => firstViewState.value?.presentation || {})
+const usesDocumentActionPanel = computed(() => {
+  const mode = String(firstViewPresentation.value?.mode || firstView.value?.presentation || '').trim()
+  return mode === 'documentAction'
+})
+const latestTask = computed(() => extensionTasks.value[0] || null)
+const documentActionPresentation = computed(() => {
+  const base = firstViewPresentation.value && typeof firstViewPresentation.value === 'object'
+    ? firstViewPresentation.value
+    : {}
+  const task = latestTask.value
+  if (!task) return base
+  const progress = task.progress || {}
+  return {
+    ...base,
+    progress: {
+      ...(base.progress || {}),
+      label: progress.label || base.progress?.label || '',
+      state: task.state || base.progress?.state || '',
+      current: progress.current || base.progress?.current || 0,
+      total: progress.total || base.progress?.total || 0,
+    },
+  }
+})
 const extensionTasks = computed(() =>
   container.value?.extensionId
     ? extensionsStore.recentTasksForExtension(container.value.extensionId)
@@ -161,6 +195,22 @@ const hostDiagnosticSummary = computed(() => {
 const hostDiagnosticToneClass = computed(() => {
   return hostStatusPresentation.value.toneClass || ''
 })
+
+watch(
+  () => ({
+    extensionId: firstView.value?.extensionId || '',
+    viewId: firstView.value?.id || '',
+    mode: String(firstView.value?.presentation || '').trim(),
+    targetKind: resolvedTarget.value.kind,
+    targetPath: resolvedTarget.value.path,
+    referenceId: resolvedTarget.value.referenceId,
+  }),
+  (next) => {
+    if (next.mode !== 'documentAction' || !next.extensionId || !next.viewId) return
+    void extensionsStore.resolveView(firstView.value, resolvedTarget.value).catch(() => {})
+  },
+  { immediate: true }
+)
 
 </script>
 
