@@ -203,6 +203,10 @@ Components over 500 lines:
 
 - 2026-05-02: `src/stores/workspace.js` now sends persisted setting patch values to `workspace_preferences_save` without pre-normalizing wrap, booleans, file tree modes, PDF modes, citation settings, or locale in JS. Rust `workspace_preferences.rs` remains the persisted schema/default/normalization authority, and the store consumes the normalized preferences returned by Rust. `src/services/workspacePreferences.js` keeps DOM/UI helpers for font, theme, and PDF preview display normalization only.
 
+## Reference Authority Cleanup Log
+
+- 2026-05-02: `src/services/references/referenceLibraryIO.js` no longer re-normalizes reference library snapshots in JavaScript after Rust `references_snapshot_normalize`, `references_library_load_workspace`, or `references_library_write` returns. Snapshot shape, document reference selection pruning, collection/tag registry cleanup, record normalization, rating removal, and library persistence normalization remain owned by `src-tauri/src/references_snapshot.rs` and `src-tauri/src/references_backend.rs`; the JS service now only bridges commands and provides an empty fallback when no storage root is available.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`
