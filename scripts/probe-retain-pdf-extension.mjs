@@ -5,7 +5,8 @@ import path from 'node:path'
 
 const repoRoot = process.cwd()
 const hostPath = path.join(repoRoot, 'src-tauri/resources/extension-host/extension-host.mjs')
-const extensionPath = path.join(repoRoot, '.scribeflow/extensions/retain-pdf')
+const extensionPath = process.env.SCRIBEFLOW_RETAIN_PDF_EXTENSION_PATH ||
+  path.join(os.homedir(), '.scribeflow/extensions/retain-pdf')
 const manifestPath = path.join(extensionPath, 'package.json')
 
 function ensure(condition, message, details = null) {
