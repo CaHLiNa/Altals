@@ -204,7 +204,14 @@
                     <div class="extension-capability-card-copy">
                       <div class="extension-capability-card-title-row">
                         <div class="extension-capability-card-title">{{ capability.id }}</div>
+                        <ExtensionBlockedStatusChip
+                          v-if="capabilityBlocked(extension, capability)"
+                          :label="capabilityStatusLabel(extension, capability)"
+                          :title="capabilityStatusMessage(extension, capability)"
+                          :tone-class="capabilityStatusClass(extension, capability)"
+                        />
                         <span
+                          v-else
                           class="extension-capability-card-status"
                           :class="capabilityStatusClass(extension, capability)"
                         >
@@ -215,14 +222,18 @@
                         {{ capabilityStatusMessage(extension, capability) }}
                       </div>
                     </div>
-                    <UiButton
+                    <ExtensionBlockedActionButton
                       variant="ghost"
                       size="sm"
-                      :disabled="capabilityBusyId === `${extension.id}:${capability.id}` || !capabilityCanRun(extension, capability)"
+                      :loading="capabilityBusyId === `${extension.id}:${capability.id}`"
+                      :disabled="!capabilityBlocked(extension, capability) && !capabilitySchemaReady(capability)"
+                      :blocked="capabilityBlocked(extension, capability)"
+                      :blocked-label="capabilityStatusLabel(extension, capability)"
+                      :blocked-message="capabilityStatusMessage(extension, capability)"
+                      :label="capabilityButtonLabel(extension, capability)"
+                      :title="capabilityButtonLabel(extension, capability)"
                       @click="runCapability(extension, capability)"
-                    >
-                      {{ capabilityButtonLabel(extension, capability) }}
-                    </UiButton>
+                    />
                   </div>
                   <div class="extension-capability-schema-grid">
                     <div class="extension-capability-schema-column">
@@ -372,6 +383,8 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import ExtensionBlockedActionButton from '../extensions/ExtensionBlockedActionButton.vue'
+import ExtensionBlockedStatusChip from '../extensions/ExtensionBlockedStatusChip.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
@@ -576,6 +589,10 @@ function capabilityHostState(extension = {}) {
 function capabilityButtonLabel(extension = {}, capability = {}) {
   const hostState = capabilityHostState(extension)
   if (hostState.blocked) return hostState.label
+  return capabilityReadyActionLabel(capability)
+}
+
+function capabilityReadyActionLabel(capability = {}) {
   return t('Run {name}', {
     name: String(capability?.id || '').trim(),
   })
@@ -593,6 +610,10 @@ function capabilitySchemaReady(capability = {}) {
 
 function capabilityCanRun(extension = {}, capability = {}) {
   return capabilitySchemaReady(capability) && !capabilityHostState(extension).blocked
+}
+
+function capabilityBlocked(extension = {}, capability = {}) {
+  return capabilityHostState(extension).blocked && Boolean(capability?.id)
 }
 
 function capabilityStatusLabel(extension = {}, capability = {}) {
@@ -838,6 +859,8 @@ const hostRuntimeName = computed(() => hostStatus().runtime || t('Not configured
 const hostRuntimeSlots = computed(() =>
   Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
 )
+const showHostRuntimeRestartAction = computed(() => hostRuntimeSlots.value.length > 0)
+const hostRuntimeRestartBusy = computed(() => Boolean(hostRuntimeRestartBusyKey.value))
 const hostStatusSurface = computed(() =>
   buildExtensionHostStatusSurface({
     pendingPromptOwner: hostStatus().pendingPromptOwner,
