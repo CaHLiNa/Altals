@@ -1,6 +1,6 @@
 {
   "productName": "ScribeFlow",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "identifier": "com.scribeflow.desktop",
   "build": {
     "frontendDist": "../dist",
