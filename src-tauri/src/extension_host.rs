@@ -2066,14 +2066,10 @@ pub fn invoke_extension_host(
             } else {
                 if !matches!(request, ExtensionHostRequest::RespondUiRequest { .. }) {
                     if let Some(owner_extension_id) = pending_ui_request_owner(state)? {
-                        let request_extension_id = request_extension_id(&request);
-                        if request_extension_id.is_empty()
-                            || request_extension_id != owner_extension_id
-                        {
-                            return Err(format!(
-                                "Extension host is waiting for UI input from {owner_extension_id}; complete or cancel that prompt before sending another top-level request"
-                            ));
-                        }
+                        let _request_extension_id = request_extension_id(&request);
+                        return Err(format!(
+                            "Extension host is waiting for UI input from {owner_extension_id}; complete or cancel that prompt before sending another top-level request"
+                        ));
                     }
                 }
                 let _guard = state
