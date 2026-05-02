@@ -13,10 +13,13 @@
           :key="action.id"
           variant="secondary"
           size="sm"
+          :disabled="action.blocked"
           :loading="isActionBusy(action.entry)"
+          :title="action.blocked ? action.blockedMessage : action.label"
+          :aria-label="action.blocked ? action.blockedMessage : action.label"
           @click="$emit('run-action', action.entry)"
         >
-          {{ action.label }}
+          {{ action.blocked ? action.blockedLabel : action.label }}
         </UiButton>
       </div>
     </div>
@@ -71,6 +74,8 @@ import UiButton from '../shared/ui/UiButton.vue'
 import { readWorkspaceTextFile } from '../../services/fileStoreIO'
 import { readExtensionArtifactText } from '../../services/extensions/extensionArtifacts'
 import { loadExtensionTextPreviewContent } from '../../services/extensions/extensionTextPreview'
+import { useExtensionsStore } from '../../stores/extensions'
+import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
 const ImagePreviewPane = defineAsyncComponent(() => import('../editor/ImagePreviewPane.vue'))
@@ -84,6 +89,7 @@ const props = defineProps({
 defineEmits(['run-action'])
 
 const { t } = useI18n()
+const extensionsStore = useExtensionsStore()
 
 const previewMode = computed(() => String(props.entry?.previewMode || '').trim().toLowerCase())
 const previewPath = computed(() => String(props.entry?.previewPath || props.entry?.path || '').trim())
@@ -101,10 +107,19 @@ const toolbarActions = computed(() => {
   const baseEntry = props.entry || {}
   const primaryAction = String(baseEntry.action || '').trim().toLowerCase()
   if (baseEntry.path || baseEntry.previewPath || ['copy-text', 'copy-path', 'execute-command', 'open-reference'].includes(primaryAction)) {
+    const primaryState = buildExtensionActionSurfaceState({
+      hostDiagnostics: hostDiagnostics.value,
+      resultEntry: baseEntry,
+    })
     actions.push({
       id: 'primary',
       label: labelForAction(baseEntry),
       entry: baseEntry,
+      blocked: primaryState.resultEntryBlocked,
+      blockedLabel: primaryState.runtimeBlock.labelKey ? t(primaryState.runtimeBlock.labelKey) : '',
+      blockedMessage: primaryState.runtimeBlock.messageKey
+        ? t(primaryState.runtimeBlock.messageKey, primaryState.runtimeBlock.messageParams)
+        : '',
     })
   }
   if (primaryAction !== 'reveal' && baseEntry.path) {
@@ -129,6 +144,10 @@ const toolbarActions = computed(() => {
     })
   }
   return actions
+})
+const hostDiagnostics = computed(() => {
+  const extensionId = String(props.entry?.extensionId || props.entry?.extension_id || '').trim().toLowerCase()
+  return extensionId ? extensionsStore.hostDiagnosticsFor(extensionId) : {}
 })
 
 const isPdfPreview = computed(() =>

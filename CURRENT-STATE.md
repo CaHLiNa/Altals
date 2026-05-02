@@ -111,6 +111,7 @@ Current plugin lifecycle contract:
 - command-level host blocking UX is now centralized too: command buttons and the command palette both derive blocked/waiting state from shared host diagnostics before dispatch, show owner-aware status labels inline, and stop sending users into avoidable top-level command errors when the host is already prompt-blocked
 - command dispatch preflight is now enforced at the store boundary too: keybindings, sidebar actions, and result-entry reruns all consult the same host blocked/waiting snapshot before activation or execution, emit structured warning-grade errors for UI surfaces, and avoid sending doomed top-level command requests into the shared host
 - capability dispatch now follows the same host preflight model too: settings-surface capability runs consult the same blocked/waiting snapshot before activation or invocation, reuse the shared warning/error descriptor path, and stop sending capability requests into the host when a prompt already owns the channel
+- document-plugin action surfaces are now blocked-aware too: sidebar header actions, tree item commands, and result-entry rerun actions derive disabled state from the shared runtime block descriptor, keep expandable tree groups interactive when they do not dispatch a command, and surface blocked/waiting labels inline instead of only after a toast path
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -158,6 +159,7 @@ It runs:
 - `npm run probe:extension-command-host-state-contract`
 - `npm run probe:extension-command-dispatch-preflight-store-contract`
 - `npm run probe:extension-capability-dispatch-preflight-store-contract`
+- `npm run probe:extension-action-surface-state-contract`
 - `npm run probe:extension-secure-settings-bridge`
 - `npm run probe:extension-settings-change-contract`
 - `npm run probe:extension-process-contract`
@@ -227,6 +229,7 @@ Current baseline:
 - extension command host-state contract probe passes
 - extension command dispatch preflight store contract probe passes
 - extension capability dispatch preflight store contract probe passes
+- extension action surface state contract probe passes
 - extension secure settings bridge probe passes
 - extension settings change contract probe passes
 - extension process bridge contract probe passes

@@ -6,6 +6,19 @@ function normalizeExtensionId(value = '') {
   return String(value || '').trim().toLowerCase()
 }
 
+function normalizeActionCommandId(action = {}) {
+  return String(action?.commandId || action?.command || '').trim()
+}
+
+function normalizeResultAction(entry = {}) {
+  return String(entry?.action || '').trim().toLowerCase()
+}
+
+function isExpandableTreeItem(item = {}) {
+  const state = String(item?.collapsibleState || '').trim().toLowerCase()
+  return Boolean(state && state !== 'none')
+}
+
 function renderTemplate(template = '', params = {}) {
   let rendered = String(template || '')
   for (const [key, value] of Object.entries(params || {})) {
@@ -68,6 +81,25 @@ export function buildExtensionRuntimeBlockDescriptor(hostState = {}) {
     tone: String(hostState?.tone || '').trim(),
     status: String(hostState?.status || '').trim(),
   }
+}
+
+export function isRuntimeBlockedCommandAction(action = {}, runtimeBlock = {}) {
+  return Boolean(runtimeBlock?.blocked) && Boolean(normalizeActionCommandId(action))
+}
+
+export function isRuntimeBlockedResultEntry(entry = {}, runtimeBlock = {}) {
+  return Boolean(runtimeBlock?.blocked) &&
+    normalizeResultAction(entry) === 'execute-command' &&
+    Boolean(normalizeActionCommandId(entry))
+}
+
+export function isRuntimeBlockedTreePrimaryAction(item = {}, runtimeBlock = {}) {
+  if (!runtimeBlock?.blocked) return false
+  return !(isExpandableTreeItem(item) && !normalizeActionCommandId(item))
+}
+
+export function isRuntimeBlockedTreeAction(action = {}, runtimeBlock = {}) {
+  return isRuntimeBlockedCommandAction(action, runtimeBlock)
 }
 
 export function buildExtensionCommandBlockedError(hostState = {}, context = {}) {

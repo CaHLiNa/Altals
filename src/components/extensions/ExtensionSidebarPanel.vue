@@ -7,13 +7,16 @@
       </div>
       <div class="extension-sidebar-panel__header-actions">
         <button
-          v-for="action in viewTitleActions"
+          v-for="action in viewTitleActionsWithState"
           :key="`${action.extensionId}:${action.commandId}`"
           type="button"
           class="extension-sidebar-panel__refresh"
+          :class="{ 'is-blocked': action.blocked }"
+          :title="action.blocked ? action.blockedMessage : ''"
+          :disabled="action.blocked"
           @click="runHeaderAction(action)"
         >
-          {{ t(action.title || action.commandId) }}
+          {{ action.blocked ? action.blockedLabel : t(action.title || action.commandId) }}
         </button>
         <button type="button" class="extension-sidebar-panel__refresh" @click="refreshViews">
           {{ t('Refresh') }}
@@ -130,6 +133,7 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
+import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 
@@ -149,10 +153,36 @@ const title = computed(() => t(props.container?.title || props.container?.id || 
 const extensionName = computed(() => props.container?.extensionName || props.container?.extensionId || '')
 const views = computed(() => extensionsStore.viewsForContainer(props.container?.id, props.context))
 const expandedItemKeys = ref({})
+const hostDiagnostics = computed(() =>
+  props.container?.extensionId
+    ? extensionsStore.hostDiagnosticsFor(props.container.extensionId)
+    : {}
+)
+const runtimeBlock = computed(() =>
+  buildExtensionActionSurfaceState({
+    hostDiagnostics: hostDiagnostics.value,
+  }).runtimeBlock
+)
 const viewTitleActions = computed(() => {
   const firstView = views.value[0] || {}
   return extensionsStore.viewTitleActionsForView(firstView, props.context)
 })
+const viewTitleActionsWithState = computed(() =>
+  viewTitleActions.value.map((action) => {
+    const state = buildExtensionActionSurfaceState({
+      hostDiagnostics: hostDiagnostics.value,
+      headerAction: action,
+    })
+    return {
+      ...action,
+      blocked: state.headerActionBlocked,
+      blockedLabel: state.runtimeBlock.labelKey ? t(state.runtimeBlock.labelKey) : '',
+      blockedMessage: state.runtimeBlock.messageKey
+        ? t(state.runtimeBlock.messageKey, state.runtimeBlock.messageParams)
+        : '',
+    }
+  })
+)
 const resolvedViewRefreshTokens = computed(() =>
   views.value.map((view) => ({
     key: `${view.extensionId}:${view.id}`,

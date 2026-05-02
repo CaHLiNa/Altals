@@ -17,13 +17,16 @@
         :class="{
           'extension-tree-node__primary--selected': isSelected,
           'extension-tree-node__primary--focused': isFocused,
+          'extension-tree-node__primary--blocked': primaryBlocked,
         }"
-        :title="item.tooltip || item.description || ''"
+        :title="primaryBlocked ? blockedMessage : (item.tooltip || item.description || '')"
+        :disabled="primaryBlocked"
         @click="$emit('run-command', item)"
       >
         <span v-if="item.icon" class="extension-tree-node__icon">{{ item.icon }}</span>
         <span class="extension-tree-node__label">{{ item.label }}</span>
         <span v-if="item.description" class="extension-tree-node__meta">{{ item.description }}</span>
+        <span v-if="primaryBlocked" class="extension-tree-node__blocked-label">{{ blockedLabel }}</span>
       </button>
 
       <div v-if="itemActions.length > 0" class="extension-tree-node__actions">
@@ -32,9 +35,12 @@
           :key="`${action.extensionId}:${action.commandId}:${item.id}`"
           type="button"
           class="extension-tree-node__action"
+          :class="{ 'extension-tree-node__action--blocked': secondaryBlocked(action) }"
+          :title="secondaryBlocked(action) ? blockedMessage : ''"
+          :disabled="secondaryBlocked(action)"
           @click.stop="$emit('run-item-action', action)"
         >
-          {{ t(action.title || action.commandId) }}
+          {{ secondaryBlocked(action) ? blockedLabel : t(action.title || action.commandId) }}
         </button>
       </div>
     </div>
@@ -61,6 +67,7 @@
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
+import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 
 defineOptions({ name: 'ExtensionSidebarTreeNode' })
 
@@ -95,6 +102,30 @@ const controllerState = computed(() => extensionsStore.viewControllerStateFor(`$
 const currentHandle = computed(() => String(props.item?.handle || props.item?.id || ''))
 const isSelected = computed(() => currentHandle.value && currentHandle.value === String(controllerState.value.selectedHandle || ''))
 const isFocused = computed(() => currentHandle.value && currentHandle.value === String(controllerState.value.focusedHandle || ''))
+const hostDiagnostics = computed(() => extensionsStore.hostDiagnosticsFor(props.view.extensionId))
+const actionSurfaceState = computed(() =>
+  buildExtensionActionSurfaceState({
+    hostDiagnostics: hostDiagnostics.value,
+    primaryTreeItem: props.item,
+  })
+)
+const primaryBlocked = computed(() => actionSurfaceState.value.primaryTreeItemBlocked)
+const blockedLabel = computed(() => {
+  const labelKey = actionSurfaceState.value.runtimeBlock.labelKey
+  return labelKey ? t(labelKey) : ''
+})
+const blockedMessage = computed(() => {
+  const messageKey = actionSurfaceState.value.runtimeBlock.messageKey
+  const params = actionSurfaceState.value.runtimeBlock.messageParams || {}
+  return messageKey ? t(messageKey, params) : ''
+})
+
+function secondaryBlocked(action = {}) {
+  return buildExtensionActionSurfaceState({
+    hostDiagnostics: hostDiagnostics.value,
+    treeAction: action,
+  }).treeActionBlocked
+}
 </script>
 
 <style scoped>
@@ -145,14 +176,19 @@ const isFocused = computed(() => currentHandle.value && currentHandle.value === 
   text-align: left;
 }
 
+.extension-tree-node__primary:disabled,
+.extension-tree-node__action:disabled {
+  cursor: not-allowed;
+}
+
 .extension-tree-node__icon {
   color: var(--text-muted);
   font-size: 11px;
 }
 
-.extension-tree-node__primary:hover,
+.extension-tree-node__primary:hover:not(:disabled),
 .extension-tree-node__chevron:hover:not(.extension-tree-node__chevron--empty),
-.extension-tree-node__action:hover {
+.extension-tree-node__action:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
@@ -163,6 +199,10 @@ const isFocused = computed(() => currentHandle.value && currentHandle.value === 
 
 .extension-tree-node__primary--focused {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.extension-tree-node__primary--blocked {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
 }
 
 .extension-tree-node__label {
@@ -177,6 +217,12 @@ const isFocused = computed(() => currentHandle.value && currentHandle.value === 
   font-size: 11px;
 }
 
+.extension-tree-node__blocked-label {
+  color: color-mix(in srgb, var(--warning) 78%, var(--text-primary));
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .extension-tree-node__actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -187,6 +233,10 @@ const isFocused = computed(() => currentHandle.value && currentHandle.value === 
 .extension-tree-node__action {
   color: var(--text-muted);
   font-size: 10px;
+}
+
+.extension-tree-node__action--blocked {
+  color: color-mix(in srgb, var(--warning) 78%, var(--text-primary));
 }
 
 .extension-tree-node__children {
