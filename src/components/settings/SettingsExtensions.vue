@@ -217,6 +217,7 @@ const extensions = computed(() => extensionsStore.registry)
 const hostRuntimeRestartBusyKey = ref('')
 const selectedExtensionId = ref('')
 const settingDrafts = reactive({})
+const savedSecureSettingDrafts = reactive({})
 const settingSaveTimers = new Map()
 const SETTING_SAVE_DELAY_MS = 360
 const selectedExtension = computed(() =>
@@ -402,6 +403,9 @@ function settingDraftValue(extension = {}, key = '') {
   if (Object.prototype.hasOwnProperty.call(settingDrafts, draftKey)) {
     return settingDrafts[draftKey]
   }
+  if (Object.prototype.hasOwnProperty.call(savedSecureSettingDrafts, draftKey)) {
+    return savedSecureSettingDrafts[draftKey]
+  }
   return settingValue(extension, key)
 }
 
@@ -470,6 +474,7 @@ async function persistSettingDraft(extensionId = '', key = '') {
     const setting = extension?.settingsSchema?.[normalizedKey]
     await extensionsStore.setExtensionConfigValue(normalizedExtensionId, normalizedKey, value)
     if (setting?.secureStorage === true) {
+      savedSecureSettingDrafts[draftKey] = value
       delete settingDrafts[draftKey]
       return
     }
@@ -492,6 +497,7 @@ function updateSettingDraft(extensionId = '', key = '', value = '') {
   const normalizedKey = String(key || '').trim()
   const draftKey = settingDraftKey(normalizedExtensionId, normalizedKey)
   if (!normalizedExtensionId || !normalizedKey) return
+  delete savedSecureSettingDrafts[draftKey]
   settingDrafts[draftKey] = value
   if (settingSaveTimers.has(draftKey)) {
     clearTimeout(settingSaveTimers.get(draftKey))
