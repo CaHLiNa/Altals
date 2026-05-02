@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page extensions-page">
+  <div class="settings-page extensions-page" :class="{ 'is-options-view': selectedExtension }">
     <h3 class="settings-section-title">{{ t('Extensions') }}</h3>
 
     <section v-if="showHostRuntimeNotice" class="settings-group">
@@ -507,6 +507,10 @@ onMounted(async () => {
   gap: 32px;
 }
 
+.extensions-page.is-options-view {
+  gap: 14px;
+}
+
 .extensions-group-heading {
   display: flex;
   align-items: center;
@@ -567,7 +571,7 @@ onMounted(async () => {
 }
 
 .extension-options-title .extension-card-icon-button {
-  margin: 8px 0 0 4px;
+  margin: 0 0 0 4px;
 }
 
 .extension-empty-row {
