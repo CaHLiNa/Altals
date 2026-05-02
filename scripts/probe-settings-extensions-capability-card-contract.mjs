@@ -72,6 +72,10 @@ try {
   const { applyLocalePreference } = await vite.ssrLoadModule('/src/i18n/index.js')
   const componentModule = await vite.ssrLoadModule('/src/components/settings/SettingsExtensions.vue')
   const SettingsExtensions = componentModule.default
+  const settingsExtensionsSource = await readFile(
+    new URL('../src/components/settings/SettingsExtensions.vue', import.meta.url),
+    'utf8',
+  )
 
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -358,6 +362,10 @@ try {
   assert.doesNotMatch(localizedHtml, /Keychain/)
   assert.doesNotMatch(localizedHtml, /Less common plugin-specific options/)
   assert.doesNotMatch(localizedHtml, /Host-managed model, endpoint, and secure credential values/)
+  assert.match(
+    settingsExtensionsSource,
+    /selectedSettingGroups\.length === 0 && selectedActionGroups\.length === 0/,
+  )
 
   console.log(JSON.stringify({
     ok: true,
@@ -376,6 +384,8 @@ try {
         !localizedHtml.includes('模型 API 密钥') &&
         !localizedHtml.includes('开发者模式'),
       localizedOptionsButton: localizedHtml.includes('aria-label="选项"'),
+      runtimeOnlyActionsDoNotFallThroughEmptyState:
+        settingsExtensionsSource.includes('selectedSettingGroups.length === 0 && selectedActionGroups.length === 0'),
     },
   }, null, 2))
 } finally {

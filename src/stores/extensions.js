@@ -102,7 +102,8 @@ function normalizeExtension(extension = {}) {
     contributedCapabilities: contributions.capabilities,
     warnings: Array.isArray(extension.warnings) ? extension.warnings : [],
     errors: Array.isArray(extension.errors) ? extension.errors : [],
-    settingsSchema: contributions.configuration,
+    settingsSchema: contributions.configuration?.properties || {},
+    settingsActions: Array.isArray(contributions.configuration?.actions) ? contributions.configuration.actions : [],
   }
 }
 

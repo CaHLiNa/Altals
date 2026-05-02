@@ -116,7 +116,7 @@
         </div>
       </section>
 
-      <section v-if="selectedSettingGroups.length === 0" class="settings-group">
+      <section v-if="selectedSettingGroups.length === 0 && selectedActionGroups.length === 0" class="settings-group">
         <h4 class="settings-group-title">{{ t('Extension options') }}</h4>
         <div class="settings-group-body">
           <div class="extension-empty-row">
@@ -127,28 +127,35 @@
 
       <template v-else>
         <section
-          v-if="showSelectedExtensionActions"
+          v-for="group in selectedActionGroups"
+          :key="`${selectedExtension.id}:action-group:${group.id}`"
           class="settings-group extension-options-settings-group"
         >
-          <h4 class="settings-group-title">{{ t('Runtime') }}</h4>
-          <div class="settings-group-body extension-options-actions-group">
-            <div class="extension-options-actions-copy">
-              <div class="settings-row-title extension-setting-label-row">
-                <span>{{ t('Plugin Environment') }}</span>
+          <h4 class="settings-group-title">{{ t(group.title) }}</h4>
+          <div class="settings-group-body extension-options-actions-list">
+            <div
+              v-for="action in group.actions"
+              :key="`${selectedExtension.id}:action:${action.id}`"
+              class="extension-options-actions-group"
+            >
+              <div class="extension-options-actions-copy">
+                <div class="settings-row-title extension-setting-label-row">
+                  <span>{{ t(action.title) }}</span>
+                </div>
+                <div class="extension-action-hint">
+                  {{ actionMessage(action.id, action.description) }}
+                </div>
               </div>
-              <div class="extension-action-hint">
-                {{ selectedExtensionRuntimeMessage }}
+              <div class="extension-options-actions-bar">
+                <UiButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="isActionBusy(action.id)"
+                  @click="void runExtensionSettingsAction(action)"
+                >
+                  {{ actionButtonLabel(action.id, action.title) }}
+                </UiButton>
               </div>
-            </div>
-            <div class="extension-options-actions-bar">
-              <UiButton
-                variant="secondary"
-                size="sm"
-                :disabled="selectedExtensionActionBusy"
-                @click="void runSelectedExtensionPrimaryAction()"
-              >
-                {{ selectedExtensionActionBusy ? t('Configuring...') : selectedExtensionPrimaryActionLabel }}
-              </UiButton>
             </div>
           </div>
         </section>
@@ -248,8 +255,8 @@ const SETTING_SAVE_DELAY_MS = 360
 const selectedExtension = computed(() =>
   extensions.value.find((extension) => extension.id === selectedExtensionId.value) || null
 )
-const selectedExtensionActionBusy = ref(false)
-const selectedExtensionRuntimeMessage = ref('')
+const selectedExtensionActionBusy = reactive({})
+const selectedExtensionActionMessages = reactive({})
 const selectedSettingGroups = computed(() =>
   selectedExtension.value ? settingGroups(selectedExtension.value) : []
 )
@@ -351,6 +358,10 @@ const settingGroupDefinitions = [
 
 function settingEntries(extension = {}) {
   return Object.entries(extension.settingsSchema || {})
+}
+
+function settingsActions(extension = {}) {
+  return Array.isArray(extension.settingsActions) ? extension.settingsActions : []
 }
 
 function settingSortAliases(key = '') {
@@ -560,34 +571,56 @@ function openExtensionOptions(extensionId = '') {
   const normalized = String(extensionId || '').trim()
   if (!normalized) return
   selectedExtensionId.value = normalized
-  if (normalized.toLowerCase() === 'retain-pdf' && !selectedExtensionRuntimeMessage.value) {
-    selectedExtensionRuntimeMessage.value = t('Create a Python 3.11 uv environment and install the RetainPDF runtime dependencies.')
-  }
 }
 
 function closeExtensionOptions() {
   selectedExtensionId.value = ''
-  selectedExtensionRuntimeMessage.value = ''
 }
 
-const isRetainPdfSelected = computed(() =>
-  String(selectedExtension.value?.id || '').trim().toLowerCase() === 'retain-pdf'
-)
+const selectedActionGroups = computed(() => {
+  const extension = selectedExtension.value
+  if (!extension) return []
+  const groups = new Map()
+  for (const action of settingsActions(extension)) {
+    const groupId = String(action.group || 'actions').trim() || 'actions'
+    const groupTitle = String(action.groupTitle || action.group || 'Actions').trim() || 'Actions'
+    if (!groups.has(groupId)) {
+      groups.set(groupId, { id: groupId, title: groupTitle, actions: [] })
+    }
+    groups.get(groupId).actions.push(action)
+  }
+  return [...groups.values()]
+})
 
-const showSelectedExtensionActions = computed(() => isRetainPdfSelected.value)
+function actionBusyKey(actionId = '') {
+  const extensionId = String(selectedExtension.value?.id || '').trim().toLowerCase()
+  return `${extensionId}:${String(actionId || '').trim()}`
+}
 
-const selectedExtensionPrimaryActionLabel = computed(() =>
-  isRetainPdfSelected.value ? t('Configure Environment') : ''
-)
+function isActionBusy(actionId = '') {
+  return Boolean(selectedExtensionActionBusy[actionBusyKey(actionId)])
+}
 
-async function runSelectedExtensionPrimaryAction() {
-  if (!isRetainPdfSelected.value || selectedExtensionActionBusy.value) return
-  selectedExtensionActionBusy.value = true
-  selectedExtensionRuntimeMessage.value = t('Configuring RetainPDF Python environment...')
+function actionMessage(actionId = '', fallback = '') {
+  const key = actionBusyKey(actionId)
+  return selectedExtensionActionMessages[key] || t(fallback || '')
+}
+
+function actionButtonLabel(actionId = '', fallback = '') {
+  if (isActionBusy(actionId)) return t('Running...')
+  return t(fallback || '')
+}
+
+async function runExtensionSettingsAction(action = {}) {
+  const extensionId = String(selectedExtension.value?.id || '').trim().toLowerCase()
+  const commandId = String(action.commandId || '').trim()
+  const busyKey = actionBusyKey(action.id)
+  if (!extensionId || !commandId || selectedExtensionActionBusy[busyKey]) return
+  selectedExtensionActionBusy[busyKey] = true
   try {
     const task = await extensionsStore.executeCommand({
-      extensionId: 'retain-pdf',
-      commandId: 'retainPdf.setupEnvironment',
+      extensionId,
+      commandId,
     }, {
       kind: 'workspace',
       referenceId: '',
@@ -595,21 +628,21 @@ async function runSelectedExtensionPrimaryAction() {
     })
     const isFailed = String(task?.state || '').trim().toLowerCase() === 'failed'
     if (isFailed) {
-      throw new Error(String(task?.error || t('Failed to configure RetainPDF environment')))
+      throw new Error(String(task?.error || t('Action failed')))
     }
-    selectedExtensionRuntimeMessage.value = t('RetainPDF environment is ready.')
-    toastStore.show(selectedExtensionRuntimeMessage.value, {
+    selectedExtensionActionMessages[busyKey] = String(task?.progress?.label || task?.state || '')
+    toastStore.show(selectedExtensionActionMessages[busyKey] || t('Action completed'), {
       type: 'success',
       duration: 3200,
     })
   } catch (error) {
-    selectedExtensionRuntimeMessage.value = error?.message || String(error || t('Failed to configure RetainPDF environment'))
-    toastStore.show(selectedExtensionRuntimeMessage.value, {
+    selectedExtensionActionMessages[busyKey] = error?.message || String(error || t('Action failed'))
+    toastStore.show(selectedExtensionActionMessages[busyKey], {
       type: 'error',
       duration: 4600,
     })
   } finally {
-    selectedExtensionActionBusy.value = false
+    selectedExtensionActionBusy[busyKey] = false
   }
 }
 

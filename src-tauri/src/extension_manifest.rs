@@ -180,6 +180,8 @@ pub struct ExtensionConfigurationContribution {
     pub title: String,
     #[serde(default)]
     pub properties: BTreeMap<String, ExtensionConfigurationProperty>,
+    #[serde(default)]
+    pub actions: Vec<ExtensionConfigurationAction>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -199,6 +201,23 @@ pub struct ExtensionConfigurationProperty {
     pub enum_item_labels: Vec<String>,
     #[serde(default)]
     pub secure_storage: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionConfigurationAction {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub group: String,
+    #[serde(default)]
+    pub group_title: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -418,6 +437,24 @@ pub fn validate_extension_manifest(manifest: &ExtensionManifest) -> ExtensionVal
         if looks_like_secret_setting_key(key) && !property.secure_storage {
             warnings.push(format!(
                 "Secret-like setting should declare secureStorage for an explicit keychain contract: {key}"
+            ));
+        }
+    }
+
+    for action in &manifest.contributes.configuration.actions {
+        if action.id.trim().is_empty() {
+            errors.push("Contributed configuration action id is required".to_string());
+        }
+        if action.title.trim().is_empty() {
+            errors.push(format!(
+                "Contributed configuration action title is required: {}",
+                action.id
+            ));
+        }
+        if action.command.trim().is_empty() {
+            errors.push(format!(
+                "Contributed configuration action command is required: {}",
+                action.id
             ));
         }
     }

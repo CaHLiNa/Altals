@@ -190,15 +190,31 @@ function normalizeViewItemMenus(extensionId = '', manifest = {}, commandById = n
 }
 
 function normalizeConfiguration(manifest = {}) {
+  const actions = Array.isArray(manifest?.contributes?.configuration?.actions)
+    ? manifest.contributes.configuration.actions
+      .map((action) => ({
+        id: normalizeId(action?.id),
+        title: normalizeId(action?.title),
+        description: normalizeId(action?.description),
+        commandId: normalizeId(action?.command),
+        group: normalizeId(action?.group),
+        groupTitle: normalizeId(action?.groupTitle),
+      }))
+      .filter((action) => action.id && action.commandId)
+    : []
   const properties = manifest?.contributes?.configuration?.properties &&
     typeof manifest.contributes.configuration.properties === 'object'
     ? manifest.contributes.configuration.properties
     : {}
-  return Object.fromEntries(
-    Object.entries(properties)
-      .map(([key, definition]) => [normalizeId(key), normalizeSettingDefinition(key, definition)])
-      .filter(([key]) => key)
-  )
+  return {
+    title: normalizeId(manifest?.contributes?.configuration?.title),
+    properties: Object.fromEntries(
+      Object.entries(properties)
+        .map(([key, definition]) => [normalizeId(key), normalizeSettingDefinition(key, definition)])
+        .filter(([key]) => key)
+    ),
+    actions,
+  }
 }
 
 function normalizeCapabilities(manifest = {}) {
