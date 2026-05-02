@@ -5,7 +5,11 @@ import {
   loadPythonPreferences as loadPythonPreferencesFromRust,
   savePythonPreferences as savePythonPreferencesToRust,
 } from '../services/pythonPreferences'
-import { compilePythonFile, listPythonRuntimes } from '../services/pythonRuntime'
+import {
+  compilePythonFile,
+  listPythonRuntimes,
+  normalizePythonInterpreter,
+} from '../services/pythonRuntime'
 
 function createInterpreterState() {
   return {
@@ -13,26 +17,6 @@ function createInterpreterState() {
     path: '',
     version: '',
     source: '',
-  }
-}
-
-function normalizeIssue(issue = {}) {
-  return {
-    line: Number.isFinite(Number(issue.line)) ? Number(issue.line) : null,
-    column: Number.isFinite(Number(issue.column)) ? Number(issue.column) : null,
-    message: String(issue.message || '').trim(),
-    raw: String(issue.raw || '').trim(),
-  }
-}
-
-function normalizeInterpreter(runtime = {}) {
-  return {
-    ...createInterpreterState(),
-    ...runtime,
-    found: runtime?.found === true,
-    path: String(runtime?.path || '').trim(),
-    version: String(runtime?.version || '').trim(),
-    source: String(runtime?.source || '').trim(),
   }
 }
 
@@ -123,11 +107,9 @@ export const usePythonStore = defineStore('python', {
       this.checkingInterpreter = true
       try {
         const result = await listPythonRuntimes(this.interpreterPreference)
-        this.availableInterpreters = Array.isArray(result?.interpreters)
-          ? result.interpreters.map(normalizeInterpreter)
-          : []
-        this.selectedInterpreter = normalizeInterpreter(result?.selectedInterpreter || {})
-        this.interpreter = normalizeInterpreter(result?.resolvedInterpreter || {})
+        this.availableInterpreters = result.interpreters
+        this.selectedInterpreter = result.selectedInterpreter
+        this.interpreter = result.resolvedInterpreter
         return this.interpreter
       } catch {
         this.interpreter = createInterpreterState()
@@ -172,7 +154,7 @@ export const usePythonStore = defineStore('python', {
           normalizedPath,
           this.interpreterPreference === 'auto' ? '' : this.interpreterPreference,
         )
-        this.interpreter = normalizeInterpreter({
+        this.interpreter = normalizePythonInterpreter({
           found: true,
           path: String(result?.interpreterPath || this.interpreter.path || ''),
           version: String(result?.interpreterVersion || this.interpreter.version || ''),
@@ -181,15 +163,15 @@ export const usePythonStore = defineStore('python', {
 
         const nextState = {
           status: result?.success ? 'success' : 'error',
-          errors: Array.isArray(result?.errors) ? result.errors.map(normalizeIssue) : [],
-          warnings: Array.isArray(result?.warnings) ? result.warnings.map(normalizeIssue) : [],
-          stdout: String(result?.stdout || ''),
-          stderr: String(result?.stderr || ''),
-          commandPreview: String(result?.commandPreview || ''),
-          exitCode: Number(result?.exitCode ?? (result?.success ? 0 : -1)),
-          durationMs: Number(result?.durationMs || 0),
-          interpreterPath: String(result?.interpreterPath || ''),
-          interpreterVersion: String(result?.interpreterVersion || ''),
+          errors: result.errors,
+          warnings: result.warnings,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          commandPreview: result.commandPreview,
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+          interpreterPath: result.interpreterPath,
+          interpreterVersion: result.interpreterVersion,
           lastCompiled: Date.now(),
         }
         this.setCompileState(normalizedPath, nextState)

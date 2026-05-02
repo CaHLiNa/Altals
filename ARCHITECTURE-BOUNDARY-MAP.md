@@ -209,6 +209,10 @@ Components over 500 lines:
 - 2026-05-02: `src/stores/references.js` no longer filters, deduplicates, or clears `documentReferenceSelections` directly when a document's reference ids change or when applying a Rust-loaded library snapshot. The store now dispatches `setDocumentReferenceIds` through `references_mutation_apply`, and `src-tauri/src/references_mutation.rs` plus `src-tauri/src/references_snapshot.rs` own the mutation, id pruning, deduplication, and empty-selection cleanup.
 - 2026-05-02: `src/services/references/citationFormatter.js` no longer imports the workspace Pinia store to discover workspace path. Workspace context is passed by callers as a DTO field, keeping citation services as Rust bridge wrappers around `references_citation_render` instead of hidden store-aware orchestration.
 
+## Document Runtime Cleanup Log
+
+- 2026-05-02: `src/stores/python.js` no longer normalizes raw Python runtime command DTOs itself. `src/services/pythonRuntime.js` now adapts `python_runtime_list`, `python_runtime_detect`, and `python_runtime_compile` responses into stable frontend DTOs, while Rust `src-tauri/src/python_runtime.rs` remains the runtime discovery and execution authority and the Pinia store keeps compile UI state only.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`
