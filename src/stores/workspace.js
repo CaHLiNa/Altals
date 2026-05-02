@@ -5,26 +5,10 @@ import {
   loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
   restoreWorkspaceTheme,
   saveWorkspacePreferences as saveWorkspacePreferencesToRust,
-  setWorkspaceCitationInsertAddsSpace,
-  setWorkspaceEditorHighlightActiveLine,
-  setWorkspaceEditorLineNumbers,
-  setWorkspaceEditorSpellcheck,
   setWorkspaceEditorFontSize,
-  setWorkspaceFileTreeFoldDirectories,
-  setWorkspaceFileTreeShowHidden,
-  setWorkspaceFileTreeSortMode,
   setWorkspaceLatexFont,
-  setWorkspaceLatexCitationCommand,
-  setWorkspaceMarkdownCitationFormat,
   setWorkspaceMarkdownFont,
-  setWorkspaceMarkdownPreviewSync,
-  setWorkspacePdfViewerLastScale,
-  setWorkspacePdfViewerPageThemeMode,
-  setWorkspacePdfViewerSpreadMode,
-  setWorkspacePdfViewerZoomMode,
-  setWorkspacePreferredLocale,
   setWorkspaceUiFont,
-  setWrapColumnPreference,
 } from '../services/workspacePreferences'
 import { applyLocalePreference } from '../i18n'
 import {
@@ -501,91 +485,91 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     setWrapColumn(value) {
       return this.persistPreferences({
-        wrapColumn: setWrapColumnPreference(value),
+        wrapColumn: value,
       })
     },
 
     setMarkdownPreviewSync(value) {
       return this.persistPreferences({
-        markdownPreviewSync: setWorkspaceMarkdownPreviewSync(value),
+        markdownPreviewSync: value,
       })
     },
 
     setEditorSpellcheck(value) {
       return this.persistPreferences({
-        editorSpellcheck: setWorkspaceEditorSpellcheck(value),
+        editorSpellcheck: value,
       })
     },
 
     setEditorLineNumbers(value) {
       return this.persistPreferences({
-        editorLineNumbers: setWorkspaceEditorLineNumbers(value),
+        editorLineNumbers: value,
       })
     },
 
     setEditorHighlightActiveLine(value) {
       return this.persistPreferences({
-        editorHighlightActiveLine: setWorkspaceEditorHighlightActiveLine(value),
+        editorHighlightActiveLine: value,
       })
     },
 
     setFileTreeShowHidden(value) {
       return this.persistPreferences({
-        fileTreeShowHidden: setWorkspaceFileTreeShowHidden(value),
+        fileTreeShowHidden: value,
       })
     },
 
     setFileTreeSortMode(value) {
       return this.persistPreferences({
-        fileTreeSortMode: setWorkspaceFileTreeSortMode(value),
+        fileTreeSortMode: value,
       })
     },
 
     setFileTreeFoldDirectories(value) {
       return this.persistPreferences({
-        fileTreeFoldDirectories: setWorkspaceFileTreeFoldDirectories(value),
+        fileTreeFoldDirectories: value,
       })
     },
 
     setPdfViewerZoomMode(value) {
       return this.persistPreferences({
-        pdfViewerZoomMode: setWorkspacePdfViewerZoomMode(value),
+        pdfViewerZoomMode: value,
       })
     },
 
     setPdfViewerSpreadMode(value) {
       return this.persistPreferences({
-        pdfViewerSpreadMode: setWorkspacePdfViewerSpreadMode(value),
+        pdfViewerSpreadMode: value,
       })
     },
 
     setPdfViewerLastScale(value) {
       return this.persistPreferences({
-        pdfViewerLastScale: setWorkspacePdfViewerLastScale(value),
+        pdfViewerLastScale: value,
       })
     },
 
     setPdfViewerPageThemeMode(value) {
       return this.persistPreferences({
-        pdfViewerPageThemeMode: setWorkspacePdfViewerPageThemeMode(value),
+        pdfViewerPageThemeMode: value,
       })
     },
 
     setMarkdownCitationFormat(value) {
       return this.persistPreferences({
-        markdownCitationFormat: setWorkspaceMarkdownCitationFormat(value),
+        markdownCitationFormat: value,
       })
     },
 
     setLatexCitationCommand(value) {
       return this.persistPreferences({
-        latexCitationCommand: setWorkspaceLatexCitationCommand(value),
+        latexCitationCommand: value,
       })
     },
 
     setCitationInsertAddsSpace(value) {
       return this.persistPreferences({
-        citationInsertAddsSpace: setWorkspaceCitationInsertAddsSpace(value),
+        citationInsertAddsSpace: value,
       })
     },
 
@@ -635,13 +619,12 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     async setPreferredLocale(value) {
       await this.persistPreferences({
-        preferredLocale: setWorkspacePreferredLocale(value),
+        preferredLocale: value,
       })
       await this.restorePreferredLocale()
     },
 
     async restorePreferredLocale() {
-      this.preferredLocale = setWorkspacePreferredLocale(this.preferredLocale)
       await applyLocalePreference(this.preferredLocale)
     },
 

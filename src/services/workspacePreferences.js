@@ -167,25 +167,6 @@ export function normalizeEditorFontSize(value) {
   return clamp(parsed, MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE)
 }
 
-export function normalizeWorkspacePreferredLocale(value) {
-  switch (String(value || '').trim().toLowerCase()) {
-    case 'zh':
-    case 'zh-cn':
-      return 'zh-CN'
-    case 'en':
-    case 'en-us':
-      return 'en-US'
-    default:
-      return DEFAULT_PREFERRED_LOCALE
-  }
-}
-
-export function normalizeWorkspaceFileTreeSortMode(value) {
-  return String(value || '').trim().toLowerCase() === 'modified'
-    ? 'modified'
-    : DEFAULT_FILE_TREE_SORT_MODE
-}
-
 export function normalizeWorkspacePdfViewerZoomMode(value) {
   switch (String(value || '').trim().toLowerCase()) {
     case 'page-fit':
@@ -210,31 +191,6 @@ export function normalizeWorkspacePdfViewerLastScale(value) {
   const numeric = Number(normalized)
   if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_PDF_VIEWER_LAST_SCALE
   return String(Math.round(Math.min(numeric, 2) * 10000) / 10000)
-}
-
-export function normalizeWorkspacePdfViewerPageThemeMode(value) {
-  return String(value || '').trim().toLowerCase() === 'light'
-    ? 'light'
-    : DEFAULT_PDF_VIEWER_PAGE_THEME_MODE
-}
-
-export function normalizeWorkspaceMarkdownCitationFormat(value) {
-  return String(value || '').trim().toLowerCase() === 'bare'
-    ? 'bare'
-    : DEFAULT_MARKDOWN_CITATION_FORMAT
-}
-
-export function normalizeWorkspaceLatexCitationCommand(value) {
-  switch (String(value || '').trim().toLowerCase()) {
-    case 'citep':
-    case 'citet':
-    case 'parencite':
-    case 'textcite':
-    case 'autocite':
-      return String(value || '').trim().toLowerCase()
-    default:
-      return DEFAULT_LATEX_CITATION_COMMAND
-  }
 }
 
 export function encodeWorkspaceSystemFontFamily(family) {
@@ -290,66 +246,6 @@ function normalizeWorkspaceFont(value, fallback = 'inter') {
   return systemFamily ? encodeWorkspaceSystemFontFamily(systemFamily) : fallback
 }
 
-export function setWrapColumnPreference(value) {
-  return Math.max(0, parseInt(value, 10) || 0)
-}
-
-export function setWorkspaceMarkdownPreviewSync(value) {
-  return value !== false
-}
-
-export function setWorkspaceEditorSpellcheck(value) {
-  return value === true
-}
-
-export function setWorkspaceEditorLineNumbers(value) {
-  return value !== false
-}
-
-export function setWorkspaceEditorHighlightActiveLine(value) {
-  return value !== false
-}
-
-export function setWorkspaceFileTreeShowHidden(value) {
-  return value !== false
-}
-
-export function setWorkspaceFileTreeSortMode(value) {
-  return normalizeWorkspaceFileTreeSortMode(value)
-}
-
-export function setWorkspaceFileTreeFoldDirectories(value) {
-  return value === true
-}
-
-export function setWorkspacePdfViewerZoomMode(value) {
-  return normalizeWorkspacePdfViewerZoomMode(value)
-}
-
-export function setWorkspacePdfViewerSpreadMode(value) {
-  return normalizeWorkspacePdfViewerSpreadMode(value)
-}
-
-export function setWorkspacePdfViewerLastScale(value) {
-  return normalizeWorkspacePdfViewerLastScale(value)
-}
-
-export function setWorkspacePdfViewerPageThemeMode(value) {
-  return normalizeWorkspacePdfViewerPageThemeMode(value)
-}
-
-export function setWorkspaceMarkdownCitationFormat(value) {
-  return normalizeWorkspaceMarkdownCitationFormat(value)
-}
-
-export function setWorkspaceLatexCitationCommand(value) {
-  return normalizeWorkspaceLatexCitationCommand(value)
-}
-
-export function setWorkspaceCitationInsertAddsSpace(value) {
-  return value === true
-}
-
 export function applyWorkspaceFontSizes(editorFontSize, uiFontSize) {
   if (typeof document === 'undefined') return
 
@@ -369,10 +265,6 @@ export function setWorkspaceEditorFontSize(editorFontSize) {
     document.documentElement.style.setProperty('--editor-font-size', `${nextValue}px`)
   }
   return nextValue
-}
-
-export function setWorkspacePreferredLocale(preferredLocale) {
-  return normalizeWorkspacePreferredLocale(preferredLocale)
 }
 
 function applyWorkspaceFontVariable(cssVariable, name, fallback = 'inter') {

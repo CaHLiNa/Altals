@@ -199,6 +199,10 @@ Components over 500 lines:
 - 2026-05-02: `src/stores/files.js` no longer decides whether a Save Draft As target path is inside the active workspace with frontend string-prefix checks. The selected path is sent through the normal `workspace_write_text_file` bridge, and Rust `ensure_allowed_mutation_path` remains the authority for accepting or rejecting the mutation. The store only reports the failed save as UI feedback.
 - 2026-05-02: `src/services/workspaceRecents.js` no longer carries stale frontend recent-workspace normalization or record-opened policy. Lifecycle normalization, pruning, record-opened ordering, and max recent count remain owned by `src-tauri/src/workspace_lifecycle.rs` and its Rust tests.
 
+## Preferences/Settings Authority Cleanup Log
+
+- 2026-05-02: `src/stores/workspace.js` now sends persisted setting patch values to `workspace_preferences_save` without pre-normalizing wrap, booleans, file tree modes, PDF modes, citation settings, or locale in JS. Rust `workspace_preferences.rs` remains the persisted schema/default/normalization authority, and the store consumes the normalized preferences returned by Rust. `src/services/workspacePreferences.js` keeps DOM/UI helpers for font, theme, and PDF preview display normalization only.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`
