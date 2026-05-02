@@ -114,6 +114,7 @@ function normalizeTask(task = {}) {
     ...task,
     id: String(task.id || ''),
     extensionId: normalizeExtensionId(task.extensionId),
+    workspaceRoot: normalizeWorkspaceRoot(task.workspaceRoot || task.workspace_root || ''),
     capability: normalizeCapability(task.capability),
     commandId: String(task.commandId || ''),
     state: String(task.state || ''),
@@ -135,10 +136,15 @@ function normalizeTask(task = {}) {
   }
 }
 
-function recentTasksForExtensionList(tasks = [], extensionId = '') {
+function recentTasksForExtensionList(tasks = [], extensionId = '', workspaceRoot = '') {
   const normalizedExtensionId = normalizeExtensionId(extensionId)
+  const normalizedWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot)
   const filtered = normalizedExtensionId
-    ? tasks.filter((task) => task.extensionId === normalizedExtensionId)
+    ? tasks.filter((task) => {
+        if (task.extensionId !== normalizedExtensionId) return false
+        if (!normalizedWorkspaceRoot) return true
+        return normalizeWorkspaceRoot(task.workspaceRoot) === normalizedWorkspaceRoot
+      })
     : tasks
   return [...filtered].slice(0, 8)
 }
@@ -587,13 +593,13 @@ export const useExtensionsStore = defineStore('extensions', {
       return [...state.tasks].slice(0, 8)
     },
     recentTasksForExtension(state) {
-      return (extensionId = '') => {
-        return recentTasksForExtensionList(state.tasks, extensionId)
+      return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '') => {
+        return recentTasksForExtensionList(state.tasks, extensionId, workspaceRoot)
       }
     },
     taskTimelineForExtension(state) {
-      return (extensionId = '') => {
-        return buildTaskTimeline(recentTasksForExtensionList(state.tasks, extensionId))
+      return (extensionId = '', workspaceRoot = useWorkspaceStore().path || '') => {
+        return buildTaskTimeline(recentTasksForExtensionList(state.tasks, extensionId, workspaceRoot))
       }
     },
     defaultConfigForExtension: () => (extension = {}) => {

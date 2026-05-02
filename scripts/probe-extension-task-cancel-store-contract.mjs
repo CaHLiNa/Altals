@@ -43,6 +43,7 @@ try {
       return {
         id: 'task-running',
         extensionId: 'example-pdf-extension',
+        workspaceRoot: '/tmp/workspace',
         capability: 'scribeflow.pdf.translate',
         commandId: 'scribeflow.pdf.translate',
         state: 'cancelled',
@@ -72,14 +73,18 @@ try {
   }, { shouldMockEvents: true })
 
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
 
   const pinia = createPinia()
   setActivePinia(pinia)
+  const workspace = useWorkspaceStore(pinia)
+  workspace.path = '/tmp/workspace'
   const extensions = useExtensionsStore(pinia)
 
   extensions.upsertTask({
     id: 'task-succeeded',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'succeeded',
     createdAt: '2026-05-02T09:00:00Z',
     finishedAt: '2026-05-02T09:05:00Z',
@@ -91,6 +96,7 @@ try {
   extensions.upsertTask({
     id: 'task-running',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     capability: 'scribeflow.pdf.translate',
     commandId: 'scribeflow.pdf.translate',
     state: 'running',

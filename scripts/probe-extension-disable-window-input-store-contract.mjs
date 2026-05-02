@@ -58,6 +58,7 @@ try {
         {
           id: 'task-running',
           extensionId: 'example-pdf-extension',
+          workspaceRoot: '/tmp/workspace',
           capability: 'scribeflow.pdf.translate',
           commandId: 'scribeflow.pdf.translate',
           state: 'cancelled',
@@ -179,6 +180,7 @@ try {
   extensions.upsertTask({
     id: 'task-running',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     capability: 'scribeflow.pdf.translate',
     commandId: 'scribeflow.pdf.translate',
     state: 'running',

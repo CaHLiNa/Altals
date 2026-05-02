@@ -55,9 +55,12 @@ try {
   }, { shouldMockEvents: true })
 
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
 
   const pinia = createPinia()
   setActivePinia(pinia)
+  const workspace = useWorkspaceStore(pinia)
+  workspace.path = '/tmp/workspace'
   const extensions = useExtensionsStore(pinia)
 
   extensions.enabledExtensionIds = ['example-pdf-extension']
@@ -98,6 +101,7 @@ try {
   const failedTask = extensions.upsertTask({
     id: 'task-failed',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     capability: 'scribeflow.pdf.translate',
     commandId: 'scribeflow.pdf.translate',
     state: 'failed',

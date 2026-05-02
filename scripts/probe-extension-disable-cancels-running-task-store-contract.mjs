@@ -51,6 +51,7 @@ try {
         {
           id: 'task-running',
           extensionId: 'example-pdf-extension',
+          workspaceRoot: '/tmp/workspace',
           capability: 'scribeflow.pdf.translate',
           commandId: 'scribeflow.pdf.translate',
           state: 'cancelled',
@@ -172,6 +173,7 @@ try {
   extensions.upsertTask({
     id: 'task-succeeded',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'succeeded',
     createdAt: '2026-05-02T09:00:00Z',
     finishedAt: '2026-05-02T09:05:00Z',
@@ -184,6 +186,7 @@ try {
   extensions.upsertTask({
     id: 'task-running',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     capability: 'scribeflow.pdf.translate',
     commandId: 'scribeflow.pdf.translate',
     state: 'running',

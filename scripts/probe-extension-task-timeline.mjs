@@ -22,12 +22,16 @@ const vite = await createServer({
 
 try {
   const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
   const pinia = createPinia()
+  const workspace = useWorkspaceStore(pinia)
+  workspace.path = '/tmp/workspace'
   const extensions = useExtensionsStore(pinia)
 
   extensions.upsertTask({
     id: 'task-other-extension',
     extensionId: 'other-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'running',
     created_at: '2026-05-02T08:00:00Z',
     target: { kind: 'pdf', path: '/tmp/other.pdf' },
@@ -35,6 +39,7 @@ try {
   extensions.upsertTask({
     id: 'task-succeeded',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'succeeded',
     created_at: '2026-05-02T09:00:00Z',
     finished_at: '2026-05-02T09:05:00Z',
@@ -45,6 +50,7 @@ try {
   extensions.upsertTask({
     id: 'task-queued',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'queued',
     created_at: '2026-05-02T09:59:00Z',
     target: { kind: 'pdf', path: '/tmp/paper-b.pdf' },
@@ -53,6 +59,7 @@ try {
   extensions.upsertTask({
     id: 'task-running',
     extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace',
     state: 'running',
     createdAt: '2026-05-02T10:00:00Z',
     startedAt: '2026-05-02T10:00:05Z',

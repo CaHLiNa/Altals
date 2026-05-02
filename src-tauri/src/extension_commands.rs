@@ -314,6 +314,7 @@ pub async fn extension_command_execute(
     let activation_event = format!("onCommand:{command_id}");
     let task = create_command_task(
         &entry.id,
+        &params.workspace_root,
         &command_id,
         params.target.clone(),
         params.settings.clone(),
@@ -461,6 +462,7 @@ pub async fn extension_capability_invoke(
     let activation_event = format!("onCapability:{capability_id}");
     let task = create_command_task(
         &entry.id,
+        &params.workspace_root,
         &capability_id,
         params.target.clone(),
         params.settings.clone(),

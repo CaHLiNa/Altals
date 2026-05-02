@@ -58,6 +58,8 @@ impl Default for ExtensionTaskProgress {
 pub struct ExtensionTask {
     pub id: String,
     pub extension_id: String,
+    #[serde(default)]
+    pub workspace_root: String,
     pub capability: String,
     #[serde(default)]
     pub command_id: String,
@@ -274,6 +276,7 @@ pub fn get_task(task_id: &str) -> Result<ExtensionTask, String> {
 
 pub fn create_command_task(
     extension_id: &str,
+    workspace_root: &str,
     command_id: &str,
     target: ExtensionTaskTarget,
     settings: Value,
@@ -281,6 +284,7 @@ pub fn create_command_task(
     create_task_in_dir(
         &tasks_dir()?,
         extension_id,
+        workspace_root,
         command_id,
         command_id,
         target,
@@ -296,6 +300,7 @@ pub fn create_command_task_for_probe(
 ) -> Result<ExtensionTask, String> {
     create_command_task(
         extension_id,
+        "",
         command_id,
         ExtensionTaskTarget {
             kind: target_kind.to_string(),
@@ -309,6 +314,7 @@ pub fn create_command_task_for_probe(
 fn create_task_in_dir(
     tasks_root: &Path,
     extension_id: &str,
+    workspace_root: &str,
     capability: &str,
     command_id: &str,
     target: ExtensionTaskTarget,
@@ -323,6 +329,7 @@ fn create_task_in_dir(
     let task = ExtensionTask {
         id: id.clone(),
         extension_id: extension_id.to_string(),
+        workspace_root: workspace_root.to_string(),
         capability: capability.to_string(),
         command_id: command_id.to_string(),
         state: "queued".to_string(),
@@ -1002,6 +1009,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "pdfmathtranslate",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1032,6 +1040,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "pdfmathtranslate",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1066,6 +1075,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "pdfmathtranslate",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1120,6 +1130,7 @@ mod tests {
         let running = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1133,6 +1144,7 @@ mod tests {
         let queued = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.summarize",
             "scribeflow.pdf.summarize",
             ExtensionTaskTarget {
@@ -1146,6 +1158,7 @@ mod tests {
         let completed = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.export",
             "scribeflow.pdf.export",
             ExtensionTaskTarget {
@@ -1159,6 +1172,7 @@ mod tests {
         let other_extension = create_task_in_dir(
             &root,
             "other-extension",
+            "/tmp/workspace-b",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1204,6 +1218,7 @@ mod tests {
         let running = create_task_in_dir(
             &tasks_root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "scribeflow.pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1217,6 +1232,7 @@ mod tests {
         let queued = create_task_in_dir(
             &tasks_root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "scribeflow.pdf.summarize",
             "scribeflow.pdf.summarize",
             ExtensionTaskTarget {
@@ -1230,6 +1246,7 @@ mod tests {
         let completed = create_task_in_dir(
             &tasks_root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "scribeflow.pdf.export",
             "scribeflow.pdf.export",
             ExtensionTaskTarget {
@@ -1243,6 +1260,7 @@ mod tests {
         let other_extension = create_task_in_dir(
             &tasks_root,
             "other-extension",
+            "/tmp/workspace-b",
             "scribeflow.pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1320,6 +1338,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1378,6 +1397,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-markdown-extension",
+            "/tmp/workspace-a",
             "document.summarize",
             "scribeflow.markdown.summarize",
             ExtensionTaskTarget {
@@ -1427,6 +1447,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1495,6 +1516,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1562,6 +1584,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
@@ -1612,6 +1635,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-markdown-extension",
+            "/tmp/workspace-a",
             "document.summarize",
             "scribeflow.markdown.summarize",
             ExtensionTaskTarget {
@@ -1699,6 +1723,7 @@ mod tests {
         let task = create_task_in_dir(
             &root,
             "example-pdf-extension",
+            "/tmp/workspace-a",
             "pdf.translate",
             "scribeflow.pdf.translate",
             ExtensionTaskTarget {
