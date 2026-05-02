@@ -136,6 +136,7 @@ Nested capability delivery also has a probe-backed runtime contract:
 - `capabilities.invoke(...)` can synchronously call another runtime-registered capability and preserve that callee's returned payload
 - nested capability failures and missing-provider cases remain catchable inside plugin code as normal exceptions
 - nested capability-triggered view refresh signals still surface through `changedViews`, including both explicit ids and host-tracked `views.refresh(...)` requests
+- the top-level capability invocation response now returns that same aggregated `changedViews` set, so frontend task execution can invalidate plugin views without reconstructing refresh intent from side-channel events
 
 ## 4. Current Manifest Use
 

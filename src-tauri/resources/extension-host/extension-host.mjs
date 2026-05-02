@@ -1158,7 +1158,9 @@ async function handleInvokeCapability(params = {}) {
     throw new Error(`Capability provider not registered: ${capabilityId}`);
   }
 
+  record.changedViews.clear();
   const result = await provider(params.envelope);
+  const changedViews = collectChangedViews(record, result?.changedViews);
   return {
     kind: "InvokeCapability",
     payload: {
@@ -1172,6 +1174,7 @@ async function handleInvokeCapability(params = {}) {
           ? result.progressLabel.trim()
           : "Handled by extension host",
       taskState: normalizeTaskState(result?.taskState, "succeeded"),
+      changedViews,
       artifacts: normalizeArtifactEntries(result?.artifacts, params.envelope || {}),
       outputs: normalizeOutputEntries(result?.outputs),
     },

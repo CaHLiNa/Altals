@@ -269,8 +269,19 @@ async function main() {
     })
 
     const runnerSummary = parseRunnerSummary(runnerResponse)
+    const runnerChangedViews = Array.isArray(runnerResponse?.payload?.changedViews)
+      ? runnerResponse.payload.changedViews
+      : []
 
     ensure(activate?.payload?.activated === true, 'capability invoke contract extension did not activate', activate?.payload || {})
+    ensure(
+      JSON.stringify(runnerChangedViews) === JSON.stringify([
+        'exampleCapabilityInvokeContractExtension.manualView',
+        'exampleCapabilityInvokeContractExtension.resultView',
+      ]),
+      'top-level InvokeCapability changedViews contract drifted',
+      runnerResponse?.payload || {},
+    )
     ensure(
       JSON.stringify(runnerSummary) === JSON.stringify({
         successAccepted: null,
@@ -292,6 +303,7 @@ async function main() {
         {
           ok: true,
           summary: {
+            runnerChangedViews,
             runnerSummary,
           },
         },
