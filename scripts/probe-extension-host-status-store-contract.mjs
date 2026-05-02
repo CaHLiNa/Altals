@@ -35,6 +35,7 @@ try {
   mockWindows('main')
 
   let promptOpen = false
+  let currentPromptOwner = null
   const ipcCalls = []
   mockIPC((cmd, args) => {
     ipcCalls.push([cmd, args])
@@ -53,16 +54,12 @@ try {
             workspaceRoot: '/tmp/workspace-b',
           },
         ],
-        pendingPromptOwner: promptOpen
-          ? {
-            extensionId: 'example-pdf-extension',
-            workspaceRoot: '/tmp/workspace-b',
-          }
-          : null,
+        pendingPromptOwner: promptOpen ? currentPromptOwner : null,
       }
     }
     if (cmd === 'extension_host_respond_ui_request') {
       promptOpen = false
+      currentPromptOwner = null
       return {
         requestId: String(args?.params?.requestId || ''),
         accepted: true,
@@ -94,6 +91,10 @@ try {
   assert.equal(summary.pendingPromptOwner, null)
 
   promptOpen = true
+  currentPromptOwner = {
+    extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace-b',
+  }
   extensionWindowUi.presentRequest({
     requestId: 'request-pending-prompt',
     extensionId: 'example-pdf-extension',
@@ -113,6 +114,10 @@ try {
   assert.equal(recoveredSummary.pendingPromptOwner, null)
 
   promptOpen = true
+  currentPromptOwner = {
+    extensionId: 'example-pdf-extension',
+    workspaceRoot: '/tmp/workspace-a',
+  }
   extensionWindowUi.presentRequest({
     requestId: 'request-pending-prompt-cancelled-from-store',
     extensionId: 'example-pdf-extension',
@@ -131,6 +136,30 @@ try {
   assert.equal(diagnostics.activeWorkspaceSlotCount, 1)
   assert.equal(diagnostics.otherWorkspaceSlotCount, 1)
   assert.equal(diagnostics.ownsPendingPrompt, false)
+  assert.equal(diagnostics.blockedByForeignPrompt, false)
+
+  promptOpen = true
+  currentPromptOwner = {
+    extensionId: 'another-extension',
+    workspaceRoot: '/tmp/workspace-b',
+  }
+  extensionWindowUi.presentRequest({
+    requestId: 'request-foreign-blocking-prompt',
+    extensionId: 'another-extension',
+    workspaceRoot: '/tmp/workspace-b',
+    kind: 'inputBox',
+    title: 'Blocking prompt',
+    prompt: 'Foreign extension owns the prompt',
+    placeholder: 'Type here',
+  })
+  const foreignPendingSummary = await extensions.syncHostSummaryAfterPromptEvent()
+  assert.equal(foreignPendingSummary.pendingPromptOwner?.extensionId, 'another-extension')
+  assert.equal(foreignPendingSummary.pendingPromptOwner?.workspaceRoot, '/tmp/workspace-b')
+  const foreignDiagnostics = extensions.hostDiagnosticsFor('example-pdf-extension', '/tmp/workspace-a')
+  assert.equal(foreignDiagnostics.blockedByForeignPrompt, true)
+  assert.equal(foreignDiagnostics.pendingPromptOwner?.extensionId, 'another-extension')
+  const foreignCancelledSummary = await extensions.cancelPendingPromptForExtension('another-extension', '/tmp/workspace-b')
+  assert.equal(foreignCancelledSummary.pendingPromptOwner, null)
 
   console.log(JSON.stringify({
     ok: true,
@@ -141,6 +170,8 @@ try {
       pendingPromptOwnerWhilePromptOpen: pendingSummary.pendingPromptOwner,
       pendingPromptOwnerAfterResolve: recoveredSummary.pendingPromptOwner,
       pendingPromptOwnerAfterStoreCancel: cancelledSummary.pendingPromptOwner,
+      foreignBlockedPromptOwner: foreignPendingSummary.pendingPromptOwner,
+      foreignBlockedPromptCleared: foreignCancelledSummary.pendingPromptOwner,
       activeWorkspaceSlotCount: diagnostics.activeWorkspaceSlotCount,
       otherWorkspaceSlotCount: diagnostics.otherWorkspaceSlotCount,
       respondRequestObserved: ipcCalls.some(([cmd]) => cmd === 'extension_host_respond_ui_request'),

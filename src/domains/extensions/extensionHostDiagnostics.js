@@ -49,6 +49,11 @@ export function buildExtensionHostDiagnostics({
     : []
   const pendingPromptOwner = normalizePendingPromptOwner(hostStatus?.pendingPromptOwner)
   const ownsPendingPrompt = pendingPromptOwner?.extensionId === normalizedExtensionId
+  const blockedByForeignPrompt = Boolean(
+    pendingPromptOwner &&
+    normalizedExtensionId &&
+    pendingPromptOwner.extensionId !== normalizedExtensionId,
+  )
   const pendingPromptWorkspaceRoot = ownsPendingPrompt ? pendingPromptOwner?.workspaceRoot || '' : ''
 
   return {
@@ -67,6 +72,7 @@ export function buildExtensionHostDiagnostics({
     ),
     workspaceRoots: uniqueWorkspaceRoots(activeRuntimeSlots.map((entry) => entry.workspaceRoot || '/')),
     pendingPromptOwner,
+    blockedByForeignPrompt,
     ownsPendingPrompt,
     pendingPromptWorkspaceRoot,
     pendingPromptInActiveWorkspace: Boolean(
@@ -74,6 +80,7 @@ export function buildExtensionHostDiagnostics({
       normalizedWorkspaceRoot &&
       pendingPromptWorkspaceRoot === normalizedWorkspaceRoot
     ),
+    blockingPromptWorkspaceRoot: pendingPromptOwner?.workspaceRoot || '',
     hasActiveWorkspaceRuntime: activeWorkspaceRuntimeSlots.length > 0,
     hasOtherWorkspaceRuntime: otherWorkspaceRuntimeSlots.length > 0,
     hasLiveRuntime: activeRuntimeSlots.length > 0 || Boolean(runtimeEntry?.activated),

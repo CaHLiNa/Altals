@@ -153,7 +153,7 @@ const targetSummary = computed(() => {
 
 const hostDiagnosticSummary = computed(() => {
   const diagnostics = hostDiagnostics.value
-  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt) return ''
+  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt && !diagnostics?.blockedByForeignPrompt) return ''
 
   const segments = []
   if (diagnostics.hasActiveWorkspaceRuntime) {
@@ -174,6 +174,15 @@ const hostDiagnosticSummary = computed(() => {
     )
   }
 
+  if (diagnostics.blockedByForeignPrompt) {
+    segments.push(
+      t('Blocked by prompt from {extensionId} in {workspace}', {
+        extensionId: diagnostics.pendingPromptOwner?.extensionId || '',
+        workspace: diagnostics.blockingPromptWorkspaceRoot || '/',
+      }),
+    )
+  }
+
   if (diagnostics.ownsPendingPrompt) {
     segments.push(
       diagnostics.pendingPromptInActiveWorkspace
@@ -189,8 +198,8 @@ const hostDiagnosticSummary = computed(() => {
 
 const hostDiagnosticToneClass = computed(() => {
   const diagnostics = hostDiagnostics.value
-  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt) return ''
-  if (diagnostics?.ownsPendingPrompt) return 'is-warning'
+  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt && !diagnostics?.blockedByForeignPrompt) return ''
+  if (diagnostics?.ownsPendingPrompt || diagnostics?.blockedByForeignPrompt) return 'is-warning'
   if (diagnostics?.hasOtherWorkspaceRuntime) return 'is-info'
   return 'is-active'
 })
@@ -198,18 +207,41 @@ const hostDiagnosticToneClass = computed(() => {
 const showPromptRecoveryAction = computed(() => {
   const diagnostics = hostDiagnostics.value
   return Boolean(
-    container.value?.extensionId &&
-    diagnostics?.ownsPendingPrompt &&
-    diagnostics?.pendingPromptInActiveWorkspace,
+    promptRecoveryExtensionId.value &&
+    promptRecoveryWorkspaceRoot.value,
   )
 })
 
+const promptRecoveryExtensionId = computed(() => {
+  const diagnostics = hostDiagnostics.value
+  if (diagnostics?.ownsPendingPrompt && diagnostics?.pendingPromptInActiveWorkspace) {
+    return container.value?.extensionId || ''
+  }
+  if (diagnostics?.blockedByForeignPrompt) {
+    return diagnostics.pendingPromptOwner?.extensionId || ''
+  }
+  return ''
+})
+
+const promptRecoveryWorkspaceRoot = computed(() => {
+  const diagnostics = hostDiagnostics.value
+  if (diagnostics?.ownsPendingPrompt && diagnostics?.pendingPromptInActiveWorkspace) {
+    return workspace.path || ''
+  }
+  if (diagnostics?.blockedByForeignPrompt) {
+    return diagnostics.blockingPromptWorkspaceRoot || ''
+  }
+  return ''
+})
+
 async function recoverPrompt() {
-  if (!container.value?.extensionId || promptRecoveryBusy.value) return
+  const extensionId = promptRecoveryExtensionId.value
+  const workspaceRoot = promptRecoveryWorkspaceRoot.value
+  if (!extensionId || !workspaceRoot || promptRecoveryBusy.value) return
   promptRecoveryBusy.value = true
   try {
-    await extensionsStore.cancelPendingPromptForExtension(container.value.extensionId, workspace.path || '')
-    toastStore.show(t('Cancelled the pending extension prompt'), {
+    await extensionsStore.cancelPendingPromptForExtension(extensionId, workspaceRoot)
+    toastStore.show(t('Cancelled the blocking extension prompt'), {
       type: 'success',
       duration: 2600,
     })
