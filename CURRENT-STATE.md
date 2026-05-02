@@ -102,6 +102,7 @@ Current plugin lifecycle contract:
 - cross-extension prompt isolation is now probe-backed too: if one extension currently owns a pending host prompt, another extension's top-level request fails immediately with a clear owner-specific error instead of silently blocking behind the prompt wait
 - same-extension prompt reentry is now probe-backed too: once an extension owns a pending host prompt, that extension still cannot start a second top-level host request until the prompt is resolved, so prompt waits remain single-flight instead of recursively deadlocking the shared host channel
 - prompt recovery at the frontend consumption layer is now probe-backed too: if `resolveView(...)` or `notifyViewSelection(...)` fast-fails because a prompt currently owns the host channel, the request is deferred in the store and replayed automatically after the prompt closes instead of being lost forever, replay itself is non-lossy when a later host-side transport error interrupts the queue mid-flush, and stale deferred requests from an old workspace are discarded instead of replaying into a later workspace
+- workspace transition handling is now probe-backed at the frontend extension-session layer too: closing or switching workspaces resets frontend extension session state, reopening a workspace forces workspace-scoped extension settings and registry data to reload, and workspace-only plugin discovery/enabled ids follow the active workspace instead of leaking across transitions
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -142,6 +143,7 @@ It runs:
 - `npm run probe:extension-same-extension-prompt-reentry-contract`
 - `npm run probe:extension-prompt-recovery-store-contract`
 - `npm run probe:extension-prompt-recovery-workspace-scope-contract`
+- `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
 - `npm run probe:extension-secure-settings-bridge`
@@ -204,6 +206,7 @@ Current baseline:
 - extension same-extension prompt reentry probe passes
 - extension prompt recovery store contract probe passes
 - extension prompt recovery workspace-scope contract probe passes
+- extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes
 - extension secure settings bridge probe passes

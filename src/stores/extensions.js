@@ -685,6 +685,20 @@ export const useExtensionsStore = defineStore('extensions', {
       }
     },
 
+    resetWorkspaceSessionState() {
+      this.resolvedViews = {}
+      this.viewState = {}
+      this.viewControllerState = {}
+      this.runtimeRegistry = {}
+      this.sidebarTargets = {}
+      this.changedViewTicks = {}
+      this.deferredViewRequests = {}
+      this._flushingDeferredViewRequests = false
+      this.loadingTasks = false
+      this.tasks = []
+      this.lastError = ''
+    },
+
     snapshotSettings() {
       return {
         enabledExtensionIds: [...this.enabledExtensionIds],
@@ -820,7 +834,8 @@ export const useExtensionsStore = defineStore('extensions', {
       return this.snapshotSettings()
     },
 
-    async refreshRegistry() {
+    async refreshRegistry(options = {}) {
+      const forceSettingsReload = options?.forceSettingsReload === true
       const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       this.loadingRegistry = true
@@ -828,8 +843,8 @@ export const useExtensionsStore = defineStore('extensions', {
       try {
         const extensions = await listExtensions(globalConfigDir, workspace.path || '')
         this.registry = extensions.map(normalizeExtension)
-        if (!this.settingsHydrated) {
-          await this.hydrateSettings()
+        if (forceSettingsReload || !this.settingsHydrated) {
+          await this.hydrateSettings(forceSettingsReload)
         }
         if (!this.settingsFileExists && this.enabledExtensionIds.length === 0) {
           const availableIds = this.registry
