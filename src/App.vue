@@ -165,6 +165,7 @@ import ToastContainer from './components/layout/ToastContainer.vue'
 import ExtensionCommandPalette from './components/extensions/ExtensionCommandPalette.vue'
 import ExtensionWindowPrompt from './components/extensions/ExtensionWindowPrompt.vue'
 import { useI18n } from './i18n'
+import { describeExtensionCommandError } from './domains/extensions/extensionCommandHostState'
 import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
@@ -403,10 +404,16 @@ async function handleGlobalKeydown(event) {
     await extensionsStore.executeCommand(keybinding, commandPaletteTarget.value)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
-      type: 'error',
-      duration: 4200,
-    })
+    const commandError = describeExtensionCommandError(error, t('Failed to start extension task'))
+    toastStore.show(
+      commandError.messageKey
+        ? t(commandError.messageKey, commandError.messageParams)
+        : commandError.messageText || t('Failed to start extension task'),
+      {
+        type: commandError.type,
+        duration: 4200,
+      },
+    )
   }
 }
 

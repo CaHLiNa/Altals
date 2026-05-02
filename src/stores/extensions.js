@@ -43,6 +43,10 @@ import {
 } from '../domains/extensions/extensionContributionRegistry'
 import { buildExtensionContext } from '../domains/extensions/extensionContext.js'
 import { buildExtensionHostDiagnostics } from '../domains/extensions/extensionHostDiagnostics.js'
+import {
+  buildExtensionCommandBlockedError,
+  buildExtensionCommandHostState,
+} from '../domains/extensions/extensionCommandHostState.js'
 import { mergeDefaultResultEntries } from '../services/extensions/extensionResultEntries'
 
 function normalizeExtensionId(value = '') {
@@ -365,6 +369,22 @@ function contributedViewForId(extension = {}, viewId = '') {
 function isPromptIsolationError(error) {
   const message = String(error?.message || error || '').trim()
   return message.includes('Extension host is waiting for UI input from')
+}
+
+function commandHostStateFor({
+  extensionId = '',
+  workspaceRoot = '',
+  hostSummary = {},
+  runtimeEntry = {},
+} = {}) {
+  return buildExtensionCommandHostState(
+    buildExtensionHostDiagnostics({
+      extensionId,
+      workspaceRoot,
+      hostStatus: normalizeHostSummary(hostSummary),
+      runtimeEntry: normalizeRuntimeEntry(runtimeEntry),
+    })
+  )
 }
 
 function deferredViewRequestKey(payload = {}) {
@@ -1103,8 +1123,36 @@ export const useExtensionsStore = defineStore('extensions', {
       if (!extension || extension.status !== 'available') {
         throw new Error(`Extension command is not available: ${extensionId || commandId}`)
       }
+      const workspace = useWorkspaceStore()
+      const workspaceRoot = workspace.path || ''
+      const preflightSummary = await this.refreshHostSummary().catch(() => this.hostStatus)
+      const hostState = commandHostStateFor({
+        extensionId,
+        workspaceRoot,
+        hostSummary: preflightSummary,
+        runtimeEntry: this.runtimeRegistry?.[extensionId],
+      })
+      if (hostState.blocked) {
+        throw buildExtensionCommandBlockedError(hostState, {
+          extensionId,
+          commandId,
+        })
+      }
       await this.routeActionToSidebar(action, target).catch(() => {})
       await this.activateExtension(extensionId, `onCommand:${commandId}`).catch(() => {})
+      const postActivationSummary = await this.refreshHostSummary().catch(() => this.hostStatus)
+      const postActivationHostState = commandHostStateFor({
+        extensionId,
+        workspaceRoot,
+        hostSummary: postActivationSummary,
+        runtimeEntry: this.runtimeRegistry?.[extensionId],
+      })
+      if (postActivationHostState.blocked) {
+        throw buildExtensionCommandBlockedError(postActivationHostState, {
+          extensionId,
+          commandId,
+        })
+      }
       const runtimeCommands = runtimeCommandIds(this.runtimeRegistry?.[extensionId])
       const manifestCommands = new Set(
         (extension.contributedCommands || []).map((command) => String(command.commandId || '').trim()).filter(Boolean),
@@ -1116,7 +1164,6 @@ export const useExtensionsStore = defineStore('extensions', {
       } else if (!manifestCommands.has(commandId)) {
         throw new Error(`Extension ${extensionId} does not contribute command ${commandId}`)
       }
-      const workspace = useWorkspaceStore()
       const globalConfigDir = await workspace.ensureGlobalConfigDir()
       const extensionSettings = this.configForExtension(extension)
       const result = await executeExtensionCommand({

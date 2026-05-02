@@ -129,6 +129,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
+import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 
@@ -370,10 +371,16 @@ async function runItemCommand(view = {}, item = {}) {
     }, props.target)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
-      type: 'error',
-      duration: 4200,
-    })
+    const commandError = describeExtensionCommandError(error, t('Failed to start extension task'))
+    toastStore.show(
+      commandError.messageKey
+        ? t(commandError.messageKey, commandError.messageParams)
+        : commandError.messageText || t('Failed to start extension task'),
+      {
+        type: commandError.type,
+        duration: 4200,
+      },
+    )
   }
 }
 
@@ -388,10 +395,16 @@ async function runHeaderAction(action = {}) {
     }, props.target)
     toastStore.show(t('Extension task started'), { type: 'success', duration: 2400 })
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to start extension task')), {
-      type: 'error',
-      duration: 4200,
-    })
+    const commandError = describeExtensionCommandError(error, t('Failed to start extension task'))
+    toastStore.show(
+      commandError.messageKey
+        ? t(commandError.messageKey, commandError.messageParams)
+        : commandError.messageText || t('Failed to start extension task'),
+      {
+        type: commandError.type,
+        duration: 4200,
+      },
+    )
   }
 }
 
@@ -502,10 +515,16 @@ async function openResultEntry(entry = {}) {
       toastStore.show(successMessage, { type: 'success', duration: 2200 })
     }
   } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to open result entry')), {
-      type: 'error',
-      duration: 4200,
-    })
+    const commandError = describeExtensionCommandError(error, t('Failed to open result entry'))
+    toastStore.show(
+      commandError.messageKey
+        ? t(commandError.messageKey, commandError.messageParams)
+        : commandError.messageText || t('Failed to open result entry'),
+      {
+        type: commandError.type,
+        duration: 4200,
+      },
+    )
   } finally {
     if (resultActionBusyKey.value === busyKey) {
       resultActionBusyKey.value = ''
