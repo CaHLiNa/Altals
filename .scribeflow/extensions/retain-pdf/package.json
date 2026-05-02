@@ -1,0 +1,220 @@
+{
+  "name": "retain-pdf",
+  "displayName": "RetainPDF",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Run RetainPDF layout-preserving PDF translation from the active ScribeFlow PDF/reference context.",
+  "engines": {
+    "scribeflow": "^1.1.0"
+  },
+  "main": "./extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": [
+    "pdf.translate"
+  ],
+  "activationEvents": [
+    "onCapability:pdf.translate",
+    "onCommand:retainPdf.translateCurrent",
+    "onCommand:retainPdf.refreshView",
+    "onView:retainPdf.panel"
+  ],
+  "contributes": {
+    "capabilities": [
+      {
+        "id": "pdf.translate",
+        "inputs": {
+          "document": {
+            "type": "workspaceFile",
+            "required": true,
+            "extensions": [
+              ".pdf"
+            ]
+          },
+          "reference": {
+            "type": "reference",
+            "required": false
+          }
+        },
+        "outputs": {
+          "translatedPdf": {
+            "type": "artifact",
+            "mediaType": "application/pdf",
+            "required": false
+          },
+          "translatedText": {
+            "type": "artifact",
+            "mediaType": "text/markdown",
+            "required": false
+          },
+          "log": {
+            "type": "artifact",
+            "mediaType": "text/plain",
+            "required": true
+          },
+          "summary": {
+            "type": "inlineText",
+            "mediaType": "text/plain",
+            "required": true
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "retainPdf.translateCurrent",
+        "title": "Translate Current PDF",
+        "category": "RetainPDF"
+      },
+      {
+        "command": "retainPdf.refreshView",
+        "title": "Refresh RetainPDF Panel",
+        "category": "RetainPDF"
+      },
+      {
+        "command": "retainPdf.captureContext",
+        "title": "Capture RetainPDF Context",
+        "category": "RetainPDF"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "retainPdf.tools",
+          "title": "RetainPDF"
+        }
+      ]
+    },
+    "views": {
+      "retainPdf.tools": [
+        {
+          "id": "retainPdf.panel",
+          "name": "RetainPDF",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "retainPdf.translateCurrent",
+          "when": "resourceExtname == .pdf || resource.kind == pdf"
+        }
+      ],
+      "pdf.preview.actions": [
+        {
+          "command": "retainPdf.translateCurrent",
+          "when": "resource.kind == pdf"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "retainPdf.refreshView",
+          "when": "activeView == extension:retainPdf.tools"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "retainPdf.translateCurrent",
+          "when": "viewItem.contextValue == retain-pdf-target"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RetainPDF",
+      "properties": {
+        "retainPdf.apiBaseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:41000",
+          "description": "RetainPDF Rust API base URL."
+        },
+        "retainPdf.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "RetainPDF Rust API X-API-Key.",
+          "secureStorage": true
+        },
+        "retainPdf.ocrProvider": {
+          "type": "string",
+          "default": "mineru",
+          "description": "OCR provider used by RetainPDF.",
+          "enum": [
+            "mineru",
+            "paddle"
+          ],
+          "enumItemLabels": [
+            "MinerU",
+            "PaddleOCR"
+          ]
+        },
+        "retainPdf.mineruToken": {
+          "type": "string",
+          "default": "",
+          "description": "MinerU token for RetainPDF OCR.",
+          "secureStorage": true
+        },
+        "retainPdf.paddleToken": {
+          "type": "string",
+          "default": "",
+          "description": "PaddleOCR token for RetainPDF OCR.",
+          "secureStorage": true
+        },
+        "retainPdf.modelBaseUrl": {
+          "type": "string",
+          "default": "https://api.deepseek.com/v1",
+          "description": "OpenAI-compatible model API base URL used by RetainPDF translation."
+        },
+        "retainPdf.model": {
+          "type": "string",
+          "default": "deepseek-v4-flash",
+          "description": "Translation model name."
+        },
+        "retainPdf.modelApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Translation provider API key.",
+          "secureStorage": true
+        },
+        "retainPdf.workflow": {
+          "type": "string",
+          "default": "book",
+          "description": "RetainPDF workflow.",
+          "enum": [
+            "book",
+            "translate"
+          ],
+          "enumItemLabels": [
+            "Full PDF",
+            "Translate only"
+          ]
+        },
+        "retainPdf.pageRanges": {
+          "type": "string",
+          "default": "",
+          "description": "Optional RetainPDF page range string."
+        },
+        "retainPdf.developerMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable RetainPDF developer-mode upload for local workspace PDFs."
+        },
+        "retainPdf.pollIntervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "description": "Worker polling interval in seconds."
+        },
+        "retainPdf.timeoutSeconds": {
+          "type": "number",
+          "default": 1800,
+          "description": "RetainPDF job timeout in seconds."
+        }
+      }
+    }
+  },
+  "permissions": {
+    "readWorkspaceFiles": true,
+    "readReferenceLibrary": true,
+    "spawnProcess": true
+  }
+}

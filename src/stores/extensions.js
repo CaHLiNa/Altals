@@ -1197,6 +1197,9 @@ export const useExtensionsStore = defineStore('extensions', {
         },
       })
       const task = this.upsertTask(result?.task || {})
+      if (task && Array.isArray(result?.resultEntries)) {
+        task.resultEntries = result.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+      }
       this.markViewsChanged(result?.changedViews, extensionId)
       return task
     },
@@ -1269,6 +1272,9 @@ export const useExtensionsStore = defineStore('extensions', {
         },
       })
       const task = this.upsertTask(result?.task || {})
+      if (task && Array.isArray(result?.resultEntries)) {
+        task.resultEntries = result.resultEntries.map((entry, index) => normalizeResultEntry(entry, index))
+      }
       this.markViewsChanged(result?.changedViews, extensionId)
       return task
     },

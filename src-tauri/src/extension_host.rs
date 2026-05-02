@@ -377,6 +377,8 @@ pub struct ExtensionHostCapabilityResult {
     #[serde(default)]
     pub changed_views: Vec<String>,
     #[serde(default)]
+    pub result_entries: Vec<ExtensionHostResultEntry>,
+    #[serde(default)]
     pub artifacts: Vec<ExtensionArtifact>,
     #[serde(default)]
     pub outputs: Vec<ExtensionCapabilityOutput>,
@@ -2449,6 +2451,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
                 progress_label: "Accepted by extension host".to_string(),
                 task_state: "succeeded".to_string(),
                 changed_views: Vec::new(),
+                result_entries: Vec::new(),
                 artifacts: Vec::new(),
                 outputs: Vec::new(),
             })
@@ -2466,6 +2469,7 @@ fn handle_extension_host_request(request: ExtensionHostRequest) -> ExtensionHost
             progress_label: "Accepted by extension host".to_string(),
             task_state: "succeeded".to_string(),
             changed_views: Vec::new(),
+            result_entries: Vec::new(),
             artifacts: Vec::new(),
             outputs: Vec::new(),
         }),

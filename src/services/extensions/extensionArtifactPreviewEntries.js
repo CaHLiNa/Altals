@@ -10,8 +10,12 @@ function normalizeText(value = '') {
 }
 
 export function buildExtensionTaskResultEntries(task = {}) {
-  const results = buildExtensionArtifactPreviewEntries(task?.artifacts)
-  results.push(...mergeDefaultResultEntries({ outputs: task?.outputs }))
+  const explicitEntries = Array.isArray(task?.resultEntries) ? task.resultEntries : []
+  const results = mergeDefaultResultEntries({
+    existingEntries: explicitEntries,
+    artifacts: task?.artifacts,
+    outputs: task?.outputs,
+  })
   const commandId = normalizeText(task?.commandId)
   const extensionId = normalizeText(task?.extensionId)
   const targetPath = normalizeText(task?.target?.path)

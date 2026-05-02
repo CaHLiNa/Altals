@@ -237,6 +237,7 @@ fn run_probe(probe_root: &Path, home_root: &Path) -> Result<(), String> {
             progress_label: "Cancelled by user".to_string(),
             task_state: "cancelled".to_string(),
             changed_views: Vec::new(),
+            result_entries: Vec::new(),
             artifacts: vec![ExtensionArtifact {
                 id: "cancel-log".to_string(),
                 extension_id: "example-task-cancelled-contract-extension".to_string(),

@@ -5,6 +5,7 @@ use crate::extension_capability_contract::{
 use crate::extension_host::{
     activate_extension, build_extension_invocation_envelope, invoke_extension_host,
     ExtensionHostActivationResult, ExtensionHostRequest, ExtensionHostResponse,
+    ExtensionHostResultEntry,
 };
 use crate::extension_manifest::ExtensionManifest;
 use crate::extension_outputs::ExtensionCapabilityOutput;
@@ -49,6 +50,8 @@ pub struct ExtensionCommandExecutionResult {
     pub task: ExtensionTask,
     #[serde(default)]
     pub changed_views: Vec<String>,
+    #[serde(default)]
+    pub result_entries: Vec<ExtensionHostResultEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -259,6 +262,7 @@ fn record_extension_result(
     Ok(ExtensionCommandExecutionResult {
         task,
         changed_views: result.changed_views,
+        result_entries: result.result_entries,
     })
 }
 

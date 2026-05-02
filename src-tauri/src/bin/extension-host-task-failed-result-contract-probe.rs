@@ -236,6 +236,7 @@ fn run_probe(probe_root: &Path, home_root: &Path) -> Result<(), String> {
             progress_label: "Worker failed".to_string(),
             task_state: "failed".to_string(),
             changed_views: Vec::new(),
+            result_entries: Vec::new(),
             artifacts: vec![ExtensionArtifact {
                 id: "failure-log".to_string(),
                 extension_id: "example-task-failed-contract-extension".to_string(),
