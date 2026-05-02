@@ -251,6 +251,23 @@ async function main() {
   ensure(artifactIds.includes('retain-pdf-translated-pdf'), 'translated PDF artifact missing', payload)
   ensure(artifactIds.includes('retain-pdf-log'), 'log artifact missing', payload)
   ensure(resultEntryIds.includes('retain-pdf-rerun'), 'rerun result entry missing', payload)
+  const translatedPdfArtifact = (payload.artifacts || []).find((entry) => entry.id === 'retain-pdf-translated-pdf') || {}
+  const translatedTextArtifact = (payload.artifacts || []).find((entry) => entry.id === 'retain-pdf-translated-text') || {}
+  ensure(
+    String(translatedPdfArtifact.path || '').startsWith(path.join(tempWorkspace, 'paper')),
+    'translated PDF should be written into a sibling folder next to the source PDF',
+    translatedPdfArtifact,
+  )
+  ensure(
+    String(translatedTextArtifact.path || '').startsWith(path.join(tempWorkspace, 'paper')),
+    'translated markdown should be written into a sibling folder next to the source PDF',
+    translatedTextArtifact,
+  )
+  ensure(
+    !String(translatedPdfArtifact.path || '').includes(`${path.sep}.scribeflow${path.sep}extensions${path.sep}retain-pdf${path.sep}artifacts${path.sep}`),
+    'translated PDF should not stay in the internal hidden artifact directory',
+    translatedPdfArtifact,
+  )
   const writtenSettings = writtenSettingsPayloads[0] || {}
   ensure(!Object.hasOwn(writtenSettings, 'apiKey'), 'RetainPDF worker settings leaked apiKey to disk', writtenSettings)
   ensure(!Object.hasOwn(writtenSettings, 'mineruToken'), 'RetainPDF worker settings leaked mineruToken to disk', writtenSettings)
