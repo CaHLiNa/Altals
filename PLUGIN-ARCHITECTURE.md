@@ -169,6 +169,7 @@ Capability invoke contract note:
 - nested `context.capabilities.invoke(...)` should surface runtime capability failures and missing-provider errors as catchable exceptions inside plugin code
 - nested `context.capabilities.invoke(...)` should preserve the callee's `changedViews` union, including both explicit `changedViews` entries and host-tracked `views.refresh(...)` requests, so capability orchestration stays symmetric with nested commands
 - top-level capability execution should propagate that aggregated `changedViews` set back through the host response so Rust task orchestration and frontend view invalidation consume the same refresh contract
+- a capability provider should also be free to mix `tasks.update(...)`, `views.updateView(...)`, and `views.refresh(...)` in one orchestration flow, with the host preserving the running task snapshot, pushed view state, and returned `changedViews` without requiring plugin-specific glue
 
 Task update contract note:
 
