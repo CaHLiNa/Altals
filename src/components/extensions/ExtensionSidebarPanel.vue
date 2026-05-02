@@ -56,27 +56,23 @@
         </div>
 
         <div v-if="resolvedViewStatusLabel(view)" class="extension-sidebar-panel__status">
-          <span
-            class="extension-sidebar-panel__status-pill"
-            :class="statusToneClass(resolvedViewStatusTone(view))"
-          >
-            {{ resolvedViewStatusLabel(view) }}
-          </span>
+          <ExtensionStatusPill
+            :label="resolvedViewStatusLabel(view)"
+            :tone-class="statusToneClass(resolvedViewStatusTone(view))"
+          />
           <span v-if="resolvedViewActionLabel(view)" class="extension-sidebar-panel__status-action">
             {{ resolvedViewActionLabel(view) }}
           </span>
         </div>
 
         <div v-if="resolvedViewSections(view).length > 0" class="extension-sidebar-panel__summary">
-          <div
+          <ExtensionSummaryCard
             v-for="section in resolvedViewSections(view)"
             :key="section.id"
-            class="extension-sidebar-panel__summary-card"
-            :class="summaryToneClass(section.tone)"
-          >
-            <div class="extension-sidebar-panel__summary-title">{{ section.title }}</div>
-            <div class="extension-sidebar-panel__summary-value">{{ section.value }}</div>
-          </div>
+            :title="section.title"
+            :value="section.value"
+            :tone-class="summaryToneClass(section.tone)"
+          />
         </div>
 
         <div v-if="resolvedViewResults(view).length > 0" class="extension-sidebar-panel__results">
@@ -136,6 +132,8 @@ import { describeExtensionCommandError } from '../../domains/extensions/extensio
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
+import ExtensionStatusPill from './ExtensionStatusPill.vue'
+import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 
@@ -664,30 +662,6 @@ async function openResultEntry(entry = {}) {
   padding: 0 4px;
 }
 
-.extension-sidebar-panel__status-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: color-mix(in srgb, var(--surface-hover) 82%, transparent);
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.extension-sidebar-panel__status-pill.is-success {
-  background: color-mix(in srgb, var(--success) 18%, transparent);
-}
-
-.extension-sidebar-panel__status-pill.is-warning {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-}
-
-.extension-sidebar-panel__status-pill.is-danger,
-.extension-sidebar-panel__status-pill.is-error {
-  background: color-mix(in srgb, var(--error) 18%, transparent);
-}
-
 .extension-sidebar-panel__status-action {
   color: var(--text-muted);
   font-size: 11px;
@@ -698,45 +672,6 @@ async function openResultEntry(entry = {}) {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
   padding: 0 4px;
-}
-
-.extension-sidebar-panel__summary-card {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  border: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-base) 76%, transparent);
-  padding: 10px;
-}
-
-.extension-sidebar-panel__summary-card.is-success {
-  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
-}
-
-.extension-sidebar-panel__summary-card.is-warning {
-  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
-}
-
-.extension-sidebar-panel__summary-card.is-danger,
-.extension-sidebar-panel__summary-card.is-error {
-  border-color: color-mix(in srgb, var(--error) 34%, var(--border));
-}
-
-.extension-sidebar-panel__summary-title {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.extension-sidebar-panel__summary-value {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
 .extension-sidebar-panel__results {

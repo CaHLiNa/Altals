@@ -122,6 +122,7 @@ Current plugin lifecycle contract:
 - runtime-block action button shell is now shared too: command buttons, sidebar header actions, and result-preview actions now render through one shared blocked-action button component, so blocked label/message/disabled/title behavior no longer requires each surface to hand-assemble its own button markup
 - runtime-block status chip is now shared too: command-palette status pills and tree primary blocked labels now render through one shared blocked-status chip component, so blocked/waiting tone and compact-vs-regular label treatment no longer drift between those surfaces
 - tree primary blocked shell is now shared too: extension sidebar tree items no longer hand-assemble selected/focused/blocked card chrome inline, and instead render through one shared tree-primary button component that owns the blocked chip placement and disabled/title contract
+- sidebar panel status and summary shells are now shared too: view status pills and summary cards no longer keep their own local DOM/CSS contracts, and instead render through shared status-pill and summary-card components
 - settings capability cards now consume the same runtime-block pieces too: blocked capability badges render through the shared blocked-status chip and blocked capability run actions render through the shared blocked-action button, so settings no longer maintain a fourth hand-rolled blocked/waiting shell
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
@@ -172,6 +173,7 @@ It runs:
 - `npm run probe:extension-blocked-action-button-contract`
 - `npm run probe:extension-blocked-status-chip-contract`
 - `npm run probe:extension-tree-primary-button-contract`
+- `npm run probe:extension-sidebar-panel-status-contract`
 - `npm run probe:settings-extensions-capability-card-contract`
 - `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
@@ -253,6 +255,7 @@ Current baseline:
 - extension blocked-action button contract probe passes
 - extension blocked-status chip contract probe passes
 - extension tree primary button contract probe passes
+- extension sidebar panel status contract probe passes
 - settings extensions capability card contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
