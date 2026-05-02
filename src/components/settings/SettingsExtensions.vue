@@ -466,8 +466,13 @@ async function persistSettingDraft(extensionId = '', key = '') {
   if (!Object.prototype.hasOwnProperty.call(settingDrafts, draftKey)) return
   const value = settingDrafts[draftKey]
   try {
-    await extensionsStore.setExtensionConfigValue(normalizedExtensionId, normalizedKey, value)
     const extension = extensions.value.find((entry) => entry.id === normalizedExtensionId)
+    const setting = extension?.settingsSchema?.[normalizedKey]
+    await extensionsStore.setExtensionConfigValue(normalizedExtensionId, normalizedKey, value)
+    if (setting?.secureStorage === true) {
+      delete settingDrafts[draftKey]
+      return
+    }
     const savedValue = extension ? settingValue(extension, normalizedKey) : value
     if (String(savedValue ?? '') === String(value ?? '')) {
       delete settingDrafts[draftKey]

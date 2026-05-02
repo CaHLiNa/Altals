@@ -798,6 +798,63 @@ mod tests {
     }
 
     #[test]
+    fn namespaced_extension_secrets_roundtrip_through_keychain() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-namespaced-secret-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        write_test_extension_manifest(&root, "retain-pdf", "retainPdf.modelApiKey");
+
+        let mut extension_config = BTreeMap::new();
+        extension_config.insert(
+            "retain-pdf".to_string(),
+            serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-v4-flash"
+            }),
+        );
+
+        let saved = save_extension_settings(
+            &root.to_string_lossy(),
+            "",
+            ExtensionSettings {
+                enabled_extension_ids: vec!["retain-pdf".to_string()],
+                extension_config,
+            },
+        )
+        .expect("save retain pdf settings");
+
+        assert_eq!(
+            saved.extension_config.get("retain-pdf"),
+            Some(&serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-v4-flash"
+            }))
+        );
+
+        let file_content =
+            fs::read_to_string(root.join("extension-settings.json")).expect("settings file");
+        assert!(!file_content.contains("sk-retain"));
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:retain-pdf:retainPdf.modelApiKey")
+                .expect("keychain retain pdf model key"),
+            Some("sk-retain".to_string())
+        );
+
+        let loaded = load_extension_settings(&root.to_string_lossy(), "").expect("load");
+        assert_eq!(
+            loaded.extension_config.get("retain-pdf"),
+            Some(&serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-v4-flash"
+            }))
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn loading_plaintext_secrets_migrates_them_into_keychain() {
         let root = std::env::temp_dir().join(format!(
             "scribeflow-extension-settings-migrate-{}",
