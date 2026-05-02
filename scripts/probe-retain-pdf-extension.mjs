@@ -38,6 +38,7 @@ async function main() {
   const observed = []
   const writtenSettingsPayloads = []
   const spawnEnvPayloads = []
+  let backendHealthy = true
   let current = null
   let buffer = ''
 
@@ -85,6 +86,19 @@ async function main() {
       const args = Array.isArray(payload.args) ? payload.args : []
       const filePath = String(args[2] || args[1] || '')
       const jsonPayload = String(args[3] || args[2] || '{}')
+      if (String(args[0] || '') === '-e' && String(args[1] || '').includes('http.get') && String(args[2] || '').endsWith('/health')) {
+        send(target, 'ResolveHostCall', {
+          requestId,
+          accepted: true,
+          result: {
+            ok: true,
+            code: 0,
+            stdout: JSON.stringify(backendHealthy ? { ok: true, statusCode: 200 } : { ok: false, error: 'ECONNREFUSED' }),
+            stderr: '',
+          },
+        })
+        return
+      }
       if (String(args[0] || '') === '-e' && String(args[1] || '').includes('fs.writeFileSync') && filePath) {
         writtenSettingsPayloads.push(JSON.parse(jsonPayload || '{}'))
         void mkdir(path.dirname(filePath), { recursive: true })
@@ -265,6 +279,43 @@ async function main() {
     viewChanged.payload,
   )
 
+  backendHealthy = false
+  const spawnCountBeforeOfflineProbe = spawnEnvPayloads.length
+  const offlineExecuted = await call('ExecuteCommand', {
+    extensionId: 'retain-pdf',
+    extensionPath,
+    manifestPath,
+    mainEntry: manifest.main,
+    commandId: 'retainPdf.translateCurrent',
+    permissions: manifest.permissions,
+    capabilities: manifest.contributes.capabilities,
+    activationState,
+    envelope,
+  })
+  const offlinePayload = offlineExecuted.payload || {}
+  ensure(offlinePayload.taskState === 'failed', 'retain-pdf command should fail when backend health check fails', offlinePayload)
+  ensure(
+    String(offlinePayload.progressLabel || '') === 'RetainPDF 后端未启动',
+    'retain-pdf offline progress label should come from plugin language pack',
+    offlinePayload,
+  )
+  ensure(
+    String(offlinePayload.message || '').includes('RetainPDF 后端没有运行'),
+    'retain-pdf offline message should explain the backend is not running',
+    offlinePayload,
+  )
+  ensure(
+    spawnEnvPayloads.length === spawnCountBeforeOfflineProbe,
+    'retain-pdf should not spawn worker when backend health check fails',
+    { before: spawnCountBeforeOfflineProbe, after: spawnEnvPayloads.length },
+  )
+  const offlineViewChanged = observed.findLast((entry) =>
+    entry.kind === 'ViewStateChanged' &&
+    entry.payload?.viewId === 'retainPdf.panel' &&
+    entry.payload?.statusLabel === '后端未启动'
+  )
+  ensure(Boolean(offlineViewChanged), 'retain-pdf panel did not publish backend-offline state', observed)
+
   child.kill()
   console.log(JSON.stringify({
     ok: true,
@@ -272,6 +323,7 @@ async function main() {
     artifactIds,
     resultEntryIds,
     viewStatus: viewChanged.payload.statusLabel,
+    offlineStatus: offlineViewChanged.payload.statusLabel,
   }, null, 2))
 }
 
