@@ -194,6 +194,10 @@ Components over 500 lines:
 | `src/stores/uxStatus.js` | 78 | Status/toast UI | Low. |
 | `src/stores/workspace.js` | 677 | Workspace lifecycle, preferences, layout, settings, shell state | High; Phase 3/4 should keep lifecycle and persisted settings Rust-owned. |
 
+## Workspace/File Authority Cleanup Log
+
+- 2026-05-02: `src/stores/files.js` no longer decides whether a Save Draft As target path is inside the active workspace with frontend string-prefix checks. The selected path is sent through the normal `workspace_write_text_file` bridge, and Rust `ensure_allowed_mutation_path` remains the authority for accepting or rejecting the mutation. The store only reports the failed save as UI feedback.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`

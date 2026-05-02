@@ -796,16 +796,14 @@ export const useFilesStore = defineStore('files', {
 
       if (!selectedPath) return null
 
-      if (workspaceRoot && selectedPath !== workspaceRoot && !selectedPath.startsWith(`${workspaceRoot}/`)) {
-        useToastStore().show(t('Save the draft inside the current workspace.'), {
-          type: 'error',
-          duration: 4000,
-        })
-        return null
-      }
-
       const saved = await this.saveDraftAs(draftPath, selectedPath, content)
-      return saved ? selectedPath : null
+      if (saved) return selectedPath
+
+      useToastStore().show(t('Save the draft inside the current workspace.'), {
+        type: 'error',
+        duration: 4000,
+      })
+      return null
     },
 
     markTransientFile(path) {
