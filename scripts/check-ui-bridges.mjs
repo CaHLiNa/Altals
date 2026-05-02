@@ -4,6 +4,7 @@ import { join, relative } from 'node:path'
 const repoRoot = new URL('..', import.meta.url).pathname
 const srcRoot = join(repoRoot, 'src')
 const disallowedImports = ['@tauri-apps/api/', '@tauri-apps/plugin-']
+const allowedBridgeRoot = 'src/services/'
 
 function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -17,7 +18,7 @@ const violations = walk(srcRoot)
   .filter((path) => path.endsWith('.js') || path.endsWith('.vue'))
   .filter((path) => {
     const rel = relative(repoRoot, path)
-    if (rel.startsWith('src/services/')) return false
+    if (rel.startsWith(allowedBridgeRoot)) return false
     const source = readFileSync(path, 'utf8')
     return disallowedImports.some((importPath) => source.includes(importPath))
   })
