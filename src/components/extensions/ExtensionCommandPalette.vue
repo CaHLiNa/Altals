@@ -9,6 +9,25 @@
     @close="close"
   >
     <div class="command-palette-shell">
+      <div
+        v-if="promptRecoveryAvailable"
+        class="command-palette-recovery"
+        :class="activeBlockedState?.tone"
+      >
+        <div class="command-palette-recovery__copy">
+          {{ activeBlockedMessage }}
+        </div>
+        <UiButton
+          variant="ghost"
+          size="sm"
+          :disabled="promptRecoveryBusy"
+          :title="promptRecoveryTitle"
+          @click="void recoverPrompt()"
+        >
+          {{ promptRecoveryLabel }}
+        </UiButton>
+      </div>
+
       <div class="command-palette-search">
         <UiInput
           ref="inputRef"
@@ -67,8 +86,10 @@ import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import UiInput from '../shared/ui/UiInput.vue'
+import UiButton from '../shared/ui/UiButton.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
 
 const props = defineProps({
@@ -120,6 +141,36 @@ const filteredCommands = computed(() => {
       .includes(normalized)
   )
 })
+const blockedEntries = computed(() => filteredCommands.value.filter((entry) => entry.hostState.blocked))
+const activeBlockedState = computed(() => blockedEntries.value[0]?.hostState || null)
+const activeBlockedMessage = computed(() => blockedEntries.value[0]?.hostMessage || '')
+const blockedPromptOwner = computed(() => activeBlockedState.value?.pendingPromptOwner || null)
+const ownPromptWorkspaceRoot = computed(() => activeBlockedState.value?.pendingPromptWorkspaceRoot || '')
+const promptRecoveryOwner = computed(() => {
+  const blockedState = activeBlockedState.value
+  if (!blockedState?.blocked) return null
+  if (blockedState.ownsPendingPrompt) {
+    return {
+      extensionId: blockedEntries.value[0]?.command?.extensionId || '',
+      workspaceRoot: ownPromptWorkspaceRoot.value || workspaceStore.path || '',
+    }
+  }
+  if (blockedState.blockedByForeignPrompt) {
+    return {
+      extensionId: blockedPromptOwner.value?.extensionId || '',
+      workspaceRoot: blockedState.blockingPromptWorkspaceRoot || '',
+    }
+  }
+  return null
+})
+const {
+  busy: promptRecoveryBusy,
+  descriptor: promptRecovery,
+  cancel: cancelPromptRecovery,
+} = useExtensionPromptRecovery(() => promptRecoveryOwner.value)
+const promptRecoveryAvailable = computed(() => promptRecovery.value.available)
+const promptRecoveryLabel = computed(() => promptRecovery.value.label)
+const promptRecoveryTitle = computed(() => promptRecovery.value.title)
 
 watch(
   () => props.visible,
@@ -183,6 +234,10 @@ async function execute(command = null) {
   }
 }
 
+async function recoverPrompt() {
+  await cancelPromptRecovery()
+}
+
 function handleInputKeydown(event) {
   if (event.key === 'ArrowDown') {
     event.preventDefault()
@@ -221,6 +276,27 @@ function handleInputKeydown(event) {
   min-height: 0;
   max-height: min(560px, calc(100vh - 140px));
   flex-direction: column;
+}
+
+.command-palette-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-base));
+}
+
+.command-palette-recovery.is-blocked {
+  background: color-mix(in srgb, var(--error) 7%, var(--surface-base));
+}
+
+.command-palette-recovery__copy {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .command-palette-search {

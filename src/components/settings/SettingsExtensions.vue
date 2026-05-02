@@ -378,6 +378,7 @@ import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
+import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { resolveExtensionTargetContext } from '../../domains/extensions/extensionTargetContext'
 import { inspectExtensionCapability } from '../../domains/extensions/extensionCapabilitySchema'
 import {
@@ -398,7 +399,6 @@ const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
-const hostPromptRecoveryBusy = ref(false)
 const hostRuntimeRestartBusyKey = ref('')
 const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
 const capabilityInvokeTarget = computed(() =>
@@ -879,28 +879,13 @@ const hostRuntimeCardToneClass = computed(() => {
   return 'is-idle'
 })
 const showHostPromptRecoveryAction = computed(() =>
-  Boolean(hostStatus().pendingPromptOwner?.extensionId && hostStatus().pendingPromptOwner?.workspaceRoot)
+  hostPromptRecovery.value.available
 )
-
-async function recoverHostPrompt() {
-  const owner = hostStatus().pendingPromptOwner
-  if (!owner?.extensionId || !owner?.workspaceRoot || hostPromptRecoveryBusy.value) return
-  hostPromptRecoveryBusy.value = true
-  try {
-    await extensionsStore.cancelPendingPromptForExtension(owner.extensionId, owner.workspaceRoot)
-    toastStore.show(t('Cancelled the blocking extension prompt'), {
-      type: 'success',
-      duration: 2600,
-    })
-  } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to cancel extension prompt')), {
-      type: 'error',
-      duration: 4200,
-    })
-  } finally {
-    hostPromptRecoveryBusy.value = false
-  }
-}
+const {
+  busy: hostPromptRecoveryBusy,
+  descriptor: hostPromptRecovery,
+  cancel: recoverHostPrompt,
+} = useExtensionPromptRecovery(() => hostStatus().pendingPromptOwner)
 
 async function restartHostRuntimeSlot(slot = {}) {
   const extensionId = String(slot?.extensionId || '').trim()

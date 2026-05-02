@@ -62,11 +62,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useToastStore } from '../../stores/toast'
 import { useI18n } from '../../i18n'
+import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
@@ -79,8 +79,6 @@ const props = defineProps({
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
 const extensionsStore = useExtensionsStore()
-const toastStore = useToastStore()
-const promptRecoveryBusy = ref(false)
 
 const fallbackTarget = computed(() => ({
   kind: String(props.filePath || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'workspace',
@@ -205,11 +203,7 @@ const hostDiagnosticToneClass = computed(() => {
 })
 
 const showPromptRecoveryAction = computed(() => {
-  const diagnostics = hostDiagnostics.value
-  return Boolean(
-    promptRecoveryExtensionId.value &&
-    promptRecoveryWorkspaceRoot.value,
-  )
+  return promptRecovery.value.available
 })
 
 const promptRecoveryExtensionId = computed(() => {
@@ -235,25 +229,17 @@ const promptRecoveryWorkspaceRoot = computed(() => {
 })
 
 async function recoverPrompt() {
-  const extensionId = promptRecoveryExtensionId.value
-  const workspaceRoot = promptRecoveryWorkspaceRoot.value
-  if (!extensionId || !workspaceRoot || promptRecoveryBusy.value) return
-  promptRecoveryBusy.value = true
-  try {
-    await extensionsStore.cancelPendingPromptForExtension(extensionId, workspaceRoot)
-    toastStore.show(t('Cancelled the blocking extension prompt'), {
-      type: 'success',
-      duration: 2600,
-    })
-  } catch (error) {
-    toastStore.show(error?.message || String(error || t('Failed to cancel extension prompt')), {
-      type: 'error',
-      duration: 4200,
-    })
-  } finally {
-    promptRecoveryBusy.value = false
-  }
+  await cancelPromptRecovery()
 }
+
+const {
+  busy: promptRecoveryBusy,
+  descriptor: promptRecovery,
+  cancel: cancelPromptRecovery,
+} = useExtensionPromptRecovery(() => ({
+  extensionId: promptRecoveryExtensionId.value,
+  workspaceRoot: promptRecoveryWorkspaceRoot.value,
+}))
 </script>
 
 <style scoped>
