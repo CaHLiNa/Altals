@@ -212,6 +212,7 @@ Components over 500 lines:
 ## Document Runtime Cleanup Log
 
 - 2026-05-02: `src/stores/python.js` no longer normalizes raw Python runtime command DTOs itself. `src/services/pythonRuntime.js` now adapts `python_runtime_list`, `python_runtime_detect`, and `python_runtime_compile` responses into stable frontend DTOs, while Rust `src-tauri/src/python_runtime.rs` remains the runtime discovery and execution authority and the Pinia store keeps compile UI state only.
+- 2026-05-02: `src/services/latex/runtime.js` now normalizes `latex_runtime_compile_execute` responses into a stable bridge DTO with camelCase aliases while preserving Rust result fields. `src/stores/latex.js` consumes the adapted compile result for PDF refresh metadata and keeps compile UI orchestration, with compile execution and diagnostics still owned by Rust.
 
 ## Phase 1 Verification Targets
 

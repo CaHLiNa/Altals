@@ -631,15 +631,15 @@ export const useLatexStore = defineStore('latex', {
               compileTargetPath,
               pdfPath:
                 compileExecution?.sourceState?.pdfPath ||
-                compileExecution?.result?.pdf_path ||
+                compileExecution?.result?.pdfPath ||
                 '',
               previewPath:
                 compileExecution?.sourceState?.previewPath ||
-                compileExecution?.result?.pdf_path ||
+                compileExecution?.result?.pdfPath ||
                 '',
               synctexPath:
                 compileExecution?.sourceState?.synctexPath ||
-                compileExecution?.result?.synctex_path ||
+                compileExecution?.result?.synctexPath ||
                 '',
               lastCompiled: Number(
                 compileExecution?.sourceState?.lastCompiled || Date.now(),
