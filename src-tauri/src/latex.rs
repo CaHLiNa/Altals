@@ -414,7 +414,7 @@ pub async fn workspace_synctex_backward(
         }
     }
 
-    let data = parse_synctex_gz(&resolved_synctex_path)?;
+    let data = parse_synctex_file(&resolved_synctex_path)?;
     backward_sync(&data, page, x, y)
 }
 
@@ -440,52 +440,22 @@ pub async fn workspace_synctex_forward(
     let resolved_synctex_path = synctex.to_string_lossy().to_string();
     let resolved_file_path = normalized_file_path.to_string_lossy().to_string();
 
-    let pdf_path = derive_pdf_path_from_synctex_path(&resolved_synctex_path)
-        .ok_or_else(|| "Could not derive PDF path from SyncTeX file.".to_string())?;
-
-    let binary = find_synctex(None).ok_or_else(|| {
-        "SyncTeX binary is unavailable. Forward SyncTeX will fall back to the frontend parser."
-            .to_string()
-    })?;
-
-    run_synctex_view_cli(
-        &binary,
-        &resolved_file_path,
-        &pdf_path,
-        line.max(1),
-        column.max(1),
-    )
-}
-
-#[tauri::command]
-pub async fn workspace_read_latex_synctex(
-    path: String,
-    scope_state: tauri::State<'_, WorkspaceScopeState>,
-) -> Result<String, String> {
-    let normalized =
-        security::ensure_allowed_workspace_path(scope_state.inner(), Path::new(&path))?;
-    if !normalized.exists() {
-        return Err("SyncTeX file not found.".to_string());
+    if let Some(pdf_path) = derive_pdf_path_from_synctex_path(&resolved_synctex_path) {
+        if let Some(binary) = find_synctex(None) {
+            if let Ok(result) = run_synctex_view_cli(
+                &binary,
+                &resolved_file_path,
+                &pdf_path,
+                line.max(1),
+                column.max(1),
+            ) {
+                return Ok(result);
+            }
+        }
     }
 
-    if normalized
-        .extension()
-        .and_then(|value| value.to_str())
-        .is_some_and(|value| value.eq_ignore_ascii_case("gz"))
-    {
-        use std::io::Read;
-
-        let file =
-            std::fs::File::open(&normalized).map_err(|e| format!("Cannot open synctex: {}", e))?;
-        let mut decoder = flate2::read::GzDecoder::new(file);
-        let mut content = String::new();
-        decoder
-            .read_to_string(&mut content)
-            .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
-        return Ok(content);
-    }
-
-    std::fs::read_to_string(&normalized).map_err(|e| format!("Cannot read synctex: {}", e))
+    let data = parse_synctex_file(&resolved_synctex_path)?;
+    forward_sync(&data, &resolved_file_path, line.max(1))
 }
 
 const SYNCTEX_SCALED_POINT_TO_BIG_POINT: f64 = 72.0 / 72.27 / 65536.0;
@@ -533,6 +503,7 @@ fn parse_synctex_edit_output(output: &str) -> Result<serde_json::Value, String> 
             return Ok(serde_json::json!({
                 "file": file,
                 "line": line,
+                "strictLine": true,
             }));
         }
     }
@@ -559,6 +530,7 @@ fn push_synctex_view_record(
     if has_page && (has_point || has_rect) {
         let mut record = current.clone();
         record.insert("indicator".to_string(), serde_json::Value::Bool(true));
+        record.insert("strictLine".to_string(), serde_json::Value::Bool(true));
         records.push(record);
     }
 
@@ -799,8 +771,12 @@ fn parse_synctex_content(content: &str) -> Vec<SyncNode> {
     nodes
 }
 
-fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
+fn read_synctex_content(path: &str) -> Result<String, String> {
     use std::io::Read;
+
+    if !path.to_ascii_lowercase().ends_with(".gz") {
+        return std::fs::read_to_string(path).map_err(|e| format!("Cannot read synctex: {}", e));
+    }
 
     let file = std::fs::File::open(path).map_err(|e| format!("Cannot open synctex: {}", e))?;
     let mut decoder = flate2::read::GzDecoder::new(file);
@@ -808,7 +784,11 @@ fn parse_synctex_gz(path: &str) -> Result<Vec<SyncNode>, String> {
     decoder
         .read_to_string(&mut content)
         .map_err(|e| format!("Cannot decompress synctex: {}", e))?;
+    Ok(content)
+}
 
+fn parse_synctex_file(path: &str) -> Result<Vec<SyncNode>, String> {
+    let content = read_synctex_content(path)?;
     Ok(parse_synctex_content(&content))
 }
 
@@ -837,14 +817,142 @@ fn backward_sync(
         Some(node) => Ok(serde_json::json!({
             "file": node.file,
             "line": node.line,
+            "strictLine": false,
         })),
         None => Err("No SyncTeX match found at this position.".to_string()),
     }
 }
 
+fn normalize_synctex_path_for_match(value: &str) -> String {
+    value.replace('\\', "/").to_lowercase()
+}
+
+fn score_synctex_input_path(input_path: &str, file_path: &str) -> i32 {
+    let normalized_input_path = normalize_synctex_path_for_match(input_path);
+    let normalized_file_path = normalize_synctex_path_for_match(file_path);
+    if normalized_input_path.is_empty() || normalized_file_path.is_empty() {
+        return -1;
+    }
+    if normalized_input_path == normalized_file_path {
+        return 10_000;
+    }
+
+    let input_segments: Vec<&str> = normalized_input_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let file_segments: Vec<&str> = normalized_file_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if input_segments.is_empty() || file_segments.is_empty() {
+        return -1;
+    }
+    if input_segments.last() != file_segments.last() {
+        return -1;
+    }
+
+    let mut trailing_matches = 0;
+    while trailing_matches < input_segments.len()
+        && trailing_matches < file_segments.len()
+        && input_segments[input_segments.len() - 1 - trailing_matches]
+            == file_segments[file_segments.len() - 1 - trailing_matches]
+    {
+        trailing_matches += 1;
+    }
+
+    100 + trailing_matches as i32 * 25
+}
+
+fn build_synctex_rect_record(nodes: &[&SyncNode]) -> Option<serde_json::Value> {
+    let first = nodes.first()?;
+    let mut left = f64::INFINITY;
+    let mut right = f64::NEG_INFINITY;
+    let mut top = f64::INFINITY;
+    let mut bottom = f64::NEG_INFINITY;
+
+    for node in nodes {
+        left = left.min(node.x);
+        right = right.max(node.x + node.width.max(0.0));
+        top = top.min(node.y - node.height.max(0.0));
+        bottom = bottom.max(node.y);
+    }
+
+    if !left.is_finite() || !right.is_finite() || !top.is_finite() || !bottom.is_finite() {
+        return None;
+    }
+
+    let width = (right - left).max(0.0);
+    let height = (bottom - top).max(0.0);
+    Some(serde_json::json!({
+        "page": first.page,
+        "x": left,
+        "y": bottom,
+        "h": left,
+        "v": bottom,
+        "W": width,
+        "H": height,
+        "indicator": true,
+        "strictLine": false,
+    }))
+}
+
+fn forward_sync(
+    nodes: &[SyncNode],
+    file_path: &str,
+    requested_line: u32,
+) -> Result<serde_json::Value, String> {
+    let best_file = nodes
+        .iter()
+        .map(|node| node.file.as_str())
+        .max_by_key(|candidate| score_synctex_input_path(candidate, file_path))
+        .filter(|candidate| score_synctex_input_path(candidate, file_path) >= 125)
+        .ok_or_else(|| "No SyncTeX input file matched this source path.".to_string())?;
+
+    let mut line_candidates: Vec<u32> = nodes
+        .iter()
+        .filter(|node| node.file == best_file)
+        .map(|node| node.line)
+        .collect();
+    line_candidates.sort_unstable();
+    line_candidates.dedup();
+    let Some(resolved_line) = line_candidates
+        .iter()
+        .copied()
+        .find(|line| *line >= requested_line)
+        .or_else(|| line_candidates.last().copied())
+    else {
+        return Err("No SyncTeX line match found for this source file.".to_string());
+    };
+
+    let mut page_nodes: HashMap<u32, Vec<&SyncNode>> = HashMap::new();
+    for node in nodes
+        .iter()
+        .filter(|node| node.file == best_file && node.line == resolved_line)
+    {
+        page_nodes.entry(node.page).or_default().push(node);
+    }
+
+    let mut pages: Vec<u32> = page_nodes.keys().copied().collect();
+    pages.sort_unstable();
+    let records: Vec<serde_json::Value> = pages
+        .iter()
+        .filter_map(|page| page_nodes.get(page))
+        .filter_map(|nodes| build_synctex_rect_record(nodes))
+        .collect();
+
+    if records.is_empty() {
+        return Err("No SyncTeX PDF location found for this source line.".to_string());
+    }
+    if records.len() == 1 {
+        return Ok(records[0].clone());
+    }
+    Ok(serde_json::Value::Array(records))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_synctex_view_output;
+    use super::{forward_sync, parse_synctex_content, parse_synctex_view_output};
 
     #[test]
     fn parse_synctex_view_output_supports_rectangle_records() {
@@ -875,6 +983,7 @@ SyncTeX result end
         assert_eq!(records[0]["page"].as_u64(), Some(3));
         assert_eq!(records[1]["page"].as_u64(), Some(4));
         assert_eq!(records[0]["indicator"].as_bool(), Some(true));
+        assert_eq!(records[0]["strictLine"].as_bool(), Some(true));
     }
 
     #[test]
@@ -891,5 +1000,37 @@ SyncTeX result end
         assert!(parsed.is_object());
         assert_eq!(parsed["page"].as_u64(), Some(2));
         assert_eq!(parsed["indicator"].as_bool(), Some(true));
+        assert_eq!(parsed["strictLine"].as_bool(), Some(true));
+    }
+
+    #[test]
+    fn forward_sync_fallback_matches_trailing_source_path() {
+        let content = r#"SyncTeX Version:1
+Input:1:chapter/main.tex
+{2
+x1,9:65536,131072
+h1,12:131072,196608:65536,32768,0
+}2
+"#;
+        let nodes = parse_synctex_content(content);
+        let parsed = forward_sync(&nodes, "/workspace/project/chapter/main.tex", 10)
+            .expect("should resolve nearest following line");
+        assert_eq!(parsed["page"].as_u64(), Some(2));
+        assert_eq!(parsed["indicator"].as_bool(), Some(true));
+        assert_eq!(parsed["strictLine"].as_bool(), Some(false));
+        assert!(parsed["x"].as_f64().is_some());
+        assert!(parsed["W"].as_f64().is_some());
+    }
+
+    #[test]
+    fn forward_sync_fallback_rejects_unmatched_source_path() {
+        let content = r#"SyncTeX Version:1
+Input:1:chapter/main.tex
+{1
+x1,4:65536,65536
+}1
+"#;
+        let nodes = parse_synctex_content(content);
+        assert!(forward_sync(&nodes, "/workspace/project/other.tex", 4).is_err());
     }
 }

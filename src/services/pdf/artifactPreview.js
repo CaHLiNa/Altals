@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { requestLatexWorkshopForwardSync } from '../latex/latexWorkshopSynctex.js'
-import { requestLatexWorkshopBackwardSync } from '../latex/latexWorkshopSynctex.js'
 
 export async function readPdfArtifactBase64(filePath) {
   const normalizedPath = String(filePath || '').trim()
@@ -24,34 +22,17 @@ export async function requestLatexPdfBackwardSync(options = {}) {
     return null
   }
 
-  try {
-    const result = await invoke('workspace_synctex_backward', {
-      synctexPath,
-      page,
-      x,
-      y,
-    })
-    if (result) {
-      return {
-        ...result,
-        strictLine: true,
-      }
-    }
-  } catch {
-    // Fall back to the local parser when the SyncTeX binary is unavailable or
-    // cannot resolve this position on the current machine.
-  }
-
-  const fallbackResult = await requestLatexWorkshopBackwardSync({
+  const result = await invoke('workspace_synctex_backward', {
     synctexPath,
     page,
     x,
     y,
   })
-  if (!fallbackResult) return null
+  if (!result) return null
+  const strictLine = result?.strictLine === true || result?.strict_line === true
   return {
-    ...fallbackResult,
-    strictLine: false,
+    ...result,
+    strictLine,
   }
 }
 
@@ -92,6 +73,8 @@ function normalizeLatexForwardRecord(record = {}) {
 }
 
 function normalizeLatexForwardSyncResult(result) {
+  const resolveStrictLine = (value) => value?.strictLine === true || value?.strict_line === true
+
   if (Array.isArray(result)) {
     const records = result
       .map((record) => normalizeLatexForwardRecord(record))
@@ -101,6 +84,7 @@ function normalizeLatexForwardSyncResult(result) {
       mode: 'rects',
       records,
       record: records[0],
+      strictLine: result.some(resolveStrictLine),
     }
   }
 
@@ -116,12 +100,14 @@ function normalizeLatexForwardSyncResult(result) {
       mode: 'rects',
       records: [record],
       record,
+      strictLine: resolveStrictLine(result),
     }
   }
   return {
     mode: 'point',
     record,
     records: [record],
+    strictLine: resolveStrictLine(result),
   }
 }
 
@@ -134,35 +120,17 @@ export async function requestLatexPdfForwardSync(options = {}) {
     return null
   }
 
-  try {
-    const result = await invoke('workspace_synctex_forward', {
-      synctexPath,
-      filePath,
-      line,
-      column: Number.isInteger(column) && column > 0 ? column : 1,
-    })
-    const normalizedResult = normalizeLatexForwardSyncResult(result)
-    if (normalizedResult) {
-      return {
-        ...normalizedResult,
-        strictLine: true,
-      }
-    }
-  } catch {
-    // Fall back to the local parser when the SyncTeX binary is unavailable or
-    // cannot resolve this source location on the current machine.
-  }
-
-  const fallbackResult = await requestLatexWorkshopForwardSync({
+  const result = await invoke('workspace_synctex_forward', {
     synctexPath,
     filePath,
     line,
-    column,
+    column: Number.isInteger(column) && column > 0 ? column : 1,
   })
-  if (!fallbackResult) return null
+  const normalizedResult = normalizeLatexForwardSyncResult(result)
+  if (!normalizedResult) return null
   return {
-    ...fallbackResult,
-    strictLine: false,
+    ...normalizedResult,
+    strictLine: normalizedResult.strictLine === true,
   }
 }
 
