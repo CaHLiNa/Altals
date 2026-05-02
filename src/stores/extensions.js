@@ -26,6 +26,7 @@ import {
 } from '../services/extensions/extensionViews'
 import {
   activateExtensionHost,
+  cancelExtensionWindowInputs,
   deactivateExtensionHost,
   updateExtensionHostSettings,
 } from '../services/extensions/extensionHost'
@@ -839,6 +840,12 @@ export const useExtensionsStore = defineStore('extensions', {
       if (enabled) {
         await this.activateExtension(id, '').catch(() => {})
       } else {
+        const { useExtensionWindowUiStore } = await import('./extensionWindowUi')
+        const extensionWindowUi = useExtensionWindowUiStore()
+        if (String(extensionWindowUi.pendingRequest?.extensionId || '').trim().toLowerCase() === id) {
+          extensionWindowUi.clearRequest()
+        }
+        await cancelExtensionWindowInputs({ extensionId: id }).catch(() => {})
         const cancelledTasks = await cancelExtensionTasksForExtensionWithBackend(id).catch(() => [])
         for (const task of cancelledTasks) {
           this.upsertTask(task)

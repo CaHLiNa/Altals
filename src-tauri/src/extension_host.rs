@@ -15,6 +15,8 @@ use serde_json::Value;
 #[cfg(not(test))]
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+#[cfg(not(test))]
+use std::cell::Cell;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 #[cfg(not(test))]
@@ -78,6 +80,8 @@ pub struct ExtensionHostState {
     host_calls: Arc<Mutex<HashMap<String, ExtensionHostCallStatus>>>,
     activation_context: Arc<Mutex<HashMap<String, (String, String)>>>,
     #[cfg(not(test))]
+    request_lock: Arc<Mutex<()>>,
+    #[cfg(not(test))]
     spawned_processes: Arc<Mutex<HashMap<u32, Child>>>,
     #[cfg(not(test))]
     process: Arc<Mutex<ExtensionHostProcess>>,
@@ -93,6 +97,8 @@ impl Default for ExtensionHostState {
             host_calls: Arc::new(Mutex::new(HashMap::new())),
             activation_context: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
+            request_lock: Arc::new(Mutex::new(())),
+            #[cfg(not(test))]
             spawned_processes: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(not(test))]
             process: Arc::new(Mutex::new(ExtensionHostProcess::default())),
@@ -105,7 +111,7 @@ impl Default for ExtensionHostState {
 #[derive(Debug, Clone, PartialEq)]
 enum ExtensionHostUiRequestStatus {
     #[cfg_attr(test, allow(dead_code))]
-    Pending,
+    Pending { extension_id: String },
     Completed { cancelled: bool, result: Value },
     #[cfg_attr(test, allow(dead_code))]
     Interrupted { error: String },
@@ -122,6 +128,11 @@ enum ExtensionHostCallStatus {
     },
     #[cfg_attr(test, allow(dead_code))]
     Interrupted { error: String },
+}
+
+#[cfg(not(test))]
+thread_local! {
+    static EXTENSION_HOST_INVOKE_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -608,6 +619,22 @@ pub struct ExtensionHostDeactivationAcknowledgement {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ExtensionHostCancelWindowInputsParams {
+    #[serde(default)]
+    pub extension_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionHostCancelWindowInputsResult {
+    pub extension_id: String,
+    pub accepted: bool,
+    #[serde(default)]
+    pub cancelled_request_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionHostRespondUiRequestParams {
     #[serde(default)]
     pub request_id: String,
@@ -892,6 +919,30 @@ pub fn deactivate_extension_for_probe(
     Ok(result)
 }
 
+pub fn cancel_window_inputs_for_extension_for_probe(
+    _state: &ExtensionHostState,
+    extension_id: &str,
+) -> Result<ExtensionHostCancelWindowInputsResult, String> {
+    let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    if normalized_extension_id.is_empty() {
+        return Err("Extension id is required".to_string());
+    }
+    #[cfg(test)]
+    let cancelled_request_ids = Vec::new();
+    #[cfg(not(test))]
+    let cancelled_request_ids = complete_pending_ui_requests_for_extension(
+        _state,
+        &normalized_extension_id,
+        true,
+        Value::Null,
+    )?;
+    Ok(ExtensionHostCancelWindowInputsResult {
+        extension_id: normalized_extension_id,
+        accepted: true,
+        cancelled_request_ids,
+    })
+}
+
 pub fn should_activate_for_event(manifest: &ExtensionManifest, activation_event: &str) -> bool {
     let target = activation_event.trim();
     if target.is_empty() {
@@ -1104,7 +1155,7 @@ fn mark_pending_ui_requests_interrupted(
     let interrupted = ui_requests
         .iter()
         .filter_map(|(request_id, status)| match status {
-            ExtensionHostUiRequestStatus::Pending => Some(request_id.clone()),
+            ExtensionHostUiRequestStatus::Pending { .. } => Some(request_id.clone()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1117,6 +1168,44 @@ fn mark_pending_ui_requests_interrupted(
         );
     }
     Ok(interrupted)
+}
+
+#[cfg(not(test))]
+fn complete_pending_ui_requests_for_extension(
+    state: &ExtensionHostState,
+    extension_id: &str,
+    cancelled: bool,
+    result: Value,
+) -> Result<Vec<String>, String> {
+    let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    if normalized_extension_id.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut ui_requests = state
+        .ui_requests
+        .lock()
+        .map_err(|_| "Failed to access extension host UI request state".to_string())?;
+    let matching = ui_requests
+        .iter()
+        .filter_map(|(request_id, status)| match status {
+            ExtensionHostUiRequestStatus::Pending { extension_id }
+                if extension_id.eq_ignore_ascii_case(&normalized_extension_id) =>
+            {
+                Some(request_id.clone())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for request_id in &matching {
+        ui_requests.insert(
+            request_id.clone(),
+            ExtensionHostUiRequestStatus::Completed {
+                cancelled,
+                result: result.clone(),
+            },
+        );
+    }
+    Ok(matching)
 }
 
 #[cfg(not(test))]
@@ -1392,12 +1481,21 @@ fn emit_extension_host_call_requested(
 }
 
 #[cfg(not(test))]
-fn mark_ui_request_pending(state: &ExtensionHostState, request_id: &str) -> Result<(), String> {
+fn mark_ui_request_pending(
+    state: &ExtensionHostState,
+    request_id: &str,
+    extension_id: &str,
+) -> Result<(), String> {
     let mut ui_requests = state
         .ui_requests
         .lock()
         .map_err(|_| "Failed to access extension host UI request state".to_string())?;
-    ui_requests.insert(request_id.to_string(), ExtensionHostUiRequestStatus::Pending);
+    ui_requests.insert(
+        request_id.to_string(),
+        ExtensionHostUiRequestStatus::Pending {
+            extension_id: extension_id.trim().to_ascii_lowercase(),
+        },
+    );
     Ok(())
 }
 
@@ -1924,114 +2022,121 @@ pub fn invoke_extension_host(
 
     #[cfg(not(test))]
     {
-        let serialized_request = serde_json::to_string(&request)
-            .map_err(|error| format!("Failed to serialize extension host request: {error}"))?;
-        send_extension_host_request(state, &serialized_request)?;
+        EXTENSION_HOST_INVOKE_DEPTH.with(|depth| {
+            let current_depth = depth.get();
+            if current_depth > 0 {
+                depth.set(current_depth + 1);
+                let response = invoke_extension_host_serialized(state, task_runtime_state, request);
+                depth.set(current_depth);
+                response
+            } else {
+                let _guard = state
+                    .request_lock
+                    .lock()
+                    .map_err(|_| "Failed to access extension host request lock".to_string())?;
+                depth.set(1);
+                let response = invoke_extension_host_serialized(state, task_runtime_state, request);
+                depth.set(0);
+                response
+            }
+        })
+    }
+}
 
-        loop {
-            let response_line = read_extension_host_response_line(state)?;
-            if response_line.trim().is_empty() {
+#[cfg(not(test))]
+fn invoke_extension_host_serialized(
+    state: &ExtensionHostState,
+    task_runtime_state: Option<&crate::extension_tasks::ExtensionTaskRuntimeState>,
+    request: ExtensionHostRequest,
+) -> Result<ExtensionHostResponse, String> {
+    let serialized_request = serde_json::to_string(&request)
+        .map_err(|error| format!("Failed to serialize extension host request: {error}"))?;
+    send_extension_host_request(state, &serialized_request)?;
+
+    loop {
+        let response_line = read_extension_host_response_line(state)?;
+        if response_line.trim().is_empty() {
+            continue;
+        }
+
+        let response = serde_json::from_str::<ExtensionHostResponse>(response_line.trim())
+            .map_err(|error| format!("Failed to parse extension host response: {error}"))?;
+        match &response {
+            ExtensionHostResponse::ViewChanged(event) => {
+                emit_extension_host_view_changed(state, event)?;
                 continue;
             }
-
-            let response = serde_json::from_str::<ExtensionHostResponse>(response_line.trim())
-                .map_err(|error| format!("Failed to parse extension host response: {error}"))?;
-            match &response {
-                ExtensionHostResponse::ViewChanged(event) => {
-                    emit_extension_host_view_changed(state, event)?;
-                    continue;
+            ExtensionHostResponse::ViewStateChanged(event) => {
+                emit_extension_host_view_state_changed(state, event)?;
+                continue;
+            }
+            ExtensionHostResponse::ViewRevealRequested(event) => {
+                emit_extension_host_view_reveal_requested(state, event)?;
+                continue;
+            }
+            ExtensionHostResponse::WindowInputRequested(event) => {
+                mark_ui_request_pending(state, &event.request_id, &event.extension_id)?;
+                emit_extension_host_window_input_requested(state, event)?;
+                let request_id = event.request_id.clone();
+                let completed = wait_for_ui_request_completion(state, &request_id)?;
+                let response = invoke_extension_host(
+                    state,
+                    task_runtime_state,
+                    ExtensionHostRequest::RespondUiRequest {
+                        request_id: completed.request_id,
+                        cancelled: completed.cancelled,
+                        result: completed.result,
+                    },
+                )?;
+                match response {
+                    ExtensionHostResponse::AcknowledgeUiRequest(_) => continue,
+                    ExtensionHostResponse::Error { message } => return Err(message),
+                    other => return Ok(other),
                 }
-                ExtensionHostResponse::ViewStateChanged(event) => {
-                    emit_extension_host_view_state_changed(state, event)?;
-                    continue;
-                }
-                ExtensionHostResponse::ViewRevealRequested(event) => {
-                    emit_extension_host_view_reveal_requested(state, event)?;
-                    continue;
-                }
-                ExtensionHostResponse::WindowInputRequested(event) => {
-                    mark_ui_request_pending(state, &event.request_id)?;
-                    emit_extension_host_window_input_requested(state, event)?;
-                    let request_id = event.request_id.clone();
-                    let completed = wait_for_ui_request_completion(state, &request_id)?;
-                    let response = invoke_extension_host(
-                        state,
-                        task_runtime_state,
-                        ExtensionHostRequest::RespondUiRequest {
-                            request_id: completed.request_id,
-                            cancelled: completed.cancelled,
-                            result: completed.result,
-                        },
-                    )?;
-                    match response {
-                        ExtensionHostResponse::AcknowledgeUiRequest(_) => continue,
-                        ExtensionHostResponse::Error { message } => return Err(message),
-                        other => return Ok(other),
-                    }
-                }
-                ExtensionHostResponse::HostCallRequested(event) => {
-                    let completed = match event.kind.as_str() {
-                        "process.exec" | "process.spawn" | "process.wait" => Some(
-                            handle_extension_host_process_call(state, task_runtime_state, event)
-                                .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
-                                    request_id: event.request_id.clone(),
-                                    accepted: false,
-                                    result: Value::Null,
-                                    error,
-                                }),
-                        ),
-                        "tasks.update" => Some(
-                            handle_extension_host_task_call(state, task_runtime_state, event)
-                                .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
-                                    request_id: event.request_id.clone(),
-                                    accepted: false,
-                                    result: Value::Null,
-                                    error,
-                                }),
-                        ),
-                        "references.readCurrentLibrary" => Some(
-                            handle_extension_host_reference_call(state, event).unwrap_or_else(
-                                |error| ExtensionHostResolveHostCallParams {
-                                    request_id: event.request_id.clone(),
-                                    accepted: false,
-                                    result: Value::Null,
-                                    error,
-                                },
-                            ),
-                        ),
-                        "pdf.extractText" | "pdf.extractMetadata" => Some(
-                            handle_extension_host_pdf_call(state, event).unwrap_or_else(|error| {
-                                ExtensionHostResolveHostCallParams {
-                                    request_id: event.request_id.clone(),
-                                    accepted: false,
-                                    result: Value::Null,
-                                    error,
-                                }
+            }
+            ExtensionHostResponse::HostCallRequested(event) => {
+                let completed = match event.kind.as_str() {
+                    "process.exec" | "process.spawn" | "process.wait" => Some(
+                        handle_extension_host_process_call(state, task_runtime_state, event)
+                            .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
+                                request_id: event.request_id.clone(),
+                                accepted: false,
+                                result: Value::Null,
+                                error,
                             }),
-                        ),
-                        _ => None,
-                    };
-                    if let Some(completed) = completed {
-                        let response = invoke_extension_host(
-                            state,
-                            task_runtime_state,
-                            ExtensionHostRequest::ResolveHostCall {
-                                request_id: completed.request_id,
-                                accepted: completed.accepted,
-                                result: completed.result,
-                                error: completed.error,
+                    ),
+                    "tasks.update" => Some(
+                        handle_extension_host_task_call(state, task_runtime_state, event)
+                            .unwrap_or_else(|error| ExtensionHostResolveHostCallParams {
+                                request_id: event.request_id.clone(),
+                                accepted: false,
+                                result: Value::Null,
+                                error,
+                            }),
+                    ),
+                    "references.readCurrentLibrary" => Some(
+                        handle_extension_host_reference_call(state, event).unwrap_or_else(
+                            |error| ExtensionHostResolveHostCallParams {
+                                request_id: event.request_id.clone(),
+                                accepted: false,
+                                result: Value::Null,
+                                error,
                             },
-                        )?;
-                        match response {
-                            ExtensionHostResponse::AcknowledgeHostCall(_) => continue,
-                            ExtensionHostResponse::Error { message } => return Err(message),
-                            other => return Ok(other),
-                        }
-                    }
-                    mark_host_call_pending(state, &event.request_id)?;
-                    emit_extension_host_call_requested(state, event)?;
-                    let request_id = event.request_id.clone();
-                    let completed = wait_for_host_call_completion(state, &request_id)?;
+                        ),
+                    ),
+                    "pdf.extractText" | "pdf.extractMetadata" => Some(
+                        handle_extension_host_pdf_call(state, event).unwrap_or_else(|error| {
+                            ExtensionHostResolveHostCallParams {
+                                request_id: event.request_id.clone(),
+                                accepted: false,
+                                result: Value::Null,
+                                error,
+                            }
+                        }),
+                    ),
+                    _ => None,
+                };
+                if let Some(completed) = completed {
                     let response = invoke_extension_host(
                         state,
                         task_runtime_state,
@@ -2048,17 +2153,36 @@ pub fn invoke_extension_host(
                         other => return Ok(other),
                     }
                 }
-                ExtensionHostResponse::StateChanged(event) => {
-                    persist_extension_host_state_changed_event(state, event)?;
-                    continue;
+                mark_host_call_pending(state, &event.request_id)?;
+                emit_extension_host_call_requested(state, event)?;
+                let request_id = event.request_id.clone();
+                let completed = wait_for_host_call_completion(state, &request_id)?;
+                let response = invoke_extension_host(
+                    state,
+                    task_runtime_state,
+                    ExtensionHostRequest::ResolveHostCall {
+                        request_id: completed.request_id,
+                        accepted: completed.accepted,
+                        result: completed.result,
+                        error: completed.error,
+                    },
+                )?;
+                match response {
+                    ExtensionHostResponse::AcknowledgeHostCall(_) => continue,
+                    ExtensionHostResponse::Error { message } => return Err(message),
+                    other => return Ok(other),
                 }
-                ExtensionHostResponse::WindowMessage(event) => {
-                    emit_extension_host_window_message(state, event)?;
-                    continue;
-                }
-                ExtensionHostResponse::Error { message } => return Err(message.clone()),
-                _ => return Ok(response),
             }
+            ExtensionHostResponse::StateChanged(event) => {
+                persist_extension_host_state_changed_event(state, event)?;
+                continue;
+            }
+            ExtensionHostResponse::WindowMessage(event) => {
+                emit_extension_host_window_message(state, event)?;
+                continue;
+            }
+            ExtensionHostResponse::Error { message } => return Err(message.clone()),
+            _ => return Ok(response),
         }
     }
 }
@@ -2294,6 +2418,14 @@ pub async fn extension_host_deactivate(
         }
     }
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn extension_host_cancel_window_inputs(
+    params: ExtensionHostCancelWindowInputsParams,
+    state: tauri::State<'_, ExtensionHostState>,
+) -> Result<ExtensionHostCancelWindowInputsResult, String> {
+    cancel_window_inputs_for_extension_for_probe(state.inner(), &params.extension_id)
 }
 
 #[tauri::command]

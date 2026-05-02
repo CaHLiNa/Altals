@@ -19,6 +19,14 @@ export async function deactivateExtensionHost(payload = {}) {
   })
 }
 
+export async function cancelExtensionWindowInputs(payload = {}) {
+  return invoke('extension_host_cancel_window_inputs', {
+    params: {
+      extensionId: String(payload.extensionId || ''),
+    },
+  })
+}
+
 export async function updateExtensionHostSettings(payload = {}) {
   return invoke('extension_host_update_settings', {
     params: {
