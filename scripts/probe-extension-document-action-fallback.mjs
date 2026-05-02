@@ -82,6 +82,31 @@ try {
       path: '/tmp/workspace/paper.pdf',
     },
   }
+  extensions.viewState = {
+    'retain-pdf:retainPdf.panel': {
+      viewId: 'retainPdf.panel',
+      title: 'RetainPDF',
+      presentation: {
+        mode: 'documentAction',
+        target: {
+          label: '',
+          path: '',
+          emptyLabel: 'No active PDF',
+        },
+        action: {
+          label: 'Translate',
+          commandId: 'retainPdf.translateCurrent',
+          disabled: true,
+        },
+        progress: {
+          label: 'RetainPDF 面板已刷新',
+          state: 'idle',
+          current: 0,
+          total: 0,
+        },
+      },
+    },
+  }
 
   const app = createSSRApp({
     render() {

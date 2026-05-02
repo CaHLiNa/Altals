@@ -161,7 +161,9 @@ const documentActionPresentation = computed(() => {
     fallbackDocumentActionCommandId.value ||
     '',
   ).trim()
-  const actionDisabled = Object.prototype.hasOwnProperty.call(action, 'disabled')
+  const baseTargetPath = String(base.target?.path || '').trim()
+  const actionDisabled = Object.prototype.hasOwnProperty.call(action, 'disabled') &&
+    baseTargetPath === targetPath
     ? Boolean(action.disabled)
     : !targetPath
   const presentation = {
