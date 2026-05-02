@@ -145,19 +145,24 @@ fn redact_secret_settings_for_disk(
             secret_keys_for_config(global_config_dir, workspace_root, extension_id, config_map)?;
         for key in secret_keys {
             let value = config_map.get(&key).cloned().unwrap_or(Value::Null);
-            let normalized_value = match value {
-                Value::String(text) => text.trim().to_string(),
-                Value::Null => String::new(),
-                other => other.to_string(),
-            };
             let storage_key = extension_secret_storage_key(extension_id, &key);
-            if normalized_value.is_empty() {
-                let _ = keychain::keychain_delete_entry(&storage_key);
-                config_map.insert(key, Value::String(String::new()));
-            } else {
-                keychain::keychain_set_entry(&storage_key, &normalized_value)?;
-                config_map.insert(key, Value::String(String::new()));
+
+            match value {
+                Value::String(text) => {
+                    let normalized_value = text.trim().to_string();
+                    if !normalized_value.is_empty() {
+                        keychain::keychain_set_entry(&storage_key, &normalized_value)?;
+                    }
+                }
+                Value::Null => {
+                    let _ = keychain::keychain_delete_entry(&storage_key);
+                }
+                other => {
+                    keychain::keychain_set_entry(&storage_key, &other.to_string())?;
+                }
             }
+
+            config_map.insert(key, Value::String(String::new()));
         }
     }
     Ok(())
@@ -848,6 +853,78 @@ mod tests {
             Some(&serde_json::json!({
                 "retainPdf.modelApiKey": "sk-retain",
                 "retainPdf.model": "deepseek-v4-flash"
+            }))
+        );
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn redacted_secret_placeholders_do_not_clear_existing_keychain_values() {
+        let root = std::env::temp_dir().join(format!(
+            "scribeflow-extension-settings-redacted-secret-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).expect("root");
+        write_test_extension_manifest(&root, "retain-pdf", "retainPdf.modelApiKey");
+
+        let mut initial_config = BTreeMap::new();
+        initial_config.insert(
+            "retain-pdf".to_string(),
+            serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-v4-flash"
+            }),
+        );
+
+        save_extension_settings(
+            &root.to_string_lossy(),
+            "",
+            ExtensionSettings {
+                enabled_extension_ids: vec!["retain-pdf".to_string()],
+                extension_config: initial_config,
+            },
+        )
+        .expect("save initial retain pdf settings");
+
+        let mut updated_config = BTreeMap::new();
+        updated_config.insert(
+            "retain-pdf".to_string(),
+            serde_json::json!({
+                "retainPdf.modelApiKey": "",
+                "retainPdf.model": "deepseek-reasoner"
+            }),
+        );
+
+        let saved = save_extension_settings(
+            &root.to_string_lossy(),
+            "",
+            ExtensionSettings {
+                enabled_extension_ids: vec!["retain-pdf".to_string()],
+                extension_config: updated_config,
+            },
+        )
+        .expect("save retain pdf settings with redacted placeholder");
+
+        assert_eq!(
+            saved.extension_config.get("retain-pdf"),
+            Some(&serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-reasoner"
+            }))
+        );
+        assert_eq!(
+            keychain::keychain_get_entry("extension-setting:retain-pdf:retainPdf.modelApiKey")
+                .expect("keychain retain pdf model key"),
+            Some("sk-retain".to_string())
+        );
+
+        let loaded = load_extension_settings(&root.to_string_lossy(), "").expect("load");
+        assert_eq!(
+            loaded.extension_config.get("retain-pdf"),
+            Some(&serde_json::json!({
+                "retainPdf.modelApiKey": "sk-retain",
+                "retainPdf.model": "deepseek-reasoner"
             }))
         );
 
