@@ -103,15 +103,18 @@ Current plugin lifecycle contract:
 - cross-extension prompt isolation is now probe-backed too: if one extension currently owns a pending host prompt, another extension's top-level request fails immediately with a clear owner-specific error instead of silently blocking behind the prompt wait
 - same-extension prompt reentry is now probe-backed too: once an extension owns a pending host prompt, that extension still cannot start a second top-level host request until the prompt is resolved, so prompt waits remain single-flight instead of recursively deadlocking the shared host channel
 - prompt recovery at the frontend consumption layer is now probe-backed too: if `resolveView(...)` or `notifyViewSelection(...)` fast-fails because a prompt currently owns the host channel, the request is deferred in the store and replayed automatically after the prompt closes instead of being lost forever, replay itself is non-lossy when a later host-side transport error interrupts the queue mid-flush, and stale deferred requests from an old workspace are discarded instead of replaying into a later workspace
+- prompt recovery descriptor presentation is now probe-backed too: cancel affordances for settings, document-plugin diagnostics, and command-palette recovery all derive the same owner-aware label/title contract from one shared descriptor instead of re-assembling prompt-owner copy per surface
 - workspace transition handling is now probe-backed at the frontend extension-session layer too: closing or switching workspaces resets frontend extension session state, reopening a workspace forces workspace-scoped extension settings and registry data to reload, and workspace-only plugin discovery/enabled ids follow the active workspace instead of leaking across transitions
 - workspace-scoped extension task visibility is now probe-backed too: persisted extension tasks retain their originating `workspaceRoot`, and document-plugin task panels only surface tasks for the active workspace instead of mixing same-extension history from other workspaces into the current sidebar
 - workspace-scoped extension task querying is now probe-backed at the Rust authority boundary too: frontend task refreshes ask the backend for the active `workspaceRoot`, and the backend only returns tasks for that workspace instead of relying on frontend-only filtering after a global task load
 - workspace-scoped extension host runtime isolation is now probe-backed at the host authority boundary too: persistent host state is keyed by `extensionId + workspaceRoot`, so deactivation, pending prompts, settings updates, treeview selection, and same-extension task cancellation only affect the active workspace slot instead of leaking across sibling workspaces
 - workspace-scoped host observability is now probe-backed at the frontend store layer too: `extension_host_status` exposes structured `activeRuntimeSlots` and `pendingPromptOwner`, prompt open/resolve flows resync that snapshot in real time, and both settings plus document plugin surfaces can inspect host runtime occupancy directly instead of reverse-parsing prompt-owner details from freeform error strings
+- host runtime restart from frontend settings is now probe-backed too: restarting one active runtime slot explicitly deactivates that slot through the host bridge, reactivates it in the same workspace, and refreshes store-level host occupancy so the runtime card can trust the updated slot snapshot
 - command-level host blocking UX is now centralized too: command buttons and the command palette both derive blocked/waiting state from shared host diagnostics before dispatch, show owner-aware status labels inline, and stop sending users into avoidable top-level command errors when the host is already prompt-blocked
 - command dispatch preflight is now enforced at the store boundary too: keybindings, sidebar actions, and result-entry reruns all consult the same host blocked/waiting snapshot before activation or execution, emit structured warning-grade errors for UI surfaces, and avoid sending doomed top-level command requests into the shared host
 - capability dispatch now follows the same host preflight model too: settings-surface capability runs consult the same blocked/waiting snapshot before activation or invocation, reuse the shared warning/error descriptor path, and stop sending capability requests into the host when a prompt already owns the channel
 - document-plugin action surfaces are now blocked-aware too: sidebar header actions, tree item commands, and result-entry rerun actions derive disabled state from the shared runtime block descriptor, keep expandable tree groups interactive when they do not dispatch a command, and surface blocked/waiting labels inline instead of only after a toast path
+- host-status surface presentation is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery copy all derive badge/title/description/tone/recovery-owner fields from one shared host-status descriptor instead of each surface maintaining its own blocked-versus-waiting wording
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -152,9 +155,12 @@ It runs:
 - `npm run probe:extension-same-extension-prompt-reentry-contract`
 - `npm run probe:extension-prompt-recovery-store-contract`
 - `npm run probe:extension-prompt-recovery-workspace-scope-contract`
+- `npm run probe:extension-prompt-recovery-descriptor-contract`
+- `npm run probe:extension-host-status-surface-contract`
 - `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
+- `npm run probe:extension-runtime-restart-store-contract`
 - `npm run probe:extension-host-status-store-contract`
 - `npm run probe:extension-command-host-state-contract`
 - `npm run probe:extension-command-dispatch-preflight-store-contract`
@@ -222,9 +228,12 @@ Current baseline:
 - extension same-extension prompt reentry probe passes
 - extension prompt recovery store contract probe passes
 - extension prompt recovery workspace-scope contract probe passes
+- extension prompt recovery descriptor contract probe passes
+- extension host-status surface contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes
+- extension runtime restart store contract probe passes
 - extension host status store contract probe passes
 - extension command host-state contract probe passes
 - extension command dispatch preflight store contract probe passes
@@ -265,7 +274,7 @@ Current baseline:
 - Vite build passes
 - bundle budget passes
 - Rust check passes
-- Rust tests pass: 182 tests
+- Rust tests pass: 187 tests
 
 Desktop feel, visual layout and interaction quality are user-owned manual checks.
 

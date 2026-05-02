@@ -12,10 +12,10 @@
       <div
         v-if="promptRecoveryAvailable"
         class="command-palette-recovery"
-        :class="activeBlockedState?.tone"
+        :class="activeHostStatusSurface?.toneClass"
       >
         <div class="command-palette-recovery__copy">
-          {{ activeBlockedMessage }}
+          {{ activeHostStatusDescription }}
         </div>
         <UiButton
           variant="ghost"
@@ -88,6 +88,7 @@ import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
+import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
@@ -143,31 +144,29 @@ const filteredCommands = computed(() => {
 })
 const blockedEntries = computed(() => filteredCommands.value.filter((entry) => entry.hostState.blocked))
 const activeBlockedState = computed(() => blockedEntries.value[0]?.hostState || null)
-const activeBlockedMessage = computed(() => blockedEntries.value[0]?.hostMessage || '')
-const blockedPromptOwner = computed(() => activeBlockedState.value?.pendingPromptOwner || null)
-const ownPromptWorkspaceRoot = computed(() => activeBlockedState.value?.pendingPromptWorkspaceRoot || '')
-const promptRecoveryOwner = computed(() => {
+const activeHostStatusSurface = computed(() => {
   const blockedState = activeBlockedState.value
   if (!blockedState?.blocked) return null
-  if (blockedState.ownsPendingPrompt) {
-    return {
-      extensionId: blockedEntries.value[0]?.command?.extensionId || '',
-      workspaceRoot: ownPromptWorkspaceRoot.value || workspaceStore.path || '',
-    }
-  }
-  if (blockedState.blockedByForeignPrompt) {
-    return {
-      extensionId: blockedPromptOwner.value?.extensionId || '',
-      workspaceRoot: blockedState.blockingPromptWorkspaceRoot || '',
-    }
-  }
-  return null
+  return buildExtensionHostStatusSurface({
+    extensionId: blockedEntries.value[0]?.command?.extensionId || '',
+    pendingPromptOwner: blockedState.pendingPromptOwner,
+    blockedByForeignPrompt: blockedState.blockedByForeignPrompt,
+    ownsPendingPrompt: blockedState.ownsPendingPrompt,
+    pendingPromptWorkspaceRoot: blockedState.pendingPromptWorkspaceRoot || workspaceStore.path || '',
+    pendingPromptInActiveWorkspace: blockedState.pendingPromptInActiveWorkspace,
+    blockingPromptWorkspaceRoot: blockedState.blockingPromptWorkspaceRoot || '',
+  })
+})
+const activeHostStatusDescription = computed(() => {
+  const surface = activeHostStatusSurface.value
+  if (!surface?.descriptionKey) return ''
+  return t(surface.descriptionKey, surface.descriptionParams)
 })
 const {
   busy: promptRecoveryBusy,
   descriptor: promptRecovery,
   cancel: cancelPromptRecovery,
-} = useExtensionPromptRecovery(() => promptRecoveryOwner.value)
+} = useExtensionPromptRecovery(() => activeHostStatusSurface.value?.recoveryOwner || null)
 const promptRecoveryAvailable = computed(() => promptRecovery.value.available)
 const promptRecoveryLabel = computed(() => promptRecovery.value.label)
 const promptRecoveryTitle = computed(() => promptRecovery.value.title)

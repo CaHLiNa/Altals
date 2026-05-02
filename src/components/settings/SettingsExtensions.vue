@@ -386,6 +386,7 @@ import {
   buildExtensionRuntimeBlockDescriptor,
   describeExtensionCommandError,
 } from '../../domains/extensions/extensionCommandHostState'
+import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import {
   secureSettingInputType,
   shortExtensionSettingKey,
@@ -842,42 +843,25 @@ const hostRuntimeName = computed(() => hostStatus().runtime || t('Not configured
 const hostRuntimeSlots = computed(() =>
   Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
 )
+const hostStatusSurface = computed(() =>
+  buildExtensionHostStatusSurface({
+    pendingPromptOwner: hostStatus().pendingPromptOwner,
+    slotCount: hostRuntimeSlots.value.length,
+  }, {
+    hostRuntimeSlots: hostRuntimeSlots.value,
+  })
+)
 const hostPromptOwnerSummary = computed(() => {
   const owner = hostStatus().pendingPromptOwner
   if (!owner?.extensionId) return t('No pending prompt')
   return `${owner.extensionId}@${owner.workspaceRoot || '/'}`
 })
-const hostRuntimeBadge = computed(() => {
-  if (hostStatus().pendingPromptOwner?.extensionId) return t('Blocked')
-  return Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
-    ? t('Active')
-    : t('Idle')
-})
-const hostRuntimeTitle = computed(() => {
-  if (hostStatus().pendingPromptOwner?.extensionId) {
-    return t('Extension host is waiting for prompt input')
-  }
-  return Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
-    ? t('Extension host runtime is active')
-    : t('Extension host runtime is idle')
-})
-const hostRuntimeDescription = computed(() => {
-  const owner = hostStatus().pendingPromptOwner
-  if (owner?.extensionId) {
-    return t('A pending prompt from {extensionId} is blocking new top-level host requests until it is completed or cancelled.', {
-      extensionId: owner.extensionId,
-    })
-  }
-  if (Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0) {
-    return t('Live runtime slots are currently attached to one or more workspace-scoped extensions.')
-  }
-  return t('No extension runtime slots are currently active.')
-})
-const hostRuntimeCardToneClass = computed(() => {
-  if (hostStatus().pendingPromptOwner?.extensionId) return 'is-warning'
-  if (hostRuntimeSlots.value.length > 0) return 'is-active'
-  return 'is-idle'
-})
+const hostRuntimeBadge = computed(() => t(hostStatusSurface.value.badgeKey))
+const hostRuntimeTitle = computed(() => t(hostStatusSurface.value.titleKey))
+const hostRuntimeDescription = computed(() =>
+  t(hostStatusSurface.value.descriptionKey, hostStatusSurface.value.descriptionParams)
+)
+const hostRuntimeCardToneClass = computed(() => hostStatusSurface.value.toneClass)
 const showHostPromptRecoveryAction = computed(() =>
   hostPromptRecovery.value.available
 )
@@ -885,7 +869,7 @@ const {
   busy: hostPromptRecoveryBusy,
   descriptor: hostPromptRecovery,
   cancel: recoverHostPrompt,
-} = useExtensionPromptRecovery(() => hostStatus().pendingPromptOwner)
+} = useExtensionPromptRecovery(() => hostStatusSurface.value.recoveryOwner)
 
 async function restartHostRuntimeSlot(slot = {}) {
   const extensionId = String(slot?.extensionId || '').trim()

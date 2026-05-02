@@ -68,6 +68,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
+import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import ExtensionSidebarPanel from '../extensions/ExtensionSidebarPanel.vue'
 import ExtensionTaskPanel from '../extensions/ExtensionTaskPanel.vue'
 
@@ -131,6 +132,9 @@ const hostDiagnostics = computed(() =>
     ? extensionsStore.hostDiagnosticsFor(container.value.extensionId, workspace.path || '')
     : null
 )
+const hostStatusSurface = computed(() =>
+  buildExtensionHostStatusSurface(hostDiagnostics.value || {})
+)
 
 const targetSummary = computed(() => {
   const target = resolvedTarget.value
@@ -150,82 +154,18 @@ const targetSummary = computed(() => {
 })
 
 const hostDiagnosticSummary = computed(() => {
-  const diagnostics = hostDiagnostics.value
-  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt && !diagnostics?.blockedByForeignPrompt) return ''
-
-  const segments = []
-  if (diagnostics.hasActiveWorkspaceRuntime) {
-    const label = diagnostics.activeWorkspaceSlotCount > 1
-      ? t('Active in {count} slots for this workspace', { count: diagnostics.activeWorkspaceSlotCount })
-      : t('Active in this workspace')
-    segments.push(label)
-  } else if (diagnostics.activated) {
-    segments.push(t('Runtime activated but no active slot is attached to this workspace'))
-  }
-
-  if (diagnostics.hasOtherWorkspaceRuntime) {
-    const roots = diagnostics.otherWorkspaceRoots.join(' · ')
-    segments.push(
-      diagnostics.otherWorkspaceSlotCount > 1
-        ? t('Also active in other workspaces: {roots}', { roots })
-        : t('Also active in another workspace: {roots}', { roots }),
-    )
-  }
-
-  if (diagnostics.blockedByForeignPrompt) {
-    segments.push(
-      t('Blocked by prompt from {extensionId} in {workspace}', {
-        extensionId: diagnostics.pendingPromptOwner?.extensionId || '',
-        workspace: diagnostics.blockingPromptWorkspaceRoot || '/',
-      }),
-    )
-  }
-
-  if (diagnostics.ownsPendingPrompt) {
-    segments.push(
-      diagnostics.pendingPromptInActiveWorkspace
-        ? t('Waiting for prompt input in this workspace')
-        : t('Waiting for prompt input in {workspace}', {
-          workspace: diagnostics.pendingPromptWorkspaceRoot || '/',
-        }),
-    )
-  }
-
-  return segments.join(' · ')
+  if (hostStatusSurface.value.summaryParts.length === 0) return ''
+  return hostStatusSurface.value.summaryParts
+    .map((segment) => t(segment.key, segment.params))
+    .join(' · ')
 })
 
 const hostDiagnosticToneClass = computed(() => {
-  const diagnostics = hostDiagnostics.value
-  if (!diagnostics?.hasLiveRuntime && !diagnostics?.ownsPendingPrompt && !diagnostics?.blockedByForeignPrompt) return ''
-  if (diagnostics?.ownsPendingPrompt || diagnostics?.blockedByForeignPrompt) return 'is-warning'
-  if (diagnostics?.hasOtherWorkspaceRuntime) return 'is-info'
-  return 'is-active'
+  return hostStatusSurface.value.toneClass || ''
 })
 
 const showPromptRecoveryAction = computed(() => {
   return promptRecovery.value.available
-})
-
-const promptRecoveryExtensionId = computed(() => {
-  const diagnostics = hostDiagnostics.value
-  if (diagnostics?.ownsPendingPrompt && diagnostics?.pendingPromptInActiveWorkspace) {
-    return container.value?.extensionId || ''
-  }
-  if (diagnostics?.blockedByForeignPrompt) {
-    return diagnostics.pendingPromptOwner?.extensionId || ''
-  }
-  return ''
-})
-
-const promptRecoveryWorkspaceRoot = computed(() => {
-  const diagnostics = hostDiagnostics.value
-  if (diagnostics?.ownsPendingPrompt && diagnostics?.pendingPromptInActiveWorkspace) {
-    return workspace.path || ''
-  }
-  if (diagnostics?.blockedByForeignPrompt) {
-    return diagnostics.blockingPromptWorkspaceRoot || ''
-  }
-  return ''
 })
 
 async function recoverPrompt() {
@@ -236,10 +176,7 @@ const {
   busy: promptRecoveryBusy,
   descriptor: promptRecovery,
   cancel: cancelPromptRecovery,
-} = useExtensionPromptRecovery(() => ({
-  extensionId: promptRecoveryExtensionId.value,
-  workspaceRoot: promptRecoveryWorkspaceRoot.value,
-}))
+} = useExtensionPromptRecovery(() => hostStatusSurface.value.recoveryOwner)
 </script>
 
 <style scoped>
