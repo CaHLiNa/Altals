@@ -180,6 +180,7 @@ Task update contract note:
 - the formal task-cancel path should also reap spawned-process ownership, preserve the task's persisted terminal state as `cancelled`, and avoid erasing the last running snapshot while cancellation is being recorded
 - frontend task timelines should consume that cancel result without extra reconciliation glue: a cancelled task should leave the running bucket, appear in recent history, and keep its last meaningful output snapshot available for inspection
 - failed terminal task results should preserve the same structured result channels as success paths: failure artifacts, inline outputs, and failure-specific progress labels must survive persistence instead of collapsing into a bare error string
+- frontend result-entry generation and follow-up actions should stay symmetric for failed tasks too: once a failed task lands in recent history, its failure summary, log artifact, and rerun action should remain available through the same preview/action pipeline as success paths
 
 View state contract note:
 

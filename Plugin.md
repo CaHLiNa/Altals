@@ -114,6 +114,7 @@ Task progress delivery also has a probe-backed runtime contract:
 - the formal cancel path now has its own contract too: cancelling a running task preserves the persisted `cancelled` state and clears spawned worker ownership from the runtime instead of leaving the process registry dirty
 - the frontend task panel/store flow is now covered too: once cancel completes, the task timeline moves that task out of Running into Recent while preserving the last output snapshot for follow-up inspection
 - failed task completions now preserve structured failure results too: when plugin runtime returns `taskState: failed`, the persisted task keeps failure artifacts, inline outputs, and the failure progress label instead of collapsing into only `error`
+- failed task results now stay actionable in the frontend too: recent failed tasks still expose previewable result entries plus rerun/log actions through the same task-panel preview flow
 
 View-state delivery also has a probe-backed runtime contract:
 
