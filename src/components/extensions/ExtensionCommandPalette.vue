@@ -89,6 +89,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 import { useExtensionPromptRecovery } from '../../composables/useExtensionPromptRecovery'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
+import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
@@ -115,12 +116,13 @@ const availableCommands = computed(() => {
     const hostState = buildExtensionCommandHostState(
       extensionsStore.hostDiagnosticsFor(command.extensionId, workspaceStore.path || '')
     )
+    const blockPresentation = describeExtensionHostStatePresentation(hostState, t)
 
     return {
       command,
       hostState,
-      hostLabel: hostState.blocked ? t(hostState.labelKey) : '',
-      hostMessage: hostState.blocked ? t(hostState.messageKey, hostState.messageParams) : '',
+      hostLabel: blockPresentation.label,
+      hostMessage: blockPresentation.message,
     }
   })
 })

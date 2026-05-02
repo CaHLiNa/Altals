@@ -76,6 +76,7 @@ import { readExtensionArtifactText } from '../../services/extensions/extensionAr
 import { loadExtensionTextPreviewContent } from '../../services/extensions/extensionTextPreview'
 import { useExtensionsStore } from '../../stores/extensions'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
+import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))
 const ImagePreviewPane = defineAsyncComponent(() => import('../editor/ImagePreviewPane.vue'))
@@ -111,15 +112,14 @@ const toolbarActions = computed(() => {
       hostDiagnostics: hostDiagnostics.value,
       resultEntry: baseEntry,
     })
+    const blockPresentation = describeExtensionRuntimeBlockPresentation(primaryState.runtimeBlock, t)
     actions.push({
       id: 'primary',
       label: labelForAction(baseEntry),
       entry: baseEntry,
       blocked: primaryState.resultEntryBlocked,
-      blockedLabel: primaryState.runtimeBlock.labelKey ? t(primaryState.runtimeBlock.labelKey) : '',
-      blockedMessage: primaryState.runtimeBlock.messageKey
-        ? t(primaryState.runtimeBlock.messageKey, primaryState.runtimeBlock.messageParams)
-        : '',
+      blockedLabel: blockPresentation.label,
+      blockedMessage: blockPresentation.message,
     })
   }
   if (primaryAction !== 'reveal' && baseEntry.path) {

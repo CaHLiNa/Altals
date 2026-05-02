@@ -115,6 +115,7 @@ Current plugin lifecycle contract:
 - capability dispatch now follows the same host preflight model too: settings-surface capability runs consult the same blocked/waiting snapshot before activation or invocation, reuse the shared warning/error descriptor path, and stop sending capability requests into the host when a prompt already owns the channel
 - document-plugin action surfaces are now blocked-aware too: sidebar header actions, tree item commands, and result-entry rerun actions derive disabled state from the shared runtime block descriptor, keep expandable tree groups interactive when they do not dispatch a command, and surface blocked/waiting labels inline instead of only after a toast path
 - host-status surface presentation is now shared too: settings runtime cards, document-plugin diagnostics, and command-palette recovery copy all derive badge/title/description/tone/recovery-owner fields from one shared host-status descriptor instead of each surface maintaining its own blocked-versus-waiting wording
+- runtime-block action presentation is now shared too: command buttons, sidebar header actions, tree-item actions, result-preview actions, and command-palette row pills all derive the same blocked/waiting label and message rendering from one shared presentation helper instead of each surface manually translating `labelKey/messageKey`
 - failed extension tasks now keep structured results as a first-class runtime contract: if a command/capability ends with `taskState: failed`, persisted task records still retain the failure artifact/output snapshot and the failure-specific progress label instead of collapsing to error text only
 - failed extension tasks are now probe-backed at the frontend result-flow layer too: recent failed tasks still generate previewable result entries, preserve the failure summary card, and keep rerun/log follow-up actions wired through the store
 - cancelled extension tasks now keep structured terminal results too: if plugin runtime returns `taskState: cancelled`, persisted task records still preserve cancel-specific artifacts, inline outputs, and custom progress labels instead of collapsing to a bare cancelled state
@@ -157,6 +158,7 @@ It runs:
 - `npm run probe:extension-prompt-recovery-workspace-scope-contract`
 - `npm run probe:extension-prompt-recovery-descriptor-contract`
 - `npm run probe:extension-host-status-surface-contract`
+- `npm run probe:extension-runtime-block-presentation-contract`
 - `npm run probe:extension-workspace-switch-refresh-contract`
 - `npm run probe:extension-enable-activation`
 - `npm run probe:extension-deactivation-host`
@@ -230,6 +232,7 @@ Current baseline:
 - extension prompt recovery workspace-scope contract probe passes
 - extension prompt recovery descriptor contract probe passes
 - extension host-status surface contract probe passes
+- extension runtime-block presentation contract probe passes
 - extension workspace switch refresh contract probe passes
 - extension enable activation probe passes
 - extension deactivation host probe passes

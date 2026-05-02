@@ -134,6 +134,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
+import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'
 
@@ -173,13 +174,12 @@ const viewTitleActionsWithState = computed(() =>
       hostDiagnostics: hostDiagnostics.value,
       headerAction: action,
     })
+    const blockPresentation = describeExtensionRuntimeBlockPresentation(state.runtimeBlock, t)
     return {
       ...action,
       blocked: state.headerActionBlocked,
-      blockedLabel: state.runtimeBlock.labelKey ? t(state.runtimeBlock.labelKey) : '',
-      blockedMessage: state.runtimeBlock.messageKey
-        ? t(state.runtimeBlock.messageKey, state.runtimeBlock.messageParams)
-        : '',
+      blockedLabel: blockPresentation.label,
+      blockedMessage: blockPresentation.message,
     }
   })
 )

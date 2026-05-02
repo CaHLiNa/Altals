@@ -68,6 +68,7 @@ import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
+import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 
 defineOptions({ name: 'ExtensionSidebarTreeNode' })
 
@@ -109,16 +110,12 @@ const actionSurfaceState = computed(() =>
     primaryTreeItem: props.item,
   })
 )
+const blockPresentation = computed(() =>
+  describeExtensionRuntimeBlockPresentation(actionSurfaceState.value.runtimeBlock, t)
+)
 const primaryBlocked = computed(() => actionSurfaceState.value.primaryTreeItemBlocked)
-const blockedLabel = computed(() => {
-  const labelKey = actionSurfaceState.value.runtimeBlock.labelKey
-  return labelKey ? t(labelKey) : ''
-})
-const blockedMessage = computed(() => {
-  const messageKey = actionSurfaceState.value.runtimeBlock.messageKey
-  const params = actionSurfaceState.value.runtimeBlock.messageParams || {}
-  return messageKey ? t(messageKey, params) : ''
-})
+const blockedLabel = computed(() => blockPresentation.value.label)
+const blockedMessage = computed(() => blockPresentation.value.message)
 
 function secondaryBlocked(action = {}) {
   return buildExtensionActionSurfaceState({

@@ -23,6 +23,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
+import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
@@ -59,10 +60,11 @@ const hostState = computed(() => {
     extensionsStore.hostDiagnosticsFor(action.value.extensionId, workspaceStore.path || '')
   )
 })
-const buttonLabel = computed(() => hostState.value.blocked ? t(hostState.value.labelKey) : label.value)
+const blockPresentation = computed(() => describeExtensionHostStatePresentation(hostState.value, t))
+const buttonLabel = computed(() => blockPresentation.value.blocked ? blockPresentation.value.label : label.value)
 const buttonTitle = computed(() => {
-  if (hostState.value.blocked) {
-    return t(hostState.value.messageKey, hostState.value.messageParams)
+  if (blockPresentation.value.blocked) {
+    return blockPresentation.value.message
   }
   return label.value
 })
@@ -72,7 +74,7 @@ const disabled = computed(() =>
   !extension.value ||
   !commandId.value ||
   !action.value?.extensionId ||
-  hostState.value.blocked
+  blockPresentation.value.blocked
 )
 
 async function start() {
