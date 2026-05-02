@@ -13,6 +13,58 @@
     </div>
 
     <section class="settings-group">
+      <div class="settings-group-title">{{ t('Extension Host Runtime') }}</div>
+      <div class="settings-group-body">
+        <div class="extension-host-runtime-card" :class="hostRuntimeCardToneClass">
+          <div class="extension-host-runtime-card__header">
+            <div class="extension-host-runtime-card__copy">
+              <div class="extension-host-runtime-card__title-row">
+                <div class="extension-host-runtime-card__title">{{ hostRuntimeTitle }}</div>
+                <span class="extension-host-runtime-card__badge">{{ hostRuntimeBadge }}</span>
+              </div>
+              <div class="extension-host-runtime-card__description">
+                {{ hostRuntimeDescription }}
+              </div>
+            </div>
+            <div class="extension-host-runtime-card__actions">
+              <UiButton
+                v-if="showHostPromptRecoveryAction"
+                variant="ghost"
+                size="sm"
+                :disabled="hostPromptRecoveryBusy"
+                @click="void recoverHostPrompt()"
+              >
+                {{ hostPromptRecoveryBusy ? t('Cancelling...') : t('Cancel Prompt') }}
+              </UiButton>
+              <UiButton
+                variant="secondary"
+                size="sm"
+                :disabled="extensionsStore.loadingRegistry"
+                @click="refreshExtensionRegistry"
+              >
+                {{ t('Refresh Host Status') }}
+              </UiButton>
+            </div>
+          </div>
+          <div class="extension-host-runtime-card__meta">
+            <div class="extension-host-runtime-card__meta-item">
+              <span class="extension-meta-label">{{ t('Runtime') }}</span>
+              <span class="extension-meta-value">{{ hostRuntimeName }}</span>
+            </div>
+            <div class="extension-host-runtime-card__meta-item">
+              <span class="extension-meta-label">{{ t('Active Runtime Slots') }}</span>
+              <span class="extension-meta-value">{{ hostRuntimeSlotsSummary }}</span>
+            </div>
+            <div class="extension-host-runtime-card__meta-item">
+              <span class="extension-meta-label">{{ t('Pending Prompt Owner') }}</span>
+              <span class="extension-meta-value">{{ hostPromptOwnerSummary }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group">
       <div class="settings-group-title">{{ t('Installed Extensions') }}</div>
       <div class="settings-group-body">
         <div v-if="extensionsStore.loadingRegistry" class="extension-empty-row">
@@ -308,6 +360,7 @@ const referencesStore = useReferencesStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
 const capabilityBusyId = ref('')
+const hostPromptRecoveryBusy = ref(false)
 const capabilityWorkspaceReady = computed(() => Boolean(String(workspaceStore.path || '').trim()))
 const capabilityInvokeTarget = computed(() =>
   resolveExtensionTargetContext({
@@ -360,6 +413,9 @@ function runtimeReason(extension = {}) {
   if (entry.reason) parts.push(entry.reason)
   if (diagnostics.workspaceRoots.length > 0) {
     parts.push(diagnostics.workspaceRoots.join(' · '))
+  }
+  if (diagnostics.blockedByForeignPrompt) {
+    parts.push(`blocked by ${diagnostics.pendingPromptOwner?.extensionId || ''} @ ${diagnostics.blockingPromptWorkspaceRoot || '/'}`)
   }
   if (diagnostics.ownsPendingPrompt) {
     parts.push(`waiting for prompt in ${diagnostics.pendingPromptWorkspaceRoot || '/'}`)
@@ -709,6 +765,72 @@ function updateSetting(extensionId = '', key = '', value = '') {
   void extensionsStore.setExtensionConfigValue(extensionId, key, value)
 }
 
+const hostRuntimeName = computed(() => hostStatus().runtime || t('Not configured'))
+const hostRuntimeSlotsSummary = computed(() => {
+  const slots = Array.isArray(hostStatus().activeRuntimeSlots) ? hostStatus().activeRuntimeSlots : []
+  if (!slots.length) return t('No active runtime slots')
+  return slots.map((slot) => `${slot.extensionId}@${slot.workspaceRoot || '/'}`).join(' · ')
+})
+const hostPromptOwnerSummary = computed(() => {
+  const owner = hostStatus().pendingPromptOwner
+  if (!owner?.extensionId) return t('No pending prompt')
+  return `${owner.extensionId}@${owner.workspaceRoot || '/'}`
+})
+const hostRuntimeBadge = computed(() => {
+  if (hostStatus().pendingPromptOwner?.extensionId) return t('Blocked')
+  return Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
+    ? t('Active')
+    : t('Idle')
+})
+const hostRuntimeTitle = computed(() => {
+  if (hostStatus().pendingPromptOwner?.extensionId) {
+    return t('Extension host is waiting for prompt input')
+  }
+  return Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0
+    ? t('Extension host runtime is active')
+    : t('Extension host runtime is idle')
+})
+const hostRuntimeDescription = computed(() => {
+  const owner = hostStatus().pendingPromptOwner
+  if (owner?.extensionId) {
+    return t('A pending prompt from {extensionId} is blocking new top-level host requests until it is completed or cancelled.', {
+      extensionId: owner.extensionId,
+    })
+  }
+  if (Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0) {
+    return t('Live runtime slots are currently attached to one or more workspace-scoped extensions.')
+  }
+  return t('No extension runtime slots are currently active.')
+})
+const hostRuntimeCardToneClass = computed(() => {
+  if (hostStatus().pendingPromptOwner?.extensionId) return 'is-warning'
+  if (Array.isArray(hostStatus().activeRuntimeSlots) && hostStatus().activeRuntimeSlots.length > 0) return 'is-active'
+  return 'is-idle'
+})
+const showHostPromptRecoveryAction = computed(() =>
+  Boolean(hostStatus().pendingPromptOwner?.extensionId && hostStatus().pendingPromptOwner?.workspaceRoot)
+)
+
+async function recoverHostPrompt() {
+  const owner = hostStatus().pendingPromptOwner
+  if (!owner?.extensionId || !owner?.workspaceRoot || hostPromptRecoveryBusy.value) return
+  hostPromptRecoveryBusy.value = true
+  try {
+    await extensionsStore.cancelPendingPromptForExtension(owner.extensionId, owner.workspaceRoot)
+    toastStore.show(t('Cancelled the blocking extension prompt'), {
+      type: 'success',
+      duration: 2600,
+    })
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to cancel extension prompt')), {
+      type: 'error',
+      duration: 4200,
+    })
+  } finally {
+    hostPromptRecoveryBusy.value = false
+  }
+}
+
 async function refreshExtensionRegistry() {
   await extensionsStore.refreshRegistry().catch(() => {})
   await extensionsStore.refreshTasks().catch(() => {})
@@ -735,6 +857,92 @@ onMounted(async () => {
   padding: 16px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.extension-host-runtime-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-base) 86%, transparent);
+}
+
+.extension-host-runtime-card.is-active {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.extension-host-runtime-card.is-warning {
+  border-color: color-mix(in srgb, #d97706 32%, var(--border));
+  background: color-mix(in srgb, #d97706 8%, var(--surface-base));
+}
+
+.extension-host-runtime-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extension-host-runtime-card__copy {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.extension-host-runtime-card__title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.extension-host-runtime-card__title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.extension-host-runtime-card__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.extension-host-runtime-card__description {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.extension-host-runtime-card__actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.extension-host-runtime-card__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.extension-host-runtime-card__meta-item {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .extension-card {
