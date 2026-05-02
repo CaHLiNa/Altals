@@ -1,4 +1,5 @@
 import {
+  matchesWhenClause,
   normalizeExtensionContributions,
 } from './extensionContributionRegistry.js'
 import { buildExtensionHostDiagnostics } from './extensionHostDiagnostics.js'
@@ -149,6 +150,251 @@ export function buildTaskTimeline(tasks = []) {
     }
   }
   return { running, recent }
+}
+
+function enabledAvailableExtensions(registry = [], enabledExtensionIds = []) {
+  const enabled = new Set((Array.isArray(enabledExtensionIds) ? enabledExtensionIds : []).map(normalizeExtensionId))
+  return (Array.isArray(registry) ? registry : [])
+    .filter((extension) => enabled.has(normalizeExtensionId(extension?.id)) && extension?.status === 'available')
+}
+
+export function buildMenuActionsForSurface({
+  registry = [],
+  enabledExtensionIds = [],
+  runtimeRegistry = {},
+  surface = '',
+  context = {},
+} = {}) {
+  const normalizedSurface = String(surface || '').trim()
+  if (!normalizedSurface) return []
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .flatMap((extension) => {
+      const runtimeEntry = normalizeRuntimeEntry(runtimeRegistry?.[extension.id])
+      const runtimeActions = runtimeEntry.registeredMenuActions
+        .filter((action) => action.surface === normalizedSurface)
+      const manifestActions = (extension.contributedMenus || [])
+        .filter((action) => action.surface === normalizedSurface)
+      const manifestActionKeys = new Set(manifestActions.map((action) => action.commandId))
+      const sourceActions = runtimeActions.length > 0
+        ? runtimeActions.filter((action) =>
+            manifestActions.length === 0 || manifestActionKeys.has(action.commandId)
+          )
+        : manifestActions
+      return sourceActions
+        .filter((action) => matchesWhenClause(action.when, context))
+        .map((action) => ({
+          ...action,
+          extensionId: extension.id,
+          extensionName: extension.name,
+        }))
+    })
+}
+
+export function buildKeybindingsForContext({
+  registry = [],
+  enabledExtensionIds = [],
+  context = {},
+} = {}) {
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .flatMap((extension) =>
+      (extension.contributedKeybindings || [])
+        .filter((keybinding) => matchesWhenClause(keybinding.when, context))
+        .map((keybinding) => ({
+          ...keybinding,
+          extensionId: extension.id,
+          extensionName: extension.name,
+        }))
+    )
+}
+
+export function buildCommandPaletteCommandsForContext({
+  registry = [],
+  enabledExtensionIds = [],
+  runtimeRegistry = {},
+  context = {},
+} = {}) {
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .flatMap((extension) => {
+      const runtimeEntry = normalizeRuntimeEntry(runtimeRegistry?.[extension.id])
+      const runtimeCommandDetails = runtimeEntry.registeredCommandDetails
+      const runtimeCommands = new Set(runtimeEntry.registeredCommands)
+      const paletteMenus = runtimeEntry.registeredMenuActions
+        .filter((menu) => menu.surface === 'commandPalette')
+      const fallbackPaletteMenus = (extension.contributedMenus || [])
+        .filter((menu) => menu.surface === 'commandPalette')
+      const useRuntimePalette = runtimeEntry.registeredMenuActions.length > 0
+      const sourceCommands = runtimeCommandDetails.length > 0
+        ? runtimeCommandDetails.map((command) => ({
+            ...command,
+            id: command.commandId,
+            extensionId: extension.id,
+            extensionName: extension.name,
+          }))
+        : (extension.contributedCommands || []).map((command) => ({
+            ...command,
+            extensionId: extension.id,
+            extensionName: extension.name,
+        }))
+      return sourceCommands
+        .filter((command) => {
+          const commandMenus = (paletteMenus.length > 0 ? paletteMenus : fallbackPaletteMenus)
+            .filter((menu) => menu.commandId === command.commandId)
+          if (useRuntimePalette && commandMenus.length === 0) {
+            return false
+          }
+          if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
+            return false
+          }
+          if (commandMenus.length === 0) return true
+          return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
+        })
+    })
+}
+
+export function buildSidebarViewContainers({
+  registry = [],
+  enabledExtensionIds = [],
+} = {}) {
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .flatMap((extension) =>
+      (extension.contributedViewContainers || []).map((container) => ({
+        ...container,
+        extensionId: extension.id,
+        extensionName: extension.name,
+      }))
+    )
+}
+
+function runtimeBackedViewsForExtension(extension = {}, runtimeEntry = {}) {
+  const runtimeViewDetails = runtimeEntry.registeredViewDetails
+  const manifestViews = extension.contributedViews || []
+  if (runtimeViewDetails.length === 0) return manifestViews
+
+  const manifestViewById = new Map(
+    manifestViews.map((view) => [String(view?.id || '').trim(), view]),
+  )
+  return runtimeViewDetails.map((view) => ({
+    ...(manifestViewById.get(String(view?.id || '').trim()) || {}),
+    id: String(view?.id || '').trim(),
+    title: String(
+      view?.title ||
+      manifestViewById.get(String(view?.id || '').trim())?.title ||
+      view?.id ||
+      '',
+    ).trim(),
+    contextualTitle: String(
+      manifestViewById.get(String(view?.id || '').trim())?.contextualTitle || '',
+    ).trim(),
+    presentation: String(
+      manifestViewById.get(String(view?.id || '').trim())?.presentation || '',
+    ).trim(),
+    when: String(
+      view?.when ||
+      manifestViewById.get(String(view?.id || '').trim())?.when ||
+      '',
+    ).trim(),
+    containerId: String(
+      manifestViewById.get(String(view?.id || '').trim())?.containerId || '',
+    ).trim(),
+    panelId: String(
+      manifestViewById.get(String(view?.id || '').trim())?.panelId || '',
+    ).trim(),
+  })).filter((view) => view.id && view.containerId && view.panelId)
+}
+
+export function buildViewsForContainer({
+  registry = [],
+  enabledExtensionIds = [],
+  runtimeRegistry = {},
+  containerId = '',
+  context = {},
+} = {}) {
+  const normalizedContainerId = String(containerId || '').trim()
+  if (!normalizedContainerId) return []
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .flatMap((extension) => {
+      const runtimeEntry = normalizeRuntimeEntry(runtimeRegistry?.[extension.id])
+      const sourceViews = runtimeBackedViewsForExtension(extension, runtimeEntry)
+      return sourceViews
+        .filter((view) =>
+          view.containerId === normalizedContainerId &&
+          matchesWhenClause(view.when, context) &&
+          (
+            runtimeEntry.registeredViews.length === 0 ||
+            runtimeEntry.registeredViews.includes(view.id)
+          )
+        )
+        .map((view) => ({
+          ...view,
+          extensionId: extension.id,
+          extensionName: extension.name,
+        }))
+    })
+}
+
+export function buildViewTitleActionsForView({
+  registry = [],
+  enabledExtensionIds = [],
+  runtimeRegistry = {},
+  view = {},
+  context = {},
+} = {}) {
+  const extensionId = normalizeExtensionId(view.extensionId)
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .filter((extension) => extension.id === extensionId)
+    .flatMap((extension) => {
+      const runtimeActions = normalizeRuntimeEntry(runtimeRegistry?.[extension.id]).registeredMenuActions
+        .filter((action) => action.surface === 'view/title')
+      const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewTitleMenus || [])
+      return sourceActions
+        .filter((action) => matchesWhenClause(action.when, context))
+        .map((action) => ({
+          ...action,
+          viewId: String(view?.id || ''),
+          containerId: String(view?.containerId || ''),
+          panelId: String(view?.panelId || ''),
+          extensionId: extension.id,
+          extensionName: extension.name,
+        }))
+    })
+}
+
+export function buildViewItemActionsForItem({
+  registry = [],
+  enabledExtensionIds = [],
+  runtimeRegistry = {},
+  view = {},
+  item = {},
+  context = {},
+} = {}) {
+  const extensionId = normalizeExtensionId(view.extensionId)
+  const mergedContext = {
+    ...context,
+    viewItem: {
+      id: String(item?.id || ''),
+      handle: String(item?.handle || ''),
+      label: String(item?.label || ''),
+      commandId: String(item?.commandId || ''),
+      contextValue: String(item?.contextValue || ''),
+    },
+  }
+  return enabledAvailableExtensions(registry, enabledExtensionIds)
+    .filter((extension) => extension.id === extensionId)
+    .flatMap((extension) => {
+      const runtimeActions = normalizeRuntimeEntry(runtimeRegistry?.[extension.id]).registeredMenuActions
+        .filter((action) => action.surface === 'view/item/context')
+      const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewItemMenus || [])
+      return sourceActions
+        .filter((action) => matchesWhenClause(action.when, mergedContext))
+        .map((action) => ({
+          ...action,
+          viewId: String(view?.id || ''),
+          containerId: String(view?.containerId || ''),
+          panelId: String(view?.panelId || ''),
+          extensionId: extension.id,
+          extensionName: extension.name,
+        }))
+    })
 }
 
 export function normalizeResolvedViewItem(item = {}) {

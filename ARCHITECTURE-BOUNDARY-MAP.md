@@ -219,6 +219,7 @@ Components over 500 lines:
 
 - 2026-05-02: `src/stores/extensions.js` no longer carries extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers inline. The pure helpers now live in `src/domains/extensions/extensionStoreState.js`; the Pinia store keeps service orchestration, host activation, command/capability dispatch, prompt recovery, and UI state coordination.
 - 2026-05-02: Extension result-entry generation and view-state shaping moved into domain helpers. `src/domains/extensions/extensionResultEntries.js` now owns deterministic artifact/output/task fallback result entries, and `buildExtensionViewState` centralizes resolved/pushed view-state presentation shaping; `src/services/extensions/extensionResultEntries.js` remains a compatibility re-export.
+- 2026-05-02: Extension menu, keybinding, command palette, sidebar container, view, view-title action, and view-item action derivation moved from Pinia getters into `src/domains/extensions/extensionStoreState.js`. The store getters now pass registry, enabled ids, runtime registry, and context into pure helpers while keeping Pinia state ownership local.
 
 ## Phase 1 Verification Targets
 

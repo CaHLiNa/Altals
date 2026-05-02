@@ -37,20 +37,24 @@ import {
   listenExtensionViewRevealRequested,
   listenExtensionViewStateChanged,
 } from '../services/extensions/extensionHostEvents'
-import {
-  matchesWhenClause,
-} from '../domains/extensions/extensionContributionRegistry'
 import { buildExtensionContext } from '../domains/extensions/extensionContext.js'
 import { buildExtensionHostDiagnostics } from '../domains/extensions/extensionHostDiagnostics.js'
 import {
   buildExtensionCommandBlockedError,
 } from '../domains/extensions/extensionCommandHostState.js'
 import {
+  buildCommandPaletteCommandsForContext,
   buildTaskTimeline,
   commandHostStateFor,
   contributedViewForId,
   deferredViewRequestKey,
   buildExtensionViewState,
+  buildKeybindingsForContext,
+  buildMenuActionsForSurface,
+  buildSidebarViewContainers,
+  buildViewItemActionsForItem,
+  buildViewsForContainer,
+  buildViewTitleActionsForView,
   isPromptIsolationError,
   mergeResolvedViewState,
   normalizeCapability,
@@ -101,212 +105,58 @@ export const useExtensionsStore = defineStore('extensions', {
     actionsForSurface() {
       return (surface = '', context = {}) => this.menuActionsForSurface(surface, context)
     },
-    menuActionsForSurface: (state) => (surface = '', context = {}) => {
-      const normalizedSurface = String(surface || '').trim()
-      if (!normalizedSurface) return []
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) => {
-          const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
-          const runtimeActions = runtimeEntry.registeredMenuActions
-            .filter((action) => action.surface === normalizedSurface)
-          const manifestActions = (extension.contributedMenus || [])
-            .filter((action) => action.surface === normalizedSurface)
-          const manifestActionKeys = new Set(manifestActions.map((action) => action.commandId))
-          const sourceActions = runtimeActions.length > 0
-            ? runtimeActions.filter((action) =>
-                manifestActions.length === 0 || manifestActionKeys.has(action.commandId)
-              )
-            : manifestActions
-          return sourceActions
-            .filter((action) => matchesWhenClause(action.when, context))
-            .map((action) => ({
-              ...action,
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
-        })
-    },
-    keybindingsForContext: (state) => (context = {}) => {
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) =>
-          (extension.contributedKeybindings || [])
-            .filter((keybinding) => matchesWhenClause(keybinding.when, context))
-            .map((keybinding) => ({
-              ...keybinding,
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
-        )
-    },
-    commandPaletteCommandsForContext: (state) => (context = {}) => {
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) => {
-          const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
-          const runtimeCommandDetails = runtimeEntry.registeredCommandDetails
-          const runtimeCommands = new Set(runtimeEntry.registeredCommands)
-          const paletteMenus = runtimeEntry.registeredMenuActions
-            .filter((menu) => menu.surface === 'commandPalette')
-          const fallbackPaletteMenus = (extension.contributedMenus || [])
-            .filter((menu) => menu.surface === 'commandPalette')
-          const useRuntimePalette = runtimeEntry.registeredMenuActions.length > 0
-          const sourceCommands = runtimeCommandDetails.length > 0
-            ? runtimeCommandDetails.map((command) => ({
-                ...command,
-                id: command.commandId,
-                extensionId: extension.id,
-                extensionName: extension.name,
-              }))
-            : (extension.contributedCommands || []).map((command) => ({
-                ...command,
-                extensionId: extension.id,
-                extensionName: extension.name,
-            }))
-          return sourceCommands
-            .filter((command) => {
-              const commandMenus = (paletteMenus.length > 0 ? paletteMenus : fallbackPaletteMenus)
-                .filter((menu) => menu.commandId === command.commandId)
-              if (useRuntimePalette && commandMenus.length === 0) {
-                return false
-              }
-              if (runtimeCommands.size > 0 && !runtimeCommands.has(command.commandId)) {
-                return false
-              }
-              if (commandMenus.length === 0) return true
-              return commandMenus.some((menu) => matchesWhenClause(menu.when, context))
-            })
-        })
-    },
+    menuActionsForSurface: (state) => (surface = '', context = {}) =>
+      buildMenuActionsForSurface({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        runtimeRegistry: state.runtimeRegistry,
+        surface,
+        context,
+      }),
+    keybindingsForContext: (state) => (context = {}) =>
+      buildKeybindingsForContext({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        context,
+      }),
+    commandPaletteCommandsForContext: (state) => (context = {}) =>
+      buildCommandPaletteCommandsForContext({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        runtimeRegistry: state.runtimeRegistry,
+        context,
+      }),
     sidebarViewContainers(state) {
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) =>
-          (extension.contributedViewContainers || []).map((container) => ({
-            ...container,
-            extensionId: extension.id,
-            extensionName: extension.name,
-          }))
-        )
+      return buildSidebarViewContainers({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+      })
     },
-    viewsForContainer: (state) => (containerId = '', context = {}) => {
-      const normalizedContainerId = String(containerId || '').trim()
-      if (!normalizedContainerId) return []
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available')
-        .flatMap((extension) =>
-          {
-            const runtimeEntry = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id])
-            const runtimeViewDetails = runtimeEntry.registeredViewDetails
-            const manifestViews = extension.contributedViews || []
-            const manifestViewById = new Map(
-              manifestViews.map((view) => [String(view?.id || '').trim(), view]),
-            )
-            const sourceViews = runtimeViewDetails.length > 0
-              ? runtimeViewDetails.map((view) => ({
-                  ...(manifestViewById.get(String(view?.id || '').trim()) || {}),
-                  id: String(view?.id || '').trim(),
-                  title: String(
-                    view?.title ||
-                    manifestViewById.get(String(view?.id || '').trim())?.title ||
-                    view?.id ||
-                    '',
-                  ).trim(),
-                  contextualTitle: String(
-                    manifestViewById.get(String(view?.id || '').trim())?.contextualTitle || '',
-                  ).trim(),
-                  presentation: String(
-                    manifestViewById.get(String(view?.id || '').trim())?.presentation || '',
-                  ).trim(),
-                  when: String(
-                    view?.when ||
-                    manifestViewById.get(String(view?.id || '').trim())?.when ||
-                    '',
-                  ).trim(),
-                  containerId: String(
-                    manifestViewById.get(String(view?.id || '').trim())?.containerId || '',
-                  ).trim(),
-                  panelId: String(
-                    manifestViewById.get(String(view?.id || '').trim())?.panelId || '',
-                  ).trim(),
-                }))
-                .filter((view) => view.id && view.containerId && view.panelId)
-              : manifestViews
-            return sourceViews
-            .filter((view) =>
-              view.containerId === normalizedContainerId &&
-              matchesWhenClause(view.when, context) &&
-              (
-                normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredViews.length === 0 ||
-                normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredViews.includes(view.id)
-              )
-            )
-            .map((view) => ({
-              ...view,
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
-          }
-        )
-    },
-    viewTitleActionsForView: (state) => (view = {}, context = {}) => {
-      const extensionId = normalizeExtensionId(view.extensionId)
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
-        .flatMap((extension) => {
-          const runtimeActions = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredMenuActions
-            .filter((action) => action.surface === 'view/title')
-          const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewTitleMenus || [])
-          return sourceActions
-            .filter((action) => matchesWhenClause(action.when, context))
-            .map((action) => ({
-              ...action,
-              viewId: String(view?.id || ''),
-              containerId: String(view?.containerId || ''),
-              panelId: String(view?.panelId || ''),
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
-        })
-    },
-    viewItemActionsForItem: (state) => (view = {}, item = {}, context = {}) => {
-      const extensionId = normalizeExtensionId(view.extensionId)
-      const enabled = new Set(state.enabledExtensionIds.map(normalizeExtensionId))
-      const mergedContext = {
-        ...context,
-        viewItem: {
-          id: String(item?.id || ''),
-          handle: String(item?.handle || ''),
-          label: String(item?.label || ''),
-          commandId: String(item?.commandId || ''),
-          contextValue: String(item?.contextValue || ''),
-        },
-      }
-      return state.registry
-        .filter((extension) => enabled.has(extension.id) && extension.status === 'available' && extension.id === extensionId)
-        .flatMap((extension) => {
-          const runtimeActions = normalizeRuntimeEntry(state.runtimeRegistry?.[extension.id]).registeredMenuActions
-            .filter((action) => action.surface === 'view/item/context')
-          const sourceActions = runtimeActions.length > 0 ? runtimeActions : (extension.contributedViewItemMenus || [])
-          return sourceActions
-            .filter((action) => matchesWhenClause(action.when, mergedContext))
-            .map((action) => ({
-              ...action,
-              viewId: String(view?.id || ''),
-              containerId: String(view?.containerId || ''),
-              panelId: String(view?.panelId || ''),
-              extensionId: extension.id,
-              extensionName: extension.name,
-            }))
-        })
-    },
+    viewsForContainer: (state) => (containerId = '', context = {}) =>
+      buildViewsForContainer({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        runtimeRegistry: state.runtimeRegistry,
+        containerId,
+        context,
+      }),
+    viewTitleActionsForView: (state) => (view = {}, context = {}) =>
+      buildViewTitleActionsForView({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        runtimeRegistry: state.runtimeRegistry,
+        view,
+        context,
+      }),
+    viewItemActionsForItem: (state) => (view = {}, item = {}, context = {}) =>
+      buildViewItemActionsForItem({
+        registry: state.registry,
+        enabledExtensionIds: state.enabledExtensionIds,
+        runtimeRegistry: state.runtimeRegistry,
+        view,
+        item,
+        context,
+      }),
     resolvedViewFor: (state) => (viewKey = '') => state.resolvedViews[String(viewKey || '').trim()] || null,
     viewStateFor: (state) => (viewKey = '') => state.viewState[String(viewKey || '').trim()] || null,
     viewControllerStateFor: (state) => (viewKey = '') => state.viewControllerState[String(viewKey || '').trim()] || null,
