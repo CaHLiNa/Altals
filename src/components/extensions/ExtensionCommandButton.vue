@@ -2,14 +2,16 @@
   <UiButton
     variant="secondary"
     size="sm"
-    :disabled="disabled || busy"
+    :disabled="disabled"
     :loading="busy"
+    :title="buttonTitle"
+    :aria-label="buttonTitle"
     @click="start"
   >
     <template #leading>
       <IconBolt :size="14" />
     </template>
-    {{ label }}
+    {{ buttonLabel }}
   </UiButton>
 </template>
 
@@ -19,6 +21,8 @@ import { IconBolt } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import UiButton from '../shared/ui/UiButton.vue'
 
 const props = defineProps({
@@ -32,6 +36,7 @@ const props = defineProps({
 const emit = defineEmits(['started'])
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
+const workspaceStore = useWorkspaceStore()
 const toastStore = useToastStore()
 const busy = ref(false)
 
@@ -48,7 +53,27 @@ const extension = computed(() =>
     : null
 )
 const label = computed(() => props.label || t(action.value?.title || 'Run extension action'))
-const disabled = computed(() => props.disabled || !extension.value || !commandId.value || !action.value?.extensionId)
+const hostState = computed(() => {
+  if (!action.value?.extensionId) return buildExtensionCommandHostState()
+  return buildExtensionCommandHostState(
+    extensionsStore.hostDiagnosticsFor(action.value.extensionId, workspaceStore.path || '')
+  )
+})
+const buttonLabel = computed(() => hostState.value.blocked ? t(hostState.value.labelKey) : label.value)
+const buttonTitle = computed(() => {
+  if (hostState.value.blocked) {
+    return t(hostState.value.messageKey, hostState.value.messageParams)
+  }
+  return label.value
+})
+const disabled = computed(() =>
+  props.disabled ||
+  busy.value ||
+  !extension.value ||
+  !commandId.value ||
+  !action.value?.extensionId ||
+  hostState.value.blocked
+)
 
 async function start() {
   if (disabled.value || busy.value) return

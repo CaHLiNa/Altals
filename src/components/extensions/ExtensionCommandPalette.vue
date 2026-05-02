@@ -22,22 +22,35 @@
 
       <div class="command-palette-list" role="listbox">
         <button
-          v-for="(command, index) in filteredCommands"
-          :key="`${command.extensionId}:${command.commandId}`"
+          v-for="(entry, index) in filteredCommands"
+          :key="`${entry.command.extensionId}:${entry.command.commandId}`"
           type="button"
           class="command-palette-row"
-          :class="{ 'is-active': index === activeIndex }"
-          :disabled="busy"
+          :class="{
+            'is-active': index === activeIndex,
+            'is-blocked': entry.hostState.blocked,
+          }"
+          :disabled="busy || entry.hostState.blocked"
           role="option"
           :aria-selected="index === activeIndex"
           @mouseenter="activeIndex = index"
-          @mousedown.prevent="execute(command)"
+          @mousedown.prevent="execute(entry.command)"
         >
           <div class="command-palette-row-main">
-            <span class="command-palette-title">{{ t(command.title || command.commandId) }}</span>
-            <span class="command-palette-extension">{{ command.extensionName }}</span>
+            <span class="command-palette-title">{{ t(entry.command.title || entry.command.commandId) }}</span>
+            <span class="command-palette-extension">{{ entry.command.extensionName }}</span>
           </div>
-          <span class="command-palette-id">{{ command.commandId }}</span>
+          <div class="command-palette-row-meta">
+            <span
+              v-if="entry.hostState.blocked"
+              class="command-palette-status-pill"
+              :class="entry.hostState.tone"
+              :title="entry.hostMessage"
+            >
+              {{ entry.hostLabel }}
+            </span>
+            <span class="command-palette-id">{{ entry.command.commandId }}</span>
+          </div>
         </button>
 
         <div v-if="filteredCommands.length === 0" class="command-palette-empty">
@@ -53,6 +66,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
+import { useWorkspaceStore } from '../../stores/workspace'
+import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
 
@@ -66,6 +81,7 @@ const emit = defineEmits(['close', 'executed'])
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
+const workspaceStore = useWorkspaceStore()
 const toastStore = useToastStore()
 const query = ref('')
 const activeIndex = ref(0)
@@ -73,18 +89,31 @@ const inputRef = ref(null)
 const busy = ref(false)
 
 const availableCommands = computed(() => {
-  return extensionsStore.commandPaletteCommandsForContext(props.context)
+  return extensionsStore.commandPaletteCommandsForContext(props.context).map((command) => {
+    const hostState = buildExtensionCommandHostState(
+      extensionsStore.hostDiagnosticsFor(command.extensionId, workspaceStore.path || '')
+    )
+
+    return {
+      command,
+      hostState,
+      hostLabel: hostState.blocked ? t(hostState.labelKey) : '',
+      hostMessage: hostState.blocked ? t(hostState.messageKey, hostState.messageParams) : '',
+    }
+  })
 })
 
 const filteredCommands = computed(() => {
   const normalized = query.value.trim().toLowerCase()
   if (!normalized) return availableCommands.value
-  return availableCommands.value.filter((command) =>
+  return availableCommands.value.filter((entry) =>
     [
-      command.title,
-      command.category,
-      command.commandId,
-      command.extensionName,
+      entry.command.title,
+      entry.command.category,
+      entry.command.commandId,
+      entry.command.extensionName,
+      entry.hostLabel,
+      entry.hostMessage,
     ]
       .join(' ')
       .toLowerCase()
@@ -122,8 +151,22 @@ function move(delta) {
 
 async function execute(command = null) {
   if (busy.value) return
-  const selected = command || filteredCommands.value[activeIndex.value]
-  if (!selected) return
+  const selectedEntry = command
+    ? filteredCommands.value.find((entry) =>
+        entry.command.extensionId === command.extensionId &&
+        entry.command.commandId === command.commandId
+      ) || null
+    : filteredCommands.value[activeIndex.value] || null
+  if (!selectedEntry) return
+  if (selectedEntry.hostState.blocked) {
+    toastStore.show(selectedEntry.hostMessage, {
+      type: 'warning',
+      duration: 3200,
+    })
+    return
+  }
+
+  const selected = selectedEntry.command
   busy.value = true
   try {
     const task = await extensionsStore.executeCommand(selected, props.target)
@@ -206,7 +249,7 @@ function handleInputKeydown(event) {
   width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 240px);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   border: 0;
@@ -220,6 +263,11 @@ function handleInputKeydown(event) {
 
 .command-palette-row:disabled {
   cursor: wait;
+}
+
+.command-palette-row.is-blocked:disabled {
+  cursor: not-allowed;
+  opacity: 0.9;
 }
 
 .command-palette-row.is-active,
@@ -252,6 +300,35 @@ function handleInputKeydown(event) {
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.command-palette-row-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.command-palette-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--surface-hover) 82%, transparent);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.command-palette-status-pill.is-warning {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.command-palette-status-pill.is-blocked {
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  color: color-mix(in srgb, var(--error) 78%, var(--text-primary));
 }
 
 .command-palette-id {
