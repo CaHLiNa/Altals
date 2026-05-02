@@ -188,6 +188,8 @@ pub struct ExtensionConfigurationProperty {
     #[serde(rename = "type", default)]
     pub property_type: String,
     #[serde(default)]
+    pub title: String,
+    #[serde(default)]
     pub default: Value,
     #[serde(default)]
     pub description: String,

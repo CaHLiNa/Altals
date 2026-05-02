@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { createPinia, setActivePinia } from 'pinia'
 import { createLogger, createServer } from 'vite'
 
@@ -34,13 +35,24 @@ try {
   clearTauriMocks = clearMocks
   mockWindows('main')
 
-  mockIPC((cmd) => {
+  const zhMessages = JSON.parse(await readFile(new URL('../src-tauri/resources/i18n/zh-CN.json', import.meta.url), 'utf8'))
+
+  mockIPC((cmd, args) => {
     if (cmd === 'workspace_preferences_load') {
       return {
         preferredLocale: 'en-US',
       }
     }
     if (cmd === 'i18n_runtime_load') {
+      const preferredLocale = String(args?.params?.preferredLocale || '')
+      if (preferredLocale === 'zh-CN') {
+        return {
+          locale: 'zh-CN',
+          systemLocale: 'zh-CN',
+          messages: zhMessages,
+          aliases: {},
+        }
+      }
       return {
         locale: 'en-US',
         systemLocale: 'en-US',
@@ -57,6 +69,7 @@ try {
   const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
   const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
   const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
+  const { applyLocalePreference } = await vite.ssrLoadModule('/src/i18n/index.js')
   const componentModule = await vite.ssrLoadModule('/src/components/settings/SettingsExtensions.vue')
   const SettingsExtensions = componentModule.default
 
@@ -182,6 +195,61 @@ try {
     },
   }
 
+  const localizedSettingsExtension = {
+    id: 'retain-pdf',
+    name: 'RetainPDF',
+    version: '0.1.0',
+    description: '从当前 ScribeFlow PDF 或文献上下文调用 RetainPDF，生成尽量保留版式的翻译结果。',
+    scope: 'workspace',
+    status: 'available',
+    manifestFormat: 'package.json',
+    main: './extension.js',
+    activationEvents: [],
+    capabilities: [],
+    contributedCommands: [],
+    contributedMenus: [],
+    contributedKeybindings: [],
+    contributedViewContainers: [],
+    contributedViews: [],
+    contributedViewTitleMenus: [],
+    contributedViewItemMenus: [],
+    contributedCapabilities: [],
+    warnings: [],
+    errors: [],
+    settingsSchema: {
+      'retainPdf.apiKey': {
+        key: 'retainPdf.apiKey',
+        type: 'string',
+        default: '',
+        label: 'RetainPDF API 密钥',
+        description: 'RetainPDF Rust API 使用的 X-API-Key 密钥。',
+        secureStorage: true,
+        options: [],
+      },
+      'retainPdf.modelBaseUrl': {
+        key: 'retainPdf.modelBaseUrl',
+        type: 'string',
+        default: 'https://api.deepseek.com/v1',
+        label: '模型 API 地址',
+        description: 'RetainPDF 翻译时使用的 OpenAI 兼容模型 API 地址。',
+        secureStorage: false,
+        options: [],
+      },
+      'retainPdf.developerMode': {
+        key: 'retainPdf.developerMode',
+        type: 'boolean',
+        default: true,
+        label: '开发者模式',
+        description: '为本地工作区 PDF 启用 RetainPDF 开发者模式上传。',
+        secureStorage: false,
+        options: [],
+      },
+    },
+    runtime: {
+      runtimeType: 'node',
+    },
+  }
+
   async function renderCurrentState() {
     const app = createSSRApp(SettingsExtensions)
     app.use(pinia)
@@ -248,6 +316,33 @@ try {
   assert.match(readyHtml, /Ready/)
   assert.match(readyHtml, /Run Summarize document/)
 
+  await applyLocalePreference('zh-CN')
+
+  extensions.enabledExtensionIds = ['retain-pdf']
+  extensions.registry = [localizedSettingsExtension]
+  extensions.hostSummary = {
+    available: true,
+    runtime: 'node-extension-host-persistent',
+    activatedExtensions: [],
+    activeRuntimeSlots: [],
+    pendingPromptOwner: null,
+  }
+  extensions.runtimeRegistry = {}
+
+  const localizedHtml = await renderCurrentState()
+  assert.match(localizedHtml, /RetainPDF API 密钥/)
+  assert.match(localizedHtml, /模型 API 地址/)
+  assert.match(localizedHtml, /开发者模式/)
+  assert.match(localizedHtml, /钥匙串/)
+  assert.match(localizedHtml, /由主程序管理模型、接口地址和安全凭据。/)
+  assert.match(localizedHtml, /不常用的插件专属选项。/)
+  assert.doesNotMatch(localizedHtml, />apiKey</)
+  assert.doesNotMatch(localizedHtml, />modelBaseUrl</)
+  assert.doesNotMatch(localizedHtml, />developerMode</)
+  assert.doesNotMatch(localizedHtml, /Keychain/)
+  assert.doesNotMatch(localizedHtml, /Less common plugin-specific options/)
+  assert.doesNotMatch(localizedHtml, /Host-managed model, endpoint, and secure credential values/)
+
   console.log(JSON.stringify({
     ok: true,
     summary: {
@@ -255,6 +350,10 @@ try {
       blockedUsesSharedButtonLabel: blockedHtml.includes('>Blocked<'),
       readyKeepsStatusPill: readyHtml.includes('extension-status-pill'),
       readyActionLabel: readyHtml.includes('Run Summarize document'),
+      localizedSettingTitles: localizedHtml.includes('RetainPDF API 密钥') &&
+        localizedHtml.includes('模型 API 地址') &&
+        localizedHtml.includes('开发者模式'),
+      localizedSecureBadge: localizedHtml.includes('钥匙串'),
     },
   }, null, 2))
 } finally {

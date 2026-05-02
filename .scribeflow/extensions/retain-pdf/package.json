@@ -127,17 +127,20 @@
         "retainPdf.apiBaseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:41000",
+          "title": "%setting.apiBaseUrl.title%",
           "description": "%setting.apiBaseUrl.description%"
         },
         "retainPdf.apiKey": {
           "type": "string",
           "default": "",
+          "title": "%setting.apiKey.title%",
           "description": "%setting.apiKey.description%",
           "secureStorage": true
         },
         "retainPdf.ocrProvider": {
           "type": "string",
           "default": "mineru",
+          "title": "%setting.ocrProvider.title%",
           "description": "%setting.ocrProvider.description%",
           "enum": [
             "mineru",
@@ -151,34 +154,40 @@
         "retainPdf.mineruToken": {
           "type": "string",
           "default": "",
+          "title": "%setting.mineruToken.title%",
           "description": "%setting.mineruToken.description%",
           "secureStorage": true
         },
         "retainPdf.paddleToken": {
           "type": "string",
           "default": "",
+          "title": "%setting.paddleToken.title%",
           "description": "%setting.paddleToken.description%",
           "secureStorage": true
         },
         "retainPdf.modelBaseUrl": {
           "type": "string",
           "default": "https://api.deepseek.com/v1",
+          "title": "%setting.modelBaseUrl.title%",
           "description": "%setting.modelBaseUrl.description%"
         },
         "retainPdf.model": {
           "type": "string",
           "default": "deepseek-v4-flash",
+          "title": "%setting.model.title%",
           "description": "%setting.model.description%"
         },
         "retainPdf.modelApiKey": {
           "type": "string",
           "default": "",
+          "title": "%setting.modelApiKey.title%",
           "description": "%setting.modelApiKey.description%",
           "secureStorage": true
         },
         "retainPdf.workflow": {
           "type": "string",
           "default": "book",
+          "title": "%setting.workflow.title%",
           "description": "%setting.workflow.description%",
           "enum": [
             "book",
@@ -192,21 +201,25 @@
         "retainPdf.pageRanges": {
           "type": "string",
           "default": "",
+          "title": "%setting.pageRanges.title%",
           "description": "%setting.pageRanges.description%"
         },
         "retainPdf.developerMode": {
           "type": "boolean",
           "default": true,
+          "title": "%setting.developerMode.title%",
           "description": "%setting.developerMode.description%"
         },
         "retainPdf.pollIntervalSeconds": {
           "type": "number",
           "default": 5,
+          "title": "%setting.pollIntervalSeconds.title%",
           "description": "%setting.pollIntervalSeconds.description%"
         },
         "retainPdf.timeoutSeconds": {
           "type": "number",
           "default": 1800,
+          "title": "%setting.timeoutSeconds.title%",
           "description": "%setting.timeoutSeconds.description%"
         }
       }

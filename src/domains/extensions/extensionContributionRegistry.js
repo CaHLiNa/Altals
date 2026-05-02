@@ -14,7 +14,7 @@ function normalizeExtensionId(value = '') {
 
 function normalizeSettingDefinition(key = '', definition = {}) {
   const settingKey = normalizeId(key)
-  const label = settingKey.split('.').pop() || settingKey
+  const label = normalizeId(definition?.title) || settingKey.split('.').pop() || settingKey
   return {
     key: settingKey,
     type: normalizeId(definition?.type),

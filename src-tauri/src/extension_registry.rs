@@ -478,6 +478,7 @@ mod tests {
                         "properties": {
                             "localized.apiKey": {
                                 "type": "string",
+                                "title": "%setting.apiKey.title%",
                                 "description": "%setting.apiKey.description%",
                                 "secureStorage": true
                             }
@@ -497,6 +498,7 @@ mod tests {
                 "extension.displayName": "本地化扩展",
                 "extension.description": "来自插件语言包的描述",
                 "command.title": "运行本地化命令",
+                "setting.apiKey.title": "插件密钥",
                 "setting.apiKey.description": "插件自己的密钥说明"
             })
             .to_string(),
@@ -515,6 +517,16 @@ mod tests {
         assert_eq!(entries[0].description, "来自插件语言包的描述");
         let manifest = entries[0].manifest.as_ref().expect("manifest");
         assert_eq!(manifest.contributes.commands[0].title, "运行本地化命令");
+        assert_eq!(
+            manifest
+                .contributes
+                .configuration
+                .properties
+                .get("localized.apiKey")
+                .expect("setting")
+                .title,
+            "插件密钥"
+        );
         assert_eq!(
             manifest
                 .contributes
