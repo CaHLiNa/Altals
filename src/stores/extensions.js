@@ -51,6 +51,10 @@ function normalizeCapability(value = '') {
   return String(value || '').trim()
 }
 
+function normalizeWorkspaceRoot(value = '') {
+  return String(value || '').trim()
+}
+
 function normalizeTarget(target = {}) {
   return {
     kind: String(target?.kind || '').trim(),
@@ -330,6 +334,7 @@ function deferredViewRequestKey(payload = {}) {
   return [
     String(payload?.kind || '').trim(),
     normalizeExtensionId(payload?.extensionId),
+    normalizeWorkspaceRoot(payload?.workspaceRoot),
     String(payload?.viewId || '').trim(),
     String(payload?.parentItemId || '').trim(),
     String(payload?.itemHandle || '').trim(),
@@ -1063,6 +1068,7 @@ export const useExtensionsStore = defineStore('extensions', {
           this.deferViewRequest({
             kind: 'resolveView',
             extensionId,
+            workspaceRoot: workspace.path || '',
             viewId,
             target,
             settings: mergedSettings,
@@ -1126,6 +1132,7 @@ export const useExtensionsStore = defineStore('extensions', {
           this.deferViewRequest({
             kind: 'notifyViewSelection',
             extensionId,
+            workspaceRoot: workspace.path || '',
             viewId,
             target: {},
             itemHandle,
@@ -1190,12 +1197,14 @@ export const useExtensionsStore = defineStore('extensions', {
     },
     deferViewRequest(payload = {}) {
       const normalizedExtensionId = normalizeExtensionId(payload?.extensionId)
+      const normalizedWorkspaceRoot = normalizeWorkspaceRoot(payload?.workspaceRoot || useWorkspaceStore().path || '')
       const normalizedViewId = String(payload?.viewId || '').trim()
       const normalizedKind = String(payload?.kind || '').trim()
       if (!normalizedExtensionId || !normalizedViewId || !normalizedKind) return
       const request = {
         kind: normalizedKind,
         extensionId: normalizedExtensionId,
+        workspaceRoot: normalizedWorkspaceRoot,
         viewId: normalizedViewId,
         target: normalizeTarget(payload?.target || {}),
         settings: payload?.settings && typeof payload.settings === 'object' ? payload.settings : {},
@@ -1229,6 +1238,10 @@ export const useExtensionsStore = defineStore('extensions', {
       try {
         for (let index = 0; index < pending.length; index += 1) {
           const request = pending[index]
+          const currentWorkspaceRoot = normalizeWorkspaceRoot(useWorkspaceStore().path || '')
+          if (normalizeWorkspaceRoot(request.workspaceRoot) !== currentWorkspaceRoot) {
+            continue
+          }
           try {
             if (request.kind === 'resolveView') {
               await this.resolveView(
