@@ -146,6 +146,7 @@ async function runAction() {
 <style scoped>
 .extension-document-action-panel {
   display: flex;
+  align-self: stretch;
   flex: 1 1 auto;
   box-sizing: border-box;
   width: 100%;
@@ -169,7 +170,16 @@ async function runAction() {
 }
 
 .extension-document-action-panel :deep(.ui-button) {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+}
+
+.extension-document-action-panel :deep(.ui-button-label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .extension-document-action-panel__target-label,
@@ -241,6 +251,7 @@ async function runAction() {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   height: 6px;
   border-radius: 999px;

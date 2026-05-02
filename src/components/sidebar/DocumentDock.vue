@@ -279,7 +279,11 @@ async function closeDockPage(page = {}) {
 <style scoped>
 .document-dock {
   flex: 0 0 auto;
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 :deep(.document-dock__preview-tab--icon) {

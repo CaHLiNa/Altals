@@ -116,6 +116,19 @@ const firstViewState = computed(() => {
   if (!view) return null
   return extensionsStore.viewStateFor(`${view.extensionId}:${view.id}`) || null
 })
+const currentExtension = computed(() =>
+  container.value?.extensionId
+    ? extensionsStore.registry.find((entry) => entry.id === container.value.extensionId) || null
+    : null
+)
+const fallbackDocumentActionCommandId = computed(() => {
+  const commands = Array.isArray(currentExtension.value?.contributedCommands)
+    ? currentExtension.value.contributedCommands
+    : []
+  if (commands.length !== 1) return ''
+  const command = commands[0] || {}
+  return String(command.commandId || command.command || '').trim()
+})
 
 const containerPresentation = computed(() =>
   buildExtensionPluginContainerPresentation(
@@ -138,17 +151,43 @@ const documentActionPresentation = computed(() => {
   const base = firstViewPresentation.value && typeof firstViewPresentation.value === 'object'
     ? firstViewPresentation.value
     : {}
+  const targetPath = String(base.target?.path || resolvedTarget.value.path || '').trim()
+  const action = base.action && typeof base.action === 'object'
+    ? base.action
+    : {}
+  const actionCommandId = String(
+    action.commandId ||
+    action.command ||
+    fallbackDocumentActionCommandId.value ||
+    '',
+  ).trim()
+  const actionDisabled = Object.prototype.hasOwnProperty.call(action, 'disabled')
+    ? Boolean(action.disabled)
+    : !targetPath
+  const presentation = {
+    ...base,
+    target: {
+      ...(base.target || {}),
+      label: String(base.target?.label || '').trim(),
+      path: targetPath,
+    },
+    action: {
+      ...action,
+      commandId: actionCommandId,
+      disabled: actionDisabled,
+    },
+  }
   const task = latestTask.value
-  if (!task) return base
+  if (!task) return presentation
   const progress = task.progress || {}
   return {
-    ...base,
+    ...presentation,
     progress: {
-      ...(base.progress || {}),
-      label: progress.label || base.progress?.label || '',
-      state: task.state || base.progress?.state || '',
-      current: progress.current || base.progress?.current || 0,
-      total: progress.total || base.progress?.total || 0,
+      ...(presentation.progress || {}),
+      label: progress.label || presentation.progress?.label || '',
+      state: task.state || presentation.progress?.state || '',
+      current: progress.current || presentation.progress?.current || 0,
+      total: progress.total || presentation.progress?.total || 0,
     },
   }
 })
@@ -217,20 +256,34 @@ watch(
 <style scoped>
 .document-plugin-page {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   height: 100%;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .document-plugin-page__shell {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .document-plugin-page__meta {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   flex: 0 0 auto;
   flex-direction: column;
   gap: 4px;
@@ -241,23 +294,35 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .document-plugin-page__title {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-plugin-page__description,
 .document-plugin-page__target,
 .document-plugin-page__empty {
+  min-width: 0;
   color: var(--text-muted);
   font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .document-plugin-page__content {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
@@ -268,7 +333,11 @@ watch(
 
 .document-plugin-page__stack {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
+  min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
 }
