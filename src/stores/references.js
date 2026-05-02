@@ -86,6 +86,11 @@ async function resolveReferenceStorageRoot(projectRoot = '') {
   return String(await workspace.ensureGlobalConfigDir() || '').trim()
 }
 
+function resolveReferenceWorkspacePath() {
+  const workspace = useWorkspaceStore()
+  return String(workspace.projectDir || workspace.path || '').trim()
+}
+
 function buildDefaultResolvedQueryState(state = {}) {
   return {
     query: {
@@ -893,7 +898,7 @@ export const useReferencesStore = defineStore('references', {
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {
       const reference = this.references.find((candidate) => candidate.id === referenceId)
       if (!reference) return ''
-      return formatCitation(this.citationStyle, mode, reference, number)
+      return formatCitation(this.citationStyle, mode, reference, number, resolveReferenceWorkspacePath())
     },
 
     cleanup() {

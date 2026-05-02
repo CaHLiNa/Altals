@@ -42,22 +42,28 @@ export function getCitationStyleName(styleId = '') {
   return getCitationStyleInfo(normalizeCitationStyle(styleId))?.name || 'APA 7th Edition'
 }
 
-export async function getCitationFormatter(styleId = 'apa') {
+export async function getCitationFormatter(styleId = 'apa', workspacePath = '') {
   return {
     isAsync: true,
-    formatReference: async (csl, number) => formatReference(csl, styleId, number),
-    formatInlineCitation: async (csl, number) => formatInlineCitation(csl, styleId, number),
-    formatBibliography: async (cslRecords) => formatCslBibliography(cslRecords, styleId),
+    formatReference: async (csl, number) => formatReference(csl, styleId, number, workspacePath),
+    formatInlineCitation: async (csl, number) => formatInlineCitation(csl, styleId, number, workspacePath),
+    formatBibliography: async (cslRecords) => formatCslBibliography(cslRecords, styleId, workspacePath),
   }
 }
 
-export async function formatCitationWithStyle(styleId = 'apa', mode = 'reference', reference = {}, number) {
+export async function formatCitationWithStyle(
+  styleId = 'apa',
+  mode = 'reference',
+  reference = {},
+  number,
+  workspacePath = ''
+) {
   if (mode === 'inline') {
-    return formatCitation(styleId, 'inline', reference, number)
+    return formatCitation(styleId, 'inline', reference, number, workspacePath)
   }
-  return formatCitation(styleId, 'reference', reference, number)
+  return formatCitation(styleId, 'reference', reference, number, workspacePath)
 }
 
-export async function formatBibliographyWithStyle(styleId = 'apa', references = []) {
-  return formatBibliography(styleId, references)
+export async function formatBibliographyWithStyle(styleId = 'apa', references = [], workspacePath = '') {
+  return formatBibliography(styleId, references, workspacePath)
 }
