@@ -840,19 +840,27 @@ fn ensure_extension_pdf_path_allowed(
 
 #[cfg(not(test))]
 fn resolve_builtin_node_host_script() -> Result<PathBuf, String> {
-    let cwd_candidate = std::env::current_dir()
-        .map_err(|error| format!("Failed to read current directory: {error}"))?
-        .join(BUILTIN_NODE_HOST_RELATIVE_PATH);
-    if cwd_candidate.exists() {
-        return Ok(cwd_candidate);
+    let mut candidates = Vec::new();
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir.join(BUILTIN_NODE_HOST_RELATIVE_PATH));
+        candidates.push(current_dir.join("resources/extension-host/extension-host.mjs"));
+    }
+    if let Ok(current_exe) = std::env::current_exe() {
+        for ancestor in current_exe.ancestors() {
+            candidates.push(ancestor.join(BUILTIN_NODE_HOST_RELATIVE_PATH));
+            candidates.push(ancestor.join("resources/extension-host/extension-host.mjs"));
+        }
     }
 
-    let data_root_candidate = app_dirs::data_root_dir()?
+    candidates.push(app_dirs::data_root_dir()?
         .join("resources")
         .join("extension-host")
-        .join("extension-host.mjs");
-    if data_root_candidate.exists() {
-        return Ok(data_root_candidate);
+        .join("extension-host.mjs"));
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Ok(candidate);
+        }
     }
 
     Err(format!(

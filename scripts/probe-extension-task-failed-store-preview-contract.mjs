@@ -171,30 +171,14 @@ try {
         previewMode: 'text',
         previewTitle: 'Failure Summary',
       },
-      {
-        id: 'task-failed:log',
-        action: 'open',
-        previewMode: 'text',
-        previewTitle: 'Task Log',
-      },
-      {
-        id: 'task-failed:rerun',
-        action: 'execute-command',
-        previewMode: undefined,
-        previewTitle: '',
-      },
     ],
   )
 
   const summaryEntry = resultEntries.find((entry) => entry.id === 'failure-summary')
   const artifactEntry = resultEntries.find((entry) => entry.id === 'failure-log')
-  const rerunEntry = resultEntries.find((entry) => entry.id === 'task-failed:rerun')
-  const logEntry = resultEntries.find((entry) => entry.id === 'task-failed:log')
 
   await extensions.runResultEntryAction(summaryEntry, failedTask.target)
   await extensions.runResultEntryAction(artifactEntry, failedTask.target)
-  await extensions.runResultEntryAction(logEntry, failedTask.target)
-  await extensions.runResultEntryAction(rerunEntry, failedTask.target)
 
   assert.ok(
     ipcCalls.some(([cmd, args]) =>
@@ -202,32 +186,13 @@ try {
       args?.params?.path === '/tmp/failure.log'
     ),
   )
-  assert.ok(
-    ipcCalls.some(([cmd, args]) =>
-      cmd === 'extension_artifact_open' &&
-      args?.params?.path === '/tmp/extension-task.log'
-    ),
-  )
-  assert.equal(executedCommands.length, 1)
-  assert.deepEqual(executedCommands[0], {
-    extensionId: 'example-pdf-extension',
-    commandId: 'scribeflow.pdf.translate',
-    target: {
-      kind: 'pdf',
-      referenceId: 'ref-123',
-      path: '/tmp/paper-a.pdf',
-    },
-    settings: {
-      'examplePdfExtension.targetLang': 'zh-CN',
-    },
-  })
+  assert.equal(executedCommands.length, 0)
 
   console.log(JSON.stringify({
     ok: true,
     summary: {
       recentTaskIds: timeline.recent.map((task) => task.id),
       resultEntryIds: resultEntries.map((entry) => entry.id),
-      rerunCommandId: executedCommands[0].commandId,
       failurePreviewTitle: summaryEntry?.previewTitle || '',
     },
   }, null, 2))

@@ -68,8 +68,8 @@ assert.equal(byId.get('retain-pdf-log')?.previewTitle, 'RetainPDF Log')
 assert.equal(byId.get('retain-pdf-translated-pdf')?.previewMode, 'pdf')
 assert.equal(byId.get('retain-pdf-summary')?.previewTitle, 'RetainPDF Summary')
 assert.equal(entries.filter((entry) => entry.id === 'retain-pdf-log').length, 1)
-assert.ok(entries.some((entry) => entry.id === 'task-result-entry:log'))
-assert.ok(entries.some((entry) => entry.id === 'task-result-entry:rerun'))
+assert.ok(!entries.some((entry) => entry.id === 'task-result-entry:log'))
+assert.ok(!entries.some((entry) => entry.id === 'task-result-entry:rerun'))
 
 console.log(JSON.stringify({
   ok: true,

@@ -14,7 +14,6 @@
           </div>
           <div class="extension-task-meta">
             {{ taskMeta(task) }}
-            <span v-if="task.error"> · {{ task.error }}</span>
           </div>
           <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
           <div v-if="taskProgressSummary(task)" class="extension-task-progress">
@@ -51,14 +50,6 @@
             @click="extensionsStore.cancelTask(task.id)"
           >
             {{ t('Cancel') }}
-          </UiButton>
-          <UiButton
-            v-if="task.logPath"
-            variant="ghost"
-            size="sm"
-            @click="extensionsStore.revealArtifact({ path: task.logPath })"
-          >
-            {{ t('Log') }}
           </UiButton>
         </div>
       </div>
@@ -74,7 +65,6 @@
           </div>
           <div class="extension-task-meta">
             {{ taskMeta(task) }}
-            <span v-if="task.error"> · {{ task.error }}</span>
           </div>
           <div class="extension-task-time">{{ taskTimeSummary(task) }}</div>
           <div v-if="taskProgressSummary(task)" class="extension-task-progress">
@@ -111,14 +101,6 @@
             @click="extensionsStore.cancelTask(task.id)"
           >
             {{ t('Cancel') }}
-          </UiButton>
-          <UiButton
-            v-if="task.logPath"
-            variant="ghost"
-            size="sm"
-            @click="extensionsStore.revealArtifact({ path: task.logPath })"
-          >
-            {{ t('Log') }}
           </UiButton>
         </div>
       </div>
@@ -193,6 +175,7 @@ async function openResultEntry(entry = {}) {
 function taskTitle(task = {}) {
   const explicit = String(task.commandId || task.capability || '').trim()
   if (!explicit) return t('Extension task')
+  if (explicit === 'retainPdf.refreshView') return t('RetainPDF')
   const normalized = titleCaseKey(explicit)
   return t(normalized)
 }
@@ -229,14 +212,14 @@ function taskStateLabel(task = {}) {
 
 function taskTargetLabel(task = {}) {
   const target = task?.target || {}
-  if (target.path) return target.path
+  if (target.path) return target.path.split('/').pop() || target.path
   if (target.referenceId) return `ref:${target.referenceId}`
   if (target.kind) return target.kind
   return ''
 }
 
 function taskMeta(task = {}) {
-  const parts = [String(task.extensionId || t('Unknown extension')).trim()]
+  const parts = []
   const targetLabel = taskTargetLabel(task)
   if (targetLabel) parts.push(targetLabel)
   return parts.filter(Boolean).join(' · ')
