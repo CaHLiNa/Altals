@@ -191,19 +191,39 @@ Components over 500 lines:
 
 | Store | Lines | Current role | Boundary risk |
 | --- | ---: | --- | --- |
-| `src/stores/documentWorkflow.js` | 339 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
+| `src/stores/documentWorkflow.js` | 338 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
 | `src/stores/editor.js` | 579 | Frozen editor shell/session state | Do not edit during this reorganization. |
 | `src/stores/extensionWindowUi.js` | 82 | Extension prompt window UI state | Low; keep UI-only. |
 | `src/stores/extensions.js` | 1149 | Extension registry, host state, tasks, prompts, views, commands | Medium; Phase 7 extracted deterministic presentation/state helpers and kept host authority in Rust. |
-| `src/stores/files.js` | 949 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
-| `src/stores/latex.js` | 924 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
-| `src/stores/links.js` | 334 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
-| `src/stores/python.js` | 219 | Python preferences and compile/run state | Medium; runtime resolution should remain Rust-owned. |
-| `src/stores/references.js` | 964 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
+| `src/stores/files.js` | 946 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
+| `src/stores/latex.js` | 923 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
+| `src/stores/links.js` | 333 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
+| `src/stores/python.js` | 200 | Python preferences and compile/run state | Medium; runtime resolution should remain Rust-owned. |
+| `src/stores/references.js` | 935 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
 | `src/stores/toast.js` | 48 | Toast UI | Low. |
 | `src/stores/utils.js` | 10 | Store utilities | Low. |
-| `src/stores/uxStatus.js` | 78 | Status/toast UI | Low. |
-| `src/stores/workspace.js` | 677 | Workspace lifecycle, preferences, layout, settings, shell state | High; Phase 3/4 should keep lifecycle and persisted settings Rust-owned. |
+| `src/stores/uxStatus.js` | 77 | Status/toast UI | Low. |
+| `src/stores/workspace.js` | 659 | Workspace lifecycle, preferences, layout, settings, shell state | High; Phase 3/4 should keep lifecycle and persisted settings Rust-owned. |
+
+## Primary Store Responsibility Notes
+
+`src/stores/files.js` owns the frontend file tree screen state: tree cache, expanded directories, draft file cache, transient created-file bookkeeping, loading/reconcile flags, watcher lifecycle coordination, and user-facing file operation feedback. It may call `src/services/fileStoreIO.js`, `src/services/fileTreeSystem.js`, and pure `src/domains/files/**` helpers, but path authorization, mutation acceptance, hidden-file policy enforcement, and persisted workspace tree state belong to Rust.
+
+`src/stores/workspace.js` owns app shell and workspace UI coordination: active workspace path/id metadata, settings surface state, dock/sidebar layout state, hydrated preference snapshots, recent-workspace lifecycle state, and applying normalized preference results to DOM-facing helpers. It may orchestrate open/close/bootstrap flows through workspace services, but persisted defaults, lifecycle pruning, workspace identity, config paths, and preference normalization remain Rust/service contract authority.
+
+`src/stores/references.js` owns reference library UI coordination: current filters, selected reference, collection/tag selection state, import/export/loading flags, reference dock PDF state, citation style selection, and applying normalized library snapshots returned from backend services. It may call reference services and update UI state from returned snapshots, but record normalization, duplicate/merge policy, document-reference pruning, asset storage, Zotero mutation semantics, and library persistence rules remain backend/service authority.
+
+`src/stores/latex.js` owns LaTeX-facing UI state: preference hydration, selected compiler/engine options, compile progress/status, per-file diagnostics presented to the UI, terminal log dispatch, stream listener setup, and PDF artifact refresh coordination. It may resolve compile requests through `src/services/latex/**` and update UI state from returned DTOs, but compile target planning, process execution, diagnostics extraction, tool discovery, SyncTeX parsing, and persisted preference normalization remain Rust/service authority.
+
+`src/stores/python.js` owns Python-facing UI state: interpreter preference hydration, detected interpreter display state, available interpreter list, checking flags, and per-file compile/run result state. It may call Python runtime/preference services and present their adapted DTOs, but interpreter discovery, runtime execution, command normalization, and persisted preference schema remain Rust/service authority.
+
+`src/stores/documentWorkflow.js` owns cross-document workflow coordination for the UI: preview preferences, session/preview bindings, workspace preview visibility, workflow UI state caches, artifact path state, and actions that bridge editor, file, LaTeX, Python, reference, and workspace stores. It may create store-local runtime coordinators and call document workflow services, but document kind policy, build/preview resolution DTOs, persisted session schema, and native/open-file effects must stay in services or Rust-backed contracts.
+
+`src/stores/extensions.js` owns extension platform UI coordination: registry/task/view state, enabled extension ids, extension settings snapshots, runtime registry presentation state, host summary display, deferred view requests, prompt recovery state, command/capability dispatch orchestration, and sidebar target selection. Deterministic menu/view/task shaping belongs in `src/domains/extensions/**`; host lifecycle, task execution, command invocation, artifact access, and settings persistence remain service/Rust authority.
+
+`src/stores/links.js` owns the current frontend Markdown link index used by UI panels: forward links, backlinks, heading lists, file-name map, scan generation, and incremental update triggers after file changes. It may read Markdown content through services and use pure file/domain helpers, but large-scale parsing policy, workspace file authority, and future document-intelligence indexing should move to Rust if the feature becomes more than a UI helper.
+
+`src/stores/uxStatus.js` owns transient global status presentation: the current status entry, auto-clear timer, one-shot cooldown tracking, and convenience helpers for success/warning/error messages. It must remain UI-only and should not call bridge services or encode backend policy.
 
 ## Workspace/File Authority Cleanup Log
 

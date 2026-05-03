@@ -631,7 +631,7 @@ git commit -m "refactor: slim ui surfaces"
 
 **Work:**
 
-- [ ] For each store, add a one-paragraph responsibility note in `ARCHITECTURE-BOUNDARY-MAP.md`.
+- [x] For each store, add a one-paragraph responsibility note in `ARCHITECTURE-BOUNDARY-MAP.md`.
 - [ ] Extract repeated UI status derivations into domains.
 - [ ] Extract repeated service call sequences into one store action rather than duplicating in components.
 - [ ] Remove stale setters left behind by deleted settings or old workflows.
@@ -651,6 +651,10 @@ npm run guard:ui-bridges
 git add src/stores src/domains ARCHITECTURE-BOUNDARY-MAP.md
 git commit -m "refactor: simplify store responsibilities"
 ```
+
+**Progress notes:**
+
+- 2026-05-03: Started Phase 9 with store responsibility mapping. Added primary store responsibility notes to `ARCHITECTURE-BOUNDARY-MAP.md` for `files`, `workspace`, `references`, `latex`, `python`, `documentWorkflow`, `extensions`, `links`, and `uxStatus`, and refreshed the store snapshot line counts. This documents each store's intended UI coordination scope and the Rust/service/domain responsibilities it must not absorb.
 
 ### Phase 10: Service Bridge Cleanup
 
