@@ -154,6 +154,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
+import {
+  buildZoteroCollectionOptions,
+  buildZoteroPushTarget,
+  buildZoteroPushTargetOptions,
+  buildZoteroPushTargetValue,
+  buildZoteroSelectedGroupIds,
+  buildZoteroSelectedGroups,
+} from '../../domains/references/zoteroSettingsPresentation.js'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiInput from '../shared/ui/UiInput.vue'
@@ -178,20 +186,6 @@ const collectionOptions = ref([])
 const syncSummary = ref('')
 
 const citationStyle = computed(() => referencesStore.citationStyle || 'apa')
-const markdownCitationFormatOptions = computed(() => [
-  { value: 'bracketed', label: '[@key]' },
-  { value: 'bare', label: '@key' },
-])
-const latexCitationCommandOptions = computed(() => [
-  { value: 'cite', label: '\\cite{}' },
-  { value: 'citep', label: '\\citep{}' },
-  { value: 'citet', label: '\\citet{}' },
-  { value: 'parencite', label: '\\parencite{}' },
-  { value: 'textcite', label: '\\textcite{}' },
-  { value: 'autocite', label: '\\autocite{}' },
-])
-
-// 防御性 computed：确保不会由于 referencesStore 尚未初始化而崩溃
 const citationStyleOptions = computed(() => {
   const styles = referencesStore.availableCitationStyles || []
   return styles.map((style) => ({
@@ -199,33 +193,9 @@ const citationStyleOptions = computed(() => {
     label: style.name,
   }))
 })
-
-// 防御性 computed：确保 config 不为空对象时也能安全访问 userId
-const pushTargetOptions = computed(() => {
-  const safeUserId = config.value?.userId || ''
-  return [
-    { value: '', label: t("Don't push to Zotero") },
-    { value: `user/${safeUserId}`, label: t('My Library') },
-    ...(collectionOptions.value || []),
-  ]
-})
-
-function buildCollectionTree(collections = []) {
-  if (!Array.isArray(collections)) return []
-  const byParent = new Map()
-  for (const collection of collections) {
-    const parent = collection.parentCollection || ''
-    if (!byParent.has(parent)) byParent.set(parent, [])
-    byParent.get(parent).push(collection)
-  }
-
-  const walk = (parent = '', depth = 0) =>
-    (byParent.get(parent) || [])
-      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-      .flatMap((collection) => [{ ...collection, depth }, ...walk(collection.key, depth + 1)])
-
-  return walk()
-}
+const pushTargetOptions = computed(() =>
+  buildZoteroPushTargetOptions(config.value, collectionOptions.value, t)
+)
 
 async function refreshRemoteLibraries(targetConfig = config.value) {
   if (!targetConfig?.userId) return
@@ -235,33 +205,8 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
     if (!remoteLibraries) return
 
     groups.value = remoteLibraries.groups
-    selectedGroupIds.value = new Set(
-      Array.isArray(targetConfig._groups)
-        ? targetConfig._groups.map((group) => String(group.id))
-        : []
-    )
-
-    const options = []
-    const userCollections = buildCollectionTree(remoteLibraries.userCollections || [])
-
-    for (const collection of userCollections) {
-      options.push({
-        value: `user/${targetConfig.userId}/${collection.key}`,
-        label: `${t('My Library')} → ${'  '.repeat(collection.depth)}${collection.name}`,
-      })
-    }
-
-    for (const { group, collections } of remoteLibraries.groupCollections) {
-      const groupCollections = buildCollectionTree(collections || [])
-      options.push({ value: `group/${group.id}`, label: group.name })
-      for (const collection of groupCollections) {
-        options.push({
-          value: `group/${group.id}/${collection.key}`,
-          label: `${group.name} → ${'  '.repeat(collection.depth)}${collection.name}`,
-        })
-      }
-    }
-    collectionOptions.value = options
+    selectedGroupIds.value = buildZoteroSelectedGroupIds(targetConfig)
+    collectionOptions.value = buildZoteroCollectionOptions(remoteLibraries, targetConfig, t)
   } catch (e) {
     console.error('Failed to refresh Zotero remote libraries:', e)
   }
@@ -271,17 +216,8 @@ async function saveConfigState() {
   const nextConfig = {
     ...config.value,
     autoSync: autoSync.value,
-    _groups: (groups.value || []).filter((group) => selectedGroupIds.value.has(group.id)),
-    pushTarget: (() => {
-      const value = String(pushTargetValue.value || '').trim()
-      if (!value) return null
-      const [libraryType, libraryId, collectionKey] = value.split('/')
-      return {
-        libraryType,
-        libraryId,
-        collectionKey: collectionKey || '',
-      }
-    })(),
+    _groups: buildZoteroSelectedGroups(groups.value, selectedGroupIds.value),
+    pushTarget: buildZoteroPushTarget(pushTargetValue.value),
   }
   config.value = nextConfig
   await referencesStore.saveZoteroSettingsConfig(nextConfig)
@@ -377,13 +313,7 @@ onMounted(async () => {
     }
     userId.value = String(savedConfig?.userId || '')
     autoSync.value = savedConfig?.autoSync !== false
-    pushTargetValue.value = (() => {
-      const target = savedConfig?.pushTarget
-      if (!target?.libraryType || !target?.libraryId) return ''
-      return target.collectionKey
-        ? `${target.libraryType}/${target.libraryId}/${target.collectionKey}`
-        : `${target.libraryType}/${target.libraryId}`
-    })()
+    pushTargetValue.value = buildZoteroPushTargetValue(savedConfig)
     if (connected.value) {
       await refreshRemoteLibraries(savedConfig)
     }
