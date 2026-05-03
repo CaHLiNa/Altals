@@ -54,6 +54,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { buildExtensionCommandHostState } from '../../domains/extensions/extensionCommandHostState'
+import { buildExtensionProgressPresentation } from '../../domains/extensions/extensionProgressPresentation'
 import { describeExtensionHostStatePresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import { basenamePath } from '../../utils/path'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
@@ -86,24 +87,14 @@ const buttonLabel = computed(() =>
 )
 const actionDisabled = computed(() => Boolean(props.presentation?.action?.disabled))
 const progress = computed(() => props.presentation?.progress || {})
-const progressState = computed(() => String(progress.value?.state || '').trim().toLowerCase())
-const progressCurrent = computed(() => Math.max(0, Number(progress.value?.current || 0)))
-const progressTotal = computed(() => Math.max(0, Number(progress.value?.total || 0)))
+const progressPresentation = computed(() => buildExtensionProgressPresentation(progress.value))
+const progressCurrent = computed(() => progressPresentation.value.current)
+const progressTotal = computed(() => progressPresentation.value.total)
 const progressLabel = computed(() =>
-  String(progress.value?.label || '').trim() || t('Not started')
+  progressPresentation.value.label || t('Not started')
 )
-const progressWidth = computed(() => {
-  if (progressTotal.value <= 0) {
-    return progressState.value === 'succeeded' || progressState.value === 'completed' ? '100%' : '0%'
-  }
-  return `${Math.min(100, Math.round((progressCurrent.value / progressTotal.value) * 100))}%`
-})
-const progressToneClass = computed(() => {
-  if (progressState.value === 'failed') return 'is-error'
-  if (progressState.value === 'running' || progressState.value === 'queued') return 'is-running'
-  if (progressState.value === 'succeeded' || progressState.value === 'completed') return 'is-success'
-  return ''
-})
+const progressWidth = computed(() => progressPresentation.value.width)
+const progressToneClass = computed(() => progressPresentation.value.toneClass)
 const hostState = computed(() => {
   if (!props.container?.extensionId) return buildExtensionCommandHostState()
   return buildExtensionCommandHostState(

@@ -260,6 +260,7 @@ Components over 500 lines:
 - 2026-05-02: Removed the extension result-entry compatibility shims from `src/services/extensions`. Components and probes now import deterministic artifact/task/result presentation helpers from `src/domains/extensions/extensionResultEntries.js`, leaving `src/services/extensions/**` focused on Tauri command/event bridge files.
 - 2026-05-03: Phase 7 verification passed with full `npm run verify`. The only escalation needed was for `probe:retain-pdf-extension`, which writes generated runtime files under `~/.scribeflow/extensions/retain-pdf/.runtime`; no code regression was found.
 - 2026-05-03: Extension sidebar tone class normalization moved from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation as a pure extension domain helper.
+- 2026-05-03: Extension document action progress state, width, and tone class derivation moved from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`.
 
 ## Phase 1 Verification Targets
 

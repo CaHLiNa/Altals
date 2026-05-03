@@ -657,6 +657,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Started Phase 9 with store responsibility mapping. Added primary store responsibility notes to `ARCHITECTURE-BOUNDARY-MAP.md` for `files`, `workspace`, `references`, `latex`, `python`, `documentWorkflow`, `extensions`, `links`, and `uxStatus`, and refreshed the store snapshot line counts. This documents each store's intended UI coordination scope and the Rust/service/domain responsibilities it must not absorb.
 - 2026-05-03: Extracted document workflow preview/workflow UI state request derivation from `src/stores/documentWorkflowBuildRuntime.js` into `src/domains/document/documentWorkflowBuildStateRequests.js`. The store runtime remains responsible for resolving adapters and assembling store context, while pure preview-kind/artifact/workflow request shaping now lives in the domain layer.
 - 2026-05-03: Moved extension sidebar tone class normalization from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation in a pure domain helper.
+- 2026-05-03: Extracted extension document action progress presentation from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`, so progress state normalization, width derivation, and tone class mapping stay in the extension domain layer.
 
 ### Phase 10: Service Bridge Cleanup
 
