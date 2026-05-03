@@ -7,251 +7,51 @@
 
     <div v-else class="reference-inspector__scroll scrollbar-hidden">
       
-      <!-- ==========================================
-           Level 1: 文档类型与核心信息 (Hero)
-      =========================================== -->
-      <div class="inspector-section inspector-section--hero">
-        <div class="inspector-section-header">
-          <span class="inspector-type-label">{{ selectedReferenceTypeLabel }}</span>
-          <button
-            type="button"
-            class="inspector-icon-btn inspector-icon-btn--save"
-            :class="{ 'has-changes': hasDraftChanges }"
-            :disabled="!hasDraftChanges"
-            :title="t('Save')"
-            @click="saveDraftChanges"
-          >
-            <IconDeviceFloppy :size="16" :stroke-width="1.6" />
-          </button>
-        </div>
-        
-        <div class="inspector-hero-content">
-          <UiTextarea
-            v-model="draft.title"
-            variant="ghost"
-            :rows="2"
-            shell-class="inspector-input-title"
-            :placeholder="t('Title')"
-            @update:model-value="markDraftDirty('title')"
-            @focus="setActiveDraftField('title')"
-            @blur="handleFieldBlur('title', commitTitle)"
-          />
-          <div v-if="heroMetaItems.length > 0" class="inspector-hero-meta">
-            <span v-for="item in heroMetaItems" :key="item" class="inspector-hero-meta-item">
-              {{ item }}
-            </span>
-          </div>
-        </div>
-      </div>
+      <ReferenceDetailHero
+        :has-draft-changes="hasDraftChanges"
+        :meta-items="heroMetaItems"
+        :title="draft.title"
+        :type-label="selectedReferenceTypeLabel"
+        @blur-title="handleFieldBlur('title', commitTitle)"
+        @focus-title="setActiveDraftField('title')"
+        @save="saveDraftChanges"
+        @update-title="updateDraftField('title', $event)"
+      />
 
       <!-- ==========================================
            Level 2: Metadata & Files
       =========================================== -->
-      <div class="inspector-section inspector-section--metadata">
-        <div class="inspector-kv-grid">
-          <div class="kv-label">{{ t('Authors') }}</div>
-          <div class="kv-value">
-            <UiInput
-              v-model="draft.authorsText"
-              variant="ghost"
-              size="sm"
-              @update:model-value="markDraftDirty('authorsText')"
-              @focus="setActiveDraftField('authorsText')"
-              @blur="handleFieldBlur('authorsText', commitAuthors)"
-              @keydown.enter.prevent="$event.target.blur()"
-            />
-          </div>
+      <ReferenceDetailMetadataSection
+        :can-open-pdf="canOpenPdf"
+        :collection-label="collectionLabel"
+        :draft="draft"
+        :pdf-extension-action-target="pdfExtensionActionTarget"
+        :tag-input="tagInput"
+        @add-tag="addTag"
+        @attach-pdf="handleAttachPdf"
+        @blur-field="handleMetadataFieldBlur"
+        @blur-tag-input="handleTagInputBlur"
+        @focus-field="setActiveDraftField"
+        @open-pdf-editor="handleOpenPdfInEditor"
+        @preview-pdf="handlePreviewPdf"
+        @remove-collection="removeCollection"
+        @remove-tag="removeTag"
+        @reveal-pdf="handleRevealPdf"
+        @tag-keydown="handleTagInputKeydown"
+        @update-field="updateDraftField"
+        @update-tag-input="updateTagInput"
+      />
 
-          <div class="kv-label">{{ t('Key') }}</div>
-          <div class="kv-value">
-            <UiInput
-              v-model="draft.citationKey"
-              variant="ghost"
-              size="sm"
-              monospace
-              @update:model-value="markDraftDirty('citationKey')"
-              @focus="setActiveDraftField('citationKey')"
-              @blur="handleFieldBlur('citationKey', commitCitationKey)"
-              @keydown.enter.prevent="$event.target.blur()"
-            />
-          </div>
-
-          <div class="kv-label">{{ t('Year') }}</div>
-          <div class="kv-value">
-            <UiInput
-              v-model="draft.year"
-              variant="ghost"
-              size="sm"
-              @update:model-value="markDraftDirty('year')"
-              @focus="setActiveDraftField('year')"
-              @blur="handleFieldBlur('year', commitYear)"
-              @keydown.enter.prevent="$event.target.blur()"
-            />
-          </div>
-
-          <div class="kv-label">{{ t('Source') }}</div>
-          <div class="kv-value">
-            <UiInput
-              v-model="draft.source"
-              variant="ghost"
-              size="sm"
-              @update:model-value="markDraftDirty('source')"
-              @focus="setActiveDraftField('source')"
-              @blur="handleFieldBlur('source', () => commitTextField('source'))"
-              @keydown.enter.prevent="$event.target.blur()"
-            />
-          </div>
-
-          <div class="kv-label">{{ t('Identifier') }}</div>
-          <div class="kv-value">
-            <UiInput
-              v-model="draft.identifier"
-              variant="ghost"
-              size="sm"
-              monospace
-              @update:model-value="markDraftDirty('identifier')"
-              @focus="setActiveDraftField('identifier')"
-              @blur="handleFieldBlur('identifier', () => commitTextField('identifier'))"
-              @keydown.enter.prevent="$event.target.blur()"
-            />
-          </div>
-
-          <div class="kv-label">{{ t('Volume') }}</div>
-          <div class="kv-value kv-value--inline-triple">
-            <div class="triple-cell">
-              <UiInput
-                v-model="draft.volume"
-                variant="ghost"
-                size="sm"
-                @update:model-value="markDraftDirty('volume')"
-                @focus="setActiveDraftField('volume')"
-                @blur="handleFieldBlur('volume', () => commitTextField('volume'))"
-                @keydown.enter.prevent="$event.target.blur()"
-              />
-            </div>
-            <div class="triple-label">{{ t('Issue') }}</div>
-            <div class="triple-cell">
-              <UiInput
-                v-model="draft.issue"
-                variant="ghost"
-                size="sm"
-                @update:model-value="markDraftDirty('issue')"
-                @focus="setActiveDraftField('issue')"
-                @blur="handleFieldBlur('issue', () => commitTextField('issue'))"
-                @keydown.enter.prevent="$event.target.blur()"
-              />
-            </div>
-            <div class="triple-label">{{ t('Pages') }}</div>
-            <div class="triple-cell triple-cell--wide">
-              <UiInput
-                v-model="draft.pages"
-                variant="ghost"
-                size="sm"
-                @update:model-value="markDraftDirty('pages')"
-                @focus="setActiveDraftField('pages')"
-                @blur="handleFieldBlur('pages', () => commitTextField('pages'))"
-                @keydown.enter.prevent="$event.target.blur()"
-              />
-            </div>
-          </div>
-
-          <div class="kv-label align-top">{{ t('Collections') }}</div>
-          <div class="kv-value token-area token-area--readonly">
-            <div v-if="draft.collections.length > 0" class="token-list">
-              <button v-for="col in draft.collections" :key="col" class="token-chip" @click="removeCollection(col)">
-                <IconFolder :size="13" :stroke-width="1.5" /><span>{{ collectionLabel(col) }}</span>
-                <IconX class="token-remove" :size="12" :stroke-width="2" />
-              </button>
-            </div>
-            <div v-else class="token-empty">{{ t('No collections yet') }}</div>
-          </div>
-
-          <div class="kv-label align-top">{{ t('Tags') }}</div>
-          <div class="kv-value token-area">
-            <div v-if="draft.tags.length > 0" class="token-list">
-              <button v-for="tag in draft.tags" :key="tag" class="token-chip token-chip-tag" @click="removeTag(tag)">
-                <div class="tag-dot"></div><span>{{ tag }}</span>
-                <IconX class="token-remove" :size="12" :stroke-width="2" />
-              </button>
-            </div>
-            <UiInput
-              v-model="tagInput"
-              variant="ghost"
-              size="sm"
-              :placeholder="t('Add tag')"
-              @update:model-value="markDraftDirty('tagInput')"
-              @focus="setActiveDraftField('tagInput')"
-              @blur="handleTagInputBlur"
-              @keydown.enter.prevent="addTag"
-              @keydown="handleTagInputKeydown"
-            />
-          </div>
-
-          <div class="kv-label align-top">{{ t('Files') }}</div>
-          <div class="kv-value kv-value--file-actions">
-            <div class="inspector-file-actions">
-              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handlePreviewPdf">
-                <template #leading><IconFileText :size="14"/></template> {{ t('Preview') }}
-              </UiButton>
-              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleOpenPdfInEditor">
-                <template #leading><IconExternalLink :size="14"/></template> {{ t('Open in Editor') }}
-              </UiButton>
-              <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="handleRevealPdf">
-                <template #leading><IconFolder :size="14"/></template> Finder
-              </UiButton>
-              <ExtensionActionButtons
-                v-if="canOpenPdf"
-                surface="reference.pdf.actions"
-                :target="pdfExtensionActionTarget"
-              />
-              <UiButton variant="secondary" size="sm" @click="handleAttachPdf">
-                <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
-              </UiButton>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ==========================================
-           Level 3: 内容 (Content)
-      =========================================== -->
-      <div class="inspector-section">
-        <div class="inspector-section-header">
-          <span>{{ t('Content') }}</span>
-        </div>
-
-        <details class="inspector-details">
-          <summary class="inspector-details-summary">
-            <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Abstract') }}
-          </summary>
-          <div class="inspector-details-body">
-            <UiTextarea
-              v-model="draft.abstract"
-              variant="ghost"
-              :rows="5"
-              @update:model-value="markDraftDirty('abstract')"
-              @focus="setActiveDraftField('abstract')"
-              @blur="handleFieldBlur('abstract', () => commitTextField('abstract', { multiline: true }))"
-            />
-          </div>
-        </details>
-
-        <details class="inspector-details">
-          <summary class="inspector-details-summary">
-            <IconChevronRight :size="14" class="disclosure-icon" /> {{ t('Notes') }}
-          </summary>
-          <div class="inspector-details-body">
-            <UiTextarea
-              v-model="draft.note"
-              variant="ghost"
-              :rows="4"
-              @update:model-value="markDraftDirty('note')"
-              @focus="setActiveDraftField('note')"
-              @blur="handleFieldBlur('note', commitNote)"
-            />
-          </div>
-        </details>
-      </div>
+      <ReferenceDetailContentSection
+        :abstract="draft.abstract"
+        :note="draft.note"
+        @blur-abstract="handleFieldBlur('abstract', () => commitTextField('abstract', { multiline: true }))"
+        @blur-note="handleFieldBlur('note', commitNote)"
+        @focus-abstract="setActiveDraftField('abstract')"
+        @focus-note="setActiveDraftField('note')"
+        @update-abstract="updateDraftField('abstract', $event)"
+        @update-note="updateDraftField('note', $event)"
+      />
 
     </div>
   </section>
@@ -259,15 +59,6 @@
 
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import {
-  IconChevronRight,
-  IconDeviceFloppy,
-  IconExternalLink,
-  IconFileText,
-  IconFolder,
-  IconRefresh,
-  IconX
-} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
 import { useEditorStore } from '../../stores/editor'
@@ -276,10 +67,9 @@ import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { openNativeDialog } from '../../services/nativeDialog.js'
-import UiButton from '../shared/ui/UiButton.vue'
-import UiInput from '../shared/ui/UiInput.vue'
-import UiTextarea from '../shared/ui/UiTextarea.vue'
-import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
+import ReferenceDetailContentSection from './ReferenceDetailContentSection.vue'
+import ReferenceDetailHero from './ReferenceDetailHero.vue'
+import ReferenceDetailMetadataSection from './ReferenceDetailMetadataSection.vue'
 
 const { t } = useI18n()
 const editorStore = useEditorStore()
@@ -424,6 +214,31 @@ function markDraftDirty(field = '') {
   if (field) {
     dirtyDraftFields.add(field)
   }
+}
+
+function updateDraftField(field = '', value = '') {
+  if (!Object.prototype.hasOwnProperty.call(draft, field)) return
+  draft[field] = value
+  markDraftDirty(field)
+}
+
+function updateTagInput(value = '') {
+  tagInput.value = value
+  markDraftDirty('tagInput')
+}
+
+function handleMetadataFieldBlur(field = '') {
+  const commits = {
+    authorsText: commitAuthors,
+    citationKey: commitCitationKey,
+    identifier: () => commitTextField('identifier'),
+    issue: () => commitTextField('issue'),
+    pages: () => commitTextField('pages'),
+    source: () => commitTextField('source'),
+    volume: () => commitTextField('volume'),
+    year: commitYear,
+  }
+  return handleFieldBlur(field, commits[field])
 }
 
 function clearActiveDraftField(field = '') {
@@ -828,122 +643,6 @@ async function handleAttachPdf() {
 }
 
 /* ==========================================
-   Level 1: Hero (类型, 标题)
-========================================== */
-.inspector-section--hero {
-  gap: 7px !important;
-  padding: 2px 0 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
-}
-
-.inspector-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  user-select: none;
-}
-
-.inspector-type-label {
-  color: var(--text-secondary);
-}
-
-.inspector-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.inspector-icon-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.inspector-icon-btn--save.has-changes {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
-}
-
-.inspector-icon-btn--save.has-changes:hover:not(:disabled) {
-  background: var(--button-primary-bg-hover);
-  color: var(--button-primary-text);
-}
-
-.inspector-icon-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.inspector-hero-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-:deep(.ui-input-shell--ghost),
-:deep(.ui-textarea-shell--ghost) {
-  padding-inline: 0 !important;
-  margin-inline: 0;
-}
-
-:deep(.ui-input-shell--ghost:focus-within),
-:deep(.ui-textarea-shell--ghost:focus-within) {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 68%, transparent);
-}
-
-:deep(.reference-inspector .ui-textarea-control),
-:deep(.ui-textarea-control) {
-  resize: none;
-}
-
-:deep(.inspector-input-title .ui-textarea-control) {
-  font-family: var(--font-ui);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.32;
-  letter-spacing: 0;
-  color: var(--text-primary);
-  min-height: 42px;
-  padding-block: 2px;
-}
-
-.inspector-hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-width: 0;
-}
-
-.inspector-hero-meta-item {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-width: 0;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
-  color: var(--text-muted);
-  font-size: 11.5px;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ==========================================
    Level X: 通用 Section & Grid 对齐
 ========================================== */
 .inspector-section {
@@ -952,216 +651,4 @@ async function handleAttachPdf() {
   gap: 8px;
 }
 
-.inspector-section--metadata {
-  gap: 0;
-}
-
-.inspector-kv-grid {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
-  row-gap: 3px;
-  column-gap: 12px;
-  align-items: center;
-}
-
-.kv-label {
-  text-align: left;
-  font-size: 12px;
-  color: var(--text-muted);
-  user-select: none;
-  white-space: nowrap;
-}
-
-/* 修复对齐问题：与右边元素同高，垂直居中 */
-.kv-label.align-top {
-  align-self: flex-start;
-  margin-top: 0;
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-/* 强行约束最大宽度，超长文本会被截断并隐入输入框滑动中 */
-.kv-value {
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-.kv-value--file-actions {
-  align-items: flex-start;
-  overflow: visible;
-}
-
-/* ==========================================
-   卷、期、页码：极限紧凑排版
-========================================== */
-.kv-value--inline-triple {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.triple-cell {
-  flex: 0 1 42px;
-  min-width: 0;
-}
-
-.triple-cell--wide {
-  flex: 1 1 50px;
-}
-
-.triple-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-/* ==========================================
-   文集、标签 (Tokens)
-========================================== */
-.token-area {
-  flex-direction: column;
-  align-items: flex-start;
-  align-self: flex-start;
-  gap: 4px;
-  min-height: 24px;
-  overflow: visible;
-}
-
-.token-area--readonly {
-  justify-content: center;
-}
-
-.token-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* 修复对齐问题：文本与外层等高，垂直居中 */
-.token-empty {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-}
-
-.token-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px 2px 8px;
-  border-radius: 6px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.theme-light .token-chip {
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-}
-
-.token-remove {
-  opacity: 0;
-  color: var(--text-muted);
-  transition: opacity 0.15s;
-}
-
-.token-chip:hover {
-  border-color: color-mix(in srgb, var(--error) 40%, transparent);
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
-}
-
-.token-chip:hover .token-remove {
-  opacity: 1;
-  color: var(--error);
-}
-
-.token-chip-tag {
-  padding-left: 6px;
-}
-
-.tag-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 60%, transparent);
-}
-
-/* ==========================================
-   内容折叠面板 (Disclosure)
-========================================== */
-.inspector-details {
-  margin-bottom: 4px;
-}
-
-.inspector-details-summary {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-}
-
-.inspector-details-summary::-webkit-details-marker {
-  display: none;
-}
-
-.disclosure-icon {
-  color: var(--text-muted);
-  transition: transform 0.2s ease;
-}
-
-details[open] .disclosure-icon {
-  transform: rotate(90deg);
-}
-
-.inspector-details-body {
-  padding-top: 6px;
-  padding-left: 18px;
-}
-
-.inspector-details-body :deep(.ui-textarea-control) {
-  min-height: 84px;
-}
-
-/* ==========================================
-   文件操作按钮 (Native File Actions)
-========================================== */
-.inspector-file-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-}
-
-.inspector-file-actions :deep(.ui-button) {
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-/* ==========================================
-   修正 Input Ghost 在小区域中的表现
-========================================== */
-:deep(.ui-input-shell--sm) {
-  min-height: 24px;
-}
-:deep(.ui-input-shell--ghost .ui-input-control) {
-  color: var(--text-primary);
-}
 </style>

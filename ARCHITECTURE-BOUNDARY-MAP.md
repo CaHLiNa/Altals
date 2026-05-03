@@ -166,7 +166,10 @@ Components over 500 lines:
 | `src/components/extensions/ExtensionSidebarPanel.vue` | 660 | Extension panel shell; Phase 8 extracted per-view rendering. |
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
 | `src/components/layout/WorkbenchRail.vue` | 631 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
-| `src/components/panel/ReferenceDetailPanel.vue` | 1168 | Reference detail UI and draft handling; Phase 5/8 candidate. |
+| `src/components/panel/ReferenceDetailPanel.vue` | 654 | Reference detail draft orchestration; Phase 8 extracted hero/metadata/content presentation. |
+| `src/components/panel/ReferenceDetailContentSection.vue` | 132 | Reference abstract and notes disclosure presentation. |
+| `src/components/panel/ReferenceDetailHero.vue` | 164 | Reference detail title/save hero presentation. |
+| `src/components/panel/ReferenceDetailMetadataSection.vue` | 391 | Reference metadata, tags, collections, and file action presentation. |
 | `src/components/references/ReferenceLibraryWorkbench.vue` | 844 | Reference workbench orchestration; Phase 8 extracted toolbar/table presentation. |
 | `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
 | `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
