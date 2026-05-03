@@ -16,7 +16,6 @@ import {
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
-import { syncNow } from '../../services/references/zoteroSync.js'
 import { pathExists } from '../../services/pathExists.js'
 import { onNativeWindowFocusChanged } from '../../services/nativeWindow.js'
 import { pickWorkspaceDirectory } from '../../services/workspacePicker.js'
@@ -181,7 +180,7 @@ export function useWorkspaceLifecycle() {
           case 'references.zoteroAutoSync': {
             const zoteroConfig = bootstrapData?.zoteroConfig || null
             if (!zoteroConfig?.userId || zoteroConfig?.autoSync === false) return
-            await syncNow(workspace.globalConfigDir, referencesStore)
+            await referencesStore.syncZoteroNow(workspace.globalConfigDir)
             return
           }
           case 'files.startWatching':

@@ -1,26 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getGlobalConfigDir } from '../appDirs.js'
 
-export const zoteroSyncState = {
-  status: 'disconnected',
-  lastSyncTime: null,
-  error: null,
-  errorType: null,
-  progress: null,
-}
-
-function setSyncState(partial = {}) {
-  Object.assign(zoteroSyncState, partial)
-}
-
-function classifyError(error) {
-  const message = String(error?.message || error || '').toLowerCase()
-  if (message.includes('auth')) return 'auth'
-  if (message.includes('rate-limit') || message.includes('retry after')) return 'rate-limit'
-  if (/timeout|network|resolve|connect/.test(message)) return 'network'
-  return 'generic'
-}
-
 export async function storeZoteroApiKey(apiKey = '') {
   const globalConfigDir = await getGlobalConfigDir()
   await invoke('references_zotero_api_key_store', {
@@ -56,13 +36,6 @@ export async function disconnectZotero() {
     params: {
       globalConfigDir,
     },
-  })
-  setSyncState({
-    status: 'disconnected',
-    lastSyncTime: null,
-    error: null,
-    errorType: null,
-    progress: null,
   })
 }
 
@@ -127,52 +100,32 @@ export async function deleteFromZotero(reference = {}) {
   })
 }
 
-export async function syncNow(projectRoot = '', referencesStore) {
+export async function syncNow(projectRoot = '', options = {}) {
   const [config, apiKey] = await Promise.all([
     loadZoteroConfig(projectRoot),
     loadZoteroApiKey(),
   ])
   if (!config || !apiKey) {
-    setSyncState({ status: 'disconnected', error: null, errorType: null, progress: null })
-    return { imported: 0, linked: 0, updated: 0 }
+    return { skipped: true, imported: 0, linked: 0, updated: 0 }
   }
 
-  setSyncState({ status: 'syncing', error: null, errorType: null, progress: null })
+  const result = await invoke('references_zotero_sync_persist', {
+    params: {
+      globalConfigDir: projectRoot,
+      apiKey,
+      snapshot: options?.snapshot && typeof options.snapshot === 'object'
+        ? options.snapshot
+        : {},
+      selectedReferenceId: String(options?.selectedReferenceId || ''),
+    },
+  })
 
-  try {
-    const result = await invoke('references_zotero_sync_persist', {
-      params: {
-        globalConfigDir: projectRoot,
-        apiKey,
-        snapshot: referencesStore.buildLibrarySnapshotPayload(),
-        selectedReferenceId: referencesStore.selectedReferenceId,
-      },
-    })
-
-    await referencesStore.applyLibrarySnapshot(result?.snapshot || {})
-    if (result?.selectedReferenceId) {
-      referencesStore.selectedReferenceId = result.selectedReferenceId
-    }
-
-    setSyncState({
-      status: 'synced',
-      lastSyncTime: result?.lastSyncTime || new Date().toISOString(),
-      error: null,
-      errorType: null,
-      progress: null,
-    })
-    return {
-      imported: Number(result?.imported || 0),
-      linked: Number(result?.linked || 0),
-      updated: Number(result?.updated || 0),
-    }
-  } catch (error) {
-    setSyncState({
-      status: 'error',
-      error: error?.message || String(error),
-      errorType: classifyError(error),
-      progress: null,
-    })
-    throw error
+  return {
+    snapshot: result?.snapshot || {},
+    selectedReferenceId: String(result?.selectedReferenceId || ''),
+    lastSyncTime: result?.lastSyncTime || '',
+    imported: Number(result?.imported || 0),
+    linked: Number(result?.linked || 0),
+    updated: Number(result?.updated || 0),
   }
 }

@@ -145,7 +145,6 @@ Service files over 150 lines require later bridge-thinning review:
 | `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
 | `src/services/latex/previewSync.js` | 162 | UI/runtime sync adapter | Keep presentation sync frontend-owned; audit for backend policy. |
 | `src/services/markdown/preview.js` | 311 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
-| `src/services/references/zoteroSync.js` | 178 | Reference bridge with sync DTO helpers | Keep Zotero policy Rust-owned and propagate mutation failures to store orchestration. |
 | `src/services/workspacePreferences.js` | 390 | Mixed settings DTO/default normalization | Keep persisted defaults and normalization Rust-owned; shrink remaining display shims. |
 
 ## Large Vue Component Inventory
@@ -272,6 +271,7 @@ Components over 500 lines:
 - 2026-05-03: Zotero settings hydrate/save service calls moved behind `referencesStore.loadZoteroSettingsState()` and `referencesStore.saveZoteroSettingsConfig()`, removing direct Zotero service imports from `SettingsZotero.vue`.
 - 2026-05-03: Zotero settings option-tree, push-target, and selected-group presentation helpers moved from `SettingsZotero.vue` into `src/domains/references/zoteroSettingsPresentation.js`.
 - 2026-05-03: Zotero settings load and remote-library refresh failures now surface through the existing `SettingsZotero.vue` inline error state instead of only logging to the console.
+- 2026-05-03: Zotero sync orchestration no longer passes the Pinia reference store into `src/services/references/zoteroSync.js`. The service now accepts explicit snapshot/selected-reference DTOs and returns a normalized sync result, while `src/stores/references.js` owns applying snapshots plus sync status/error UI state; `src/app/workspace/useWorkspaceLifecycle.js` routes auto-sync through `referencesStore.syncZoteroNow()`.
 
 ## Phase 1 Verification Targets
 

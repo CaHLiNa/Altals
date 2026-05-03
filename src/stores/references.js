@@ -59,6 +59,7 @@ import {
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
 } from '../domains/references/referenceDockPages.js'
+import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
 
 function normalizeCollectionMembershipValue(value = '') {
   return String(value || '').trim().toLowerCase()
@@ -158,6 +159,10 @@ export const useReferencesStore = defineStore('references', {
     }),
     isLoading: false,
     loadError: '',
+    zoteroSyncStatus: 'disconnected',
+    zoteroSyncLastSyncTime: '',
+    zoteroSyncError: '',
+    zoteroSyncErrorType: '',
     zoteroMutationError: '',
     importInFlight: false,
   }),
@@ -940,7 +945,46 @@ export const useReferencesStore = defineStore('references', {
     },
 
     async syncZoteroNow(projectRoot = '') {
-      return syncZoteroNowWithBackend(projectRoot, this)
+      this.zoteroSyncStatus = 'syncing'
+      this.zoteroSyncError = ''
+      this.zoteroSyncErrorType = ''
+
+      try {
+        const result = await syncZoteroNowWithBackend(projectRoot, {
+          snapshot: this.buildLibrarySnapshotPayload(),
+          selectedReferenceId: this.selectedReferenceId,
+        })
+
+        if (result?.skipped === true) {
+          this.zoteroSyncStatus = 'disconnected'
+          this.zoteroSyncLastSyncTime = ''
+          return {
+            imported: 0,
+            linked: 0,
+            updated: 0,
+          }
+        }
+
+        await this.applyLibrarySnapshot(result?.snapshot || {})
+        if (result?.selectedReferenceId) {
+          this.selectedReferenceId = result.selectedReferenceId
+        }
+
+        this.zoteroSyncStatus = 'synced'
+        this.zoteroSyncLastSyncTime = result?.lastSyncTime || new Date().toISOString()
+        this.zoteroSyncError = ''
+        this.zoteroSyncErrorType = ''
+        return {
+          imported: Number(result?.imported || 0),
+          linked: Number(result?.linked || 0),
+          updated: Number(result?.updated || 0),
+        }
+      } catch (error) {
+        this.zoteroSyncStatus = 'error'
+        this.zoteroSyncError = error?.message || String(error)
+        this.zoteroSyncErrorType = classifyZoteroSyncError(error)
+        throw error
+      }
     },
 
     async connectZotero(apiKey = '') {
@@ -961,6 +1005,10 @@ export const useReferencesStore = defineStore('references', {
 
     async disconnectZotero() {
       await disconnectZoteroWithBackend()
+      this.zoteroSyncStatus = 'disconnected'
+      this.zoteroSyncLastSyncTime = ''
+      this.zoteroSyncError = ''
+      this.zoteroSyncErrorType = ''
     },
 
     async loadZoteroSettingsState() {
