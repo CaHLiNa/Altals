@@ -138,11 +138,7 @@ No `src/domains/**` file currently imports `@tauri-apps/**` directly.
 
 ## Service Inventory
 
-Service files over 150 lines require later bridge-thinning review:
-
-| File | Lines | Classification | Follow-up |
-| --- | ---: | --- | --- |
-| `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
+Current snapshot: no `src/services/**/*.js` or `src/services/**/*.mjs` file exceeds the 150-line bridge-thinning review threshold.
 
 ## Large Vue Component Inventory
 
@@ -242,6 +238,7 @@ Components over 500 lines:
 - 2026-05-03: Python environment settings now use pure presentation helpers in `src/domains/settings/pythonEnvironmentPresentation.js` for interpreter select options and diagnostics labels. `src/stores/python.js` records preference/runtime discovery failures in store state, and `SettingsEnvironment.vue` displays that state inline instead of swallowing initial environment-load failures.
 - 2026-05-03: LaTeX compile execution DTO normalization moved from `src/services/latex/runtime.js` into pure domain helper `src/domains/latex/latexCompileResult.js`. The LaTeX runtime service now stays below the 150-line review threshold and remains focused on Tauri invoke/listen bridging while Rust keeps compile execution authority.
 - 2026-05-03: LaTeX preview source-selection matching moved from `src/services/latex/previewSync.js` into pure domain helper `src/domains/latex/latexPreviewSelection.js`. The preview sync service now stays below the 150-line review threshold and focuses on SyncTeX target resolution, editor view waiting, and source reveal side effects.
+- 2026-05-03: LaTeX document workflow presentation helpers moved from `src/services/documentWorkflow/adapters/latex.js` into pure domain helper `src/domains/document/latexWorkflowPresentation.js`. The adapter now stays below the 150-line review threshold and focuses on workflow wiring, compile readiness delegation, artifact path fallback, and problem aggregation while status text, problem DTO shaping, and workflow UI state presentation live outside the service layer.
 - 2026-05-02: `src/services/latex/runtime.js` now normalizes `latex_runtime_compile_execute` responses into a stable bridge DTO with camelCase aliases while preserving Rust result fields. `src/stores/latex.js` consumes the adapted compile result for PDF refresh metadata and keeps compile UI orchestration, with compile execution and diagnostics still owned by Rust.
 - 2026-05-02: Frontend PDF SyncTeX no longer reads or parses `.synctex` content through the removed LaTeXWorkshop JS fallback. `src/services/pdf/artifactPreview.js` now delegates forward/backward SyncTeX to Rust commands only, and `src-tauri/src/latex.rs` owns CLI execution plus parser fallback for SyncTeX files under the workspace scope.
 - 2026-05-02: `src/domains/document/documentWorkflowResolvedStateRuntime.js` was split so pure resolved-state cache keys live in `src/domains/document/documentWorkflowResolvedStateKeys.js`, while Rust-backed Markdown/workflow/preview resolution calls and Pinia inflight cache coordination live in `src/stores/documentWorkflowResolvedStateActions.js`.

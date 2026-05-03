@@ -30,6 +30,36 @@ export function dirnamePath(filePath = '') {
   return head
 }
 
+export function resolveRelativePath(baseDir = '', target = '') {
+  const normalizedTarget = normalizeFsPath(target)
+  if (!normalizedTarget) return ''
+  if (normalizedTarget.startsWith('/') || /^[A-Za-z]:\//.test(normalizedTarget)) {
+    return normalizedTarget
+  }
+
+  const seed = normalizeFsPath(baseDir || '.')
+  const baseParts = seed.split('/').filter(Boolean)
+  const targetParts = normalizedTarget.split('/')
+  const absolute = seed.startsWith('/') || /^[A-Za-z]:\//.test(seed)
+  const drivePrefix = /^[A-Za-z]:\//.test(seed) ? seed.slice(0, 2) : ''
+
+  for (const segment of targetParts) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (baseParts.length > 0) baseParts.pop()
+      continue
+    }
+    baseParts.push(segment)
+  }
+
+  if (drivePrefix) {
+    return normalizeFsPath(`${drivePrefix}/${baseParts.slice(1).join('/')}`)
+  }
+  return absolute
+    ? normalizeFsPath(`/${baseParts.join('/')}`)
+    : normalizeFsPath(baseParts.join('/'))
+}
+
 export function stripExtension(filePath = '') {
   const name = basenamePath(filePath)
   const index = name.lastIndexOf('.')
