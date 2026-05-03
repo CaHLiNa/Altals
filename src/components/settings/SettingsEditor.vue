@@ -145,8 +145,8 @@ import {
   FALLBACK_SYSTEM_FONT_FAMILIES,
   WORKSPACE_FONT_PRESETS,
   decodeWorkspaceSystemFontFamily,
-  loadWorkspaceSystemFontFamilies,
-} from '../../services/workspacePreferences'
+} from '../../domains/settings/workspacePreferencePresentation.js'
+import { loadWorkspaceSystemFontFamilies } from '../../services/workspacePreferences'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 

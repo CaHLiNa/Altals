@@ -164,7 +164,7 @@ import {
   normalizeWorkspacePdfViewerLastScale,
   normalizeWorkspacePdfViewerSpreadMode,
   normalizeWorkspacePdfViewerZoomMode,
-} from '../../services/workspacePreferences.js'
+} from '../../domains/settings/workspacePreferencePresentation.js'
 import { useToastStore } from '../../stores/toast.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { basenamePath } from '../../utils/path.js'

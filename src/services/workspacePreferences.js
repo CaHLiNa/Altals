@@ -1,39 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  EDITOR_FONT_SIZE_PRESETS,
-  FALLBACK_SYSTEM_FONT_FAMILIES,
-  WORKSPACE_FONT_PRESETS,
-  createWorkspacePreferenceState,
-  decodeWorkspaceSystemFontFamily,
-  encodeWorkspaceSystemFontFamily,
-  getWorkspaceFontKind,
-  normalizeEditorFontSize,
-  normalizeWorkspacePdfViewerLastScale,
-  normalizeWorkspacePdfViewerSpreadMode,
-  normalizeWorkspacePdfViewerZoomMode,
-} from '../domains/settings/workspacePreferencePresentation.js'
-export {
-  applyWorkspaceFontSizes,
-  setWorkspaceEditorFontSize,
-  setWorkspaceLatexFont,
-  setWorkspaceMarkdownFont,
-  setWorkspaceUiFont,
-} from './workspaceFonts.js'
-export { restoreWorkspaceTheme, setWorkspaceTheme } from './workspaceTheme.js'
-
-export {
-  EDITOR_FONT_SIZE_PRESETS,
-  FALLBACK_SYSTEM_FONT_FAMILIES,
-  WORKSPACE_FONT_PRESETS,
-  createWorkspacePreferenceState,
-  decodeWorkspaceSystemFontFamily,
-  encodeWorkspaceSystemFontFamily,
-  getWorkspaceFontKind,
-  normalizeEditorFontSize,
-  normalizeWorkspacePdfViewerLastScale,
-  normalizeWorkspacePdfViewerSpreadMode,
-  normalizeWorkspacePdfViewerZoomMode,
-}
+import { FALLBACK_SYSTEM_FONT_FAMILIES } from '../domains/settings/workspacePreferencePresentation.js'
 
 export async function loadWorkspacePreferences(globalConfigDir = '') {
   return invoke('workspace_preferences_load', {

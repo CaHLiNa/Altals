@@ -1,15 +1,19 @@
 import { defineStore } from 'pinia'
 import {
-  applyWorkspaceFontSizes,
   createWorkspacePreferenceState,
-  loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
-  restoreWorkspaceTheme,
-  saveWorkspacePreferences as saveWorkspacePreferencesToRust,
+} from '../domains/settings/workspacePreferencePresentation.js'
+import {
+  applyWorkspaceFontSizes,
   setWorkspaceEditorFontSize,
   setWorkspaceLatexFont,
   setWorkspaceMarkdownFont,
   setWorkspaceUiFont,
+} from '../services/workspaceFonts.js'
+import {
+  loadWorkspacePreferences as loadWorkspacePreferencesFromRust,
+  saveWorkspacePreferences as saveWorkspacePreferencesToRust,
 } from '../services/workspacePreferences'
+import { restoreWorkspaceTheme } from '../services/workspaceTheme.js'
 import { applyLocalePreference } from '../i18n'
 import {
   createWorkspaceLifecycleState,

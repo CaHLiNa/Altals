@@ -223,7 +223,7 @@ Components over 500 lines:
 ## Preferences/Settings Authority Cleanup Log
 
 - 2026-05-02: `src/stores/workspace.js` now sends persisted setting patch values to `workspace_preferences_save` without pre-normalizing wrap, booleans, file tree modes, PDF modes, citation settings, or locale in JS. Rust `workspace_preferences.rs` remains the persisted schema/default/normalization authority, and the store consumes the normalized preferences returned by Rust. `src/services/workspacePreferences.js` keeps DOM/UI helpers for font, theme, and PDF preview display normalization only.
-- 2026-05-03: Workspace preference defaults, font presets, system-font encoding, PDF viewer display normalization, and font-stack helpers moved from `src/services/workspacePreferences.js` into `src/domains/settings/workspacePreferencePresentation.js`. DOM font variable side effects now live in `src/services/workspaceFonts.js`, theme class/listener side effects live in `src/services/workspaceTheme.js`, and `workspacePreferences.js` stays below the 150-line review threshold as a Tauri preference bridge plus compatibility export surface.
+- 2026-05-03: Workspace preference defaults, font presets, system-font encoding, PDF viewer display normalization, and font-stack helpers moved from `src/services/workspacePreferences.js` into `src/domains/settings/workspacePreferencePresentation.js`. DOM font variable side effects now live in `src/services/workspaceFonts.js`, theme class/listener side effects live in `src/services/workspaceTheme.js`, and `workspacePreferences.js` stays below the 150-line review threshold as a Tauri preference/workbench bridge plus system-font listing surface.
 
 ## Reference Authority Cleanup Log
 
@@ -281,6 +281,7 @@ Components over 500 lines:
 ## Compatibility Cleanup Log
 
 - 2026-05-03: Removed obsolete frontend service compatibility exports after their canonical modules were already established. `src/services/pathExists.js` was deleted, path-status callers now import from `src/services/pathStatus.js`, and unused re-exports were removed from `appUpdater.js`, `fileTreeSystem.js`, and `latex/previewSync.js`; no persisted data shape, Tauri command, or runtime contract changed.
+- 2026-05-03: Removed the remaining workspace preference compatibility export hub. Workspace preference presentation callers now import from `src/domains/settings/workspacePreferencePresentation.js`, DOM font callers import from `src/services/workspaceFonts.js`, and theme callers import from `src/services/workspaceTheme.js`; `src/services/workspacePreferences.js` no longer re-exports canonical helpers.
 
 ## Phase 1 Verification Targets
 
