@@ -55,6 +55,18 @@ Run the Tauri desktop app:
 npm run tauri dev
 ```
 
+`npm run tauri dev` uses the normal ScribeFlow data root at `$HOME/.scribeflow`.
+For development smoke checks that must not restore or mutate the real desktop
+state, run the isolated dev profile instead:
+
+```sh
+npm run tauri:dev:isolated
+```
+
+This sets `SCRIBEFLOW_DATA_ROOT=/private/tmp/scribeflow-tauri-dev` for the Tauri
+process. You can set `SCRIBEFLOW_DATA_ROOT` to another absolute path when a
+different disposable data root is needed.
+
 Build frontend assets:
 
 ```sh

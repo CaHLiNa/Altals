@@ -856,7 +856,7 @@ npm run verify
 
 **Manual desktop smoke path:**
 
-- [ ] Start the app with `npm run tauri dev`.
+- [ ] Start the app with `npm run tauri:dev:isolated` so smoke state is isolated from `$HOME/.scribeflow`.
 - [ ] Open an existing workspace.
 - [ ] Browse file tree and create a test Markdown file.
 - [ ] Edit text in the editor without any cursor jump, selection drift, or scroll jump.
