@@ -172,6 +172,7 @@ Components over 500 lines:
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
 | `src/components/sidebar/FileTree.vue` | 1078 | File tree UI plus mutation commands; Phase 3/8 candidate. |
+| `src/App.vue` | 735 | App shell composition; extension runtime event bridge extracted to `src/app/shell/useAppExtensionRuntimeBridge.js`. |
 
 ## Store Responsibility Snapshot
 

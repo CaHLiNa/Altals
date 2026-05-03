@@ -576,6 +576,7 @@ git commit -m "refactor: tighten extension runtime boundaries"
 **Progress notes:**
 
 - 2026-05-03: Started Phase 8 with `SettingsExtensions.vue`. Extracted loaded-extension list and extension options form into `SettingsExtensionList.vue` and `SettingsExtensionOptions.vue`, moved settings grouping/action grouping/key humanization into `src/domains/extensions/extensionSettingsGroups.js`, and kept registry refresh, enable/disable, secure-setting save, host restart, and command execution in the parent/store path. `SettingsExtensions.vue` dropped from 1160 to 779 lines without touching frozen editor files.
+- 2026-05-03: Slimmed `App.vue` by moving extension command palette shortcut handling, extension keybinding dispatch, extension window prompt submit/cancel recovery, and extension host event listener lifecycle into `src/app/shell/useAppExtensionRuntimeBridge.js`. `App.vue` dropped from 845 to 735 lines while retaining app shell markup, layout wiring, and workspace orchestration.
 
 **Verification:**
 
