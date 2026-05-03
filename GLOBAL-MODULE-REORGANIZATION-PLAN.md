@@ -669,6 +669,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Extracted Python environment interpreter-option and diagnostics presentation into `src/domains/settings/pythonEnvironmentPresentation.js`. `src/stores/python.js` now keeps visible preference/runtime discovery error state, and `SettingsEnvironment.vue` shows Python environment failures inline instead of silently swallowing initial diagnostics load errors.
 - 2026-05-03: Added `extensionsStore.refreshRegistryAndTasks()` and routed extension settings/action-button refresh callers through that store action instead of duplicating `refreshRegistry()` plus `refreshTasks()` in components. Task refresh errors now persist in store state and settings refresh failures surface through existing toast/inline status mechanisms.
 - 2026-05-03: Kept reference deletion's local snapshot commit authoritative while making best-effort Zotero remote-delete failures visible. `references` store now records `zoteroMutationError`, and the reference workbench displays that error instead of silently swallowing the failed remote cleanup.
+- 2026-05-03: Replaced file creation/mutation runtime `console.error`-only failure callbacks with the existing toast/status path in `src/stores/files.js`. Save, create, duplicate, folder create, external copy, rename, move, and delete failures now surface through `formatFileError` while backend path authorization and mutation acceptance remain Rust-owned.
 
 ### Phase 10: Service Bridge Cleanup
 

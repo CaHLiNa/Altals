@@ -207,7 +207,7 @@ Components over 500 lines:
 
 ## Primary Store Responsibility Notes
 
-`src/stores/files.js` owns the frontend file tree screen state: tree cache, expanded directories, draft file cache, transient created-file bookkeeping, loading/reconcile flags, watcher lifecycle coordination, and user-facing file operation feedback. It may call `src/services/fileStoreIO.js`, `src/services/fileTreeSystem.js`, and pure `src/domains/files/**` helpers, but path authorization, mutation acceptance, hidden-file policy enforcement, and persisted workspace tree state belong to Rust.
+`src/stores/files.js` owns the frontend file tree screen state: tree cache, expanded directories, draft file cache, transient created-file bookkeeping, loading/reconcile flags, watcher lifecycle coordination, and user-facing file operation feedback for failed file operations. It may call `src/services/fileStoreIO.js`, `src/services/fileTreeSystem.js`, and pure `src/domains/files/**` helpers, but path authorization, mutation acceptance, hidden-file policy enforcement, and persisted workspace tree state belong to Rust.
 
 `src/stores/workspace.js` owns app shell and workspace UI coordination: active workspace path/id metadata, settings surface state, dock/sidebar layout state, hydrated preference snapshots, recent-workspace lifecycle state, and applying normalized preference results to DOM-facing helpers. It may orchestrate open/close/bootstrap flows through workspace services, but persisted defaults, lifecycle pruning, workspace identity, config paths, and preference normalization remain Rust/service contract authority.
 
@@ -228,6 +228,7 @@ Components over 500 lines:
 ## Workspace/File Authority Cleanup Log
 
 - 2026-05-02: `src/stores/files.js` no longer decides whether a Save Draft As target path is inside the active workspace with frontend string-prefix checks. The selected path is sent through the normal `workspace_write_text_file` bridge, and Rust `ensure_allowed_mutation_path` remains the authority for accepting or rejecting the mutation. The store only reports the failed save as UI feedback.
+- 2026-05-03: File creation/mutation runtime callbacks no longer rely on `console.error` for duplicate, create-folder, copy, rename, move, delete, or save failures. `src/stores/files.js` now routes those failures through the existing toast/status path via `formatFileError`, while Rust remains the mutation acceptance authority.
 - 2026-05-02: `src/services/workspaceRecents.js` no longer carries stale frontend recent-workspace normalization or record-opened policy. Lifecycle normalization, pruning, record-opened ordering, and max recent count remain owned by `src-tauri/src/workspace_lifecycle.rs` and its Rust tests.
 
 ## Preferences/Settings Authority Cleanup Log

@@ -148,6 +148,17 @@ function parseFileReadError(path, error) {
   }
 }
 
+function showFileOperationError(operation, filePath, error, key = '') {
+  useToastStore().showOnce(
+    key || `${operation}:${filePath}`,
+    formatFileError(operation, filePath, error),
+    {
+      type: 'error',
+      duration: 5000,
+    },
+  )
+}
+
 export const useFilesStore = defineStore('files', {
   state: () => ({
     tree: [],
@@ -347,11 +358,7 @@ export const useFilesStore = defineStore('files', {
           setFileLoadError: (path, error) => this._setFileLoadError(path, error),
           syncSavedMarkdownLinks: (path) => syncSavedMarkdownLinks(path),
           onSaveError: (path, error) => {
-            console.error('Failed to save file:', error)
-            useToastStore().showOnce(`save:${path}`, formatFileError('save', path, error), {
-              type: 'error',
-              duration: 5000,
-            })
+            showFileOperationError('save', path, error)
           },
         })
       }
@@ -378,20 +385,16 @@ export const useFilesStore = defineStore('files', {
             })
           },
           onCreateFileError: (dirPath, name, error) => {
-            console.error('Failed to create file:', error)
-            useToastStore().showOnce(`create:${dirPath}/${name}`, `"${name}" already exists`, {
-              type: 'error',
-              duration: 4000,
-            })
+            showFileOperationError('create', `${dirPath}/${name}`, error)
           },
-          onDuplicateError: (_path, error) => {
-            console.error('Failed to duplicate:', error)
+          onDuplicateError: (path, error) => {
+            showFileOperationError('duplicate', path, error)
           },
-          onCreateFolderError: (_dirPath, _name, error) => {
-            console.error('Failed to create folder:', error)
+          onCreateFolderError: (dirPath, name, error) => {
+            showFileOperationError('create', `${dirPath}/${name}`, error)
           },
-          onCopyExternalFileError: (_srcPath, _destDir, error) => {
-            console.error('Failed to copy external file:', error)
+          onCopyExternalFileError: (srcPath, destDir, error) => {
+            showFileOperationError('copy', srcPath, error, `copy:${srcPath}:${destDir}`)
           },
         })
       }
@@ -444,14 +447,14 @@ export const useFilesStore = defineStore('files', {
               duration: 4000,
             })
           },
-          onRenameError: (_oldPath, _newPath, error) => {
-            console.error('Failed to rename:', error)
+          onRenameError: (oldPath, _newPath, error) => {
+            showFileOperationError('rename', oldPath, error)
           },
-          onMoveError: (_srcPath, _destDir, error) => {
-            console.error('Failed to move:', error)
+          onMoveError: (srcPath, destDir, error) => {
+            showFileOperationError('move', srcPath, error, `move:${srcPath}:${destDir}`)
           },
-          onDeleteError: (_path, error) => {
-            console.error('Failed to delete:', error)
+          onDeleteError: (path, error) => {
+            showFileOperationError('delete', path, error)
           },
         })
       }
