@@ -793,6 +793,7 @@ git commit -m "refactor: organize rust runtime modules"
 **Progress notes:**
 
 - 2026-05-03: Started Phase 11 by moving workspace URI scheme handling from `src-tauri/src/lib.rs` into `src-tauri/src/workspace_protocol.rs`. `lib.rs` now keeps only protocol registration, while workspace protocol parsing, content-type mapping, scoped file resolution, and response construction are grouped under the workspace authority area with targeted unit tests. No Tauri command names, URI scheme name, or frontend payload shapes changed.
+- 2026-05-03: Added subsystem grouping comments to the `tauri::generate_handler!` command registration list in `src-tauri/src/lib.rs` without changing command names, order, parameters, or response shapes.
 
 ### Phase 12: Dead Code And Compatibility Cleanup
 

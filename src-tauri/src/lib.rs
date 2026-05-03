@@ -360,6 +360,7 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            // Filesystem, workspace files, and app utility bridges.
             fs_watch_runtime::workspace_tree_watch_start,
             fs_watch_runtime::workspace_tree_watch_note_activity,
             fs_watch_runtime::workspace_tree_watch_set_visibility,
@@ -392,6 +393,7 @@ pub fn run() {
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
             i18n_runtime::i18n_runtime_load,
+            // Extension platform runtime, registry, tasks, artifacts, and settings.
             extension_registry::extension_registry_list,
             extension_manifest::extension_registry_validate_manifest,
             extension_host::extension_host_status,
@@ -414,6 +416,7 @@ pub fn run() {
             extension_artifacts::extension_artifact_read_text,
             extension_settings::extension_settings_load,
             extension_settings::extension_settings_save,
+            // Reference library, citation, import/export, PDF metadata, and Zotero.
             references_backend::references_library_read_or_create,
             references_backend::references_library_load_workspace,
             references_backend::references_library_write,
@@ -453,6 +456,7 @@ pub fn run() {
             references_zotero::references_zotero_sync,
             references_zotero::references_zotero_sync_persist,
             references_zotero::references_zotero_delete_item,
+            // Document workflow, preview state, editor session, Markdown, Python, and LaTeX.
             document_outline::document_outline_resolve,
             document_workflow_action::document_workflow_action_resolve,
             document_workflow_controller::document_workflow_controller_execute,
@@ -486,6 +490,7 @@ pub fn run() {
             latex_runtime::latex_runtime_compile_fail,
             latex_preferences::latex_preferences_load,
             latex_preferences::latex_preferences_save,
+            // Workspace security, access, lifecycle, workbench state, and preferences.
             security::workspace_set_allowed_roots,
             security::workspace_clear_allowed_roots,
             workspace_access::macos_create_workspace_bookmark,
@@ -508,6 +513,7 @@ pub fn run() {
             workspace_preferences::workspace_preferences_load,
             workspace_preferences::workspace_preferences_save,
             workspace_preferences::workspace_preferences_list_system_fonts,
+            // Legacy LaTeX tools and SyncTeX compatibility commands.
             latex::compile_latex,
             latex::check_latex_compilers,
             latex::check_latex_tools,
