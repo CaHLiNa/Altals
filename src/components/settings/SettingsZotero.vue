@@ -208,6 +208,7 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
     selectedGroupIds.value = buildZoteroSelectedGroupIds(targetConfig)
     collectionOptions.value = buildZoteroCollectionOptions(remoteLibraries, targetConfig, t)
   } catch (e) {
+    error.value = e?.message || t('Failed to refresh Zotero libraries')
     console.error('Failed to refresh Zotero remote libraries:', e)
   }
 }
@@ -318,6 +319,7 @@ onMounted(async () => {
       await refreshRemoteLibraries(savedConfig)
     }
   } catch (e) {
+    error.value = e?.message || t('Failed to load Zotero settings')
     console.error('Zotero Settings Mounted Error:', e)
   }
 })

@@ -665,6 +665,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Added `referencesStore.loadZoteroRemoteLibraries()` and moved Zotero API key, group, and collection fetch sequencing out of `SettingsZotero.vue`. The component still owns translated option-label presentation.
 - 2026-05-03: Added `referencesStore.loadZoteroSettingsState()` / `saveZoteroSettingsConfig()` and removed direct Zotero service imports from `SettingsZotero.vue`.
 - 2026-05-03: Extracted Zotero settings presentation helpers into `src/domains/references/zoteroSettingsPresentation.js`, covering push-target value parsing, selected group derivation, collection tree flattening, and translated push-target options. Removed unused citation-format option computed values from `SettingsZotero.vue`.
+- 2026-05-03: Routed Zotero settings load and remote-library refresh failures into the existing inline error message instead of only writing to `console.error`, improving async failure visibility without adding new UI state.
 
 ### Phase 10: Service Bridge Cleanup
 
