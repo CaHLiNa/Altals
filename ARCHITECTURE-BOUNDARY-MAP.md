@@ -167,7 +167,9 @@ Components over 500 lines:
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
 | `src/components/layout/WorkbenchRail.vue` | 631 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 1168 | Reference detail UI and draft handling; Phase 5/8 candidate. |
-| `src/components/references/ReferenceLibraryWorkbench.vue` | 1170 | Reference workbench UI and commands; Phase 5/8 candidate. |
+| `src/components/references/ReferenceLibraryWorkbench.vue` | 844 | Reference workbench orchestration; Phase 8 extracted toolbar/table presentation. |
+| `src/components/references/ReferenceLibraryTable.vue` | 237 | Reference library table presentation and sort header events. |
+| `src/components/references/ReferenceLibraryToolbar.vue` | 131 | Reference library toolbar presentation. |
 | `src/components/settings/Settings.vue` | 543 | Settings shell UI; Phase 4/8 candidate. |
 | `src/components/settings/SettingsExtensions.vue` | 779 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |

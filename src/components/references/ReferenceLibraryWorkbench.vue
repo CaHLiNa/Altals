@@ -10,51 +10,15 @@
     data-surface-context-guard="true"
   >
     <div class="reference-workbench__main">
-      <!-- 紧凑工具栏 (Compact Toolbar) -->
-      <header class="reference-workbench__toolbar">
-        <div class="reference-workbench__toolbar-group">
-          <UiButton variant="secondary" size="sm" shell-class="workbench-action-btn" @click="showAddDialog = true">
-            <template #leading><IconPlus :size="14" :stroke-width="2" /></template>
-            {{ t('Add') }}
-          </UiButton>
-          <div class="workbench-toolbar-divider"></div>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            shell-class="workbench-action-btn"
-            :loading="referencesStore.importInFlight"
-            :disabled="referencesStore.isLoading"
-            @click="handleImportPdf"
-          >
-            <template #leading><IconFileTypePdf :size="14" :stroke-width="1.8" /></template>
-            {{ t('PDF') }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            shell-class="workbench-action-btn"
-            :loading="referencesStore.importInFlight"
-            :disabled="referencesStore.isLoading"
-            @click="handleImportBibTeX"
-          >
-            <template #leading><IconFileCode :size="14" :stroke-width="1.8" /></template>
-            {{ t('BibTeX') }}
-          </UiButton>
-        </div>
-
-        <div class="reference-workbench__toolbar-group">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            shell-class="workbench-action-btn"
-            :disabled="referencesStore.references.length === 0"
-            @click="handleExportBibTeX"
-          >
-            <template #leading><IconShare :size="14" :stroke-width="1.8" /></template>
-            {{ t('Export') }}
-          </UiButton>
-        </div>
-      </header>
+      <ReferenceLibraryToolbar
+        :can-export="referencesStore.references.length > 0"
+        :import-in-flight="referencesStore.importInFlight"
+        :is-loading="referencesStore.isLoading"
+        @add="showAddDialog = true"
+        @export-bibtex="handleExportBibTeX"
+        @import-bibtex="handleImportBibTeX"
+        @import-pdf="handleImportPdf"
+      />
 
       <div v-if="referencesStore.isLoading" class="reference-workbench__empty ui-empty-copy">
         {{ t('Loading references...') }}
@@ -68,82 +32,17 @@
         {{ t('No references in this section yet.') }}
       </div>
 
-      <div v-else class="reference-workbench__content">
-        <!-- 极简原生表头 (Native Table Header) -->
-        <div class="reference-workbench__table-head">
-          <button
-            type="button"
-            class="reference-workbench__head-button"
-            :class="{ 'is-active': isSortActive('title') }"
-            @click="toggleTitleSort"
-          >
-            <span>{{ t('Title') }}</span>
-            <IconChevronDown
-              v-if="isSortActive('title')"
-              class="sort-arrow"
-              :class="{ 'is-asc': sortKey === 'title-asc' }"
-              :size="12"
-              :stroke-width="2.5"
-            />
-          </button>
-          <button
-            type="button"
-            class="reference-workbench__head-button"
-            :class="{ 'is-active': isSortActive('author') }"
-            @click="toggleAuthorSort"
-          >
-            <span>{{ t('Authors') }}</span>
-            <IconChevronDown
-              v-if="isSortActive('author')"
-              class="sort-arrow"
-              :class="{ 'is-asc': sortKey === 'author-asc' }"
-              :size="12"
-              :stroke-width="2.5"
-            />
-          </button>
-          <button
-            type="button"
-            class="reference-workbench__head-button"
-            :class="{ 'is-active': isSortActive('year') }"
-            @click="toggleYearSort"
-          >
-            <span>{{ t('Year') }}</span>
-            <IconChevronDown
-              v-if="isSortActive('year')"
-              class="sort-arrow"
-              :class="{ 'is-asc': sortKey === 'year-asc' }"
-              :size="12"
-              :stroke-width="2.5"
-            />
-          </button>
-          <div class="reference-workbench__head-label">{{ t('Source') }}</div>
-        </div>
-
-        <div
-          v-for="reference in filteredReferences"
-          :key="reference.id"
-          class="reference-workbench__row"
-          :class="{ 'is-active': reference.id === selectedReference?.id }"
-          @click="handleReferenceRowClick(reference)"
-          @contextmenu.prevent="openReferenceContextMenu($event, reference)"
-        >
-          <div class="reference-workbench__cell reference-workbench__cell--title">
-            <span class="reference-workbench__title-icon" aria-hidden="true">
-              <IconFileText :size="14" :stroke-width="1.8" />
-            </span>
-            <span class="reference-workbench__truncate">{{ reference.title }}</span>
-          </div>
-          <div class="reference-workbench__cell">
-            <span class="reference-workbench__truncate">{{ getReferenceAuthorLabel(reference) }}</span>
-          </div>
-          <div class="reference-workbench__cell">
-            {{ reference.year || '—' }}
-          </div>
-          <div class="reference-workbench__cell">
-            <span class="reference-workbench__truncate">{{ reference.source || '—' }}</span>
-          </div>
-        </div>
-      </div>
+      <ReferenceLibraryTable
+        v-else
+        :references="filteredReferences"
+        :selected-reference-id="selectedReference?.id"
+        :sort-key="sortKey"
+        @open-context-menu="openReferenceContextMenu"
+        @select-reference="handleReferenceRowClick"
+        @toggle-author-sort="toggleAuthorSort"
+        @toggle-title-sort="toggleTitleSort"
+        @toggle-year-sort="toggleYearSort"
+      />
     </div>
 
     <InlineDockFrame
@@ -209,14 +108,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { 
-  IconFileText, 
-  IconPlus, 
-  IconFileTypePdf, 
-  IconFileCode, 
-  IconShare,
-  IconChevronDown
-} from '@tabler/icons-vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
@@ -239,10 +130,11 @@ import {
   REFERENCE_DOCK_PDF_PAGE,
 } from '../../domains/references/referenceDockPages.js'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
+import ReferenceLibraryTable from './ReferenceLibraryTable.vue'
+import ReferenceLibraryToolbar from './ReferenceLibraryToolbar.vue'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
-import UiButton from '../shared/ui/UiButton.vue'
 import { referenceDockPageRegistry } from './referenceDockPageRegistry.js'
 
 const props = defineProps({
@@ -329,17 +221,6 @@ const sortKey = computed({
   set: (value) => referencesStore.setSortKey(value),
 })
 const availableCollections = computed(() => referencesStore.collections)
-
-function getReferenceAuthorLabel(reference) {
-  const authors = Array.isArray(reference?.authors) ? reference.authors : []
-  if (!authors.length) return '—'
-  if (authors.length === 1) return authors[0]
-  return `${authors[0]} et al.`
-}
-
-function isSortActive(group) {
-  return sortKey.value.startsWith(`${group}-`)
-}
 
 function toggleTitleSort() {
   referencesStore.setSortKey(sortKey.value === 'title-asc' ? 'title-desc' : 'title-asc')
@@ -956,214 +837,8 @@ async function handleExportBibTeX() {
   transform: none;
 }
 
-/* =========================================================================
-   紧凑原生工具栏 (Compact Toolbar)
-========================================================================= */
-.reference-workbench__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 0 0 auto;
-  gap: 12px;
-  height: 31px;
-  min-height: 31px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--workbench-divider-soft);
-  background: var(--shell-editor-surface);
-  overflow: hidden;
-}
-
-.reference-workbench__toolbar-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.workbench-toolbar-divider {
-  width: 1px;
-  height: 14px;
-  background: color-mix(in srgb, var(--border) 40%, transparent);
-  margin: 0 4px;
-}
-
-/* 工具栏原生化按钮，不再像文字链接 */
-:deep(.workbench-action-btn) {
-  min-height: 24px;
-  height: 24px;
-  padding: 0 8px;
-  font-size: 12px;
-  border-radius: 5px;
-  color: var(--text-secondary);
-}
-
-:deep(.workbench-action-btn .ui-button-leading svg) {
-  opacity: 0.8;
-}
-
-:deep(.workbench-action-btn.ui-button--secondary) {
-  background: color-mix(in srgb, var(--surface-hover) 36%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
-  box-shadow: none;
-}
-
-:deep(.workbench-action-btn.ui-button--ghost:hover) {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-/* =========================================================================
-   内容区与表头 (Content & Header)
-========================================================================= */
-.reference-workbench__content {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 0 0 20px;
-}
-
-.reference-workbench__table-head,
-.reference-workbench__row {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1.35fr) 64px minmax(0, 1.4fr);
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-/* 极致纤薄的表头 */
-.reference-workbench__table-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  height: 28px;
-  padding: 0 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: var(--panel-surface);
-  color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  backdrop-filter: blur(20px);
-}
-
-.reference-workbench__head-label {
-  user-select: none;
-}
-
-.reference-workbench__head-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.reference-workbench__head-button:hover {
-  color: var(--text-secondary);
-}
-
-.reference-workbench__head-button.is-active {
-  color: var(--text-primary);
-}
-
-/* 纤细的原生箭头，替代臃肿的色块底 */
-.sort-arrow {
-  color: var(--text-primary);
-  opacity: 0.8;
-  transition: transform 0.2s ease;
-}
-
-.sort-arrow.is-asc {
-  transform: rotate(180deg);
-}
-
-/* =========================================================================
-   文献行 (Rows)
-========================================================================= */
-.reference-workbench__row {
-  min-height: 28px; /* 进一步压低高度，呈现高密度信息 */
-  padding: 0 16px;
-  border-radius: 4px;
-  margin: 1px 0;
-  cursor: pointer;
-  transition: none; /* 原生无动画 */
-}
-
-.reference-workbench__row:hover {
-  background: var(--sidebar-item-hover);
-}
-
-.reference-workbench__row.is-active {
-  background: var(--list-active-bg);
-  color: var(--list-active-fg) !important;
-  box-shadow: none;
-}
-
-.reference-workbench__row.is-active .reference-workbench__cell,
-.reference-workbench__row.is-active .reference-workbench__title-icon {
-  color: var(--list-active-fg) !important;
-}
-
-.reference-workbench__cell {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.reference-workbench__cell--title {
-  gap: 8px;
-  font-weight: 500;
-}
-
-.reference-workbench__title-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
-  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
-}
-
-.reference-workbench__truncate {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .reference-workbench__empty {
   padding: 24px;
   text-align: center;
-}
-
-@media (max-width: 1200px) {
-  .reference-workbench__table-head,
-  .reference-workbench__row {
-    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1.2fr) 62px minmax(0, 1.2fr);
-    gap: 12px;
-  }
-}
-
-@media (max-width: 920px) {
-  .reference-workbench__toolbar {
-    height: 31px;
-    min-height: 31px;
-    flex-wrap: nowrap;
-    padding-top: 0;
-    padding-bottom: 0;
-  }
 }
 </style>

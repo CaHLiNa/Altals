@@ -76,6 +76,10 @@ try {
     new URL('../src/components/settings/SettingsExtensions.vue', import.meta.url),
     'utf8',
   )
+  const settingsExtensionOptionsSource = await readFile(
+    new URL('../src/components/settings/SettingsExtensionOptions.vue', import.meta.url),
+    'utf8',
+  )
 
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -363,8 +367,8 @@ try {
   assert.doesNotMatch(localizedHtml, /Less common plugin-specific options/)
   assert.doesNotMatch(localizedHtml, /Host-managed model, endpoint, and secure credential values/)
   assert.match(
-    settingsExtensionsSource,
-    /selectedSettingGroups\.length === 0 && selectedActionGroups\.length === 0/,
+    settingsExtensionOptionsSource,
+    /settingGroups\.length === 0 && actionGroups\.length === 0/,
   )
 
   console.log(JSON.stringify({
@@ -385,7 +389,7 @@ try {
         !localizedHtml.includes('开发者模式'),
       localizedOptionsButton: localizedHtml.includes('aria-label="选项"'),
       runtimeOnlyActionsDoNotFallThroughEmptyState:
-        settingsExtensionsSource.includes('selectedSettingGroups.length === 0 && selectedActionGroups.length === 0'),
+        settingsExtensionOptionsSource.includes('settingGroups.length === 0 && actionGroups.length === 0'),
     },
   }, null, 2))
 } finally {
