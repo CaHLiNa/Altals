@@ -160,8 +160,6 @@ import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiCheckbox from '../shared/ui/UiCheckbox.vue'
 import {
-  fetchCollections,
-  fetchUserGroups,
   loadZoteroApiKey,
   loadZoteroConfig,
   saveZoteroConfig,
@@ -236,12 +234,12 @@ function buildCollectionTree(collections = []) {
 
 async function refreshRemoteLibraries(targetConfig = config.value) {
   if (!targetConfig?.userId) return
-  const key = await loadZoteroApiKey()
-  if (!key) return
 
   try {
-    const loadedGroups = await fetchUserGroups(key, targetConfig.userId)
-    groups.value = Array.isArray(loadedGroups) ? loadedGroups : []
+    const remoteLibraries = await referencesStore.loadZoteroRemoteLibraries(targetConfig)
+    if (!remoteLibraries) return
+
+    groups.value = remoteLibraries.groups
     selectedGroupIds.value = new Set(
       Array.isArray(targetConfig._groups)
         ? targetConfig._groups.map((group) => String(group.id))
@@ -249,8 +247,7 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
     )
 
     const options = []
-    const userCollectionsRaw = await fetchCollections(key, 'user', targetConfig.userId)
-    const userCollections = buildCollectionTree(userCollectionsRaw || [])
+    const userCollections = buildCollectionTree(remoteLibraries.userCollections || [])
 
     for (const collection of userCollections) {
       options.push({
@@ -259,9 +256,8 @@ async function refreshRemoteLibraries(targetConfig = config.value) {
       })
     }
 
-    for (const group of groups.value) {
-      const groupCollectionsRaw = await fetchCollections(key, 'group', group.id)
-      const groupCollections = buildCollectionTree(groupCollectionsRaw || [])
+    for (const { group, collections } of remoteLibraries.groupCollections) {
+      const groupCollections = buildCollectionTree(collections || [])
       options.push({ value: `group/${group.id}`, label: group.name })
       for (const collection of groupCollections) {
         options.push({

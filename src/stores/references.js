@@ -46,6 +46,9 @@ import {
 import {
   deleteFromZotero,
   disconnectZotero as disconnectZoteroWithBackend,
+  fetchCollections,
+  fetchUserGroups,
+  loadZoteroApiKey,
   loadZoteroConfig,
   saveZoteroConfig,
   storeZoteroApiKey,
@@ -950,6 +953,35 @@ export const useReferencesStore = defineStore('references', {
 
     async disconnectZotero() {
       await disconnectZoteroWithBackend()
+    },
+
+    async loadZoteroRemoteLibraries(config = {}) {
+      const userId = String(config?.userId || '').trim()
+      if (!userId) return null
+
+      const apiKey = await loadZoteroApiKey()
+      if (!apiKey) return null
+
+      const groups = await fetchUserGroups(apiKey, userId)
+      const normalizedGroups = Array.isArray(groups) ? groups : []
+      const userCollections = await fetchCollections(apiKey, 'user', userId)
+      const groupCollections = []
+
+      for (const group of normalizedGroups) {
+        groupCollections.push({
+          group,
+          collections: await fetchCollections(apiKey, 'group', group.id),
+        })
+      }
+
+      return {
+        groups: normalizedGroups,
+        userCollections: Array.isArray(userCollections) ? userCollections : [],
+        groupCollections: groupCollections.map((entry) => ({
+          group: entry.group,
+          collections: Array.isArray(entry.collections) ? entry.collections : [],
+        })),
+      }
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {

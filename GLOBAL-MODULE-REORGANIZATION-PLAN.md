@@ -662,6 +662,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Added `referencesStore.syncZoteroNow()` and routed `SettingsZotero.vue` through the store instead of passing the Pinia store object into the Zotero service from the component.
 - 2026-05-03: Removed unused `latex` store setters for build extra args and custom system TeX path. The preference fields stay in the persisted/runtime shape for compatibility, but the deleted settings no longer expose stale store actions.
 - 2026-05-03: Added `referencesStore.connectZotero()` / `disconnectZotero()` and routed Zotero settings through those store actions. The component no longer owns the validate API key, persist API key, save config, and disconnect service sequence.
+- 2026-05-03: Added `referencesStore.loadZoteroRemoteLibraries()` and moved Zotero API key, group, and collection fetch sequencing out of `SettingsZotero.vue`. The component still owns translated option-label presentation.
 
 ### Phase 10: Service Bridge Cleanup
 
