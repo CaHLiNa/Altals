@@ -168,7 +168,9 @@ Components over 500 lines:
 | `src/components/panel/ReferenceDetailPanel.vue` | 1168 | Reference detail UI and draft handling; Phase 5/8 candidate. |
 | `src/components/references/ReferenceLibraryWorkbench.vue` | 1170 | Reference workbench UI and commands; Phase 5/8 candidate. |
 | `src/components/settings/Settings.vue` | 543 | Settings shell UI; Phase 4/8 candidate. |
-| `src/components/settings/SettingsExtensions.vue` | 1161 | Extension settings UI; Phase 7/8 candidate. |
+| `src/components/settings/SettingsExtensions.vue` | 779 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
+| `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
+| `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
 | `src/components/sidebar/FileTree.vue` | 1078 | File tree UI plus mutation commands; Phase 3/8 candidate. |
 
 ## Store Responsibility Snapshot

@@ -566,12 +566,16 @@ git commit -m "refactor: tighten extension runtime boundaries"
 **Work:**
 
 - [ ] For each large component, identify local UI-only sections that can become child components.
-- [ ] Extract only stateless or draft-local UI sections first.
-- [ ] Move display-only derived arrays/labels into `src/domains/**`.
-- [ ] Keep side effects in stores/services.
-- [ ] Preserve props/events and keyboard behavior.
-- [ ] Avoid visual redesign unless the user explicitly asks.
-- [ ] Do not touch frozen editor files.
+- [x] Extract only stateless or draft-local UI sections first.
+- [x] Move display-only derived arrays/labels into `src/domains/**`.
+- [x] Keep side effects in stores/services.
+- [x] Preserve props/events and keyboard behavior.
+- [x] Avoid visual redesign unless the user explicitly asks.
+- [x] Do not touch frozen editor files.
+
+**Progress notes:**
+
+- 2026-05-03: Started Phase 8 with `SettingsExtensions.vue`. Extracted loaded-extension list and extension options form into `SettingsExtensionList.vue` and `SettingsExtensionOptions.vue`, moved settings grouping/action grouping/key humanization into `src/domains/extensions/extensionSettingsGroups.js`, and kept registry refresh, enable/disable, secure-setting save, host restart, and command execution in the parent/store path. `SettingsExtensions.vue` dropped from 1160 to 779 lines without touching frozen editor files.
 
 **Verification:**
 

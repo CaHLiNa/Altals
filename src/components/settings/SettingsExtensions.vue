@@ -28,218 +28,55 @@
       </div>
     </section>
 
-    <section v-if="!selectedExtension" class="settings-group">
-      <div class="extensions-group-heading">
-        <h4 class="settings-group-title">{{ t('Loaded Extensions') }}</h4>
-        <div class="extensions-page-actions">
-          <button
-            type="button"
-            class="extensions-page-icon-button"
-            :title="t('Refresh extensions')"
-            :aria-label="t('Refresh extensions')"
-            :disabled="extensionsStore.loadingRegistry"
-            @click="refreshExtensionRegistry"
-          >
-            <IconRefresh :size="18" :stroke-width="1.9" />
-          </button>
-          <button
-            type="button"
-            class="extensions-page-icon-button"
-            :title="t('Open extension install folder')"
-            :aria-label="t('Open extension install folder')"
-            @click="openExtensionInstallFolder"
-          >
-            <IconFolder :size="19" :stroke-width="1.9" />
-          </button>
-        </div>
-      </div>
-      <div class="settings-group-body">
-        <div v-if="extensionsStore.loadingRegistry" class="extension-empty-row">
-          {{ t('Loading extensions...') }}
-        </div>
-        <div v-else-if="extensions.length === 0" class="extension-empty-row">
-          {{ t('No extensions found') }}
-        </div>
-        <div v-for="extension in extensions" v-else :key="extension.id" class="extension-card">
-          <div class="extension-header">
-            <div class="extension-copy">
-              <div class="extension-title-line">
-                <span class="extension-name">{{ extensionDisplayName(extension) }}</span>
-                <span class="extension-status" :class="`is-${displayStatus(extension)}`">{{ t(displayStatus(extension)) }}</span>
-                <span class="extension-scope">{{ t(extension.scope) }}</span>
-              </div>
-              <div class="extension-description">{{ extensionDescription(extension) }}</div>
-              <div v-if="extension.errors.length" class="extension-message is-error">
-                {{ extension.errors.map((message) => t(message)).join('; ') }}
-              </div>
-              <div v-else-if="extension.warnings.length" class="extension-message">
-                {{ extension.warnings.map((message) => t(message)).join('; ') }}
-              </div>
-            </div>
-            <div class="extension-controls">
-              <button
-                type="button"
-                class="extension-card-icon-button"
-                :title="t('Extension options')"
-                :aria-label="t('Extension options')"
-                :disabled="settingGroups(extension).length === 0"
-                @click="openExtensionOptions(extension.id)"
-              >
-                <IconSettings :size="18" :stroke-width="1.85" />
-              </button>
-              <UiSwitch
-                :model-value="isEnabled(extension.id)"
-                :disabled="extension.status === 'invalid' || extension.status === 'blocked'"
-                :title="t('Enable extension')"
-                @update:model-value="(value) => extensionsStore.setExtensionEnabled(extension.id, value)"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <SettingsExtensionList
+      v-if="!selectedExtension"
+      :extensions="extensions"
+      :enabled-extension-ids="extensionsStore.enabledExtensionIds"
+      :loading="extensionsStore.loadingRegistry"
+      @refresh="refreshExtensionRegistry"
+      @open-install-folder="openExtensionInstallFolder"
+      @open-options="openExtensionOptions"
+      @toggle-enabled="setExtensionEnabled"
+    />
 
-    <template v-else>
-      <section class="settings-group extension-options-navigation">
-        <div class="extensions-group-heading">
-          <div class="extension-options-title">
-            <button
-              type="button"
-              class="extension-card-icon-button"
-              :title="t('Back to loaded extensions')"
-              :aria-label="t('Back to loaded extensions')"
-              @click="closeExtensionOptions"
-            >
-              <IconChevronLeft :size="18" :stroke-width="1.9" />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="selectedSettingGroups.length === 0 && selectedActionGroups.length === 0" class="settings-group">
-        <h4 class="settings-group-title">{{ t('Extension options') }}</h4>
-        <div class="settings-group-body">
-          <div class="extension-empty-row">
-            {{ t('This extension has no configurable options.') }}
-          </div>
-        </div>
-      </section>
-
-      <template v-else>
-        <section
-          v-for="group in selectedActionGroups"
-          :key="`${selectedExtension.id}:action-group:${group.id}`"
-          class="settings-group extension-options-settings-group"
-        >
-          <h4 class="settings-group-title">{{ t(group.title) }}</h4>
-          <div class="settings-group-body">
-            <div
-              v-for="action in group.actions"
-              :key="`${selectedExtension.id}:action:${action.id}`"
-              class="settings-row extension-setting-row extension-action-row"
-            >
-              <div class="settings-row-copy extension-setting-copy">
-                <div class="settings-row-title extension-setting-label-row">
-                  <span>{{ t(action.title) }}</span>
-                </div>
-                <div v-if="actionMessage(action.id)" class="extension-action-hint">
-                  {{ actionMessage(action.id) }}
-                </div>
-              </div>
-              <div class="settings-row-control extension-setting-control extension-action-control">
-                <UiButton
-                  variant="secondary"
-                  size="sm"
-                  :disabled="isActionBusy(action.id)"
-                  @click="void runExtensionSettingsAction(action)"
-                >
-                  {{ actionButtonLabel(action.id, action.title) }}
-                </UiButton>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          v-for="group in selectedSettingGroups"
-          :key="`${selectedExtension.id}:${group.id}`"
-          class="settings-group extension-options-settings-group"
-        >
-          <h4 class="settings-group-title">{{ t(group.titleKey) }}</h4>
-          <div class="settings-group-body">
-            <div
-              v-for="[key, setting] in group.entries"
-              :key="`${selectedExtension.id}:${key}`"
-              class="settings-row extension-setting-row"
-            >
-              <div class="settings-row-copy extension-setting-copy">
-                <div class="settings-row-title extension-setting-label-row">
-                  <span>{{ t(setting.label || humanizeSettingKey(key)) }}</span>
-                </div>
-              </div>
-              <div class="settings-row-control extension-setting-control" :class="{ 'is-wide': isLongTextSetting(key, setting) }">
-                <UiSwitch
-                  v-if="setting.type === 'boolean'"
-                  :model-value="Boolean(settingValue(selectedExtension, key))"
-                  size="sm"
-                  :title="t(setting.label || humanizeSettingKey(key))"
-                  @update:model-value="(value) => updateSettingNow(selectedExtension.id, key, value)"
-                />
-                <UiSelect
-                  v-else-if="settingOptions(setting).length"
-                  :model-value="settingValue(selectedExtension, key)"
-                  :options="settingOptions(setting)"
-                  :placeholder="t(setting.label || humanizeSettingKey(key))"
-                  @update:model-value="(value) => updateSettingNow(selectedExtension.id, key, value)"
-                />
-                <textarea
-                  v-else-if="isLongTextSetting(key, setting)"
-                  class="extension-setting-textarea"
-                  :value="settingDraftValue(selectedExtension, key)"
-                  spellcheck="false"
-                  rows="4"
-                  @input="(event) => updateSettingDraft(selectedExtension.id, key, event.target.value)"
-                  @blur="() => flushSettingDraft(selectedExtension.id, key)"
-                ></textarea>
-                <UiInput
-                  v-else
-                  :model-value="settingDraftValue(selectedExtension, key)"
-                  :type="inputTypeForSetting(key, setting)"
-                  :placeholder="hasPersistedSecureSetting(selectedExtension, key) ? t('Saved') : ''"
-                  :monospace="isTechnicalSetting(key)"
-                  size="sm"
-                  @update:model-value="(value) => updateSettingDraft(selectedExtension.id, key, coerceSettingValue(setting, value))"
-                  @blur="() => flushSettingDraft(selectedExtension.id, key)"
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      </template>
-    </template>
+    <SettingsExtensionOptions
+      v-else
+      :extension="selectedExtension"
+      :setting-groups="selectedSettingGroups"
+      :action-groups="selectedActionGroups"
+      :action-message="actionMessage"
+      :is-action-busy="isActionBusy"
+      :action-button-label="actionButtonLabel"
+      :setting-value="settingValue"
+      :setting-draft-value="settingDraftValue"
+      :has-persisted-secure-setting="hasPersistedSecureSetting"
+      @back="closeExtensionOptions"
+      @run-action="(action) => void runExtensionSettingsAction(action)"
+      @update-now="updateSettingNow"
+      @update-draft="updateSettingDraft"
+      @flush-draft="flushSettingDraft"
+    />
 
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { IconChevronLeft, IconFolder, IconRefresh, IconSettings } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useToastStore } from '../../stores/toast'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import UiButton from '../shared/ui/UiButton.vue'
-import UiInput from '../shared/ui/UiInput.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
-import UiSwitch from '../shared/ui/UiSwitch.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'
+import SettingsExtensionList from './SettingsExtensionList.vue'
+import SettingsExtensionOptions from './SettingsExtensionOptions.vue'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
 import {
-  secureSettingInputType,
-  shortExtensionSettingKey,
-} from '../../domains/extensions/extensionSettingPresentation'
+  buildExtensionSettingGroups,
+  buildExtensionSettingsActionGroups,
+} from '../../domains/extensions/extensionSettingsGroups'
 
 const { t } = useI18n()
 const extensionsStore = useExtensionsStore()
@@ -258,174 +95,11 @@ const selectedExtension = computed(() =>
 const selectedExtensionActionBusy = reactive({})
 const selectedExtensionActionMessages = reactive({})
 const selectedSettingGroups = computed(() =>
-  selectedExtension.value ? settingGroups(selectedExtension.value) : []
+  selectedExtension.value ? buildExtensionSettingGroups(selectedExtension.value) : []
 )
-function isEnabled(extensionId = '') {
-  return extensionsStore.enabledExtensionIds.includes(String(extensionId || '').trim().toLowerCase())
-}
 
 function hostStatus() {
   return extensionsStore.hostStatus
-}
-
-function displayStatus(extension = {}) {
-  if (extension.status !== 'available') return extension.status
-  return isEnabled(extension.id) ? extension.status : 'disabled'
-}
-
-function extensionDisplayName(extension = {}) {
-  return String(extension.name || extension.id || '').trim()
-}
-
-function extensionDescription(extension = {}) {
-  const description = String(extension.description || '').trim()
-  return description || t('No description provided')
-}
-
-function shortSettingKey(key = '') {
-  return shortExtensionSettingKey(key)
-}
-
-const settingGroupDefinitions = [
-  {
-    id: 'basic',
-    titleKey: 'Basic',
-    hintKey: 'Host-managed plugin defaults.',
-    keys: ['engine', 'service', 'sourceLang', 'targetLang'],
-    match: (key) => ['engine', 'service', 'sourceLang', 'targetLang', 'targetLanguage'].includes(shortSettingKey(key)),
-  },
-  {
-    id: 'model',
-    titleKey: 'Model Access',
-    hintKey: 'Host-managed model, endpoint, and secure credential values.',
-    keys: [
-      'modelBaseUrl',
-      'apiUrl',
-      'baseUrl',
-      'endpoint',
-      'modelApiKey',
-      'apiKey',
-      'model',
-      'modelName',
-      'mineruToken',
-      'mineru',
-      'paddleToken',
-      'paddleOcrToken',
-      'paddleocrToken',
-      'paddleOcr',
-      'paddleocr',
-    ],
-    match: (key) => {
-      const normalized = shortSettingKey(key).toLowerCase()
-      return normalized.includes('api') ||
-        normalized.includes('model') ||
-        normalized.includes('extension') ||
-        normalized.includes('token') ||
-        normalized.includes('secret')
-    },
-  },
-  {
-    id: 'output',
-    titleKey: 'Output',
-    hintKey: 'Generated PDF type and layout behavior.',
-    keys: ['outputMode', 'translationMode', 'dualMode', 'noWatermark', 'ocr', 'autoOcr'],
-    match: (key) => ['outputMode', 'translationMode', 'dualMode', 'noWatermark', 'ocr', 'autoOcr'].includes(shortSettingKey(key)),
-  },
-  {
-    id: 'runtime',
-    titleKey: 'Runtime',
-    hintKey: 'Plugin runtime environment and local execution options.',
-    keys: ['serverPort', 'pythonPath', 'enableVenv', 'envTool', 'enableMirror', 'skipInstall'],
-    match: (key) => {
-      const normalized = shortSettingKey(key).toLowerCase()
-      return normalized.includes('server') ||
-        normalized.includes('python') ||
-        normalized.includes('venv') ||
-        normalized.includes('env') ||
-        normalized.includes('mirror') ||
-        normalized.includes('install') ||
-        normalized.includes('port')
-    },
-  },
-  {
-    id: 'performance',
-    titleKey: 'Performance',
-    hintKey: 'Plugin execution throughput controls.',
-    keys: ['qps', 'poolSize', 'threadNum'],
-    match: (key) => ['qps', 'poolSize', 'threadNum', 'chunkSize'].includes(shortSettingKey(key)),
-  },
-]
-
-function settingEntries(extension = {}) {
-  return Object.entries(extension.settingsSchema || {})
-}
-
-function settingsActions(extension = {}) {
-  return Array.isArray(extension.settingsActions) ? extension.settingsActions : []
-}
-
-function settingSortAliases(key = '') {
-  const shortKey = shortSettingKey(key)
-  const normalized = shortKey.toLowerCase()
-  const aliases = [String(key || ''), shortKey]
-  if (normalized.includes('baseurl') || normalized.includes('apiurl') || normalized.includes('endpoint')) {
-    aliases.push('modelBaseUrl')
-  }
-  if ((normalized.includes('apikey') || normalized.includes('api_key')) &&
-    !normalized.includes('mineru') &&
-    !normalized.includes('paddle')) {
-    aliases.push('apiKey')
-  }
-  if (normalized === 'model' || normalized.includes('modelname')) aliases.push('model')
-  if (normalized.includes('mineru')) aliases.push('mineru')
-  if (normalized.includes('paddleocr') || normalized.includes('paddle')) aliases.push('paddleocr')
-  return aliases
-}
-
-function sortSettingEntries(entries = [], orderedKeys = []) {
-  const order = new Map(orderedKeys.map((key, index) => [key, index]))
-  const sourceOrder = new Map(entries.map(([key], index) => [key, index]))
-  const orderFor = (key = '') => {
-    for (const alias of settingSortAliases(key)) {
-      if (order.has(alias)) return order.get(alias)
-    }
-    return Number.MAX_SAFE_INTEGER
-  }
-  return [...entries].sort(([left], [right]) => {
-    const normalizedLeftOrder = orderFor(left)
-    const normalizedRightOrder = orderFor(right)
-    if (normalizedLeftOrder !== normalizedRightOrder) return normalizedLeftOrder - normalizedRightOrder
-    return (sourceOrder.get(left) ?? 0) - (sourceOrder.get(right) ?? 0)
-  })
-}
-
-function settingGroups(extension = {}) {
-  const remaining = new Map(settingEntries(extension))
-  const groups = []
-  for (const definition of settingGroupDefinitions) {
-    const entries = []
-    for (const [key, setting] of [...remaining.entries()]) {
-      if (definition.match(key, setting)) {
-        entries.push([key, setting])
-        remaining.delete(key)
-      }
-    }
-    if (entries.length) {
-      groups.push({
-        ...definition,
-        entries: sortSettingEntries(entries, definition.keys),
-      })
-    }
-  }
-  if (remaining.size) {
-    groups.push({
-      id: 'advanced',
-      titleKey: 'Advanced',
-      hintKey: 'Less common plugin-specific options.',
-      entries: sortSettingEntries([...remaining.entries()]),
-    })
-  }
-  return groups
 }
 
 function settingValue(extension = {}, key = '') {
@@ -451,55 +125,6 @@ function hasPersistedSecureSetting(extension = {}, key = '') {
   const setting = extension?.settingsSchema?.[key]
   if (setting?.secureStorage !== true) return false
   return String(settingValue(extension, key) ?? '').trim().length > 0
-}
-
-function settingOptions(setting = {}) {
-  return Array.isArray(setting.options)
-    ? setting.options.map((option) => ({
-        value: option?.value,
-        label: t(option?.label || String(option?.value ?? '')),
-      }))
-    : []
-}
-
-function coerceSettingValue(setting = {}, value = '') {
-  if (setting.type === 'integer') {
-    const parsed = Number.parseInt(value, 10)
-    return Number.isNaN(parsed) ? value : parsed
-  }
-  if (setting.type === 'number') {
-    const parsed = Number.parseFloat(value)
-    return Number.isNaN(parsed) ? value : parsed
-  }
-  return value
-}
-
-function inputTypeForSetting(key = '', setting = {}) {
-  return secureSettingInputType(key, setting)
-}
-
-function isLongTextSetting(key = '', setting = {}) {
-  const normalized = shortSettingKey(key).toLowerCase()
-  return normalized.includes('json') ||
-    normalized.includes('extradata') ||
-    String(setting.default ?? '').length > 80
-}
-
-function isTechnicalSetting(key = '') {
-  const normalized = shortSettingKey(key).toLowerCase()
-  return normalized.includes('url') ||
-    normalized.includes('path') ||
-    normalized.includes('json') ||
-    normalized.includes('model')
-}
-
-function humanizeSettingKey(key = '') {
-  return (String(key || '')
-    .split('.')
-    .pop() || '')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 async function persistSettingDraft(extensionId = '', key = '') {
@@ -577,19 +202,13 @@ function closeExtensionOptions() {
   selectedExtensionId.value = ''
 }
 
+function setExtensionEnabled(extensionId = '', value = false) {
+  return extensionsStore.setExtensionEnabled(extensionId, value)
+}
+
 const selectedActionGroups = computed(() => {
   const extension = selectedExtension.value
-  if (!extension) return []
-  const groups = new Map()
-  for (const action of settingsActions(extension)) {
-    const groupId = String(action.group || 'actions').trim() || 'actions'
-    const groupTitle = String(action.groupTitle || action.group || 'Actions').trim() || 'Actions'
-    if (!groups.has(groupId)) {
-      groups.set(groupId, { id: groupId, title: groupTitle, actions: [] })
-    }
-    groups.get(groupId).actions.push(action)
-  }
-  return [...groups.values()]
+  return extension ? buildExtensionSettingsActionGroups(extension) : []
 })
 
 function actionBusyKey(actionId = '') {
