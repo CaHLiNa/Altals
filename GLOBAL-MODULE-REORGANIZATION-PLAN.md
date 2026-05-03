@@ -735,6 +735,7 @@ git commit -m "refactor: keep services as thin bridges"
 **Progress notes:**
 
 - 2026-05-03: Refreshed the service inventory in `ARCHITECTURE-BOUNDARY-MAP.md` from the current `src/services/**/*.js` line counts. Removed stale `src/services/latex/latexWorkshopSynctex.js`, removed `src/services/pdf/artifactPreview.js` from the over-150-line table after it dropped below the threshold, and added `src/services/latex/runtime.js` as a current runtime bridge review target.
+- 2026-05-03: Moved LaTeX compile execution/result DTO normalization out of `src/services/latex/runtime.js` into `src/domains/latex/latexCompileResult.js`. The service now delegates response shaping to a pure domain helper, keeps Rust as compile execution authority, and drops below the over-150-line service review threshold.
 
 ### Phase 11: Rust Runtime Module Cleanup
 
