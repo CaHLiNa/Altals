@@ -159,11 +159,6 @@ import UiSelect from '../shared/ui/UiSelect.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiCheckbox from '../shared/ui/UiCheckbox.vue'
-import {
-  loadZoteroApiKey,
-  loadZoteroConfig,
-  saveZoteroConfig,
-} from '../../services/references/zoteroSync.js'
 
 const { t } = useI18n()
 const workspace = useWorkspaceStore()
@@ -289,7 +284,7 @@ async function saveConfigState() {
     })(),
   }
   config.value = nextConfig
-  await saveZoteroConfig(nextConfig)
+  await referencesStore.saveZoteroSettingsConfig(nextConfig)
 }
 
 function toggleAutoSync() {
@@ -371,10 +366,11 @@ async function handleSyncNow() {
 
 onMounted(async () => {
   try {
-    const [savedConfig, savedApiKey] = await Promise.all([loadZoteroConfig(), loadZoteroApiKey()])
+    const settingsState = await referencesStore.loadZoteroSettingsState()
+    const savedConfig = settingsState.config
     config.value = savedConfig || {}
-    connected.value = Boolean(savedConfig?.userId && savedApiKey)
-    if (savedConfig?.userId && !savedApiKey) {
+    connected.value = Boolean(savedConfig?.userId && settingsState.hasApiKey)
+    if (savedConfig?.userId && !settingsState.hasApiKey) {
       error.value = t(
         'Existing Zotero account info was found, but the API key was not persisted by the previous version. Reconnect once to finish migration.'
       )

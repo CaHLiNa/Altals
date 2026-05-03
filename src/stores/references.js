@@ -955,6 +955,21 @@ export const useReferencesStore = defineStore('references', {
       await disconnectZoteroWithBackend()
     },
 
+    async loadZoteroSettingsState() {
+      const [config, apiKey] = await Promise.all([
+        loadZoteroConfig(),
+        loadZoteroApiKey(),
+      ])
+      return {
+        config: config || {},
+        hasApiKey: Boolean(apiKey),
+      }
+    },
+
+    async saveZoteroSettingsConfig(config = {}) {
+      return saveZoteroConfig(config)
+    },
+
     async loadZoteroRemoteLibraries(config = {}) {
       const userId = String(config?.userId || '').trim()
       if (!userId) return null

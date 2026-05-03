@@ -266,6 +266,7 @@ Components over 500 lines:
 - 2026-05-03: Removed unused LaTeX preference setters for build extra args and custom system TeX path from `src/stores/latex.js`; persisted fields remain readable for existing runtime requests, but deleted settings no longer leave callable store entry points.
 - 2026-05-03: Zotero connect/disconnect service sequences moved behind `referencesStore.connectZotero()` and `referencesStore.disconnectZotero()`, keeping `SettingsZotero.vue` focused on form state, option-tree UI, and messages.
 - 2026-05-03: Zotero remote library fetch sequence moved behind `referencesStore.loadZoteroRemoteLibraries()`, leaving `SettingsZotero.vue` to build UI option labels from store-provided remote groups and collections.
+- 2026-05-03: Zotero settings hydrate/save service calls moved behind `referencesStore.loadZoteroSettingsState()` and `referencesStore.saveZoteroSettingsConfig()`, removing direct Zotero service imports from `SettingsZotero.vue`.
 
 ## Phase 1 Verification Targets
 
