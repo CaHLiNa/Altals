@@ -264,6 +264,7 @@ Components over 500 lines:
 - 2026-05-03: Reference BibTeX and detailed JSON export writes moved from `ReferenceLibraryWorkbench.vue` into `src/stores/references.js` actions, leaving the component responsible for dialog and notification orchestration only.
 - 2026-05-03: Zotero manual sync routing moved behind `referencesStore.syncZoteroNow()`, so `SettingsZotero.vue` no longer passes the references store into the Zotero service layer.
 - 2026-05-03: Removed unused LaTeX preference setters for build extra args and custom system TeX path from `src/stores/latex.js`; persisted fields remain readable for existing runtime requests, but deleted settings no longer leave callable store entry points.
+- 2026-05-03: Zotero connect/disconnect service sequences moved behind `referencesStore.connectZotero()` and `referencesStore.disconnectZotero()`, keeping `SettingsZotero.vue` focused on form state, option-tree UI, and messages.
 
 ## Phase 1 Verification Targets
 

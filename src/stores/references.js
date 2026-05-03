@@ -45,8 +45,12 @@ import {
 } from '../services/references/referenceRuntime.js'
 import {
   deleteFromZotero,
+  disconnectZotero as disconnectZoteroWithBackend,
   loadZoteroConfig,
+  saveZoteroConfig,
+  storeZoteroApiKey,
   syncNow as syncZoteroNowWithBackend,
+  validateApiKey,
 } from '../services/references/zoteroSync.js'
 import {
   REFERENCE_DOCK_DETAILS_PAGE,
@@ -926,6 +930,26 @@ export const useReferencesStore = defineStore('references', {
 
     async syncZoteroNow(projectRoot = '') {
       return syncZoteroNowWithBackend(projectRoot, this)
+    },
+
+    async connectZotero(apiKey = '') {
+      const normalizedApiKey = String(apiKey || '').trim()
+      const identity = await validateApiKey(normalizedApiKey)
+      await storeZoteroApiKey(normalizedApiKey)
+
+      const config = {
+        userId: String(identity?.userID || ''),
+        username: identity?.username || '',
+        autoSync: true,
+        _groups: [],
+        pushTarget: null,
+      }
+      await saveZoteroConfig(config)
+      return config
+    },
+
+    async disconnectZotero() {
+      await disconnectZoteroWithBackend()
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {

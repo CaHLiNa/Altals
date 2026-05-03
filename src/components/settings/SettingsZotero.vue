@@ -160,14 +160,11 @@ import UiInput from '../shared/ui/UiInput.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiCheckbox from '../shared/ui/UiCheckbox.vue'
 import {
-  disconnectZotero,
   fetchCollections,
   fetchUserGroups,
   loadZoteroApiKey,
   loadZoteroConfig,
   saveZoteroConfig,
-  storeZoteroApiKey,
-  validateApiKey,
 } from '../../services/references/zoteroSync.js'
 
 const { t } = useI18n()
@@ -328,21 +325,12 @@ async function handleConnect() {
   error.value = ''
   syncSummary.value = ''
   try {
-    const identity = await validateApiKey(apiKey.value.trim())
-    await storeZoteroApiKey(apiKey.value.trim())
-    config.value = {
-      userId: String(identity.userID),
-      username: identity.username || '',
-      autoSync: true,
-      _groups: [],
-      pushTarget: null,
-    }
-    await saveZoteroConfig(config.value)
+    config.value = await referencesStore.connectZotero(apiKey.value)
     connected.value = true
     autoSync.value = true
     pushTargetValue.value = ''
     await refreshRemoteLibraries(config.value)
-    userId.value = String(identity.userID)
+    userId.value = String(config.value.userId || '')
   } catch (cause) {
     error.value = cause?.message || t('Failed to connect to Zotero')
   } finally {
@@ -355,7 +343,7 @@ async function handleDisconnect() {
   error.value = ''
   syncSummary.value = ''
   try {
-    await disconnectZotero()
+    await referencesStore.disconnectZotero()
     connected.value = false
     config.value = {}
     groups.value = []
