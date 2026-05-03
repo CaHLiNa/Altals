@@ -904,10 +904,12 @@ fn resolve_builtin_node_host_script() -> Result<PathBuf, String> {
         }
     }
 
-    candidates.push(app_dirs::data_root_dir()?
-        .join("resources")
-        .join("extension-host")
-        .join("extension-host.mjs"));
+    candidates.push(
+        app_dirs::data_root_dir()?
+            .join("resources")
+            .join("extension-host")
+            .join("extension-host.mjs"),
+    );
 
     for candidate in candidates {
         if candidate.exists() {

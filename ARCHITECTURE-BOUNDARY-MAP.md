@@ -270,6 +270,10 @@ Components over 500 lines:
 - 2026-05-03: Zotero settings load and remote-library refresh failures now surface through the existing `SettingsZotero.vue` inline error state instead of only logging to the console.
 - 2026-05-03: Zotero sync orchestration no longer passes the Pinia reference store into `src/services/references/zoteroSync.js`. The service now accepts explicit snapshot/selected-reference DTOs and returns a normalized sync result, while `src/stores/references.js` owns applying snapshots plus sync status/error UI state; `src/app/workspace/useWorkspaceLifecycle.js` routes auto-sync through `referencesStore.syncZoteroNow()`.
 
+## Rust Runtime Cleanup Log
+
+- 2026-05-03: Workspace URI scheme handling moved from `src-tauri/src/lib.rs` into `src-tauri/src/workspace_protocol.rs`. `lib.rs` now only registers the `scribeflow-workspace` protocol, while request path decoding, content-type mapping, scoped path resolution, and file response construction live in the workspace protocol module with focused unit tests. No Tauri command names, URI scheme name, or frontend payload shapes changed.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`

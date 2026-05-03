@@ -733,9 +733,7 @@ pub async fn references_mutation_apply(
         ReferencesMutationAction::SetDocumentReferenceIds {
             tex_path,
             reference_ids,
-        } => {
-            apply_set_document_reference_ids(&normalized_snapshot, &tex_path, &reference_ids)
-        }
+        } => apply_set_document_reference_ids(&normalized_snapshot, &tex_path, &reference_ids),
     };
 
     Ok(result)
@@ -848,15 +846,16 @@ mod tests {
             _ => panic!("expected toggleReferenceCollection action"),
         }
 
-        let document_reference_params: ReferencesMutationApplyParams = serde_json::from_value(json!({
-            "snapshot": sample_snapshot(),
-            "action": {
-                "type": "setDocumentReferenceIds",
-                "texPath": "/workspace/main.tex",
-                "referenceIds": ["ref-1"]
-            }
-        }))
-        .expect("deserialize setDocumentReferenceIds action from frontend payload");
+        let document_reference_params: ReferencesMutationApplyParams =
+            serde_json::from_value(json!({
+                "snapshot": sample_snapshot(),
+                "action": {
+                    "type": "setDocumentReferenceIds",
+                    "texPath": "/workspace/main.tex",
+                    "referenceIds": ["ref-1"]
+                }
+            }))
+            .expect("deserialize setDocumentReferenceIds action from frontend payload");
         match document_reference_params.action {
             ReferencesMutationAction::SetDocumentReferenceIds {
                 tex_path,
