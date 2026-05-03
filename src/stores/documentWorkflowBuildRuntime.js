@@ -2,6 +2,12 @@ import {
   getDocumentAdapterForFile,
   getDocumentAdapterForWorkflow,
 } from '../services/documentWorkflow/adapters/index.js'
+import {
+  buildPreviewStateRequest,
+  buildWorkflowUiStateRequest,
+  resolveArtifactReady,
+  resolveNativePreviewSupported,
+} from '../domains/document/documentWorkflowBuildStateRequests.js'
 import { getDocumentWorkflowStatusTone } from '../domains/document/documentWorkflowStatusTone.js'
 
 function resolveDocumentAdapter(filePath, options = {}) {
@@ -12,148 +18,11 @@ function resolveDocumentAdapter(filePath, options = {}) {
   return getDocumentAdapterForWorkflow(filePath)
 }
 
-function resolvePreferredPreviewKind(adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-  if (options.previewKind) return options.previewKind
-
-  const getPreferredPreviewKind = (
-    options.getPreferredPreviewKind
-    || workflowStore?.getPreferredPreviewKind?.bind(workflowStore)
-  )
-  return getPreferredPreviewKind?.(adapter.kind) || adapter.preview?.defaultKind || null
-}
-
-function normalizePreviewKind(adapter, previewKind) {
-  if (!adapter || !previewKind) return null
-  const supportedKinds = Array.isArray(adapter.preview?.supportedKinds)
-    ? adapter.preview.supportedKinds
-    : []
-  return supportedKinds.includes(previewKind) ? previewKind : adapter.preview?.defaultKind || null
-}
-
-function resolveRequestedPreviewKind(filePath, adapter, options = {}, workflowStore = null) {
-  if (!adapter) return null
-
-  const session = options.session || workflowStore?.session || {}
-  const preferredPreviewKind = resolvePreferredPreviewKind(adapter, options, workflowStore)
-  const workspacePreviewRequest = normalizePreviewKind(
-    adapter,
-    options.workspacePreviewRequest || workflowStore?.getWorkspacePreviewRequestForFile?.(filePath),
-  )
-
-  if (workspacePreviewRequest) {
-    return workspacePreviewRequest
-  }
-
-  if (session.activeFile === filePath) {
-    const sessionPreviewKind = normalizePreviewKind(adapter, session.previewKind)
-    return sessionPreviewKind || preferredPreviewKind
-  }
-  return normalizePreviewKind(adapter, preferredPreviewKind)
-}
-
-function resolveResolvedPreviewTargetPath(filePath, adapter, context, options = {}) {
-  if (options.resolvedTargetPath || options.previewTargetPath) {
-    return options.resolvedTargetPath || options.previewTargetPath || ''
-  }
-  return adapter?.preview?.getTargetPath?.(filePath, context, options) || ''
-}
-
-function resolveExpectedPreviewTargetPath(filePath, adapter, context, options = {}) {
-  if (options.expectedTargetPath) return options.expectedTargetPath
-  return adapter?.compile?.getArtifactPath?.(filePath, context, options) || ''
-}
-
-function resolveNativePreviewSupported(filePath, adapter, context, requestedPreviewKind, options = {}) {
-  void filePath
-  void context
-  void requestedPreviewKind
-  if (typeof options.nativePreviewSupported === 'boolean') {
-    return options.nativePreviewSupported
-  }
-  return true
-}
-
-function resolveArtifactReady(filePath, adapter, context) {
-  if (!adapter || !filePath) return false
-  if (adapter.kind === 'latex') {
-    const latexState = context.latexStore?.stateForFile?.(filePath) || null
-    return Boolean(
-      latexState?.pdfPath
-      || latexState?.previewPath
-      || context.workflowStore?.getLatexArtifactPathForFile?.(filePath),
-    )
-  }
-  return false
-}
-
-function resolvePreviewRequested(filePath, requestedPreviewKind, options = {}, workflowStore = null) {
-  const session = options.session || workflowStore?.session || {}
-  const activeSourcePath = session.previewSourcePath || session.activeFile || ''
-  if (!activeSourcePath || activeSourcePath !== filePath) return false
-  if (session.state !== 'workspace-preview') return false
-  if (requestedPreviewKind && session.previewKind && session.previewKind !== requestedPreviewKind) {
-    return false
-  }
-  return true
-}
-
-function buildPreviewStateRequest(filePath, adapter, context, options = {}) {
-  if (!adapter) return null
-
-  const requestedPreviewKind = resolveRequestedPreviewKind(filePath, adapter, options, context.workflowStore)
-  return {
-    path: filePath,
-    sourcePath: options.sourcePath || '',
-    workflowKind: adapter.kind,
-    workflowPreviewKind: requestedPreviewKind || '',
-    previewKind: requestedPreviewKind,
-    resolvedTargetPath: resolveResolvedPreviewTargetPath(filePath, adapter, context, options),
-    targetResolution: options.targetResolution || '',
-    previewRequested: resolvePreviewRequested(
-      filePath,
-      requestedPreviewKind,
-      options,
-      context.workflowStore,
-    ),
-    artifactReady: resolveArtifactReady(filePath, adapter, context),
-    hiddenByUser: context.workflowStore?.isWorkspacePreviewHiddenForFile?.(filePath) === true,
-  }
-}
-
 function resolvePreviewState(filePath, adapter, context, options = {}) {
   if (!adapter) return null
 
   const request = buildPreviewStateRequest(filePath, adapter, context, options)
   return context.workflowStore?.ensureResolvedWorkspacePreviewState?.(filePath, request) || null
-}
-
-function buildWorkflowUiStateRequest(filePath, adapter, context, options = {}, previewState = null) {
-  if (!adapter) return null
-  const markdownPreviewState = adapter.kind === 'markdown'
-    ? context.workflowStore?.markdownPreviewState?.[filePath] || {}
-    : null
-
-  return {
-    filePath,
-    artifactPath: resolveExpectedPreviewTargetPath(filePath, adapter, context, options),
-    previewState,
-    markdownState: adapter.kind === 'markdown'
-      ? {
-          ...markdownPreviewState,
-          problems: adapter.getProblems?.(filePath, context) || [],
-        }
-      : null,
-    latexState: adapter.kind === 'latex'
-      ? context.latexStore?.stateForFile?.(filePath) || {}
-      : null,
-    pythonState: adapter.kind === 'python'
-      ? context.pythonStore?.stateForFile?.(filePath) || {}
-      : null,
-    queueState: adapter.kind === 'latex'
-      ? context.latexStore?.queueStateForFile?.(filePath) || {}
-      : null,
-  }
 }
 
 function resolveWorkflowUiState(filePath, adapter, context, options = {}, previewState = null) {

@@ -250,6 +250,7 @@ Components over 500 lines:
 - 2026-05-02: Document workflow controller orchestration moved from `src/domains/document/documentWorkflowRuntime.js` to `src/stores/documentWorkflowRuntime.js`, so Rust controller invocation and editor pane mutation no longer live in the pure domain layer.
 - 2026-05-02: Document workflow build context orchestration moved from `src/domains/document/documentWorkflowBuildRuntime.js` to `src/stores/documentWorkflowBuildRuntime.js`; the pure status-tone helper remains in `src/domains/document/documentWorkflowStatusTone.js`.
 - 2026-05-02: Document workflow session persistence, preview binding mutation, LaTeX artifact reconciliation, and workspace preview request state moved from `src/domains/document/documentWorkflowSessionRuntime.js` to `src/stores/documentWorkflowSessionRuntime.js`. After this move, non-editor `src/domains/document/**` modules no longer import services or stores.
+- 2026-05-03: Document workflow preview/workflow UI state request derivation moved from `src/stores/documentWorkflowBuildRuntime.js` into `src/domains/document/documentWorkflowBuildStateRequests.js`. The store runtime now keeps adapter resolution, store context assembly, and cache orchestration, while deterministic preview-kind, artifact-ready, native-preview, preview-state request, and workflow-ui request shaping lives in the pure domain layer.
 
 ## Extension Runtime Cleanup Log
 
