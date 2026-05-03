@@ -152,6 +152,12 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <div class="settings-row-title">{{ t('Interpreter') }}</div>
+            <div
+              v-if="pythonEnvironmentError"
+              class="settings-row-hint text-error"
+            >
+              {{ pythonEnvironmentError }}
+            </div>
           </div>
           <div class="settings-row-control">
             <UiSelect
@@ -167,8 +173,8 @@
             <div class="settings-row-title">{{ t('Runtime') }}</div>
           </div>
           <div class="settings-row-control compact diagnostic-status">
-            <span class="status-dot" :class="pythonDiagnosticsDotClass"></span>
-            <span class="status-text">{{ pythonDiagnosticsText }}</span>
+            <span class="status-dot" :class="pythonDiagnostics.dotClass"></span>
+            <span class="status-text">{{ pythonDiagnostics.text }}</span>
           </div>
         </div>
       </div>
@@ -177,15 +183,20 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useLatexStore } from '../../stores/latex'
 import { usePythonStore } from '../../stores/python'
 import { useI18n } from '../../i18n'
+import {
+  buildPythonDiagnosticsPresentation,
+  buildPythonInterpreterOptions,
+} from '../../domains/settings/pythonEnvironmentPresentation'
 import UiSelect from '../shared/ui/UiSelect.vue'
 
 const latexStore = useLatexStore()
 const pythonStore = usePythonStore()
 const { t } = useI18n()
+const environmentLoadError = ref('')
 
 const compilerOptions = computed(() => [
   { value: 'auto', label: t('Auto (prefer System TeX)') },
@@ -199,43 +210,11 @@ const engineOptions = computed(() => [
   { value: 'lualatex', label: 'LuaLaTeX' },
 ])
 const pythonInterpreterOptions = computed(() => {
-  const options = [
-    {
-      value: 'auto',
-      label: t('Auto'),
-      triggerLabel: t('Auto'),
-    },
-  ]
-
-  for (const runtime of pythonStore.availableInterpreters) {
-    const runtimePath = String(runtime?.path || '').trim()
-    if (!runtimePath) continue
-
-    const versionLabel = runtime?.version
-      ? `Python ${runtime.version}`
-      : t('Python')
-
-    options.push({
-      value: runtimePath,
-      label: versionLabel,
-      triggerLabel: versionLabel,
-    })
-  }
-
-  if (
-    pythonStore.interpreterPreference !== 'auto' &&
-    !options.some(
-      (option) => option.value === pythonStore.interpreterPreference,
-    )
-  ) {
-    options.push({
-      value: pythonStore.interpreterPreference,
-      label: `${t('Unavailable interpreter')} · ${pythonStore.interpreterPreference}`,
-      triggerLabel: t('Unavailable interpreter'),
-    })
-  }
-
-  return options
+  return buildPythonInterpreterOptions({
+    interpreters: pythonStore.availableInterpreters,
+    interpreterPreference: pythonStore.interpreterPreference,
+    translate: t,
+  })
 })
 
 const compilerPreference = computed({
@@ -251,29 +230,14 @@ const pythonInterpreterPreference = computed({
   set: (value) => pythonStore.setInterpreterPreference(value),
 })
 
-const pythonDiagnosticsDotClass = computed(() => {
-  if (pythonStore.hasInterpreter) return 'is-good'
-  if (pythonStore.detectedInterpreterCount > 0) return 'is-none'
-  return 'is-none'
-})
-
-const pythonDiagnosticsText = computed(() => {
-  if (pythonStore.hasInterpreter) {
-    return pythonStore.interpreter.version
-      ? `Python ${pythonStore.interpreter.version}`
-      : t('Selected')
-  }
-
-  if (
-    pythonStore.interpreterPreference !== 'auto' &&
-    pythonStore.detectedInterpreterCount > 0
-  ) {
-    return t('Unavailable')
-  }
-
-  return pythonStore.detectedInterpreterCount > 0
-    ? t('Available')
-    : t('Not found')
+const pythonDiagnostics = computed(() => {
+  return buildPythonDiagnosticsPresentation({
+    hasInterpreter: pythonStore.hasInterpreter,
+    interpreter: pythonStore.interpreter,
+    interpreterPreference: pythonStore.interpreterPreference,
+    detectedInterpreterCount: pythonStore.detectedInterpreterCount,
+    translate: t,
+  })
 })
 
 const isRefreshingDiagnostics = computed(
@@ -283,12 +247,22 @@ const isRefreshingDiagnostics = computed(
     latexStore.checkingTools,
 )
 
+const pythonEnvironmentError = computed(() => {
+  return pythonStore.environmentError || environmentLoadError.value
+})
+
 async function redetectSystem() {
-  await Promise.all([
-    pythonStore.checkInterpreter(true),
-    latexStore.checkCompilers(true),
-    latexStore.checkTools(true),
-  ])
+  environmentLoadError.value = ''
+  try {
+    await Promise.all([
+      pythonStore.checkInterpreter(true),
+      latexStore.checkCompilers(true),
+      latexStore.checkTools(true),
+    ])
+  } catch (error) {
+    environmentLoadError.value =
+      error?.message || String(error || t('Failed to refresh diagnostics'))
+  }
 }
 
 onMounted(() => {
@@ -299,7 +273,10 @@ onMounted(() => {
         pythonStore.checkInterpreter(),
         latexStore.checkCompilers(),
         latexStore.checkTools(),
-      ]).catch(() => {})
+      ]).catch((error) => {
+        environmentLoadError.value =
+          error?.message || String(error || t('Failed to load environment diagnostics'))
+      })
     })
   }
 })

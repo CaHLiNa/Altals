@@ -20,6 +20,10 @@ function createInterpreterState() {
   }
 }
 
+function errorMessage(error, fallback) {
+  return String(error?.message || error || fallback).trim() || fallback
+}
+
 const PYTHON_PREFERENCE_KEYS = ['interpreterPreference']
 
 export const usePythonStore = defineStore('python', {
@@ -29,6 +33,8 @@ export const usePythonStore = defineStore('python', {
     selectedInterpreter: createInterpreterState(),
     availableInterpreters: [],
     checkingInterpreter: false,
+    preferenceError: '',
+    interpreterError: '',
     _preferencesHydrated: false,
     compileState: {},
   }),
@@ -39,6 +45,7 @@ export const usePythonStore = defineStore('python', {
     selectedInterpreterAvailable: (state) =>
       state.interpreterPreference === 'auto' || state.selectedInterpreter.found === true,
     stateForFile: (state) => (filePath) => state.compileState[filePath] || null,
+    environmentError: (state) => state.preferenceError || state.interpreterError,
   },
 
   actions: {
@@ -60,12 +67,18 @@ export const usePythonStore = defineStore('python', {
     async hydratePreferences(force = false) {
       if (!force && this._preferencesHydrated) return this.snapshotPreferences()
 
-      const workspaceStore = useWorkspaceStore()
-      const globalConfigDir = await workspaceStore.ensureGlobalConfigDir()
-      const preferences = await loadPythonPreferencesFromRust(globalConfigDir)
-      this.applyPreferenceState(preferences)
-      this._preferencesHydrated = true
-      return preferences
+      try {
+        const workspaceStore = useWorkspaceStore()
+        const globalConfigDir = await workspaceStore.ensureGlobalConfigDir()
+        const preferences = await loadPythonPreferencesFromRust(globalConfigDir)
+        this.applyPreferenceState(preferences)
+        this.preferenceError = ''
+        this._preferencesHydrated = true
+        return preferences
+      } catch (error) {
+        this.preferenceError = errorMessage(error, 'Failed to load Python preferences.')
+        throw error
+      }
     },
 
     async persistPreferences(patch = {}) {
@@ -83,10 +96,12 @@ export const usePythonStore = defineStore('python', {
       try {
         const preferences = await savePythonPreferencesToRust(globalConfigDir, optimistic)
         this.applyPreferenceState(preferences)
+        this.preferenceError = ''
         this._preferencesHydrated = true
         return preferences
       } catch (error) {
         this.applyPreferenceState(previous)
+        this.preferenceError = errorMessage(error, 'Failed to save Python preferences.')
         throw error
       }
     },
@@ -101,7 +116,11 @@ export const usePythonStore = defineStore('python', {
     async checkInterpreter(force = false) {
       if (this.checkingInterpreter && !force) return this.interpreter
       if (!this._preferencesHydrated) {
-        await this.hydratePreferences().catch(() => {})
+        try {
+          await this.hydratePreferences()
+        } catch {
+          // Runtime discovery can still run with the default preference.
+        }
       }
 
       this.checkingInterpreter = true
@@ -110,11 +129,13 @@ export const usePythonStore = defineStore('python', {
         this.availableInterpreters = result.interpreters
         this.selectedInterpreter = result.selectedInterpreter
         this.interpreter = result.resolvedInterpreter
+        this.interpreterError = ''
         return this.interpreter
-      } catch {
+      } catch (error) {
         this.interpreter = createInterpreterState()
         this.selectedInterpreter = createInterpreterState()
         this.availableInterpreters = []
+        this.interpreterError = errorMessage(error, 'Failed to check Python interpreter.')
         return this.interpreter
       } finally {
         this.checkingInterpreter = false
@@ -136,7 +157,11 @@ export const usePythonStore = defineStore('python', {
       const normalizedPath = String(filePath || '').trim()
       if (!normalizedPath) return null
       if (!this._preferencesHydrated) {
-        await this.hydratePreferences().catch(() => {})
+        try {
+          await this.hydratePreferences()
+        } catch {
+          // Compilation can still fall back to the default runtime preference.
+        }
       }
 
       const previousState = this.stateForFile(normalizedPath) || null
@@ -177,7 +202,7 @@ export const usePythonStore = defineStore('python', {
         this.setCompileState(normalizedPath, nextState)
         return nextState
       } catch (error) {
-        await this.checkInterpreter(true).catch(() => {})
+        await this.checkInterpreter(true)
         const message = String(error?.message || error || 'Python compile failed.')
         const nextState = {
           status: 'error',

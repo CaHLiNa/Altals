@@ -198,7 +198,7 @@ Components over 500 lines:
 | `src/stores/files.js` | 946 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
 | `src/stores/latex.js` | 923 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
 | `src/stores/links.js` | 333 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
-| `src/stores/python.js` | 200 | Python preferences and compile/run state | Medium; runtime resolution should remain Rust-owned. |
+| `src/stores/python.js` | 225 | Python preferences, environment error state, and compile/run state | Medium; runtime resolution should remain Rust-owned. |
 | `src/stores/references.js` | 935 | Reference selection, collections, import, persistence, mutation orchestration | High; Phase 5 should keep normalization/merge/persistence Rust-owned. |
 | `src/stores/toast.js` | 48 | Toast UI | Low. |
 | `src/stores/utils.js` | 10 | Store utilities | Low. |
@@ -215,7 +215,7 @@ Components over 500 lines:
 
 `src/stores/latex.js` owns LaTeX-facing UI state: preference hydration, selected compiler/engine options, compile progress/status, per-file diagnostics presented to the UI, terminal log dispatch, stream listener setup, and PDF artifact refresh coordination. It may resolve compile requests through `src/services/latex/**` and update UI state from returned DTOs, but compile target planning, process execution, diagnostics extraction, tool discovery, SyncTeX parsing, and persisted preference normalization remain Rust/service authority.
 
-`src/stores/python.js` owns Python-facing UI state: interpreter preference hydration, detected interpreter display state, available interpreter list, checking flags, and per-file compile/run result state. It may call Python runtime/preference services and present their adapted DTOs, but interpreter discovery, runtime execution, command normalization, and persisted preference schema remain Rust/service authority.
+`src/stores/python.js` owns Python-facing UI state: interpreter preference hydration, detected interpreter display state, available interpreter list, checking flags, user-visible preference/runtime error state, and per-file compile/run result state. It may call Python runtime/preference services and present their adapted DTOs, but interpreter discovery, runtime execution, command normalization, and persisted preference schema remain Rust/service authority.
 
 `src/stores/documentWorkflow.js` owns cross-document workflow coordination for the UI: preview preferences, session/preview bindings, workspace preview visibility, workflow UI state caches, artifact path state, and actions that bridge editor, file, LaTeX, Python, reference, and workspace stores. It may create store-local runtime coordinators and call document workflow services, but document kind policy, build/preview resolution DTOs, persisted session schema, and native/open-file effects must stay in services or Rust-backed contracts.
 
@@ -243,6 +243,7 @@ Components over 500 lines:
 ## Document Runtime Cleanup Log
 
 - 2026-05-02: `src/stores/python.js` no longer normalizes raw Python runtime command DTOs itself. `src/services/pythonRuntime.js` now adapts `python_runtime_list`, `python_runtime_detect`, and `python_runtime_compile` responses into stable frontend DTOs, while Rust `src-tauri/src/python_runtime.rs` remains the runtime discovery and execution authority and the Pinia store keeps compile UI state only.
+- 2026-05-03: Python environment settings now use pure presentation helpers in `src/domains/settings/pythonEnvironmentPresentation.js` for interpreter select options and diagnostics labels. `src/stores/python.js` records preference/runtime discovery failures in store state, and `SettingsEnvironment.vue` displays that state inline instead of swallowing initial environment-load failures.
 - 2026-05-02: `src/services/latex/runtime.js` now normalizes `latex_runtime_compile_execute` responses into a stable bridge DTO with camelCase aliases while preserving Rust result fields. `src/stores/latex.js` consumes the adapted compile result for PDF refresh metadata and keeps compile UI orchestration, with compile execution and diagnostics still owned by Rust.
 - 2026-05-02: Frontend PDF SyncTeX no longer reads or parses `.synctex` content through the removed LaTeXWorkshop JS fallback. `src/services/pdf/artifactPreview.js` now delegates forward/backward SyncTeX to Rust commands only, and `src-tauri/src/latex.rs` owns CLI execution plus parser fallback for SyncTeX files under the workspace scope.
 - 2026-05-02: `src/domains/document/documentWorkflowResolvedStateRuntime.js` was split so pure resolved-state cache keys live in `src/domains/document/documentWorkflowResolvedStateKeys.js`, while Rust-backed Markdown/workflow/preview resolution calls and Pinia inflight cache coordination live in `src/stores/documentWorkflowResolvedStateActions.js`.
