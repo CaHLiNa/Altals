@@ -870,6 +870,11 @@ npm run verify
 - [ ] Enable/disable an extension if a local extension is present.
 - [ ] Close and reopen workspace; verify tabs/layout/reference state persist.
 
+**Progress notes:**
+
+- 2026-05-03: Final automated E2E gate passed with `npm run verify`. This covered UI bridge, JS layer, PDF runtime, TextMate runtime, extension host/probe contracts, Vite build, bundle budget, Rust check, and Rust tests. The only retained warnings are the documented frozen editor-domain layer warning and the known Vite dynamic/static store chunk warnings.
+- 2026-05-03: Completion audit found no remaining service pure re-export files, no empty frontend JS/Vue modules, no stale compatibility-export notes in the plan/map, and no uncommitted worktree changes. Manual desktop smoke remains a user-hand-judged step per repository guidance and was not automated here.
+
 **Final commit if verification-only fixes were needed:**
 
 ```sh
