@@ -25,6 +25,9 @@
       </div>
     </div>
     <div class="settings-group-body">
+      <div v-if="errorMessage" class="extension-empty-row is-error">
+        {{ errorMessage }}
+      </div>
       <div v-if="loading" class="extension-empty-row">
         {{ t('Loading extensions...') }}
       </div>
@@ -92,6 +95,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  errorMessage: {
+    type: String,
+    default: '',
+  },
 })
 
 const { t } = useI18n()
@@ -118,3 +125,15 @@ function hasOptions(extension = {}) {
   return buildExtensionSettingGroups(extension).length > 0
 }
 </script>
+
+<style scoped>
+.extension-empty-row {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.extension-empty-row.is-error {
+  color: var(--error);
+}
+</style>

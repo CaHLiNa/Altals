@@ -95,6 +95,7 @@ export const useExtensionsStore = defineStore('extensions', {
     settingsHydrated: false,
     settingsFileExists: false,
     lastError: '',
+    taskError: '',
   }),
 
   getters: {
@@ -296,6 +297,7 @@ export const useExtensionsStore = defineStore('extensions', {
       this.loadingTasks = false
       this.tasks = []
       this.lastError = ''
+      this.taskError = ''
     },
 
     snapshotSettings() {
@@ -464,12 +466,25 @@ export const useExtensionsStore = defineStore('extensions', {
       }
     },
 
+    async refreshRegistryAndTasks(options = {}) {
+      const registry = await this.refreshRegistry(options)
+      await this.refreshTasks()
+      return {
+        registry,
+        tasks: this.tasks,
+      }
+    },
+
     async refreshTasks() {
       const workspace = useWorkspaceStore()
       this.loadingTasks = true
+      this.taskError = ''
       try {
         this.tasks = (await listExtensionTasks(workspace.path || '')).map(normalizeTask)
         return this.tasks
+      } catch (error) {
+        this.taskError = error?.message || String(error || '')
+        throw error
       } finally {
         this.loadingTasks = false
       }

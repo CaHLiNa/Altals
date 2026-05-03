@@ -667,6 +667,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Extracted Zotero settings presentation helpers into `src/domains/references/zoteroSettingsPresentation.js`, covering push-target value parsing, selected group derivation, collection tree flattening, and translated push-target options. Removed unused citation-format option computed values from `SettingsZotero.vue`.
 - 2026-05-03: Routed Zotero settings load and remote-library refresh failures into the existing inline error message instead of only writing to `console.error`, improving async failure visibility without adding new UI state.
 - 2026-05-03: Extracted Python environment interpreter-option and diagnostics presentation into `src/domains/settings/pythonEnvironmentPresentation.js`. `src/stores/python.js` now keeps visible preference/runtime discovery error state, and `SettingsEnvironment.vue` shows Python environment failures inline instead of silently swallowing initial diagnostics load errors.
+- 2026-05-03: Added `extensionsStore.refreshRegistryAndTasks()` and routed extension settings/action-button refresh callers through that store action instead of duplicating `refreshRegistry()` plus `refreshTasks()` in components. Task refresh errors now persist in store state and settings refresh failures surface through existing toast/inline status mechanisms.
 
 ### Phase 10: Service Bridge Cleanup
 

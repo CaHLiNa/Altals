@@ -164,7 +164,12 @@ watch(
     if (!isVisible) return
     query.value = ''
     activeIndex.value = 0
-    await extensionsStore.refreshRegistry().catch(() => {})
+    await extensionsStore.refreshRegistry().catch((error) => {
+      toastStore.show(error?.message || String(error || t('Failed to refresh extensions')), {
+        type: 'error',
+        duration: 3600,
+      })
+    })
     await nextTick()
     inputRef.value?.focus?.()
   }

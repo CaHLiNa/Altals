@@ -33,8 +33,7 @@ const surfaceContext = computed(() => buildSurfaceContext(props.target, props.co
 const actions = computed(() => extensionsStore.menuActionsForSurface(props.surface, surfaceContext.value))
 
 onMounted(() => {
-  void extensionsStore.refreshRegistry().catch(() => {})
-  void extensionsStore.refreshTasks().catch(() => {})
+  void extensionsStore.refreshRegistryAndTasks().catch(() => {})
 })
 </script>
 

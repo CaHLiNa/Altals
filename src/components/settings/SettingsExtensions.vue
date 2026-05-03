@@ -32,7 +32,8 @@
       v-if="!selectedExtension"
       :extensions="extensions"
       :enabled-extension-ids="extensionsStore.enabledExtensionIds"
-      :loading="extensionsStore.loadingRegistry"
+      :loading="extensionListLoading"
+      :error-message="extensionsStore.lastError || extensionsStore.taskError"
       @refresh="refreshExtensionRegistry"
       @open-install-folder="openExtensionInstallFolder"
       @open-options="openExtensionOptions"
@@ -83,6 +84,9 @@ const extensionsStore = useExtensionsStore()
 const workspaceStore = useWorkspaceStore()
 const toastStore = useToastStore()
 const extensions = computed(() => extensionsStore.registry)
+const extensionListLoading = computed(() =>
+  extensionsStore.loadingRegistry || extensionsStore.loadingTasks
+)
 const hostRuntimeRestartBusyKey = ref('')
 const selectedExtensionId = ref('')
 const settingDrafts = reactive({})
@@ -325,8 +329,14 @@ async function restartHostRuntime() {
 }
 
 async function refreshExtensionRegistry() {
-  await extensionsStore.refreshRegistry().catch(() => {})
-  await extensionsStore.refreshTasks().catch(() => {})
+  try {
+    await extensionsStore.refreshRegistryAndTasks()
+  } catch (error) {
+    toastStore.show(error?.message || String(error || t('Failed to refresh extensions')), {
+      type: 'error',
+      duration: 4200,
+    })
+  }
 }
 
 async function openExtensionInstallFolder() {
