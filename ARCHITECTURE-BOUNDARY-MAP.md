@@ -142,7 +142,6 @@ Service files over 150 lines require later bridge-thinning review:
 
 | File | Lines | Classification | Follow-up |
 | --- | ---: | --- | --- |
-| `src/services/appUpdater.js` | 152 | Bridge-heavy with event mapping | Keep as service; ensure no persisted policy creeps in. |
 | `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
 | `src/services/latex/previewSync.js` | 162 | UI/runtime sync adapter | Keep presentation sync frontend-owned; audit for backend policy. |
 | `src/services/markdown/preview.js` | 311 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
@@ -264,6 +263,7 @@ Components over 500 lines:
 - 2026-05-03: Phase 7 verification passed with full `npm run verify`. The only escalation needed was for `probe:retain-pdf-extension`, which writes generated runtime files under `~/.scribeflow/extensions/retain-pdf/.runtime`; no code regression was found.
 - 2026-05-03: Extension sidebar tone class normalization moved from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation as a pure extension domain helper.
 - 2026-05-03: Extension document action progress state, width, and tone class derivation moved from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`.
+- 2026-05-03: App update version comparison and installer asset selection moved from `src/services/appUpdater.js` into pure settings domain helper `src/domains/settings/appUpdatePresentation.js`. The updater service now stays below the 150-line review threshold and focuses on app version, GitHub fetch, Tauri download/reveal, external link, and progress event bridging.
 - 2026-05-03: Reference BibTeX and detailed JSON export writes moved from `ReferenceLibraryWorkbench.vue` into `src/stores/references.js` actions, leaving the component responsible for dialog and notification orchestration only.
 - 2026-05-03: Zotero manual sync routing moved behind `referencesStore.syncZoteroNow()`, so `SettingsZotero.vue` no longer passes the references store into the Zotero service layer.
 - 2026-05-03: Removed unused LaTeX preference setters for build extra args and custom system TeX path from `src/stores/latex.js`; persisted fields remain readable for existing runtime requests, but deleted settings no longer leave callable store entry points.
