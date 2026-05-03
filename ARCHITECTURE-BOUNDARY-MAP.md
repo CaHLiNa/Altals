@@ -163,7 +163,8 @@ Components over 500 lines:
 | `src/components/editor/PdfEmbedDocumentSurface.vue` | 2485 | PDF/document runtime UI; high-risk Phase 6/8 candidate. |
 | `src/components/editor/TextEditor.vue` | 1962 | Frozen editor file. |
 | `src/components/editor/WorkspaceStarter.vue` | 724 | Workspace starter UI; Phase 8 candidate if behavior remains stable. |
-| `src/components/extensions/ExtensionSidebarPanel.vue` | 724 | Extension UI surface; Phase 7/8 candidate. |
+| `src/components/extensions/ExtensionSidebarPanel.vue` | 660 | Extension panel shell; Phase 8 extracted per-view rendering. |
+| `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
 | `src/components/layout/WorkbenchRail.vue` | 631 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
 | `src/components/panel/ReferenceDetailPanel.vue` | 1168 | Reference detail UI and draft handling; Phase 5/8 candidate. |
 | `src/components/references/ReferenceLibraryWorkbench.vue` | 1170 | Reference workbench UI and commands; Phase 5/8 candidate. |

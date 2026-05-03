@@ -29,94 +29,35 @@
     </div>
 
     <div v-else class="extension-sidebar-panel__views">
-      <section
+      <ExtensionSidebarViewSection
         v-for="view in views"
         :key="`${view.extensionId}:${view.id}`"
-        class="extension-sidebar-panel__section"
-      >
-        <div class="extension-sidebar-panel__section-header">
-          <div class="extension-sidebar-panel__view-title">
-            {{ t(resolvedViewTitle(view)) }}
-          </div>
-          <div class="extension-sidebar-panel__view-meta">
-            <span v-if="resolvedViewDescription(view)">{{ resolvedViewDescription(view) }}</span>
-            <span v-else>{{ view.id }}</span>
-          </div>
-          <ExtensionCountBadge
-            v-if="resolvedViewBadge(view) != null"
-            :value="resolvedViewBadge(view)"
-            :title="resolvedViewBadgeTooltip(view)"
-          />
-        </div>
-
-        <div v-if="resolvedViewMessage(view)" class="extension-sidebar-panel__view-message">
-          {{ resolvedViewMessage(view) }}
-        </div>
-
-        <div v-if="resolvedViewStatusLabel(view)" class="extension-sidebar-panel__status">
-          <ExtensionStatusPill
-            :label="resolvedViewStatusLabel(view)"
-            :tone-class="statusToneClass(resolvedViewStatusTone(view))"
-          />
-          <span v-if="resolvedViewActionLabel(view)" class="extension-sidebar-panel__status-action">
-            {{ resolvedViewActionLabel(view) }}
-          </span>
-        </div>
-
-        <div v-if="resolvedViewSections(view).length > 0" class="extension-sidebar-panel__summary">
-          <ExtensionSummaryCard
-            v-for="section in resolvedViewSections(view)"
-            :key="section.id"
-            :title="section.title"
-            :value="section.value"
-            :tone-class="summaryToneClass(section.tone)"
-          />
-        </div>
-
-        <div v-if="resolvedViewResults(view).length > 0" class="extension-sidebar-panel__results">
-          <div class="extension-sidebar-panel__results-title">{{ t('Results') }}</div>
-          <button
-            v-for="entry in resolvedViewResults(view)"
-            :key="entry.id"
-            type="button"
-            class="extension-sidebar-panel__result-entry"
-            :class="{ 'is-active': isActiveResultEntry(view, entry) }"
-            @click="selectResultEntry(view, entry)"
-          >
-            <span class="extension-sidebar-panel__result-label">{{ entry.label }}</span>
-            <span v-if="entry.description" class="extension-sidebar-panel__result-description">
-              {{ entry.description }}
-            </span>
-          </button>
-        </div>
-
-        <ExtensionResultPreview
-          v-if="activeResultEntry(view)"
-          :entry="activeResultEntry(view)"
-          :busy-action-key="resultActionBusyKey"
-          @run-action="openResultEntry"
-        />
-
-        <div v-if="resolvedItems(view).length === 0" class="extension-sidebar-panel__empty">
-          {{ t('No extension view items found') }}
-        </div>
-
-        <div class="extension-sidebar-panel__tree">
-          <ExtensionSidebarTreeNode
-            v-for="item in resolvedItems(view)"
-            :key="`${view.extensionId}:${view.id}:${item.handle || item.id}`"
-            :view="view"
-            :item="item"
-            :context="props.context"
-            :depth="0"
-            :expanded-item-keys="expandedItemKeys"
-            :child-items-resolver="(entry) => resolvedChildItems(view, entry)"
-            @run-command="(item) => runItemCommand(view, item)"
-            @toggle-expand="(item) => toggleItemExpansion(view, item)"
-            @run-item-action="runHeaderAction"
-          />
-        </div>
-      </section>
+        :view="view"
+        :context="props.context"
+        :expanded-item-keys="expandedItemKeys"
+        :result-action-busy-key="resultActionBusyKey"
+        :active-result-entry="activeResultEntry"
+        :is-active-result-entry="isActiveResultEntry"
+        :resolved-child-items="resolvedChildItems"
+        :resolved-items="resolvedItems"
+        :resolved-view-action-label="resolvedViewActionLabel"
+        :resolved-view-badge="resolvedViewBadge"
+        :resolved-view-badge-tooltip="resolvedViewBadgeTooltip"
+        :resolved-view-description="resolvedViewDescription"
+        :resolved-view-message="resolvedViewMessage"
+        :resolved-view-results="resolvedViewResults"
+        :resolved-view-sections="resolvedViewSections"
+        :resolved-view-status-label="resolvedViewStatusLabel"
+        :resolved-view-status-tone="resolvedViewStatusTone"
+        :resolved-view-title="resolvedViewTitle"
+        :status-tone-class="statusToneClass"
+        :summary-tone-class="summaryToneClass"
+        @open-result-entry="openResultEntry"
+        @run-header-action="runHeaderAction"
+        @run-item-command="runItemCommand"
+        @select-result-entry="selectResultEntry"
+        @toggle-item-expansion="toggleItemExpansion"
+      />
     </div>
   </div>
 </template>
@@ -130,11 +71,7 @@ import { describeExtensionCommandError } from '../../domains/extensions/extensio
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
-import ExtensionCountBadge from './ExtensionCountBadge.vue'
-import ExtensionStatusPill from './ExtensionStatusPill.vue'
-import ExtensionSummaryCard from './ExtensionSummaryCard.vue'
-import ExtensionSidebarTreeNode from './ExtensionSidebarTreeNode.vue'
-import ExtensionResultPreview from './ExtensionResultPreview.vue'
+import ExtensionSidebarViewSection from './ExtensionSidebarViewSection.vue'
 
 const props = defineProps({
   container: { type: Object, required: true },
