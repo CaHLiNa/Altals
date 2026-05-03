@@ -25,6 +25,70 @@ export function createDocumentWorkflowPersistentState() {
   }
 }
 
+function normalizeString(value = '') {
+  return String(value || '').trim()
+}
+
+function normalizeStringRecord(value = {}) {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, entry]) => [normalizeString(key), normalizeString(entry)])
+      .filter(([key, entry]) => key && entry),
+  )
+}
+
+function normalizeLatexPreviewStates(value = {}) {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, state = {}]) => [
+        normalizeString(key),
+        {
+          artifactPath: normalizeString(state?.artifactPath),
+          synctexPath: normalizeString(state?.synctexPath),
+          compileTargetPath: normalizeString(state?.compileTargetPath),
+          lastCompiled: Number(state?.lastCompiled || 0),
+          sourceFingerprint: normalizeString(state?.sourceFingerprint),
+        },
+      ])
+      .filter(([key]) => key),
+  )
+}
+
+function normalizeDocumentWorkflowPersistentState(state = {}) {
+  const defaults = createDocumentWorkflowPersistentState()
+  const session = state?.session || {}
+
+  return {
+    previewPrefs: state?.previewPrefs || defaults.previewPrefs,
+    session: {
+      activeFile: normalizeString(session.activeFile),
+      activeKind: normalizeString(session.activeKind),
+      sourcePaneId: normalizeString(session.sourcePaneId),
+      previewPaneId: normalizeString(session.previewPaneId),
+      previewKind: normalizeString(session.previewKind),
+      previewSourcePath: normalizeString(session.previewSourcePath),
+      state: normalizeString(session.state) || defaults.session.state,
+      detachedSources: session.detachedSources || {},
+    },
+    previewBindings: (Array.isArray(state?.previewBindings) ? state.previewBindings : [])
+      .filter((binding) => binding && typeof binding === 'object')
+      .map((binding) => ({
+        previewPath: normalizeString(binding.previewPath),
+        sourcePath: normalizeString(binding.sourcePath),
+        previewKind: normalizeString(binding.previewKind),
+        kind: normalizeString(binding.kind),
+        paneId: normalizeString(binding.paneId),
+        detachOnClose: binding.detachOnClose !== false,
+      })),
+    workspacePreviewVisibility: normalizeStringRecord(state?.workspacePreviewVisibility),
+    workspacePreviewRequests: normalizeStringRecord(state?.workspacePreviewRequests),
+    latexArtifactPaths: normalizeStringRecord(state?.latexArtifactPaths),
+    latexPreviewStates: normalizeLatexPreviewStates(state?.latexPreviewStates),
+  }
+}
+
 export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
   return invokeDocumentWorkflowBridge('document_workflow_session_load', {
     workspaceDataDir: String(workspaceDataDir || ''),
@@ -34,6 +98,6 @@ export async function loadDocumentWorkflowSessionState(workspaceDataDir = '') {
 export async function saveDocumentWorkflowSessionState(workspaceDataDir = '', state = {}) {
   return invokeDocumentWorkflowBridge('document_workflow_session_save', {
     workspaceDataDir: String(workspaceDataDir || ''),
-    state,
+    state: normalizeDocumentWorkflowPersistentState(state),
   })
 }

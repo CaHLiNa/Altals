@@ -52,4 +52,3 @@ libc = "0.2"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString", "NSData", "NSError", "NSURL"] }
 sys-locale = "0.3"
-window-vibrancy = "0.6"

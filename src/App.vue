@@ -7,7 +7,6 @@
       'is-left-resizing': isLeftSidebarResizing,
       'is-right-resizing': isRightSidebarResizing,
       'is-shell-resizing': isLeftSidebarResizing || isRightSidebarResizing,
-      'is-mac-vibrant': isMacDesktop && workspace.isOpen,
       'is-zen-mode': isZenMode
     }"
   >
@@ -174,7 +173,6 @@ import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { isNewTab, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
-import { isMac, isTauriDesktopRuntime } from './platform'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const SettingsSidebar = defineAsyncComponent(
@@ -198,8 +196,6 @@ const extensionsStore = useExtensionsStore()
 const extensionWindowUi = useExtensionWindowUiStore()
 const toastStore = useToastStore()
 const { t } = useI18n()
-const isMacDesktop = isMac && isTauriDesktopRuntime
-
 void applyAppWindowConstraints()
 
 const isZenMode = ref(false)
@@ -474,33 +470,9 @@ useAppTeardown({
   --inline-dock-motion-ease: var(--shell-panel-motion-ease);
 }
 
-.app-shell-root.is-mac-vibrant {
-  background: transparent;
-  --sidebar-shell-surface: var(--sidebar-vibrant-surface);
-  --sidebar-shell-blur: 24px;
-  --sidebar-shell-saturate: 0.92;
-}
-
 .app-shell-workspace {
   position: relative;
   min-height: 0;
-}
-
-.app-shell-root.is-mac-vibrant .app-shell-workspace,
-.app-shell-root.is-mac-vibrant .app-shell-workbench {
-  background: transparent;
-}
-
-.app-shell-root.is-mac-vibrant .app-shell-region-right {
-  background: color-mix(in srgb, var(--app-canvas) 88%, var(--surface-base) 12%);
-}
-
-.app-shell-root.is-mac-vibrant .app-shell-region-left.is-workspace-left-region {
-  backdrop-filter: blur(var(--sidebar-shell-blur)) saturate(var(--sidebar-shell-saturate));
-}
-
-.app-shell-root.is-mac-vibrant :deep(.left-shell-sidebar) {
-  border-right: none;
 }
 
 /* =========================================================================

@@ -3718,7 +3718,6 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
- "window-vibrancy",
 ]
 
 [[package]]

@@ -150,7 +150,6 @@ pub fn run() {
             extension_task_state
                 .inner()
                 .bind_app_handle(app.handle().clone());
-            macos_shell::apply_window_vibrancy(app.handle());
             Ok(())
         })
         .menu(|app| macos_shell::build_app_menu(app))

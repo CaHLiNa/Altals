@@ -1,30 +1,11 @@
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Manager, Runtime};
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
 const MENU_OPEN_FOLDER: &str = "menu-open-folder";
 const MENU_CLOSE_FOLDER: &str = "menu-close-folder";
 const MENU_NEW_FILE: &str = "menu-new-file";
 const MENU_OPEN_SETTINGS: &str = "menu-open-settings";
 const MENU_TOGGLE_LEFT_SIDEBAR: &str = "menu-toggle-left-sidebar";
-
-pub fn apply_window_vibrancy<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app
-        .get_webview_window("main")
-        .or_else(|| app.webview_windows().into_values().next())
-    else {
-        return;
-    };
-
-    if let Err(error) = apply_vibrancy(
-        &window,
-        NSVisualEffectMaterial::HudWindow,
-        Some(NSVisualEffectState::Active),
-        None,
-    ) {
-        eprintln!("Failed to apply macOS vibrancy: {error}");
-    }
-}
 
 fn detect_is_chinese_locale() -> bool {
     sys_locale::get_locale()
