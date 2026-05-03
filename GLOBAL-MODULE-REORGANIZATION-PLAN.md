@@ -668,6 +668,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Routed Zotero settings load and remote-library refresh failures into the existing inline error message instead of only writing to `console.error`, improving async failure visibility without adding new UI state.
 - 2026-05-03: Extracted Python environment interpreter-option and diagnostics presentation into `src/domains/settings/pythonEnvironmentPresentation.js`. `src/stores/python.js` now keeps visible preference/runtime discovery error state, and `SettingsEnvironment.vue` shows Python environment failures inline instead of silently swallowing initial diagnostics load errors.
 - 2026-05-03: Added `extensionsStore.refreshRegistryAndTasks()` and routed extension settings/action-button refresh callers through that store action instead of duplicating `refreshRegistry()` plus `refreshTasks()` in components. Task refresh errors now persist in store state and settings refresh failures surface through existing toast/inline status mechanisms.
+- 2026-05-03: Kept reference deletion's local snapshot commit authoritative while making best-effort Zotero remote-delete failures visible. `references` store now records `zoteroMutationError`, and the reference workbench displays that error instead of silently swallowing the failed remote cleanup.
 
 ### Phase 10: Service Bridge Cleanup
 

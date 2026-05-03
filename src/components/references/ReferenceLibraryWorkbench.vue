@@ -20,6 +20,13 @@
         @import-pdf="handleImportPdf"
       />
 
+      <div
+        v-if="referencesStore.zoteroMutationError"
+        class="reference-workbench__status ui-empty-copy is-error"
+      >
+        {{ referencesStore.zoteroMutationError }}
+      </div>
+
       <div v-if="referencesStore.isLoading" class="reference-workbench__empty ui-empty-copy">
         {{ t('Loading references...') }}
       </div>
@@ -839,5 +846,15 @@ async function handleExportBibTeX() {
 .reference-workbench__empty {
   padding: 24px;
   text-align: center;
+}
+
+.reference-workbench__status {
+  padding: 10px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.reference-workbench__status.is-error {
+  color: var(--error);
 }
 </style>

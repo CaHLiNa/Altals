@@ -158,6 +158,7 @@ export const useReferencesStore = defineStore('references', {
     }),
     isLoading: false,
     loadError: '',
+    zoteroMutationError: '',
     importInFlight: false,
   }),
 
@@ -817,7 +818,14 @@ export const useReferencesStore = defineStore('references', {
       })
 
       if (target._pushedByApp && target._zoteroKey) {
-        deleteFromZotero(target).catch(() => {})
+        deleteFromZotero(target)
+          .then(() => {
+            this.zoteroMutationError = ''
+          })
+          .catch((error) => {
+            this.zoteroMutationError =
+              error?.message || String(error || t('Failed to delete reference from Zotero'))
+          })
       }
       return true
     },
@@ -1033,6 +1041,7 @@ export const useReferencesStore = defineStore('references', {
       })
       this.isLoading = false
       this.loadError = ''
+      this.zoteroMutationError = ''
       this.importInFlight = false
     },
   },
