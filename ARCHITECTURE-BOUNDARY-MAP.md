@@ -276,6 +276,7 @@ Components over 500 lines:
 - 2026-05-03: `src-tauri/src/lib.rs` command registration gained subsystem grouping comments for filesystem/app utilities, extensions, references, document/runtime commands, workspace state, and legacy LaTeX compatibility commands. The registration order and command contracts were preserved.
 - 2026-05-03: `src-tauri/src/security.rs` now shares labeled allowed-root preparation helpers across workspace, data, global config, and Claude config root registration. The helper extraction keeps workspace security authority in Rust and preserves existing scoped validation error labels with a focused unit test.
 - 2026-05-03: `src-tauri/src/extension_host.rs` cfg boundaries now avoid probe/test-only unused variable and formatter warnings without changing extension host runtime behavior. Full Rust tests run without the previous extension host warning noise.
+- 2026-05-03: macOS menu, window vibrancy, locale-sensitive menu labels, and frontend menu-event dispatch moved from `src-tauri/src/lib.rs` into `src-tauri/src/macos_shell.rs`. The app entrypoint keeps only setup/menu hook wiring while preserving menu IDs and frontend event names.
 
 ## Phase 1 Verification Targets
 

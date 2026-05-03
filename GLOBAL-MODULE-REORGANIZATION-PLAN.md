@@ -796,6 +796,7 @@ git commit -m "refactor: organize rust runtime modules"
 - 2026-05-03: Added subsystem grouping comments to the `tauri::generate_handler!` command registration list in `src-tauri/src/lib.rs` without changing command names, order, parameters, or response shapes.
 - 2026-05-03: Extracted labeled allowed-root preparation helpers inside `src-tauri/src/security.rs` so workspace, data, global config, and Claude config root validation share one implementation while preserving existing scoped error labels. Added a unit test for the workspace-root file error contract.
 - 2026-05-03: Removed test-build warning noise in `src-tauri/src/extension_host.rs` by tightening cfg usage around probe-only workspace-root handling and the non-test pending-prompt owner formatter. Full Rust tests now run without extension-host unused/dead-code warnings.
+- 2026-05-03: Moved macOS menu, vibrancy, locale labeling, and frontend menu-event dispatch helpers from `src-tauri/src/lib.rs` into `src-tauri/src/macos_shell.rs`. `lib.rs` now keeps macOS shell setup as runtime wiring only; menu IDs, event names, and shell behavior are unchanged.
 
 ### Phase 12: Dead Code And Compatibility Cleanup
 
