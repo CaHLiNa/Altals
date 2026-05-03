@@ -1082,7 +1082,10 @@ pub fn cancel_window_inputs_for_extension_for_probe(
     workspace_root: &str,
 ) -> Result<ExtensionHostCancelWindowInputsResult, String> {
     let normalized_extension_id = extension_id.trim().to_ascii_lowercase();
+    #[cfg(not(test))]
     let normalized_workspace_root = workspace_root.trim().to_string();
+    #[cfg(test)]
+    let _ = workspace_root;
     if normalized_extension_id.is_empty() {
         return Err("Extension id is required".to_string());
     }
@@ -1370,6 +1373,7 @@ fn complete_pending_ui_requests_for_extension(
     Ok(matching)
 }
 
+#[cfg(not(test))]
 fn format_pending_prompt_owner(owner: &ExtensionHostPendingPromptOwner) -> String {
     format!("{}@{}", owner.extension_id, owner.workspace_root)
 }

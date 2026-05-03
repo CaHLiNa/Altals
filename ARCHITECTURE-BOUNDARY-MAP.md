@@ -275,6 +275,7 @@ Components over 500 lines:
 - 2026-05-03: Workspace URI scheme handling moved from `src-tauri/src/lib.rs` into `src-tauri/src/workspace_protocol.rs`. `lib.rs` now only registers the `scribeflow-workspace` protocol, while request path decoding, content-type mapping, scoped path resolution, and file response construction live in the workspace protocol module with focused unit tests. No Tauri command names, URI scheme name, or frontend payload shapes changed.
 - 2026-05-03: `src-tauri/src/lib.rs` command registration gained subsystem grouping comments for filesystem/app utilities, extensions, references, document/runtime commands, workspace state, and legacy LaTeX compatibility commands. The registration order and command contracts were preserved.
 - 2026-05-03: `src-tauri/src/security.rs` now shares labeled allowed-root preparation helpers across workspace, data, global config, and Claude config root registration. The helper extraction keeps workspace security authority in Rust and preserves existing scoped validation error labels with a focused unit test.
+- 2026-05-03: `src-tauri/src/extension_host.rs` cfg boundaries now avoid probe/test-only unused variable and formatter warnings without changing extension host runtime behavior. Full Rust tests run without the previous extension host warning noise.
 
 ## Phase 1 Verification Targets
 
