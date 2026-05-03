@@ -167,7 +167,6 @@ import {
   loadZoteroConfig,
   saveZoteroConfig,
   storeZoteroApiKey,
-  syncNow,
   validateApiKey,
 } from '../../services/references/zoteroSync.js'
 
@@ -373,7 +372,7 @@ async function handleSyncNow() {
   error.value = ''
   syncSummary.value = ''
   try {
-    const result = await syncNow(workspace.globalConfigDir, referencesStore)
+    const result = await referencesStore.syncZoteroNow(workspace.globalConfigDir)
     syncSummary.value = t('Imported {imported}, linked {linked}, updated {updated}', {
       imported: result.imported,
       linked: result.linked,

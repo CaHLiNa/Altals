@@ -43,7 +43,11 @@ import {
   scanWorkspaceCitationStyles,
   writeReferenceBibFile,
 } from '../services/references/referenceRuntime.js'
-import { deleteFromZotero, loadZoteroConfig } from '../services/references/zoteroSync.js'
+import {
+  deleteFromZotero,
+  loadZoteroConfig,
+  syncNow as syncZoteroNowWithBackend,
+} from '../services/references/zoteroSync.js'
 import {
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
@@ -918,6 +922,10 @@ export const useReferencesStore = defineStore('references', {
 
       await writeReferenceJsonExport(filePath, reference)
       return true
+    },
+
+    async syncZoteroNow(projectRoot = '') {
+      return syncZoteroNowWithBackend(projectRoot, this)
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {

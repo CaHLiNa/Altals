@@ -262,6 +262,7 @@ Components over 500 lines:
 - 2026-05-03: Extension sidebar tone class normalization moved from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation as a pure extension domain helper.
 - 2026-05-03: Extension document action progress state, width, and tone class derivation moved from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`.
 - 2026-05-03: Reference BibTeX and detailed JSON export writes moved from `ReferenceLibraryWorkbench.vue` into `src/stores/references.js` actions, leaving the component responsible for dialog and notification orchestration only.
+- 2026-05-03: Zotero manual sync routing moved behind `referencesStore.syncZoteroNow()`, so `SettingsZotero.vue` no longer passes the references store into the Zotero service layer.
 
 ## Phase 1 Verification Targets
 
