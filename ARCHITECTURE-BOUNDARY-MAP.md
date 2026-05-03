@@ -143,7 +143,6 @@ Service files over 150 lines require later bridge-thinning review:
 | File | Lines | Classification | Follow-up |
 | --- | ---: | --- | --- |
 | `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
-| `src/services/markdown/preview.js` | 311 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
 
 ## Large Vue Component Inventory
 
@@ -251,6 +250,7 @@ Components over 500 lines:
 - 2026-05-02: Document workflow build context orchestration moved from `src/domains/document/documentWorkflowBuildRuntime.js` to `src/stores/documentWorkflowBuildRuntime.js`; the pure status-tone helper remains in `src/domains/document/documentWorkflowStatusTone.js`.
 - 2026-05-02: Document workflow session persistence, preview binding mutation, LaTeX artifact reconciliation, and workspace preview request state moved from `src/domains/document/documentWorkflowSessionRuntime.js` to `src/stores/documentWorkflowSessionRuntime.js`. After this move, non-editor `src/domains/document/**` modules no longer import services or stores.
 - 2026-05-03: Document workflow preview/workflow UI state request derivation moved from `src/stores/documentWorkflowBuildRuntime.js` into `src/domains/document/documentWorkflowBuildStateRequests.js`. The store runtime now keeps adapter resolution, store context assembly, and cache orchestration, while deterministic preview-kind, artifact-ready, native-preview, preview-state request, and workflow-ui request shaping lives in the pure domain layer.
+- 2026-05-03: Markdown preview rendering was split into smaller presentation services. Syntax highlighting setup and the rehype code-block highlighter moved from `src/services/markdown/preview.js` into `src/services/markdown/highlight.js`; inline wiki-link draft decoration moved into `src/services/markdown/inlineDraftSyntax.js`. `preview.js` now stays below the 150-line review threshold and focuses on markdown processor composition, source anchors, sanitization, and the public render function.
 
 ## Extension Runtime Cleanup Log
 
