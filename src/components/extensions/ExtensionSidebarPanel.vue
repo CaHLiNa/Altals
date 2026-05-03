@@ -70,6 +70,7 @@ import { useToastStore } from '../../stores/toast'
 import { describeExtensionCommandError } from '../../domains/extensions/extensionCommandHostState'
 import { buildExtensionActionSurfaceState } from '../../domains/extensions/extensionActionSurfaceState'
 import { describeExtensionRuntimeBlockPresentation } from '../../domains/extensions/extensionRuntimeBlockPresentation'
+import { normalizeExtensionToneClass } from '../../domains/extensions/extensionToneClass'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 import ExtensionSidebarViewSection from './ExtensionSidebarViewSection.vue'
 
@@ -436,15 +437,8 @@ async function applyViewControllerState(view = {}) {
   }
 }
 
-function statusToneClass(tone = '') {
-  const normalized = String(tone || '').trim().toLowerCase()
-  return normalized ? `is-${normalized}` : ''
-}
-
-function summaryToneClass(tone = '') {
-  const normalized = String(tone || '').trim().toLowerCase()
-  return normalized ? `is-${normalized}` : ''
-}
+const statusToneClass = normalizeExtensionToneClass
+const summaryToneClass = normalizeExtensionToneClass
 
 function describeResultAction(entry = {}) {
   const action = String(entry?.action || '').trim().toLowerCase()
