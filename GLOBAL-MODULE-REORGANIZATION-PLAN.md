@@ -494,20 +494,21 @@ git commit -m "refactor: clarify document runtime boundaries"
 
 **Work:**
 
-- [ ] Audit `src/stores/extensions.js` and split UI coordination helpers into focused pure domain modules where they are deterministic and side-effect-free.
-- [ ] Keep host authority in Rust commands; do not move host decisions into the store.
-- [ ] Ensure command/capability/task cancellation paths always call Rust authority.
-- [ ] Keep blocked/waiting presentation in shared domain helpers.
-- [ ] Keep settings secure storage and workspace scoping Rust-owned.
-- [ ] Keep extension runtime probes green after each change.
-- [ ] Do not merge extension cleanup with reference or editor changes.
+- [x] Audit `src/stores/extensions.js` and split UI coordination helpers into focused pure domain modules where they are deterministic and side-effect-free.
+- [x] Keep host authority in Rust commands; do not move host decisions into the store.
+- [x] Ensure command/capability/task cancellation paths always call Rust authority.
+- [x] Keep blocked/waiting presentation in shared domain helpers.
+- [x] Keep settings secure storage and workspace scoping Rust-owned.
+- [x] Keep extension runtime probes green after each change.
+- [x] Do not merge extension cleanup with reference or editor changes.
 
 **Progress notes:**
 
-- 2026-05-02: Moved extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers from `src/stores/extensions.js` into `src/domains/extensions/extensionStoreState.js`. The store still owns Pinia/service orchestration, so Phase 7 remains open for further command/view presentation cleanup.
+- 2026-05-02: Moved extension/task/view/runtime DTO normalization and deterministic task/view derivation helpers from `src/stores/extensions.js` into `src/domains/extensions/extensionStoreState.js`. The store still owns Pinia/service orchestration while deterministic state shaping lives in the domain layer.
 - 2026-05-02: Moved deterministic result-entry generation and resolved/pushed view-state shaping into extension domain helpers. Service imports remain as compatibility re-exports while store actions now call `buildExtensionViewState`.
 - 2026-05-02: Moved extension menu/keybinding/command palette/sidebar/view action derivation from Pinia getters into pure extension domain helpers. Store getters remain as compatibility wrappers over store state.
 - 2026-05-02: Removed extension result-entry compatibility shims from `src/services/extensions`; result-entry presentation imports now point directly at the extension domain module.
+- 2026-05-03: Phase 7 code cleanup is closed. `src/services/extensions/**` is bridge-only again, extension result/view/task presentation is domain-owned, Rust remains the host authority for commands, tasks, cancellation, settings, prompts, artifacts, and view resolution, and full `npm run verify` passed after rerunning outside the sandbox for the RetainPDF home-directory write.
 
 **Verification:**
 

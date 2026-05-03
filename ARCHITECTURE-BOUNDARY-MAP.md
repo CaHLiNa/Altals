@@ -178,7 +178,7 @@ Components over 500 lines:
 | `src/stores/documentWorkflow.js` | 339 | Document workflow UI state and runtime orchestration | Needs store/domain/service separation after runtime contracts settle. |
 | `src/stores/editor.js` | 579 | Frozen editor shell/session state | Do not edit during this reorganization. |
 | `src/stores/extensionWindowUi.js` | 82 | Extension prompt window UI state | Low; keep UI-only. |
-| `src/stores/extensions.js` | 1346 | Extension registry, host state, tasks, prompts, views, commands | High; Phase 7 should keep extracting pure presentation helpers and keep host authority in Rust. |
+| `src/stores/extensions.js` | 1149 | Extension registry, host state, tasks, prompts, views, commands | Medium; Phase 7 extracted deterministic presentation/state helpers and kept host authority in Rust. |
 | `src/stores/files.js` | 949 | File tree, watcher lifecycle calls, mutation orchestration, draft files | High; Phase 3 should keep path/mutation authority Rust-owned and store UI-only orchestration. |
 | `src/stores/latex.js` | 924 | LaTeX preferences, build scheduling, compile state, logs | High; Phase 6 should keep compile planning/execution Rust-owned. |
 | `src/stores/links.js` | 334 | Markdown heading/link index and backlinks | Medium; decide whether parsing/indexing is UI helper or Rust document intelligence. |
@@ -221,6 +221,7 @@ Components over 500 lines:
 - 2026-05-02: Extension result-entry generation and view-state shaping moved into domain helpers. `src/domains/extensions/extensionResultEntries.js` now owns deterministic artifact/output/task fallback result entries, and `buildExtensionViewState` centralizes resolved/pushed view-state presentation shaping; `src/services/extensions/extensionResultEntries.js` remains a compatibility re-export.
 - 2026-05-02: Extension menu, keybinding, command palette, sidebar container, view, view-title action, and view-item action derivation moved from Pinia getters into `src/domains/extensions/extensionStoreState.js`. The store getters now pass registry, enabled ids, runtime registry, and context into pure helpers while keeping Pinia state ownership local.
 - 2026-05-02: Removed the extension result-entry compatibility shims from `src/services/extensions`. Components and probes now import deterministic artifact/task/result presentation helpers from `src/domains/extensions/extensionResultEntries.js`, leaving `src/services/extensions/**` focused on Tauri command/event bridge files.
+- 2026-05-03: Phase 7 verification passed with full `npm run verify`. The only escalation needed was for `probe:retain-pdf-extension`, which writes generated runtime files under `~/.scribeflow/extensions/retain-pdf/.runtime`; no code regression was found.
 
 ## Phase 1 Verification Targets
 
