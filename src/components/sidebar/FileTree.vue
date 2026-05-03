@@ -1,57 +1,16 @@
 <template>
   <div class="file-tree-shell flex flex-col flex-1 min-h-0 h-full">
-    <!-- Header -->
-    <div
+    <FileTreeHeader
       v-if="!props.embedded"
-      class="file-tree-header flex items-center h-7 shrink-0 px-2 gap-1 select-none"
-      :class="{ 'file-tree-header--with-divider': !collapsed && !props.embedded }"
-    >
-      <div
-        class="flex items-center gap-1 min-w-0 flex-1"
-        :class="{ 'cursor-pointer': headingCollapsible }"
-        @click="headingCollapsible ? $emit('toggle-collapse') : null"
-      >
-        <svg
-          v-if="headingCollapsible"
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          class="file-tree-chevron"
-          :class="{ 'file-tree-chevron-open': !collapsed }"
-        >
-          <path d="M6 4l4 4-4 4" />
-        </svg>
-        <span class="ui-sidebar-kicker truncate min-w-0">{{ headingLabel || workspaceName }}</span>
-      </div>
-      <div v-if="!collapsed" class="flex items-center gap-1 shrink-0">
-        <UiButton
-          class="file-tree-header-action"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          @click.stop="collapseAllFolders"
-          :title="t('Collapse All Folders')"
-          :aria-label="t('Collapse All Folders')"
-        >
-          <IconFolderMinus :size="17" :stroke-width="1.75" />
-        </UiButton>
-        <UiButton
-          ref="newBtnEl"
-          class="file-tree-header-action"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          @click.stop="toggleNewMenu"
-          :title="t('New File or Folder')"
-          :aria-label="t('New File or Folder')"
-        >
-          <IconPlus :size="15" :stroke-width="1.9" />
-        </UiButton>
-      </div>
-    </div>
+      :collapsed="collapsed"
+      :embedded="props.embedded"
+      :heading-collapsible="headingCollapsible"
+      :heading-label="headingLabel"
+      :workspace-name="workspaceName"
+      @collapse-all="collapseAllFolders"
+      @toggle-collapse="emit('toggle-collapse')"
+      @toggle-new-menu="toggleNewMenu"
+    />
 
     <template v-if="!collapsed">
       <div class="file-tree-body">
@@ -135,44 +94,11 @@
         </div>
       </div>
 
-      <div class="workspace-footer-action">
-        <UiButton
-          class="workspace-footer-icon-button"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :title="t('Settings ({shortcut})', { shortcut: `${modKey}+,` })"
-          :aria-label="t('Settings')"
-          @click.stop="emit('open-settings')"
-        >
-          <IconSettings :size="17" :stroke-width="1.8" />
-        </UiButton>
-
-        <UiButton
-          class="workspace-footer-action-button"
-          variant="ghost"
-          size="sm"
-          block
-          :title="t('Open Folder...')"
-          :aria-label="t('Open Folder...')"
-          @click.stop="emit('open-folder')"
-        >
-          {{ t('Open Folder...') }}
-        </UiButton>
-
-        <UiButton
-          ref="workspaceMenuAnchorEl"
-          class="workspace-footer-icon-button"
-          variant="ghost"
-          size="icon-sm"
-          icon-only
-          :title="t('Workspace Menu')"
-          :aria-label="t('Workspace Menu')"
-          @click.stop="toggleWorkspaceMenu"
-        >
-          <IconDotsVertical :size="17" :stroke-width="1.8" />
-        </UiButton>
-      </div>
+      <FileTreeFooter
+        @open-folder="emit('open-folder')"
+        @open-settings="emit('open-settings')"
+        @toggle-workspace-menu="toggleWorkspaceMenu"
+      />
 
       <!-- Context menu -->
       <ContextMenu
@@ -192,115 +118,26 @@
       />
 
       <!-- Workspace dropdown menu -->
-      <Teleport to="body">
-        <div
-          v-if="workspaceMenuOpen"
-          ref="workspaceMenuEl"
-          class="context-menu file-tree-workspace-menu file-tree-workspace-menu-popover"
-          :style="workspaceMenuStyle"
-          role="menu"
-          :aria-label="t('Workspace Menu')"
-        >
-          <button
-            type="button"
-            class="context-menu-item file-tree-workspace-item"
-            role="menuitem"
-            @click="handleWorkspaceMenuOpenFolder"
-          >
-            <span class="file-tree-workspace-item-label">{{ t('Open Folder...') }}</span>
-            <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }}+O</span>
-          </button>
-          <button
-            type="button"
-            class="context-menu-item file-tree-workspace-item"
-            role="menuitem"
-            @click="handleWorkspaceMenuOpenSettings"
-          >
-            <span class="file-tree-workspace-item-label">{{ t('Settings...') }}</span>
-            <span class="context-menu-ext file-tree-workspace-shortcut">{{ modKey }},</span>
-          </button>
-          <template v-if="recentWorkspaces.length">
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-section">{{ t('Recent') }}</div>
-            <button
-              v-for="recent in recentWorkspaces"
-              :key="recent.path"
-              type="button"
-              class="context-menu-item file-tree-workspace-item"
-              role="menuitem"
-              :title="recent.name"
-              @click="handleWorkspaceMenuOpenRecent(recent.path)"
-            >
-              <span class="file-tree-workspace-item-label">{{ recent.name }}</span>
-            </button>
-          </template>
-          <div class="context-menu-separator"></div>
-          <button
-            type="button"
-            class="context-menu-item file-tree-workspace-item"
-            role="menuitem"
-            @click="handleWorkspaceMenuCloseFolder"
-          >
-            <span class="file-tree-workspace-item-label">{{ t('Close Folder') }}</span>
-          </button>
-        </div>
-      </Teleport>
+      <FileTreeWorkspaceMenu
+        ref="workspaceMenuComponent"
+        :open="workspaceMenuOpen"
+        :menu-style="workspaceMenuStyle"
+        :recent-workspaces="recentWorkspaces"
+        @open-folder="handleWorkspaceMenuOpenFolder"
+        @open-settings="handleWorkspaceMenuOpenSettings"
+        @open-recent="handleWorkspaceMenuOpenRecent"
+        @close-folder="handleWorkspaceMenuCloseFolder"
+      />
 
       <!-- "+ New" dropdown menu -->
-      <Teleport to="body">
-        <div
-          v-if="newMenuOpen"
-          class="context-menu-backdrop"
-          @mousedown.prevent.stop="closeNewMenu"
-          @contextmenu.prevent.stop="closeNewMenu"
-        ></div>
-        <div
-          v-if="newMenuOpen"
-          ref="newMenuEl"
-          class="context-menu file-tree-new-menu"
-          :style="newMenuStyle"
-          @contextmenu.prevent.stop
-        >
-          <button
-            type="button"
-            class="context-menu-item"
-            @click.stop="handleNewMenuCreate({ ext: null, isDir: true })"
-          >
-            <IconFolderPlus :size="14" :stroke-width="1.5" />
-            <span class="file-tree-workspace-item-label">{{ t('New Folder') }}</span>
-          </button>
-          <button
-            type="button"
-            class="context-menu-item"
-            @click.stop="handleNewMenuCreate({ ext: null })"
-          >
-            <IconFilePlus :size="14" :stroke-width="1.5" />
-            <span class="file-tree-workspace-item-label">{{ t('New File...') }}</span>
-          </button>
-          <div class="context-menu-separator"></div>
-          <button
-            v-for="template in documentTemplates"
-            :key="template.id"
-            type="button"
-            class="context-menu-item"
-            @click.stop="
-              handleNewMenuCreate({
-                ext: template.ext,
-                suggestedName: template.filename,
-                initialContent: template.content,
-              })
-            "
-          >
-            <component
-              :is="template.ext === '.tex' ? IconMath : IconFileText"
-              :size="14"
-              :stroke-width="1.5"
-            />
-            <span class="file-tree-workspace-item-label">{{ template.label }}</span>
-            <span class="context-menu-ext">{{ template.ext }}</span>
-          </button>
-        </div>
-      </Teleport>
+      <FileTreeNewMenu
+        ref="newMenuComponent"
+        :open="newMenuOpen"
+        :menu-style="newMenuStyle"
+        :document-templates="documentTemplates"
+        @close="closeNewMenu"
+        @create="handleNewMenuCreate"
+      />
 
       <!-- Drag ghost -->
       <Teleport to="body">
@@ -325,21 +162,14 @@ import { DOCUMENT_DOCK_FILE_PAGE } from '../../domains/editor/documentDockPages.
 import { applyFileTreeDisplayPreferences } from '../../domains/files/fileTreeDisplayRuntime'
 import { listWorkspaceFlatFileEntries } from '../../domains/files/workspaceSnapshotFlatFilesRuntime'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
+import FileTreeFooter from './FileTreeFooter.vue'
+import FileTreeHeader from './FileTreeHeader.vue'
 import FileTreeItem from './FileTreeItem.vue'
-import { isMod, modKey } from '../../platform'
+import FileTreeNewMenu from './FileTreeNewMenu.vue'
+import FileTreeWorkspaceMenu from './FileTreeWorkspaceMenu.vue'
+import { isMod } from '../../platform'
 import ContextMenu from './ContextMenu.vue'
-import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
-import {
-  IconFolderMinus,
-  IconPlus,
-  IconFileText,
-  IconMath,
-  IconFilePlus,
-  IconFolderPlus,
-  IconDotsVertical,
-  IconSettings,
-} from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { revealPathInFileManager, workspacePathExists } from '../../services/fileTreeSystem'
 import { askNativeDialog } from '../../services/nativeDialog.js'
@@ -389,8 +219,8 @@ const fileTreeDisplayEntries = computed(() =>
 const treeContainer = ref(null)
 const renameInput = ref(null)
 const workspaceMenuAnchorEl = ref(null)
-const workspaceMenuEl = ref(null)
-const newBtnEl = ref(null)
+const workspaceMenuComponent = ref(null)
+const newMenuComponent = ref(null)
 const newMenuAnchorOverride = ref(null)
 const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
@@ -502,7 +332,10 @@ const workspaceMenuStyle = computed(() => ({
   bottom: `${workspaceMenuPosition.bottom}px`,
 }))
 
-function toggleWorkspaceMenu() {
+function toggleWorkspaceMenu(anchorEl = null) {
+  if (anchorEl) {
+    workspaceMenuAnchorEl.value = anchorEl
+  }
   const nextOpen = !workspaceMenuOpen.value
   if (nextOpen) {
     dismissOtherTransientOverlays()
@@ -511,16 +344,16 @@ function toggleWorkspaceMenu() {
   workspaceMenuOpen.value = nextOpen
 }
 
-const newMenuEl = ref(null)
 const newMenuStyle = ref({ top: '0px', left: '0px' })
 
 async function calculateNewMenuPosition(anchor) {
   if (!anchor) return
   await nextTick()
-  if (!newMenuEl.value) return
+  const menuEl = newMenuComponent.value?.menuEl
+  if (!menuEl) return
 
   const rect = anchor.getBoundingClientRect()
-  const menuRect = newMenuEl.value.getBoundingClientRect()
+  const menuRect = menuEl.getBoundingClientRect()
   const vh = window.innerHeight || document.documentElement.clientHeight
 
   let top = rect.bottom + 4
@@ -540,7 +373,7 @@ function toggleNewMenu(anchorEl = null) {
   newMenuOpen.value = nextOpen
   if (nextOpen) {
     dismissOtherTransientOverlays()
-    calculateNewMenuPosition(anchorEl || newBtnEl.value?.$el || newBtnEl.value)
+    calculateNewMenuPosition(anchorEl)
   } else {
     newMenuAnchorOverride.value = null
   }
@@ -576,7 +409,7 @@ function handleWorkspaceMenuDocumentPointerDown(event) {
   if (!(target instanceof Node)) return
 
   const anchor = workspaceMenuReference.value
-  if (workspaceMenuEl.value?.contains(target) || anchor?.contains?.(target)) return
+  if (workspaceMenuComponent.value?.menuEl?.contains(target) || anchor?.contains?.(target)) return
 
   closeWorkspaceMenu()
 }
@@ -930,29 +763,6 @@ defineExpose({
   mask-repeat: no-repeat;
 }
 
-.file-tree-header {
-  color: var(--text-muted);
-}
-
-.file-tree-header-action {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  color: color-mix(in srgb, var(--text-muted) 90%, transparent);
-}
-
-.file-tree-header--with-divider {
-  border-bottom: 0;
-}
-
-.file-tree-chevron {
-  transition: transform 0.1s ease;
-}
-
-.file-tree-chevron-open {
-  transform: rotate(90deg);
-}
-
 .file-tree-root-rename-row {
   padding-left: 28px;
 }
@@ -974,104 +784,4 @@ defineExpose({
   color: var(--text-muted);
 }
 
-.file-tree-workspace-shortcut {
-  opacity: 1;
-}
-
-.file-tree-workspace-menu {
-  max-height: min(50vh, 420px);
-  overflow-y: auto;
-}
-
-.file-tree-workspace-menu-popover {
-  position: fixed !important;
-  width: min(240px, calc(100vw - 16px));
-  max-width: min(240px, calc(100vw - 16px));
-}
-
-.file-tree-workspace-item {
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-}
-
-.file-tree-workspace-item-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-tree-new-menu {
-  min-width: 200px !important;
-  max-height: min(50vh, 360px);
-  overflow-y: auto;
-}
-
-.workspace-footer-action {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  padding: 4px 0 0;
-  background: transparent;
-}
-
-.workspace-footer-icon-button {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  color: color-mix(in srgb, var(--fg-muted) 78%, transparent);
-  opacity: 0.86;
-}
-
-.workspace-footer-icon-button:hover:not(:disabled) {
-  opacity: 1;
-  background: transparent;
-}
-
-.workspace-footer-icon-button:focus-visible {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
-}
-
-.workspace-footer-action-button {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 32px;
-  justify-content: center;
-  padding-inline: 10px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--fg-secondary);
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    border-color 140ms ease;
-}
-
-.workspace-footer-action-button :deep(.ui-button-label) {
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-  font-size: var(--sidebar-font-item);
-  letter-spacing: 0;
-  line-height: 1.1;
-}
-
-.workspace-footer-action-button:hover:not(:disabled) {
-  background: transparent;
-  color: var(--fg-primary);
-}
-
-.workspace-footer-action-button:focus-visible {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 46%, transparent);
-}
 </style>

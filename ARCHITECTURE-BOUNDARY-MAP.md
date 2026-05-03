@@ -172,7 +172,11 @@ Components over 500 lines:
 | `src/components/settings/SettingsExtensions.vue` | 779 | Extension settings shell; Phase 8 extracted list/options UI and pure settings grouping. |
 | `src/components/settings/SettingsExtensionList.vue` | 120 | Extension loaded-list presentation. |
 | `src/components/settings/SettingsExtensionOptions.vue` | 214 | Extension settings/action form presentation. |
-| `src/components/sidebar/FileTree.vue` | 1078 | File tree UI plus mutation commands; Phase 3/8 candidate. |
+| `src/components/sidebar/FileTree.vue` | 787 | File tree orchestration plus mutation commands; Phase 8 extracted header/footer/menu chrome. |
+| `src/components/sidebar/FileTreeFooter.vue` | 117 | File tree footer controls. |
+| `src/components/sidebar/FileTreeHeader.vue` | 94 | File tree header controls. |
+| `src/components/sidebar/FileTreeNewMenu.vue` | 93 | File tree document-template create menu. |
+| `src/components/sidebar/FileTreeWorkspaceMenu.vue` | 108 | File tree workspace actions menu. |
 | `src/App.vue` | 735 | App shell composition; extension runtime event bridge extracted to `src/app/shell/useAppExtensionRuntimeBridge.js`. |
 
 ## Store Responsibility Snapshot
