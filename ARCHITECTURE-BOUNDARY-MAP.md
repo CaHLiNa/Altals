@@ -144,7 +144,6 @@ Service files over 150 lines require later bridge-thinning review:
 | --- | ---: | --- | --- |
 | `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
 | `src/services/markdown/preview.js` | 311 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
-| `src/services/workspacePreferences.js` | 390 | Mixed settings DTO/default normalization | Keep persisted defaults and normalization Rust-owned; shrink remaining display shims. |
 
 ## Large Vue Component Inventory
 
@@ -229,6 +228,7 @@ Components over 500 lines:
 ## Preferences/Settings Authority Cleanup Log
 
 - 2026-05-02: `src/stores/workspace.js` now sends persisted setting patch values to `workspace_preferences_save` without pre-normalizing wrap, booleans, file tree modes, PDF modes, citation settings, or locale in JS. Rust `workspace_preferences.rs` remains the persisted schema/default/normalization authority, and the store consumes the normalized preferences returned by Rust. `src/services/workspacePreferences.js` keeps DOM/UI helpers for font, theme, and PDF preview display normalization only.
+- 2026-05-03: Workspace preference defaults, font presets, system-font encoding, PDF viewer display normalization, and font-stack helpers moved from `src/services/workspacePreferences.js` into `src/domains/settings/workspacePreferencePresentation.js`. DOM font variable side effects now live in `src/services/workspaceFonts.js`, theme class/listener side effects live in `src/services/workspaceTheme.js`, and `workspacePreferences.js` stays below the 150-line review threshold as a Tauri preference bridge plus compatibility export surface.
 
 ## Reference Authority Cleanup Log
 
