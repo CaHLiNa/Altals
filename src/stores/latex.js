@@ -707,22 +707,6 @@ export const useLatexStore = defineStore('latex', {
       await this.persistPreferences({ enginePreference: preference })
     },
 
-    async setBuildExtraArgs(value) {
-      await this.persistPreferences({
-        buildExtraArgs: String(value || ''),
-      })
-    },
-
-    async setCustomSystemTexPath(path) {
-      await this.persistPreferences({
-        customSystemTexPath: String(path || '').trim(),
-      })
-      this.lastCompilerCheckAt = 0
-      await this.checkCompilers(true)
-      this.lastToolCheckAt = 0
-      await this.checkTools(true)
-    },
-
     cancelAutoCompile(texPath) {
       const rootPath = resolveCachedLatexRootPath(texPath)
       const targetPaths = [texPath, rootPath].filter(Boolean)

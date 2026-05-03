@@ -660,6 +660,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Extracted extension document action progress presentation from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`, so progress state normalization, width derivation, and tone class mapping stay in the extension domain layer.
 - 2026-05-03: Moved reference BibTeX and detailed JSON export write calls from `ReferenceLibraryWorkbench.vue` into `references` store actions. The component still owns save dialog and toast/status UX, while the store owns library reference selection and reference export service calls.
 - 2026-05-03: Added `referencesStore.syncZoteroNow()` and routed `SettingsZotero.vue` through the store instead of passing the Pinia store object into the Zotero service from the component.
+- 2026-05-03: Removed unused `latex` store setters for build extra args and custom system TeX path. The preference fields stay in the persisted/runtime shape for compatibility, but the deleted settings no longer expose stale store actions.
 
 ### Phase 10: Service Bridge Cleanup
 
