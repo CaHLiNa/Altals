@@ -89,6 +89,35 @@ fn prepare_allowed_directory(path: &Path, create_if_missing: bool) -> Result<Pat
     Ok(canonical)
 }
 
+fn relabel_allowed_directory_error(error: String, label: &str) -> String {
+    if error.starts_with("Allowed root is not a directory:") {
+        error.replacen("Allowed root", label, 1)
+    } else {
+        error
+    }
+}
+
+fn prepare_labeled_allowed_directory(
+    path: &str,
+    label: &str,
+    create_if_missing: bool,
+) -> Result<PathBuf, String> {
+    prepare_allowed_directory(Path::new(path), create_if_missing)
+        .map_err(|error| relabel_allowed_directory_error(error, label))
+}
+
+fn prepare_optional_labeled_allowed_directory(
+    path: Option<&str>,
+    label: &str,
+) -> Result<Option<PathBuf>, String> {
+    match path {
+        Some(path) if !path.trim().is_empty() => {
+            prepare_labeled_allowed_directory(path, label, true).map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
 pub fn set_allowed_roots_internal(
     state: &WorkspaceScopeState,
     workspace_root: &str,
@@ -96,53 +125,14 @@ pub fn set_allowed_roots_internal(
     global_config_dir: Option<&str>,
     claude_config_dir: Option<&str>,
 ) -> Result<(), String> {
-    let canonical_workspace_root = prepare_allowed_directory(Path::new(workspace_root), false)
-        .map_err(|error| {
-            if error.starts_with("Allowed root is not a directory:") {
-                error.replacen("Allowed root", "Workspace root", 1)
-            } else {
-                error
-            }
-        })?;
-
-    let canonical_data_dir = match data_dir {
-        Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
-                if error.starts_with("Allowed root is not a directory:") {
-                    error.replacen("Allowed root", "Workspace data directory", 1)
-                } else {
-                    error
-                }
-            })?,
-        ),
-        _ => None,
-    };
-
-    let canonical_global_config_dir = match global_config_dir {
-        Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
-                if error.starts_with("Allowed root is not a directory:") {
-                    error.replacen("Allowed root", "Global config directory", 1)
-                } else {
-                    error
-                }
-            })?,
-        ),
-        _ => None,
-    };
-
-    let canonical_claude_config_dir = match claude_config_dir {
-        Some(path) if !path.trim().is_empty() => Some(
-            prepare_allowed_directory(Path::new(path), true).map_err(|error| {
-                if error.starts_with("Allowed root is not a directory:") {
-                    error.replacen("Allowed root", "Claude config directory", 1)
-                } else {
-                    error
-                }
-            })?,
-        ),
-        _ => None,
-    };
+    let canonical_workspace_root =
+        prepare_labeled_allowed_directory(workspace_root, "Workspace root", false)?;
+    let canonical_data_dir =
+        prepare_optional_labeled_allowed_directory(data_dir, "Workspace data directory")?;
+    let canonical_global_config_dir =
+        prepare_optional_labeled_allowed_directory(global_config_dir, "Global config directory")?;
+    let canonical_claude_config_dir =
+        prepare_optional_labeled_allowed_directory(claude_config_dir, "Claude config directory")?;
 
     let mut guard = state
         .allowed_roots
@@ -348,5 +338,20 @@ mod tests {
 
         fs::remove_dir_all(temp_root).ok();
         fs::remove_dir_all(outside_root).ok();
+    }
+
+    #[test]
+    fn allowed_root_directory_errors_keep_scope_labels() {
+        let temp_root =
+            std::env::temp_dir().join(format!("scribeflow-scope-file-{}", uuid::Uuid::new_v4()));
+        fs::write(&temp_root, "not a directory").expect("write file root");
+
+        let state = WorkspaceScopeState::default();
+        let error =
+            set_allowed_roots_internal(&state, &temp_root.to_string_lossy(), None, None, None)
+                .expect_err("file root should fail");
+
+        assert!(error.starts_with("Workspace root is not a directory:"));
+        fs::remove_file(temp_root).ok();
     }
 }
