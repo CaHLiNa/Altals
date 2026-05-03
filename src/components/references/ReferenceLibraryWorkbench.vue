@@ -116,10 +116,6 @@ import { useReferencesStore } from '../../stores/references'
 import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
 import { openNativeDialog, saveNativeDialog } from '../../services/nativeDialog.js'
 import {
-  writeReferenceBibTeXExport,
-  writeReferenceJsonExport,
-} from '../../services/references/bibtexExport.js'
-import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
   resolveInlineDockFallbackPageType,
@@ -526,7 +522,7 @@ async function handleExportReferenceBibTeX(reference = {}) {
   if (!target) return
 
   try {
-    await writeReferenceBibTeXExport(String(target), [reference])
+    await referencesStore.writeBibTeXExportFile(String(target), [reference.id])
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {
@@ -546,7 +542,7 @@ async function handleDetailedExport(reference = {}) {
   if (!target) return
 
   try {
-    await writeReferenceJsonExport(String(target), reference)
+    await referencesStore.writeReferenceJsonExportFile(String(target), reference.id)
     uxStatusStore.success(t('Detailed export saved'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export reference details'), {
@@ -744,7 +740,10 @@ async function handleExportBibTeX() {
   if (!target) return
 
   try {
-    await writeReferenceBibTeXExport(String(target), references)
+    await referencesStore.writeBibTeXExportFile(
+      String(target),
+      references.map((reference) => reference.id)
+    )
     uxStatusStore.success(t('Exported BibTeX'), { duration: 2200 })
   } catch (error) {
     toastStore.show(error?.message || t('Failed to export BibTeX'), {

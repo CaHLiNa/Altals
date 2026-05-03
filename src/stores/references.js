@@ -7,7 +7,11 @@ import {
   getCitationStyleInfo,
   setUserCitationStyles,
 } from '../services/references/citationStyleRegistry.js'
-import { exportReferencesToBibTeX } from '../services/references/bibtexExport.js'
+import {
+  exportReferencesToBibTeX,
+  writeReferenceBibTeXExport,
+  writeReferenceJsonExport,
+} from '../services/references/bibtexExport.js'
 import {
   renameReferencePdfAsset as renameReferencePdfAssetWithBackend,
   storeReferencePdf,
@@ -893,6 +897,27 @@ export const useReferencesStore = defineStore('references', {
         : this.references
 
       return exportReferencesToBibTeX(references)
+    },
+
+    async writeBibTeXExportFile(filePath = '', referenceIds = []) {
+      const references = Array.isArray(referenceIds) && referenceIds.length > 0
+        ? referenceIds
+            .map((referenceId) => this.references.find((reference) => reference.id === referenceId))
+            .filter(Boolean)
+        : this.references
+
+      await writeReferenceBibTeXExport(filePath, references)
+      return references.length
+    },
+
+    async writeReferenceJsonExportFile(filePath = '', referenceId = '') {
+      const reference = this.references.find((candidate) => candidate.id === referenceId)
+      if (!reference) {
+        throw new Error(t('Reference not found'))
+      }
+
+      await writeReferenceJsonExport(filePath, reference)
+      return true
     },
 
     async formatReferenceCitationAsync(referenceId = '', mode = 'reference', number) {

@@ -658,6 +658,7 @@ git commit -m "refactor: simplify store responsibilities"
 - 2026-05-03: Extracted document workflow preview/workflow UI state request derivation from `src/stores/documentWorkflowBuildRuntime.js` into `src/domains/document/documentWorkflowBuildStateRequests.js`. The store runtime remains responsible for resolving adapters and assembling store context, while pure preview-kind/artifact/workflow request shaping now lives in the domain layer.
 - 2026-05-03: Moved extension sidebar tone class normalization from `ExtensionSidebarPanel.vue` into `src/domains/extensions/extensionToneClass.js`, keeping status/summary tone-to-class derivation in a pure domain helper.
 - 2026-05-03: Extracted extension document action progress presentation from `ExtensionDocumentActionPanel.vue` into `src/domains/extensions/extensionProgressPresentation.js`, so progress state normalization, width derivation, and tone class mapping stay in the extension domain layer.
+- 2026-05-03: Moved reference BibTeX and detailed JSON export write calls from `ReferenceLibraryWorkbench.vue` into `references` store actions. The component still owns save dialog and toast/status UX, while the store owns library reference selection and reference export service calls.
 
 ### Phase 10: Service Bridge Cleanup
 
