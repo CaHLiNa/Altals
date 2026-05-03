@@ -18,176 +18,38 @@
     @mousedown.capture="handleMouseDownCapture"
     @keydown.capture="handleKeydown"
   >
-    <div
+    <PdfEmbedToolbar
       v-if="!compactToolbar"
-      class="pdf-artifact-preview__toolbar"
-      data-no-embedpdf-interaction="true"
-    >
-      <div class="pdf-artifact-preview__toolbar-main">
-        <div class="pdf-artifact-preview__toolbar-main-left">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            :active="thumbnailsVisible"
-            :title="t('Toggle thumbnails')"
-            :aria-label="t('Toggle thumbnails')"
-            @click="toggleThumbnails"
-          >
-            <IconLayoutSidebarLeftExpand :size="16" :stroke-width="1.8" />
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            :active="currentSpreadMode === 'single'"
-            :title="t('Single page')"
-            :aria-label="t('Single page')"
-            @click="setPreferredSpreadMode('single')"
-          >
-            <IconRectangleVertical :size="16" :stroke-width="1.8" />
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            :active="currentSpreadMode === 'double'"
-            :title="t('Two-page spread')"
-            :aria-label="t('Two-page spread')"
-            @click="setPreferredSpreadMode('double')"
-          >
-            <IconColumns2 :size="16" :stroke-width="1.8" />
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            :active="searchUiVisible"
-            :title="t('Search in PDF')"
-            :aria-label="t('Search in PDF')"
-            @click="toggleSearchUi"
-          >
-            <IconSearch :size="16" :stroke-width="1.8" />
-          </UiButton>
-        </div>
-
-        <div class="pdf-artifact-preview__toolbar-main-middle">
-          <UiButton variant="ghost" size="sm" :title="t('Zoom out')" @click="zoomBy(-1)">
-            -
-          </UiButton>
-          <UiSelect
-            shell-class="pdf-artifact-preview__toolbar-select"
-            size="sm"
-            :model-value="zoomMenuValue"
-            :options="zoomMenuOptions"
-            :aria-label="t('Current zoom')"
-            @update:model-value="handleZoomMenuSelection"
-          />
-          <UiButton variant="ghost" size="sm" :title="t('Zoom in')" @click="zoomBy(1)">
-            +
-          </UiButton>
-        </div>
-
-        <div class="pdf-artifact-preview__toolbar-main-right">
-          <div class="pdf-artifact-preview__toolbar-page-group">
-            <input
-              v-model="pageInputValue"
-              class="pdf-artifact-preview__toolbar-page-input"
-              :title="t('Page number')"
-              :aria-label="t('Page number')"
-              inputmode="numeric"
-              autocomplete="off"
-              @keydown.enter.prevent="submitPageNumberInput"
-              @blur="submitPageNumberInput"
-            />
-            <span class="pdf-artifact-preview__toolbar-page-total">
-              / {{ totalPageCount }}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      <div v-if="searchUiVisible" class="pdf-artifact-preview__toolbar-search">
-        <div class="pdf-artifact-preview__search-row">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            class="pdf-artifact-preview__search-step"
-            :disabled="!hasSearchResults"
-            :title="t('Previous result')"
-            :aria-label="t('Previous result')"
-            @click="navigateSearch(-1)"
-          >
-            <IconChevronUp :size="14" :stroke-width="1.8" />
-          </UiButton>
-
-          <label class="pdf-artifact-preview__search-shell">
-            <IconSearch class="pdf-artifact-preview__search-shell-icon" :size="15" :stroke-width="1.8" />
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              class="pdf-artifact-preview__search-field"
-              :placeholder="t('Search in PDF')"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-              @keydown.enter.prevent="handleSearchEnter"
-              @keydown.escape.prevent="handleSearchEscape"
-            />
-            <span class="pdf-artifact-preview__search-summary">
-              {{ searchSummary }}
-            </span>
-          </label>
-
-          <UiButton
-            variant="ghost"
-            size="sm"
-            icon-only
-            class="pdf-artifact-preview__search-step"
-            :disabled="!hasSearchResults"
-            :title="t('Next result')"
-            :aria-label="t('Next result')"
-            @click="navigateSearch(1)"
-          >
-            <IconChevronDown :size="14" :stroke-width="1.8" />
-          </UiButton>
-        </div>
-
-        <div class="pdf-artifact-preview__search-row pdf-artifact-preview__search-row--filters">
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :active="isMatchCaseEnabled"
-            :title="t('Match case')"
-            @click="toggleSearchFlag(MatchFlag.MatchCase)"
-          >
-            Aa
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :active="isWholeWordEnabled"
-            :title="t('Whole words')"
-            @click="toggleSearchFlag(MatchFlag.MatchWholeWord)"
-          >
-            {{ t('Word') }}
-          </UiButton>
-          <UiButton
-            variant="ghost"
-            size="sm"
-            :active="search.state.value.showAllResults"
-            :disabled="!hasSearchResults"
-            :title="t('Highlight all')"
-            @click="toggleShowAllResults"
-          >
-            {{ t('All') }}
-          </UiButton>
-        </div>
-      </div>
-    </div>
+      ref="toolbarRef"
+      :current-spread-mode="currentSpreadMode"
+      :has-search-results="hasSearchResults"
+      :is-match-case-enabled="isMatchCaseEnabled"
+      :is-whole-word-enabled="isWholeWordEnabled"
+      :match-case-flag="MatchFlag.MatchCase"
+      :page-input-value="pageInputValue"
+      :search-query="searchQuery"
+      :search-summary="searchSummary"
+      :search-ui-visible="searchUiVisible"
+      :show-all-results="Boolean(search.state.value?.showAllResults)"
+      :thumbnails-visible="thumbnailsVisible"
+      :total-page-count="totalPageCount"
+      :whole-word-flag="MatchFlag.MatchWholeWord"
+      :zoom-menu-options="zoomMenuOptions"
+      :zoom-menu-value="zoomMenuValue"
+      @navigate-search="navigateSearch"
+      @search-enter="handleSearchEnter"
+      @search-escape="handleSearchEscape"
+      @select-zoom="handleZoomMenuSelection"
+      @set-spread-mode="setPreferredSpreadMode"
+      @submit-page="submitPageNumberInput"
+      @toggle-search="toggleSearchUi"
+      @toggle-search-flag="toggleSearchFlag"
+      @toggle-show-all-results="toggleShowAllResults"
+      @toggle-thumbnails="toggleThumbnails"
+      @update-page-input="pageInputValue = $event"
+      @update-search-query="searchQuery = $event"
+      @zoom-by="zoomBy"
+    />
 
     <div class="pdf-artifact-preview__body">
       <aside
@@ -282,14 +144,6 @@ import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch
 
 import { useDocumentState } from '@embedpdf/core/vue'
 import { MatchFlag, Rotation, transformRect } from '@embedpdf/models'
-import {
-  IconColumns2,
-  IconChevronDown,
-  IconChevronUp,
-  IconLayoutSidebarLeftExpand,
-  IconRectangleVertical,
-  IconSearch,
-} from '@tabler/icons-vue'
 import { useExport } from '@embedpdf/plugin-export/vue'
 import { PagePointerProvider, usePointerHandlers } from '@embedpdf/plugin-interaction-manager/vue'
 import { RenderLayer } from '@embedpdf/plugin-render/vue'
@@ -314,9 +168,8 @@ import {
 import { useToastStore } from '../../stores/toast.js'
 import { useWorkspaceStore } from '../../stores/workspace.js'
 import { basenamePath } from '../../utils/path.js'
+import PdfEmbedToolbar from './PdfEmbedToolbar.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
-import UiButton from '../shared/ui/UiButton.vue'
-import UiSelect from '../shared/ui/UiSelect.vue'
 
 const props = defineProps({
   documentId: { type: String, required: true },
@@ -380,7 +233,7 @@ const searchUiVisible = ref(false)
 const thumbnailsVisible = ref(false)
 const searchQuery = ref('')
 const pageInputValue = ref('1')
-const searchInputRef = ref(null)
+const toolbarRef = ref(null)
 const currentContextMenuReverseSyncDetail = ref(null)
 const forwardSyncOverlays = ref([])
 const queuedForwardSyncRequest = ref(null)
@@ -1106,11 +959,12 @@ function scheduleInitialLayoutNudge() {
 
 function focusSearchInput(selectAll = false) {
   void nextTick(() => {
+    const searchInput = toolbarRef.value?.searchInputEl
     if (selectAll) {
-      searchInputRef.value?.select?.()
+      searchInput?.select?.()
       return
     }
-    searchInputRef.value?.focus?.()
+    searchInput?.focus?.()
   })
 }
 
@@ -1989,110 +1843,6 @@ onMounted(() => {
   outline: none;
 }
 
-.pdf-artifact-preview__toolbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 15;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 30px;
-  padding: 0 6px;
-  box-sizing: border-box;
-  font: message-box;
-  background: color-mix(
-    in srgb,
-    var(--shell-preview-surface, var(--embedpdf-surface)) 92%,
-    var(--surface-base, var(--embedpdf-page))
-  );
-  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
-  backdrop-filter: saturate(1.02) blur(10px);
-}
-
-.pdf-artifact-preview__toolbar-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 30px;
-}
-
-.pdf-artifact-preview__toolbar-main-left,
-.pdf-artifact-preview__toolbar-main-middle,
-.pdf-artifact-preview__toolbar-main-right,
-.pdf-artifact-preview__toolbar-search,
-.pdf-artifact-preview__toolbar-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.pdf-artifact-preview__toolbar-main-left {
-  flex: 1 1 0;
-  justify-content: flex-start;
-}
-
-.pdf-artifact-preview__toolbar-main-middle {
-  flex: 0 0 auto;
-  justify-content: center;
-}
-
-.pdf-artifact-preview__toolbar-main-right {
-  flex: 1 1 0;
-  justify-content: flex-end;
-}
-
-.pdf-artifact-preview__toolbar-page-group,
-.pdf-artifact-preview__toolbar-icon-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pdf-artifact-preview__toolbar-page-group {
-  gap: 4px;
-  margin-inline-end: 2px;
-}
-
-.pdf-artifact-preview__toolbar-page-input {
-  width: 38px;
-  height: 28px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 24%, transparent);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-  text-align: center;
-  outline: 0;
-}
-
-.pdf-artifact-preview__toolbar-page-input:focus {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 44%, transparent);
-}
-
-.pdf-artifact-preview__toolbar-page-total {
-  min-width: 28px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.pdf-artifact-preview__toolbar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-}
-
 .pdf-artifact-preview__body {
   position: relative;
   width: calc(100% - var(--pdf-layout-nudge, 0px));
@@ -2221,171 +1971,6 @@ onMounted(() => {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88);
 }
 
-.pdf-artifact-preview__toolbar-search {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 16;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
-  min-width: 332px;
-  max-width: min(430px, calc(100vw - 40px));
-  padding: 6px 8px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
-  background: color-mix(in srgb, var(--surface-raised) 68%, transparent);
-  box-shadow:
-    0 16px 34px color-mix(in srgb, black 12%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 16%, transparent);
-  backdrop-filter: saturate(1.08) blur(18px);
-}
-
-.pdf-artifact-preview__search-row {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 24px;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pdf-artifact-preview__search-row--filters {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.pdf-artifact-preview__search-shell {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
-  border-radius: 10px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-base) 60%, transparent),
-      color-mix(in srgb, var(--surface-base) 42%, transparent)
-    );
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
-    0 6px 16px color-mix(in srgb, black 6%, transparent);
-}
-
-.pdf-artifact-preview__search-shell:focus-within {
-  border-color: color-mix(in srgb, var(--focus-ring) 42%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--focus-ring) 24%, transparent),
-    0 8px 18px color-mix(in srgb, black 8%, transparent);
-}
-
-.pdf-artifact-preview__search-shell-icon {
-  color: var(--text-muted);
-}
-
-.pdf-artifact-preview__search-field {
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-  outline: 0;
-}
-
-.pdf-artifact-preview__search-field::placeholder {
-  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
-}
-
-.pdf-artifact-preview__search-summary {
-  max-width: 104px;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.pdf-artifact-preview__search-step {
-  width: 24px;
-  min-width: 24px;
-}
-
-.pdf-artifact-preview__search-row--filters :deep(.ui-button) {
-  justify-content: center;
-  width: 100%;
-  height: 22px;
-  border-radius: 8px;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--surface-base) 22%, transparent);
-}
-
-.pdf-artifact-preview__search-row--filters :deep(.ui-button:hover:not(:disabled)),
-.pdf-artifact-preview__search-row--filters :deep(.ui-button.is-active) {
-  background: color-mix(in srgb, var(--surface-hover) 18%, transparent);
-  color: var(--text-primary);
-}
-
-:deep(.pdf-artifact-preview__toolbar .ui-button) {
-  height: 28px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-:deep(.pdf-artifact-preview__toolbar .ui-button:hover:not(:disabled)),
-:deep(.pdf-artifact-preview__toolbar .ui-button.is-active) {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-  color: var(--text-primary);
-}
-
-:deep(.pdf-artifact-preview__toolbar .ui-button.is-icon-only) {
-  width: 28px;
-  padding: 0;
-}
-
-:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select) {
-  width: 94px;
-  min-width: 94px;
-}
-
-:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger) {
-  height: 28px;
-  padding: 0 22px 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: none;
-}
-
-:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger:hover:not(:disabled)) {
-  background: color-mix(in srgb, var(--surface-hover) 12%, transparent);
-}
-
-:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-trigger:focus-visible) {
-  background: color-mix(in srgb, var(--surface-hover) 10%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-ring) 44%, transparent);
-}
-
-:deep(.pdf-artifact-preview__toolbar .pdf-artifact-preview__toolbar-select .ui-select-caret) {
-  right: 8px;
-}
-
 .pdf-artifact-preview__forward-sync-highlight {
   position: absolute;
   z-index: 6;
@@ -2425,21 +2010,6 @@ onMounted(() => {
 }
 
 @media (max-width: 720px) {
-  .pdf-artifact-preview__toolbar-main {
-    min-height: 54px;
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 2px;
-  }
-
-  .pdf-artifact-preview__toolbar-main-left,
-  .pdf-artifact-preview__toolbar-main-middle,
-  .pdf-artifact-preview__toolbar-main-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .pdf-artifact-preview__thumbnails {
     top: 56px;
     width: 108px;
@@ -2456,29 +2026,5 @@ onMounted(() => {
     padding-top: 0;
   }
 
-  .pdf-artifact-preview__toolbar-search {
-    left: 8px;
-    right: 8px;
-    transform: none;
-    min-width: 0;
-    max-width: none;
-  }
-
-  .pdf-artifact-preview__search-row {
-    grid-template-columns: 24px minmax(0, 1fr) 24px;
-    gap: 5px;
-  }
-
-  .pdf-artifact-preview__search-row--filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .pdf-artifact-preview__search-shell {
-    grid-template-columns: 16px minmax(0, 1fr);
-  }
-
-  .pdf-artifact-preview__search-summary {
-    display: none;
-  }
 }
 </style>

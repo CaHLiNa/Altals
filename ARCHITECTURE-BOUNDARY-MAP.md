@@ -160,7 +160,8 @@ Components over 500 lines:
 | `src/components/editor/CitationPalette.vue` | 715 | Editor-adjacent UI; avoid during global cleanup unless citation UI phase is opened. |
 | `src/components/editor/EditorPane.vue` | 1086 | Frozen editor file. |
 | `src/components/editor/MarkdownPreview.vue` | 802 | Preview UI with document runtime wiring; Phase 6/8 candidate. |
-| `src/components/editor/PdfEmbedDocumentSurface.vue` | 2485 | PDF/document runtime UI; high-risk Phase 6/8 candidate. |
+| `src/components/editor/PdfEmbedDocumentSurface.vue` | 2030 | PDF/document runtime UI; Phase 8 extracted toolbar/search chrome while retaining embedpdf runtime authority. |
+| `src/components/editor/PdfEmbedToolbar.vue` | 531 | PDF toolbar/search presentation; emits zoom/page/search/spread intent to parent. |
 | `src/components/editor/TextEditor.vue` | 1962 | Frozen editor file. |
 | `src/components/editor/WorkspaceStarter.vue` | 724 | Workspace starter UI; Phase 8 candidate if behavior remains stable. |
 | `src/components/extensions/ExtensionSidebarPanel.vue` | 660 | Extension panel shell; Phase 8 extracted per-view rendering. |
