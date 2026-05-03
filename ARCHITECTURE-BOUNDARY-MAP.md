@@ -163,7 +163,9 @@ Components over 500 lines:
 | `src/components/editor/PdfEmbedDocumentSurface.vue` | 2030 | PDF/document runtime UI; Phase 8 extracted toolbar/search chrome while retaining embedpdf runtime authority. |
 | `src/components/editor/PdfEmbedToolbar.vue` | 531 | PDF toolbar/search presentation; emits zoom/page/search/spread intent to parent. |
 | `src/components/editor/TextEditor.vue` | 1962 | Frozen editor file. |
-| `src/components/editor/WorkspaceStarter.vue` | 724 | Workspace starter UI; Phase 8 candidate if behavior remains stable. |
+| `src/components/editor/WorkspaceStarter.vue` | 73 | Workspace starter coordinator; Phase 8 extracted empty-state hero and template grid presentation. |
+| `src/components/editor/WorkspaceStarterEmptyState.vue` | 383 | No-workspace hero presentation; emits open-folder intent. |
+| `src/components/editor/WorkspaceTemplateGrid.vue` | 310 | Current-workspace template card presentation; emits create-template intent. |
 | `src/components/extensions/ExtensionSidebarPanel.vue` | 660 | Extension panel shell; Phase 8 extracted per-view rendering. |
 | `src/components/extensions/ExtensionSidebarViewSection.vue` | 232 | Extension view section presentation for status, results, preview, and tree root. |
 | `src/components/layout/WorkbenchRail.vue` | 631 | Layout UI; Phase 4/8 candidate after workbench state contracts settle. |
