@@ -142,14 +142,13 @@ Service files over 150 lines require later bridge-thinning review:
 
 | File | Lines | Classification | Follow-up |
 | --- | ---: | --- | --- |
-| `src/services/appUpdater.js` | 153 | Bridge-heavy with event mapping | Keep as service; ensure no persisted policy creeps in. |
-| `src/services/documentWorkflow/adapters/latex.js` | 299 | Mixed runtime adapter | Phase 6 should move compile/runtime policy to Rust or store orchestration. |
-| `src/services/latex/latexWorkshopSynctex.js` | 425 | Mixed SyncTeX bridge and parsing helpers | Phase 6 should move scope-sensitive lookup/parsing to Rust where feasible. |
-| `src/services/latex/previewSync.js` | 163 | UI/runtime sync adapter | Keep presentation sync frontend-owned; audit for backend policy. |
-| `src/services/markdown/preview.js` | 312 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
-| `src/services/pdf/artifactPreview.js` | 179 | PDF artifact bridge and DTO adapter | Keep file authority in Rust; document DTO compatibility. |
-| `src/services/references/zoteroSync.js` | 179 | Reference bridge with sync DTO helpers | Phase 5 should keep Zotero policy Rust-owned. |
-| `src/services/workspacePreferences.js` | 499 | Mixed settings DTO/default normalization | Phase 4 should move persisted defaults and normalization to Rust. |
+| `src/services/appUpdater.js` | 152 | Bridge-heavy with event mapping | Keep as service; ensure no persisted policy creeps in. |
+| `src/services/documentWorkflow/adapters/latex.js` | 298 | Mixed runtime adapter | Phase 10 should separate DTO adaptation from compile/runtime policy. |
+| `src/services/latex/previewSync.js` | 162 | UI/runtime sync adapter | Keep presentation sync frontend-owned; audit for backend policy. |
+| `src/services/latex/runtime.js` | 197 | Runtime bridge with DTO adaptation | Keep command authority in Rust; thin JS response shaping where possible. |
+| `src/services/markdown/preview.js` | 311 | Browser preview presentation service | Keep DOM presentation here only; parsing contracts should stay Rust-backed where available. |
+| `src/services/references/zoteroSync.js` | 178 | Reference bridge with sync DTO helpers | Keep Zotero policy Rust-owned and propagate mutation failures to store orchestration. |
+| `src/services/workspacePreferences.js` | 390 | Mixed settings DTO/default normalization | Keep persisted defaults and normalization Rust-owned; shrink remaining display shims. |
 
 ## Large Vue Component Inventory
 
@@ -240,7 +239,7 @@ Components over 500 lines:
 - 2026-05-02: `src/services/references/referenceLibraryIO.js` no longer re-normalizes reference library snapshots in JavaScript after Rust `references_snapshot_normalize`, `references_library_load_workspace`, or `references_library_write` returns. Snapshot shape, document reference selection pruning, collection/tag registry cleanup, record normalization, rating removal, and library persistence normalization remain owned by `src-tauri/src/references_snapshot.rs` and `src-tauri/src/references_backend.rs`; the JS service now only bridges commands and provides an empty fallback when no storage root is available.
 - 2026-05-02: `src/stores/references.js` no longer filters, deduplicates, or clears `documentReferenceSelections` directly when a document's reference ids change or when applying a Rust-loaded library snapshot. The store now dispatches `setDocumentReferenceIds` through `references_mutation_apply`, and `src-tauri/src/references_mutation.rs` plus `src-tauri/src/references_snapshot.rs` own the mutation, id pruning, deduplication, and empty-selection cleanup.
 - 2026-05-02: `src/services/references/citationFormatter.js` no longer imports the workspace Pinia store to discover workspace path. Workspace context is passed by callers as a DTO field, keeping citation services as Rust bridge wrappers around `references_citation_render` instead of hidden store-aware orchestration.
-- 2026-05-03: Reference removal still commits the local library snapshot first, but best-effort Zotero remote delete failures are no longer swallowed. `src/stores/references.js` records the failure in `zoteroMutationError`, and `ReferenceLibraryWorkbench.vue` surfaces it through the existing reference workbench status area.
+- 2026-05-03: Reference removal still commits the local library snapshot first, but best-effort Zotero remote delete failures are no longer swallowed. `src/services/references/zoteroSync.js` propagates delete invoke failures, `src/stores/references.js` records them in `zoteroMutationError`, and `ReferenceLibraryWorkbench.vue` surfaces them through the existing reference workbench status area.
 
 ## Document Runtime Cleanup Log
 

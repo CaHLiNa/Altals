@@ -124,7 +124,7 @@ export async function deleteFromZotero(reference = {}) {
       apiKey,
       reference,
     },
-  }).catch(() => {})
+  })
 }
 
 export async function syncNow(projectRoot = '', referencesStore) {
