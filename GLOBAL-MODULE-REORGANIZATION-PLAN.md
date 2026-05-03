@@ -839,6 +839,10 @@ git add src src-tauri package.json scripts
 git commit -m "chore: remove obsolete module glue"
 ```
 
+**Progress notes:**
+
+- 2026-05-03: Started Phase 12 by removing obsolete frontend service compatibility glue. Callers now import path status helpers from canonical `src/services/pathStatus.js`, `src/services/pathExists.js` was deleted, and unused re-export surfaces were removed from `appUpdater.js`, `fileTreeSystem.js`, and `latex/previewSync.js` without changing command payloads or runtime behavior.
+
 ### Phase 13: Final End-To-End Verification
 
 **Goal:** Prove the reorganization did not break the desktop product path.

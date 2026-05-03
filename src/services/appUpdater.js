@@ -6,8 +6,6 @@ import { openExternalHttpUrl } from './externalLinks.js'
 const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
 const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
 
-export { compareVersions, selectInstallerAsset }
-
 export async function getAppVersion() {
   try {
     return await getVersion()

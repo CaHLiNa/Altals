@@ -5,8 +5,6 @@ import { resolveLatexSyncTarget } from './runtime.js'
 
 const VIEW_WAIT_TIMEOUT_MS = 1500
 
-export { resolveLatexEditorSelectionFromContext }
-
 export async function resolveLatexSyncTargetPath(reportedFile = '', options = {}) {
   const resolved = await resolveLatexSyncTarget({
     reportedFile,

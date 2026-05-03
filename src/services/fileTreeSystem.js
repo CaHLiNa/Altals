@@ -1,8 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-export { getPathStatus, getWorkspacePathStatus, pathExists, workspacePathExists } from './pathStatus.js'
-
 export function loadWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_load_workspace_state', {
     params: {

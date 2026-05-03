@@ -16,7 +16,7 @@ import {
   releaseWorkspaceBookmark,
 } from '../../services/workspacePermissions'
 import { confirmUnsavedChanges } from '../../services/unsavedChanges'
-import { pathExists } from '../../services/pathExists.js'
+import { pathExists } from '../../services/pathStatus.js'
 import { onNativeWindowFocusChanged } from '../../services/nativeWindow.js'
 import { pickWorkspaceDirectory } from '../../services/workspacePicker.js'
 import { basenamePath } from '../../utils/path'

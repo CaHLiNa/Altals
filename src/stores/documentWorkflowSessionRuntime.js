@@ -1,4 +1,4 @@
-import { workspacePathExists } from '../services/pathExists.js'
+import { workspacePathExists } from '../services/pathStatus.js'
 import {
   createDocumentWorkflowPersistentState,
   loadDocumentWorkflowSessionState,

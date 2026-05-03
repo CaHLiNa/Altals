@@ -278,6 +278,10 @@ Components over 500 lines:
 - 2026-05-03: `src-tauri/src/extension_host.rs` cfg boundaries now avoid probe/test-only unused variable and formatter warnings without changing extension host runtime behavior. Full Rust tests run without the previous extension host warning noise.
 - 2026-05-03: macOS menu, window vibrancy, locale-sensitive menu labels, and frontend menu-event dispatch moved from `src-tauri/src/lib.rs` into `src-tauri/src/macos_shell.rs`. The app entrypoint keeps only setup/menu hook wiring while preserving menu IDs and frontend event names.
 
+## Compatibility Cleanup Log
+
+- 2026-05-03: Removed obsolete frontend service compatibility exports after their canonical modules were already established. `src/services/pathExists.js` was deleted, path-status callers now import from `src/services/pathStatus.js`, and unused re-exports were removed from `appUpdater.js`, `fileTreeSystem.js`, and `latex/previewSync.js`; no persisted data shape, Tauri command, or runtime contract changed.
+
 ## Phase 1 Verification Targets
 
 - `npm run guard:ui-bridges`
